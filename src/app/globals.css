@@ -4,58 +4,83 @@
 
 @layer base {
   :root {
-    --background: 275 30% 99%;
+    --background-hsl: 275 30% 99%;
+    --background: hsl(var(--background-hsl));
     --foreground: 275 20% 10%;
-    --card: 275 30% 99%;
+    
+    --card-hsl: 275 30% 99%;
+    --card: hsl(var(--card-hsl));
     --card-foreground: 275 20% 10%;
-    --popover: 275 30% 99%;
+    
+    --popover-hsl: 275 30% 99%;
+    --popover: hsl(var(--popover-hsl));
     --popover-foreground: 275 20% 10%;
+    
     --primary: 276 100% 50%;
     --primary-foreground: 276 100% 98%;
+    
     --secondary: 39 100% 50%;
     --secondary-foreground: 39 100% 10%;
+    
     --muted: 275 20% 94%;
     --muted-foreground: 275 20% 40%;
+    
     --accent: 120 100% 25%;
     --accent-foreground: 120 100% 98%;
+    
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
+    
     --border: 275 20% 90%;
     --input: 275 20% 92%;
     --ring: 0 100% 50%;
+    
     --radius: 0.5rem;
-    --chart-1: 39 100% 50%;
-    --chart-2: 120 100% 25%;
-    --chart-3: 240 100% 50%;
-    --chart-4: 276 100% 50%;
-    --chart-5: 0 100% 50%;
+    
+    --chart-1: 0;      /* Red */
+    --chart-2: 39;     /* Orange */
+    --chart-3: 60;     /* Yellow */
+    --chart-4: 120;    /* Green */
+    --chart-5: 240;    /* Blue */
   }
 
   .dark {
-    --background: 275 20% 5%;
+    --background-hsl: 275 20% 5%;
+    --background: hsl(var(--background-hsl));
     --foreground: 275 20% 95%;
-    --card: 275 20% 7%;
+
+    --card-hsl: 275 20% 7%;
+    --card: hsl(var(--card-hsl) / 0.8); /* Glassmorphism effect */
     --card-foreground: 275 20% 95%;
-    --popover: 275 20% 5%;
+
+    --popover-hsl: 275 20% 5%;
+    --popover: hsl(var(--popover-hsl));
     --popover-foreground: 275 20% 95%;
-    --primary: 276 80% 80%;
+
+    --primary: 276 80% 80%; /* Indigo/Violet */
     --primary-foreground: 276 100% 10%;
-    --secondary: 39 80% 60%;
-    --secondary-foreground: 39 100% 10%;
+
+    --secondary: 240 80% 70%; /* Blue */
+    --secondary-foreground: 240 100% 10%;
+
     --muted: 275 20% 12%;
     --muted-foreground: 275 20% 60%;
-    --accent: 120 40% 40%;
+
+    --accent: 120 40% 40%; /* Green */
     --accent-foreground: 120 40% 98%;
-    --destructive: 0 62% 40%;
+
+    --destructive: 0 62% 40%; /* Red */
     --destructive-foreground: 0 0% 98%;
+
     --border: 275 20% 15%;
     --input: 275 20% 17%;
     --ring: 0 100% 50%;
-    --chart-1: 39 80% 60%;
-    --chart-2: 120 40% 40%;
-    --chart-3: 240 80% 70%;
-    --chart-4: 276 80% 80%;
-    --chart-5: 0 80% 70%;
+    
+    --chart-1: 0;      /* Red */
+    --chart-2: 39;     /* Orange */
+    --chart-3: 60;     /* Yellow */
+    --chart-4: 120;    /* Green */
+    --chart-5: 240;    /* Blue */
   }
 }
 
@@ -65,5 +90,21 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(at 27% 37%, hsl(276, 80%, 30%) 0px, transparent 50%),
+      radial-gradient(at 97% 21%, hsl(240, 80%, 40%) 0px, transparent 50%),
+      radial-gradient(at 52% 99%, hsl(120, 40%, 20%) 0px, transparent 50%),
+      radial-gradient(at 10% 29%, hsl(39, 80%, 40%) 0px, transparent 50%),
+      radial-gradient(at 97% 96%, hsl(0, 80%, 50%) 0px, transparent 50%),
+      radial-gradient(at 33% 50%, hsl(276, 80%, 25%) 0px, transparent 50%),
+      radial-gradient(at 79% 53%, hsl(120, 40%, 30%) 0px, transparent 50%);
+    background-attachment: fixed;
+    background-color: hsl(var(--background-hsl));
   }
+}
+
+@layer components {
+    .glass-card {
+        @apply bg-card/60 backdrop-blur-xl border border-white/10 shadow-lg;
+    }
 }
