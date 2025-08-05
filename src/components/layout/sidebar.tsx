@@ -49,33 +49,33 @@ export function AppSidebar() {
             </NavItem>
             <NavItem href="/agent">
               <Bot className="h-4 w-4" />
-              AI Agent
+              Agente de IA
             </NavItem>
             <NavItem href="/messages">
               <MessageSquare className="h-4 w-4" />
-              Messages
+              Mensajes
             </NavItem>
              <NavItem href="/hub">
               <Users className="h-4 w-4" />
-              Connections Hub
+              Hub de Conexiones
             </NavItem>
 
             <Accordion type="single" collapsible defaultValue={isNetworkActive ? "network" : ""}>
               <AccordionItem value="network" className="border-b-0">
                 <AccordionTrigger className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary hover:no-underline [&[data-state=open]]:text-primary">
                   <Network className="h-4 w-4" />
-                  The Network
+                  La Red
                 </AccordionTrigger>
                 <AccordionContent className="pl-4">
                   <nav className="grid gap-1">
                     <NavItem href="/network/politics">
-                      Politics
+                      Política
                     </NavItem>
                     <NavItem href="/network/education">
-                      Education
+                      Educación
                     </NavItem>
                      <NavItem href="/network/culture">
-                      Culture
+                      Cultura
                     </NavItem>
                   </nav>
                 </AccordionContent>
@@ -84,19 +84,19 @@ export function AppSidebar() {
             
             <NavItem href="/publish">
                 <PenSquare className="h-4 w-4" />
-                Publish
+                Publicar
             </NavItem>
             <NavItem href="/library">
               <Library className="h-4 w-4" />
-              Library
+              Biblioteca
             </NavItem>
             <NavItem href="/info">
               <Info className="h-4 w-4" />
-              Information
+              Información
             </NavItem>
              <NavItem href="/settings">
               <Settings className="h-4 w-4" />
-              Settings
+              Configuración
             </NavItem>
           </nav>
         </div>

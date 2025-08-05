@@ -28,16 +28,16 @@ export function WelcomeWidget() {
           </svg>
         </div>
         <CardHeader>
-            <CardTitle className="font-headline text-2xl">Welcome to StarSeed Network</CardTitle>
-            <CardDescription>Your integrated AI-powered workspace is ready.</CardDescription>
+            <CardTitle className="font-headline text-2xl">Bienvenido a la Red StarSeed</CardTitle>
+            <CardDescription>Tu espacio de trabajo integrado con IA está listo.</CardDescription>
         </CardHeader>
         <CardContent>
             <p className="mb-4 max-w-prose text-sm text-muted-foreground">
-                Seamlessly generate apps, compose messages, and manage your workflow with the power of AI. Explore the sidebar to discover what you can create today.
+                Genera apps, compone mensajes y gestiona tu flujo de trabajo de forma transparente con el poder de la IA. Explora la barra lateral para descubrir lo que puedes crear hoy.
             </p>
             <Button>
                 <Sparkles className="mr-2 h-4 w-4" />
-                Explore AI Features
+                Explorar Funciones de IA
             </Button>
         </CardContent>
     </Card>

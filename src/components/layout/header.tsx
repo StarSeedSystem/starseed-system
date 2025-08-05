@@ -32,7 +32,7 @@ export function AppHeader() {
         <SheetTrigger asChild>
           <Button variant="outline" size="icon" className="shrink-0 md:hidden">
             <Menu className="h-5 w-5" />
-            <span className="sr-only">Toggle navigation menu</span>
+            <span className="sr-only">Alternar menú de navegación</span>
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="flex flex-col">
@@ -55,56 +55,56 @@ export function AppHeader() {
               className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
             >
               <Bot className="h-5 w-5" />
-              AI Agent
+              Agente de IA
             </Link>
             <Link
               href="/messages"
               className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
             >
               <MessageSquare className="h-5 w-5" />
-              Messages
+              Mensajes
             </Link>
             <Link
               href="/hub"
               className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
             >
               <Users className="h-5 w-5" />
-              Connections Hub
+              Hub de Conexiones
             </Link>
             <Link
               href="/network"
               className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
             >
               <Network className="h-5 w-5" />
-              The Network
+              La Red
             </Link>
             <Link
               href="/publish"
               className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
             >
               <PenSquare className="h-5 w-5" />
-              Publish
+              Publicar
             </Link>
              <Link
               href="/library"
               className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
             >
               <Library className="h-5 w-5" />
-              Library
+              Biblioteca
             </Link>
             <Link
               href="/info"
               className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
             >
               <Info className="h-5 w-5" />
-              Information
+              Información
             </Link>
             <Link
               href="/settings"
               className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
             >
               <Settings className="h-5 w-5" />
-              Settings
+              Configuración
             </Link>
           </nav>
         </SheetContent>
@@ -115,7 +115,7 @@ export function AppHeader() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Search features, documents..."
+              placeholder="Buscar funciones, documentos..."
               className="w-full appearance-none bg-background/80 pl-8 shadow-none md:w-2/3 lg:w-1/3"
             />
           </div>

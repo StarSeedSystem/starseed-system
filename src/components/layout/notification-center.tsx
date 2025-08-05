@@ -33,11 +33,11 @@ export function NotificationCenter() {
         });
         setSummary(result.summary);
       } catch (error) {
-        console.error("Failed to summarize notifications:", error);
+        console.error("No se pudieron resumir las notificaciones:", error);
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Could not summarize notifications.",
+          description: "No se pudieron resumir las notificaciones.",
         });
       }
     });
@@ -52,12 +52,12 @@ export function NotificationCenter() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
             <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
           </span>
-          <span className="sr-only">Toggle notifications</span>
+          <span className="sr-only">Alternar notificaciones</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 md:w-96 p-0" align="end">
         <div className="p-4 flex justify-between items-center">
-          <h4 className="font-medium font-headline">Notifications</h4>
+          <h4 className="font-medium font-headline">Notificaciones</h4>
           <Button
             size="sm"
             variant="outline"
@@ -65,21 +65,21 @@ export function NotificationCenter() {
             disabled={isPending}
           >
             <Sparkles className="mr-2 h-4 w-4" />
-            {isPending ? "Summarizing..." : "Summarize"}
+            {isPending ? "Resumiendo..." : "Resumir"}
           </Button>
         </div>
         <Tabs defaultValue="all" className="w-full">
           <TabsList className="grid w-full grid-cols-3 rounded-none border-b px-4">
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="mentions">Mentions</TabsTrigger>
-            <TabsTrigger value="system">System</TabsTrigger>
+            <TabsTrigger value="all">Todas</TabsTrigger>
+            <TabsTrigger value="mentions">Menciones</TabsTrigger>
+            <TabsTrigger value="system">Sistema</TabsTrigger>
           </TabsList>
           
           {(isPending || summary) && (
             <div className="p-4 border-b bg-muted/50">
                 <h5 className="flex items-center gap-2 text-sm font-semibold mb-2">
                     <BotMessageSquare className="w-5 h-5 text-primary" />
-                    AI Summary
+                    Resumen de IA
                 </h5>
                 {isPending && !summary ? (
                     <div className="space-y-2">
@@ -113,7 +113,7 @@ export function NotificationCenter() {
 
 function NotificationList({ notifications }: { notifications: typeof mockNotifications }) {
   if (notifications.length === 0) {
-    return <p className="text-center text-sm text-muted-foreground py-8">No notifications here.</p>;
+    return <p className="text-center text-sm text-muted-foreground py-8">No hay notificaciones aquí.</p>;
   }
   return (
     <div className="flex flex-col">

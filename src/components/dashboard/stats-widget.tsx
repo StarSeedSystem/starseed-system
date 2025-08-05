@@ -3,22 +3,22 @@ import { Rocket, Bell, Bot, FileText } from "lucide-react";
 
 const stats = [
     {
-        title: "Apps Generated",
+        title: "Apps Generadas",
         value: "12",
         icon: Rocket
     },
     {
-        title: "Messages Composed",
+        title: "Mensajes Compuestos",
         value: "57",
         icon: Bot
     },
     {
-        title: "Active Documents",
+        title: "Documentos Activos",
         value: "3",
         icon: FileText
     },
     {
-        title: "Notifications Summarized",
+        title: "Notificaciones Resumidas",
         value: "8",
         icon: Bell
     },
@@ -35,7 +35,7 @@ export function StatsWidget() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold font-headline">{stat.value}</div>
-                        <p className="text-xs text-muted-foreground">+2 from last month</p>
+                        <p className="text-xs text-muted-foreground">+2 desde el mes pasado</p>
                     </CardContent>
                 </Card>
             ))}

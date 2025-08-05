@@ -24,13 +24,13 @@ export function NetworkNavigation() {
     <Tabs value={getCurrentTab()} onValueChange={handleTabChange} className="w-full">
       <TabsList>
         <TabsTrigger value="politics" asChild>
-          <Link href="/network/politics">Politics</Link>
+          <Link href="/network/politics">Política</Link>
         </TabsTrigger>
         <TabsTrigger value="education" asChild>
-          <Link href="/network/education">Education</Link>
+          <Link href="/network/education">Educación</Link>
         </TabsTrigger>
         <TabsTrigger value="culture" asChild>
-          <Link href="/network/culture">Culture</Link>
+          <Link href="/network/culture">Cultura</Link>
         </TabsTrigger>
       </TabsList>
     </Tabs>

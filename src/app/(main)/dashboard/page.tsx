@@ -9,7 +9,7 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-3xl font-bold font-headline">Dashboard</h1>
         <p className="text-muted-foreground">
-          Welcome back! Here&apos;s your personalized workspace.
+          Bienvenido de vuelta! Aquí está tu espacio de trabajo personalizado.
         </p>
       </div>
 

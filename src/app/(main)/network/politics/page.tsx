@@ -3,9 +3,9 @@ export default function PoliticsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-bold font-headline">Politics</h1>
+        <h1 className="text-3xl font-bold font-headline">Política</h1>
         <p className="text-muted-foreground">
-          For governance and decision-making.
+          Para la gobernanza y la toma de decisiones.
         </p>
       </div>
     </div>
