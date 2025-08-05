@@ -1,3 +1,5 @@
+'use client';
+
 import Link from "next/link";
 import {
   Home,
@@ -5,11 +7,13 @@ import {
   Bot,
   Rss,
   FileText,
+  Folder,
+  Settings,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Logo } from "../logo";
 import { cn } from "@/lib/utils";
+import { usePathname } from "next/navigation";
 
 export function AppSidebar() {
   return (
@@ -48,6 +52,14 @@ export function AppSidebar() {
               <FileText className="h-4 w-4" />
               Documents
             </NavItem>
+             <NavItem href="/files">
+              <Folder className="h-4 w-4" />
+              File Manager
+            </NavItem>
+             <NavItem href="/settings">
+              <Settings className="h-4 w-4" />
+              Settings
+            </NavItem>
           </nav>
         </div>
       </div>
@@ -56,9 +68,9 @@ export function AppSidebar() {
 }
 
 function NavItem({ href, children }: { href: string; children: React.ReactNode }) {
-  // This is a placeholder for checking active path.
-  // In a real app, you'd use `usePathname()` from `next/navigation`.
-  const isActive = href === "/dashboard"; 
+  const pathname = usePathname();
+  const isActive = pathname === href;
+  
   return (
     <Link
       href={href}

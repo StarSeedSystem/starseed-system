@@ -8,6 +8,8 @@ import {
   Bot,
   Rss,
   FileText,
+  Folder,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -79,6 +81,20 @@ export function AppHeader() {
             >
               <FileText className="h-5 w-5" />
               Documents
+            </Link>
+            <Link
+              href="/files"
+              className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+            >
+              <Folder className="h-5 w-5" />
+              File Manager
+            </Link>
+            <Link
+              href="/settings"
+              className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+            >
+              <Settings className="h-5 w-5" />
+              Settings
             </Link>
           </nav>
         </SheetContent>
