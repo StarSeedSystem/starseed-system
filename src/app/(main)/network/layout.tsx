@@ -1,8 +1,6 @@
 // src/app/(main)/network/layout.tsx
+'use client';
 import { ReactNode } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { NetworkNavigation } from "./_components/navigation";
 
 export default function NetworkLayout({ children }: { children: ReactNode }) {
