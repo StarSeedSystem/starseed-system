@@ -21,8 +21,8 @@ const fontCode = Source_Code_Pro({
 
 
 export const metadata: Metadata = {
-  title: "Star Weaver",
-  description: "Crafted with AI, designed for you.",
+  title: "StarSeed Network",
+  description: "The digital embodiment of the StarSeed Society.",
 };
 
 export default function RootLayout({

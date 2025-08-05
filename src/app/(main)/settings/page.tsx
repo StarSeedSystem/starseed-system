@@ -1,6 +1,6 @@
 // src/app/(main)/settings/page.tsx
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,18 +32,18 @@ export default function SettingsPage() {
               <div className="flex items-center gap-4">
                 <Avatar className="h-20 w-20">
                     <AvatarImage src="https://placehold.co/100x100.png" alt="@user" data-ai-hint="user avatar" />
-                    <AvatarFallback>SW</AvatarFallback>
+                    <AvatarFallback>SU</AvatarFallback>
                 </Avatar>
                 <Button variant="outline">Change Photo</Button>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" defaultValue="StarWeaver" />
+                  <Input id="name" defaultValue="StarSeedUser" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
-                  <Input id="username" defaultValue="@starweaver" />
+                  <Input id="username" defaultValue="@starseeduser" />
                 </div>
               </div>
             </CardContent>

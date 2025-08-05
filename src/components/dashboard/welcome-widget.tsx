@@ -7,7 +7,7 @@ export function WelcomeWidget() {
   return (
     <Card className="relative overflow-hidden">
         <CardHeader>
-            <CardTitle className="font-headline text-2xl">Welcome to Star Weaver</CardTitle>
+            <CardTitle className="font-headline text-2xl">Welcome to StarSeed Network</CardTitle>
             <CardDescription>Your integrated AI-powered workspace is ready.</CardDescription>
         </CardHeader>
         <CardContent>
