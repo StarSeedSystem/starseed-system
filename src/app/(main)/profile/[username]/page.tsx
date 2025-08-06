@@ -8,6 +8,7 @@ import { feedItems } from "@/lib/data";
 import { Edit, Rss } from "lucide-react";
 import Image from "next/image";
 import { CommentSystem } from "@/components/comment-system";
+import Link from "next/link";
 
 export default function ProfilePage() {
   return (
@@ -60,7 +61,7 @@ export default function ProfilePage() {
                         {feedItems.map(item => (
                              <Card key={item.id}>
                                 <CardHeader>
-                                    <div className="flex items-center gap-3">
+                                    <Link href={item.href} className="flex items-center gap-3">
                                         <Avatar>
                                             <AvatarImage src={item.avatar} data-ai-hint={item.dataAiHint} />
                                             <AvatarFallback>{item.author.charAt(0)}</AvatarFallback>
@@ -69,7 +70,7 @@ export default function ProfilePage() {
                                             <p className="font-semibold">{item.author}</p>
                                             <p className="text-sm text-muted-foreground">{item.handle} · {item.timestamp}</p>
                                         </div>
-                                    </div>
+                                    </Link>
                                 </CardHeader>
                                 <CardContent>
                                     <p className="text-muted-foreground">{item.content}</p>

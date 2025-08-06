@@ -17,15 +17,15 @@ const participations = [
 ];
 
 const myPages = [
-  { name: "Comunidad de Permacultura", type: "Comunidad", avatar: "https://placehold.co/40x40.png", members: 128 },
-  { name: "E.F. del Valle Central", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png", members: 2500 },
-  { name: "Partido Transhumanista", type: "Partido Político", avatar: "https://placehold.co/40x40.png", members: 450 },
-  { name: "Grupo de Estudio de IA", type: "Grupo de Estudio", avatar: "https://placehold.co/40x40.png", members: 34 },
+  { name: "Comunidad de Permacultura", type: "Comunidad", avatar: "https://placehold.co/40x40.png", members: 128, href: "/profile/permaculture" },
+  { name: "E.F. del Valle Central", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png", members: 2500, href: "/profile/ef-valle-central" },
+  { name: "Partido Transhumanista", type: "Partido Político", avatar: "https://placehold.co/40x40.png", members: 450, href: "/profile/transhumanistas" },
+  { name: "Grupo de Estudio de IA", type: "Grupo de Estudio", avatar: "https://placehold.co/40x40.png", members: 34, href: "/profile/ia-study-group" },
 ];
 
 const copiedVotes = [
-    { name: "Brenda", avatar: "https://placehold.co/40x40.png", handle: "@brenda", replication: "Automática" },
-    { name: "Partido Transhumanista", avatar: "https://placehold.co/40x40.png", handle: "@transhumanistas", replication: "Manual" }
+    { name: "Brenda", avatar: "https://placehold.co/40x40.png", handle: "@brenda", replication: "Automática", href: "/profile/brenda" },
+    { name: "Partido Transhumanista", avatar: "https://placehold.co/40x40.png", handle: "@transhumanistas", replication: "Manual", href: "/profile/transhumanistas" }
 ]
 
 const alliances = [
@@ -94,19 +94,21 @@ export default function HubPage() {
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {myPages.map(page => (
-                        <Card key={page.name}>
-                            <CardContent className="p-4 flex items-center gap-4">
-                                 <Avatar className="h-12 w-12">
-                                    <AvatarImage src={page.avatar} alt={page.name} data-ai-hint="page avatar"/>
-                                    <AvatarFallback>{page.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1">
-                                    <p className="font-bold truncate">{page.name}</p>
-                                    <p className="text-sm text-muted-foreground">{page.type}</p>
-                                    <p className="text-xs text-muted-foreground">{page.members} miembros</p>
-                                </div>
-                            </CardContent>
-                        </Card>
+                        <Link href={page.href} key={page.name}>
+                            <Card className="h-full hover:bg-muted/50 transition-colors">
+                                <CardContent className="p-4 flex items-center gap-4">
+                                    <Avatar className="h-12 w-12">
+                                        <AvatarImage src={page.avatar} alt={page.name} data-ai-hint="page avatar"/>
+                                        <AvatarFallback>{page.name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1">
+                                        <p className="font-bold truncate">{page.name}</p>
+                                        <p className="text-sm text-muted-foreground">{page.type}</p>
+                                        <p className="text-xs text-muted-foreground">{page.members} miembros</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </Link>
                     ))}
                 </CardContent>
             </Card>
@@ -124,7 +126,7 @@ export default function HubPage() {
                         <div className="space-y-3">
                             {copiedVotes.map(v => (
                                 <div key={v.name} className="flex items-center justify-between p-3 rounded-lg border">
-                                    <div className="flex items-center gap-3">
+                                    <Link href={v.href} className="flex items-center gap-3">
                                         <Avatar className="h-9 w-9">
                                             <AvatarImage src={v.avatar} data-ai-hint="user avatar" />
                                             <AvatarFallback>{v.name.charAt(0)}</AvatarFallback>
@@ -133,7 +135,7 @@ export default function HubPage() {
                                             <p className="font-semibold text-sm">{v.name}</p>
                                             <p className="text-xs text-muted-foreground">{v.handle}</p>
                                         </div>
-                                    </div>
+                                    </Link>
                                     <div className="text-right">
                                         <p className="text-sm font-medium">{v.replication}</p>
                                         <Button variant="link" size="sm" className="h-auto p-0">Configurar</Button>
