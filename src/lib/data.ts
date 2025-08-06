@@ -194,5 +194,20 @@ export const culturalPosts = [
     imageHint: 'abstract geometric art',
     likes: 243,
     comments: 32
+  },
+  {
+    id: 'cult-2',
+    author: {
+        name: 'Poeta del Silicio',
+        avatar: 'https://placehold.co/100x100.png',
+        href: '/profile/poeta-silicio'
+    },
+    timestamp: 'hace 1 día',
+    title: 'Haiku de Código',
+    content: 'Un bit solitario,\nfluye en ríos de cristal,\nnace el universo.\n\n#Poesía #Código #Filosofía',
+    imageUrl: null,
+    imageHint: null,
+    likes: 180,
+    comments: 45
   }
-]
+];
