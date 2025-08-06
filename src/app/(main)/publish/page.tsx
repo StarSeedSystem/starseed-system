@@ -8,12 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle } from "lucide-react";
+import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { addDays, format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 
 type Area = "politics" | "education" | "culture";
 type PoliticalCategory = "Legislativo" | "Ejecutivo" | "Judicial" | null;
@@ -129,6 +130,13 @@ export default function PublishPage() {
         setStep(2);
     }
     
+    const handleCategoryChange = (value: string) => {
+        setSelectedCategory(value);
+        if (selectedArea === 'politics' && value === 'Legislativo') {
+            setShowVoteConfig(true);
+        }
+    }
+
     const resetFlow = () => {
         setSelectedArea(null);
         setSelectedCategory(null);
@@ -169,7 +177,8 @@ export default function PublishPage() {
 
     if (step === 2 && selectedArea) {
         const config = areaConfig[selectedArea];
-        const isLegislative = selectedArea === 'politics' && selectedCategory === 'Legislativo';
+        const isPolitics = selectedArea === 'politics';
+        const isEducation = selectedArea === 'education';
 
         return (
             <div className="flex flex-col gap-6">
@@ -205,7 +214,7 @@ export default function PublishPage() {
                         <div className="space-y-2">
                              <Label>Categoría Principal</Label>
                              <p className="text-xs text-muted-foreground">Define el tipo de publicación.</p>
-                             <Select onValueChange={setSelectedCategory} value={selectedCategory || ""}>
+                             <Select onValueChange={handleCategoryChange} value={selectedCategory || ""}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Selecciona una categoría..." />
                                 </SelectTrigger>
@@ -213,15 +222,31 @@ export default function PublishPage() {
                                     {config.categories.map(cat => <SelectItem value={cat} key={cat}>{cat}</SelectItem>)}
                                 </SelectContent>
                             </Select>
-                            <div className="space-y-2 pt-2">
-                                <Label>Etiquetado (Red de Conocimiento)</Label>
-                                <Button variant="outline" className="w-full justify-start"><PlusCircle className="mr-2"/> Añadir Temas</Button>
+                            
+                            {isEducation && (
+                            <div className="space-y-4 pt-2">
+                                <div>
+                                    <Label>Etiquetado (Red de Conocimiento)</Label>
+                                    <p className="text-xs text-muted-foreground">Vincula tu publicación a la red de conocimiento para una mejor interconexión.</p>
+                                    <div className="flex gap-2 mt-2">
+                                         <Button variant="outline" className="w-full justify-start text-sm"><LinkIcon className="mr-2"/> Añadir Categorías</Button>
+                                         <Button variant="outline" className="w-full justify-start text-sm"><Tags className="mr-2"/> Añadir Temas</Button>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="flex flex-wrap gap-2 p-3 border rounded-lg min-h-[40px] bg-muted/50">
+                                        <Badge variant="secondary">Ciencia > Física</Badge>
+                                        <Badge>IA</Badge>
+                                        <Badge>Ética</Badge>
+                                    </div>
+                                </div>
                             </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
 
-                {(isLegislative || showVoteConfig) && <LegislativeVoteConfig />}
+                {showVoteConfig && <LegislativeVoteConfig />}
 
                 <Card>
                     <CardHeader>
@@ -234,8 +259,9 @@ export default function PublishPage() {
                             <div className="relative p-4 border-2 border-dashed rounded-lg min-h-[300px]">
                                 <Textarea placeholder="Escribe, pega o arrastra contenido aquí... El editor de formato libre se implementará en esta área." className="min-h-[280px] bg-transparent border-0 focus-visible:ring-0"/>
                                 <div className="absolute top-2 right-2 flex gap-2">
-                                     <Button variant="outline" size="icon" className="h-8 w-8"><Library /></Button>
-                                     <Button variant="outline" size="icon" className="h-8 w-8"><Sparkles /></Button>
+                                     <Button variant="outline" size="icon" className="h-8 w-8" title="Adjuntar Referencias"><FileText /></Button>
+                                     <Button variant="outline" size="icon" className="h-8 w-8" title="Abrir Biblioteca"><Library /></Button>
+                                     <Button variant="outline" size="icon" className="h-8 w-8" title="Asistente IA"><Sparkles /></Button>
                                 </div>
                             </div>
                         </div>
@@ -249,7 +275,7 @@ export default function PublishPage() {
                     </CardContent>
                 </Card>
                 
-                {!isLegislative && !showVoteConfig && (
+                {!showVoteConfig && (
                     <Card>
                         <CardHeader>
                             <CardTitle className="font-headline text-xl">Paso 4: Opciones de Publicación</CardTitle>
