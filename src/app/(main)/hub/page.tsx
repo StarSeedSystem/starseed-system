@@ -17,15 +17,15 @@ const participations = [
 ];
 
 const myPages = [
-  { name: "Comunidad de Permacultura", type: "Comunidad", avatar: "https://placehold.co/40x40.png", members: 128, href: "/profile/permacultura" },
+  { name: "Comunidad de Permacultura", type: "Comunidad", avatar: "https://placehold.co/40x40.png", members: 128, href: "/profile/comunidad-permacultura" },
   { name: "E.F. del Valle Central", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png", members: 2500, href: "/profile/ef-valle-central" },
-  { name: "Partido Transhumanista", type: "Partido Político", avatar: "https://placehold.co/40x40.png", members: 450, href: "/profile/transhumanistas" },
-  { name: "Grupo de Estudio de IA", type: "Grupo de Estudio", avatar: "https://placehold.co/40x40.png", members: 34, href: "/profile/ia-study-group" },
+  { name: "Partido Transhumanista", type: "Partido Político", avatar: "https://placehold.co/40x40.png", members: 450, href: "/profile/partido-transhumanista" },
+  { name: "Grupo de Estudio de IA", type: "Grupo de Estudio", avatar: "https://placehold.co/40x40.png", members: 34, href: "/profile/grupo-de-estudio-ia" },
 ];
 
 const copiedVotes = [
     { name: "Brenda", avatar: "https://placehold.co/40x40.png", handle: "@brenda", replication: "Automática", href: "/profile/brenda" },
-    { name: "Partido Transhumanista", avatar: "https://placehold.co/40x40.png", handle: "@transhumanistas", replication: "Manual", href: "/profile/transhumanistas" }
+    { name: "Partido Transhumanista", avatar: "https://placehold.co/40x40.png", handle: "@transhumanistas", replication: "Manual", href: "/profile/partido-transhumanista" }
 ]
 
 const alliances = [
