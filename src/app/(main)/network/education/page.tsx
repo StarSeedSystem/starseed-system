@@ -42,7 +42,7 @@ function ArticleCard({ article }: { article: typeof articles[0] }) {
     return (
         <Card className="h-full flex flex-col">
             <CardHeader>
-                <div className="flex items-center gap-2 text-secondary mb-2">
+                <div className="flex items-center gap-2 text-accent mb-2">
                     <Newspaper className="w-5 h-5"/>
                     <CardDescription>Artículo</CardDescription>
                 </div>
