@@ -1,7 +1,7 @@
-import { WelcomeWidget } from "@/components/dashboard/welcome-widget";
-import { ActionsWidget } from "@/components/dashboard/actions-widget";
-import { StatsWidget } from "@/components/dashboard/stats-widget";
-import { ProjectsWidget } from "@/components/dashboard/projects-widget";
+import { ExploreNetworkWidget } from "@/components/dashboard/explore-network-widget";
+import { MyPagesWidget } from "@/components/dashboard/my-pages-widget";
+import { PoliticalSummaryWidget } from "@/components/dashboard/political-summary-widget";
+import { LearningPathWidget } from "@/components/dashboard/learning-path-widget";
 
 export default function DashboardPage() {
   return (
@@ -9,23 +9,20 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-3xl font-bold font-headline">Dashboard</h1>
         <p className="text-muted-foreground">
-          Bienvenido de vuelta! Aquí está tu espacio de trabajo personalizado.
+          Bienvenido a tu centro de mando personalizado.
         </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <WelcomeWidget />
+        <div className="lg:col-span-2 grid gap-6">
+            <ExploreNetworkWidget />
+            <PoliticalSummaryWidget />
+            <LearningPathWidget />
         </div>
-        <ActionsWidget />
+        <div className="lg:col-span-1">
+            <MyPagesWidget />
+        </div>
       </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatsWidget />
-      </div>
-      
-      <ProjectsWidget />
-
     </div>
   );
 }
