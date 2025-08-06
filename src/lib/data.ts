@@ -108,4 +108,91 @@ export const comments = [
         dataAiHint: 'man collaborating',
         replies: []
     }
+];
+
+export const politicalProposals = [
+  {
+    id: 'prop-1',
+    title: 'Ley de Soberanía de Datos Personales',
+    ef: 'E.F. del Valle Central',
+    urgency: 'Urgente',
+    status: 'Votación Activa',
+    deadline: '3 días',
+    summary: 'Propuesta para establecer un marco legal que garantice que todos los datos generados por los ciudadanos dentro de la E.F. sean de su propiedad y control, requiriendo consentimiento explícito para su uso por terceros.',
+    details: 'Esta ley busca implementar el principio de soberanía de datos a nivel de Entidad Federativa. Incluye la creación de una "Bóveda de Datos Personal" encriptada para cada ciudadano, gestionada a través de su Perfil Oficial. Las empresas y otras entidades que deseen acceder a datos deberán realizar solicitudes formales que el ciudadano podrá aprobar o denegar con granularidad. La propuesta también establece sanciones para el uso no autorizado de datos.',
+    votes: [
+        { name: 'A Favor', votes: 1250, color: 'hsl(var(--accent-hsl))' },
+        { name: 'En Contra', votes: 340, color: 'hsl(var(--destructive-hsl))' },
+        { name: 'Abstención', votes: 120, color: 'hsl(var(--muted-foreground-hsl))' }
+    ],
+    files: [
+        { name: 'Borrador Completo de la Ley.pdf', url: '#' },
+        { name: 'Análisis de Impacto Técnico.docx', url: '#' }
+    ]
+  }
+];
+
+export const courses = [
+  {
+    id: 'course-1',
+    title: 'Introducción a la Física Cuántica',
+    description: 'Explora los conceptos fundamentales del mundo cuántico, desde la dualidad onda-partícula hasta el entrelazamiento.',
+    progress: 60,
+    tags: ['Física Cuántica', 'Ciencia', 'Fundamentos']
+  },
+  {
+    id: 'course-2',
+    title: 'Ética en la Inteligencia Artificial',
+    description: 'Un curso sobre los dilemas éticos que enfrentamos con el desarrollo de la IA y cómo crear sistemas alineados con valores humanos.',
+    progress: 85,
+    tags: ['IA', 'Ética', 'Sociedad', 'Tecnología']
+  }
+];
+
+export const articles = [
+  {
+    id: 'article-1',
+    title: 'La Teoría de la Simulación: ¿Vivimos en una Realidad Programada?',
+    author: 'Dra. Evelyn Reed',
+    rating: 4.8,
+    href: '#',
+    excerpt: 'Un análisis profundo de los argumentos a favor y en contra de la hipótesis de la simulación, explorando sus implicaciones filosóficas y científicas.',
+    tags: ['Filosofía', 'Ciencia', 'Conciencia']
+  },
+  {
+    id: 'article-2',
+    title: 'Gobernanza Descentralizada: Modelos para el Futuro',
+    author: 'Comunidad de Gobernanza',
+    rating: 4.9,
+    href: '#',
+    excerpt: 'Estudio comparativo de diferentes modelos de Organizaciones Autónomas Descentralizadas (DAOs) y su aplicabilidad en el contexto de las Entidades Federativas.',
+    tags: ['Gobernanza', 'Sociedad', 'Política']
+  },
+    {
+    id: 'article-3',
+    title: 'Permacultura: Diseñando Ecosistemas Sostenibles',
+    author: 'Red de Permacultura',
+    rating: 4.7,
+    href: '#',
+    excerpt: 'Una guía práctica para aplicar los principios de la permacultura en tu comunidad, desde jardines urbanos hasta sistemas de gestión de agua.',
+    tags: ['Sostenibilidad', 'Comunidad', 'Ecología']
+  }
+];
+
+export const culturalPosts = [
+  {
+    id: 'cult-1',
+    author: {
+        name: 'Artista Anónimo',
+        avatar: 'https://placehold.co/100x100.png',
+        href: '/profile/artista-anonimo'
+    },
+    timestamp: 'hace 5h',
+    title: 'Exploración Geométrica',
+    content: 'Jugando con formas y colores en un espacio generado proceduralmente. Cada vez que actualizas, la obra cambia.\n\n#ArteGenerativo #WebGL #Ciberdelia',
+    imageUrl: 'https://placehold.co/600x400.png',
+    imageHint: 'abstract geometric art',
+    likes: 243,
+    comments: 32
+  }
 ]
