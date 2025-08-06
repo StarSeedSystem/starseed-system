@@ -1,7 +1,6 @@
 // src/app/(main)/profile/[username]/page.tsx
 'use client';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,9 +10,12 @@ import Image from "next/image";
 import { CommentSystem } from "@/components/comment-system";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { ProfileWelcomeWidget } from "@/components/profile/widgets/profile-welcome-widget";
+import { FeaturedBadgesWidget } from "@/components/profile/widgets/featured-badges-widget";
+import { RecentPostsWidget } from "@/components/profile/widgets/recent-posts-widget";
+import { ConnectionsWidget } from "@/components/profile/widgets/connections-widget";
 
-function ProfileHeader({ username }: { username: string }) {
-  // En un futuro, estos datos vendrían de una API basada en el 'username'
+function ProfileHeader({ username, type }: { username: string, type: string }) {
   const isUser = username === 'starseeduser';
   const profileData = {
     name: isUser ? "StarSeedUser" : username.charAt(0).toUpperCase() + username.slice(1).replace(/-/g, ' '),
@@ -22,7 +24,8 @@ function ProfileHeader({ username }: { username: string }) {
       ? "Co-creando un futuro ciberdélico. Explorador de la conciencia, constructor de sistemas y creyente en el poder de la inteligencia colectiva."
       : `Página de ${username.replace(/-/g, ' ')}.`,
     avatar: "https://placehold.co/100x100.png",
-    cover: "https://placehold.co/1200x400.png"
+    cover: "https://placehold.co/1200x400.png",
+    type: type
   };
 
   return (
@@ -66,19 +69,43 @@ export default function ProfilePage() {
   const params = useParams();
   const username = Array.isArray(params.username) ? params.username[0] : params.username;
 
+  // This is a placeholder logic to determine the type of page.
+  // In a real app, this would come from a database.
+  let pageType = 'personal';
+  if (username.startsWith('comunidad')) pageType = 'comunidad';
+  if (username.startsWith('ef-')) pageType = 'ef';
+  if (username.startsWith('partido')) pageType = 'partido';
+  if (username.startsWith('grupo')) pageType = 'grupo';
+
+
   return (
     <div className="flex flex-col gap-6">
-      <ProfileHeader username={username} />
+      <ProfileHeader username={username} type={pageType} />
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-2">
-            <Tabs defaultValue="posts">
+            <Tabs defaultValue="dashboard">
                 <TabsList>
+                    <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
                     <TabsTrigger value="posts">Publicaciones</TabsTrigger>
                     <TabsTrigger value="connections">Conexiones</TabsTrigger>
                     <TabsTrigger value="library">Biblioteca</TabsTrigger>
                     <TabsTrigger value="collections">Colecciones</TabsTrigger>
                 </TabsList>
+                
+                <TabsContent value="dashboard" className="mt-6">
+                  <div className="grid gap-6 lg:grid-cols-2">
+                      <div className="lg:col-span-2">
+                          <ProfileWelcomeWidget />
+                      </div>
+                      <FeaturedBadgesWidget />
+                      <RecentPostsWidget />
+                      <div className="lg:col-span-2">
+                          <ConnectionsWidget />
+                      </div>
+                  </div>
+                </TabsContent>
+
                 <TabsContent value="posts" className="mt-6">
                    <div className="space-y-6">
                         {feedItems.map(item => (
@@ -101,6 +128,9 @@ export default function ProfilePage() {
                              </Card>
                         ))}
                    </div>
+                </TabsContent>
+                 <TabsContent value="connections" className="mt-6">
+                    <ConnectionsWidget />
                 </TabsContent>
             </Tabs>
         </div>
