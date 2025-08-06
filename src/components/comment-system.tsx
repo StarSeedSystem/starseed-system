@@ -10,20 +10,20 @@ export function CommentSystem() {
   return (
     <Card className="sticky top-6">
       <CardHeader>
-        <CardTitle className="font-headline">Discussion</CardTitle>
+        <CardTitle className="font-headline">Discusión</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div>
           <div className="flex gap-3">
             <Avatar className="h-8 w-8">
               <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="user avatar" />
-              <AvatarFallback>U</AvatarFallback>
+              <AvatarFallback>TÚ</AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <Textarea placeholder="Add a comment..." className="mb-2" />
+              <Textarea placeholder="Añadir un comentario..." className="mb-2" />
               <Button size="sm">
                 <Send className="mr-2 h-4 w-4" />
-                Post Comment
+                Publicar Comentario
               </Button>
             </div>
           </div>
