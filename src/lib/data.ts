@@ -132,6 +132,16 @@ export const politicalProposals = [
   }
 ];
 
+export const themes = [
+    { id: 'theme-ia', name: 'IA', description: 'Cubre todos los aspectos de la Inteligencia Artificial, desde algoritmos y modelos hasta sus implicaciones éticas y sociales.' },
+    { id: 'theme-sostenibilidad', name: 'Sostenibilidad', description: 'Principios y prácticas para crear sistemas que perduren y se regeneren, abarcando ecología, economía y sociedad.' },
+    { id: 'theme-gobernanza', name: 'Gobernanza', description: 'Modelos y teorías sobre cómo los grupos de personas se organizan y toman decisiones colectivas.' },
+    { id: 'theme-consciencia', name: 'Conciencia', description: 'La exploración de la naturaleza de la conciencia, desde perspectivas científicas, filosóficas y espirituales.' },
+    { id: 'theme-fisica', name: 'Física Cuántica', description: 'El estudio del comportamiento de la materia y la energía a nivel atómico y subatómico.' },
+    { id: 'theme-etica', name: 'Ética', description: 'El estudio de los principios morales que guían el comportamiento humano y el diseño de sistemas justos.' },
+    { id: 'theme-tecnologia', name: 'Tecnología', description: 'Herramientas y técnicas utilizadas para extender las capacidades humanas y transformar el mundo.' },
+]
+
 export const courses = [
   {
     id: 'course-1',
@@ -166,9 +176,9 @@ export const articles = [
     rating: 4.9,
     href: '#',
     excerpt: 'Estudio comparativo de diferentes modelos de Organizaciones Autónomas Descentralizadas (DAOs) y su aplicabilidad en el contexto de las Entidades Federativas.',
-    tags: ['Gobernanza', 'Sociedad', 'Política']
+    tags: ['Gobernanza', 'Sociedad', 'Política', 'Tecnología']
   },
-    {
+  {
     id: 'article-3',
     title: 'Permacultura: Diseñando Ecosistemas Sostenibles',
     author: 'Red de Permacultura',
@@ -176,8 +186,87 @@ export const articles = [
     href: '#',
     excerpt: 'Una guía práctica para aplicar los principios de la permacultura en tu comunidad, desde jardines urbanos hasta sistemas de gestión de agua.',
     tags: ['Sostenibilidad', 'Comunidad', 'Ecología']
-  }
+  },
+  {
+    id: 'article-4',
+    title: 'Modelos de Lenguaje Grande (LLMs) y Creatividad',
+    author: 'Grupo de Estudio de IA',
+    rating: 4.9,
+    href: '#',
+    excerpt: 'Cómo los LLMs están revolucionando la creatividad y el arte, y las herramientas para empezar a experimentar.',
+    tags: ['IA', 'Arte Generativo', 'Tecnología']
+  },
 ];
+
+export const categories = [
+    { 
+        id: 'cat-ciencia', 
+        name: 'Ciencia', 
+        description: 'La búsqueda sistemática de conocimiento sobre el universo a través de la observación y la experimentación.',
+        content: [],
+        subCategories: [
+            {
+                id: 'cat-fisica',
+                name: 'Física',
+                description: 'La ciencia que estudia la materia, la energía, el espacio y el tiempo.',
+                content: [],
+                subCategories: [
+                     { 
+                        id: 'cat-cuantica', 
+                        name: 'Física Cuántica', 
+                        description: 'Rama de la física que estudia los fenómenos a escalas microscópicas.',
+                        content: ['course-1'],
+                        subCategories: []
+                    }
+                ]
+            },
+            {
+                id: 'cat-filosofia',
+                name: 'Filosofía',
+                description: 'El estudio de preguntas fundamentales sobre la existencia, el conocimiento, los valores, la razón, la mente y el lenguaje.',
+                content: ['article-1'],
+                subCategories: []
+            }
+        ]
+    },
+    {
+        id: 'cat-sociedad',
+        name: 'Sociedad',
+        description: 'El estudio de las estructuras sociales, las relaciones humanas y la cultura.',
+        content: [],
+        subCategories: [
+            {
+                id: 'cat-etica',
+                name: 'Ética',
+                description: 'Principios morales que gobiernan el comportamiento de una persona o la realización de una actividad.',
+                content: ['course-2'],
+                subCategories: []
+            },
+            {
+                id: 'cat-gobernanza',
+                name: 'Gobernanza',
+                description: 'Los sistemas y procesos que aseguran la dirección, control y rendición de cuentas de una organización o sociedad.',
+                content: ['article-2'],
+                subCategories: []
+            }
+        ]
+    },
+     {
+        id: 'cat-tecnologia',
+        name: 'Tecnología',
+        description: 'La aplicación del conocimiento científico para fines prácticos, especialmente en la industria.',
+        content: ['article-4'],
+        subCategories: []
+    },
+    {
+        id: 'cat-ecologia',
+        name: 'Ecología',
+        description: 'El estudio de las relaciones entre los organismos vivos, incluidos los humanos, y su entorno físico.',
+        content: ['article-3'],
+        subCategories: []
+    }
+]
+
 
 export const culturalPosts = [
   {
