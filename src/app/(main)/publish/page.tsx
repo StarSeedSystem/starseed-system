@@ -8,9 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X } from "lucide-react";
+import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { addDays, format } from "date-fns";
+import { es } from "date-fns/locale";
+import { Switch } from "@/components/ui/switch";
 
 type Area = "politics" | "education" | "culture";
+type PoliticalCategory = "Legislativo" | "Ejecutivo" | "Judicial" | null;
 
 const areaConfig = {
     politics: {
@@ -39,8 +45,82 @@ const areaConfig = {
     }
 }
 
+function LegislativeVoteConfig() {
+    const [date, setDate] = useState<Date | undefined>(addDays(new Date(), 5));
+    const [isUrgent, setIsUrgent] = useState(false);
+
+    const handleUrgentChange = (checked: boolean) => {
+        setIsUrgent(checked);
+        if (checked) {
+            setDate(addDays(new Date(), 1));
+        } else {
+            setDate(addDays(new Date(), 5));
+        }
+    }
+
+    return (
+        <Card className="bg-primary/5 border-primary/20">
+            <CardHeader>
+                <CardTitle className="font-headline text-xl flex items-center gap-2"><Vote /> Configuración de Votación Obligatoria</CardTitle>
+                <CardDescription>Toda propuesta legislativa requiere un proceso de votación. Define sus parámetros.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="space-y-2 flex-1">
+                        <Label>Fecha Límite de Votación</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                variant={"outline"}
+                                className={cn(
+                                    "w-full justify-start text-left font-normal",
+                                    !date && "text-muted-foreground"
+                                )}
+                                >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {date ? format(date, "PPP", { locale: es }) : <span>Elige una fecha</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                mode="single"
+                                selected={date}
+                                onSelect={setDate}
+                                disabled={(day) => isUrgent ? day <= new Date() || day > addDays(new Date(), 1) : day < addDays(new Date(), 5) }
+                                initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                     <div className="flex items-center space-x-2 pt-6">
+                        <Switch id="urgent-switch" onCheckedChange={handleUrgentChange} checked={isUrgent}/>
+                        <Label htmlFor="urgent-switch" className="flex flex-col">
+                            <span className="flex items-center gap-1"><AlertTriangle className="w-4 h-4 text-destructive"/> Propuesta Urgente</span>
+                            <span className="font-normal text-xs text-muted-foreground">Máximo 1 día para votar.</span>
+                        </Label>
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <Label>Opciones de Votación Iniciales</Label>
+                    <p className="text-xs text-muted-foreground">Los participantes podrán proponer más opciones en los comentarios.</p>
+                    <div className="space-y-2">
+                        <Input defaultValue="A favor" />
+                        <Input defaultValue="En contra" />
+                        <Input defaultValue="Abstención" />
+                        <Button variant="outline" size="sm" className="w-full"><PlusCircle/>Añadir Opción</Button>
+                    </div>
+                </div>
+
+            </CardContent>
+        </Card>
+    )
+}
+
+
 export default function PublishPage() {
     const [selectedArea, setSelectedArea] = useState<Area | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [step, setStep] = useState(1);
 
     const handleSelectArea = (area: Area) => {
@@ -50,6 +130,7 @@ export default function PublishPage() {
     
     const resetFlow = () => {
         setSelectedArea(null);
+        setSelectedCategory(null);
         setStep(1);
     }
 
@@ -86,6 +167,8 @@ export default function PublishPage() {
 
     if (step === 2 && selectedArea) {
         const config = areaConfig[selectedArea];
+        const isLegislative = selectedArea === 'politics' && selectedCategory === 'Legislativo';
+
         return (
             <div className="flex flex-col gap-6">
                  <div className="flex items-center justify-between">
@@ -120,7 +203,7 @@ export default function PublishPage() {
                         <div className="space-y-2">
                              <Label>Categoría Principal</Label>
                              <p className="text-xs text-muted-foreground">Define el tipo de publicación.</p>
-                             <Select>
+                             <Select onValueChange={setSelectedCategory} value={selectedCategory || ""}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Selecciona una categoría..." />
                                 </SelectTrigger>
@@ -135,6 +218,8 @@ export default function PublishPage() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {isLegislative && <LegislativeVoteConfig />}
 
                 <Card>
                     <CardHeader>
@@ -161,22 +246,25 @@ export default function PublishPage() {
                         </div>
                     </CardContent>
                 </Card>
-
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="font-headline text-xl">Paso 4: Opciones de Publicación</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="flex items-center space-x-2">
-                            <Vote className="w-5 h-5 text-primary"/>
-                            <div>
-                                <Label htmlFor="add-vote" className="font-semibold">Añadir Votación</Label>
-                                <p className="text-xs text-muted-foreground">Convierte esta publicación en una propuesta formal.</p>
+                
+                {!isLegislative && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="font-headline text-xl">Paso 4: Opciones de Publicación</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div className="flex items-center space-x-2">
+                                <Vote className="w-5 h-5 text-primary"/>
+                                <div>
+                                    <Label htmlFor="add-vote" className="font-semibold">Añadir Votación</Label>
+                                    <p className="text-xs text-muted-foreground">Convierte esta publicación en una propuesta formal.</p>
+                                </div>
                             </div>
-                        </div>
-                        <Button variant="outline"><PlusCircle className="mr-2"/>Configurar Votación</Button>
-                    </CardContent>
-                </Card>
+                            <Button variant="outline"><PlusCircle className="mr-2"/>Configurar Votación</Button>
+                        </CardContent>
+                    </Card>
+                )}
+
 
                 <div className="flex justify-end gap-4">
                     <Button variant="outline" size="lg">Guardar Borrador</Button>
