@@ -26,16 +26,17 @@ function ItemRenderer({ item, selectedItems, handleSelect, level = 0 }: { item: 
     if ('subCategories' in item && item.subCategories && item.subCategories.length > 0) {
         return (
             <AccordionItem value={item.id} key={item.id}>
-                <AccordionTrigger className="hover:no-underline">
-                     <div className="flex items-center gap-2">
-                        <Checkbox
-                            id={item.id}
-                            checked={isSelected}
-                            onCheckedChange={(checked) => handleSelect(item.id, !!checked)}
-                        />
-                        <label htmlFor={item.id} className="font-semibold">{item.name}</label>
-                    </div>
-                </AccordionTrigger>
+                <div className="flex items-center gap-2">
+                    <Checkbox
+                        id={item.id}
+                        checked={isSelected}
+                        onCheckedChange={(checked) => handleSelect(item.id, !!checked)}
+                        className="ml-1"
+                    />
+                    <AccordionTrigger className="hover:no-underline flex-1">
+                        <label htmlFor={item.id} className="font-semibold cursor-pointer">{item.name}</label>
+                    </AccordionTrigger>
+                </div>
                 <AccordionContent className="pl-6 border-l ml-3">
                      <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
                      <Accordion type="multiple" className="w-full">
