@@ -61,8 +61,8 @@ function LegislativeVoteConfig() {
     return (
         <Card className="bg-primary/5 border-primary/20">
             <CardHeader>
-                <CardTitle className="font-headline text-xl flex items-center gap-2"><Vote /> Configuración de Votación Obligatoria</CardTitle>
-                <CardDescription>Toda propuesta legislativa requiere un proceso de votación. Define sus parámetros.</CardDescription>
+                <CardTitle className="font-headline text-xl flex items-center gap-2"><Vote /> Configuración de Votación</CardTitle>
+                <CardDescription>Define los parámetros de la votación para esta propuesta.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="flex flex-col sm:flex-row gap-4">
@@ -122,6 +122,7 @@ export default function PublishPage() {
     const [selectedArea, setSelectedArea] = useState<Area | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [step, setStep] = useState(1);
+    const [showVoteConfig, setShowVoteConfig] = useState(false);
 
     const handleSelectArea = (area: Area) => {
         setSelectedArea(area);
@@ -132,6 +133,7 @@ export default function PublishPage() {
         setSelectedArea(null);
         setSelectedCategory(null);
         setStep(1);
+        setShowVoteConfig(false);
     }
 
     if (step === 1) {
@@ -219,7 +221,7 @@ export default function PublishPage() {
                     </CardContent>
                 </Card>
 
-                {isLegislative && <LegislativeVoteConfig />}
+                {(isLegislative || showVoteConfig) && <LegislativeVoteConfig />}
 
                 <Card>
                     <CardHeader>
@@ -247,7 +249,7 @@ export default function PublishPage() {
                     </CardContent>
                 </Card>
                 
-                {!isLegislative && (
+                {!isLegislative && !showVoteConfig && (
                     <Card>
                         <CardHeader>
                             <CardTitle className="font-headline text-xl">Paso 4: Opciones de Publicación</CardTitle>
@@ -260,7 +262,7 @@ export default function PublishPage() {
                                     <p className="text-xs text-muted-foreground">Convierte esta publicación en una propuesta formal.</p>
                                 </div>
                             </div>
-                            <Button variant="outline"><PlusCircle className="mr-2"/>Configurar Votación</Button>
+                            <Button variant="outline" onClick={() => setShowVoteConfig(true)}><PlusCircle className="mr-2"/>Configurar Votación</Button>
                         </CardContent>
                     </Card>
                 )}
