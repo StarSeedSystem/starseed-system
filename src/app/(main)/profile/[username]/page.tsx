@@ -184,6 +184,26 @@ export default function ProfilePage() {
                  <TabsContent value="connections" className="mt-6">
                     <ConnectionsWidget pageType={pageType} />
                 </TabsContent>
+                 <TabsContent value="library" className="mt-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Biblioteca</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-muted-foreground">La biblioteca pública de este perfil está en construcción.</p>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                 <TabsContent value="collections" className="mt-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Colecciones</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-muted-foreground">Las colecciones públicas de este perfil están en construcción.</p>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
             </Tabs>
         </div>
         <div className="md:col-span-1">
