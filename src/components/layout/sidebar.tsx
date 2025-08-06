@@ -17,6 +17,7 @@ import {
   Library,
   Info,
   PenSquare,
+  User,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "../logo";
@@ -46,6 +47,10 @@ export function AppSidebar() {
             <NavItem href="/dashboard">
               <Home className="h-4 w-4" />
               Dashboard
+            </NavItem>
+            <NavItem href="/profile/starseeduser">
+              <User className="h-4 w-4" />
+              Perfil
             </NavItem>
             <NavItem href="/agent">
               <Bot className="h-4 w-4" />

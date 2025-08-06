@@ -39,7 +39,7 @@ export function UserNav() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link href="/settings">
+            <Link href="/profile/starseeduser">
               <User className="mr-2 h-4 w-4" />
               <span>Perfil</span>
             </Link>

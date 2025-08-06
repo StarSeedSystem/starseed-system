@@ -11,7 +11,8 @@ import {
   PenSquare,
   Library,
   Info,
-  Settings
+  Settings,
+  User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -49,6 +50,13 @@ export function AppHeader() {
             >
               <Home className="h-5 w-5" />
               Dashboard
+            </Link>
+            <Link
+              href="/profile/starseeduser"
+              className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+            >
+              <User className="h-5 w-5" />
+              Perfil
             </Link>
             <Link
               href="/agent"
