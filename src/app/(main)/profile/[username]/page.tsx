@@ -1,4 +1,5 @@
 // src/app/(main)/profile/[username]/page.tsx
+'use client';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,43 +10,65 @@ import { Edit, Rss } from "lucide-react";
 import Image from "next/image";
 import { CommentSystem } from "@/components/comment-system";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 
-export default function ProfilePage() {
+function ProfileHeader({ username }: { username: string }) {
+  // En un futuro, estos datos vendrían de una API basada en el 'username'
+  const isUser = username === 'starseeduser';
+  const profileData = {
+    name: isUser ? "StarSeedUser" : username.charAt(0).toUpperCase() + username.slice(1).replace(/-/g, ' '),
+    handle: isUser ? "@starseeduser" : `@${username}`,
+    bio: isUser 
+      ? "Co-creando un futuro ciberdélico. Explorador de la conciencia, constructor de sistemas y creyente en el poder de la inteligencia colectiva."
+      : `Página de ${username.replace(/-/g, ' ')}.`,
+    avatar: "https://placehold.co/100x100.png",
+    cover: "https://placehold.co/1200x400.png"
+  };
+
   return (
-    <div className="flex flex-col gap-6">
-      {/* Profile Header */}
-      <Card className="overflow-hidden">
-        <div className="relative h-48 w-full">
-          <Image
-            src="https://placehold.co/1200x400.png"
-            alt="Foto de portada"
-            layout="fill"
-            objectFit="cover"
-            data-ai-hint="abstract background"
-          />
-          <div className="absolute bottom-4 left-6">
-            <Avatar className="h-24 w-24 border-4 border-background">
-              <AvatarImage src="https://placehold.co/100x100.png" data-ai-hint="user avatar"/>
-              <AvatarFallback>SU</AvatarFallback>
-            </Avatar>
+    <Card className="overflow-hidden">
+      <div className="relative h-48 w-full">
+        <Image
+          src={profileData.cover}
+          alt="Foto de portada"
+          layout="fill"
+          objectFit="cover"
+          data-ai-hint="abstract background"
+        />
+        <div className="absolute bottom-4 left-6">
+          <Avatar className="h-24 w-24 border-4 border-background">
+            <AvatarImage src={profileData.avatar} data-ai-hint="user avatar"/>
+            <AvatarFallback>{profileData.name.substring(0, 2)}</AvatarFallback>
+          </Avatar>
+        </div>
+      </div>
+      <CardContent className="pt-20 p-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+          <div>
+            <h1 className="text-3xl font-bold font-headline">{profileData.name}</h1>
+            <p className="text-muted-foreground">{profileData.handle}</p>
+            <p className="mt-2 max-w-prose text-sm text-muted-foreground">
+              {profileData.bio}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline"><Rss className="mr-2 h-4 w-4"/> Seguir</Button>
+            {isUser && <Button><Edit className="mr-2 h-4 w-4"/> Editar Perfil</Button>}
           </div>
         </div>
-        <CardContent className="pt-20 p-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-            <div>
-              <h1 className="text-3xl font-bold font-headline">StarSeedUser</h1>
-              <p className="text-muted-foreground">@starseeduser</p>
-              <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-                Co-creando un futuro ciberdélico. Explorador de la conciencia, constructor de sistemas y creyente en el poder de la inteligencia colectiva.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline"><Rss className="mr-2 h-4 w-4"/> Seguir</Button>
-              <Button><Edit className="mr-2 h-4 w-4"/> Editar Perfil</Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+export default function ProfilePage() {
+  const params = useParams();
+  const username = Array.isArray(params.username) ? params.username[0] : params.username;
+
+  return (
+    <div className="flex flex-col gap-6">
+      <ProfileHeader username={username} />
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-2">

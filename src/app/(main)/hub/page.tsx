@@ -17,7 +17,7 @@ const participations = [
 ];
 
 const myPages = [
-  { name: "Comunidad de Permacultura", type: "Comunidad", avatar: "https://placehold.co/40x40.png", members: 128, href: "/profile/permaculture" },
+  { name: "Comunidad de Permacultura", type: "Comunidad", avatar: "https://placehold.co/40x40.png", members: 128, href: "/profile/permacultura" },
   { name: "E.F. del Valle Central", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png", members: 2500, href: "/profile/ef-valle-central" },
   { name: "Partido Transhumanista", type: "Partido Político", avatar: "https://placehold.co/40x40.png", members: 450, href: "/profile/transhumanistas" },
   { name: "Grupo de Estudio de IA", type: "Grupo de Estudio", avatar: "https://placehold.co/40x40.png", members: 34, href: "/profile/ia-study-group" },
@@ -94,9 +94,9 @@ export default function HubPage() {
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {myPages.map(page => (
-                        <Link href={page.href} key={page.name}>
-                            <Card className="h-full hover:bg-muted/50 transition-colors">
-                                <CardContent className="p-4 flex items-center gap-4">
+                        <Card key={page.name} className="h-full hover:bg-muted/50 transition-colors">
+                            <Link href={page.href} className="flex flex-col h-full">
+                                <CardContent className="p-4 flex items-center gap-4 flex-1">
                                     <Avatar className="h-12 w-12">
                                         <AvatarImage src={page.avatar} alt={page.name} data-ai-hint="page avatar"/>
                                         <AvatarFallback>{page.name.charAt(0)}</AvatarFallback>
@@ -107,8 +107,8 @@ export default function HubPage() {
                                         <p className="text-xs text-muted-foreground">{page.members} miembros</p>
                                     </div>
                                 </CardContent>
-                            </Card>
-                        </Link>
+                            </Link>
+                        </Card>
                     ))}
                 </CardContent>
             </Card>
@@ -125,8 +125,8 @@ export default function HubPage() {
                         <h3 className="font-semibold mb-3 flex items-center gap-2"><UserCheck className="w-5 h-5"/> Perfiles Copiados (Replicación)</h3>
                         <div className="space-y-3">
                             {copiedVotes.map(v => (
-                                <div key={v.name} className="flex items-center justify-between p-3 rounded-lg border">
-                                    <Link href={v.href} className="flex items-center gap-3">
+                                <Link href={v.href} key={v.name} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                                    <div className="flex items-center gap-3">
                                         <Avatar className="h-9 w-9">
                                             <AvatarImage src={v.avatar} data-ai-hint="user avatar" />
                                             <AvatarFallback>{v.name.charAt(0)}</AvatarFallback>
@@ -135,12 +135,12 @@ export default function HubPage() {
                                             <p className="font-semibold text-sm">{v.name}</p>
                                             <p className="text-xs text-muted-foreground">{v.handle}</p>
                                         </div>
-                                    </Link>
+                                    </div>
                                     <div className="text-right">
                                         <p className="text-sm font-medium">{v.replication}</p>
                                         <Button variant="link" size="sm" className="h-auto p-0">Configurar</Button>
                                     </div>
-                                </div>
+                                </Link>
                             ))}
                         </div>
                     </div>
