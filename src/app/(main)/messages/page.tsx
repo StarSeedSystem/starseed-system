@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { conversations, type ConversationFull, type MessageFull } from "@/lib/data";
@@ -12,7 +12,7 @@ import { Search, Phone, Video, Send, PlusCircle, Sparkles, Library, Edit, Image 
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 function ConversationListItem({ conversation, onSelect, isActive }: { conversation: ConversationFull, onSelect: () => void, isActive: boolean }) {
     return (
@@ -142,11 +142,13 @@ function MessageBubble({ message }: { message: MessageFull }) {
             case 'canvas':
                 return (
                     <Card className="bg-background/50 border-primary/50 border-2">
-                        <CardContent className="p-4">
-                            <div className="flex items-center gap-2 mb-2">
+                        <CardHeader className="p-4 pb-2">
+                             <div className="flex items-center gap-2">
                                 <Edit className="w-5 h-5 text-primary"/>
-                                <h4 className="font-bold font-headline">{content.canvas!.title}</h4>
+                                <CardTitle className="font-headline text-lg">{content.canvas!.title}</CardTitle>
                             </div>
+                        </CardHeader>
+                        <CardContent className="p-4 pt-2">
                             <p className="text-sm text-muted-foreground">{content.canvas!.content}</p>
                             <Button className="mt-4 w-full">Abrir Lienzo Interactivo</Button>
                         </CardContent>
@@ -203,6 +205,9 @@ export default function MessagesPage() {
                                 </Button>
                             </SheetTrigger>
                             <SheetContent side="left" className="p-0 w-full sm:w-3/4">
+                                <SheetHeader>
+                                    <SheetTitle className="sr-only">Conversaciones</SheetTitle>
+                                </SheetHeader>
                                 <ConversationList onConversationSelect={handleSelectConversation} selectedConversationId={selectedConversation.id} />
                             </SheetContent>
                         </Sheet>

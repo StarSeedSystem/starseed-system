@@ -615,7 +615,28 @@ export const conversations: ConversationFull[] = [
                 }
             }
         ]
-    }
+    },
+    {
+      id: 'convo-4',
+      type: 'group',
+      name: 'E.F. del Valle Central',
+      avatar: 'https://placehold.co/100x100.png',
+      dataAiHint: 'government building',
+      unreadCount: 5,
+      lastMessage: 'Recordatorio: La votación de la Ley de Agua cierra mañana.',
+      lastMessageTimestamp: 'hace 8h',
+      pinned: false,
+      messages: [
+          {
+              id: 'msg-4-1',
+              author: 'Sistema',
+              avatar: 'https://placehold.co/100x100.png',
+              dataAiHint: 'system icon',
+              timestamp: 'hace 8h',
+              content: { type: 'text', text: 'Recordatorio: La votación de la Ley de Agua cierra mañana.' }
+          }
+      ]
+  }
 ];
   
 export type Theme = (typeof themes)[0];
