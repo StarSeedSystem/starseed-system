@@ -72,7 +72,9 @@ function PoliticalProposalCard({ proposal }: { proposal: typeof politicalProposa
                     <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="votos">Votos</TabsTrigger>
                         <TabsTrigger value="detalles">Detalles</TabsTrigger>
-                        <TabsTrigger value="discusión">Discusión</TabsTrigger>
+                        <TabsTrigger value="discusión" className="flex items-center gap-2">
+                            Discusión <Badge variant="secondary" className="px-1.5">{proposal.comments.length}</Badge>
+                        </TabsTrigger>
                         <TabsTrigger value="archivos">Archivos</TabsTrigger>
                     </TabsList>
                     <TabsContent value="votos" className="mt-4">

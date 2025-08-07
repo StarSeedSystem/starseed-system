@@ -77,9 +77,12 @@ function PoliticalProposalCard({ proposal }: { proposal: typeof politicalProposa
                 <p className="text-sm text-muted-foreground mb-6">{proposal.summary}</p>
                 
                 <Tabs defaultValue="votos">
-                    <TabsList>
+                    <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="votos">Votos</TabsTrigger>
                         <TabsTrigger value="detalles">Detalles</TabsTrigger>
+                        <TabsTrigger value="discusión" className="flex items-center gap-2">
+                            Discusión <Badge variant="secondary" className="px-1.5">{proposal.comments.length}</Badge>
+                        </TabsTrigger>
                         <TabsTrigger value="archivos">Archivos</TabsTrigger>
                     </TabsList>
                     <TabsContent value="votos" className="mt-4">
@@ -96,6 +99,9 @@ function PoliticalProposalCard({ proposal }: { proposal: typeof politicalProposa
                     </TabsContent>
                     <TabsContent value="detalles" className="mt-4">
                         <p className="text-sm text-muted-foreground">{proposal.details}</p>
+                    </TabsContent>
+                    <TabsContent value="discusión" className="mt-4">
+                        <CommentSystem comments={proposal.comments} />
                     </TabsContent>
                     <TabsContent value="archivos" className="mt-4">
                         <div className="flex flex-col gap-2">
