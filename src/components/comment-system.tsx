@@ -107,7 +107,7 @@ function Comment({ comment }: { comment: CommentType }) {
     )
 }
 
-export function CommentSystem({ comments }: { comments: CommentType[] }) {
+export function CommentSystem({ comments = defaultComments }: { comments?: CommentType[] }) {
   return (
     <div className="w-full space-y-6">
         <CommentInput />
