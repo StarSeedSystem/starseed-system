@@ -638,6 +638,15 @@ export const conversations: ConversationFull[] = [
       ]
   }
 ];
+
+export const files = [
+    { id: 1, type: "image", name: "Concept Art v1", size: "2.5 MB", date: "2024-06-10", preview: "https://placehold.co/400x300.png", dataAiHint: "concept art" },
+    { id: 2, type: "document", name: "Propuesta de Proyecto", size: "512 KB", date: "2024-06-09", icon: 'FileText' },
+    { id: 3, type: "video", name: "Demo Animación UI", size: "15.2 MB", date: "2024-06-08", preview: "https://placehold.co/400x300.png", dataAiHint: "animation" },
+    { id: 4, type: "folder", name: "Documentos de Investigación", size: "123 archivos", date: "2024-06-07", icon: 'Folder' },
+    { id: 5, type: "audio", name: "Podcast Episodio 3", size: "30.1 MB", date: "2024-06-06", preview: "https://placehold.co/400x300.png", dataAiHint: "sound wave" },
+    { id: 6, type: "image", name: "Foto del Equipo", size: "4.1 MB", date: "2024-06-05", preview: "https://placehold.co/400x300.png", dataAiHint: "team photo" },
+  ];
   
 export type Theme = (typeof themes)[0];
 export type Category = (typeof categories)[0];
