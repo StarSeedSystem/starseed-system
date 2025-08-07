@@ -13,6 +13,7 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 function ConversationListItem({ conversation, onSelect, isActive }: { conversation: ConversationFull, onSelect: () => void, isActive: boolean }) {
     return (
@@ -177,6 +178,14 @@ function MessageBubble({ message }: { message: MessageFull }) {
     )
 }
 
+const attachmentOptions = [
+    { name: "Lienzo Interactivo", icon: <Edit className="w-5 h-5" />, description: "Crea contenido enriquecido." },
+    { name: "Desde la Biblioteca", icon: <Library className="w-5 h-5" />, description: "Adjunta archivos existentes." },
+    { name: "Imagen o Video", icon: <ImageIcon className="w-5 h-5" />, description: "Sube desde tu dispositivo." },
+    { name: "Crear Encuesta", icon: <Vote className="w-5 h-5" />, description: "Haz una pregunta rápida." }
+]
+
+
 export default function MessagesPage() {
     const [selectedConversation, setSelectedConversation] = useState(conversations.find(c => c.pinned) || conversations[0]);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -238,7 +247,34 @@ export default function MessagesPage() {
                     <div className="relative">
                         <Input placeholder="Escribe un mensaje o usa la IA..." className="pr-24 pl-10" />
                         <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center">
-                            <Button variant="ghost" size="icon" className="h-8 w-8"><PlusCircle /></Button>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8"><PlusCircle /></Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80" align="start">
+                                    <div className="grid gap-4">
+                                        <div className="space-y-2">
+                                            <h4 className="font-medium leading-none">Contenido Avanzado</h4>
+                                            <p className="text-sm text-muted-foreground">
+                                                Potencia tus mensajes con herramientas creativas.
+                                            </p>
+                                        </div>
+                                        <div className="grid gap-2">
+                                            {attachmentOptions.map(opt => (
+                                                <Button key={opt.name} variant="ghost" className="justify-start h-auto p-2">
+                                                    <div className="flex items-center gap-3">
+                                                        {opt.icon}
+                                                        <div>
+                                                            <p className="font-semibold text-sm">{opt.name}</p>
+                                                            <p className="text-xs text-muted-foreground">{opt.description}</p>
+                                                        </div>
+                                                    </div>
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
                         </div>
                         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
                              <Button variant="ghost" size="icon" className="h-8 w-8 text-primary"><Sparkles/></Button>
