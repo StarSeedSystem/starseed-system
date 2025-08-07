@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search } from "lucide-react";
+import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search, AppWindow, Bold, Italic, Underline } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { addDays, format } from "date-fns";
@@ -19,6 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { KnowledgeNetworkSelector } from "@/components/publish/knowledge-network-selector";
 import type { Category } from "@/lib/data";
 import { themes, categories } from "@/lib/data";
+import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
 
 type Area = "politics" | "education" | "culture";
 type PoliticalCategory = "Legislativo" | "Ejecutivo" | "Judicial" | null;
@@ -134,8 +136,39 @@ function LegislativeVoteConfig() {
     )
 }
 
+function CanvasToolbar({ onToolSelect }: { onToolSelect: (tool: string) => void }) {
+    const tools = [
+        { name: "Asistente IA", icon: <Sparkles />, action: "ai" },
+        { name: "Biblioteca", icon: <Library />, action: "library" },
+        { name: "Referencias", icon: <FileText />, action: "references" },
+        { name: "Herramientas", icon: <AppWindow />, action: "tools" }
+    ];
+
+    return (
+        <div className="flex items-center gap-2 p-2 rounded-lg border bg-background/80 backdrop-blur-xl">
+            {tools.map(tool => (
+                <Button key={tool.name} variant="ghost" className="flex items-center gap-2" onClick={() => onToolSelect(tool.action)}>
+                    {tool.icon}
+                    <span>{tool.name}</span>
+                </Button>
+            ))}
+        </div>
+    )
+}
+
+function TextFormatToolbar() {
+    return (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-lg border bg-background/80 backdrop-blur-xl shadow-lg">
+             <Button variant="ghost" size="icon"><Bold /></Button>
+             <Button variant="ghost" size="icon"><Italic /></Button>
+             <Button variant="ghost" size="icon"><Underline /></Button>
+        </div>
+    )
+}
+
 
 export default function PublishPage() {
+    const { toast } = useToast();
     const [selectedArea, setSelectedArea] = useState<Area | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [step, setStep] = useState(1);
@@ -170,6 +203,20 @@ export default function PublishPage() {
 
     const handleRemoveDestination = (destId: string) => {
         setSelectedDestinations(selectedDestinations.filter(d => d.id !== destId));
+    }
+
+    const handleToolSelection = (tool: string) => {
+        let toolName = "";
+        switch (tool) {
+            case "ai": toolName = "Asistente de IA"; break;
+            case "library": toolName = "Biblioteca"; break;
+            case "references": toolName = "Referencias"; break;
+            case "tools": toolName = "Herramientas"; break;
+        }
+        toast({
+            title: "Herramienta Seleccionada",
+            description: `Has abierto: ${toolName}. La funcionalidad completa se implementará pronto.`
+        });
     }
 
 
@@ -345,14 +392,13 @@ export default function PublishPage() {
                         </CardHeader>
                         <CardContent className="grid lg:grid-cols-3 gap-6">
                             <div className="lg:col-span-2 space-y-4">
-                                <h3 className="font-semibold text-muted-foreground">Contenido Principal</h3>
-                                <div className="relative p-4 border-2 border-dashed rounded-lg min-h-[300px]">
-                                    <Textarea placeholder="Escribe, pega o arrastra contenido aquí... El editor de formato libre se implementará en esta área." className="min-h-[280px] bg-transparent border-0 focus-visible:ring-0"/>
-                                    <div className="absolute top-2 right-2 flex gap-2">
-                                        <Button variant="outline" size="icon" className="h-8 w-8" title="Adjuntar Referencias"><FileText /></Button>
-                                        <Button variant="outline" size="icon" className="h-8 w-8" title="Abrir Biblioteca"><Library /></Button>
-                                        <Button variant="outline" size="icon" className="h-8 w-8" title="Asistente IA"><Sparkles /></Button>
-                                    </div>
+                               <div className="flex justify-center mb-4">
+                                 <CanvasToolbar onToolSelect={handleToolSelection} />
+                               </div>
+                               <Separator />
+                                <div className="relative p-4 border-2 border-dashed rounded-lg min-h-[400px]">
+                                    <TextFormatToolbar />
+                                    <Textarea placeholder="Escribe, pega o arrastra contenido aquí... El editor de formato libre se implementará en esta área." className="min-h-[380px] bg-transparent border-0 focus-visible:ring-0 resize-none"/>
                                 </div>
                             </div>
                             <div className="space-y-4">
@@ -365,7 +411,7 @@ export default function PublishPage() {
                         </CardContent>
                     </Card>
                     
-                    {!showVoteConfig && !isPolitics && (
+                    {!showVoteConfig && (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="font-headline text-xl">Paso 4: Opciones de Publicación</CardTitle>
