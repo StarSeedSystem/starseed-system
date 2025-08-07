@@ -4,8 +4,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { feedItems, politicalProposals } from "@/lib/data";
-import { Edit, Rss, Scale, Users, BarChart, FileText } from "lucide-react";
+import { feedItems, politicalProposals, comments as defaultComments } from "@/lib/data";
+import { Edit, Rss, Scale, Users, BarChart, FileText, ThumbsUp, MessageCircle, Share2 } from "lucide-react";
 import Image from "next/image";
 import { CommentSystem } from "@/components/comment-system";
 import Link from "next/link";
@@ -16,6 +16,7 @@ import { RecentPostsWidget } from "@/components/profile/widgets/recent-posts-wid
 import { ConnectionsWidget } from "@/components/profile/widgets/connections-widget";
 import { Badge } from "@/components/ui/badge";
 import { BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Bar } from 'recharts';
+import { useState } from "react";
 
 
 function VoteChart({ data }: { data: any[] }) {
@@ -216,27 +217,60 @@ function ProfileHeader({ profileData }: { profileData: any }) {
   );
 }
 
+function FeedPostCard({ item }: { item: typeof feedItems[0] }) {
+    const [showComments, setShowComments] = useState(false);
+
+    return (
+        <Card>
+            <CardHeader>
+                <Link href={item.href} className="flex items-center gap-3">
+                    <Avatar>
+                        <AvatarImage src={item.avatar} data-ai-hint={item.dataAiHint} />
+                        <AvatarFallback>{item.author.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                        <p className="font-semibold">{item.author}</p>
+                        <p className="text-sm text-muted-foreground">{item.handle} · {item.timestamp}</p>
+                    </div>
+                </Link>
+            </CardHeader>
+            <CardContent>
+                <p className="text-muted-foreground whitespace-pre-wrap">{item.content}</p>
+                 {item.imageUrl && (
+                    <div className="relative aspect-video rounded-lg overflow-hidden mt-4 border">
+                        <Image src={item.imageUrl} alt="Post image" layout="fill" objectFit="cover" data-ai-hint={item.imageHint} />
+                    </div>
+                )}
+            </CardContent>
+            <CardFooter className="flex-col items-stretch">
+                <div className="flex justify-between items-center text-muted-foreground border-t pt-2">
+                    <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                            <ThumbsUp className="w-4 h-4" /> {item.likes}
+                        </Button>
+                        <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={() => setShowComments(!showComments)}>
+                            <MessageCircle className="w-4 h-4" /> {item.comments.length}
+                        </Button>
+                    </div>
+                    <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                        <Share2 className="w-4 h-4" /> Compartir
+                    </Button>
+                </div>
+                {showComments && (
+                  <div className='mt-4 w-full'>
+                    <CommentSystem comments={item.comments} />
+                  </div>
+                )}
+            </CardFooter>
+        </Card>
+    )
+}
+
 function PostsFeed() {
     return (
         <div className="space-y-6">
             {feedItems.map(item => (
-                    <Card key={item.id}>
-                    <CardHeader>
-                        <Link href={item.href} className="flex items-center gap-3">
-                            <Avatar>
-                                <AvatarImage src={item.avatar} data-ai-hint={item.dataAiHint} />
-                                <AvatarFallback>{item.author.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <p className="font-semibold">{item.author}</p>
-                                <p className="text-sm text-muted-foreground">{item.handle} · {item.timestamp}</p>
-                            </div>
-                        </Link>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-muted-foreground">{item.content}</p>
-                    </CardContent>
-                    </Card>
+                <FeedPostCard key={item.id} item={item} />
             ))}
         </div>
     );
@@ -289,8 +323,8 @@ export default function ProfilePage() {
     <div className="flex flex-col gap-6">
       <ProfileHeader profileData={profileData} />
 
-      <div className="grid md:grid-cols-3 gap-6">
-        <div className="md:col-span-2">
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
             <Tabs defaultValue="dashboard">
                 <TabsList>
                     <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
@@ -341,12 +375,18 @@ export default function ProfilePage() {
                 </TabsContent>
             </Tabs>
         </div>
-        <div className="md:col-span-1">
-          <CommentSystem />
+        <div className="lg:col-span-1">
+          <Card>
+              <CardHeader>
+                  <CardTitle className="font-headline">Discusión Abierta</CardTitle>
+                  <CardDescription>Un espacio para conversaciones generales en este perfil.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                  <CommentSystem comments={defaultComments} />
+              </CardContent>
+          </Card>
         </div>
       </div>
     </div>
   );
 }
-
-    

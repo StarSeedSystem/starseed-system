@@ -53,6 +53,19 @@ export const notifications = [
   },
 ];
 
+export const feedItemComments: Comment[] = [
+    {
+        id: 'feed-comment-1',
+        author: 'Brenda',
+        avatar: 'https://placehold.co/100x100.png',
+        timestamp: 'hace 1h',
+        content: '¡Totalmente de acuerdo! Esta función de IA cambia las reglas del juego. Me ahorró horas de trabajo de configuración.',
+        dataAiHint: 'woman excited',
+        likes: 5,
+        replies: []
+    }
+]
+
 export const feedItems = [
     {
         id: 'feed-1',
@@ -63,8 +76,10 @@ export const feedItems = [
         content: 'Acabo de usar el nuevo Generador de Apps con IA para crear un rastreador de inventario rápido para mi proyecto personal. ¡Tardé literalmente 5 minutos. Esto es un cambio de juego para el prototipado rápido! 🚀 #StarSeedNetwork #IA',
         timestamp: 'hace 2h',
         likes: 125,
-        comments: 12,
+        comments: feedItemComments,
         dataAiHint: 'man coding',
+        imageUrl: 'https://placehold.co/600x400.png',
+        imageHint: 'code on screen'
     },
     {
         id: 'feed-2',
@@ -75,8 +90,10 @@ export const feedItems = [
         href: '/profile/samlee',
         timestamp: 'hace 1d',
         likes: 340,
-        comments: 45,
+        comments: [],
         dataAiHint: 'woman smiling',
+        imageUrl: null,
+        imageHint: null,
     },
     {
         id: 'feed-3',
@@ -87,8 +104,10 @@ export const feedItems = [
         content: 'Anunciando el Proyecto Constelación: nuestra suite de visualización de datos de nueva generación. Estamos aprovechando el núcleo de la Red StarSeed para crear dashboards interactivos en tiempo real. ¡Más detalles próximamente!',
         timestamp: 'hace 3d',
         likes: 1200,
-        comments: 156,
+        comments: [],
         dataAiHint: 'nebula stars',
+        imageUrl: 'https://placehold.co/600x400.png',
+        imageHint: 'star constellation'
     }
 ];
 
