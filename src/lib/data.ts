@@ -476,7 +476,7 @@ export const culturalPosts = [
   }
 ];
 
-export type Message = {
+export type MessageFull = {
     id: string;
     author: string;
     avatar: string;
@@ -493,7 +493,7 @@ export type Message = {
     };
   };
   
-export type Conversation = {
+export type ConversationFull = {
     id: string;
     type: 'dm' | 'group';
     name: string;
@@ -502,10 +502,11 @@ export type Conversation = {
     unreadCount: number;
     lastMessage: string;
     lastMessageTimestamp: string;
-    messages: Message[];
+    messages: MessageFull[];
+    pinned: boolean;
 };
   
-export const conversations: Conversation[] = [
+export const conversations: ConversationFull[] = [
     {
       id: 'convo-1',
       type: 'dm',
@@ -515,6 +516,7 @@ export const conversations: Conversation[] = [
       unreadCount: 2,
       lastMessage: '¡Claro! Te envío ahora mismo el borrador del lienzo.',
       lastMessageTimestamp: 'hace 5m',
+      pinned: true,
       messages: [
         {
           id: 'msg-1-1',
@@ -557,6 +559,7 @@ export const conversations: Conversation[] = [
         unreadCount: 0,
         lastMessage: 'Acabo de subir el paper, ¡buena lectura!',
         lastMessageTimestamp: 'hace 1h',
+        pinned: true,
         messages: [
             {
                 id: 'msg-2-1',
@@ -597,6 +600,7 @@ export const conversations: Conversation[] = [
         unreadCount: 0,
         lastMessage: 'Aquí tienes la última pieza, dime qué te parece.',
         lastMessageTimestamp: 'hace 3h',
+        pinned: false,
         messages: [
             {
                 id: 'msg-3-1',
@@ -618,5 +622,5 @@ export type Theme = (typeof themes)[0];
 export type Category = (typeof categories)[0];
 export type Course = (typeof courses)[0];
 export type Article = (typeof articles)[0];
-export type ConversationFull = (typeof conversations)[0];
-export type MessageFull = (typeof conversations)[0]['messages'][0];
+// export type ConversationFull = (typeof conversations)[0];
+// export type MessageFull = (typeof conversations)[0]['messages'][0];

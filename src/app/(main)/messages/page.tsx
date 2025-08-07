@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { conversations, type ConversationFull, type MessageFull } from "@/lib/data";
 import { cn } from "@/lib/utils";
-import { Search, Phone, Video, Send, PlusCircle, Sparkles, Library, Edit, Image as ImageIcon, File as FileIcon, Vote, MoreVertical } from "lucide-react";
+import { Search, Phone, Video, Send, PlusCircle, Sparkles, Library, Edit, Image as ImageIcon, File as FileIcon, Vote, MoreVertical, Pin, Menu } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 function ConversationListItem({ conversation, onSelect, isActive }: { conversation: ConversationFull, onSelect: () => void, isActive: boolean }) {
     return (
@@ -32,14 +34,69 @@ function ConversationListItem({ conversation, onSelect, isActive }: { conversati
                 </div>
                 <div className="flex justify-between items-start">
                     <p className="text-sm text-muted-foreground truncate">{conversation.lastMessage}</p>
-                    {conversation.unreadCount > 0 && (
-                        <Badge className="h-5 w-5 flex items-center justify-center p-0">{conversation.unreadCount}</Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {conversation.pinned && <Pin className="w-3.5 h-3.5 text-primary" />}
+                        {conversation.unreadCount > 0 && (
+                            <Badge className="h-5 w-5 flex items-center justify-center p-0">{conversation.unreadCount}</Badge>
+                        )}
+                    </div>
                 </div>
             </div>
         </button>
     )
 }
+
+function ConversationList({ onConversationSelect, selectedConversationId }: { onConversationSelect: (conv: ConversationFull) => void, selectedConversationId: string }) {
+    const pinnedConversations = conversations.filter(c => c.pinned);
+    const recentConversations = conversations.filter(c => !c.pinned);
+
+    return (
+        <aside className="flex flex-col border-r h-full bg-background/80 md:bg-transparent">
+            <div className="p-4 border-b">
+                <div className="flex items-center justify-between">
+                    <h1 className="text-2xl font-bold font-headline">Mensajes</h1>
+                    <Button variant="ghost" size="icon">
+                        <PlusCircle className="w-6 h-6" />
+                    </Button>
+                </div>
+                <div className="relative mt-2">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Buscar conversaciones..." className="pl-8" />
+                </div>
+            </div>
+            <ScrollArea className="flex-1">
+                <div className="p-2 space-y-1">
+                    {pinnedConversations.length > 0 && (
+                        <div className="px-2 py-1">
+                            <h2 className="text-xs font-semibold uppercase text-muted-foreground">Fijados</h2>
+                            {pinnedConversations.map(convo => (
+                                <ConversationListItem 
+                                    key={convo.id} 
+                                    conversation={convo}
+                                    onSelect={() => onConversationSelect(convo)}
+                                    isActive={selectedConversationId === convo.id}
+                                />
+                            ))}
+                            <Separator className="my-2" />
+                        </div>
+                    )}
+                    <div className="px-2 py-1">
+                        <h2 className="text-xs font-semibold uppercase text-muted-foreground">Recientes</h2>
+                         {recentConversations.map(convo => (
+                            <ConversationListItem 
+                                key={convo.id} 
+                                conversation={convo}
+                                onSelect={() => onConversationSelect(convo)}
+                                isActive={selectedConversationId === convo.id}
+                            />
+                        ))}
+                    </div>
+                </div>
+            </ScrollArea>
+        </aside>
+    )
+}
+
 
 function MessageBubble({ message }: { message: MessageFull }) {
     const isUser = message.author === 'Tú';
@@ -119,38 +176,36 @@ function MessageBubble({ message }: { message: MessageFull }) {
 }
 
 export default function MessagesPage() {
-    const [selectedConversation, setSelectedConversation] = useState(conversations[0]);
+    const [selectedConversation, setSelectedConversation] = useState(conversations.find(c => c.pinned) || conversations[0]);
+    const [isSheetOpen, setIsSheetOpen] = useState(false);
     
+    const handleSelectConversation = (conv: ConversationFull) => {
+        setSelectedConversation(conv);
+        setIsSheetOpen(false); // Close sheet on selection
+    }
+
     return (
-        <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] h-[calc(100vh-60px)]">
+        <div className="grid md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] h-[calc(100vh-60px)]">
             {/* Sidebar */}
-            <aside className="flex flex-col border-r h-full">
-                <div className="p-4 border-b">
-                    <h1 className="text-2xl font-bold font-headline">Mensajes</h1>
-                    <div className="relative mt-2">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="Buscar conversaciones..." className="pl-8" />
-                    </div>
-                </div>
-                <ScrollArea className="flex-1">
-                    <div className="p-2 space-y-1">
-                        {conversations.map(convo => (
-                            <ConversationListItem 
-                                key={convo.id} 
-                                conversation={convo}
-                                onSelect={() => setSelectedConversation(convo)}
-                                isActive={selectedConversation.id === convo.id}
-                            />
-                        ))}
-                    </div>
-                </ScrollArea>
-            </aside>
+            <div className="hidden md:flex">
+                 <ConversationList onConversationSelect={handleSelectConversation} selectedConversationId={selectedConversation.id} />
+            </div>
             
             {/* Main Chat Area */}
             <main className="flex flex-col h-full bg-muted/20">
                 {/* Header */}
                 <header className="flex items-center justify-between p-3 border-b bg-background/80 backdrop-blur-xl">
                     <div className="flex items-center gap-3">
+                         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+                            <SheetTrigger asChild>
+                                <Button variant="ghost" size="icon" className="md:hidden">
+                                    <Menu />
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent side="left" className="p-0 w-full sm:w-3/4">
+                                <ConversationList onConversationSelect={handleSelectConversation} selectedConversationId={selectedConversation.id} />
+                            </SheetContent>
+                        </Sheet>
                          <Avatar className="h-10 w-10">
                             <AvatarImage src={selectedConversation.avatar} data-ai-hint={selectedConversation.dataAiHint} />
                             <AvatarFallback>{selectedConversation.name.slice(0, 2)}</AvatarFallback>
