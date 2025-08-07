@@ -20,6 +20,8 @@ import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
+  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { UserNav } from "./user-nav";
@@ -37,6 +39,9 @@ export function AppHeader() {
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="flex flex-col">
+          <SheetHeader>
+            <SheetTitle className="sr-only">Menú de Navegación</SheetTitle>
+          </SheetHeader>
           <nav className="grid gap-2 text-lg font-medium">
             <Link
               href="#"
