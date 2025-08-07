@@ -476,7 +476,147 @@ export const culturalPosts = [
   }
 ];
 
+export type Message = {
+    id: string;
+    author: string;
+    avatar: string;
+    dataAiHint: string;
+    timestamp: string;
+    content: {
+      type: 'text' | 'image' | 'file' | 'canvas' | 'poll';
+      text?: string;
+      imageUrl?: string;
+      imageHint?: string;
+      file?: { name: string; size: string; };
+      canvas?: { title: string, content: string };
+      poll?: { question: string, options: string[] };
+    };
+  };
+  
+export type Conversation = {
+    id: string;
+    type: 'dm' | 'group';
+    name: string;
+    avatar: string;
+    dataAiHint: string;
+    unreadCount: number;
+    lastMessage: string;
+    lastMessageTimestamp: string;
+    messages: Message[];
+};
+  
+export const conversations: Conversation[] = [
+    {
+      id: 'convo-1',
+      type: 'dm',
+      name: 'Brenda',
+      avatar: 'https://placehold.co/100x100.png',
+      dataAiHint: 'woman smiling',
+      unreadCount: 2,
+      lastMessage: '¡Claro! Te envío ahora mismo el borrador del lienzo.',
+      lastMessageTimestamp: 'hace 5m',
+      messages: [
+        {
+          id: 'msg-1-1',
+          author: 'Brenda',
+          avatar: 'https://placehold.co/100x100.png',
+          dataAiHint: 'woman smiling',
+          timestamp: 'hace 10m',
+          content: { type: 'text', text: 'Hey! ¿Tienes un momento para revisar los conceptos para el nuevo EVP de "Bosque Fractal"?' }
+        },
+        {
+          id: 'msg-1-2',
+          author: 'Tú',
+          avatar: 'https://placehold.co/100x100.png',
+          dataAiHint: 'user avatar',
+          timestamp: 'hace 8m',
+          content: { type: 'text', text: 'Sí, claro. Envíamelos.' }
+        },
+        {
+            id: 'msg-1-3',
+            author: 'Brenda',
+            avatar: 'https://placehold.co/100x100.png',
+            dataAiHint: 'woman smiling',
+            timestamp: 'hace 5m',
+            content: { 
+                type: 'canvas',
+                canvas: {
+                    title: 'Borrador: Bosque Fractal',
+                    content: 'Un lienzo interactivo con imágenes conceptuales, paletas de colores y una pequeña demo de shader.'
+                }
+            }
+          },
+      ]
+    },
+    {
+        id: 'convo-2',
+        type: 'group',
+        name: 'Grupo de Estudio de IA',
+        avatar: 'https://placehold.co/100x100.png',
+        dataAiHint: 'brain circuit',
+        unreadCount: 0,
+        lastMessage: 'Acabo de subir el paper, ¡buena lectura!',
+        lastMessageTimestamp: 'hace 1h',
+        messages: [
+            {
+                id: 'msg-2-1',
+                author: 'Alex Duran',
+                avatar: 'https://placehold.co/100x100.png',
+                dataAiHint: 'man coding',
+                timestamp: 'hace 2h',
+                content: {
+                    type: 'poll',
+                    poll: {
+                        question: '¿Cuándo hacemos la próxima sesión para discutir el paper sobre "Attention Is All You Need"?',
+                        options: ['Martes 5pm', 'Miércoles 6pm', 'Jueves 5pm']
+                    }
+                }
+            },
+            {
+                id: 'msg-2-2',
+                author: 'Samantha Lee',
+                avatar: 'https://placehold.co/100x100.png',
+                dataAiHint: 'woman smiling',
+                timestamp: 'hace 1h',
+                content: {
+                    type: 'file',
+                    file: {
+                        name: 'Attention_Is_All_You_Need.pdf',
+                        size: '2.2 MB'
+                    }
+                }
+            }
+        ]
+    },
+    {
+        id: 'convo-3',
+        type: 'dm',
+        name: 'Artista Anónimo',
+        avatar: 'https://placehold.co/100x100.png',
+        dataAiHint: 'abstract art',
+        unreadCount: 0,
+        lastMessage: 'Aquí tienes la última pieza, dime qué te parece.',
+        lastMessageTimestamp: 'hace 3h',
+        messages: [
+            {
+                id: 'msg-3-1',
+                author: 'Artista Anónimo',
+                avatar: 'https://placehold.co/100x100.png',
+                dataAiHint: 'abstract art',
+                timestamp: 'hace 3h',
+                content: {
+                    type: 'image',
+                    imageUrl: 'https://placehold.co/400x300.png',
+                    imageHint: 'generative art canvas'
+                }
+            }
+        ]
+    }
+];
+  
 export type Theme = (typeof themes)[0];
 export type Category = (typeof categories)[0];
 export type Course = (typeof courses)[0];
 export type Article = (typeof articles)[0];
+export type ConversationFull = (typeof conversations)[0];
+export type MessageFull = (typeof conversations)[0]['messages'][0];
