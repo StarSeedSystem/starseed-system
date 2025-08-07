@@ -1,6 +1,7 @@
 // src/app/(main)/publish/page.tsx
 'use client'
 import { useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags } from "lucide-react";
+import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { addDays, format } from "date-fns";
@@ -22,13 +23,25 @@ import { themes, categories } from "@/lib/data";
 type Area = "politics" | "education" | "culture";
 type PoliticalCategory = "Legislativo" | "Ejecutivo" | "Judicial" | null;
 
+const allDestinations = [
+    { id: 'dest-1', name: "Mi Perfil", type: "Perfil Oficial", avatar: "https://placehold.co/40x40.png" },
+    { id: 'dest-2', name: "E.F. del Valle Central", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png" },
+    { id: 'dest-3', name: "E.F. del Norte", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png" },
+    { id: 'dest-4', name: "Comunidad de Permacultura", type: "Comunidad", avatar: "https://placehold.co/40x40.png" },
+    { id: 'dest-5', name: "Grupo de Estudio de IA", type: "Grupo de Estudio", avatar: "https://placehold.co/40x40.png" },
+    { id: 'dest-6', name: "Red de Conocimiento Global", type: "Red de Conocimiento", avatar: "https://placehold.co/40x40.png" },
+    { id: 'dest-7', name: "Artistas por la Singularidad", type: "Comunidad", avatar: "https://placehold.co/40x40.png" },
+    { id: 'dest-8', name: "Canal de Eventos Globales", type: "Evento", avatar: "https://placehold.co/40x40.png" },
+    { id: 'dest-9', name: "Partido Transhumanista", type: "Partido Político", avatar: "https://placehold.co/40x40.png" }
+];
+
 const areaConfig = {
     politics: {
         icon: <Scale />,
         title: "Política",
         description: "Proponer leyes, iniciar proyectos ejecutivos o abrir casos judiciales.",
         color: "border-primary/50 bg-primary/10 text-primary",
-        destinations: ["E.F. del Valle Central", "E.F. del Norte"],
+        allowedDestinations: ["Entidad Federativa", "Partido Político", "Perfil Oficial"],
         categories: ["Legislativo", "Ejecutivo", "Judicial"]
     },
     education: {
@@ -36,7 +49,7 @@ const areaConfig = {
         title: "Educación",
         description: "Compartir conocimiento creando cursos, artículos o guías.",
         color: "border-secondary/50 bg-secondary/10 text-secondary",
-        destinations: ["Mi Perfil", "Comunidad de Permacultura", "Grupo de Estudio de IA", "Red de Conocimiento Global"],
+        allowedDestinations: ["Red de Conocimiento", "Comunidad", "Evento", "Grupo de Estudio", "Perfil Oficial"],
         categories: ["Curso", "Artículo", "Guía"]
     },
     culture: {
@@ -44,7 +57,7 @@ const areaConfig = {
         title: "Cultura",
         description: "Expresar ideas, arte, organizar eventos o compartir noticias.",
         color: "border-accent/50 bg-accent/10 text-accent",
-        destinations: ["Mi Perfil", "Comunidad de Permacultura", "Artistas por la Singularidad", "Canal de Eventos Globales"],
+        allowedDestinations: ["Comunidad", "Evento", "Perfil Oficial"],
         categories: ["Publicación General", "Evento", "Noticia"]
     }
 }
@@ -132,9 +145,11 @@ export default function PublishPage() {
     const [isThemeSelectorOpen, setThemeSelectorOpen] = useState(false);
     const [selectedCat, setSelectedCategories] = useState<string[]>([]);
     const [selectedTh, setSelectedThemes] = useState<string[]>([]);
+    const [selectedDestinations, setSelectedDestinations] = useState<any[]>([]);
 
     const handleSelectArea = (area: Area) => {
         setSelectedArea(area);
+        setSelectedDestinations([]);
         setStep(2);
     }
     
@@ -146,12 +161,24 @@ export default function PublishPage() {
             setShowVoteConfig(false);
         }
     }
+    
+    const handleSelectDestination = (dest: any) => {
+        if (!selectedDestinations.find(d => d.id === dest.id)) {
+            setSelectedDestinations([...selectedDestinations, dest]);
+        }
+    }
+
+    const handleRemoveDestination = (destId: string) => {
+        setSelectedDestinations(selectedDestinations.filter(d => d.id !== destId));
+    }
+
 
     const resetFlow = () => {
         setSelectedArea(null);
         setSelectedCategory(null);
         setStep(1);
         setShowVoteConfig(false);
+        setSelectedDestinations([]);
     }
 
     if (step === 1) {
@@ -189,6 +216,8 @@ export default function PublishPage() {
         const config = areaConfig[selectedArea];
         const isPolitics = selectedArea === 'politics';
         const isEducation = selectedArea === 'education';
+
+        const availableDestinations = allDestinations.filter(dest => config.allowedDestinations.includes(dest.type));
 
         return (
             <>
@@ -231,14 +260,45 @@ export default function PublishPage() {
                         <CardContent className="grid md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <Label>Destino(s) de la Publicación</Label>
-                                <p className="text-xs text-muted-foreground">Puedes seleccionar una o varias páginas y perfiles.</p>
-                                <div className="p-3 border rounded-lg h-32 overflow-y-auto space-y-2">
-                                {config.destinations.map(dest => (
-                                    <div key={dest} className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm">
-                                        <span>{dest}</span>
-                                        <Button variant="outline" size="sm" className="h-7">Seleccionar</Button>
+                                <p className="text-xs text-muted-foreground">Puedes seleccionar uno o varios destinos.</p>
+                                
+                                <div className="relative">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input placeholder="Buscar perfiles o páginas..." className="pl-8" />
+                                </div>
+                                <div className="p-1 border rounded-lg h-32 overflow-y-auto space-y-1">
+                                {availableDestinations.map(dest => (
+                                    <div key={dest.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <Avatar className="h-6 w-6">
+                                                <AvatarImage src={dest.avatar} />
+                                                <AvatarFallback>{dest.name.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                            <span className="font-medium">{dest.name}</span>
+                                            <span className="text-xs text-muted-foreground">({dest.type})</span>
+                                        </div>
+                                        <Button variant="outline" size="sm" className="h-7" onClick={() => handleSelectDestination(dest)}>Seleccionar</Button>
                                     </div>
                                 ))}
+                                </div>
+
+                                <Label className="pt-2 block">Destinos Seleccionados:</Label>
+                                 <div className="flex flex-wrap gap-2 p-2 border rounded-lg min-h-[40px] bg-muted/50">
+                                    {selectedDestinations.map(d => (
+                                        <Badge key={d.id} variant="secondary" className="p-1 pr-2">
+                                            <div className="flex items-center gap-2">
+                                                <Avatar className="h-5 w-5">
+                                                    <AvatarImage src={d.avatar} />
+                                                    <AvatarFallback>{d.name.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                                <span>{d.name}</span>
+                                                <button onClick={() => handleRemoveDestination(d.id)} className="ml-1 rounded-full hover:bg-background/50 p-0.5">
+                                                    <X className="h-3 w-3"/>
+                                                </button>
+                                            </div>
+                                        </Badge>
+                                    ))}
+                                    {selectedDestinations.length === 0 && <span className="text-xs text-muted-foreground p-1">Ningún destino seleccionado...</span>}
                                 </div>
                             </div>
                             <div className="space-y-2">
@@ -305,7 +365,7 @@ export default function PublishPage() {
                         </CardContent>
                     </Card>
                     
-                    {!isPolitics && !showVoteConfig && (
+                    {!showVoteConfig && !isPolitics && (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="font-headline text-xl">Paso 4: Opciones de Publicación</CardTitle>
