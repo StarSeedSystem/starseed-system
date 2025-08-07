@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { feedItems, politicalProposals, comments as defaultComments } from "@/lib/data";
-import { Edit, Rss, Scale, Users, BarChart, FileText, ThumbsUp, MessageCircle, Share2, Bookmark } from "lucide-react";
+import { Edit, Rss, Scale, Users, BarChart, FileText, ThumbsUp, MessageCircle, Share2, Bookmark, Folder, PlusCircle } from "lucide-react";
 import Image from "next/image";
 import { CommentSystem } from "@/components/comment-system";
 import Link from "next/link";
@@ -260,15 +260,15 @@ function FeedPostCard({ item }: { item: typeof feedItems[0] }) {
                 <div className="flex justify-between items-center text-muted-foreground border-t pt-2">
                     <div className="flex gap-1">
                         <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                            <ThumbsUp className="w-4 h-4" /> {item.likes}
+                            <ThumbsUp className="w-4 w-4" /> {item.likes}
                         </Button>
                         <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={() => setShowComments(!showComments)}>
-                            <MessageCircle className="w-4 h-4" /> {item.comments.length}
+                            <MessageCircle className="w-4 w-4" /> {item.comments.length}
                         </Button>
                     </div>
                     <div className="flex gap-1">
                         <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                            <Share2 className="w-4 h-4" /> Compartir
+                            <Share2 className="w-4 w-4" /> Compartir
                         </Button>
                         <Button variant="ghost" size="sm" className="flex items-center gap-2">
                             <Bookmark className="w-4 h-4" /> Guardar
@@ -319,6 +319,55 @@ function EFGovernanceTabs() {
         </Tabs>
     )
 }
+
+const collections = [
+    { id: 'collection-1', name: "Investigación para Artículo de IA", description: "Recursos y borradores para el próximo artículo sobre la conciencia en LLMs.", count: 5, previews: ["https://placehold.co/50x50.png", "https://placehold.co/50x50.png", "https://placehold.co/50x50.png"] },
+    { id: 'collection-2', name: "Inspiración para Diseño Ciberdélico", description: "Arte generativo, paletas de colores y referencias visuales.", count: 12, previews: ["https://placehold.co/50x50.png", "https://placehold.co/50x50.png", "https://placehold.co/50x50.png"] },
+    { id: 'collection-3', name: "Propuestas Políticas a Seguir", description: "Leyes y propuestas importantes en varias E.F.", count: 3, previews: ["https://placehold.co/50x50.png", "https://placehold.co/50x50.png", "https://placehold.co/50x50.png"] }
+];
+
+function CollectionsGrid() {
+    return (
+        <div>
+            <div className="flex justify-end mb-4">
+                <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Crear Nueva Colección
+                </Button>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {collections.map(collection => (
+                    <Card key={collection.id} className="hover:shadow-lg transition-shadow">
+                        <CardHeader>
+                            <div className="flex items-start gap-2">
+                                <Folder className="text-primary w-6 h-6 mt-1" />
+                                <div>
+                                    <CardTitle className="font-headline text-lg">{collection.name}</CardTitle>
+                                    <CardDescription>{collection.count} elementos</CardDescription>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground mb-4">{collection.description}</p>
+                            <div className="flex -space-x-2">
+                                {collection.previews.map((src, index) => (
+                                    <Avatar key={index} className="border-2 border-background">
+                                        <AvatarImage src={src} data-ai-hint="abstract art" />
+                                        <AvatarFallback>C</AvatarFallback>
+                                    </Avatar>
+                                ))}
+                            </div>
+                        </CardContent>
+                         <CardFooter>
+                            <Button variant="outline" className="w-full">Ver Colección</Button>
+                        </CardFooter>
+                    </Card>
+                ))}
+            </div>
+        </div>
+    )
+}
+
 
 export default function ProfilePage() {
   const params = useParams();
@@ -383,15 +432,8 @@ export default function ProfilePage() {
                     </Card>
                 </TabsContent>
                  <TabsContent value="collections" className="mt-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Colecciones</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-muted-foreground">Las colecciones públicas de este perfil están en construcción.</p>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                    <CollectionsGrid />
+                 </TabsContent>
             </Tabs>
         </div>
         <div className="lg:col-span-1">
