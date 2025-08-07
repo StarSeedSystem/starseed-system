@@ -205,17 +205,59 @@ export const themes = [
 export const courses = [
   {
     id: 'course-1',
+    href: '/course/quantum-physics-intro',
     title: 'Introducción a la Física Cuántica',
     description: 'Explora los conceptos fundamentales del mundo cuántico, desde la dualidad onda-partícula hasta el entrelazamiento.',
     progress: 60,
-    tags: ['Física Cuántica', 'Ciencia', 'Fundamentos']
+    tags: ['Física Cuántica', 'Ciencia', 'Fundamentos'],
+    modules: [
+        {
+            title: "Módulo 1: Fundamentos",
+            lessons: [
+                { title: "Lección 1.1: La Crisis de la Física Clásica", completed: true },
+                { title: "Lección 1.2: El cuanto de Planck y el Efecto Fotoeléctrico", completed: true },
+                { title: "Lección 1.3: La Dualidad Onda-Partícula", completed: false },
+            ]
+        },
+        {
+            title: "Módulo 2: La Ecuación de Schrödinger",
+            lessons: [
+                { title: "Lección 2.1: La Función de Onda", completed: false },
+                { title: "Lección 2.2: Resolviendo para un Pozo de Potencial Infinito", completed: false },
+            ]
+        }
+    ]
   },
   {
     id: 'course-2',
+    href: '/course/ai-ethics',
     title: 'Ética en la Inteligencia Artificial',
     description: 'Un curso sobre los dilemas éticos que enfrentamos con el desarrollo de la IA y cómo crear sistemas alineados con valores humanos.',
     progress: 85,
-    tags: ['IA', 'Ética', 'Sociedad', 'Tecnología']
+    tags: ['IA', 'Ética', 'Sociedad', 'Tecnología'],
+    modules: [
+        {
+            title: "Módulo 1: Introducción a la Ética de las Máquinas",
+            lessons: [
+                { title: "Lección 1.1: ¿Por qué es importante la ética en la IA?", completed: true },
+                { title: "Lección 1.2: Marcos éticos principales (Utilitarismo, Deontología)", completed: true },
+            ]
+        },
+        {
+            title: "Módulo 2: Sesgo y Justicia",
+            lessons: [
+                { title: "Lección 2.1: ¿Cómo aprenden los modelos el sesgo?", completed: true },
+                { title: "Lección 2.2: Técnicas para la mitigación del sesgo", completed: true },
+            ]
+        },
+         {
+            title: "Módulo 3: El Problema de la Caja Negra",
+            lessons: [
+                { title: "Lección 3.1: Explicabilidad e Interpretabilidad (XAI)", completed: true },
+                { title: "Lección 3.2: ¿Tenemos derecho a una explicación?", completed: false },
+            ]
+        }
+    ]
   }
 ];
 
@@ -238,45 +280,85 @@ export const articles = [
     id: 'article-1',
     title: 'La Teoría de la Simulación: ¿Vivimos en una Realidad Programada?',
     author: 'Dra. Evelyn Reed',
+    authorAvatar: 'https://placehold.co/100x100.png',
     rating: 4.8,
-    href: '#',
+    href: '/article/the-simulation-theory',
     excerpt: 'Un análisis profundo de los argumentos a favor y en contra de la hipótesis de la simulación, explorando sus implicaciones filosóficas y científicas.',
     tags: ['Filosofía', 'Ciencia', 'Conciencia'],
     likes: 152,
     comments: articleComments,
+    content: `
+La hipótesis de la simulación propone que nuestra realidad es una simulación artificial, posiblemente una simulación por computadora. Esta idea, aunque popularizada por la ciencia ficción, tiene raíces profundas en la filosofía y está siendo seriamente considerada por varios físicos, cosmólogos y filósofos.
+
+### El Argumento de Nick Bostrom
+
+El filósofo Nick Bostrom, en su famoso artículo de 2003, formalizó el argumento de la simulación. Propuso un trilema con tres posibles escenarios:
+
+1.  **La Extinción:** La probabilidad de que una civilización como la nuestra alcance un nivel de desarrollo tecnológico capaz de crear "simulaciones de ancestros" es prácticamente nula.
+2.  **La Convergencia de Intereses:** Civilizaciones posthumanas (aquellas que han alcanzado ese nivel tecnológico) habrán perdido interés en ejecutar simulaciones de sus ancestros.
+3.  **La Simulación:** Estamos casi con certeza viviendo en una simulación.
+
+Bostrom argumenta que al menos una de estas proposiciones debe ser verdadera. Si la tercera es la correcta, entonces es mucho más probable que seamos una de las innumerables mentes simuladas que una de las mentes originales.
+
+### Evidencia y Argumentos
+
+No existe evidencia directa que confirme o refute la hipótesis de la simulación, pero hay varias líneas de pensamiento:
+
+*   **El Límite Computacional:** Algunos físicos sugieren que si el universo es una simulación, debería haber un "límite" en los recursos computacionales, lo que podría manifestarse como un "pixelado" del espacio-tiempo a la escala de Planck.
+*   **La Naturaleza Matemática del Universo:** La sorprendente efectividad de las matemáticas para describir el universo podría ser una pista de que está basado en código y algoritmos.
+*   **Paradojas Cuánticas:** Fenómenos como el entrelazamiento y el colapso de la función de onda podrían ser optimizaciones computacionales, donde el universo solo renderiza propiedades definidas cuando son observadas.
+
+> "El universo comienza a parecerse más a un gran pensamiento que a una gran máquina." - James Jeans
+
+Este artículo solo roza la superficie de un tema vasto y alucinante. Te invitamos a explorar las referencias y a unirte a la discusión en los comentarios.
+`,
+    image: 'https://placehold.co/800x450.png',
+    imageHint: 'digital matrix code'
   },
   {
     id: 'article-2',
     title: 'Gobernanza Descentralizada: Modelos para el Futuro',
     author: 'Comunidad de Gobernanza',
+    authorAvatar: 'https://placehold.co/100x100.png',
     rating: 4.9,
-    href: '#',
+    href: '/article/decentralized-governance',
     excerpt: 'Estudio comparativo de diferentes modelos de Organizaciones Autónomas Descentralizadas (DAOs) y su aplicabilidad en el contexto de las Entidades Federativas.',
     tags: ['Gobernanza', 'Sociedad', 'Política', 'Tecnología'],
     likes: 230,
     comments: [],
+    content: `... (Contenido completo del artículo 2) ...`,
+    image: null,
+    imageHint: null,
   },
   {
     id: 'article-3',
     title: 'Permacultura: Diseñando Ecosistemas Sostenibles',
     author: 'Red de Permacultura',
+    authorAvatar: 'https://placehold.co/100x100.png',
     rating: 4.7,
-    href: '#',
+    href: '/article/permaculture-design',
     excerpt: 'Una guía práctica para aplicar los principios de la permacultura en tu comunidad, desde jardines urbanos hasta sistemas de gestión de agua.',
     tags: ['Sostenibilidad', 'Comunidad', 'Ecología'],
     likes: 98,
     comments: [],
+    content: `... (Contenido completo del artículo 3) ...`,
+    image: 'https://placehold.co/800x450.png',
+    imageHint: 'lush community garden'
   },
   {
     id: 'article-4',
     title: 'Modelos de Lenguaje Grande (LLMs) y Creatividad',
     author: 'Grupo de Estudio de IA',
+    authorAvatar: 'https://placehold.co/100x100.png',
     rating: 4.9,
-    href: '#',
+    href: '/article/llms-and-creativity',
     excerpt: 'Cómo los LLMs están revolucionando la creatividad y el arte, y las herramientas para empezar a experimentar.',
     tags: ['IA', 'Arte Generativo', 'Tecnología'],
     likes: 312,
     comments: [],
+    content: `... (Contenido completo del artículo 4) ...`,
+    image: null,
+    imageHint: null
   },
 ];
 
@@ -393,3 +475,8 @@ export const culturalPosts = [
     comments: []
   }
 ];
+
+export type Theme = (typeof themes)[0];
+export type Category = (typeof categories)[0];
+export type Course = (typeof courses)[0];
+export type Article = (typeof articles)[0];

@@ -38,7 +38,9 @@ function CourseCard({ course, className }: { course: (typeof courses)[0], classN
         </div>
       </CardContent>
       <CardFooter>
-        <Button className="w-full">Continuar Aprendiendo</Button>
+        <Button className="w-full" asChild>
+          <Link href={course.href}>Continuar Aprendiendo</Link>
+        </Button>
       </CardFooter>
     </Card>
   )
@@ -223,18 +225,18 @@ export default function EducationPage() {
                     <h2 className="text-2xl font-bold font-headline mb-2">Populares en Ciencia</h2>
                     <p className="text-muted-foreground">Explora cursos y artículos sobre los fundamentos científicos de nuestro universo.</p>
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
-                        <CourseCard course={courses[0]} />
-                        <ArticleCard article={articles[0]} />
-                        <ArticleCard article={articles[3]} />
+                        <CourseCard course={courses.find(c => c.id === 'course-1')!} />
+                        <ArticleCard article={articles.find(a => a.id === 'article-1')!} />
+                        <ArticleCard article={articles.find(a => a.id === 'article-4')!} />
                     </div>
                 </div>
                 <div>
                     <h2 className="text-2xl font-bold font-headline mb-2">Debates en Sociedad</h2>
                     <p className="text-muted-foreground">Analiza las estructuras, éticas y tecnologías que moldean nuestra realidad colectiva.</p>
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
-                        <CourseCard course={courses[1]} />
-                        <ArticleCard article={articles[1]} />
-                        <ArticleCard article={articles[2]} />
+                         <CourseCard course={courses.find(c => c.id === 'course-2')!} />
+                        <ArticleCard article={articles.find(a => a.id === 'article-2')!} />
+                        <ArticleCard article={articles.find(a => a.id === 'article-3')!} />
                     </div>
                 </div>
             </div>
