@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, ThumbsUp, Share2, Repeat } from "lucide-react";
+import { MessageCircle, ThumbsUp, Share2, Repeat, Bookmark } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { culturalPosts } from "@/lib/data";
@@ -49,9 +49,14 @@ function CulturalPostCard({ post }: { post: typeof culturalPosts[0] }) {
                     <MessageCircle className="w-4 h-4" /> {post.comments.length}
                 </Button>
             </div>
-            <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                <Share2 className="w-4 h-4" /> Compartir
-            </Button>
+            <div className="flex gap-1">
+                <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                    <Share2 className="w-4 h-4" /> Compartir
+                </Button>
+                <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                    <Bookmark className="w-4 h-4" /> Guardar
+                </Button>
+            </div>
         </div>
         {showComments && (
           <div className='mt-4'>

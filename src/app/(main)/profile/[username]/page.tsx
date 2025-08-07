@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { feedItems, politicalProposals, comments as defaultComments } from "@/lib/data";
-import { Edit, Rss, Scale, Users, BarChart, FileText, ThumbsUp, MessageCircle, Share2 } from "lucide-react";
+import { Edit, Rss, Scale, Users, BarChart, FileText, ThumbsUp, MessageCircle, Share2, Bookmark } from "lucide-react";
 import Image from "next/image";
 import { CommentSystem } from "@/components/comment-system";
 import Link from "next/link";
@@ -122,7 +122,12 @@ function PoliticalProposalCard({ proposal }: { proposal: typeof politicalProposa
                     <span>Estado: <span className="text-primary font-semibold">{proposal.status}</span></span>
                     <span>Finaliza en: {proposal.deadline}</span>
                 </div>
-                <Button size="lg">Ver Propuesta y Votar</Button>
+                 <div className="flex gap-2">
+                    <Button size="lg" className="flex-1">Ver Propuesta y Votar</Button>
+                    <Button size="lg" variant="outline">
+                        <Bookmark />
+                    </Button>
+                </div>
             </CardFooter>
         </Card>
     )
@@ -216,6 +221,9 @@ function ProfileHeader({ profileData }: { profileData: any }) {
           <div className="flex gap-2">
             <Button variant="outline"><Rss className="mr-2 h-4 w-4"/> Seguir</Button>
             {profileData.isUser && <Button><Edit className="mr-2 h-4 w-4"/> Editar Perfil</Button>}
+             <Button variant="outline" size="icon">
+                <Bookmark />
+            </Button>
           </div>
         </div>
       </CardContent>
@@ -258,9 +266,14 @@ function FeedPostCard({ item }: { item: typeof feedItems[0] }) {
                             <MessageCircle className="w-4 h-4" /> {item.comments.length}
                         </Button>
                     </div>
-                    <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                        <Share2 className="w-4 h-4" /> Compartir
-                    </Button>
+                    <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                            <Share2 className="w-4 h-4" /> Compartir
+                        </Button>
+                        <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                            <Bookmark className="w-4 h-4" /> Guardar
+                        </Button>
+                    </div>
                 </div>
                 {showComments && (
                   <div className='mt-4 w-full'>

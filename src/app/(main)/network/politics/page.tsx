@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, FileText, Scale, Users, MessageSquare } from "lucide-react";
+import { BarChart, FileText, Scale, Users, MessageSquare, Bookmark } from "lucide-react";
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 import { politicalProposals } from "@/lib/data";
 import { CommentSystem } from "@/components/comment-system";
@@ -114,7 +114,12 @@ function PoliticalProposalCard({ proposal }: { proposal: typeof politicalProposa
                     <span>Estado: <span className="text-primary font-semibold">{proposal.status}</span></span>
                     <span>Finaliza en: {proposal.deadline}</span>
                 </div>
-                <Button size="lg">Ver Propuesta y Votar</Button>
+                <div className="flex gap-2">
+                    <Button size="lg" className="flex-1">Ver Propuesta y Votar</Button>
+                    <Button size="lg" variant="outline">
+                        <Bookmark />
+                    </Button>
+                </div>
             </CardFooter>
         </Card>
     )
