@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search, AppWindow, Bold, Italic, Underline } from "lucide-react";
+import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search, AppWindow, Bold, Italic, Underline, Edit } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { addDays, format } from "date-fns";
@@ -21,6 +21,7 @@ import type { Category } from "@/lib/data";
 import { themes, categories } from "@/lib/data";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 type Area = "politics" | "education" | "culture";
 type PoliticalCategory = "Legislativo" | "Ejecutivo" | "Judicial" | null;
@@ -158,11 +159,55 @@ function CanvasToolbar({ onToolSelect }: { onToolSelect: (tool: string) => void 
 
 function TextFormatToolbar() {
     return (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-lg border bg-background/80 backdrop-blur-xl shadow-lg">
+        <div className="flex items-center gap-1 p-1 rounded-lg border bg-background/80 backdrop-blur-xl shadow-lg">
              <Button variant="ghost" size="icon"><Bold /></Button>
              <Button variant="ghost" size="icon"><Italic /></Button>
              <Button variant="ghost" size="icon"><Underline /></Button>
         </div>
+    )
+}
+
+function FullscreenCanvasEditor({ 
+    isOpen, 
+    onOpenChange, 
+    canvasType,
+    onToolSelect
+}: { 
+    isOpen: boolean, 
+    onOpenChange: (open: boolean) => void, 
+    canvasType: 'main' | 'preview' | null,
+    onToolSelect: (tool: string) => void 
+}) {
+    if (!canvasType) return null;
+
+    const title = canvasType === 'main' ? 'Contenido Principal' : 'Tarjeta de Previsualización';
+    const canvasClass = canvasType === 'main' 
+        ? "w-full h-full min-h-[calc(100vh-200px)]"
+        : "w-[400px] h-[300px] aspect-video";
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="w-screen h-screen max-w-full max-h-full flex flex-col p-0 gap-0">
+                <DialogHeader className="p-4 border-b flex-row items-center justify-between">
+                    <DialogTitle className="font-headline text-xl">Editando: {title}</DialogTitle>
+                    <Button onClick={() => onOpenChange(false)}>Guardar y Cerrar</Button>
+                </DialogHeader>
+                <div className="bg-muted/40 flex-1 flex flex-col items-center justify-center p-4 relative overflow-auto">
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+                         <CanvasToolbar onToolSelect={onToolSelect} />
+                    </div>
+                    <div className={cn("relative p-4 border-2 border-dashed rounded-lg bg-background shadow-lg", canvasClass)}>
+                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+                            <TextFormatToolbar />
+                        </div>
+                        <Textarea 
+                            placeholder="Escribe, pega o arrastra contenido aquí... El editor de formato libre se implementará en esta área." 
+                            className="min-h-full h-full bg-transparent border-0 focus-visible:ring-0 resize-none"
+                        />
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
     )
 }
 
@@ -179,6 +224,9 @@ export default function PublishPage() {
     const [selectedCat, setSelectedCategories] = useState<string[]>([]);
     const [selectedTh, setSelectedThemes] = useState<string[]>([]);
     const [selectedDestinations, setSelectedDestinations] = useState<any[]>([]);
+
+    const [isEditorOpen, setEditorOpen] = useState(false);
+    const [editingCanvas, setEditingCanvas] = useState<'main' | 'preview' | null>(null);
 
     const handleSelectArea = (area: Area) => {
         setSelectedArea(area);
@@ -217,6 +265,11 @@ export default function PublishPage() {
             title: "Herramienta Seleccionada",
             description: `Has abierto: ${toolName}. La funcionalidad completa se implementará pronto.`
         });
+    }
+
+    const openEditor = (canvasType: 'main' | 'preview') => {
+        setEditingCanvas(canvasType);
+        setEditorOpen(true);
     }
 
 
@@ -261,7 +314,6 @@ export default function PublishPage() {
 
     if (step === 2 && selectedArea) {
         const config = areaConfig[selectedArea];
-        const isPolitics = selectedArea === 'politics';
         const isEducation = selectedArea === 'education';
 
         const availableDestinations = allDestinations.filter(dest => config.allowedDestinations.includes(dest.type));
@@ -285,6 +337,13 @@ export default function PublishPage() {
                     selectedItems={selectedTh}
                     onSelectedItemsChange={setSelectedThemes}
                     type="theme"
+                />
+
+                <FullscreenCanvasEditor
+                    isOpen={isEditorOpen}
+                    onOpenChange={setEditorOpen}
+                    canvasType={editingCanvas}
+                    onToolSelect={handleToolSelection}
                 />
 
                 <div className="flex flex-col gap-6">
@@ -383,7 +442,7 @@ export default function PublishPage() {
                         </CardContent>
                     </Card>
 
-                    {showVoteConfig && <LegislativeVoteConfig />}
+                    {showVoteConfig && selectedArea === 'politics' && <LegislativeVoteConfig />}
 
                     <Card>
                         <CardHeader>
@@ -392,19 +451,21 @@ export default function PublishPage() {
                         </CardHeader>
                         <CardContent className="grid lg:grid-cols-3 gap-6">
                             <div className="lg:col-span-2 space-y-4">
-                               <div className="flex justify-center mb-4">
-                                 <CanvasToolbar onToolSelect={handleToolSelection} />
-                               </div>
-                               <Separator />
-                                <div className="relative p-4 border-2 border-dashed rounded-lg min-h-[400px]">
-                                    <TextFormatToolbar />
-                                    <Textarea placeholder="Escribe, pega o arrastra contenido aquí... El editor de formato libre se implementará en esta área." className="min-h-[380px] bg-transparent border-0 focus-visible:ring-0 resize-none"/>
+                                <h3 className="font-semibold text-muted-foreground">Contenido Principal</h3>
+                                <div className="relative p-4 border-2 border-dashed rounded-lg min-h-[300px] flex items-center justify-center text-center">
+                                    <div className="space-y-2">
+                                        <p className="text-muted-foreground">Este es tu lienzo principal de contenido ilimitado.</p>
+                                        <Button onClick={() => openEditor('main')}><Edit className="mr-2"/>Editar Lienzo</Button>
+                                    </div>
                                 </div>
                             </div>
                             <div className="space-y-4">
                                 <h3 className="font-semibold text-muted-foreground">Tarjeta de Previsualización</h3>
-                                <div className="p-4 border-2 border-dashed rounded-lg aspect-[4/3]">
-                                    <p className="text-sm text-muted-foreground text-center pt-10">Diseña aquí la tarjeta que se verá en los feeds.</p>
+                                <div className="relative p-4 border-2 border-dashed rounded-lg aspect-video flex items-center justify-center text-center">
+                                    <div className="space-y-2">
+                                        <p className="text-sm text-muted-foreground">Diseña aquí la tarjeta que se verá en los feeds.</p>
+                                         <Button variant="outline" onClick={() => openEditor('preview')}><Edit className="mr-2"/>Editar Previsualización</Button>
+                                    </div>
                                 </div>
                                 <Input placeholder="Título de la Previsualización"/>
                             </div>
@@ -428,6 +489,7 @@ export default function PublishPage() {
                             </CardContent>
                         </Card>
                     )}
+                    {showVoteConfig && selectedArea !== 'politics' && <LegislativeVoteConfig />}
 
 
                     <div className="flex justify-end gap-4">
