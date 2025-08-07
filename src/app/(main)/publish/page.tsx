@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search, AppWindow, Bold, Italic, Underline, Edit } from "lucide-react";
+import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search, AppWindow, Bold, Italic, Underline, Edit, Image as ImageIcon, File as FileIcon, Type } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { addDays, format } from "date-fns";
@@ -24,7 +24,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 type Area = "politics" | "education" | "culture";
-type PoliticalCategory = "Legislativo" | "Ejecutivo" | "Judicial" | null;
+type ContentType = "canvas" | "gallery" | "file";
 
 const allDestinations = [
     { id: 'dest-1', name: "Mi Perfil", type: "Perfil Oficial", avatar: "https://placehold.co/40x40.png" },
@@ -62,6 +62,24 @@ const areaConfig = {
         color: "border-accent/50 bg-accent/10 text-accent",
         allowedDestinations: ["Comunidad", "Evento", "Perfil Oficial"],
         categories: ["Publicación General", "Evento", "Noticia"]
+    }
+};
+
+const contentTypeConfig = {
+    canvas: {
+        icon: <Edit />,
+        title: 'Lienzo Universal',
+        description: 'Publicaciones ricas y de formato libre. Ideal para contenido complejo y visual.'
+    },
+    gallery: {
+        icon: <ImageIcon />,
+        title: 'Galería de Imágenes/Videos',
+        description: 'Sube múltiples imágenes o videos que se mostrarán como un carrusel interactivo.'
+    },
+    file: {
+        icon: <FileIcon />,
+        title: 'Archivo Único',
+        description: 'Comparte un solo archivo (PDF, audio, modelo 3D, etc) con previsualización.'
     }
 }
 
@@ -197,7 +215,7 @@ function FullscreenCanvasEditor({
                          <CanvasToolbar onToolSelect={onToolSelect} />
                     </div>
                     <div className={cn("relative p-4 border-2 border-dashed rounded-lg bg-background shadow-lg", canvasClass)}>
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+                        <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10">
                             <TextFormatToolbar />
                         </div>
                         <Textarea 
@@ -215,6 +233,7 @@ function FullscreenCanvasEditor({
 export default function PublishPage() {
     const { toast } = useToast();
     const [selectedArea, setSelectedArea] = useState<Area | null>(null);
+    const [selectedContentType, setSelectedContentType] = useState<ContentType | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [step, setStep] = useState(1);
     const [showVoteConfig, setShowVoteConfig] = useState(false);
@@ -230,8 +249,12 @@ export default function PublishPage() {
 
     const handleSelectArea = (area: Area) => {
         setSelectedArea(area);
-        setSelectedDestinations([]);
         setStep(2);
+    }
+
+    const handleSelectContentType = (type: ContentType) => {
+        setSelectedContentType(type);
+        setStep(3);
     }
     
     const handleCategoryChange = (value: string) => {
@@ -275,96 +298,95 @@ export default function PublishPage() {
 
     const resetFlow = () => {
         setSelectedArea(null);
+        setSelectedContentType(null);
         setSelectedCategory(null);
         setStep(1);
         setShowVoteConfig(false);
         setSelectedDestinations([]);
     }
-
-    if (step === 1) {
-        return (
-            <div className="flex flex-col gap-6 items-center text-center">
-                <div>
-                    <h1 className="text-3xl font-bold font-headline">¿Qué te gustaría crear?</h1>
-                    <p className="text-muted-foreground mt-2">
-                        Comienza seleccionando el área principal de tu publicación. Esto determinará las herramientas y opciones disponibles.
-                    </p>
-                </div>
-                <div className="grid md:grid-cols-3 gap-6 w-full max-w-4xl mt-4">
-                    {(Object.keys(areaConfig) as Area[]).map(key => {
-                        const config = areaConfig[key];
-                        return (
-                            <Card key={key} className={cn("text-center hover:shadow-lg transition-shadow cursor-pointer", config.color)} onClick={() => handleSelectArea(key)}>
-                                <CardHeader className="items-center">
-                                    <div className="p-3 rounded-full bg-background/80 mb-2">
-                                        {config.icon}
-                                    </div>
-                                    <CardTitle className="font-headline">{config.title}</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="text-sm">{config.description}</p>
-                                </CardContent>
-                            </Card>
-                        )
-                    })}
-                </div>
-            </div>
-        )
+    
+    const goBack = () => {
+        if (step > 1) {
+            setStep(step - 1);
+        }
     }
 
-    if (step === 2 && selectedArea) {
-        const config = areaConfig[selectedArea];
-        const isEducation = selectedArea === 'education';
-
-        const availableDestinations = allDestinations.filter(dest => config.allowedDestinations.includes(dest.type));
-
-        return (
-            <>
-                <KnowledgeNetworkSelector 
-                    isOpen={isCategorySelectorOpen} 
-                    onOpenChange={setCategorySelectorOpen}
-                    title="Seleccionar Categorías"
-                    data={categories}
-                    selectedItems={selectedCat}
-                    onSelectedItemsChange={setSelectedCategories}
-                    type="category"
-                />
-                 <KnowledgeNetworkSelector 
-                    isOpen={isThemeSelectorOpen} 
-                    onOpenChange={setThemeSelectorOpen}
-                    title="Seleccionar Temas"
-                    data={themes}
-                    selectedItems={selectedTh}
-                    onSelectedItemsChange={setSelectedThemes}
-                    type="theme"
-                />
-
-                <FullscreenCanvasEditor
-                    isOpen={isEditorOpen}
-                    onOpenChange={setEditorOpen}
-                    canvasType={editingCanvas}
-                    onToolSelect={handleToolSelection}
-                />
-
-                <div className="flex flex-col gap-6">
-                    <div className="flex items-center justify-between">
+    const renderStepContent = () => {
+        switch (step) {
+            case 1:
+                return (
+                    <>
                         <div>
-                            <h1 className="text-3xl font-bold font-headline flex items-center gap-3">
-                            {config.icon}
-                            Crear en: {config.title}
-                            </h1>
-                            <p className="text-muted-foreground">Configura el contexto y el contenido de tu publicación.</p>
+                            <h1 className="text-3xl font-bold font-headline">Paso 1: ¿Qué te gustaría crear?</h1>
+                            <p className="text-muted-foreground mt-2">
+                                Comienza seleccionando el área principal de tu publicación. Esto determinará las herramientas y opciones disponibles.
+                            </p>
                         </div>
-                        <Button variant="ghost" onClick={resetFlow}><X className="mr-2"/> Cambiar de Área</Button>
-                    </div>
+                        <div className="grid md:grid-cols-3 gap-6 w-full max-w-4xl mt-4">
+                            {(Object.keys(areaConfig) as Area[]).map(key => {
+                                const config = areaConfig[key];
+                                return (
+                                    <Card key={key} className={cn("text-center hover:shadow-lg transition-shadow cursor-pointer", config.color)} onClick={() => handleSelectArea(key)}>
+                                        <CardHeader className="items-center">
+                                            <div className="p-3 rounded-full bg-background/80 mb-2">
+                                                {config.icon}
+                                            </div>
+                                            <CardTitle className="font-headline">{config.title}</CardTitle>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <p className="text-sm">{config.description}</p>
+                                        </CardContent>
+                                    </Card>
+                                )
+                            })}
+                        </div>
+                    </>
+                );
 
+            case 2:
+                return (
+                    <>
+                        <div>
+                            <h1 className="text-3xl font-bold font-headline">Paso 2: Elige el formato del contenido</h1>
+                            <p className="text-muted-foreground mt-2">
+                                Selecciona cómo quieres estructurar tu publicación.
+                            </p>
+                        </div>
+                        <div className="grid md:grid-cols-3 gap-6 w-full max-w-4xl mt-4">
+                            {(Object.keys(contentTypeConfig) as ContentType[]).map(key => {
+                                const config = contentTypeConfig[key];
+                                return (
+                                    <Card key={key} className="text-center hover:shadow-lg transition-shadow cursor-pointer bg-card/80" onClick={() => handleSelectContentType(key)}>
+                                        <CardHeader className="items-center">
+                                            <div className="p-3 rounded-full bg-muted mb-2">
+                                                {config.icon}
+                                            </div>
+                                            <CardTitle className="font-headline text-lg">{config.title}</CardTitle>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <p className="text-sm text-muted-foreground">{config.description}</p>
+                                        </CardContent>
+                                    </Card>
+                                )
+                            })}
+                        </div>
+                    </>
+                );
+            
+            case 3:
+                if (!selectedArea) return null;
+                const config = areaConfig[selectedArea];
+                const isEducation = selectedArea === 'education';
+                const availableDestinations = allDestinations.filter(dest => config.allowedDestinations.includes(dest.type));
+
+                return (
                     <Card>
                         <CardHeader>
-                            <CardTitle className="font-headline text-xl">Paso 2: Configuración de Ámbito</CardTitle>
+                            <CardTitle className="font-headline text-xl">Paso 3: Configuración de Ámbito</CardTitle>
                             <CardDescription>Selecciona dónde se publicará y cómo se categorizará tu contenido.</CardDescription>
                         </CardHeader>
                         <CardContent className="grid md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
+                             <div className="space-y-2">
                                 <Label>Destino(s) de la Publicación</Label>
                                 <p className="text-xs text-muted-foreground">Puedes seleccionar uno o varios destinos.</p>
                                 
@@ -441,65 +463,146 @@ export default function PublishPage() {
                             </div>
                         </CardContent>
                     </Card>
+                );
 
-                    {showVoteConfig && selectedArea === 'politics' && <LegislativeVoteConfig />}
+            case 4:
+                return (
+                    <>
+                        {showVoteConfig && selectedArea === 'politics' && <LegislativeVoteConfig />}
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="font-headline text-xl">Paso 3: El Lienzo de Creación</CardTitle>
-                            <CardDescription>Aquí es donde tu idea toma forma. Arrastra, suelta y compone libremente.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="grid lg:grid-cols-3 gap-6">
-                            <div className="lg:col-span-2 space-y-4">
-                                <h3 className="font-semibold text-muted-foreground">Contenido Principal</h3>
-                                <div className="relative p-4 border-2 border-dashed rounded-lg min-h-[300px] flex items-center justify-center text-center">
-                                    <div className="space-y-2">
-                                        <p className="text-muted-foreground">Este es tu lienzo principal de contenido ilimitado.</p>
-                                        <Button onClick={() => openEditor('main')}><Edit className="mr-2"/>Editar Lienzo</Button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                <h3 className="font-semibold text-muted-foreground">Tarjeta de Previsualización</h3>
-                                <div className="relative p-4 border-2 border-dashed rounded-lg aspect-video flex items-center justify-center text-center">
-                                    <div className="space-y-2">
-                                        <p className="text-sm text-muted-foreground">Diseña aquí la tarjeta que se verá en los feeds.</p>
-                                         <Button variant="outline" onClick={() => openEditor('preview')}><Edit className="mr-2"/>Editar Previsualización</Button>
-                                    </div>
-                                </div>
-                                <Input placeholder="Título de la Previsualización"/>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    
-                    {!showVoteConfig && (
                         <Card>
                             <CardHeader>
-                                <CardTitle className="font-headline text-xl">Paso 4: Opciones de Publicación</CardTitle>
+                                <CardTitle className="font-headline text-xl">Paso 4: El Lienzo de Creación</CardTitle>
+                                <CardDescription>Aquí es donde tu idea toma forma.</CardDescription>
                             </CardHeader>
-                            <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                <div className="flex items-center space-x-2">
-                                    <Vote className="w-5 h-5 text-primary"/>
-                                    <div>
-                                        <Label htmlFor="add-vote" className="font-semibold">Añadir Votación</Label>
-                                        <p className="text-xs text-muted-foreground">Convierte esta publicación en una propuesta formal.</p>
+                             <CardContent>
+                                {selectedContentType === 'canvas' && (
+                                    <div className="grid lg:grid-cols-3 gap-6">
+                                        <div className="lg:col-span-2 space-y-4">
+                                            <h3 className="font-semibold text-muted-foreground">Contenido Principal</h3>
+                                            <div className="relative p-4 border-2 border-dashed rounded-lg min-h-[300px] flex items-center justify-center text-center">
+                                                <div className="space-y-2">
+                                                    <p className="text-muted-foreground">Este es tu lienzo principal de contenido ilimitado.</p>
+                                                    <Button onClick={() => openEditor('main')}><Edit className="mr-2"/>Editar Lienzo</Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <h3 className="font-semibold text-muted-foreground">Tarjeta de Previsualización</h3>
+                                            <div className="relative p-4 border-2 border-dashed rounded-lg aspect-video flex items-center justify-center text-center">
+                                                <div className="space-y-2">
+                                                    <p className="text-sm text-muted-foreground">Diseña aquí la tarjeta que se verá en los feeds.</p>
+                                                    <Button variant="outline" onClick={() => openEditor('preview')}><Edit className="mr-2"/>Editar Previsualización</Button>
+                                                </div>
+                                            </div>
+                                            <Input placeholder="Título de la Previsualización"/>
+                                        </div>
                                     </div>
-                                </div>
-                                <Button variant="outline" onClick={() => setShowVoteConfig(true)}><PlusCircle className="mr-2"/>Configurar Votación</Button>
+                                )}
+                                {(selectedContentType === 'gallery' || selectedContentType === 'file') && (
+                                     <div className="space-y-4">
+                                        <Input placeholder="Título (Opcional)"/>
+                                        <Textarea placeholder="Descripción (Opcional)" />
+                                        <div className="p-8 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-center">
+                                            <Upload className="w-10 h-10 text-muted-foreground mb-4"/>
+                                            <p className="font-semibold mb-2">
+                                                {selectedContentType === 'gallery' ? 'Arrastra y suelta imágenes/videos o' : 'Arrastra y suelta un archivo o'}
+                                            </p>
+                                            <Button variant="outline">
+                                                <Library className="mr-2" />
+                                                Elegir desde la Biblioteca
+                                            </Button>
+                                        </div>
+                                     </div>
+                                )}
                             </CardContent>
                         </Card>
-                    )}
-                    {showVoteConfig && selectedArea !== 'politics' && <LegislativeVoteConfig />}
+                        
+                        {!showVoteConfig && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="font-headline text-xl">Opciones de Publicación</CardTitle>
+                                </CardHeader>
+                                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                    <div className="flex items-center space-x-2">
+                                        <Vote className="w-5 h-5 text-primary"/>
+                                        <div>
+                                            <Label htmlFor="add-vote" className="font-semibold">Añadir Votación</Label>
+                                            <p className="text-xs text-muted-foreground">Convierte esta publicación en una propuesta formal.</p>
+                                        </div>
+                                    </div>
+                                    <Button variant="outline" onClick={() => setShowVoteConfig(true)}><PlusCircle className="mr-2"/>Configurar Votación</Button>
+                                </CardContent>
+                            </Card>
+                        )}
+                        {showVoteConfig && selectedArea !== 'politics' && <LegislativeVoteConfig />}
+                    </>
+                );
 
-
-                    <div className="flex justify-end gap-4">
-                        <Button variant="outline" size="lg">Guardar Borrador</Button>
-                        <Button size="lg">Publicar</Button>
-                    </div>
-                </div>
-            </>
-        )
+            default:
+                return null;
+        }
     }
 
-    return null;
+
+    return (
+        <>
+            <KnowledgeNetworkSelector 
+                isOpen={isCategorySelectorOpen} 
+                onOpenChange={setCategorySelectorOpen}
+                title="Seleccionar Categorías"
+                data={categories}
+                selectedItems={selectedCat}
+                onSelectedItemsChange={setSelectedCategories}
+                type="category"
+            />
+             <KnowledgeNetworkSelector 
+                isOpen={isThemeSelectorOpen} 
+                onOpenChange={setThemeSelectorOpen}
+                title="Seleccionar Temas"
+                data={themes}
+                selectedItems={selectedTh}
+                onSelectedItemsChange={setSelectedThemes}
+                type="theme"
+            />
+
+            <FullscreenCanvasEditor
+                isOpen={isEditorOpen}
+                onOpenChange={setEditorOpen}
+                canvasType={editingCanvas}
+                onToolSelect={handleToolSelection}
+            />
+            
+            <div className="flex flex-col gap-6">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold font-headline flex items-center gap-3">
+                           Publicar
+                        </h1>
+                        <p className="text-muted-foreground">
+                            {selectedArea ? `Creando en: ${areaConfig[selectedArea].title}` : 'Inicia el flujo de creación de contenido.'}
+                        </p>
+                    </div>
+                    <Button variant="ghost" onClick={resetFlow}><X className="mr-2"/> Cancelar</Button>
+                </div>
+                
+                <div className="flex flex-col items-center text-center gap-8">
+                     {renderStepContent()}
+                </div>
+
+                 <div className="flex justify-between gap-4 mt-8">
+                    <Button variant="outline" size="lg" onClick={goBack} disabled={step === 1}>Atrás</Button>
+                    {step < 4 ? (
+                         <Button size="lg" onClick={() => setStep(step + 1)} disabled={step === 2 && !selectedContentType}>Siguiente</Button>
+                    ) : (
+                        <div className="flex justify-end gap-4">
+                            <Button variant="outline" size="lg">Guardar Borrador</Button>
+                            <Button size="lg">Publicar</Button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </>
+    )
 }
+
