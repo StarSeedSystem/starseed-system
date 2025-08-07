@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { articles, courses, categories, themes } from "@/lib/data";
-import { BookOpen, Newspaper, Star, ChevronRight, Workflow, Tags } from "lucide-react";
+import { BookOpen, Newspaper, Star, ChevronRight, Workflow, Tags, ThumbsUp, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useState } from "react";
+import { CommentSystem } from "@/components/comment-system";
 
 
 function CourseCard({ course, className }: { course: (typeof courses)[0], className?: string }) {
@@ -44,6 +45,7 @@ function CourseCard({ course, className }: { course: (typeof courses)[0], classN
 }
 
 function ArticleCard({ article, className }: { article: (typeof articles)[0], className?: string }) {
+    const [showComments, setShowComments] = useState(false);
     return (
         <Card className={`h-full flex flex-col ${className}`}>
             <CardHeader>
@@ -69,10 +71,25 @@ function ArticleCard({ article, className }: { article: (typeof articles)[0], cl
                     </div>
                 </div>
             </CardContent>
-            <CardFooter>
-                <Button variant="outline" className="w-full" asChild>
-                    <Link href={article.href}>Leer Artículo</Link>
-                </Button>
+            <CardFooter className="flex-col items-stretch">
+                <div className="flex justify-between items-center text-muted-foreground border-t pt-2 mb-2">
+                    <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                            <ThumbsUp className="w-4 h-4" /> {article.likes}
+                        </Button>
+                        <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={() => setShowComments(!showComments)}>
+                            <MessageCircle className="w-4 h-4" /> {article.comments.length}
+                        </Button>
+                    </div>
+                    <Button variant="outline" asChild>
+                        <Link href={article.href}>Leer Artículo</Link>
+                    </Button>
+                </div>
+                {showComments && (
+                  <div className='w-full'>
+                    <CommentSystem comments={article.comments} />
+                  </div>
+                )}
             </CardFooter>
         </Card>
     )
@@ -163,9 +180,9 @@ function ThemeNetworkView() {
                         <div className="grid md:grid-cols-1 lg:grid-cols-2 gap-6">
                             {getConnectedContent(selectedTheme.name).map(item => {
                                  if ('progress' in item) { // It's a Course
-                                    return <CourseCard key={item.id} course={item} />
+                                    return <CourseCard key={item.id} course={item as (typeof courses)[0]} />
                                  } else { // It's an Article
-                                    return <ArticleCard key={item.id} article={item} />
+                                    return <ArticleCard key={item.id} article={item as (typeof articles)[0]} />
                                  }
                             })}
                         </div>

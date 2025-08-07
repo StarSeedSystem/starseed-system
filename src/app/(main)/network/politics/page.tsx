@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, FileText, Scale, Users } from "lucide-react";
+import { BarChart, FileText, Scale, Users, MessageSquare } from "lucide-react";
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 import { politicalProposals } from "@/lib/data";
+import { CommentSystem } from "@/components/comment-system";
 
 
 function VoteChart({ data }: { data: any[] }) {
@@ -68,9 +69,10 @@ function PoliticalProposalCard({ proposal }: { proposal: typeof politicalProposa
                 <p className="text-sm text-muted-foreground mb-6">{proposal.summary}</p>
                 
                 <Tabs defaultValue="votos">
-                    <TabsList>
+                    <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="votos">Votos</TabsTrigger>
                         <TabsTrigger value="detalles">Detalles</TabsTrigger>
+                        <TabsTrigger value="discusión">Discusión</TabsTrigger>
                         <TabsTrigger value="archivos">Archivos</TabsTrigger>
                     </TabsList>
                     <TabsContent value="votos" className="mt-4">
@@ -87,6 +89,9 @@ function PoliticalProposalCard({ proposal }: { proposal: typeof politicalProposa
                     </TabsContent>
                     <TabsContent value="detalles" className="mt-4">
                         <p className="text-sm text-muted-foreground">{proposal.details}</p>
+                    </TabsContent>
+                    <TabsContent value="discusión" className="mt-4">
+                        <CommentSystem comments={proposal.comments} />
                     </TabsContent>
                     <TabsContent value="archivos" className="mt-4">
                         <div className="flex flex-col gap-2">

@@ -1,3 +1,15 @@
+export type Comment = {
+    id: string;
+    author: string;
+    avatar: string;
+    timestamp: string;
+    content: string;
+    dataAiHint: string;
+    likes: number;
+    replies: Comment[];
+}
+
+
 export const notifications = [
   {
     id: '1',
@@ -80,7 +92,7 @@ export const feedItems = [
     }
 ];
 
-export const comments = [
+export const comments: Comment[] = [
     {
         id: 'comment-1',
         author: 'Brenda',
@@ -88,6 +100,7 @@ export const comments = [
         timestamp: 'hace 3h',
         content: '¡Este es un punto de partida fantástico! Me gustan especialmente las funciones impulsadas por IA. ¿Han considerado agregar una forma de encadenar acciones de IA?',
         dataAiHint: 'woman thinking',
+        likes: 2,
         replies: [
             {
                 id: 'reply-1',
@@ -96,6 +109,8 @@ export const comments = [
                 timestamp: 'hace 2h',
                 content: '¡Gran sugerencia! Un constructor de flujos visuales para servicios de IA está en nuestro roadmap para el Q3. ¡Gracias por los comentarios!',
                 dataAiHint: 'robot thinking',
+                likes: 1,
+                replies: []
             }
         ]
     },
@@ -106,9 +121,34 @@ export const comments = [
         timestamp: 'hace 1d',
         content: 'El sistema de comentarios enriquecido es una gran mejora. Poder incrustar contenido enriquecido directamente en las respuestas hace que las discusiones sean mucho más productivas.',
         dataAiHint: 'man collaborating',
+        likes: 5,
         replies: []
     }
 ];
+
+const politicalComments: Comment[] = [
+    {
+        id: 'pol-comment-1',
+        author: 'Experto en Legislación',
+        avatar: 'https://placehold.co/100x100.png',
+        timestamp: 'hace 6h',
+        content: 'He revisado el "Análisis de Impacto Técnico.docx". La arquitectura propuesta es sólida, pero debemos considerar el coste computacional a largo plazo para las bóvedas de datos personales. Sugiero añadir una enmienda para revisar la eficiencia cada 2 años.',
+        dataAiHint: 'man with glasses',
+        likes: 15,
+        replies: [
+            {
+                id: 'pol-reply-1',
+                author: 'Proponente de la Ley',
+                avatar: 'https://placehold.co/100x100.png',
+                timestamp: 'hace 4h',
+                content: 'Excelente punto. Voy a proponer tu sugerencia como una opción de enmienda en la sección de comentarios para que pueda ser votada.',
+                dataAiHint: 'politician speaking',
+                likes: 4,
+                replies: []
+            }
+        ]
+    }
+]
 
 export const politicalProposals = [
   {
@@ -128,7 +168,8 @@ export const politicalProposals = [
     files: [
         { name: 'Borrador Completo de la Ley.pdf', url: '#' },
         { name: 'Análisis de Impacto Técnico.docx', url: '#' }
-    ]
+    ],
+    comments: politicalComments,
   }
 ];
 
@@ -159,6 +200,20 @@ export const courses = [
   }
 ];
 
+const articleComments: Comment[] = [
+    {
+        id: 'art-comment-1',
+        author: 'Estudiante de Filosofía',
+        avatar: 'https://placehold.co/100x100.png',
+        timestamp: 'hace 2 días',
+        content: 'El artículo sobre la teoría de la simulación es fascinante. Me gustaría citar a Bostrom:\n\n> "una de las siguientes proposiciones debe ser verdadera: (1) la fracción de civilizaciones de nivel humano que alcanzan una etapa posthumana es muy cercana a cero; (2) la fracción de civilizaciones posthumanas que están interesadas en ejecutar simulaciones de sus ancestros es muy cercana a cero; (3) la fracción de todas las personas con nuestro tipo de experiencias que están viviendo en una simulación es muy cercana a uno."\n\n¿Qué implicaciones tiene esto para nuestra concepción del "libre albedrío"?',
+        dataAiHint: 'student thinking',
+        likes: 22,
+        replies: []
+    }
+];
+
+
 export const articles = [
   {
     id: 'article-1',
@@ -167,7 +222,9 @@ export const articles = [
     rating: 4.8,
     href: '#',
     excerpt: 'Un análisis profundo de los argumentos a favor y en contra de la hipótesis de la simulación, explorando sus implicaciones filosóficas y científicas.',
-    tags: ['Filosofía', 'Ciencia', 'Conciencia']
+    tags: ['Filosofía', 'Ciencia', 'Conciencia'],
+    likes: 152,
+    comments: articleComments,
   },
   {
     id: 'article-2',
@@ -176,7 +233,9 @@ export const articles = [
     rating: 4.9,
     href: '#',
     excerpt: 'Estudio comparativo de diferentes modelos de Organizaciones Autónomas Descentralizadas (DAOs) y su aplicabilidad en el contexto de las Entidades Federativas.',
-    tags: ['Gobernanza', 'Sociedad', 'Política', 'Tecnología']
+    tags: ['Gobernanza', 'Sociedad', 'Política', 'Tecnología'],
+    likes: 230,
+    comments: [],
   },
   {
     id: 'article-3',
@@ -185,7 +244,9 @@ export const articles = [
     rating: 4.7,
     href: '#',
     excerpt: 'Una guía práctica para aplicar los principios de la permacultura en tu comunidad, desde jardines urbanos hasta sistemas de gestión de agua.',
-    tags: ['Sostenibilidad', 'Comunidad', 'Ecología']
+    tags: ['Sostenibilidad', 'Comunidad', 'Ecología'],
+    likes: 98,
+    comments: [],
   },
   {
     id: 'article-4',
@@ -194,7 +255,9 @@ export const articles = [
     rating: 4.9,
     href: '#',
     excerpt: 'Cómo los LLMs están revolucionando la creatividad y el arte, y las herramientas para empezar a experimentar.',
-    tags: ['IA', 'Arte Generativo', 'Tecnología']
+    tags: ['IA', 'Arte Generativo', 'Tecnología'],
+    likes: 312,
+    comments: [],
   },
 ];
 
@@ -282,7 +345,18 @@ export const culturalPosts = [
     imageUrl: 'https://placehold.co/600x400.png',
     imageHint: 'abstract geometric art',
     likes: 243,
-    comments: 32
+    comments: [
+        {
+            id: 'cult-comment-1',
+            author: 'Curador de Arte Digital',
+            avatar: 'https://placehold.co/100x100.png',
+            timestamp: 'hace 3h',
+            content: 'La paleta de colores es fascinante. La forma en que los gradientes se fusionan crea una sensación de profundidad infinita. ¿Has considerado añadir interactividad basada en el audio?',
+            dataAiHint: 'art curator',
+            likes: 8,
+            replies: []
+        }
+    ]
   },
   {
     id: 'cult-2',
@@ -297,6 +371,6 @@ export const culturalPosts = [
     imageUrl: null,
     imageHint: null,
     likes: 180,
-    comments: 45
+    comments: []
   }
 ];

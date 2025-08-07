@@ -1,10 +1,9 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { comments } from "@/lib/data";
-import { Send, ThumbsUp, Reply, MoreHorizontal, Paperclip, AtSign, Smile, Sparkles } from "lucide-react";
-import Image from "next/image";
+import { comments as defaultComments, type Comment as CommentType } from "@/lib/data";
+import { Send, ThumbsUp, Reply, MoreHorizontal, Paperclip, AtSign, Smile, Sparkles, Link as LinkIcon, Edit, Image as ImageIcon, File as FileIcon, Type } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
 function CommentInput() {
@@ -16,20 +15,20 @@ function CommentInput() {
             </Avatar>
             <div className="flex-1">
                 <Card className="overflow-hidden border-2 border-primary/20">
-                    <CardContent className="p-0">
-                        <Textarea 
-                            placeholder="Añade un comentario como lienzo..." 
-                            className="border-0 focus-visible:ring-0 resize-none min-h-[60px] bg-transparent"
-                        />
-                    </CardContent>
-                    <div className="p-2 bg-muted/50 border-t flex justify-between items-center">
-                        <div className="flex items-center gap-1">
-                             <Button variant="ghost" size="icon" className="h-8 w-8"><Paperclip className="h-4 w-4" /></Button>
-                             <Button variant="ghost" size="icon" className="h-8 w-8"><AtSign className="h-4 w-4" /></Button>
-                             <Button variant="ghost" size="icon" className="h-8 w-8"><Smile className="h-4 w-4" /></Button>
-                             <Button variant="ghost" size="icon" className="h-8 w-8 text-primary"><Sparkles className="h-4 w-4" /></Button>
+                    <Textarea 
+                        placeholder="Añade un comentario como lienzo..." 
+                        className="border-0 focus-visible:ring-0 resize-none min-h-[60px] bg-transparent p-2"
+                    />
+                     <div className="p-1 bg-muted/50 border-t flex justify-between items-center">
+                        <div className="flex items-center gap-0.5">
+                            <Button variant="ghost" size="icon" className="h-7 w-7"><Type className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7"><ImageIcon className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7"><FileIcon className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7"><AtSign className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7"><LinkIcon className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-primary"><Sparkles className="h-4 w-4" /></Button>
                         </div>
-                        <Button size="sm">
+                        <Button size="sm" className="h-8">
                             <Send className="mr-2 h-4 w-4" />
                             Publicar
                         </Button>
@@ -40,7 +39,7 @@ function CommentInput() {
     )
 }
 
-function Comment({ comment }: { comment: (typeof comments)[0] }) {
+function Comment({ comment }: { comment: CommentType }) {
     return (
          <div className="flex gap-3">
             <Avatar className="h-8 w-8">
@@ -71,14 +70,14 @@ function Comment({ comment }: { comment: (typeof comments)[0] }) {
                 
                 <div className="flex items-center gap-1 mt-1">
                     <Button variant="ghost" size="sm" className="flex items-center gap-1 text-xs">
-                        <ThumbsUp className="h-4 w-4" /> 2
+                        <ThumbsUp className="h-4 w-4" /> {comment.likes}
                     </Button>
                     <Button variant="ghost" size="sm" className="flex items-center gap-1 text-xs">
                         <Reply className="h-4 w-4" /> Responder
                     </Button>
                 </div>
 
-                {comment.replies.map((reply) => (
+                {comment.replies && comment.replies.map((reply) => (
                   <div key={reply.id} className="flex gap-3 mt-3">
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={reply.avatar} data-ai-hint={reply.dataAiHint} />
@@ -90,11 +89,11 @@ function Comment({ comment }: { comment: (typeof comments)[0] }) {
                                 <p className="font-semibold text-sm">{reply.author}</p>
                                 <p className="text-xs text-muted-foreground">{reply.timestamp}</p>
                             </div>
-                            <p className="text-sm text-foreground mt-2">{reply.content}</p>
+                             <p className="text-sm text-foreground mt-2 whitespace-pre-wrap">{reply.content}</p>
                         </div>
                         <div className="flex items-center gap-1 mt-1">
                             <Button variant="ghost" size="sm" className="flex items-center gap-1 text-xs">
-                                <ThumbsUp className="h-4 w-4" /> 1
+                                <ThumbsUp className="h-4 w-4" /> {reply.likes}
                             </Button>
                             <Button variant="ghost" size="sm" className="flex items-center gap-1 text-xs">
                                 <Reply className="h-4 w-4" /> Responder
@@ -108,21 +107,15 @@ function Comment({ comment }: { comment: (typeof comments)[0] }) {
     )
 }
 
-export function CommentSystem() {
+export function CommentSystem({ comments }: { comments: CommentType[] }) {
   return (
-    <Card className="sticky top-6">
-      <CardHeader>
-        <CardTitle className="font-headline">Discusión</CardTitle>
-        <CardDescription>Participa en la conversación. Los comentarios son lienzos en miniatura.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <div className="w-full space-y-6">
         <CommentInput />
         <div className="space-y-6">
           {comments.map((comment) => (
             <Comment key={comment.id} comment={comment} />
           ))}
         </div>
-      </CardContent>
-    </Card>
+    </div>
   );
 }
