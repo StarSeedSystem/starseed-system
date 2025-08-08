@@ -335,7 +335,7 @@ export default function MessagesPage() {
 
     return (
         <Dialog>
-             <div className="grid md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] h-screen">
+             <div className="h-screen flex flex-col">
                 {/* Canvas Editor Dialog */}
                 <Dialog open={isCanvasEditorOpen} onOpenChange={setCanvasEditorOpen}>
                     <MessageCanvasEditor onOpenChange={setCanvasEditorOpen} />
@@ -346,27 +346,18 @@ export default function MessagesPage() {
                     <LibrarySelectorDialog onOpenChange={setLibrarySelectorOpen} />
                 </Dialog>
 
-                {/* Sidebar */}
-                <div className="hidden md:flex">
-                    <ConversationList 
-                        onConversationSelect={handleSelectConversation} 
-                        selectedConversationId={selectedConversation.id} 
-                        onShowMainMenu={() => {}} // No-op on desktop
-                    />
-                </div>
-                
                 {/* Main Chat Area */}
-                <main className="flex flex-col h-full bg-muted/20">
+                <div className="flex flex-col h-full bg-muted/20">
                     {/* Header */}
                     <header className="flex items-center justify-between p-3 border-b bg-background/80 backdrop-blur-xl shrink-0">
                         <div className="flex items-center gap-3">
                              <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
                                 <SheetTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="md:hidden" onClick={handleOpenSheet}>
+                                    <Button variant="ghost" size="icon" onClick={handleOpenSheet}>
                                         <Menu />
                                     </Button>
                                 </SheetTrigger>
-                                <SheetContent side="left" className="p-0 w-full sm:w-3/4">
+                                <SheetContent side="left" className="p-0 w-full max-w-md">
                                      <SheetHeader className="sr-only">
                                         <SheetTitle>Menú</SheetTitle>
                                     </SheetHeader>
@@ -450,7 +441,7 @@ export default function MessagesPage() {
                             </div>
                         </div>
                     </footer>
-                </main>
+                </div>
             </div>
         </Dialog>
     );
