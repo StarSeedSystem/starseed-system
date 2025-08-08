@@ -18,6 +18,8 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import { UserNav } from "@/components/layout/user-nav";
+import { NotificationCenter } from "@/components/layout/notification-center";
 
 function ConversationListItem({ conversation, onSelect, isActive }: { conversation: ConversationFull, onSelect: () => void, isActive: boolean }) {
     return (
@@ -278,7 +280,7 @@ export default function MessagesPage() {
 
     return (
         <Dialog>
-             <div className="grid md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] h-[calc(100vh-60px)]">
+             <div className="grid md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] h-screen">
                 {/* Canvas Editor Dialog */}
                 <Dialog open={isCanvasEditorOpen} onOpenChange={setCanvasEditorOpen}>
                     <MessageCanvasEditor onOpenChange={setCanvasEditorOpen} />
@@ -316,12 +318,17 @@ export default function MessagesPage() {
                                 <AvatarImage src={selectedConversation.avatar} data-ai-hint={selectedConversation.dataAiHint} />
                                 <AvatarFallback>{selectedConversation.name.slice(0, 2)}</AvatarFallback>
                             </Avatar>
-                            <h2 className="text-xl font-semibold">{selectedConversation.name}</h2>
+                            <div>
+                                <h2 className="text-xl font-semibold">{selectedConversation.name}</h2>
+                                <p className="text-xs text-muted-foreground">En línea</p>
+                            </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <Button variant="ghost" size="icon"><Phone /></Button>
                             <Button variant="ghost" size="icon"><Video /></Button>
-                            <Button variant="ghost" size="icon"><MoreVertical /></Button>
+                            <Separator orientation="vertical" className="h-6 mx-2"/>
+                            <NotificationCenter />
+                            <UserNav />
                         </div>
                     </header>
                     
