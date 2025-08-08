@@ -27,7 +27,7 @@ export function InfoNavigation() {
             <nav className="flex gap-4" aria-label="Info navigation">
             {navItems.map((item) => (
                 <Link
-                    key={item.href}
+                    key={item.label}
                     href={item.href}
                     target={item.external ? '_blank' : '_self'}
                     className={cn(
