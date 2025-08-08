@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { conversations, files as libraryFiles, type ConversationFull, type MessageFull } from "@/lib/data";
 import { cn } from "@/lib/utils";
-import { Search, Phone, Video, Send, PlusCircle, Sparkles, Library, Edit, Image as ImageIcon, File as FileIcon, Vote, MoreVertical, Pin, Menu, Folder, Check, X } from "lucide-react";
+import { Search, Phone, Video, Send, PlusCircle, Sparkles, Library, Edit, Image as ImageIcon, File as FileIcon, Vote, MoreVertical, Pin, Menu, Folder, Check, X, Home, User, Bot, Users, Network, PenSquare, Info, Settings, ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -20,6 +20,21 @@ import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { UserNav } from "@/components/layout/user-nav";
 import { NotificationCenter } from "@/components/layout/notification-center";
+import Link from "next/link";
+import { Logo } from "@/components/logo";
+
+const mainNavItems = [
+    { href: "/dashboard", icon: <Home className="h-5 w-5" />, label: "Dashboard" },
+    { href: "/profile/starseeduser", icon: <User className="h-5 w-5" />, label: "Perfil" },
+    { href: "/agent", icon: <Bot className="h-5 w-5" />, label: "Agente de IA" },
+    { href: "/hub", icon: <Users className="h-5 w-5" />, label: "Hub de Conexiones" },
+    { href: "/network", icon: <Network className="h-5 w-5" />, label: "La Red" },
+    { href: "/publish", icon: <PenSquare className="h-5 w-5" />, label: "Publicar" },
+    { href: "/library", icon: <Library className="h-5 w-5" />, label: "Biblioteca" },
+    { href: "/info", icon: <Info className="h-5 w-5" />, label: "Información" },
+    { href: "/settings", icon: <Settings className="h-5 w-5" />, label: "Configuración" },
+];
+
 
 function ConversationListItem({ conversation, onSelect, isActive }: { conversation: ConversationFull, onSelect: () => void, isActive: boolean }) {
     return (
@@ -53,12 +68,12 @@ function ConversationListItem({ conversation, onSelect, isActive }: { conversati
     )
 }
 
-function ConversationList({ onConversationSelect, selectedConversationId }: { onConversationSelect: (conv: ConversationFull) => void, selectedConversationId: string }) {
+function ConversationList({ onConversationSelect, selectedConversationId, onShowMainMenu }: { onConversationSelect: (conv: ConversationFull) => void, selectedConversationId: string, onShowMainMenu: () => void }) {
     const pinnedConversations = conversations.filter(c => c.pinned);
     const recentConversations = conversations.filter(c => !c.pinned);
 
     return (
-        <aside className="flex flex-col border-r h-full bg-background/80 md:bg-transparent">
+        <div className="flex flex-col h-full">
             <div className="p-4 border-b">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold font-headline">Mensajes</h1>
@@ -100,8 +115,42 @@ function ConversationList({ onConversationSelect, selectedConversationId }: { on
                     </div>
                 </div>
             </ScrollArea>
-        </aside>
+             <div className="p-4 border-t">
+                <Button variant="outline" className="w-full" onClick={onShowMainMenu}>
+                    <Menu className="mr-2 h-4 w-4" />
+                    Menú Principal
+                </Button>
+            </div>
+        </div>
     )
+}
+
+function MainMenu({ onShowConversations }: { onShowConversations: () => void }) {
+    return (
+        <div className="flex flex-col h-full">
+            <div className="p-4 border-b">
+                 <Button variant="ghost" onClick={onShowConversations} className="mb-4">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver a Mensajes
+                </Button>
+                <Link href="/" className="flex items-center gap-2 font-semibold">
+                    <Logo />
+                </Link>
+            </div>
+            <nav className="grid gap-2 p-4 text-lg font-medium">
+                {mainNavItems.map(item => (
+                     <Link
+                        key={item.href}
+                        href={item.href}
+                        className="flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                    >
+                        {item.icon}
+                        {item.label}
+                    </Link>
+                ))}
+            </nav>
+        </div>
+    );
 }
 
 
@@ -262,6 +311,7 @@ function LibrarySelectorDialog({ onOpenChange }: { onOpenChange: (open: boolean)
 export default function MessagesPage() {
     const [selectedConversation, setSelectedConversation] = useState(conversations.find(c => c.pinned) || conversations[0]);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
+    const [sheetView, setSheetView] = useState<'conversations' | 'main_menu'>('conversations');
     const [isCanvasEditorOpen, setCanvasEditorOpen] = useState(false);
     const [isLibrarySelectorOpen, setLibrarySelectorOpen] = useState(false);
 
@@ -278,6 +328,11 @@ export default function MessagesPage() {
         { name: "Crear Encuesta", icon: <Vote className="w-5 h-5" />, description: "Haz una pregunta rápida.", action: () => {} }
     ];
 
+    const handleOpenSheet = () => {
+        setSheetView('conversations');
+        setIsSheetOpen(true);
+    }
+
     return (
         <Dialog>
              <div className="grid md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] h-screen">
@@ -293,25 +348,37 @@ export default function MessagesPage() {
 
                 {/* Sidebar */}
                 <div className="hidden md:flex">
-                    <ConversationList onConversationSelect={handleSelectConversation} selectedConversationId={selectedConversation.id} />
+                    <ConversationList 
+                        onConversationSelect={handleSelectConversation} 
+                        selectedConversationId={selectedConversation.id} 
+                        onShowMainMenu={() => {}} // No-op on desktop
+                    />
                 </div>
                 
                 {/* Main Chat Area */}
                 <main className="flex flex-col h-full bg-muted/20">
                     {/* Header */}
-                    <header className="flex items-center justify-between p-3 border-b bg-background/80 backdrop-blur-xl">
+                    <header className="flex items-center justify-between p-3 border-b bg-background/80 backdrop-blur-xl shrink-0">
                         <div className="flex items-center gap-3">
-                            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+                             <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
                                 <SheetTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="md:hidden">
+                                    <Button variant="ghost" size="icon" className="md:hidden" onClick={handleOpenSheet}>
                                         <Menu />
                                     </Button>
                                 </SheetTrigger>
                                 <SheetContent side="left" className="p-0 w-full sm:w-3/4">
-                                     <SheetHeader className="p-4 border-b">
-                                        <SheetTitle className="sr-only">Conversaciones</SheetTitle>
+                                     <SheetHeader className="sr-only">
+                                        <SheetTitle>Menú</SheetTitle>
                                     </SheetHeader>
-                                    <ConversationList onConversationSelect={handleSelectConversation} selectedConversationId={selectedConversation.id} />
+                                    {sheetView === 'conversations' ? (
+                                        <ConversationList 
+                                            onConversationSelect={handleSelectConversation} 
+                                            selectedConversationId={selectedConversation.id}
+                                            onShowMainMenu={() => setSheetView('main_menu')} 
+                                        />
+                                    ) : (
+                                        <MainMenu onShowConversations={() => setSheetView('conversations')} />
+                                    )}
                                 </SheetContent>
                             </Sheet>
                             <Avatar className="h-10 w-10">
@@ -342,7 +409,7 @@ export default function MessagesPage() {
                     </ScrollArea>
                     
                     {/* Composer */}
-                    <footer className="p-4 border-t bg-background">
+                    <footer className="p-4 border-t bg-background shrink-0">
                         <div className="relative">
                             <Input placeholder="Escribe un mensaje o usa la IA..." className="pr-24 pl-10" />
                             <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center">
