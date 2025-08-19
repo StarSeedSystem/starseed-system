@@ -18,6 +18,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { PoliticalProposalCard } from "@/components/political-proposal-card";
+import { Badge } from "@/components/ui/badge";
 
 
 function FeedPostCard({ item }: { item: typeof feedItems[0] }) {
@@ -163,7 +164,7 @@ function CollectionsGrid() {
     };
     
     return (
-        <div>
+        <Dialog>
             <div className="flex justify-end mb-4">
                 <Button>
                     <PlusCircle className="mr-2 h-4 w-4" />
@@ -246,7 +247,7 @@ function CollectionsGrid() {
                     </>
                 )}
             </DialogContent>
-        </div>
+        </Dialog>
     )
 }
 
@@ -368,7 +369,7 @@ export default function ProfilePage() {
   const pageType = profileData.pageType;
 
   return (
-    <Dialog>
+    
         <div className="flex flex-col gap-6">
         <ProfileHeader profileData={profileData} />
 
@@ -430,6 +431,6 @@ export default function ProfilePage() {
             </div>
         </div>
         </div>
-    </Dialog>
+    
   );
 }

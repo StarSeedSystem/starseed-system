@@ -215,7 +215,7 @@ function FullscreenCanvasEditor({
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className="w-screen h-screen max-w-full max-h-full flex flex-col p-0 gap-0">
-                <DialogHeader className="p-2 border-b flex-row items-center justify-between shrink-0">
+                 <DialogHeader className="p-2 border-b flex-row items-center justify-between shrink-0">
                     <div className="flex items-center gap-2">
                         <DialogClose asChild>
                             <Button variant="ghost" size="icon"><X/></Button>
@@ -251,6 +251,8 @@ function FullscreenCanvasEditor({
                         <Button onClick={() => onOpenChange(false)}>Guardar y Cerrar</Button>
                     </div>
                 </DialogHeader>
+
+                <DialogTitle className="sr-only">Editor de Lienzo a Pantalla Completa</DialogTitle>
 
                 <div className="flex-1 flex overflow-hidden">
                     {/* Layers Panel */}
