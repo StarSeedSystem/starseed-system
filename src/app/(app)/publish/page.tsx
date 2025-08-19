@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search, AppWindow, Bold, Italic, Underline, Edit, Image as ImageIcon, File as FileIcon, Type } from "lucide-react";
+import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search, AppWindow, Bold, Italic, Underline, Edit, Image as ImageIcon, File as FileIcon, Type, ArrowLeft } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { addDays, format } from "date-fns";
@@ -21,10 +21,10 @@ import type { Category } from "@/lib/data";
 import { themes, categories } from "@/lib/data";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 
 type Area = "politics" | "education" | "culture";
-type ContentType = "canvas" | "gallery" | "file";
+type ContentType = "canvas" | "gallery" | "file" | "text";
 
 const allDestinations = [
     { id: 'dest-1', name: "Mi Perfil", type: "Perfil Oficial", avatar: "https://placehold.co/40x40.png" },
@@ -40,46 +40,51 @@ const allDestinations = [
 
 const areaConfig = {
     politics: {
-        icon: <Scale />,
+        icon: <Scale className="w-8 h-8" />,
         title: "Política",
-        description: "Proponer leyes, iniciar proyectos ejecutivos o abrir casos judiciales.",
-        color: "border-primary/50 bg-primary/10 text-primary",
+        description: "Proponer leyes, iniciar proyectos o abrir casos judiciales.",
+        color: "text-primary border-primary/50 hover:bg-primary/10",
         allowedDestinations: ["Entidad Federativa", "Partido Político", "Perfil Oficial"],
-        categories: ["Legislativo", "Ejecutivo", "Judicial"]
+        categories: ["Propuesta Legislativa", "Proyecto Ejecutivo", "Caso Judicial"]
     },
     education: {
-        icon: <School />,
+        icon: <School className="w-8 h-8" />,
         title: "Educación",
         description: "Compartir conocimiento creando cursos, artículos o guías.",
-        color: "border-secondary/50 bg-secondary/10 text-secondary",
+        color: "text-secondary border-secondary/50 hover:bg-secondary/10",
         allowedDestinations: ["Red de Conocimiento", "Comunidad", "Evento", "Grupo de Estudio", "Perfil Oficial"],
         categories: ["Curso", "Artículo", "Guía"]
     },
     culture: {
-        icon: <Palette />,
+        icon: <Palette className="w-8 h-8" />,
         title: "Cultura",
         description: "Expresar ideas, arte, organizar eventos o compartir noticias.",
-        color: "border-accent/50 bg-accent/10 text-accent",
-        allowedDestinations: ["Comunidad", "Evento", "Perfil Oficial"],
+        color: "text-accent border-accent/50 hover:bg-accent/10",
+        allowedDestinations: ["Comunidad", "Evento", "Perfil Oficial", "Red de Conocimiento"],
         categories: ["Publicación General", "Evento", "Noticia"]
     }
 };
 
 const contentTypeConfig = {
     canvas: {
-        icon: <Edit />,
+        icon: <Edit className="w-8 h-8" />,
         title: 'Lienzo Universal',
         description: 'Publicaciones ricas y de formato libre. Ideal para contenido complejo y visual.'
     },
     gallery: {
-        icon: <ImageIcon />,
+        icon: <ImageIcon className="w-8 h-8" />,
         title: 'Galería de Imágenes/Videos',
         description: 'Sube múltiples imágenes o videos que se mostrarán como un carrusel interactivo.'
     },
     file: {
-        icon: <FileIcon />,
+        icon: <FileIcon className="w-8 h-8" />,
         title: 'Archivo Único',
         description: 'Comparte un solo archivo (PDF, audio, modelo 3D, etc) con previsualización.'
+    },
+    text: {
+        icon: <Type className="w-8 h-8" />,
+        title: 'Solo Texto',
+        description: 'Una interfaz simple para texto plano o enriquecido. Ideal para anuncios rápidos.'
     }
 }
 
@@ -259,7 +264,7 @@ export default function PublishPage() {
     
     const handleCategoryChange = (value: string) => {
         setSelectedCategory(value);
-        if (selectedArea === 'politics' && value === 'Legislativo') {
+        if (selectedArea === 'politics' && value === 'Propuesta Legislativa') {
             setShowVoteConfig(true);
         } else {
             setShowVoteConfig(false);
@@ -295,7 +300,6 @@ export default function PublishPage() {
         setEditorOpen(true);
     }
 
-
     const resetFlow = () => {
         setSelectedArea(null);
         setSelectedContentType(null);
@@ -303,6 +307,8 @@ export default function PublishPage() {
         setStep(1);
         setShowVoteConfig(false);
         setSelectedDestinations([]);
+        setSelectedCategories([]);
+        setSelectedThemes([]);
     }
     
     const goBack = () => {
@@ -315,62 +321,62 @@ export default function PublishPage() {
         switch (step) {
             case 1:
                 return (
-                    <>
-                        <div>
-                            <h1 className="text-3xl font-bold font-headline">Paso 1: ¿Qué te gustaría crear?</h1>
-                            <p className="text-muted-foreground mt-2">
-                                Comienza seleccionando el área principal de tu publicación. Esto determinará las herramientas y opciones disponibles.
+                    <div className="w-full max-w-4xl">
+                        <div className="text-center mb-8">
+                            <h2 className="text-3xl font-bold font-headline">Paso 1: Selecciona el Área Principal</h2>
+                            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                                Comienza eligiendo el propósito de tu publicación. Esto determinará las herramientas y opciones disponibles.
                             </p>
                         </div>
-                        <div className="grid md:grid-cols-3 gap-6 w-full max-w-4xl mt-4">
+                        <div className="grid md:grid-cols-3 gap-6">
                             {(Object.keys(areaConfig) as Area[]).map(key => {
                                 const config = areaConfig[key];
                                 return (
-                                    <Card key={key} className={cn("text-center hover:shadow-lg transition-shadow cursor-pointer", config.color)} onClick={() => handleSelectArea(key)}>
-                                        <CardHeader className="items-center">
-                                            <div className="p-3 rounded-full bg-background/80 mb-2">
+                                    <Card key={key} className={cn("text-center hover:shadow-lg transition-all duration-300 cursor-pointer border-2", config.color)} onClick={() => handleSelectArea(key)}>
+                                        <CardHeader className="items-center p-6">
+                                            <div className="p-4 rounded-full bg-background/80 mb-4 border-2">
                                                 {config.icon}
                                             </div>
-                                            <CardTitle className="font-headline">{config.title}</CardTitle>
+                                            <CardTitle className="font-headline text-xl">{config.title}</CardTitle>
                                         </CardHeader>
-                                        <CardContent>
+                                        <CardContent className="p-6 pt-0">
                                             <p className="text-sm">{config.description}</p>
                                         </CardContent>
                                     </Card>
                                 )
                             })}
                         </div>
-                    </>
+                    </div>
                 );
 
             case 2:
                 return (
-                    <>
-                        <div>
-                            <h1 className="text-3xl font-bold font-headline">Paso 2: Elige el formato del contenido</h1>
-                            <p className="text-muted-foreground mt-2">
-                                Selecciona cómo quieres estructurar tu publicación.
+                     <div className="w-full max-w-4xl">
+                        <div className="text-center mb-8">
+                            <h2 className="text-3xl font-bold font-headline">Paso 2: Elige el Formato del Contenido</h2>
+                            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                                Selecciona cómo quieres estructurar tu publicación. Puedes empezar simple y añadir complejidad después.
                             </p>
                         </div>
-                        <div className="grid md:grid-cols-3 gap-6 w-full max-w-4xl mt-4">
+                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                             {(Object.keys(contentTypeConfig) as ContentType[]).map(key => {
                                 const config = contentTypeConfig[key];
                                 return (
-                                    <Card key={key} className="text-center hover:shadow-lg transition-shadow cursor-pointer bg-card/80" onClick={() => handleSelectContentType(key)}>
-                                        <CardHeader className="items-center">
-                                            <div className="p-3 rounded-full bg-muted mb-2">
+                                    <Card key={key} className="text-center hover:shadow-lg transition-all duration-300 cursor-pointer bg-card/80 border-2 border-transparent hover:border-primary/50" onClick={() => handleSelectContentType(key)}>
+                                        <CardHeader className="items-center p-6">
+                                            <div className="p-4 rounded-full bg-muted mb-4 border">
                                                 {config.icon}
                                             </div>
                                             <CardTitle className="font-headline text-lg">{config.title}</CardTitle>
                                         </CardHeader>
-                                        <CardContent>
+                                        <CardContent className="p-6 pt-0">
                                             <p className="text-sm text-muted-foreground">{config.description}</p>
                                         </CardContent>
                                     </Card>
                                 )
                             })}
                         </div>
-                    </>
+                    </div>
                 );
             
             case 3:
@@ -380,107 +386,112 @@ export default function PublishPage() {
                 const availableDestinations = allDestinations.filter(dest => config.allowedDestinations.includes(dest.type));
 
                 return (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="font-headline text-xl">Paso 3: Configuración de Ámbito</CardTitle>
-                            <CardDescription>Selecciona dónde se publicará y cómo se categorizará tu contenido.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="grid md:grid-cols-2 gap-6">
-                             <div className="space-y-2">
-                                <Label>Destino(s) de la Publicación</Label>
-                                <p className="text-xs text-muted-foreground">Puedes seleccionar uno o varios destinos.</p>
-                                
-                                <div className="relative">
-                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input placeholder="Buscar perfiles o páginas..." className="pl-8" />
-                                </div>
-                                <div className="p-1 border rounded-lg h-32 overflow-y-auto space-y-1">
-                                {availableDestinations.map(dest => (
-                                    <div key={dest.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 text-sm">
-                                        <div className="flex items-center gap-2">
-                                            <Avatar className="h-6 w-6">
-                                                <AvatarImage src={dest.avatar} />
-                                                <AvatarFallback>{dest.name.charAt(0)}</AvatarFallback>
-                                            </Avatar>
-                                            <span className="font-medium">{dest.name}</span>
-                                            <span className="text-xs text-muted-foreground">({dest.type})</span>
-                                        </div>
-                                        <Button variant="outline" size="sm" className="h-7" onClick={() => handleSelectDestination(dest)}>Seleccionar</Button>
+                    <div className="w-full max-w-4xl">
+                        <div className="text-center mb-8">
+                            <h2 className="text-3xl font-bold font-headline">Paso 3: Define el Ámbito y Contexto</h2>
+                            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">Selecciona dónde se publicará y cómo se conectará tu contenido con la red de conocimiento.</p>
+                        </div>
+                        <Card>
+                            <CardContent className="grid md:grid-cols-2 gap-x-8 gap-y-6 p-6">
+                                <div className="space-y-4">
+                                    <Label className="text-base font-semibold">Destino(s) de la Publicación</Label>
+                                    <p className="text-sm text-muted-foreground">Puedes seleccionar uno o varios destinos permitidos para el área de '{config.title}'.</p>
+                                    
+                                    <div className="relative">
+                                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input placeholder="Buscar perfiles o páginas..." className="pl-8" />
                                     </div>
-                                ))}
-                                </div>
-
-                                <Label className="pt-2 block">Destinos Seleccionados:</Label>
-                                 <div className="flex flex-wrap gap-2 p-2 border rounded-lg min-h-[40px] bg-muted/50">
-                                    {selectedDestinations.map(d => (
-                                        <Badge key={d.id} variant="secondary" className="p-1 pr-2">
+                                    <div className="p-2 border rounded-lg h-40 overflow-y-auto space-y-1 bg-muted/20">
+                                    {availableDestinations.map(dest => (
+                                        <div key={dest.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 text-sm">
                                             <div className="flex items-center gap-2">
-                                                <Avatar className="h-5 w-5">
-                                                    <AvatarImage src={d.avatar} />
-                                                    <AvatarFallback>{d.name.charAt(0)}</AvatarFallback>
+                                                <Avatar className="h-6 w-6">
+                                                    <AvatarImage src={dest.avatar} />
+                                                    <AvatarFallback>{dest.name.charAt(0)}</AvatarFallback>
                                                 </Avatar>
-                                                <span>{d.name}</span>
-                                                <button onClick={() => handleRemoveDestination(d.id)} className="ml-1 rounded-full hover:bg-background/50 p-0.5">
-                                                    <X className="h-3 w-3"/>
-                                                </button>
+                                                <span className="font-medium">{dest.name}</span>
+                                                <span className="text-xs text-muted-foreground">({dest.type})</span>
                                             </div>
-                                        </Badge>
+                                            <Button variant="outline" size="sm" className="h-7" onClick={() => handleSelectDestination(dest)}>Seleccionar</Button>
+                                        </div>
                                     ))}
-                                    {selectedDestinations.length === 0 && <span className="text-xs text-muted-foreground p-1">Ningún destino seleccionado...</span>}
+                                    </div>
+
+                                    <Label className="pt-2 block">Destinos Seleccionados:</Label>
+                                    <div className="flex flex-wrap gap-2 p-2 border rounded-lg min-h-[48px] bg-muted/50">
+                                        {selectedDestinations.map(d => (
+                                            <Badge key={d.id} variant="secondary" className="p-1 pr-2 text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <Avatar className="h-5 w-5">
+                                                        <AvatarImage src={d.avatar} />
+                                                        <AvatarFallback>{d.name.charAt(0)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span>{d.name}</span>
+                                                    <button onClick={() => handleRemoveDestination(d.id)} className="ml-1 rounded-full hover:bg-background/50 p-0.5">
+                                                        <X className="h-3 w-3"/>
+                                                    </button>
+                                                </div>
+                                            </Badge>
+                                        ))}
+                                        {selectedDestinations.length === 0 && <span className="text-xs text-muted-foreground p-2">Ningún destino seleccionado...</span>}
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Categoría Principal</Label>
-                                <p className="text-xs text-muted-foreground">Define el tipo de publicación.</p>
-                                <Select onValueChange={handleCategoryChange} value={selectedCategory || ""}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecciona una categoría..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {config.categories.map(cat => <SelectItem value={cat} key={cat}>{cat}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                
-                                {isEducation && (
-                                <div className="space-y-4 pt-2">
+                                <div className="space-y-4">
                                     <div>
-                                        <Label>Etiquetado (Red de Conocimiento)</Label>
-                                        <p className="text-xs text-muted-foreground">Vincula tu publicación a la red de conocimiento para una mejor interconexión.</p>
-                                        <div className="flex gap-2 mt-2">
-                                            <Button variant="outline" className="w-full justify-start text-sm" onClick={() => setCategorySelectorOpen(true)}><LinkIcon className="mr-2"/> Añadir Categorías</Button>
-                                            <Button variant="outline" className="w-full justify-start text-sm" onClick={() => setThemeSelectorOpen(true)}><Tags className="mr-2"/> Añadir Temas</Button>
+                                        <Label className="text-base font-semibold">Categoría Principal</Label>
+                                        <p className="text-sm text-muted-foreground">Define el tipo de publicación.</p>
+                                        <Select onValueChange={handleCategoryChange} value={selectedCategory || ""}>
+                                            <SelectTrigger className="mt-2">
+                                                <SelectValue placeholder="Selecciona una categoría..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {config.categories.map(cat => <SelectItem value={cat} key={cat}>{cat}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    
+                                    {isEducation && (
+                                    <div className="space-y-4 pt-2">
+                                        <div>
+                                            <Label className="text-base font-semibold">Etiquetado (Red de Conocimiento)</Label>
+                                            <p className="text-sm text-muted-foreground">Vincula tu publicación a la red de conocimiento para una mejor interconexión.</p>
+                                            <div className="flex gap-2 mt-2">
+                                                <Button variant="outline" className="w-full justify-start" onClick={() => setCategorySelectorOpen(true)}><LinkIcon className="mr-2"/> Añadir Categorías</Button>
+                                                <Button variant="outline" className="w-full justify-start" onClick={() => setThemeSelectorOpen(true)}><Tags className="mr-2"/> Añadir Temas</Button>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="flex flex-wrap gap-1 p-2 border rounded-lg min-h-[48px] bg-muted/50">
+                                                {selectedCat.length === 0 && selectedTh.length === 0 && <span className="text-xs text-muted-foreground p-2">Sin etiquetas de la Red de Conocimiento...</span>}
+                                                {selectedCat.map(c => <Badge key={c} variant="secondary">{categories.find(cat => cat.id === c)?.name}</Badge>)}
+                                                {selectedTh.map(t => <Badge key={t} className="bg-blue-900/50 text-blue-200 border-blue-500/50">{themes.find(th => th.id === t)?.name}</Badge>)}
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <div className="flex flex-wrap gap-1 p-2 border rounded-lg min-h-[40px] bg-muted/50">
-                                            {selectedCat.map(c => <Badge key={c} variant="secondary">{categories.find(cat => cat.id === c)?.name}</Badge>)}
-                                            {selectedTh.map(t => <Badge key={t}>{themes.find(th => th.id === t)?.name}</Badge>)}
-                                            {selectedCat.length === 0 && selectedTh.length === 0 && <span className="text-xs text-muted-foreground p-1">Selecciona etiquetas...</span>}
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </CardContent>
+                        </Card>
+                    </div>
                 );
 
             case 4:
                 return (
-                    <>
+                    <div className="w-full max-w-5xl space-y-6">
+                        <div className="text-center mb-8">
+                            <h2 className="text-3xl font-bold font-headline">Paso 4: El Lienzo de Creación</h2>
+                            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">Aquí es donde tu idea toma forma. Utiliza el editor para construir tu contenido.</p>
+                        </div>
+                        
                         {showVoteConfig && selectedArea === 'politics' && <LegislativeVoteConfig />}
 
                         <Card>
-                            <CardHeader>
-                                <CardTitle className="font-headline text-xl">Paso 4: El Lienzo de Creación</CardTitle>
-                                <CardDescription>Aquí es donde tu idea toma forma.</CardDescription>
-                            </CardHeader>
-                             <CardContent>
+                             <CardContent className="p-6">
                                 {selectedContentType === 'canvas' && (
                                     <div className="grid lg:grid-cols-3 gap-6">
                                         <div className="lg:col-span-2 space-y-4">
-                                            <h3 className="font-semibold text-muted-foreground">Contenido Principal</h3>
-                                            <div className="relative p-4 border-2 border-dashed rounded-lg min-h-[300px] flex items-center justify-center text-center">
+                                            <h3 className="font-semibold text-lg">Contenido Principal</h3>
+                                            <div className="relative p-4 border-2 border-dashed rounded-lg min-h-[300px] flex items-center justify-center text-center bg-muted/20 hover:border-primary/80 transition-colors">
                                                 <div className="space-y-2">
                                                     <p className="text-muted-foreground">Este es tu lienzo principal de contenido ilimitado.</p>
                                                     <Button onClick={() => openEditor('main')}><Edit className="mr-2"/>Editar Lienzo</Button>
@@ -488,8 +499,8 @@ export default function PublishPage() {
                                             </div>
                                         </div>
                                         <div className="space-y-4">
-                                            <h3 className="font-semibold text-muted-foreground">Tarjeta de Previsualización</h3>
-                                            <div className="relative p-4 border-2 border-dashed rounded-lg aspect-video flex items-center justify-center text-center">
+                                            <h3 className="font-semibold text-lg">Tarjeta de Previsualización</h3>
+                                            <div className="relative p-4 border-2 border-dashed rounded-lg aspect-video flex items-center justify-center text-center bg-muted/20 hover:border-primary/80 transition-colors">
                                                 <div className="space-y-2">
                                                     <p className="text-sm text-muted-foreground">Diseña aquí la tarjeta que se verá en los feeds.</p>
                                                     <Button variant="outline" onClick={() => openEditor('preview')}><Edit className="mr-2"/>Editar Previsualización</Button>
@@ -499,20 +510,22 @@ export default function PublishPage() {
                                         </div>
                                     </div>
                                 )}
-                                {(selectedContentType === 'gallery' || selectedContentType === 'file') && (
+                                {(selectedContentType === 'gallery' || selectedContentType === 'file' || selectedContentType === 'text') && (
                                      <div className="space-y-4">
                                         <Input placeholder="Título (Opcional)"/>
-                                        <Textarea placeholder="Descripción (Opcional)" />
-                                        <div className="p-8 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-center">
-                                            <Upload className="w-10 h-10 text-muted-foreground mb-4"/>
-                                            <p className="font-semibold mb-2">
-                                                {selectedContentType === 'gallery' ? 'Arrastra y suelta imágenes/videos o' : 'Arrastra y suelta un archivo o'}
-                                            </p>
-                                            <Button variant="outline">
-                                                <Library className="mr-2" />
-                                                Elegir desde la Biblioteca
-                                            </Button>
-                                        </div>
+                                        <Textarea placeholder={selectedContentType === 'text' ? 'Escribe tu contenido aquí...' : 'Descripción (Opcional)'} rows={selectedContentType === 'text' ? 8 : 3} />
+                                        { (selectedContentType === 'gallery' || selectedContentType === 'file') &&
+                                            <div className="p-8 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-center bg-muted/20">
+                                                <Upload className="w-10 h-10 text-muted-foreground mb-4"/>
+                                                <p className="font-semibold mb-2">
+                                                    {selectedContentType === 'gallery' ? 'Arrastra y suelta imágenes/videos o' : 'Arrastra y suelta un archivo o'}
+                                                </p>
+                                                <Button variant="outline">
+                                                    <Library className="mr-2" />
+                                                    Elegir desde la Biblioteca
+                                                </Button>
+                                            </div>
+                                        }
                                      </div>
                                 )}
                             </CardContent>
@@ -521,14 +534,14 @@ export default function PublishPage() {
                         {!showVoteConfig && (
                             <Card>
                                 <CardHeader>
-                                    <CardTitle className="font-headline text-xl">Opciones de Publicación</CardTitle>
+                                    <CardTitle className="font-headline text-lg">Opciones de Publicación</CardTitle>
                                 </CardHeader>
                                 <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                     <div className="flex items-center space-x-2">
                                         <Vote className="w-5 h-5 text-primary"/>
                                         <div>
                                             <Label htmlFor="add-vote" className="font-semibold">Añadir Votación</Label>
-                                            <p className="text-xs text-muted-foreground">Convierte esta publicación en una propuesta formal.</p>
+                                            <p className="text-xs text-muted-foreground">Convierte esta publicación en una propuesta formal con opciones de voto.</p>
                                         </div>
                                     </div>
                                     <Button variant="outline" onClick={() => setShowVoteConfig(true)}><PlusCircle className="mr-2"/>Configurar Votación</Button>
@@ -536,7 +549,7 @@ export default function PublishPage() {
                             </Card>
                         )}
                         {showVoteConfig && selectedArea !== 'politics' && <LegislativeVoteConfig />}
-                    </>
+                    </div>
                 );
 
             default:
@@ -573,27 +586,38 @@ export default function PublishPage() {
                 onToolSelect={handleToolSelection}
             />
             
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold font-headline flex items-center gap-3">
-                           Publicar
+                           Publicar Contenido
                         </h1>
                         <p className="text-muted-foreground">
-                            {selectedArea ? `Creando en: ${areaConfig[selectedArea].title}` : 'Inicia el flujo de creación de contenido.'}
+                            {selectedArea ? `Creando en el área de ${areaConfig[selectedArea].title}` : 'Inicia el flujo de creación para contribuir a la red.'}
                         </p>
                     </div>
-                    <Button variant="ghost" onClick={resetFlow}><X className="mr-2"/> Cancelar</Button>
+                    {step > 1 && <Button variant="ghost" onClick={resetFlow}><X className="mr-2"/> Cancelar</Button>}
                 </div>
                 
-                <div className="flex flex-col items-center text-center gap-8">
+                <Separator />
+
+                <div className="flex flex-col items-center text-center gap-8 mt-4">
                      {renderStepContent()}
                 </div>
 
                  <div className="flex justify-between gap-4 mt-8">
-                    <Button variant="outline" size="lg" onClick={goBack} disabled={step === 1}>Atrás</Button>
+                    <Button variant="outline" size="lg" onClick={goBack} disabled={step === 1}>
+                        <ArrowLeft className="mr-2"/>
+                        Atrás
+                    </Button>
                     {step < 4 ? (
-                         <Button size="lg" onClick={() => setStep(step + 1)} disabled={step === 2 && !selectedContentType}>Siguiente</Button>
+                         <Button 
+                            size="lg" 
+                            onClick={() => setStep(step + 1)} 
+                            disabled={(step === 2 && !selectedContentType) || (step === 3 && selectedDestinations.length === 0)}
+                         >
+                            Siguiente
+                         </Button>
                     ) : (
                         <div className="flex justify-end gap-4">
                             <Button variant="outline" size="lg">Guardar Borrador</Button>

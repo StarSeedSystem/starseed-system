@@ -63,9 +63,7 @@ function ItemRenderer({ item, selectedItems, handleSelect, level = 0 }: { item: 
                 >
                     {item.name}
                 </label>
-                <p className="text-sm text-muted-foreground">
-                    {item.description}
-                </p>
+                {'description' in item && <p className="text-sm text-muted-foreground">{item.description}</p>}
             </div>
         </div>
     );
@@ -88,7 +86,7 @@ export function KnowledgeNetworkSelector({ isOpen, onOpenChange, title, data, se
 
         return items.reduce((acc: DataItem[], item: DataItem) => {
             const nameMatch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-            const descMatch = item.description.toLowerCase().includes(searchTerm.toLowerCase());
+            const descMatch = 'description' in item && item.description.toLowerCase().includes(searchTerm.toLowerCase());
             
             let subItems: DataItem[] = [];
             if('subCategories' in item && item.subCategories) {
