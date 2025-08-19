@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search, AppWindow, Bold, Italic, Underline, Edit, Image as ImageIcon, File as FileIcon, Type, ArrowLeft } from "lucide-react";
+import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search, AppWindow, Bold, Italic, Underline, Edit, Image as ImageIcon, File as FileIcon, Type, ArrowLeft, Layers, RectangleHorizontal, MousePointer, CaseUpper, PanelRight, PanelLeft } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { addDays, format } from "date-fns";
@@ -21,10 +21,24 @@ import type { Category } from "@/lib/data";
 import { themes, categories } from "@/lib/data";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogClose } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 type Area = "politics" | "education" | "culture";
 type ContentType = "canvas" | "gallery" | "file" | "text";
+type CanvasElement = {
+    id: number;
+    type: 'text' | 'image' | 'shape' | 'button' | 'container' | 'code';
+    name: string;
+    content?: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    color?: string;
+};
 
 const allDestinations = [
     { id: 'dest-1', name: "Mi Perfil", type: "Perfil Oficial", avatar: "https://placehold.co/40x40.png" },
@@ -160,74 +174,156 @@ function LegislativeVoteConfig() {
     )
 }
 
-function CanvasToolbar({ onToolSelect }: { onToolSelect: (tool: string) => void }) {
-    const tools = [
-        { name: "Asistente IA", icon: <Sparkles />, action: "ai" },
-        { name: "Biblioteca", icon: <Library />, action: "library" },
-        { name: "Referencias", icon: <FileText />, action: "references" },
-        { name: "Herramientas", icon: <AppWindow />, action: "tools" }
-    ];
-
-    return (
-        <div className="flex items-center gap-2 p-2 rounded-lg border bg-background/80 backdrop-blur-xl">
-            {tools.map(tool => (
-                <Button key={tool.name} variant="ghost" className="flex items-center gap-2" onClick={() => onToolSelect(tool.action)}>
-                    {tool.icon}
-                    <span>{tool.name}</span>
-                </Button>
-            ))}
-        </div>
-    )
-}
-
-function TextFormatToolbar() {
-    return (
-        <div className="flex items-center gap-1 p-1 rounded-lg border bg-background/80 backdrop-blur-xl shadow-lg">
-             <Button variant="ghost" size="icon"><Bold /></Button>
-             <Button variant="ghost" size="icon"><Italic /></Button>
-             <Button variant="ghost" size="icon"><Underline /></Button>
-        </div>
-    )
-}
-
 function FullscreenCanvasEditor({ 
     isOpen, 
     onOpenChange, 
-    canvasType,
-    onToolSelect
+    canvasType
 }: { 
     isOpen: boolean, 
     onOpenChange: (open: boolean) => void, 
-    canvasType: 'main' | 'preview' | null,
-    onToolSelect: (tool: string) => void 
+    canvasType: 'main' | 'preview' | null
 }) {
+    const { toast } = useToast();
+    const [elements, setElements] = useState<CanvasElement[]>([
+        { id: 1, type: 'text', name: 'Título Principal', content: 'Bienvenido a mi Lienzo', x: 50, y: 50, width: 300, height: 40, color: '#FFFFFF' },
+        { id: 2, type: 'shape', name: 'Fondo Decorativo', content: 'Rectángulo', x: 20, y: 20, width: 500, height: 300, color: '#1A1A1A' }
+    ]);
+    const [selectedElementId, setSelectedElementId] = useState<number | null>(null);
+    const [showLayers, setShowLayers] = useState(true);
+    const [showProperties, setShowProperties] = useState(true);
+
     if (!canvasType) return null;
 
     const title = canvasType === 'main' ? 'Contenido Principal' : 'Tarjeta de Previsualización';
-    const canvasClass = canvasType === 'main' 
-        ? "w-full h-full min-h-[calc(100vh-200px)]"
-        : "w-[400px] h-[300px] aspect-video";
+    
+    const handleAddElement = (type: CanvasElement['type']) => {
+        const newElement: CanvasElement = {
+            id: Date.now(),
+            type,
+            name: `Nuevo ${type}`,
+            x: 10, y: 10, width: 100, height: 50,
+            content: `Contenido de ${type}`,
+            color: '#555555'
+        };
+        setElements(prev => [...prev, newElement]);
+        setSelectedElementId(newElement.id);
+        toast({ title: "Elemento Añadido", description: `Se ha añadido un nuevo elemento de tipo '${type}' al lienzo.` });
+    };
+
+    const selectedElement = elements.find(el => el.id === selectedElementId);
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className="w-screen h-screen max-w-full max-h-full flex flex-col p-0 gap-0">
-                <DialogHeader className="p-4 border-b flex-row items-center justify-between">
-                    <DialogTitle className="font-headline text-xl">Editando: {title}</DialogTitle>
-                    <Button onClick={() => onOpenChange(false)}>Guardar y Cerrar</Button>
+                <DialogHeader className="p-2 border-b flex-row items-center justify-between shrink-0">
+                    <div className="flex items-center gap-2">
+                        <DialogClose asChild>
+                            <Button variant="ghost" size="icon"><X/></Button>
+                        </DialogClose>
+                         <Separator orientation="vertical" className="h-6" />
+                        <h2 className="font-headline text-lg">Editando: {title}</h2>
+                    </div>
+
+                    {/* Main Toolbar */}
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => setShowLayers(!showLayers)}><PanelLeft /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => setShowProperties(!showProperties)}><PanelRight /></Button>
+                        <Separator orientation="vertical" className="h-6" />
+                        <Button variant="ghost" size="sm" onClick={() => toast({ title: "Herramienta Próximamente", description: "La herramienta de selección estará disponible pronto."})}><MousePointer/> Selección</Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm"><PlusCircle/> Insertar Elemento</Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem onClick={() => handleAddElement('text')}><Type/> Texto</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleAddElement('shape')}><RectangleHorizontal/> Forma</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleAddElement('button')}><div className="w-4 h-4 border rounded-sm flex items-center justify-center text-xs">B</div> Botón</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleAddElement('container')}><div className="w-4 h-4 border rounded-sm"></div> Contenedor</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => toast({ title: "Herramienta Próximamente" })}><Library/> Desde la Biblioteca</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => toast({ title: "Herramienta Próximamente" })}><AppWindow/> Código Embebido</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button variant="ghost" size="sm" onClick={() => toast({ title: "Asistente de IA Próximamente"})}><Sparkles/> Asistente IA</Button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline">Guardar Borrador</Button>
+                        <Button onClick={() => onOpenChange(false)}>Guardar y Cerrar</Button>
+                    </div>
                 </DialogHeader>
-                <div className="bg-muted/40 flex-1 flex flex-col items-center justify-center p-4 relative overflow-auto">
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-                         <CanvasToolbar onToolSelect={onToolSelect} />
-                    </div>
-                    <div className={cn("relative p-4 border-2 border-dashed rounded-lg bg-background shadow-lg", canvasClass)}>
-                        <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10">
-                            <TextFormatToolbar />
+
+                <div className="flex-1 flex overflow-hidden">
+                    {/* Layers Panel */}
+                    <aside className={cn("bg-background/80 border-r transition-all duration-300", showLayers ? "w-64 p-4" : "w-0 p-0 overflow-hidden")}>
+                        <h3 className="font-headline text-lg flex items-center gap-2 mb-4"><Layers/> Capas</h3>
+                        <ScrollArea className="h-[calc(100%-40px)]">
+                            <div className="space-y-1 pr-2">
+                                {elements.map(el => (
+                                    <button 
+                                        key={el.id} 
+                                        onClick={() => setSelectedElementId(el.id)}
+                                        className={cn(
+                                            "w-full text-left p-2 rounded-md flex items-center gap-2 text-sm",
+                                            selectedElementId === el.id ? "bg-muted font-semibold" : "hover:bg-muted/50"
+                                        )}
+                                    >
+                                        {el.type === 'text' && <Type className="w-4 h-4" />}
+                                        {el.type === 'shape' && <RectangleHorizontal className="w-4 h-4" />}
+                                        {el.type === 'button' && <div className="w-4 h-4 border rounded-sm flex items-center justify-center text-xs shrink-0">B</div>}
+                                        {el.type === 'container' && <div className="w-4 h-4 border rounded-sm shrink-0"></div>}
+                                        {el.type === 'code' && <AppWindow className="w-4 h-4" />}
+                                        <span className="truncate">{el.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    </aside>
+
+                    {/* Canvas */}
+                    <main className="flex-1 bg-muted/40 flex items-center justify-center p-8 overflow-auto">
+                        <div className={cn("relative bg-background shadow-lg", canvasType === 'main' ? 'w-full h-full' : 'w-[400px] h-[300px] aspect-video')}>
+                             <div className="p-8 text-center text-muted-foreground">
+                                <p>El lienzo de formato libre se renderizará aquí.</p>
+                                <p className="text-xs">Selecciona un elemento de la capa para ver sus propiedades.</p>
+                             </div>
                         </div>
-                        <Textarea 
-                            placeholder="Escribe, pega o arrastra contenido aquí... El editor de formato libre se implementará en esta área." 
-                            className="min-h-full h-full bg-transparent border-0 focus-visible:ring-0 resize-none"
-                        />
-                    </div>
+                    </main>
+
+                    {/* Properties Panel */}
+                     <aside className={cn("bg-background/80 border-l transition-all duration-300", showProperties ? "w-72 p-4" : "w-0 p-0 overflow-hidden")}>
+                        <h3 className="font-headline text-lg flex items-center gap-2 mb-4"><Settings/> Propiedades</h3>
+                        <ScrollArea className="h-[calc(100%-40px)]">
+                        {selectedElement ? (
+                            <div className="space-y-4 pr-2">
+                                <div className="space-y-1">
+                                    <Label htmlFor="el-name">Nombre de la Capa</Label>
+                                    <Input id="el-name" value={selectedElement.name} onChange={(e) => setElements(elements.map(el => el.id === selectedElementId ? {...el, name: e.target.value} : el))} />
+                                </div>
+                                {selectedElement.type === 'text' && (
+                                     <div className="space-y-1">
+                                        <Label htmlFor="el-content">Contenido</Label>
+                                        <Textarea id="el-content" value={selectedElement.content} onChange={(e) => setElements(elements.map(el => el.id === selectedElementId ? {...el, content: e.target.value} : el))} />
+                                    </div>
+                                )}
+                                 <div className="space-y-1">
+                                    <Label>Posición y Tamaño</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Input type="number" placeholder="X" value={selectedElement.x} onChange={(e) => setElements(elements.map(el => el.id === selectedElementId ? {...el, x: parseInt(e.target.value)} : el))} />
+                                        <Input type="number" placeholder="Y" value={selectedElement.y} onChange={(e) => setElements(elements.map(el => el.id === selectedElementId ? {...el, y: parseInt(e.target.value)} : el))} />
+                                        <Input type="number" placeholder="Ancho" value={selectedElement.width} onChange={(e) => setElements(elements.map(el => el.id === selectedElementId ? {...el, width: parseInt(e.target.value)} : el))} />
+                                        <Input type="number" placeholder="Alto" value={selectedElement.height} onChange={(e) => setElements(elements.map(el => el.id === selectedElementId ? {...el, height: parseInt(e.target.value)} : el))} />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="el-color">Color</Label>
+                                    <Input id="el-color" type="color" value={selectedElement.color} onChange={(e) => setElements(elements.map(el => el.id === selectedElementId ? {...el, color: e.target.value} : el))} />
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">Selecciona un elemento para editar sus propiedades.</p>
+                        )}
+                        </ScrollArea>
+                    </aside>
                 </div>
             </DialogContent>
         </Dialog>
@@ -281,20 +377,6 @@ export default function PublishPage() {
         setSelectedDestinations(selectedDestinations.filter(d => d.id !== destId));
     }
 
-    const handleToolSelection = (tool: string) => {
-        let toolName = "";
-        switch (tool) {
-            case "ai": toolName = "Asistente de IA"; break;
-            case "library": toolName = "Biblioteca"; break;
-            case "references": toolName = "Referencias"; break;
-            case "tools": toolName = "Herramientas"; break;
-        }
-        toast({
-            title: "Herramienta Seleccionada",
-            description: `Has abierto: ${toolName}. La funcionalidad completa se implementará pronto.`
-        });
-    }
-
     const openEditor = (canvasType: 'main' | 'preview') => {
         setEditingCanvas(canvasType);
         setEditorOpen(true);
@@ -313,7 +395,12 @@ export default function PublishPage() {
     
     const goBack = () => {
         if (step > 1) {
-            setStep(step - 1);
+            if(step === 3 && selectedContentType === 'canvas') {
+                // Skip step 2 if canvas was chosen, as it's the only real option for now
+                 setStep(1);
+            } else {
+                 setStep(step - 1);
+            }
         }
     }
 
@@ -583,7 +670,6 @@ export default function PublishPage() {
                 isOpen={isEditorOpen}
                 onOpenChange={setEditorOpen}
                 canvasType={editingCanvas}
-                onToolSelect={handleToolSelection}
             />
             
             <div className="flex flex-col gap-4">
