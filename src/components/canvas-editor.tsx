@@ -6,13 +6,13 @@ import { Button } from "./ui/button";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "./ui/separator";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "./ui/dropdown-menu";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2 } from "lucide-react";
+import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2, Pen, Video, Music, Bot, Square, TextCursor, GitCommit, Link, Code, BarChart, MessageSquare, ListChecks, ArrowUp, ArrowDown } from "lucide-react";
 
 
 export type CanvasElement = {
@@ -53,8 +53,8 @@ export function CanvasEditor({
     const [activePageId, setActivePageId] = useState<string>('canvas-1');
 
     const [elements, setElements] = useState<CanvasElement[]>([
-        { id: 1, canvasId: 'canvas-1', type: 'text', name: 'Título Principal', content: 'Bienvenido a mi Lienzo', x: 50, y: 50, width: 300, height: 40, color: '#FFFFFF' },
         { id: 2, canvasId: 'canvas-1', type: 'shape', name: 'Fondo Decorativo', content: 'Rectángulo', x: 20, y: 20, width: 500, height: 300, color: '#1A1A1A' },
+        { id: 1, canvasId: 'canvas-1', type: 'text', name: 'Título Principal', content: 'Bienvenido a mi Lienzo', x: 50, y: 50, width: 300, height: 40, color: '#FFFFFF' },
         { id: 3, canvasId: 'canvas-2', type: 'text', name: 'Título de Galería', content: 'Mi Galería de Arte', x: 50, y: 50, width: 300, height: 40, color: '#FFFFFF' },
     ]);
     const [selectedElementId, setSelectedElementId] = useState<number | null>(null);
@@ -64,12 +64,12 @@ export function CanvasEditor({
 
     if (!canvasType) return null;
     
-    const handleAddElement = (type: CanvasElement['type']) => {
+    const handleAddElement = (type: CanvasElement['type'], name?: string) => {
         const newElement: CanvasElement = {
             id: Date.now(),
             canvasId: activePageId,
             type,
-            name: `Nuevo ${type}`,
+            name: name || `Nuevo ${type}`,
             x: 10, y: 10, width: 100, height: 50,
             content: `Contenido de ${type}`,
             color: '#555555'
@@ -104,31 +104,106 @@ export function CanvasEditor({
                             <Button variant="ghost" size="icon"><X/></Button>
                         </DialogClose>
                          <Separator orientation="vertical" className="h-6" />
-                         <DialogTitle className="font-headline text-lg">{editorTitle}</DialogTitle>
+                         <DialogTitle className="font-headline text-lg sr-only">{editorTitle}</DialogTitle>
+                         
+                         <Button variant="ghost" size="icon" onClick={() => setShowLayers(!showLayers)} title="Mostrar/Ocultar Capas"><PanelLeft /></Button>
+                         <Button variant="ghost" size="icon" onClick={() => setShowProperties(!showProperties)} title="Mostrar/Ocultar Propiedades"><PanelRight /></Button>
                     </div>
 
                     {/* Main Toolbar */}
                     <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => setShowLayers(!showLayers)} title="Mostrar/Ocultar Capas"><PanelLeft /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => setShowProperties(!showProperties)} title="Mostrar/Ocultar Propiedades"><PanelRight /></Button>
-                        <Separator orientation="vertical" className="h-6 mx-1" />
-                        <Button variant="ghost" size="sm" onClick={() => toast({ title: "Herramienta Próximamente"})}><MousePointer/> Selección</Button>
-                         <Button variant="ghost" size="sm" onClick={() => handleAddElement('text')}><Type/> Texto</Button>
-                         <Button variant="ghost" size="sm" onClick={() => handleAddElement('shape')}><RectangleHorizontal/> Forma</Button>
+                        
                         <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm"><PlusCircle/> Insertar</Button>
-                            </DropdownMenuTrigger>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Insertar Elemento</Button></DropdownMenuTrigger>
                             <DropdownMenuContent>
-                                <DropdownMenuItem onClick={() => toast({ title: "Herramienta Próximamente" })}><Library className="mr-2"/> Desde la Biblioteca</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleAddElement('button')}><div className="w-4 h-4 border rounded-sm flex items-center justify-center text-xs mr-2">B</div> Botón</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleAddElement('container')}><div className="w-4 h-4 border rounded-sm mr-2"></div> Contenedor</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => toast({ title: "Herramienta Próximamente" })}><AppWindow className="mr-2"/> Código Embebido</DropdownMenuItem>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Básicos</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        <DropdownMenuItem onClick={() => handleAddElement('text', 'Nuevo Texto')}><Type className="mr-2"/>Texto</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleAddElement('shape', 'Nueva Forma')}><Square className="mr-2"/>Forma</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleAddElement('container', 'Nuevo Contenedor')}><div className="w-4 h-4 border rounded-sm mr-2"></div>Contenedor</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Media (desde Biblioteca)</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        <DropdownMenuItem><Library className="mr-2"/>Imagen</DropdownMenuItem>
+                                        <DropdownMenuItem><Video className="mr-2"/>Video</DropdownMenuItem>
+                                        <DropdownMenuItem><Music className="mr-2"/>Audio</DropdownMenuItem>
+                                        <DropdownMenuItem><Bot className="mr-2"/>Modelo 3D</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Interactivos</DropdownMenuSubTrigger>
+                                     <DropdownMenuSubContent>
+                                        <DropdownMenuItem onClick={() => handleAddElement('button', 'Nuevo Botón')}><div className="w-4 h-4 border rounded-sm flex items-center justify-center text-xs mr-2">B</div>Botón</DropdownMenuItem>
+                                        <DropdownMenuItem>Galería de Imágenes</DropdownMenuItem>
+                                        <DropdownMenuItem>Carrusel de Videos</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                 <DropdownMenuSeparator />
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Avanzados</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        <DropdownMenuItem><AppWindow className="mr-2"/>App Embebida</DropdownMenuItem>
+                                        <DropdownMenuItem><Code className="mr-2"/>Código Personalizado</DropdownMenuItem>
+                                        <DropdownMenuItem><BarChart className="mr-2"/>Gráfica de Datos</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuSeparator />
+                                 <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Contextuales: Política</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        <DropdownMenuItem>Bloque de Propuesta</DropdownMenuItem>
+                                        <DropdownMenuItem>Sección de Votación</DropdownMenuItem>
+                                        <DropdownMenuItem>Análisis de Impacto</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Contextuales: Educación</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        <DropdownMenuItem><MessageSquare className="mr-2"/>Bloque de Cita</DropdownMenuItem>
+                                        <DropdownMenuItem><ListChecks className="mr-2"/>Examen Interactivo</DropdownMenuItem>
+                                        <DropdownMenuItem><GitCommit className="mr-2"/>Diagrama Explicativo</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                         <Separator orientation="vertical" className="h-6 mx-1" />
-                        <Button variant="ghost" size="sm" onClick={() => toast({ title: "Herramienta Próximamente"})}><AlignLeft/> <AlignRight/> Alinear</Button>
-                        <Button variant="ghost" size="sm" onClick={() => toast({ title: "Herramienta Próximamente"})}><Group/> Agrupar</Button>
+
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Herramientas de Creación</Button></DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem><MousePointer className="mr-2"/>Selección (V)</DropdownMenuItem>
+                                <DropdownMenuItem><Pen className="mr-2"/>Pluma (P)</DropdownMenuItem>
+                                <DropdownMenuItem><TextCursor className="mr-2"/>Texto (T)</DropdownMenuItem>
+                                <DropdownMenuItem><RectangleHorizontal className="mr-2"/>Formas (R)</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Herramientas de Edición</Button></DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Alinear</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        <DropdownMenuItem>Alinear a la Izquierda</DropdownMenuItem>
+                                        <DropdownMenuItem>Alinear al Centro</DropdownMenuItem>
+                                        <DropdownMenuItem>Alinear a la Derecha</DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem>Distribuir Horizontalmente</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuItem><Group className="mr-2"/>Agrupar / Desagrupar</DropdownMenuItem>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Ordenar Capas</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        <DropdownMenuItem><ArrowUp className="mr-2"/>Traer al Frente</DropdownMenuItem>
+                                        <DropdownMenuItem><ArrowDown className="mr-2"/>Enviar al Fondo</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                       
                         <Button variant="ghost" size="sm" onClick={() => toast({ title: "Asistente de IA Próximamente"})}><Sparkles/> Asistente IA</Button>
                     </div>
 
@@ -199,7 +274,7 @@ export function CanvasEditor({
                         <div className={cn("relative bg-background shadow-lg", canvasType === 'main' ? 'w-full h-full' : 'w-[400px] h-[300px] aspect-video')}>
                              <div className="p-8 text-center text-muted-foreground">
                                 <p>El lienzo de formato libre se renderizará aquí.</p>
-                                <p className="text-xs">Selecciona un elemento de la capa para ver sus propiedades.</p>
+                                <p className="text-xs">(Zoom con la rueda, Panear con barra espaciadora + arrastrar)</p>
                              </div>
                         </div>
                     </main>
