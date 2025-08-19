@@ -1,3 +1,6 @@
+// src/components/comment-system.tsx
+'use client'
+import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -5,37 +8,48 @@ import { Textarea } from "@/components/ui/textarea";
 import { comments as defaultComments, type Comment as CommentType } from "@/lib/data";
 import { Send, ThumbsUp, Reply, MoreHorizontal, Paperclip, AtSign, Smile, Sparkles, Link as LinkIcon, Edit, Image as ImageIcon, File as FileIcon, Type } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { CanvasEditor } from "./canvas-editor";
 
 function CommentInput() {
+    const [isCanvasEditorOpen, setCanvasEditorOpen] = useState(false);
+
     return (
-        <div className="flex gap-3">
-            <Avatar className="h-8 w-8">
-                <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="user avatar" />
-                <AvatarFallback>TÚ</AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-                <Card className="overflow-hidden border-2 border-primary/20">
-                    <Textarea 
-                        placeholder="Añade un comentario como lienzo..." 
-                        className="border-0 focus-visible:ring-0 resize-none min-h-[60px] bg-transparent p-2"
-                    />
-                     <div className="p-1 bg-muted/50 border-t flex justify-between items-center">
-                        <div className="flex items-center gap-0.5">
-                            <Button variant="ghost" size="icon" className="h-7 w-7"><Type className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7"><ImageIcon className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7"><FileIcon className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7"><AtSign className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7"><LinkIcon className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-primary"><Sparkles className="h-4 w-4" /></Button>
+        <>
+            <CanvasEditor
+                isOpen={isCanvasEditorOpen}
+                onOpenChange={setCanvasEditorOpen}
+                canvasType="main"
+                editorTitle="Editando Comentario de Lienzo"
+            />
+            <div className="flex gap-3">
+                <Avatar className="h-8 w-8">
+                    <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="user avatar" />
+                    <AvatarFallback>TÚ</AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                    <Card className="overflow-hidden border-2 border-primary/20">
+                        <Textarea 
+                            placeholder="Añade un comentario..." 
+                            className="border-0 focus-visible:ring-0 resize-none min-h-[60px] bg-transparent p-2"
+                        />
+                         <div className="p-1 bg-muted/50 border-t flex justify-between items-center">
+                            <div className="flex items-center gap-0.5">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCanvasEditorOpen(true)}><Edit className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7"><ImageIcon className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7"><FileIcon className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7"><AtSign className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7"><LinkIcon className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-primary"><Sparkles className="h-4 w-4" /></Button>
+                            </div>
+                            <Button size="sm" className="h-8">
+                                <Send className="mr-2 h-4 w-4" />
+                                Publicar
+                            </Button>
                         </div>
-                        <Button size="sm" className="h-8">
-                            <Send className="mr-2 h-4 w-4" />
-                            Publicar
-                        </Button>
-                    </div>
-                </Card>
+                    </Card>
+                </div>
             </div>
-        </div>
+        </>
     )
 }
 

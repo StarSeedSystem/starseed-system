@@ -22,6 +22,7 @@ import { UserNav } from "@/components/layout/user-nav";
 import { NotificationCenter } from "@/components/layout/notification-center";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+import { CanvasEditor } from "@/components/canvas-editor";
 
 const mainNavItems = [
     { href: "/dashboard", icon: <Home className="h-5 w-5" />, label: "Dashboard" },
@@ -233,32 +234,6 @@ function MessageBubble({ message }: { message: MessageFull }) {
     )
 }
 
-function MessageCanvasEditor({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
-    const { toast } = useToast();
-    return (
-        <DialogContent className="w-screen h-screen max-w-full max-h-full flex flex-col p-0 gap-0">
-            <DialogHeader className="p-4 border-b flex-row items-center justify-between">
-                <DialogTitle className="font-headline text-xl">Editando Mensaje de Lienzo</DialogTitle>
-                <DialogClose asChild>
-                    <Button onClick={() => onOpenChange(false)}>Guardar y Enviar</Button>
-                </DialogClose>
-            </DialogHeader>
-            <div className="bg-muted/40 flex-1 flex flex-col items-center justify-center p-4 relative overflow-auto">
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 p-2 rounded-lg border bg-background/80 backdrop-blur-xl">
-                     <Button variant="ghost" className="flex items-center gap-2" onClick={() => toast({ title: "Funcionalidad Próximamente", description: "El asistente de IA se integrará aquí."})}><Sparkles /> Asistente IA</Button>
-                     <Button variant="ghost" className="flex items-center gap-2" onClick={() => toast({ title: "Funcionalidad Próximamente", description: "Podrás arrastrar archivos desde la biblioteca."})}><Library /> Biblioteca</Button>
-                </div>
-                <div className="relative p-4 border-2 border-dashed rounded-lg bg-background shadow-lg w-full max-w-3xl h-full min-h-[calc(100vh-200px)]">
-                    <Textarea 
-                        placeholder="Crea tu mensaje enriquecido aquí..." 
-                        className="min-h-full h-full bg-transparent border-0 focus-visible:ring-0 resize-none p-4"
-                    />
-                </div>
-            </div>
-        </DialogContent>
-    );
-}
-
 function LibrarySelectorDialog({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
     const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
 
@@ -337,9 +312,12 @@ export default function MessagesPage() {
         <Dialog>
              <div className="h-screen flex flex-col">
                 {/* Canvas Editor Dialog */}
-                <Dialog open={isCanvasEditorOpen} onOpenChange={setCanvasEditorOpen}>
-                    <MessageCanvasEditor onOpenChange={setCanvasEditorOpen} />
-                </Dialog>
+                <CanvasEditor
+                    isOpen={isCanvasEditorOpen}
+                    onOpenChange={setCanvasEditorOpen}
+                    canvasType="main"
+                    editorTitle="Editando Mensaje de Lienzo"
+                />
 
                 {/* Library Selector Dialog */}
                  <Dialog open={isLibrarySelectorOpen} onOpenChange={setLibrarySelectorOpen}>

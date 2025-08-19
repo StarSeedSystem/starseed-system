@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search, AppWindow, Bold, Italic, Underline, Edit, Image as ImageIcon, File as FileIcon, Type, ArrowLeft, Layers, RectangleHorizontal, MousePointer, CaseUpper, PanelRight, PanelLeft } from "lucide-react";
+import { Scale, School, Palette, Newspaper, BookOpen, Hand, Users, Target, BrainCircuit, FileText, Vote, PlusCircle, Settings, Library, Upload, Sparkles, X, Calendar as CalendarIcon, AlertTriangle, Link as LinkIcon, Tags, Search, AppWindow, Bold, Italic, Underline, Edit, Image as ImageIcon, File as FileIcon, Type, ArrowLeft } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { addDays, format } from "date-fns";
@@ -21,24 +21,10 @@ import type { Category } from "@/lib/data";
 import { themes, categories } from "@/lib/data";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogClose } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
-
+import { CanvasEditor } from "@/components/canvas-editor";
 
 type Area = "politics" | "education" | "culture";
 type ContentType = "canvas" | "gallery" | "file" | "text";
-type CanvasElement = {
-    id: number;
-    type: 'text' | 'image' | 'shape' | 'button' | 'container' | 'code';
-    name: string;
-    content?: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    color?: string;
-};
 
 const allDestinations = [
     { id: 'dest-1', name: "Mi Perfil", type: "Perfil Oficial", avatar: "https://placehold.co/40x40.png" },
@@ -173,167 +159,6 @@ function LegislativeVoteConfig() {
         </Card>
     )
 }
-
-function FullscreenCanvasEditor({ 
-    isOpen, 
-    onOpenChange, 
-    canvasType
-}: { 
-    isOpen: boolean, 
-    onOpenChange: (open: boolean) => void, 
-    canvasType: 'main' | 'preview' | null
-}) {
-    const { toast } = useToast();
-    const [elements, setElements] = useState<CanvasElement[]>([
-        { id: 2, type: 'shape', name: 'Fondo Decorativo', content: 'Rectángulo', x: 20, y: 20, width: 500, height: 300, color: '#1A1A1A' },
-        { id: 1, type: 'text', name: 'Título Principal', content: 'Bienvenido a mi Lienzo', x: 50, y: 50, width: 300, height: 40, color: '#FFFFFF' },
-    ]);
-    const [selectedElementId, setSelectedElementId] = useState<number | null>(1);
-    const [showLayers, setShowLayers] = useState(true);
-    const [showProperties, setShowProperties] = useState(true);
-
-    if (!canvasType) return null;
-
-    const title = canvasType === 'main' ? 'Contenido Principal' : 'Tarjeta de Previsualización';
-    
-    const handleAddElement = (type: CanvasElement['type']) => {
-        const newElement: CanvasElement = {
-            id: Date.now(),
-            type,
-            name: `Nuevo ${type}`,
-            x: 10, y: 10, width: 100, height: 50,
-            content: `Contenido de ${type}`,
-            color: '#555555'
-        };
-        setElements(prev => [newElement, ...prev]);
-        setSelectedElementId(newElement.id);
-        toast({ title: "Elemento Añadido", description: `Se ha añadido un nuevo elemento de tipo '${type}' al lienzo.` });
-    };
-
-    const selectedElement = elements.find(el => el.id === selectedElementId);
-    
-    const updateElement = (id: number, newProps: Partial<CanvasElement>) => {
-        setElements(elements.map(el => el.id === id ? {...el, ...newProps} : el));
-    }
-
-    return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="w-screen h-screen max-w-full max-h-full flex flex-col p-0 gap-0">
-                 <DialogHeader className="p-2 border-b flex-row items-center justify-between shrink-0">
-                    <div className="flex items-center gap-2">
-                        <DialogClose asChild>
-                            <Button variant="ghost" size="icon"><X/></Button>
-                        </DialogClose>
-                         <Separator orientation="vertical" className="h-6" />
-                         <DialogTitle className="font-headline text-lg">Editando: {title}</DialogTitle>
-                    </div>
-
-                    {/* Main Toolbar */}
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => setShowLayers(!showLayers)} title="Mostrar/Ocultar Capas"><PanelLeft /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => setShowProperties(!showProperties)} title="Mostrar/Ocultar Propiedades"><PanelRight /></Button>
-                        <Separator orientation="vertical" className="h-6" />
-                        <Button variant="ghost" size="sm" onClick={() => toast({ title: "Herramienta Próximamente", description: "La herramienta de selección estará disponible pronto."})}><MousePointer/> Selección</Button>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm"><PlusCircle/> Insertar Elemento</Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <DropdownMenuItem onClick={() => handleAddElement('text')}><Type className="mr-2"/> Texto</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleAddElement('shape')}><RectangleHorizontal className="mr-2"/> Forma</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleAddElement('button')}><div className="w-4 h-4 border rounded-sm flex items-center justify-center text-xs mr-2">B</div> Botón</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleAddElement('container')}><div className="w-4 h-4 border rounded-sm mr-2"></div> Contenedor</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => toast({ title: "Herramienta Próximamente" })}><Library className="mr-2"/> Desde la Biblioteca</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => toast({ title: "Herramienta Próximamente" })}><AppWindow className="mr-2"/> Código Embebido</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <Button variant="ghost" size="sm" onClick={() => toast({ title: "Asistente de IA Próximamente"})}><Sparkles/> Asistente IA</Button>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline">Guardar Borrador</Button>
-                        <Button onClick={() => onOpenChange(false)}>Guardar y Cerrar</Button>
-                    </div>
-                </DialogHeader>
-
-                <div className="flex-1 flex overflow-hidden">
-                    {/* Layers Panel */}
-                    <aside className={cn("bg-background/80 border-r transition-all duration-300", showLayers ? "w-64 p-4" : "w-0 p-0 overflow-hidden")}>
-                        <h3 className="font-headline text-lg flex items-center gap-2 mb-4"><Layers/> Capas</h3>
-                        <ScrollArea className="h-[calc(100%-40px)]">
-                            <div className="space-y-1 pr-2">
-                                {elements.map(el => (
-                                    <button 
-                                        key={el.id} 
-                                        onClick={() => setSelectedElementId(el.id)}
-                                        className={cn(
-                                            "w-full text-left p-2 rounded-md flex items-center gap-2 text-sm",
-                                            selectedElementId === el.id ? "bg-muted font-semibold" : "hover:bg-muted/50"
-                                        )}
-                                    >
-                                        {el.type === 'text' && <Type className="w-4 h-4" />}
-                                        {el.type === 'shape' && <RectangleHorizontal className="w-4 h-4" />}
-                                        {el.type === 'button' && <div className="w-4 h-4 border rounded-sm flex items-center justify-center text-xs shrink-0">B</div>}
-                                        {el.type === 'container' && <div className="w-4 h-4 border rounded-sm shrink-0"></div>}
-                                        {el.type === 'code' && <AppWindow className="w-4 h-4" />}
-                                        <span className="truncate">{el.name}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </ScrollArea>
-                    </aside>
-
-                    {/* Canvas */}
-                    <main className="flex-1 bg-muted/40 flex items-center justify-center p-8 overflow-auto">
-                        <div className={cn("relative bg-background shadow-lg", canvasType === 'main' ? 'w-full h-full' : 'w-[400px] h-[300px] aspect-video')}>
-                             <div className="p-8 text-center text-muted-foreground">
-                                <p>El lienzo de formato libre se renderizará aquí.</p>
-                                <p className="text-xs">Selecciona un elemento de la capa para ver sus propiedades.</p>
-                             </div>
-                        </div>
-                    </main>
-
-                    {/* Properties Panel */}
-                     <aside className={cn("bg-background/80 border-l transition-all duration-300", showProperties ? "w-72 p-4" : "w-0 p-0 overflow-hidden")}>
-                        <h3 className="font-headline text-lg flex items-center gap-2 mb-4"><Settings/> Propiedades</h3>
-                        <ScrollArea className="h-[calc(100%-40px)]">
-                        {selectedElement ? (
-                            <div className="space-y-4 pr-2">
-                                <div className="space-y-1">
-                                    <Label htmlFor="el-name">Nombre de la Capa</Label>
-                                    <Input id="el-name" value={selectedElement.name} onChange={(e) => updateElement(selectedElementId!, { name: e.target.value })} />
-                                </div>
-                                {selectedElement.type === 'text' && (
-                                     <div className="space-y-1">
-                                        <Label htmlFor="el-content">Contenido</Label>
-                                        <Textarea id="el-content" placeholder="Escribe el texto aquí..." value={selectedElement.content} onChange={(e) => updateElement(selectedElementId!, { content: e.target.value })} />
-                                    </div>
-                                )}
-                                 <div className="space-y-1">
-                                    <Label>Posición y Tamaño</Label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <Input type="number" placeholder="X" value={selectedElement.x} onChange={(e) => updateElement(selectedElementId!, { x: parseInt(e.target.value) || 0 })} />
-                                        <Input type="number" placeholder="Y" value={selectedElement.y} onChange={(e) => updateElement(selectedElementId!, { y: parseInt(e.target.value) || 0 })} />
-                                        <Input type="number" placeholder="Ancho" value={selectedElement.width} onChange={(e) => updateElement(selectedElementId!, { width: parseInt(e.target.value) || 0 })} />
-                                        <Input type="number" placeholder="Alto" value={selectedElement.height} onChange={(e) => updateElement(selectedElementId!, { height: parseInt(e.target.value) || 0 })} />
-                                    </div>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="el-color">Color</Label>
-                                    <Input id="el-color" type="color" value={selectedElement.color} onChange={(e) => updateElement(selectedElementId!, { color: e.target.value })} />
-                                </div>
-                            </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">Selecciona un elemento para editar sus propiedades.</p>
-                        )}
-                        </ScrollArea>
-                    </aside>
-                </div>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
 
 export default function PublishPage() {
     const { toast } = useToast();
@@ -665,7 +490,7 @@ export default function PublishPage() {
                 type="theme"
             />
 
-            <FullscreenCanvasEditor
+            <CanvasEditor
                 isOpen={isEditorOpen}
                 onOpenChange={setEditorOpen}
                 canvasType={editingCanvas}
