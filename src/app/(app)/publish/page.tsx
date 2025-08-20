@@ -79,7 +79,7 @@ const contentTypeConfig = {
     file: {
         icon: <FileIcon className="w-8 h-8" />,
         title: 'Archivo Único',
-        description: 'Comparte un solo archivo (PDF, audio, modelo 3D, etc) con previsualización.'
+        description: 'Comparte un solo archivo (PDF, audio, etc) con previsualización.'
     },
     text: {
         icon: <Type className="w-8 h-8" />,
@@ -175,7 +175,6 @@ export default function PublishPage() {
     const [selectedDestinations, setSelectedDestinations] = useState<any[]>([]);
 
     const [isEditorOpen, setEditorOpen] = useState(false);
-    const [editingCanvas, setEditingCanvas] = useState<'main' | 'preview' | null>(null);
 
     const handleSelectArea = (area: Area) => {
         setSelectedArea(area);
@@ -206,8 +205,7 @@ export default function PublishPage() {
         setSelectedDestinations(selectedDestinations.filter(d => d.id !== destId));
     }
 
-    const openEditor = (canvasType: 'main' | 'preview') => {
-        setEditingCanvas(canvasType);
+    const openEditor = () => {
         setEditorOpen(true);
     }
 
@@ -405,7 +403,7 @@ export default function PublishPage() {
                                             <div className="relative p-4 border-2 border-dashed rounded-lg min-h-[300px] flex items-center justify-center text-center bg-muted/20 hover:border-primary/80 transition-colors">
                                                 <div className="space-y-2">
                                                     <p className="text-muted-foreground">Este es tu lienzo principal de contenido ilimitado.</p>
-                                                    <Button onClick={() => openEditor('main')}><Edit className="mr-2"/>Editar Lienzo</Button>
+                                                    <Button onClick={openEditor}><Edit className="mr-2"/>Abrir Editor del Lienzo</Button>
                                                 </div>
                                             </div>
                                         </div>
@@ -414,7 +412,7 @@ export default function PublishPage() {
                                             <div className="relative p-4 border-2 border-dashed rounded-lg aspect-video flex items-center justify-center text-center bg-muted/20 hover:border-primary/80 transition-colors">
                                                 <div className="space-y-2">
                                                     <p className="text-sm text-muted-foreground">Diseña aquí la tarjeta que se verá en los feeds.</p>
-                                                    <Button variant="outline" onClick={() => openEditor('preview')}><Edit className="mr-2"/>Editar Previsualización</Button>
+                                                    <Button variant="outline" onClick={openEditor}><Edit className="mr-2"/>Abrir Editor de Previsualización</Button>
                                                 </div>
                                             </div>
                                             <Input placeholder="Título de la Previsualización"/>
@@ -493,7 +491,7 @@ export default function PublishPage() {
             <CanvasEditor
                 isOpen={isEditorOpen}
                 onOpenChange={setEditorOpen}
-                canvasType={editingCanvas}
+                area={selectedArea}
             />
             
             <div className="flex flex-col gap-4">

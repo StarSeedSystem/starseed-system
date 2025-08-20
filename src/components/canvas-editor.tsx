@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2, Pen, Video, Music, Bot, Square, TextCursor, GitCommit, Link, Code, BarChart, MessageSquare, ListChecks, ArrowUp, ArrowDown } from "lucide-react";
+import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2, Pen, Video, Music, Bot, Square, TextCursor, GitCommit, Link, Code, BarChart, MessageSquare, ListChecks, ArrowUp, ArrowDown, Scale, School, Palette } from "lucide-react";
 
 
 export type CanvasElement = {
@@ -36,12 +36,12 @@ export type CanvasPage = {
 export function CanvasEditor({ 
     isOpen, 
     onOpenChange, 
-    canvasType,
+    area,
     editorTitle = "Editando Lienzo"
 }: { 
     isOpen: boolean, 
     onOpenChange: (open: boolean) => void, 
-    canvasType: 'main' | 'preview' | null,
+    area: 'politics' | 'education' | 'culture' | 'comment' | 'message' | null,
     editorTitle?: string;
 }) {
     const { toast } = useToast();
@@ -62,7 +62,7 @@ export function CanvasEditor({
     const [showLayers, setShowLayers] = useState(true);
     const [showProperties, setShowProperties] = useState(true);
 
-    if (!canvasType) return null;
+    if (!area) return null;
     
     const handleAddElement = (type: CanvasElement['type'], name?: string) => {
         const newElement: CanvasElement = {
@@ -95,6 +95,34 @@ export function CanvasEditor({
         setElements(elements.map(el => el.id === id ? {...el, ...newProps} : el));
     }
 
+    const renderContextualTools = () => {
+        if (area === 'education') {
+            return (
+                <DropdownMenuSub>
+                    <DropdownMenuSubTrigger><School className="mr-2"/>Contextuales: Educación</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                        <DropdownMenuItem><MessageSquare className="mr-2"/>Bloque de Cita</DropdownMenuItem>
+                        <DropdownMenuItem><ListChecks className="mr-2"/>Examen Interactivo</DropdownMenuItem>
+                        <DropdownMenuItem><GitCommit className="mr-2"/>Diagrama Explicativo</DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                </DropdownMenuSub>
+            )
+        }
+         if (area === 'politics') {
+            return (
+                <DropdownMenuSub>
+                    <DropdownMenuSubTrigger><Scale className="mr-2"/>Contextuales: Política</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                        <DropdownMenuItem>Bloque de Propuesta</DropdownMenuItem>
+                        <DropdownMenuItem>Sección de Votación</DropdownMenuItem>
+                        <DropdownMenuItem>Análisis de Impacto</DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                </DropdownMenuSub>
+            )
+        }
+        return null;
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className="w-screen h-screen max-w-full max-h-full flex flex-col p-0 gap-0">
@@ -104,7 +132,7 @@ export function CanvasEditor({
                             <Button variant="ghost" size="icon"><X/></Button>
                         </DialogClose>
                          <Separator orientation="vertical" className="h-6" />
-                         <DialogTitle className="font-headline text-lg sr-only">{editorTitle}</DialogTitle>
+                         <DialogTitle className="font-headline text-lg">{editorTitle}</DialogTitle>
                          
                          <Button variant="ghost" size="icon" onClick={() => setShowLayers(!showLayers)} title="Mostrar/Ocultar Capas"><PanelLeft /></Button>
                          <Button variant="ghost" size="icon" onClick={() => setShowProperties(!showProperties)} title="Mostrar/Ocultar Propiedades"><PanelRight /></Button>
@@ -151,22 +179,7 @@ export function CanvasEditor({
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                                 <DropdownMenuSeparator />
-                                 <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Contextuales: Política</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        <DropdownMenuItem>Bloque de Propuesta</DropdownMenuItem>
-                                        <DropdownMenuItem>Sección de Votación</DropdownMenuItem>
-                                        <DropdownMenuItem>Análisis de Impacto</DropdownMenuItem>
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Contextuales: Educación</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        <DropdownMenuItem><MessageSquare className="mr-2"/>Bloque de Cita</DropdownMenuItem>
-                                        <DropdownMenuItem><ListChecks className="mr-2"/>Examen Interactivo</DropdownMenuItem>
-                                        <DropdownMenuItem><GitCommit className="mr-2"/>Diagrama Explicativo</DropdownMenuItem>
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
+                                {renderContextualTools()}
                             </DropdownMenuContent>
                         </DropdownMenu>
 
@@ -271,7 +284,7 @@ export function CanvasEditor({
 
                     {/* Canvas */}
                     <main className="flex-1 bg-muted/40 flex items-center justify-center p-8 overflow-auto">
-                        <div className={cn("relative bg-background shadow-lg", canvasType === 'main' ? 'w-full h-full' : 'w-[400px] h-[300px] aspect-video')}>
+                        <div className="relative bg-background shadow-lg w-full h-full">
                              <div className="p-8 text-center text-muted-foreground">
                                 <p>El lienzo de formato libre se renderizará aquí.</p>
                                 <p className="text-xs">(Zoom con la rueda, Panear con barra espaciadora + arrastrar)</p>

@@ -18,7 +18,7 @@ function CommentInput() {
             <CanvasEditor
                 isOpen={isCanvasEditorOpen}
                 onOpenChange={setCanvasEditorOpen}
-                canvasType="main"
+                area="comment"
                 editorTitle="Editando Comentario de Lienzo"
             />
             <div className="flex gap-3">

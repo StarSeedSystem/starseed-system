@@ -315,7 +315,7 @@ export default function MessagesPage() {
                 <CanvasEditor
                     isOpen={isCanvasEditorOpen}
                     onOpenChange={setCanvasEditorOpen}
-                    canvasType="main"
+                    area="message"
                     editorTitle="Editando Mensaje de Lienzo"
                 />
 
@@ -396,17 +396,15 @@ export default function MessagesPage() {
                                             </div>
                                             <div className="grid gap-2">
                                                 {attachmentOptions.map(opt => (
-                                                    <DialogTrigger asChild key={opt.name}>
-                                                        <Button variant="ghost" className="justify-start h-auto p-2" onClick={opt.action}>
-                                                            <div className="flex items-center gap-3">
-                                                                {opt.icon}
-                                                                <div>
-                                                                    <p className="font-semibold text-sm">{opt.name}</p>
-                                                                    <p className="text-xs text-muted-foreground">{opt.description}</p>
-                                                                </div>
+                                                    <Button variant="ghost" className="justify-start h-auto p-2" onClick={opt.action} key={opt.name}>
+                                                        <div className="flex items-center gap-3">
+                                                            {opt.icon}
+                                                            <div>
+                                                                <p className="font-semibold text-sm">{opt.name}</p>
+                                                                <p className="text-xs text-muted-foreground">{opt.description}</p>
                                                             </div>
-                                                        </Button>
-                                                    </DialogTrigger>
+                                                        </div>
+                                                    </Button>
                                                 ))}
                                             </div>
                                         </div>
