@@ -12,20 +12,27 @@ import { cn } from "@/lib/utils";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2, Pen, Video, Music, Bot, Square, TextCursor, GitCommit, Link as LinkIcon, Code, BarChart, MessageSquare, ListChecks, ArrowUp, ArrowDown, Scale, School, Palette, CaseSensitive, GitBranch, Clapperboard, Drama, PencilRuler, WholeWord, Baseline, Pilcrow, MessageCircleHeart, SquareAsterisk, Hand, Wand, Save, FolderOpen, User } from "lucide-react";
+import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2, Pen, Video, Music, Bot, Square, TextCursor, GitCommit, Link as LinkIcon, Code, BarChart, MessageSquare, ListChecks, ArrowUp, ArrowDown, Scale, School, Palette, CaseSensitive, GitBranch, Clapperboard, Drama, PencilRuler, WholeWord, Baseline, Pilcrow, MessageCircleHeart, SquareAsterisk, Hand, Wand, Save, FolderOpen, User, Image as ImageIcon, Wand2, Star, Maximize } from "lucide-react";
 
 
 export type CanvasElement = {
     id: number;
     canvasId: string;
-    type: 'text' | 'image' | 'shape' | 'button' | 'container' | 'code';
+    type: 'text' | 'shape' | 'button' | 'container' | 'code' | 'image';
     name: string;
-    content?: string;
     x: number;
     y: number;
     width: number;
     height: number;
-    color?: string;
+    // Text specific
+    content?: string;
+    fontSize?: number;
+    fontWeight?: 'normal' | 'bold';
+    // Shape specific
+    fillColor?: string;
+    strokeColor?: string;
+    // Common
+    opacity?: number;
 };
 
 export type CanvasPage = {
@@ -48,14 +55,13 @@ export function CanvasEditor({
     
     const [pages, setPages] = useState<CanvasPage[]>([
         { id: 'canvas-1', name: 'Inicio' },
-        { id: 'canvas-2', name: 'Galería' },
     ]);
     const [activePageId, setActivePageId] = useState<string>('canvas-1');
 
     const [elements, setElements] = useState<CanvasElement[]>([
-        { id: 2, canvasId: 'canvas-1', type: 'shape', name: 'Fondo Decorativo', content: 'Rectángulo', x: 20, y: 20, width: 500, height: 300, color: '#1A1A1A' },
-        { id: 1, canvasId: 'canvas-1', type: 'text', name: 'Título Principal', content: 'Bienvenido a mi Lienzo', x: 50, y: 50, width: 300, height: 40, color: '#FFFFFF' },
-        { id: 3, canvasId: 'canvas-2', type: 'text', name: 'Título de Galería', content: 'Mi Galería de Arte', x: 50, y: 50, width: 300, height: 40, color: '#FFFFFF' },
+        { id: 2, canvasId: 'canvas-1', type: 'shape', name: 'Fondo Decorativo', x: 20, y: 20, width: 700, height: 400, fillColor: '#1A1A1A', strokeColor: '#333333' },
+        { id: 1, canvasId: 'canvas-1', type: 'text', name: 'Título Principal', content: 'Bienvenido a mi Lienzo', x: 50, y: 50, width: 400, height: 40, fontSize: 32, fontWeight: 'bold' },
+        { id: 3, canvasId: 'canvas-1', type: 'text', name: 'Párrafo de introducción', content: 'Este es un espacio para la creatividad sin límites.', x: 50, y: 100, width: 400, height: 40, fontSize: 16, fontWeight: 'normal' },
     ]);
     const [selectedElementId, setSelectedElementId] = useState<number | null>(null);
 
@@ -70,9 +76,14 @@ export function CanvasEditor({
             canvasId: activePageId,
             type,
             name: name || `Nuevo ${type}`,
-            x: 10, y: 10, width: 100, height: 50,
+            x: 10, y: 10, width: 150, height: 50,
+            // Defaults
             content: `Contenido de ${type}`,
-            color: '#555555'
+            fontSize: 16,
+            fontWeight: 'normal',
+            fillColor: '#333333',
+            strokeColor: '#555555',
+            opacity: 100
         };
         setElements(prev => [newElement, ...prev]);
         setSelectedElementId(newElement.id);
@@ -91,8 +102,9 @@ export function CanvasEditor({
     const activePageElements = elements.filter(el => el.canvasId === activePageId);
     const selectedElement = elements.find(el => el.id === selectedElementId);
     
-    const updateElement = (id: number, newProps: Partial<CanvasElement>) => {
-        setElements(elements.map(el => el.id === id ? {...el, ...newProps} : el));
+    const updateSelectedElement = (newProps: Partial<CanvasElement>) => {
+        if (!selectedElementId) return;
+        setElements(elements.map(el => el.id === selectedElementId ? {...el, ...newProps} : el));
     }
 
     const renderContextualTools = () => {
@@ -122,6 +134,84 @@ export function CanvasEditor({
         }
         return null;
     }
+    
+    const renderPropertiesPanel = () => {
+        if (!selectedElement) {
+            return <p className="text-sm text-muted-foreground">Selecciona un elemento para editar sus propiedades.</p>
+        }
+
+        return (
+            <div className="space-y-4 pr-2">
+                {/* Common Properties */}
+                <div className="space-y-1">
+                    <Label htmlFor="el-name">Nombre de la Capa</Label>
+                    <Input id="el-name" value={selectedElement.name} onChange={(e) => updateSelectedElement({ name: e.target.value })} />
+                </div>
+                
+                <div>
+                    <Label>Transformación</Label>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                        <Input type="number" placeholder="X" value={selectedElement.x} onChange={(e) => updateSelectedElement({ x: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" placeholder="Y" value={selectedElement.y} onChange={(e) => updateSelectedElement({ y: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" placeholder="Ancho" value={selectedElement.width} onChange={(e) => updateSelectedElement({ width: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" placeholder="Alto" value={selectedElement.height} onChange={(e) => updateSelectedElement({ height: parseInt(e.target.value) || 0 })} />
+                    </div>
+                </div>
+
+                <div>
+                    <Label>Alineación</Label>
+                     <div className="flex gap-1 mt-1">
+                        <Button variant="outline" size="icon" className="h-8 w-8"><AlignLeft/></Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8"><AlignCenter/></Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8"><AlignRight/></Button>
+                     </div>
+                </div>
+
+                {/* Text Properties */}
+                {selectedElement.type === 'text' && (
+                    <div className="space-y-4 border-t pt-4">
+                        <h4 className="font-semibold text-sm">Tipografía</h4>
+                        <div className="space-y-1">
+                            <Label htmlFor="el-content">Contenido</Label>
+                            <Textarea id="el-content" placeholder="Escribe el texto aquí..." value={selectedElement.content} onChange={(e) => updateSelectedElement({ content: e.target.value })} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                                <Label htmlFor="el-fontsize">Tamaño</Label>
+                                <Input id="el-fontsize" type="number" placeholder="16" value={selectedElement.fontSize} onChange={(e) => updateSelectedElement({ fontSize: parseInt(e.target.value) || 16 })} />
+                            </div>
+                             <div className="space-y-1">
+                                <Label htmlFor="el-fontweight">Peso</Label>
+                                <select id="el-fontweight" value={selectedElement.fontWeight} onChange={(e) => updateSelectedElement({ fontWeight: e.target.value as 'normal' | 'bold' })} className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                                    <option value="normal">Normal</option>
+                                    <option value="bold">Bold</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                
+                {/* Shape Properties */}
+                {(selectedElement.type === 'shape' || selectedElement.type === 'container') && (
+                     <div className="space-y-4 border-t pt-4">
+                        <h4 className="font-semibold text-sm">Apariencia</h4>
+                         <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-1">
+                                <Label htmlFor="el-fill">Relleno</Label>
+                                <Input id="el-fill" type="color" value={selectedElement.fillColor} onChange={(e) => updateSelectedElement({ fillColor: e.target.value })} className="p-1" />
+                            </div>
+                             <div className="space-y-1">
+                                <Label htmlFor="el-stroke">Borde</Label>
+                                <Input id="el-stroke" type="color" value={selectedElement.strokeColor} onChange={(e) => updateSelectedElement({ strokeColor: e.target.value })} className="p-1" />
+                            </div>
+                         </div>
+                     </div>
+                )}
+
+            </div>
+        )
+    }
+
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -140,14 +230,13 @@ export function CanvasEditor({
 
                     {/* Main Toolbar */}
                     <div className="flex items-center gap-1">
-                        
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Insertar Elemento</Button></DropdownMenuTrigger>
                             <DropdownMenuContent>
                                 <DropdownMenuSub>
                                     <DropdownMenuSubTrigger><Library className="mr-2"/>Media (desde Biblioteca)</DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent>
-                                        <DropdownMenuItem><Video className="mr-2"/>Imagen</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleAddElement('image', 'Nueva Imagen')}><ImageIcon className="mr-2"/>Imagen</DropdownMenuItem>
                                         <DropdownMenuItem><Video className="mr-2"/>Video</DropdownMenuItem>
                                         <DropdownMenuItem><Music className="mr-2"/>Audio</DropdownMenuItem>
                                         <DropdownMenuItem><Bot className="mr-2"/>Modelo 3D</DropdownMenuItem>
@@ -167,7 +256,7 @@ export function CanvasEditor({
                                     <DropdownMenuSubTrigger><Drama className="mr-2"/>Avanzados</DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent>
                                         <DropdownMenuItem><AppWindow className="mr-2"/>App Embebida</DropdownMenuItem>
-                                        <DropdownMenuItem><Code className="mr-2"/>Código Personalizado</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleAddElement('code', 'Código Personalizado')}><Code className="mr-2"/>Código Personalizado</DropdownMenuItem>
                                         <DropdownMenuItem><BarChart className="mr-2"/>Gráfica de Datos</DropdownMenuItem>
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
@@ -195,8 +284,8 @@ export function CanvasEditor({
                                 <DropdownMenuItem onClick={() => handleAddElement('container', 'Nuevo Contenedor')}><div className="w-4 h-4 border rounded-sm mr-2"></div>Contenedor</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-
-                        <DropdownMenu>
+                        
+                         <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Herramientas de Edición</Button></DropdownMenuTrigger>
                             <DropdownMenuContent>
                                 <DropdownMenuItem><Group className="mr-2"/>Agrupar / Desagrupar</DropdownMenuItem>
@@ -208,7 +297,7 @@ export function CanvasEditor({
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                                  <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger><Wand className="mr-2"/>Transiciones y Animaciones</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubTrigger><Wand2 className="mr-2"/>Transiciones y Animaciones</DropdownMenuSubTrigger>
                                      <DropdownMenuSubContent>
                                         <DropdownMenuItem>Animación de Entrada</DropdownMenuItem>
                                         <DropdownMenuItem>Animación de Salida</DropdownMenuItem>
@@ -219,8 +308,8 @@ export function CanvasEditor({
                                  <DropdownMenuSub>
                                     <DropdownMenuSubTrigger><PencilRuler className="mr-2"/>Ajustes del Lienzo</DropdownMenuSubTrigger>
                                      <DropdownMenuSubContent>
-                                        <DropdownMenuItem>Tamaño del Lienzo</DropdownMenuItem>
-                                        <DropdownMenuItem>Fondo del Lienzo</DropdownMenuItem>
+                                        <DropdownMenuItem><Maximize className="mr-2"/>Tamaño del Lienzo</DropdownMenuItem>
+                                        <DropdownMenuItem><ImageIcon className="mr-2"/>Fondo del Lienzo</DropdownMenuItem>
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                             </DropdownMenuContent>
@@ -238,11 +327,11 @@ export function CanvasEditor({
                 <div className="flex-1 flex overflow-hidden">
                     {/* Layers & Pages Panel */}
                     <aside className={cn("bg-background/80 border-r transition-all duration-300 flex flex-col", showLayers ? "w-64" : "w-0 overflow-hidden")}>
-                        <div className="p-4">
+                        <div className="p-4 border-b">
                             <h3 className="font-headline text-lg flex items-center gap-2"><FilePlus/> Lienzos</h3>
                         </div>
                         <ScrollArea className="flex-1">
-                            <div className="space-y-1 px-2">
+                            <div className="space-y-1 px-2 py-2">
                                 {pages.map(p => (
                                     <button
                                         key={p.id}
@@ -253,8 +342,8 @@ export function CanvasEditor({
                                         )}
                                     >
                                         <span className="truncate flex-1">{p.name}</span>
-                                        <Copy className="h-3 w-3 opacity-50"/>
-                                        <Trash2 className="h-3 w-3 opacity-50"/>
+                                        <Copy className="h-3 w-3 opacity-50 hover:opacity-100"/>
+                                        <Trash2 className="h-3 w-3 opacity-50 hover:opacity-100"/>
                                     </button>
                                 ))}
                             </div>
@@ -265,11 +354,11 @@ export function CanvasEditor({
                             </Button>
                         </div>
                         <Separator />
-                        <div className="p-4">
+                        <div className="p-4 border-b">
                             <h3 className="font-headline text-lg flex items-center gap-2"><Layers/> Capas</h3>
                         </div>
                         <ScrollArea className="flex-1">
-                            <div className="space-y-1 pr-2 pb-4 pl-2">
+                            <div className="space-y-1 pr-2 pb-4 pl-2 pt-2">
                                 {activePageElements.map(el => (
                                     <button 
                                         key={el.id} 
@@ -284,7 +373,12 @@ export function CanvasEditor({
                                         {el.type === 'button' && <div className="w-4 h-4 border rounded-sm flex items-center justify-center text-xs shrink-0">B</div>}
                                         {el.type === 'container' && <div className="w-4 h-4 border rounded-sm shrink-0"></div>}
                                         {el.type === 'code' && <AppWindow className="w-4 h-4" />}
-                                        <span className="truncate">{el.name}</span>
+                                        {el.type === 'image' && <ImageIcon className="w-4 h-4" />}
+                                        <span className="truncate flex-1">{el.name}</span>
+                                        <div className="flex items-center gap-1.5 ml-auto">
+                                            <ArrowUp className="h-3 w-3 opacity-50 hover:opacity-100"/>
+                                            <ArrowDown className="h-3 w-3 opacity-50 hover:opacity-100"/>
+                                        </div>
                                     </button>
                                 ))}
                             </div>
@@ -307,43 +401,7 @@ export function CanvasEditor({
                      <aside className={cn("bg-background/80 border-l transition-all duration-300", showProperties ? "w-72 p-4" : "w-0 p-0 overflow-hidden")}>
                         <h3 className="font-headline text-lg flex items-center gap-2 mb-4"><Settings/> Propiedades</h3>
                         <ScrollArea className="h-[calc(100%-40px)]">
-                        {selectedElement ? (
-                            <div className="space-y-4 pr-2">
-                                <div className="space-y-1">
-                                    <Label htmlFor="el-name">Nombre de la Capa</Label>
-                                    <Input id="el-name" value={selectedElement.name} onChange={(e) => updateElement(selectedElementId!, { name: e.target.value })} />
-                                </div>
-                                {selectedElement.type === 'text' && (
-                                     <div className="space-y-1">
-                                        <Label htmlFor="el-content">Contenido</Label>
-                                        <Textarea id="el-content" placeholder="Escribe el texto aquí..." value={selectedElement.content} onChange={(e) => updateElement(selectedElementId!, { content: e.target.value })} />
-                                    </div>
-                                )}
-                                 <div className="space-y-1">
-                                    <Label>Transformación</Label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <Input type="number" placeholder="X" value={selectedElement.x} onChange={(e) => updateElement(selectedElementId!, { x: parseInt(e.target.value) || 0 })} />
-                                        <Input type="number" placeholder="Y" value={selectedElement.y} onChange={(e) => updateElement(selectedElementId!, { y: parseInt(e.target.value) || 0 })} />
-                                        <Input type="number" placeholder="Ancho" value={selectedElement.width} onChange={(e) => updateElement(selectedElementId!, { width: parseInt(e.target.value) || 0 })} />
-                                        <Input type="number" placeholder="Alto" value={selectedElement.height} onChange={(e) => updateElement(selectedElementId!, { height: parseInt(e.target.value) || 0 })} />
-                                    </div>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label>Alineación</Label>
-                                     <div className="flex gap-1">
-                                        <Button variant="outline" size="icon" className="h-8 w-8"><AlignLeft/></Button>
-                                        <Button variant="outline" size="icon" className="h-8 w-8"><AlignCenter/></Button>
-                                        <Button variant="outline" size="icon" className="h-8 w-8"><AlignRight/></Button>
-                                     </div>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="el-color">Color</Label>
-                                    <Input id="el-color" type="color" value={selectedElement.color} onChange={(e) => updateElement(selectedElementId!, { color: e.target.value })} />
-                                </div>
-                            </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">Selecciona un elemento para editar sus propiedades.</p>
-                        )}
+                            {renderPropertiesPanel()}
                         </ScrollArea>
                     </aside>
                 </div>
