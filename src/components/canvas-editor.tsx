@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2, Pen, Video, Music, Bot, Square, TextCursor, GitCommit, Link, Code, BarChart, MessageSquare, ListChecks, ArrowUp, ArrowDown, Scale, School, Palette } from "lucide-react";
+import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2, Pen, Video, Music, Bot, Square, TextCursor, GitCommit, Link, Code, BarChart, MessageSquare, ListChecks, ArrowUp, ArrowDown, Scale, School, Palette, CaseSensitive, GitBranch, Clapperboard, Drama, PencilRuler, WholeWord, Baseline, Pilcrow, MessageCircleHeart, SquareAsterisk, Hand, Wand, Save, FolderOpen } from "lucide-react";
 
 
 export type CanvasElement = {
@@ -142,27 +142,20 @@ export function CanvasEditor({
                     <div className="flex items-center gap-1">
                         
                         <DropdownMenu>
-                            <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Insertar Elemento</Button></DropdownMenuTrigger>
+                            <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Insertar Elemento</Button></DropdownMenuTrigger>
                             <DropdownMenuContent>
                                 <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Básicos</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubTrigger><Library className="mr-2"/>Media (desde Biblioteca)</DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent>
-                                        <DropdownMenuItem onClick={() => handleAddElement('text', 'Nuevo Texto')}><Type className="mr-2"/>Texto</DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleAddElement('shape', 'Nueva Forma')}><Square className="mr-2"/>Forma</DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleAddElement('container', 'Nuevo Contenedor')}><div className="w-4 h-4 border rounded-sm mr-2"></div>Contenedor</DropdownMenuItem>
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Media (desde Biblioteca)</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        <DropdownMenuItem><Library className="mr-2"/>Imagen</DropdownMenuItem>
+                                        <DropdownMenuItem><Video className="mr-2"/>Imagen</DropdownMenuItem>
                                         <DropdownMenuItem><Video className="mr-2"/>Video</DropdownMenuItem>
                                         <DropdownMenuItem><Music className="mr-2"/>Audio</DropdownMenuItem>
                                         <DropdownMenuItem><Bot className="mr-2"/>Modelo 3D</DropdownMenuItem>
+                                        <DropdownMenuItem><User className="mr-2"/>Avatar</DropdownMenuItem>
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                                 <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Interactivos</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubTrigger><Clapperboard className="mr-2"/>Interactivos</DropdownMenuSubTrigger>
                                      <DropdownMenuSubContent>
                                         <DropdownMenuItem onClick={() => handleAddElement('button', 'Nuevo Botón')}><div className="w-4 h-4 border rounded-sm flex items-center justify-center text-xs mr-2">B</div>Botón</DropdownMenuItem>
                                         <DropdownMenuItem>Galería de Imágenes</DropdownMenuItem>
@@ -171,7 +164,7 @@ export function CanvasEditor({
                                 </DropdownMenuSub>
                                  <DropdownMenuSeparator />
                                 <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Avanzados</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubTrigger><Drama className="mr-2"/>Avanzados</DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent>
                                         <DropdownMenuItem><AppWindow className="mr-2"/>App Embebida</DropdownMenuItem>
                                         <DropdownMenuItem><Code className="mr-2"/>Código Personalizado</DropdownMenuItem>
@@ -184,34 +177,50 @@ export function CanvasEditor({
                         </DropdownMenu>
 
                         <DropdownMenu>
-                            <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Herramientas de Creación</Button></DropdownMenuTrigger>
+                            <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Herramientas de Creación</Button></DropdownMenuTrigger>
                             <DropdownMenuContent>
                                 <DropdownMenuItem><MousePointer className="mr-2"/>Selección (V)</DropdownMenuItem>
-                                <DropdownMenuItem><Pen className="mr-2"/>Pluma (P)</DropdownMenuItem>
-                                <DropdownMenuItem><TextCursor className="mr-2"/>Texto (T)</DropdownMenuItem>
-                                <DropdownMenuItem><RectangleHorizontal className="mr-2"/>Formas (R)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleAddElement('text', 'Nuevo Texto')}><Type className="mr-2"/>Texto (T)</DropdownMenuItem>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger><Square className="mr-2"/>Formas (R)</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                         <DropdownMenuItem onClick={() => handleAddElement('shape', 'Rectángulo')}>Rectángulo</DropdownMenuItem>
+                                         <DropdownMenuItem onClick={() => handleAddElement('shape', 'Elipse')}>Elipse</DropdownMenuItem>
+                                         <DropdownMenuItem onClick={() => handleAddElement('shape', 'Polígono')}>Polígono</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuItem><Baseline className="mr-2"/>Línea / Flecha (L)</DropdownMenuItem>
+                                <DropdownMenuItem><Pen className="mr-2"/>Pincel (B)</DropdownMenuItem>
+                                <DropdownMenuItem><SquareAsterisk className="mr-2"/>Borrador (E)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleAddElement('container', 'Nuevo Contenedor')}><div className="w-4 h-4 border rounded-sm mr-2"></div>Contenedor</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
 
                         <DropdownMenu>
-                            <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Herramientas de Edición</Button></DropdownMenuTrigger>
+                            <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Herramientas de Edición</Button></DropdownMenuTrigger>
                             <DropdownMenuContent>
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Alinear</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        <DropdownMenuItem>Alinear a la Izquierda</DropdownMenuItem>
-                                        <DropdownMenuItem>Alinear al Centro</DropdownMenuItem>
-                                        <DropdownMenuItem>Alinear a la Derecha</DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem>Distribuir Horizontalmente</DropdownMenuItem>
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
                                 <DropdownMenuItem><Group className="mr-2"/>Agrupar / Desagrupar</DropdownMenuItem>
                                 <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Ordenar Capas</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        <DropdownMenuItem><ArrowUp className="mr-2"/>Traer al Frente</DropdownMenuItem>
-                                        <DropdownMenuItem><ArrowDown className="mr-2"/>Enviar al Fondo</DropdownMenuItem>
+                                    <DropdownMenuSubTrigger><GitBranch className="mr-2"/>Interacciones</DropdownMenuSubTrigger>
+                                     <DropdownMenuSubContent>
+                                        <DropdownMenuItem>Al hacer click</DropdownMenuItem>
+                                        <DropdownMenuItem>Al pasar el cursor</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                 <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger><Wand className="mr-2"/>Transiciones y Animaciones</DropdownMenuSubTrigger>
+                                     <DropdownMenuSubContent>
+                                        <DropdownMenuItem>Animación de Entrada</DropdownMenuItem>
+                                        <DropdownMenuItem>Animación de Salida</DropdownMenuItem>
+                                        <DropdownMenuItem>Línea de Tiempo</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                 <DropdownMenuSeparator />
+                                 <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger><PencilRuler className="mr-2"/>Ajustes del Lienzo</DropdownMenuSubTrigger>
+                                     <DropdownMenuSubContent>
+                                        <DropdownMenuItem>Tamaño del Lienzo</DropdownMenuItem>
+                                        <DropdownMenuItem>Fondo del Lienzo</DropdownMenuItem>
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                             </DropdownMenuContent>
@@ -221,8 +230,8 @@ export function CanvasEditor({
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <Button variant="outline">Guardar Borrador</Button>
-                        <Button onClick={() => onOpenChange(false)}>Guardar y Cerrar</Button>
+                        <Button variant="outline" size="sm"><FolderOpen className="mr-2"/> Guardar/Abrir Borrador</Button>
+                        <Button size="sm" onClick={() => onOpenChange(false)}><Save className="mr-2"/> Guardar y Cerrar</Button>
                     </div>
                 </DialogHeader>
 
@@ -285,9 +294,11 @@ export function CanvasEditor({
                     {/* Canvas */}
                     <main className="flex-1 bg-muted/40 flex items-center justify-center p-8 overflow-auto">
                         <div className="relative bg-background shadow-lg w-full h-full">
-                             <div className="p-8 text-center text-muted-foreground">
-                                <p>El lienzo de formato libre se renderizará aquí.</p>
-                                <p className="text-xs">(Zoom con la rueda, Panear con barra espaciadora + arrastrar)</p>
+                             <div className="p-8 text-center text-muted-foreground flex items-center justify-center h-full">
+                                <div>
+                                    <p>El lienzo de formato libre se renderizará aquí.</p>
+                                    <p className="text-xs">(Zoom con la rueda, Panear con barra espaciadora + arrastrar)</p>
+                                </div>
                              </div>
                         </div>
                     </main>
@@ -309,13 +320,21 @@ export function CanvasEditor({
                                     </div>
                                 )}
                                  <div className="space-y-1">
-                                    <Label>Posición y Tamaño</Label>
+                                    <Label>Transformación</Label>
                                     <div className="grid grid-cols-2 gap-2">
                                         <Input type="number" placeholder="X" value={selectedElement.x} onChange={(e) => updateElement(selectedElementId!, { x: parseInt(e.target.value) || 0 })} />
                                         <Input type="number" placeholder="Y" value={selectedElement.y} onChange={(e) => updateElement(selectedElementId!, { y: parseInt(e.target.value) || 0 })} />
                                         <Input type="number" placeholder="Ancho" value={selectedElement.width} onChange={(e) => updateElement(selectedElementId!, { width: parseInt(e.target.value) || 0 })} />
                                         <Input type="number" placeholder="Alto" value={selectedElement.height} onChange={(e) => updateElement(selectedElementId!, { height: parseInt(e.target.value) || 0 })} />
                                     </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label>Alineación</Label>
+                                     <div className="flex gap-1">
+                                        <Button variant="outline" size="icon" className="h-8 w-8"><AlignLeft/></Button>
+                                        <Button variant="outline" size="icon" className="h-8 w-8"><AlignCenter/></Button>
+                                        <Button variant="outline" size="icon" className="h-8 w-8"><AlignRight/></Button>
+                                     </div>
                                 </div>
                                 <div className="space-y-1">
                                     <Label htmlFor="el-color">Color</Label>
