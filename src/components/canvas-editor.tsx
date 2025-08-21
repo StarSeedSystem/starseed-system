@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2, Pen, Video, Music, Bot, Square, TextCursor, GitCommit, Link as LinkIcon, Code, BarChart, MessageSquare, ListChecks, ArrowUp, ArrowDown, Scale, School, Palette, CaseSensitive, GitBranch, Clapperboard, Drama, PencilRuler, WholeWord, Baseline, Pilcrow, MessageCircleHeart, SquareAsterisk, Hand, Wand, Save, FolderOpen, User, Image as ImageIcon, Wand2, Star, Maximize } from "lucide-react";
+import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2, Pen, Video, Music, Bot, Square, TextCursor, GitCommit, Link as LinkIcon, Code, BarChart, MessageSquare, ListChecks, ArrowUp, ArrowDown, Scale, School, Palette, CaseSensitive, GitBranch, Clapperboard, Drama, PencilRuler, WholeWord, Baseline, Pilcrow, MessageCircleHeart, SquareAsterisk, Hand, Wand, Save, FolderOpen, Image as ImageIcon, Wand2, Star, Maximize } from "lucide-react";
 
 
 export type CanvasElement = {
@@ -240,7 +240,7 @@ export function CanvasEditor({
                                         <DropdownMenuItem><Video className="mr-2"/>Video</DropdownMenuItem>
                                         <DropdownMenuItem><Music className="mr-2"/>Audio</DropdownMenuItem>
                                         <DropdownMenuItem><Bot className="mr-2"/>Modelo 3D</DropdownMenuItem>
-                                        <DropdownMenuItem><User className="mr-2"/>Avatar</DropdownMenuItem>
+                                        <DropdownMenuItem><ImageIcon className="mr-2"/>Avatar</DropdownMenuItem>
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                                 <DropdownMenuSub>
