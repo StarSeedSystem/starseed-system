@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2, Pen, Video, Music, Bot, Square, TextCursor, GitCommit, Link as LinkIcon, Code, BarChart, MessageSquare, ListChecks, ArrowUp, ArrowDown, Scale, School, Palette, CaseSensitive, GitBranch, Clapperboard, Drama, PencilRuler, WholeWord, Baseline, Pilcrow, MessageCircleHeart, SquareAsterisk, Hand, Wand, Save, FolderOpen, Image as ImageIcon, Wand2, Star, Maximize } from "lucide-react";
+import { X, Layers, Settings, PanelLeft, PanelRight, MousePointer, PlusCircle, Type, RectangleHorizontal, Library, AppWindow, Sparkles, AlignCenter, AlignLeft, AlignRight, Group, MoveUp, MoveDown, FilePlus, Copy, Trash2, Pen, Video, Music, Bot, Square, TextCursor, GitCommit, Link as LinkIcon, Code, BarChart, MessageSquare, ListChecks, ArrowUp, ArrowDown, Scale, School, Palette, CaseSensitive, GitBranch, Clapperboard, Drama, PencilRuler, WholeWord, Baseline, Pilcrow, MessageCircleHeart, SquareAsterisk, Hand, Wand, Save, FolderOpen, Image as ImageIcon, Wand2, Star, Maximize, Bold, Italic, Underline } from "lucide-react";
 
 
 export type CanvasElement = {
@@ -28,6 +28,8 @@ export type CanvasElement = {
     content?: string;
     fontSize?: number;
     fontWeight?: 'normal' | 'bold';
+    fontStyle?: 'normal' | 'italic';
+    textDecoration?: 'none' | 'underline';
     // Shape specific
     fillColor?: string;
     strokeColor?: string;
@@ -59,9 +61,9 @@ export function CanvasEditor({
     const [activePageId, setActivePageId] = useState<string>('canvas-1');
 
     const [elements, setElements] = useState<CanvasElement[]>([
-        { id: 2, canvasId: 'canvas-1', type: 'shape', name: 'Fondo Decorativo', x: 20, y: 20, width: 700, height: 400, fillColor: '#1A1A1A', strokeColor: '#333333' },
-        { id: 1, canvasId: 'canvas-1', type: 'text', name: 'Título Principal', content: 'Bienvenido a mi Lienzo', x: 50, y: 50, width: 400, height: 40, fontSize: 32, fontWeight: 'bold' },
-        { id: 3, canvasId: 'canvas-1', type: 'text', name: 'Párrafo de introducción', content: 'Este es un espacio para la creatividad sin límites.', x: 50, y: 100, width: 400, height: 40, fontSize: 16, fontWeight: 'normal' },
+        { id: 2, canvasId: 'canvas-1', type: 'shape', name: 'Fondo Decorativo', x: 20, y: 20, width: 700, height: 400, fillColor: '#1A1A1A', strokeColor: '#333333', opacity: 100 },
+        { id: 1, canvasId: 'canvas-1', type: 'text', name: 'Título Principal', content: 'Bienvenido a mi Lienzo', x: 50, y: 50, width: 400, height: 40, fontSize: 32, fontWeight: 'bold', fontStyle: 'normal', textDecoration: 'none', opacity: 100 },
+        { id: 3, canvasId: 'canvas-1', type: 'text', name: 'Párrafo de introducción', content: 'Este es un espacio para la creatividad sin límites.', x: 50, y: 100, width: 400, height: 40, fontSize: 16, fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', opacity: 100 },
     ]);
     const [selectedElementId, setSelectedElementId] = useState<number | null>(null);
 
@@ -81,6 +83,8 @@ export function CanvasEditor({
             content: `Contenido de ${type}`,
             fontSize: 16,
             fontWeight: 'normal',
+            fontStyle: 'normal',
+            textDecoration: 'none',
             fillColor: '#333333',
             strokeColor: '#555555',
             opacity: 100
@@ -188,6 +192,14 @@ export function CanvasEditor({
                                 </select>
                             </div>
                         </div>
+                        <div>
+                             <Label>Estilo</Label>
+                             <div className="flex gap-1 mt-1">
+                                <Button variant={selectedElement.fontWeight === 'bold' ? 'secondary' : 'outline'} size="icon" className="h-8 w-8" onClick={() => updateSelectedElement({ fontWeight: selectedElement.fontWeight === 'bold' ? 'normal' : 'bold' })}><Bold/></Button>
+                                <Button variant={selectedElement.fontStyle === 'italic' ? 'secondary' : 'outline'} size="icon" className="h-8 w-8" onClick={() => updateSelectedElement({ fontStyle: selectedElement.fontStyle === 'italic' ? 'normal' : 'italic' })}><Italic/></Button>
+                                <Button variant={selectedElement.textDecoration === 'underline' ? 'secondary' : 'outline'} size="icon" className="h-8 w-8" onClick={() => updateSelectedElement({ textDecoration: selectedElement.textDecoration === 'underline' ? 'none' : 'underline' })}><Underline/></Button>
+                             </div>
+                        </div>
                     </div>
                 )}
                 
@@ -240,7 +252,7 @@ export function CanvasEditor({
                                         <DropdownMenuItem><Video className="mr-2"/>Video</DropdownMenuItem>
                                         <DropdownMenuItem><Music className="mr-2"/>Audio</DropdownMenuItem>
                                         <DropdownMenuItem><Bot className="mr-2"/>Modelo 3D</DropdownMenuItem>
-                                        <DropdownMenuItem><ImageIcon className="mr-2"/>Avatar</DropdownMenuItem>
+                                        <DropdownMenuItem><User className="mr-2"/>Avatar</DropdownMenuItem>
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                                 <DropdownMenuSub>
@@ -265,7 +277,7 @@ export function CanvasEditor({
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                        <DropdownMenu>
+                         <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Herramientas de Creación</Button></DropdownMenuTrigger>
                             <DropdownMenuContent>
                                 <DropdownMenuItem><MousePointer className="mr-2"/>Selección (V)</DropdownMenuItem>
@@ -284,7 +296,7 @@ export function CanvasEditor({
                                 <DropdownMenuItem onClick={() => handleAddElement('container', 'Nuevo Contenedor')}><div className="w-4 h-4 border rounded-sm mr-2"></div>Contenedor</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        
+
                          <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Herramientas de Edición</Button></DropdownMenuTrigger>
                             <DropdownMenuContent>
