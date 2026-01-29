@@ -65,7 +65,7 @@
     --background: hsl(var(--background-hsl));
     --foreground-hsl: 275 20% 98%;
     --foreground: hsl(var(--foreground-hsl));
-    
+
     --card-hsl: 275 20% 9%;
     --card: hsl(var(--card-hsl));
     --card-foreground-hsl: 275 20% 98%;
@@ -114,16 +114,220 @@
     --chart-4: 120;
     --chart-5: 240;
   }
+
+  .dark {
+    --background-hsl: 275 20% 5%;
+    --background: hsl(var(--background-hsl));
+    --foreground-hsl: 275 20% 98%;
+    --foreground: hsl(var(--foreground-hsl));
+
+    --card-hsl: 275 20% 9%;
+    --card: hsl(var(--card-hsl));
+    --card-foreground-hsl: 275 20% 98%;
+    --card-foreground: hsl(var(--card-foreground-hsl));
+
+    --popover-hsl: 275 20% 5%;
+    --popover: hsl(var(--popover-hsl));
+    --popover-foreground-hsl: 275 20% 95%;
+    --popover-foreground: hsl(var(--popover-foreground-hsl));
+
+    --primary-hsl: 276 80% 80%;
+    --primary: hsl(var(--primary-hsl));
+    --primary-foreground-hsl: 276 100% 10%;
+    --primary-foreground: hsl(var(--primary-foreground-hsl));
+
+    --secondary-hsl: 240 80% 70%;
+    --secondary: hsl(var(--secondary-hsl));
+    --secondary-foreground-hsl: 240 100% 10%;
+    --secondary-foreground: hsl(var(--secondary-foreground-hsl));
+
+    --muted-hsl: 275 20% 15%;
+    --muted: hsl(var(--muted-hsl));
+    --muted-foreground-hsl: 275 20% 65%;
+    --muted-foreground: hsl(var(--muted-foreground-hsl));
+
+    --accent-hsl: 120 40% 40%;
+    --accent: hsl(var(--accent-hsl));
+    --accent-foreground-hsl: 120 40% 98%;
+    --accent-foreground: hsl(var(--accent-foreground-hsl));
+
+    --destructive-hsl: 0 62% 40%;
+    --destructive: hsl(var(--destructive-hsl));
+    --destructive-foreground-hsl: 0 0% 98%;
+    --destructive-foreground: hsl(var(--destructive-foreground-hsl));
+
+    --border-hsl: 275 20% 20%;
+    --border: hsl(var(--border-hsl));
+    --input-hsl: 275 20% 22%;
+    --input: hsl(var(--input-hsl));
+    --ring-hsl: 0 100% 50%;
+    --ring: hsl(var(--ring-hsl));
+
+    --chart-1: 0;
+    --chart-2: 39;
+    --chart-3: 60;
+    --chart-4: 120;
+    --chart-5: 240;
+  }
+
+  .grey {
+    --background-hsl: 210 20% 98%;
+    --background: hsl(var(--background-hsl));
+    --foreground-hsl: 210 20% 10%;
+    --foreground: hsl(var(--foreground-hsl));
+    --card-hsl: 210 20% 98%;
+    --card: hsl(var(--card-hsl));
+    --card-foreground-hsl: 210 20% 10%;
+    --card-foreground: hsl(var(--card-foreground-hsl));
+    --popover-hsl: 210 20% 98%;
+    --popover: hsl(var(--popover-hsl));
+    --popover-foreground-hsl: 210 20% 10%;
+    --popover-foreground: hsl(var(--popover-foreground-hsl));
+    --primary-hsl: 210 20% 40%;
+    --primary: hsl(var(--primary-hsl));
+    --primary-foreground-hsl: 210 20% 98%;
+    --primary-foreground: hsl(var(--primary-foreground-hsl));
+    --secondary-hsl: 210 10% 90%;
+    --secondary: hsl(var(--secondary-hsl));
+    --secondary-foreground-hsl: 210 20% 20%;
+    --secondary-foreground: hsl(var(--secondary-foreground-hsl));
+    --muted-hsl: 210 10% 94%;
+    --muted: hsl(var(--muted-hsl));
+    --muted-foreground-hsl: 210 10% 40%;
+    --muted-foreground: hsl(var(--muted-foreground-hsl));
+    --accent-hsl: 210 10% 90%;
+    --accent: hsl(var(--accent-hsl));
+    --accent-foreground-hsl: 210 20% 20%;
+    --accent-foreground: hsl(var(--accent-foreground-hsl));
+    --destructive-hsl: 0 84% 60%;
+    --destructive: hsl(var(--destructive-hsl));
+    --destructive-foreground-hsl: 0 0% 98%;
+    --destructive-foreground: hsl(var(--destructive-foreground-hsl));
+    --border-hsl: 210 20% 90%;
+    --border: hsl(var(--border-hsl));
+    --input-hsl: 210 20% 92%;
+    --input: hsl(var(--input-hsl));
+    --ring-hsl: 210 20% 40%;
+    --ring: hsl(var(--ring-hsl));
+  }
+
+  .natural {
+    --background-hsl: 60 10% 96%;
+    --background: hsl(var(--background-hsl));
+    --foreground-hsl: 120 20% 15%;
+    --foreground: hsl(var(--foreground-hsl));
+    --card-hsl: 60 10% 96%;
+    --card: hsl(var(--card-hsl));
+    --card-foreground-hsl: 120 20% 15%;
+    --card-foreground: hsl(var(--card-foreground-hsl));
+    --popover-hsl: 60 10% 96%;
+    --popover: hsl(var(--popover-hsl));
+    --popover-foreground-hsl: 120 20% 15%;
+    --popover-foreground: hsl(var(--popover-foreground-hsl));
+    --primary-hsl: 120 40% 35%;
+    --primary: hsl(var(--primary-hsl));
+    --primary-foreground-hsl: 120 10% 98%;
+    --primary-foreground: hsl(var(--primary-foreground-hsl));
+    --secondary-hsl: 30 30% 90%;
+    --secondary: hsl(var(--secondary-hsl));
+    --secondary-foreground-hsl: 120 20% 20%;
+    --secondary-foreground: hsl(var(--secondary-foreground-hsl));
+    --muted-hsl: 120 10% 92%;
+    --muted: hsl(var(--muted-hsl));
+    --muted-foreground-hsl: 120 10% 40%;
+    --muted-foreground: hsl(var(--muted-foreground-hsl));
+    --accent-hsl: 120 20% 90%;
+    --accent: hsl(var(--accent-hsl));
+    --accent-foreground-hsl: 120 20% 20%;
+    --accent-foreground: hsl(var(--accent-foreground-hsl));
+    --destructive-hsl: 0 60% 50%;
+    --destructive: hsl(var(--destructive-hsl));
+    --destructive-foreground-hsl: 0 0% 98%;
+    --destructive-foreground: hsl(var(--destructive-foreground-hsl));
+    --border-hsl: 120 10% 85%;
+    --border: hsl(var(--border-hsl));
+    --input-hsl: 120 10% 88%;
+    --input: hsl(var(--input-hsl));
+    --ring-hsl: 120 40% 35%;
+    --ring: hsl(var(--ring-hsl));
+  }
+
+  .glass {
+    --background-hsl: 0 0% 100% / 0;
+    /* Fully transparent for bg image visibility */
+    --background: hsl(var(--background-hsl));
+    --foreground-hsl: 0 0% 100%;
+    --foreground: hsl(var(--foreground-hsl));
+
+    --card-hsl: 0 0% 100% / 0.1;
+    --card: hsl(var(--card-hsl));
+    --card-foreground-hsl: 0 0% 100%;
+    --card-foreground: hsl(var(--card-foreground-hsl));
+
+    --popover-hsl: 0 0% 100% / 0.1;
+    --popover: hsl(var(--popover-hsl));
+    --popover-foreground-hsl: 0 0% 100%;
+    --popover-foreground: hsl(var(--popover-foreground-hsl));
+
+    --primary-hsl: 0 0% 100% / 0.3;
+    --primary: hsl(var(--primary-hsl));
+    --primary-foreground-hsl: 0 0% 100%;
+    --primary-foreground: hsl(var(--primary-foreground-hsl));
+
+    --secondary-hsl: 0 0% 100% / 0.2;
+    --secondary: hsl(var(--secondary-hsl));
+    --secondary-foreground-hsl: 0 0% 100%;
+    --secondary-foreground: hsl(var(--secondary-foreground-hsl));
+
+    --muted-hsl: 0 0% 100% / 0.1;
+    --muted: hsl(var(--muted-hsl));
+    --muted-foreground-hsl: 0 0% 80%;
+    --muted-foreground: hsl(var(--muted-foreground-hsl));
+
+    --accent-hsl: 0 0% 100% / 0.2;
+    --accent: hsl(var(--accent-hsl));
+    --accent-foreground-hsl: 0 0% 100%;
+    --accent-foreground: hsl(var(--accent-foreground-hsl));
+
+    --destructive-hsl: 0 84% 60%;
+    --destructive: hsl(var(--destructive-hsl));
+    --destructive-foreground-hsl: 0 0% 98%;
+    --destructive-foreground: hsl(var(--destructive-foreground-hsl));
+
+    --border-hsl: 0 0% 100% / 0.2;
+    --border: hsl(var(--border-hsl));
+    --input-hsl: 0 0% 100% / 0.1;
+    --input: hsl(var(--input-hsl));
+    --ring-hsl: 0 0% 100% / 0.5;
+    --ring: hsl(var(--ring-hsl));
+  }
+
+  /* Custom Theme (Dynamic) */
+  .custom {
+    /* Uses whatever is set on :root or overridden via JS inline styles on html element */
+  }
 }
 
 @layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
     background-color: hsl(var(--background-hsl));
-    animation: background-pan 30s linear infinite;
+  }
+
+  /* Global Radius override for Shadcn components */
+  .rounded-lg,
+  .rounded-md,
+  .rounded-sm,
+  .rounded {
+    border-radius: var(--radius) !important;
+  }
+
+  /* Default animated background (for light/dark/grey/natural) */
+  :root:not(.glass) body {
     background-image:
       radial-gradient(at 27% 37%, hsl(276, 80%, 30%) 0px, transparent 50%),
       radial-gradient(at 97% 21%, hsl(240, 80%, 40%) 0px, transparent 50%),
@@ -136,13 +340,36 @@
     background-size: 200% 200%;
   }
 
+  /* Glass Theme Background */
+  .glass body {
+    background: url("https://images.unsplash.com/photo-1432251407527-504a6b4174a2?q=80&w=1480&auto=format&fit=crop") center center no-repeat fixed;
+    background-size: cover;
+    animation: moveBackground 60s linear infinite;
+  }
+
+  @keyframes moveBackground {
+    0% {
+      background-position: 0% 50%;
+    }
+
+    50% {
+      background-position: 100% 50%;
+    }
+
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
   @keyframes background-pan {
     0% {
       background-position: 0% 50%;
     }
+
     50% {
       background-position: 100% 50%;
     }
+
     100% {
       background-position: 0% 50%;
     }
@@ -151,6 +378,177 @@
 
 @layer components {
   .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-white/10 shadow-lg;
+    background-color: hsl(var(--card) / var(--glass-opacity, 0.8));
+    backdrop-filter: blur(var(--glass-blur, 10px));
+    border-radius: var(--radius, 0.5rem);
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   }
+
+  /* Applied to generic Shadcn Cards if not using .glass-card explicitly, 
+     but we want to ensure everything respects the settings. 
+     We can override the default shadcn utilities or just rely on the variables being set on :root */
+}
+
+@layer utilities {
+  .rounded-dynamic {
+    border-radius: var(--radius, 0.5rem);
+  }
+}
+
+
+/* Liquid Glass Global UI (Static Crystal Material) */
+.liquid-glass-ui {
+  /* Distortion filter REMOVED for static crystal effect */
+  /* filter: url(#liquid-glass-global-filter); */
+
+  /* Performance optimization */
+  will-change: transform;
+  transform: translateZ(0);
+
+  /* Crystal Material Base - Premium Apple-like Glass */
+  backdrop-filter: blur(var(--glass-blur, 20px)) saturate(var(--glass-saturation, 180%));
+
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, var(--glass-opacity, 0.4)) 0%,
+      rgba(255, 255, 255, 0.1) 100%);
+
+  /* Glass Borders - Subtle and crisp */
+  border-top: 1px solid rgba(255, 255, 255, 0.4);
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -2px rgba(0, 0, 0, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Ensure data-attributes trigger it */
+[data-liquid-ui="true"] .liquid-glass-ui-target,
+.liquid-ui-enabled [data-component="button"],
+.liquid-ui-enabled [data-component="card"],
+.liquid-ui-enabled [data-component="dialog"],
+.liquid-ui-enabled [data-component="menu"],
+.liquid-ui-enabled [data-component="menu-item"],
+.liquid-ui-enabled [data-panel],
+.liquid-ui-enabled .dropdown-content,
+.liquid-ui-enabled .popover-content {
+  @apply liquid-glass-ui;
+  transition: all 0.2s ease;
+}
+
+/* Hover effects for interactive elements */
+.liquid-ui-enabled [data-component="button"]:hover,
+.liquid-ui-enabled [data-component="card"]:hover {
+  background: linear-gradient(145deg,
+      rgba(255, 255, 255, 0.25) 0%,
+      rgba(255, 255, 255, 0.1) 100%);
+  box-shadow:
+    0 8px 32px 0 rgba(31, 38, 135, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  /* Subtle lift, NO warping */
+  transform: translateY(-2px) translateZ(0);
+}
+
+.dark .liquid-glass-ui {
+  backdrop-filter: blur(var(--glass-blur, 20px)) saturate(var(--glass-saturation, 180%));
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(255, 255, 255, 0.02) 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.dark .liquid-glass-ui:hover {
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.15) 0%,
+      rgba(255, 255, 255, 0.05) 100%);
+  box-shadow:
+    0 12px 40px -5px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* Glassmorphism Base - Helper if needed elsewhere */
+.liquid-glass-base {
+  @apply liquid-glass-ui;
+}
+
+/* Background Animations */
+@keyframes bg-pan {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-bg-pan {
+  animation: bg-pan 60s ease infinite;
+  background-size: 200% 200%;
+}
+
+@keyframes bg-zoom {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-bg-zoom {
+  animation: bg-zoom 60s ease-in-out infinite;
+}
+
+@keyframes bg-pulse {
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-bg-pulse {
+  animation: bg-pulse 10s ease-in-out infinite;
+}
+
+@keyframes bg-scroll {
+  from {
+    background-position: 0% 0%;
+  }
+
+  to {
+    background-position: 0% -1500%;
+  }
+}
+
+.animate-bg-scroll {
+  animation: bg-scroll 600s linear infinite;
+  background-size: 500px;
+  /* Default for patterns, can be overridden */
 }

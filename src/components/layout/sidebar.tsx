@@ -1,25 +1,19 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import {
   Home,
-  Rocket,
   Bot,
-  Rss,
-  FileText,
-  Folder,
-  Settings,
-  AppWindow,
   MessageSquare,
   Users,
   Network,
-  Book,
   Library,
   Info,
   PenSquare,
   User,
+  Settings,
+  type LucideIcon
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Logo } from "../logo";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
@@ -29,100 +23,147 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAppearance } from "@/context/appearance-context";
 
-export function AppSidebar() {
+export function AppSidebar({
+  side = "left",
+  className
+}: {
+  side?: "left" | "right" | "top" | "bottom";
+  className?: string;
+}) {
   const pathname = usePathname();
+  const { config } = useAppearance();
+  const { menuStyle, iconStyle } = config.layout;
+
   const isNetworkActive = pathname.startsWith('/network');
+  const isHorizontal = side === "top" || side === "bottom";
+  const isDock = menuStyle === "dock";
+
+  // Icon props generator
+  const getIconProps = () => ({
+    strokeWidth: iconStyle === "thin" ? 1 : 1.5,
+    fill: iconStyle === "solid" ? "currentColor" : "none",
+    className: "h-4 w-4"
+  });
+
+  const NavItem = ({ href, icon: Icon, label, children, className }: { href?: string, icon?: LucideIcon, label?: string, children?: React.ReactNode, className?: string }) => {
+    const isActive = href ? pathname === href : false;
+    const content = (
+      <>
+        {Icon && <Icon {...getIconProps()} />}
+        {label && <span className={cn(isHorizontal && "hidden lg:inline")}>{label}</span>}
+        {children}
+      </>
+    );
+
+    const baseClass = cn(
+      "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary cursor-pointer",
+      isActive && "bg-muted text-primary",
+      className
+    );
+
+    if (href) {
+      return <Link href={href} className={baseClass}>{content}</Link>;
+    }
+    return <div className={baseClass}>{content}</div>;
+  };
 
   return (
-    <div className="hidden border-r bg-background/80 backdrop-blur-xl md:block">
-      <div className="flex h-full max-h-screen flex-col gap-2">
-        <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+    <div className={cn(
+      "hidden bg-background/80 backdrop-blur-xl md:block transition-all duration-500 ease-in-out",
+      // Border logic (only if not dock)
+      !isDock && !isHorizontal && (side === "left" ? "border-r" : "border-l"),
+      !isDock && isHorizontal && (side === "top" ? "border-b" : "border-t"),
+
+      // Dock Logic
+      isDock && "m-4 rounded-xl border shadow-xl bg-background/95",
+      isDock && !isHorizontal && "h-[calc(100vh-2rem)]",
+
+      className
+    )}>
+      <div className={cn(
+        "flex h-full flex-col gap-2",
+        !isHorizontal && "max-h-screen",
+        isHorizontal && "flex-row h-16 items-center px-4"
+      )}>
+        <div className={cn(
+          "flex items-center",
+          !isHorizontal && "h-14 border-b px-4 lg:h-[60px] lg:px-6",
+          isHorizontal && "mr-8",
+          // Hide border in dock mode if desired, or keep specific styling
+          isDock && "border-b-0"
+        )}>
           <Link href="/" className="flex items-center gap-2 font-semibold">
             <Logo />
           </Link>
         </div>
-        <div className="flex-1">
-          <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-            <NavItem href="/dashboard">
-              <Home className="h-4 w-4" />
-              Dashboard
-            </NavItem>
-            <NavItem href="/profile/starseeduser">
-              <User className="h-4 w-4" />
-              Perfil
-            </NavItem>
-            <NavItem href="/agent">
-              <Bot className="h-4 w-4" />
-              Agente de IA
-            </NavItem>
-            <NavItem href="/messages">
-              <MessageSquare className="h-4 w-4" />
-              Mensajes
-            </NavItem>
-             <NavItem href="/hub">
-              <Users className="h-4 w-4" />
-              Hub de Conexiones
-            </NavItem>
+        <div className="flex-1 overflow-auto py-2">
+          <nav className={cn(
+            "grid text-sm font-medium",
+            !isHorizontal && "items-start px-2 lg:px-4 gap-1",
+            isHorizontal && "flex items-center gap-2"
+          )}>
+            <NavItem href="/dashboard" icon={Home} label="Dashboard" />
+            <NavItem href="/profile/starseeduser" icon={User} label="Perfil" />
+            <NavItem href="/agent" icon={Bot} label="IA" />
+            <NavItem href="/messages" icon={MessageSquare} label="Mensajes" />
+            <NavItem href="/hub" icon={Users} label="Hub" />
 
-            <Accordion type="single" collapsible defaultValue={isNetworkActive ? "network" : ""}>
-              <AccordionItem value="network" className="border-b-0">
-                <AccordionTrigger className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary hover:no-underline [&[data-state=open]]:text-primary">
-                  <Network className="h-4 w-4" />
-                  La Red
-                </AccordionTrigger>
-                <AccordionContent className="pl-4">
-                  <nav className="grid gap-1">
-                    <NavItem href="/network/politics">
-                      Política
-                    </NavItem>
-                    <NavItem href="/network/education">
-                      Educación
-                    </NavItem>
-                     <NavItem href="/network/culture">
-                      Cultura
-                    </NavItem>
-                  </nav>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-            
-            <NavItem href="/publish">
-                <PenSquare className="h-4 w-4" />
-                Publicar
-            </NavItem>
-            <NavItem href="/library">
-              <Library className="h-4 w-4" />
-              Biblioteca
-            </NavItem>
-            <NavItem href="/info">
-              <Info className="h-4 w-4" />
-              Información
-            </NavItem>
-             <NavItem href="/settings">
-              <Settings className="h-4 w-4" />
-              Configuración
-            </NavItem>
+            {!isHorizontal && (
+              <Accordion type="single" collapsible defaultValue={isNetworkActive ? "network" : ""}>
+                <AccordionItem value="network" className="border-b-0">
+                  <AccordionTrigger className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary hover:no-underline [&[data-state=open]]:text-primary">
+                    <Network {...getIconProps()} />
+                    La Red
+                  </AccordionTrigger>
+                  <AccordionContent className="pl-4">
+                    <nav className="grid gap-1 mt-1">
+                      <NavItem href="/network/politics" label="Política" />
+                      <NavItem href="/network/education" label="Educación" />
+                      <NavItem href="/network/culture" label="Cultura" />
+                    </nav>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+
+            {isHorizontal && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  {/* Using NavItem as a generic trigger without href */}
+                  <button className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary outline-none">
+                    <Network {...getIconProps()} />
+                    <span className={cn("hidden lg:inline")}>La Red</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem asChild>
+                    <Link href="/network/politics">Política</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/network/education">Educación</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/network/culture">Cultura</Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            <NavItem href="/publish" icon={PenSquare} label="Publicar" />
+            <NavItem href="/library" icon={Library} label="Biblioteca" />
+            <NavItem href="/info" icon={Info} label="Info" />
+            <NavItem href="/settings" icon={Settings} label="Config" />
           </nav>
         </div>
       </div>
     </div>
-  );
-}
-
-function NavItem({ href, children }: { href: string; children: React.ReactNode }) {
-  const pathname = usePathname();
-  const isActive = pathname === href;
-  
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-        isActive && "bg-muted text-primary"
-      )}
-    >
-      {children}
-    </Link>
   );
 }

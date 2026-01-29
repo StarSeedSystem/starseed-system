@@ -35,16 +35,36 @@ const buttonVariants = cva(
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  VariantProps<typeof buttonVariants> {
   asChild?: boolean
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button"
+
+    // Optional: Use context if we want granular control, 
+    // OR rely on global CSS targeting .liquid-ui-enabled .button (if we add a marker class)
+    // For specific component targeting, we can read the context.
+    // However, for performance and simplicity in avoiding massive rerenders:
+    // We will rely on the global 'liquid-ui-enabled' class added by AppearanceContext
+    // and just append a marker class here if needed, or let the global CSS utility handle it.
+
+    // Let's use the marker class approach for now to avoid context overhead on every button 
+    // unless strictly necessary. But the user asked for "options... configuration... applied to design".
+    // If we want the specific "liquid-glass-ui" style we defined in CSS:
+
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(buttonVariants({ variant, size, className }), "transition-all duration-300",
+          // We can add a data attribute or class that global CSS targets
+          "data-[liquid-ui=true]:liquid-glass-ui"
+        )}
+        // We can't easily read context here without making it client-side and rerendering.
+        // Instead, we will target this via: .liquid-ui-enabled .classname-of-button
+        // But Shadcn buttons don't have a unique stable classname other than utilities.
+        // Let's add a stable class 'shadcn-btn'
+        data-component="button"
         ref={ref}
         {...props}
       />
