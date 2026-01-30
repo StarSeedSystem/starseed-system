@@ -73,6 +73,26 @@ This document is the single source of truth for the **StarSeed Network** project
     },
     "created_at": "timestamp",
     "updated_at": "timestamp"
+  },
+  "StoreItem": {
+     "id": "uuid",
+     "seller_id": "uuid (Profile)",
+     "title": "string",
+     "description": "string",
+     "price": { "amount": "number", "currency": "enum(SEEDS, KARMA)" },
+     "type": "enum(BLUEPRINT, ASSET_3D, SERVICE, DATASET)",
+     "preview_url": "string",
+     "ipfs_hash": "string"
+  },
+  "LibraryItem": {
+     "id": "uuid",
+     "owner_id": "uuid (Profile)",
+     "name": "string",
+     "size": "string",
+     "type": "enum(IMAGE, VIDEO, DOCUMENT, FOLDER, AUDIO)",
+     "ipfs_cid": "string",
+     "preview_url": "string",
+     "tags": "string[]"
   }
 }
 ```

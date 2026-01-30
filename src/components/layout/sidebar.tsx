@@ -12,6 +12,7 @@ import {
   PenSquare,
   User,
   Settings,
+  Globe,
   type LucideIcon
 } from "lucide-react";
 import { Logo } from "../logo";
@@ -169,6 +170,7 @@ export function AppSidebar({
             )}
 
             <NavItem href="/publish" icon={PenSquare} label="Publicar" />
+            <NavItem href="/explorer" icon={Globe} label="Explorador" />
             <NavItem href="/library" icon={Library} label="Biblioteca" />
             <NavItem href="/info" icon={Info} label="Info" />
             <NavItem href="/settings" icon={Settings} label="Config" />
