@@ -11,46 +11,46 @@ export type Comment = {
 
 
 export const notifications = [
-  {
-    id: '1',
-    type: 'new_feature',
-    title: '¡Lanzamiento del Generador de Apps con IA!',
-    description: 'Crea apps funcionales desde una simple descripción de texto. Pruébalo ahora en la sección "Apps".',
-    timestamp: 'hace 15m',
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'mention',
-    title: 'Te mencionaron en "Planificación Q4"',
-    description: '@tú, ¿puedes revisar las últimas actualizaciones por favor?',
-    timestamp: 'hace 1h',
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'system',
-    title: 'Actualización del sistema completada',
-    description: 'Nuestros sistemas han sido actualizados a la última versión para un mejor rendimiento.',
-    timestamp: 'hace 3h',
-    read: true,
-  },
-  {
-    id: '4',
-    type: 'new_feature',
-    title: 'Presentamos los Filtros Inteligentes',
-    description: 'Tu feed ahora es más inteligente. Te mostraremos lo que más importa.',
-    timestamp: 'hace 1d',
-    read: true,
-  },
-  {
-    id: '5',
-    type: 'mention',
-    title: 'Se solicitó tu opinión en "Nuevos Mockups de UI"',
-    description: 'Hey @tú, ¿qué opinas de la nueva dirección de diseño?',
-    timestamp: 'hace 2d',
-    read: true,
-  },
+    {
+        id: '1',
+        type: 'new_feature',
+        title: '¡Lanzamiento del Generador de Apps con IA!',
+        description: 'Crea apps funcionales desde una simple descripción de texto. Pruébalo ahora en la sección "Apps".',
+        timestamp: 'hace 15m',
+        read: false,
+    },
+    {
+        id: '2',
+        type: 'mention',
+        title: 'Te mencionaron en "Planificación Q4"',
+        description: '@tú, ¿puedes revisar las últimas actualizaciones por favor?',
+        timestamp: 'hace 1h',
+        read: false,
+    },
+    {
+        id: '3',
+        type: 'system',
+        title: 'Actualización del sistema completada',
+        description: 'Nuestros sistemas han sido actualizados a la última versión para un mejor rendimiento.',
+        timestamp: 'hace 3h',
+        read: true,
+    },
+    {
+        id: '4',
+        type: 'new_feature',
+        title: 'Presentamos los Filtros Inteligentes',
+        description: 'Tu feed ahora es más inteligente. Te mostraremos lo que más importa.',
+        timestamp: 'hace 1d',
+        read: true,
+    },
+    {
+        id: '5',
+        type: 'mention',
+        title: 'Se solicitó tu opinión en "Nuevos Mockups de UI"',
+        description: 'Hey @tú, ¿qué opinas de la nueva dirección de diseño?',
+        timestamp: 'hace 2d',
+        read: true,
+    },
 ];
 
 export const feedItemComments: Comment[] = [
@@ -170,26 +170,26 @@ const politicalComments: Comment[] = [
 ]
 
 export const politicalProposals = [
-  {
-    id: 'prop-1',
-    title: 'Ley de Soberanía de Datos Personales',
-    ef: 'E.F. del Valle Central',
-    urgency: 'Urgente',
-    status: 'Votación Activa',
-    deadline: '3 días',
-    summary: 'Propuesta para establecer un marco legal que garantice que todos los datos generados por los ciudadanos dentro de la E.F. sean de su propiedad y control, requiriendo consentimiento explícito para su uso por terceros.',
-    details: 'Esta ley busca implementar el principio de soberanía de datos a nivel de Entidad Federativa. Incluye la creación de una "Bóveda de Datos Personal" encriptada para cada ciudadano, gestionada a través de su Perfil Oficial. Las empresas y otras entidades que deseen acceder a datos deberán realizar solicitudes formales que el ciudadano podrá aprobar o denegar con granularidad. La propuesta también establece sanciones para el uso no autorizado de datos.',
-    votes: [
-        { name: 'A Favor', votes: 1250, color: 'hsl(var(--accent-hsl))' },
-        { name: 'En Contra', votes: 340, color: 'hsl(var(--destructive-hsl))' },
-        { name: 'Abstención', votes: 120, color: 'hsl(var(--muted-foreground-hsl))' }
-    ],
-    files: [
-        { name: 'Borrador Completo de la Ley.pdf', url: '#' },
-        { name: 'Análisis de Impacto Técnico.docx', url: '#' }
-    ],
-    comments: politicalComments,
-  }
+    {
+        id: 'prop-1',
+        title: 'Ley de Soberanía de Datos Personales',
+        ef: 'E.F. del Valle Central',
+        urgency: 'Urgente',
+        status: 'Votación Activa',
+        deadline: '3 días',
+        summary: 'Propuesta para establecer un marco legal que garantice que todos los datos generados por los ciudadanos dentro de la E.F. sean de su propiedad y control, requiriendo consentimiento explícito para su uso por terceros.',
+        details: 'Esta ley busca implementar el principio de soberanía de datos a nivel de Entidad Federativa. Incluye la creación de una "Bóveda de Datos Personal" encriptada para cada ciudadano, gestionada a través de su Perfil Oficial. Las empresas y otras entidades que deseen acceder a datos deberán realizar solicitudes formales que el ciudadano podrá aprobar o denegar con granularidad. La propuesta también establece sanciones para el uso no autorizado de datos.',
+        votes: [
+            { name: 'A Favor', votes: 1250, color: 'hsl(var(--accent-hsl))' },
+            { name: 'En Contra', votes: 340, color: 'hsl(var(--destructive-hsl))' },
+            { name: 'Abstención', votes: 120, color: 'hsl(var(--muted-foreground-hsl))' }
+        ],
+        files: [
+            { name: 'Borrador Completo de la Ley.pdf', url: '#' },
+            { name: 'Análisis de Impacto Técnico.docx', url: '#' }
+        ],
+        comments: politicalComments,
+    }
 ];
 
 export const themes = [
@@ -203,62 +203,62 @@ export const themes = [
 ]
 
 export const courses = [
-  {
-    id: 'course-1',
-    href: '/course/quantum-physics-intro',
-    title: 'Introducción a la Física Cuántica',
-    description: 'Explora los conceptos fundamentales del mundo cuántico, desde la dualidad onda-partícula hasta el entrelazamiento.',
-    progress: 60,
-    tags: ['Física Cuántica', 'Ciencia', 'Fundamentos'],
-    modules: [
-        {
-            title: "Módulo 1: Fundamentos",
-            lessons: [
-                { title: "Lección 1.1: La Crisis de la Física Clásica", completed: true },
-                { title: "Lección 1.2: El cuanto de Planck y el Efecto Fotoeléctrico", completed: true },
-                { title: "Lección 1.3: La Dualidad Onda-Partícula", completed: false },
-            ]
-        },
-        {
-            title: "Módulo 2: La Ecuación de Schrödinger",
-            lessons: [
-                { title: "Lección 2.1: La Función de Onda", completed: false },
-                { title: "Lección 2.2: Resolviendo para un Pozo de Potencial Infinito", completed: false },
-            ]
-        }
-    ]
-  },
-  {
-    id: 'course-2',
-    href: '/course/ai-ethics',
-    title: 'Ética en la Inteligencia Artificial',
-    description: 'Un curso sobre los dilemas éticos que enfrentamos con el desarrollo de la IA y cómo crear sistemas alineados con valores humanos.',
-    progress: 85,
-    tags: ['IA', 'Ética', 'Sociedad', 'Tecnología'],
-    modules: [
-        {
-            title: "Módulo 1: Introducción a la Ética de las Máquinas",
-            lessons: [
-                { title: "Lección 1.1: ¿Por qué es importante la ética en la IA?", completed: true },
-                { title: "Lección 1.2: Marcos éticos principales (Utilitarismo, Deontología)", completed: true },
-            ]
-        },
-        {
-            title: "Módulo 2: Sesgo y Justicia",
-            lessons: [
-                { title: "Lección 2.1: ¿Cómo aprenden los modelos el sesgo?", completed: true },
-                { title: "Lección 2.2: Técnicas para la mitigación del sesgo", completed: true },
-            ]
-        },
-         {
-            title: "Módulo 3: El Problema de la Caja Negra",
-            lessons: [
-                { title: "Lección 3.1: Explicabilidad e Interpretabilidad (XAI)", completed: true },
-                { title: "Lección 3.2: ¿Tenemos derecho a una explicación?", completed: false },
-            ]
-        }
-    ]
-  }
+    {
+        id: 'course-1',
+        href: '/course/quantum-physics-intro',
+        title: 'Introducción a la Física Cuántica',
+        description: 'Explora los conceptos fundamentales del mundo cuántico, desde la dualidad onda-partícula hasta el entrelazamiento.',
+        progress: 60,
+        tags: ['Física Cuántica', 'Ciencia', 'Fundamentos'],
+        modules: [
+            {
+                title: "Módulo 1: Fundamentos",
+                lessons: [
+                    { title: "Lección 1.1: La Crisis de la Física Clásica", completed: true },
+                    { title: "Lección 1.2: El cuanto de Planck y el Efecto Fotoeléctrico", completed: true },
+                    { title: "Lección 1.3: La Dualidad Onda-Partícula", completed: false },
+                ]
+            },
+            {
+                title: "Módulo 2: La Ecuación de Schrödinger",
+                lessons: [
+                    { title: "Lección 2.1: La Función de Onda", completed: false },
+                    { title: "Lección 2.2: Resolviendo para un Pozo de Potencial Infinito", completed: false },
+                ]
+            }
+        ]
+    },
+    {
+        id: 'course-2',
+        href: '/course/ai-ethics',
+        title: 'Ética en la Inteligencia Artificial',
+        description: 'Un curso sobre los dilemas éticos que enfrentamos con el desarrollo de la IA y cómo crear sistemas alineados con valores humanos.',
+        progress: 85,
+        tags: ['IA', 'Ética', 'Sociedad', 'Tecnología'],
+        modules: [
+            {
+                title: "Módulo 1: Introducción a la Ética de las Máquinas",
+                lessons: [
+                    { title: "Lección 1.1: ¿Por qué es importante la ética en la IA?", completed: true },
+                    { title: "Lección 1.2: Marcos éticos principales (Utilitarismo, Deontología)", completed: true },
+                ]
+            },
+            {
+                title: "Módulo 2: Sesgo y Justicia",
+                lessons: [
+                    { title: "Lección 2.1: ¿Cómo aprenden los modelos el sesgo?", completed: true },
+                    { title: "Lección 2.2: Técnicas para la mitigación del sesgo", completed: true },
+                ]
+            },
+            {
+                title: "Módulo 3: El Problema de la Caja Negra",
+                lessons: [
+                    { title: "Lección 3.1: Explicabilidad e Interpretabilidad (XAI)", completed: true },
+                    { title: "Lección 3.2: ¿Tenemos derecho a una explicación?", completed: false },
+                ]
+            }
+        ]
+    }
 ];
 
 const articleComments: Comment[] = [
@@ -276,18 +276,18 @@ const articleComments: Comment[] = [
 
 
 export const articles = [
-  {
-    id: 'article-1',
-    title: 'La Teoría de la Simulación: ¿Vivimos en una Realidad Programada?',
-    author: 'Dra. Evelyn Reed',
-    authorAvatar: 'https://placehold.co/100x100.png',
-    rating: 4.8,
-    href: '/article/the-simulation-theory',
-    excerpt: 'Un análisis profundo de los argumentos a favor y en contra de la hipótesis de la simulación, explorando sus implicaciones filosóficas y científicas.',
-    tags: ['Filosofía', 'Ciencia', 'Conciencia'],
-    likes: 152,
-    comments: articleComments,
-    content: `
+    {
+        id: 'article-1',
+        title: 'La Teoría de la Simulación: ¿Vivimos en una Realidad Programada?',
+        author: 'Dra. Evelyn Reed',
+        authorAvatar: 'https://placehold.co/100x100.png',
+        rating: 4.8,
+        href: '/article/the-simulation-theory',
+        excerpt: 'Un análisis profundo de los argumentos a favor y en contra de la hipótesis de la simulación, explorando sus implicaciones filosóficas y científicas.',
+        tags: ['Filosofía', 'Ciencia', 'Conciencia'],
+        likes: 152,
+        comments: articleComments,
+        content: `
 La hipótesis de la simulación propone que nuestra realidad es una simulación artificial, posiblemente una simulación por computadora. Esta idea, aunque popularizada por la ciencia ficción, tiene raíces profundas en la filosofía y está siendo seriamente considerada por varios físicos, cosmólogos y filósofos.
 
 ### El Argumento de Nick Bostrom
@@ -312,60 +312,60 @@ No existe evidencia directa que confirme o refute la hipótesis de la simulació
 
 Este artículo solo roza la superficie de un tema vasto y alucinante. Te invitamos a explorar las referencias y a unirte a la discusión en los comentarios.
 `,
-    image: 'https://placehold.co/800x450.png',
-    imageHint: 'digital matrix code'
-  },
-  {
-    id: 'article-2',
-    title: 'Gobernanza Descentralizada: Modelos para el Futuro',
-    author: 'Comunidad de Gobernanza',
-    authorAvatar: 'https://placehold.co/100x100.png',
-    rating: 4.9,
-    href: '/article/decentralized-governance',
-    excerpt: 'Estudio comparativo de diferentes modelos de Organizaciones Autónomas Descentralizadas (DAOs) y su aplicabilidad en el contexto de las Entidades Federativas.',
-    tags: ['Gobernanza', 'Sociedad', 'Política', 'Tecnología'],
-    likes: 230,
-    comments: [],
-    content: `... (Contenido completo del artículo 2) ...`,
-    image: null,
-    imageHint: null,
-  },
-  {
-    id: 'article-3',
-    title: 'Permacultura: Diseñando Ecosistemas Sostenibles',
-    author: 'Red de Permacultura',
-    authorAvatar: 'https://placehold.co/100x100.png',
-    rating: 4.7,
-    href: '/article/permaculture-design',
-    excerpt: 'Una guía práctica para aplicar los principios de la permacultura en tu comunidad, desde jardines urbanos hasta sistemas de gestión de agua.',
-    tags: ['Sostenibilidad', 'Comunidad', 'Ecología'],
-    likes: 98,
-    comments: [],
-    content: `... (Contenido completo del artículo 3) ...`,
-    image: 'https://placehold.co/800x450.png',
-    imageHint: 'lush community garden'
-  },
-  {
-    id: 'article-4',
-    title: 'Modelos de Lenguaje Grande (LLMs) y Creatividad',
-    author: 'Grupo de Estudio de IA',
-    authorAvatar: 'https://placehold.co/100x100.png',
-    rating: 4.9,
-    href: '/article/llms-and-creativity',
-    excerpt: 'Cómo los LLMs están revolucionando la creatividad y el arte, y las herramientas para empezar a experimentar.',
-    tags: ['IA', 'Arte Generativo', 'Tecnología'],
-    likes: 312,
-    comments: [],
-    content: `... (Contenido completo del artículo 4) ...`,
-    image: null,
-    imageHint: null
-  },
+        image: 'https://placehold.co/800x450.png',
+        imageHint: 'digital matrix code'
+    },
+    {
+        id: 'article-2',
+        title: 'Gobernanza Descentralizada: Modelos para el Futuro',
+        author: 'Comunidad de Gobernanza',
+        authorAvatar: 'https://placehold.co/100x100.png',
+        rating: 4.9,
+        href: '/article/decentralized-governance',
+        excerpt: 'Estudio comparativo de diferentes modelos de Organizaciones Autónomas Descentralizadas (DAOs) y su aplicabilidad en el contexto de las Entidades Federativas.',
+        tags: ['Gobernanza', 'Sociedad', 'Política', 'Tecnología'],
+        likes: 230,
+        comments: [],
+        content: `... (Contenido completo del artículo 2) ...`,
+        image: null,
+        imageHint: null,
+    },
+    {
+        id: 'article-3',
+        title: 'Permacultura: Diseñando Ecosistemas Sostenibles',
+        author: 'Red de Permacultura',
+        authorAvatar: 'https://placehold.co/100x100.png',
+        rating: 4.7,
+        href: '/article/permaculture-design',
+        excerpt: 'Una guía práctica para aplicar los principios de la permacultura en tu comunidad, desde jardines urbanos hasta sistemas de gestión de agua.',
+        tags: ['Sostenibilidad', 'Comunidad', 'Ecología'],
+        likes: 98,
+        comments: [],
+        content: `... (Contenido completo del artículo 3) ...`,
+        image: 'https://placehold.co/800x450.png',
+        imageHint: 'lush community garden'
+    },
+    {
+        id: 'article-4',
+        title: 'Modelos de Lenguaje Grande (LLMs) y Creatividad',
+        author: 'Grupo de Estudio de IA',
+        authorAvatar: 'https://placehold.co/100x100.png',
+        rating: 4.9,
+        href: '/article/llms-and-creativity',
+        excerpt: 'Cómo los LLMs están revolucionando la creatividad y el arte, y las herramientas para empezar a experimentar.',
+        tags: ['IA', 'Arte Generativo', 'Tecnología'],
+        likes: 312,
+        comments: [],
+        content: `... (Contenido completo del artículo 4) ...`,
+        image: null,
+        imageHint: null
+    },
 ];
 
 export const categories = [
-    { 
-        id: 'cat-ciencia', 
-        name: 'Ciencia', 
+    {
+        id: 'cat-ciencia',
+        name: 'Ciencia',
         description: 'La búsqueda sistemática de conocimiento sobre el universo a través de la observación y la experimentación.',
         content: [],
         subCategories: [
@@ -375,9 +375,9 @@ export const categories = [
                 description: 'La ciencia que estudia la materia, la energía, el espacio y el tiempo.',
                 content: [],
                 subCategories: [
-                     { 
-                        id: 'cat-cuantica', 
-                        name: 'Física Cuántica', 
+                    {
+                        id: 'cat-cuantica',
+                        name: 'Física Cuántica',
                         description: 'Rama de la física que estudia los fenómenos a escalas microscópicas.',
                         content: ['course-1'],
                         subCategories: []
@@ -415,7 +415,7 @@ export const categories = [
             }
         ]
     },
-     {
+    {
         id: 'cat-tecnologia',
         name: 'Tecnología',
         description: 'La aplicación del conocimiento científico para fines prácticos, especialmente en la industria.',
@@ -433,47 +433,47 @@ export const categories = [
 
 
 export const culturalPosts = [
-  {
-    id: 'cult-1',
-    author: {
-        name: 'Artista Anónimo',
-        avatar: 'https://placehold.co/100x100.png',
-        href: '/profile/artista-anonimo'
-    },
-    timestamp: 'hace 5h',
-    title: 'Exploración Geométrica',
-    content: 'Jugando con formas y colores en un espacio generado proceduralmente. Cada vez que actualizas, la obra cambia.\n\n#ArteGenerativo #WebGL #Ciberdelia',
-    imageUrl: 'https://placehold.co/600x400.png',
-    imageHint: 'abstract geometric art',
-    likes: 243,
-    comments: [
-        {
-            id: 'cult-comment-1',
-            author: 'Curador de Arte Digital',
+    {
+        id: 'cult-1',
+        author: {
+            name: 'Artista Anónimo',
             avatar: 'https://placehold.co/100x100.png',
-            timestamp: 'hace 3h',
-            content: 'La paleta de colores es fascinante. La forma en que los gradientes se fusionan crea una sensación de profundidad infinita. ¿Has considerado añadir interactividad basada en el audio?',
-            dataAiHint: 'art curator',
-            likes: 8,
-            replies: []
-        }
-    ]
-  },
-  {
-    id: 'cult-2',
-    author: {
-        name: 'Poeta del Silicio',
-        avatar: 'https://placehold.co/100x100.png',
-        href: '/profile/poeta-silicio'
+            href: '/profile/artista-anonimo'
+        },
+        timestamp: 'hace 5h',
+        title: 'Exploración Geométrica',
+        content: 'Jugando con formas y colores en un espacio generado proceduralmente. Cada vez que actualizas, la obra cambia.\n\n#ArteGenerativo #WebGL #Ciberdelia',
+        imageUrl: 'https://placehold.co/600x400.png',
+        imageHint: 'abstract geometric art',
+        likes: 243,
+        comments: [
+            {
+                id: 'cult-comment-1',
+                author: 'Curador de Arte Digital',
+                avatar: 'https://placehold.co/100x100.png',
+                timestamp: 'hace 3h',
+                content: 'La paleta de colores es fascinante. La forma en que los gradientes se fusionan crea una sensación de profundidad infinita. ¿Has considerado añadir interactividad basada en el audio?',
+                dataAiHint: 'art curator',
+                likes: 8,
+                replies: []
+            }
+        ]
     },
-    timestamp: 'hace 1 día',
-    title: 'Haiku de Código',
-    content: 'Un bit solitario,\nfluye en ríos de cristal,\nnace el universo.\n\n#Poesía #Código #Filosofía',
-    imageUrl: null,
-    imageHint: null,
-    likes: 180,
-    comments: []
-  }
+    {
+        id: 'cult-2',
+        author: {
+            name: 'Poeta del Silicio',
+            avatar: 'https://placehold.co/100x100.png',
+            href: '/profile/poeta-silicio'
+        },
+        timestamp: 'hace 1 día',
+        title: 'Haiku de Código',
+        content: 'Un bit solitario,\nfluye en ríos de cristal,\nnace el universo.\n\n#Poesía #Código #Filosofía',
+        imageUrl: null,
+        imageHint: null,
+        likes: 180,
+        comments: []
+    }
 ];
 
 export type MessageFull = {
@@ -483,16 +483,16 @@ export type MessageFull = {
     dataAiHint: string;
     timestamp: string;
     content: {
-      type: 'text' | 'image' | 'file' | 'canvas' | 'poll';
-      text?: string;
-      imageUrl?: string;
-      imageHint?: string;
-      file?: { name: string; size: string; };
-      canvas?: { title: string, content: string };
-      poll?: { question: string, options: string[] };
+        type: 'text' | 'image' | 'file' | 'canvas' | 'poll';
+        text?: string;
+        imageUrl?: string;
+        imageHint?: string;
+        file?: { name: string; size: string; };
+        canvas?: { title: string, content: string };
+        poll?: { question: string, options: string[] };
     };
-  };
-  
+};
+
 export type ConversationFull = {
     id: string;
     type: 'dm' | 'group';
@@ -505,50 +505,50 @@ export type ConversationFull = {
     messages: MessageFull[];
     pinned: boolean;
 };
-  
+
 export const conversations: ConversationFull[] = [
     {
-      id: 'convo-1',
-      type: 'dm',
-      name: 'Brenda',
-      avatar: 'https://placehold.co/100x100.png',
-      dataAiHint: 'woman smiling',
-      unreadCount: 2,
-      lastMessage: '¡Claro! Te envío ahora mismo el borrador del lienzo.',
-      lastMessageTimestamp: 'hace 5m',
-      pinned: true,
-      messages: [
-        {
-          id: 'msg-1-1',
-          author: 'Brenda',
-          avatar: 'https://placehold.co/100x100.png',
-          dataAiHint: 'woman smiling',
-          timestamp: 'hace 10m',
-          content: { type: 'text', text: 'Hey! ¿Tienes un momento para revisar los conceptos para el nuevo EVP de "Bosque Fractal"?' }
-        },
-        {
-          id: 'msg-1-2',
-          author: 'Tú',
-          avatar: 'https://placehold.co/100x100.png',
-          dataAiHint: 'user avatar',
-          timestamp: 'hace 8m',
-          content: { type: 'text', text: 'Sí, claro. Envíamelos.' }
-        },
-        {
-            id: 'msg-1-3',
-            author: 'Brenda',
-            avatar: 'https://placehold.co/100x100.png',
-            dataAiHint: 'woman smiling',
-            timestamp: 'hace 5m',
-            content: { 
-                type: 'canvas',
-                canvas: {
-                    title: 'Borrador: Bosque Fractal',
-                    content: 'Un lienzo interactivo con imágenes conceptuales, paletas de colores y una pequeña demo de shader.'
+        id: 'convo-1',
+        type: 'dm',
+        name: 'Brenda',
+        avatar: 'https://placehold.co/100x100.png',
+        dataAiHint: 'woman smiling',
+        unreadCount: 2,
+        lastMessage: '¡Claro! Te envío ahora mismo el borrador del lienzo.',
+        lastMessageTimestamp: 'hace 5m',
+        pinned: true,
+        messages: [
+            {
+                id: 'msg-1-1',
+                author: 'Brenda',
+                avatar: 'https://placehold.co/100x100.png',
+                dataAiHint: 'woman smiling',
+                timestamp: 'hace 10m',
+                content: { type: 'text', text: 'Hey! ¿Tienes un momento para revisar los conceptos para el nuevo EVP de "Bosque Fractal"?' }
+            },
+            {
+                id: 'msg-1-2',
+                author: 'Tú',
+                avatar: 'https://placehold.co/100x100.png',
+                dataAiHint: 'user avatar',
+                timestamp: 'hace 8m',
+                content: { type: 'text', text: 'Sí, claro. Envíamelos.' }
+            },
+            {
+                id: 'msg-1-3',
+                author: 'Brenda',
+                avatar: 'https://placehold.co/100x100.png',
+                dataAiHint: 'woman smiling',
+                timestamp: 'hace 5m',
+                content: {
+                    type: 'canvas',
+                    canvas: {
+                        title: 'Borrador: Bosque Fractal',
+                        content: 'Un lienzo interactivo con imágenes conceptuales, paletas de colores y una pequeña demo de shader.'
+                    }
                 }
-            }
-          },
-      ]
+            },
+        ]
     },
     {
         id: 'convo-2',
@@ -617,26 +617,26 @@ export const conversations: ConversationFull[] = [
         ]
     },
     {
-      id: 'convo-4',
-      type: 'group',
-      name: 'E.F. del Valle Central',
-      avatar: 'https://placehold.co/100x100.png',
-      dataAiHint: 'government building',
-      unreadCount: 5,
-      lastMessage: 'Recordatorio: La votación de la Ley de Agua cierra mañana.',
-      lastMessageTimestamp: 'hace 8h',
-      pinned: false,
-      messages: [
-          {
-              id: 'msg-4-1',
-              author: 'Sistema',
-              avatar: 'https://placehold.co/100x100.png',
-              dataAiHint: 'system icon',
-              timestamp: 'hace 8h',
-              content: { type: 'text', text: 'Recordatorio: La votación de la Ley de Agua cierra mañana.' }
-          }
-      ]
-  }
+        id: 'convo-4',
+        type: 'group',
+        name: 'E.F. del Valle Central',
+        avatar: 'https://placehold.co/100x100.png',
+        dataAiHint: 'government building',
+        unreadCount: 5,
+        lastMessage: 'Recordatorio: La votación de la Ley de Agua cierra mañana.',
+        lastMessageTimestamp: 'hace 8h',
+        pinned: false,
+        messages: [
+            {
+                id: 'msg-4-1',
+                author: 'Sistema',
+                avatar: 'https://placehold.co/100x100.png',
+                dataAiHint: 'system icon',
+                timestamp: 'hace 8h',
+                content: { type: 'text', text: 'Recordatorio: La votación de la Ley de Agua cierra mañana.' }
+            }
+        ]
+    }
 ];
 
 export const files = [
@@ -646,11 +646,67 @@ export const files = [
     { id: 4, type: "folder", name: "Documentos de Investigación", size: "123 archivos", date: "2024-06-07", icon: 'Folder' },
     { id: 5, type: "audio", name: "Podcast Episodio 3", size: "30.1 MB", date: "2024-06-06", preview: "https://placehold.co/400x300.png", dataAiHint: "sound wave" },
     { id: 6, type: "image", name: "Foto del Equipo", size: "4.1 MB", date: "2024-06-05", preview: "https://placehold.co/400x300.png", dataAiHint: "team photo" },
-  ];
-  
+];
+
 export type Theme = (typeof themes)[0];
 export type Category = (typeof categories)[0];
 export type Course = (typeof courses)[0];
 export type Article = (typeof articles)[0];
 // export type ConversationFull = (typeof conversations)[0];
 // export type MessageFull = (typeof conversations)[0]['messages'][0];
+
+export const executiveProjects = [
+    {
+        id: 'proj-1',
+        title: 'Sistema de Riego Comunitario Inteligente',
+        status: 'En Progreso',
+        budget: '15,000 SC',
+        volunteers: 12,
+        progress: 65,
+        deadline: '15 Ago 2026',
+        description: 'Implementación de sensores IoT para optimizar el uso de agua en los huertos del Sector 7.'
+    },
+    {
+        id: 'proj-2',
+        title: 'Renovación del Centro Cultural',
+        status: 'En Planificación',
+        budget: '45,000 SC',
+        volunteers: 5,
+        progress: 15,
+        deadline: '01 Dic 2026',
+        description: 'Diseño arquitectónico y estructural para la expansión del domo central.'
+    },
+    {
+        id: 'proj-3',
+        title: 'Auditoría de Seguridad de la Red',
+        status: 'Completado',
+        budget: '5,000 SC',
+        volunteers: 3,
+        progress: 100,
+        deadline: '10 Ene 2026',
+        description: 'Revisión completa de los protocolos de encriptación de las bóvedas personales.'
+    }
+];
+
+export const judicialCases = [
+    {
+        id: 'case-1',
+        title: 'Disputa de Límites - Huerto A vs B',
+        type: 'Mediación',
+        status: 'En Mediación',
+        facilitator: 'Ana K.',
+        participants: ['Huerto Comunitario A', 'Huerto Comunitario B'],
+        description: 'Conflicto sobre el acceso al canal de agua secundario. Ambas partes reclaman derechos de uso prioritario.',
+        date: '2026-05-12'
+    },
+    {
+        id: 'case-2',
+        title: 'Violación de Normas de Ruido - Zona Residencial',
+        type: 'Convivencia',
+        status: 'Juicio Comunitario',
+        facilitator: 'Consejo de Ética',
+        participants: ['Vecinos Bloque 4', 'Club de Música'],
+        description: 'Múltiples reportes sobre niveles de ruido excediendo lo permitido después de las 22:00.',
+        date: '2026-06-01'
+    }
+];

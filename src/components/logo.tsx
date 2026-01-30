@@ -8,6 +8,7 @@ export function Logo() {
           src="/logo.png"
           alt="StarSeed Logo"
           fill
+          sizes="32px"
           className="object-contain"
         />
       </div>

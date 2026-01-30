@@ -4,6 +4,7 @@ import React from "react";
 import { useAppearance } from "@/context/appearance-context";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -153,6 +154,53 @@ export function BackgroundSettings() {
                                     value={config.background.type === 'image' ? config.background.value : ''}
                                 />
                                 <p className="text-xs text-muted-foreground">Pega un enlace directo a una imagen.</p>
+                            </div>
+
+                            {/* Overlay Controls for Legibility */}
+                            <div className="space-y-4 border-t pt-4">
+                                <Label className="text-base font-semibold flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-primary" />
+                                    Legibilidad de Texto
+                                </Label>
+                                <div className="grid gap-6 md:grid-cols-2">
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between">
+                                            <Label>Opacidad de Superposición</Label>
+                                            <span className="text-sm text-muted-foreground">{Math.round((config.background.overlayOpacity || 0) * 100)}%</span>
+                                        </div>
+                                        <Slider
+                                            min={0}
+                                            max={0.9}
+                                            step={0.05}
+                                            value={[config.background.overlayOpacity || 0]}
+                                            onValueChange={([val]: number[]) => updateSection("background", { overlayOpacity: val })}
+                                        />
+                                        <p className="text-xs text-muted-foreground">Oscurece el fondo para leer mejor el texto.</p>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <Label>Color de Superposición</Label>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant={config.background.overlayColor === 'black' ? 'default' : 'outline'}
+                                                size="sm"
+                                                onClick={() => updateSection("background", { overlayColor: 'black' })}
+                                                className="w-full"
+                                            >
+                                                Oscuro
+                                            </Button>
+                                            <Button
+                                                variant={config.background.overlayColor === 'white' ? 'default' : 'outline'}
+                                                size="sm"
+                                                onClick={() => updateSection("background", { overlayColor: 'white' })}
+                                                className="w-full"
+                                            >
+                                                Claro
+                                            </Button>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">Elige 'Claro' para temas luminosos.</p>
+                                    </div>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

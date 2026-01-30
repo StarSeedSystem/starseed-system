@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAppearance } from "@/context/appearance-context";
+import { useControlPanel } from "@/context/control-panel-context";
 
 export function AppSidebar({
   side = "left",
@@ -40,7 +41,8 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const { config } = useAppearance();
-  const { menuStyle, iconStyle } = config.layout;
+  const { toggle } = useControlPanel();
+  const { menuStyle, iconStyle, menuBehavior } = config.layout;
 
   const isNetworkActive = pathname.startsWith('/network');
   const isHorizontal = side === "top" || side === "bottom";
@@ -77,7 +79,7 @@ export function AppSidebar({
 
   return (
     <div className={cn(
-      "hidden bg-background/80 backdrop-blur-xl md:block transition-all duration-500 ease-in-out",
+      "bg-background/80 backdrop-blur-xl transition-all duration-500 ease-in-out",
       // Border logic (only if not dock)
       !isDock && !isHorizontal && (side === "left" ? "border-r" : "border-l"),
       !isDock && isHorizontal && (side === "top" ? "border-b" : "border-t"),
@@ -86,16 +88,25 @@ export function AppSidebar({
       isDock && "m-4 rounded-xl border shadow-xl bg-background/95",
       isDock && !isHorizontal && "h-[calc(100vh-2rem)]",
 
+      // Behavior Logic
+      menuBehavior === 'sticky' && !isHorizontal && "sticky top-0 h-screen",
+      menuBehavior === 'sticky' && isHorizontal && "sticky top-0 z-50",
+
+      // Floating/Stacking context for sticky
+      (menuBehavior === 'sticky' || isDock) && "z-40",
+
       className
     )}>
       <div className={cn(
         "flex h-full flex-col gap-2",
         !isHorizontal && "max-h-screen",
-        isHorizontal && "flex-row h-16 items-center px-4"
+        isHorizontal && "flex-row h-16 items-center px-4",
+        // Allow inner scrolling when sticky
+        menuBehavior === 'sticky' && !isHorizontal && "overflow-hidden"
       )}>
         <div className={cn(
           "flex items-center",
-          !isHorizontal && "h-14 border-b px-4 lg:h-[60px] lg:px-6",
+          !isHorizontal && "h-14 border-b px-4 lg:h-[60px] lg:px-6 shrink-0",
           isHorizontal && "mr-8",
           // Hide border in dock mode if desired, or keep specific styling
           isDock && "border-b-0"
@@ -161,6 +172,15 @@ export function AppSidebar({
             <NavItem href="/library" icon={Library} label="Biblioteca" />
             <NavItem href="/info" icon={Info} label="Info" />
             <NavItem href="/settings" icon={Settings} label="Config" />
+
+            {/* Control Panel Trigger */}
+            <div
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary cursor-pointer"
+              onClick={() => toggle()}
+            >
+              <Bot {...getIconProps()} />
+              <span className={cn(isHorizontal && "hidden lg:inline")}>Panel de Control</span>
+            </div>
           </nav>
         </div>
       </div>

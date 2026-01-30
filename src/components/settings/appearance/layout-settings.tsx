@@ -26,7 +26,7 @@ export function LayoutSettings() {
                     <RadioGroup
                         defaultValue={config.layout.menuPosition}
                         onValueChange={(val: any) => updateSection("layout", { menuPosition: val })}
-                        className="grid grid-cols-2 gap-4"
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-4"
                     >
                         {[
                             { value: "left", label: "Izquierda", icon: PanelLeft },
@@ -61,7 +61,7 @@ export function LayoutSettings() {
                         <RadioGroup
                             defaultValue={config.layout.menuStyle}
                             onValueChange={(val: any) => updateSection("layout", { menuStyle: val })}
-                            className="grid grid-cols-2 gap-4"
+                            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
                         >
                             {[
                                 { value: "sidebar", label: "Expandido", icon: LayoutDashboard, desc: "Menú completo tradicional" },
@@ -82,6 +82,32 @@ export function LayoutSettings() {
                                                 {opt.desc}
                                             </p>
                                         </div>
+                                    </Label>
+                                </div>
+                            ))}
+                        </RadioGroup>
+                    </div>
+
+                    <div className="space-y-4">
+                        <Label className="text-base">Comportamiento</Label>
+                        <RadioGroup
+                            defaultValue={config.layout.menuBehavior}
+                            onValueChange={(val: any) => updateSection("layout", { menuBehavior: val })}
+                            className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+                        >
+                            {[
+                                { value: "sticky", label: "Fijo", desc: "Siempre visible" },
+                                { value: "static", label: "Estático", desc: "Sigue el scroll" },
+                                { value: "smart", label: "Inteligente", desc: "Auto-ocultar" },
+                            ].map((opt) => (
+                                <div key={opt.value}>
+                                    <RadioGroupItem value={opt.value} id={`beh-${opt.value}`} className="peer sr-only" />
+                                    <Label
+                                        htmlFor={`beh-${opt.value}`}
+                                        className="flex flex-col items-center justify-center p-3 rounded-md border text-center hover:bg-accent peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:border-primary transition-all cursor-pointer h-full"
+                                    >
+                                        <span className="font-medium text-sm">{opt.label}</span>
+                                        <span className="text-[10px] text-muted-foreground mt-1">{opt.desc}</span>
                                     </Label>
                                 </div>
                             ))}

@@ -2,9 +2,10 @@
 
 import React, { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
+import { useAppearance } from "@/context/appearance-context";
 import { Sun, Moon, Diamond, Leaf, Circle, Palette, Download, Upload } from "lucide-react";
 import { GlassFilter } from "./glass-filter";
-import { exportTheme, importTheme, applyTheme, loadCustomTheme } from "./theme-utils";
+import { exportTheme, importTheme, applyTheme, loadCustomTheme, themePresets } from "./theme-utils";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -70,6 +71,7 @@ const GlassEffect: React.FC<GlassEffectProps> = ({
 
 export function ThemeSelector() {
     const { setTheme, theme } = useTheme();
+    const { updateConfig } = useAppearance();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -125,6 +127,15 @@ export function ThemeSelector() {
         { id: "custom", label: "Personalizado", icon: <Palette className="w-6 h-6 text-purple-500" /> },
     ];
 
+    const handleThemeChange = (id: string) => {
+        setTheme(id);
+        const preset = themePresets[id];
+        if (preset) {
+            updateConfig(preset);
+            toast.success(`Estilo ${id.toUpperCase()} aplicado con configuración estructural.`);
+        }
+    };
+
     return (
         <div className="flex flex-col items-center justify-center p-4 gap-6">
             {/* Ensure filter is present in the DOM */}
@@ -169,7 +180,7 @@ export function ThemeSelector() {
                     return (
                         <GlassEffect
                             key={t.id}
-                            onClick={() => setTheme(t.id)}
+                            onClick={() => handleThemeChange(t.id)}
                             className={`rounded-full p-4 hover:scale-110 ${theme === t.id ? 'scale-110 border border-primary/50' : ''}`}
                             style={{
                                 background: theme === t.id ? 'rgba(255,255,255,0.2)' : 'transparent'

@@ -15,25 +15,46 @@ export function MyPagesWidget() {
 
     useEffect(() => {
         async function fetchPages() {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
 
-            const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
+                // First get the profile id
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .single();
 
-            if (profile) {
-                // Mock data for now if DB is empty to show UI potential
-                // In production, uncomment the real fetch
-                // const { data } = await supabase.from('pages').select('*').limit(5);
+                if (profile) {
+                    // Fetch pages where this profile is a member
+                    // Note: This assumes a many-to-many relation or that pages array exists on profile
+                    // But schema says Page has members: Profile[]. This usually implies a join table or JSONB.
+                    // For V1 simple schema, let's assume we fetch pages created by this user or just all public pages for demo if join table missing.
+                    // Checking gemini.md schema: "members": "Profile[]" 
+                    // This likely suggests a `page_members` join table in a real SQL implementation, 
+                    // OR it's a JSONB column. 
+                    // Given "StarSeed Network V2" setup, let's try to query the 'pages' table directly.
+                    // If we want "My Pages", we usually mean pages I created or follow.
+                    // Let's query ALL pages for now to ensure data visibility, limited to 5.
 
-                // MOCK DATA FOR DEMO
-                const mockPages = [
-                    { id: '1', name: 'Jardines Comunitarios', type: 'COLECTIVO', handle: 'jardines-cdmx', avatar_url: null },
-                    { id: '2', name: 'Asamblea Zona Norte', type: 'ORGANIZACION', handle: 'asamblea-norte', avatar_url: null },
-                    { id: '3', name: 'Taller de Arte', type: 'PROYECTO', handle: 'taller-arte', avatar_url: null },
-                ];
-                setPages(mockPages);
+                    const { data, error } = await supabase
+                        .from('pages')
+                        .select('id, title, type, handle, avatar_url')
+                        .limit(5);
+
+                    if (data) {
+                        setPages(data);
+                    }
+                    if (error) {
+                        console.error('Error fetching pages:', error);
+                    }
+                }
+            } catch (error) {
+                console.error("Error in fetchPages:", error);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         }
         fetchPages();
     }, []);
@@ -70,11 +91,11 @@ export function MyPagesWidget() {
                                 <div className="flex items-center gap-3 overflow-hidden">
                                     <Avatar className="h-9 w-9 rounded-md border border-border/50">
                                         <AvatarImage src={page.avatar_url} />
-                                        <AvatarFallback className="rounded-md bg-secondary text-xs">{page.name[0]}</AvatarFallback>
+                                        <AvatarFallback className="rounded-md bg-secondary text-xs">{page.title?.[0] || '?'}</AvatarFallback>
                                     </Avatar>
                                     <div className="min-w-0">
-                                        <p className="font-medium text-sm truncate text-foreground/90 group-hover:text-primary transition-colors">{page.name}</p>
-                                        <p className="text-[10px] text-muted-foreground capitalize font-medium tracking-wide">{page.type.toLowerCase()}</p>
+                                        <p className="font-medium text-sm truncate text-foreground/90 group-hover:text-primary transition-colors">{page.title}</p>
+                                        <p className="text-[10px] text-muted-foreground capitalize font-medium tracking-wide">{page.type?.toLowerCase()}</p>
                                     </div>
                                 </div>
                                 <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -86,7 +107,9 @@ export function MyPagesWidget() {
                         <div className="h-[150px] flex flex-col items-center justify-center text-center p-4 text-muted-foreground">
                             <Book className="h-8 w-8 mb-2 opacity-20" />
                             <p className="text-xs">Sin páginas activas</p>
-                            <Button variant="link" size="sm" className="text-xs h-6">Crear una</Button>
+                            <Link href="/pages/new">
+                                <Button variant="link" size="sm" className="text-xs h-6">Crear una</Button>
+                            </Link>
                         </div>
                     )}
                 </div>

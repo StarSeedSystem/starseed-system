@@ -7,6 +7,10 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AppearanceProvider } from "@/context/appearance-context";
 import { cn } from "@/lib/utils";
 import { LiquidGlass } from "@/components/ui/liquid-glass";
+import { ControlPanelProvider } from "@/context/control-panel-context";
+import { BoardProvider } from "@/context/board-context";
+import { UserProvider } from "@/context/user-context";
+import { ControlPanel } from "@/components/control-panel/control-panel";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -34,27 +38,9 @@ const fontCode = Source_Code_Pro({
   variable: "--font-code",
 });
 
-
 export const metadata: Metadata = {
-  title: "StarSeed Network",
-  description: "The digital embodiment of the StarSeed Society.",
-  icons: {
-    icon: "/icon.png",
-    shortcut: "/icon.png",
-    apple: "/icon.png",
-  },
-  openGraph: {
-    title: "StarSeed Network",
-    description: "The digital embodiment of the StarSeed Society.",
-    siteName: "StarSeed Network",
-    images: [
-      {
-        url: "/logo.png",
-        width: 800,
-        height: 600,
-      },
-    ],
-  },
+  title: "StarSeed System",
+  description: "Operating System for Global Regeneration",
 };
 
 export default function RootLayout({
@@ -74,9 +60,6 @@ export default function RootLayout({
           fontHeadline.variable,
           fontCode.variable
         )}
-        style={{
-          "--font-body": "var(--font-inter)"
-        } as React.CSSProperties}
       >
         <ThemeProvider
           attribute="class"
@@ -85,13 +68,20 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AppearanceProvider>
-            <LiquidGlass />
-            {children}
-            <Toaster />
-            <Sonner />
+            <BoardProvider>
+              <UserProvider>
+                <ControlPanelProvider>
+                  <LiquidGlass />
+                  {children}
+                  <ControlPanel />
+                  <Toaster />
+                  <Sonner />
+                </ControlPanelProvider>
+              </UserProvider>
+            </BoardProvider>
           </AppearanceProvider>
         </ThemeProvider>
       </body>
-    </html>
+    </html >
   );
 }

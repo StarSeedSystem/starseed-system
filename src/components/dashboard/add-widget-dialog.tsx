@@ -1,6 +1,7 @@
 'use client';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
     LayoutDashboard,
@@ -78,6 +79,18 @@ const AVAILABLE_WIDGETS: { type: WidgetType; title: string; description: string;
         title: 'Actividad Reciente',
         description: 'Historial de tus últimas acciones y notificaciones',
         icon: <FileText className="h-5 w-5 text-yellow-500" />
+    },
+    {
+        type: 'COLLAB_PROJECTS',
+        title: 'Proyectos Colaborativos',
+        description: 'Gestión de equipos y seguimiento de tareas.',
+        icon: <Rocket className="h-5 w-5 text-violet-500" />
+    },
+    {
+        type: 'LIVE_DATA',
+        title: 'Telemetría en Vivo',
+        description: 'Métricas de red y estado de nodos en tiempo real.',
+        icon: <Activity className="h-5 w-5 text-emerald-500" />
     }
 ];
 
@@ -94,11 +107,11 @@ export function AddWidgetDialog({ onAdd, isEditMode }: AddWidgetDialogProps) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <div className="h-[60px] cursor-pointer border-2 border-dashed border-primary/20 hover:border-primary/50 hover:bg-muted/50 rounded-xl flex items-center justify-center transition-all bg-card/50">
-                    <div className="flex items-center gap-2 text-primary/70">
-                        <Plus className="h-5 w-5" />
-                        <span className="font-medium">Añadir Widget</span>
+                <div className="h-[120px] max-w-md mx-auto cursor-pointer border-2 border-dashed border-primary/20 hover:border-primary/50 hover:bg-muted/50 rounded-xl flex flex-col items-center justify-center transition-all bg-card/50 gap-3 group">
+                    <div className="p-3 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                        <Plus className="h-6 w-6 text-primary" />
                     </div>
+                    <span className="font-medium text-primary">Añadir Nuevo Widget</span>
                 </div>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
@@ -108,27 +121,66 @@ export function AddWidgetDialog({ onAdd, isEditMode }: AddWidgetDialogProps) {
                         Selecciona un módulo para añadir a tu tablero personal.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
-                    {AVAILABLE_WIDGETS.map((widget) => (
-                        <Button
-                            key={widget.type}
-                            variant="outline"
-                            className="h-auto flex flex-col items-start gap-2 p-4 hover:bg-muted/80 hover:border-primary/50 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 text-left group"
-                            onClick={() => handleAdd(widget.type)}
-                        >
-                            <div className="flex items-center gap-2 w-full">
-                                <div className="p-2 rounded-full bg-background border shadow-sm">
-                                    {widget.icon}
-                                </div>
-                                <span className="font-semibold">{widget.title}</span>
+                <Tabs defaultValue="all" className="w-full">
+                    <TabsList className="w-full justify-start overflow-x-auto mb-4 bg-muted/50">
+                        <TabsTrigger value="all">Todos</TabsTrigger>
+                        <TabsTrigger value="social">Social</TabsTrigger>
+                        <TabsTrigger value="productivity">Productividad</TabsTrigger>
+                        <TabsTrigger value="system">Sistema</TabsTrigger>
+                    </TabsList>
+
+                    <div className="h-[400px] overflow-y-auto pr-2">
+                        <TabsContent value="all" className="mt-0">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {AVAILABLE_WIDGETS.map((widget) => (
+                                    <WidgetStoreItem key={widget.type} widget={widget} onClick={() => handleAdd(widget.type)} />
+                                ))}
                             </div>
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                                {widget.description}
-                            </p>
-                        </Button>
-                    ))}
-                </div>
+                        </TabsContent>
+                        <TabsContent value="social" className="mt-0">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {AVAILABLE_WIDGETS.filter(w => ['EXPLORE_NETWORK', 'SOCIAL_RADAR', 'MY_PAGES'].includes(w.type)).map((widget) => (
+                                    <WidgetStoreItem key={widget.type} widget={widget} onClick={() => handleAdd(widget.type)} />
+                                ))}
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="productivity" className="mt-0">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {AVAILABLE_WIDGETS.filter(w => ['COLLAB_PROJECTS', 'LEARNING_PATH', 'RECENT_ACTIVITY', 'POLITICAL_SUMMARY'].includes(w.type)).map((widget) => (
+                                    <WidgetStoreItem key={widget.type} widget={widget} onClick={() => handleAdd(widget.type)} />
+                                ))}
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="system" className="mt-0">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {AVAILABLE_WIDGETS.filter(w => ['SYSTEM_STATUS', 'LIVE_DATA', 'THEME_SELECTOR', 'WELLNESS'].includes(w.type)).map((widget) => (
+                                    <WidgetStoreItem key={widget.type} widget={widget} onClick={() => handleAdd(widget.type)} />
+                                ))}
+                            </div>
+                        </TabsContent>
+                    </div>
+                </Tabs>
             </DialogContent>
         </Dialog>
+    );
+}
+
+function WidgetStoreItem({ widget, onClick }: { widget: typeof AVAILABLE_WIDGETS[0], onClick: () => void }) {
+    return (
+        <Button
+            variant="outline"
+            className="h-auto flex flex-col items-start gap-2 p-4 hover:bg-muted/80 hover:border-primary/50 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 text-left group"
+            onClick={onClick}
+        >
+            <div className="flex items-center gap-2 w-full">
+                <div className="p-2 rounded-full bg-background border shadow-sm group-hover:bg-primary/10 transition-colors">
+                    {widget.icon}
+                </div>
+                <span className="font-semibold">{widget.title}</span>
+            </div>
+            <p className="text-xs text-muted-foreground line-clamp-2">
+                {widget.description}
+            </p>
+        </Button>
     );
 }

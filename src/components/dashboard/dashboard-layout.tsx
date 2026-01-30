@@ -331,13 +331,13 @@ export function DashboardLayout() {
                 onValueChange={setActiveDashboardId}
                 className="w-full"
             >
-                <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
-                    <TabsList className="bg-background/50 backdrop-blur border">
+                <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2 h-12">
+                    <TabsList className="bg-background/50 backdrop-blur border h-full items-center">
                         {dashboards.map(d => (
                             <TabsTrigger
                                 key={d.id}
                                 value={d.id}
-                                className="gap-2 data-[state=active]:bg-primary/20 data-[state=active]:text-primary transition-all duration-300"
+                                className="h-9 gap-2 data-[state=active]:bg-primary/20 data-[state=active]:text-primary transition-all duration-300"
                             >
                                 {d.name}
                                 {d.is_default && <span className="text-[10px] opacity-50">★</span>}
@@ -389,15 +389,17 @@ export function DashboardLayout() {
                             setWidgets={setWidgets}
                             isEditMode={isEditMode}
                         />
-                        <AddWidgetDialog
-                            isEditMode={isEditMode}
-                            onAdd={(type) => {
-                                // We need a way to add this to the DB.
-                                // Since logic is mixed, let's wrap this in a handler in the parent for now or pass context.
-                                // Actually, better to expose a handler for this.
-                                handleAddWidget(d.id, type);
-                            }}
-                        />
+                        <div className="mt-6 pb-12">
+                            <AddWidgetDialog
+                                isEditMode={isEditMode}
+                                onAdd={(type) => {
+                                    // We need a way to add this to the DB.
+                                    // Since logic is mixed, let's wrap this in a handler in the parent for now or pass context.
+                                    // Actually, better to expose a handler for this.
+                                    handleAddWidget(d.id, type);
+                                }}
+                            />
+                        </div>
                     </TabsContent>
                 ))}
             </Tabs>
