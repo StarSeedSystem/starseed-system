@@ -9,7 +9,8 @@ export type WidgetType =
     | 'COLLAB_PROJECTS'
     | 'LIVE_DATA'
     | 'SYSTEM_STATUS'
-    | 'RECENT_ACTIVITY';
+    | 'RECENT_ACTIVITY'
+    | 'NEXUS_QUICK_ACCESS';
 
 export interface Dashboard {
     id: string;

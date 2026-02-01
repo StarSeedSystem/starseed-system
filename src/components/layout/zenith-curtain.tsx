@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePerimeter } from "@/context/perimeter-context";
-import { Sparkles, Brain, MessageSquare, Eye, Mic, Send, Globe, Users, BookOpen, Palette, Cpu, Search, Filter, Copy, ArrowRight, BrainCircuit } from "lucide-react";
+import { Sparkles, Brain, MessageSquare, Eye, Mic, Send, Globe, Users, BookOpen, Palette, Cpu, Search, Filter, Copy, ArrowRight, BrainCircuit, Bot, Server, Settings, Plus, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -93,6 +93,15 @@ export function ZenithCurtain() {
                                 <h2 className="text-2xl font-light tracking-widest uppercase font-headline">
                                     Explorador Universal & Nexus
                                 </h2>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => window.location.href = '/nexus'}
+                                    className="ml-auto border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 hover:text-cyan-100 uppercase text-xs tracking-wider"
+                                >
+                                    Ir a Espacios de Trabajo
+                                    <ArrowRight className="w-3 h-3 ml-2" />
+                                </Button>
                             </motion.div>
 
                             <motion.div
@@ -101,6 +110,28 @@ export function ZenithCurtain() {
                                 transition={{ delay: 0.3 }}
                                 className="w-full max-w-3xl flex flex-col gap-6"
                             >
+                                {/* AI nexus Controls */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full mb-2">
+                                    <AIResourceControl
+                                        icon={<BrainCircuit className="w-4 h-4 text-cyan-300" />}
+                                        label="Modelo IA"
+                                        value="Gemini 1.5 Pro"
+                                        color="cyan"
+                                    />
+                                    <AIResourceControl
+                                        icon={<Bot className="w-4 h-4 text-emerald-300" />}
+                                        label="Agente"
+                                        value="Arquitecto"
+                                        color="emerald"
+                                    />
+                                    <AIResourceControl
+                                        icon={<Server className="w-4 h-4 text-amber-300" />}
+                                        label="Servidores MCP"
+                                        value="4 Activos"
+                                        color="amber"
+                                    />
+                                </div>
+
                                 {/* Search & Input Field */}
                                 <div className="relative w-full group">
                                     <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 via-purple-500 to-indigo-500 rounded-full opacity-30 group-hover:opacity-60 blur-md transition-opacity duration-500" />
@@ -215,4 +246,50 @@ function ModeToggle({ icon, label, active }: { icon: React.ReactNode, label: str
             <span className="text-xs uppercase tracking-wider">{label}</span>
         </button>
     )
+}
+
+function AIResourceControl({ icon, label, value, color }: { icon: React.ReactNode, label: string, value: string, color: 'cyan' | 'emerald' | 'amber' }) {
+    const colorClasses = {
+        cyan: "border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20",
+        emerald: "border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20",
+        amber: "border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20"
+    };
+
+    const btnHover = {
+        cyan: "hover:bg-cyan-500/30 hover:text-cyan-200",
+        emerald: "hover:bg-emerald-500/30 hover:text-emerald-200",
+        amber: "hover:bg-amber-500/30 hover:text-amber-200"
+    };
+
+    return (
+        <div className={cn(
+            "flex items-center justify-between p-2 pl-3 rounded-lg border backdrop-blur-sm transition-all group",
+            colorClasses[color]
+        )}>
+            <div className="flex items-center gap-3">
+                <div className="opacity-80 group-hover:opacity-100 transition-opacity">
+                    {icon}
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-[10px] uppercase tracking-wider opacity-50">{label}</span>
+                    <span className="text-xs font-medium text-white/90">{value}</span>
+                </div>
+            </div>
+
+            <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                {/* Select / List */}
+                <button className={cn("p-1.5 rounded-md transition-colors", btnHover[color])} title="Seleccionar">
+                    <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                {/* Edit */}
+                <button className={cn("p-1.5 rounded-md transition-colors", btnHover[color])} title="Editar Configuración">
+                    <Settings className="w-3.5 h-3.5" />
+                </button>
+                {/* Add */}
+                <button className={cn("p-1.5 rounded-md transition-colors", btnHover[color])} title="Añadir Nuevo">
+                    <Plus className="w-3.5 h-3.5" />
+                </button>
+            </div>
+        </div>
+    );
 }

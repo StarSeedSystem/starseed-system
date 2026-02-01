@@ -7,6 +7,7 @@ import { MyPagesWidget } from "@/components/dashboard/widgets/my-pages-widget";
 import { PoliticalSummaryWidget } from "@/components/dashboard/widgets/political-summary-widget";
 import { SystemStatusWidget } from "@/components/dashboard/widgets/system-status-widget";
 import { RecentActivityWidget } from "@/components/dashboard/widgets/recent-activity-widget";
+import { NexusQuickAccessWidget } from "@/components/dashboard/widgets/nexus-quick-access-widget";
 
 // We can extract other widgets later
 import { Activity, Calendar, Heart, ArrowRight } from "lucide-react";
@@ -28,6 +29,8 @@ export function WidgetRegistry({ widget }: WidgetProps) {
             return <SystemStatusWidget />;
         case 'RECENT_ACTIVITY':
             return <RecentActivityWidget />;
+        case 'NEXUS_QUICK_ACCESS':
+            return <NexusQuickAccessWidget />;
         case 'LEARNING_PATH':
             return <LearningPathWidget />;
         case 'SOCIAL_RADAR':

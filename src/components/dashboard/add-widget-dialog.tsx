@@ -15,7 +15,8 @@ import {
     Book,
     Rocket,
     Calendar,
-    Plus
+    Plus,
+    BrainCircuit
 } from "lucide-react";
 import { useState } from "react";
 import { WidgetType } from "./dashboard-types";
@@ -91,6 +92,12 @@ const AVAILABLE_WIDGETS: { type: WidgetType; title: string; description: string;
         title: 'Telemetría en Vivo',
         description: 'Métricas de red y estado de nodos en tiempo real.',
         icon: <Activity className="h-5 w-5 text-emerald-500" />
+    },
+    {
+        type: 'NEXUS_QUICK_ACCESS',
+        title: 'Nexus AI & Espacios',
+        description: 'Acceso rápido a conversaciones de IA y espacios de trabajo.',
+        icon: <BrainCircuit className="h-5 w-5 text-cyan-500" />
     }
 ];
 
@@ -146,7 +153,7 @@ export function AddWidgetDialog({ onAdd, isEditMode }: AddWidgetDialogProps) {
                         </TabsContent>
                         <TabsContent value="productivity" className="mt-0">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {AVAILABLE_WIDGETS.filter(w => ['COLLAB_PROJECTS', 'LEARNING_PATH', 'RECENT_ACTIVITY', 'POLITICAL_SUMMARY'].includes(w.type)).map((widget) => (
+                                {AVAILABLE_WIDGETS.filter(w => ['COLLAB_PROJECTS', 'LEARNING_PATH', 'RECENT_ACTIVITY', 'POLITICAL_SUMMARY', 'NEXUS_QUICK_ACCESS'].includes(w.type)).map((widget) => (
                                     <WidgetStoreItem key={widget.type} widget={widget} onClick={() => handleAdd(widget.type)} />
                                 ))}
                             </div>

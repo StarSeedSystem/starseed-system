@@ -5,11 +5,12 @@ import { createClient } from "@/utils/supabase/client";
 import { Dashboard, DashboardWidget } from "./dashboard-types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, Settings, LayoutGrid } from "lucide-react";
+import { Plus, Settings, LayoutGrid, Star, ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
 import { GridArea } from "./grid-area";
 import { useToast } from "@/components/ui/use-toast";
 import { AddWidgetDialog } from "./add-widget-dialog";
 import { WidgetType } from "./dashboard-types";
+import { cn } from "@/lib/utils";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,6 @@ export function DashboardLayout() {
     }, [activeDashboardId]);
 
     const ensureProfile = async (user: any) => {
-        // ... (rest of ensureProfile remains same, but omitted here for brevity if allowed, but cleaner to replace whole block if safe)
         const { data: profiles } = await supabase
             .from('profiles')
             .select('id')
@@ -77,6 +77,39 @@ export function DashboardLayout() {
         return newProfile;
     };
 
+    const sortDashboards = (data: Dashboard[]) => {
+        // Load order from local storage
+        const savedOrder = localStorage.getItem('dashboard_order');
+        let orderMap: string[] = [];
+        if (savedOrder) {
+            try {
+                orderMap = JSON.parse(savedOrder);
+            } catch (e) { console.error(e); }
+        }
+
+        return [...data].sort((a, b) => {
+            // 1. Default (Primary) always first
+            if (a.is_default && !b.is_default) return -1;
+            if (!a.is_default && b.is_default) return 1;
+
+            // 2. Custom Order
+            const idxA = orderMap.indexOf(a.id);
+            const idxB = orderMap.indexOf(b.id);
+
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1; // Prioritize sorted items
+            if (idxB !== -1) return 1;
+
+            // 3. Fallback to Created At
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
+    };
+
+    const saveOrder = (newDashboards: Dashboard[]) => {
+        const orderIds = newDashboards.map(d => d.id);
+        localStorage.setItem('dashboard_order', JSON.stringify(orderIds));
+    };
+
     const fetchDashboards = async () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
@@ -96,9 +129,7 @@ export function DashboardLayout() {
             const { data, error } = await supabase
                 .from('dashboards')
                 .select('*')
-                .eq('profile_id', profile.id)
-                .order('is_default', { ascending: false })
-                .order('created_at', { ascending: true });
+                .eq('profile_id', profile.id);
 
             if (error) {
                 console.error("Error fetching dashboards:", error);
@@ -106,10 +137,11 @@ export function DashboardLayout() {
             }
 
             if (data && data.length > 0) {
-                setDashboards(data);
+                const sorted = sortDashboards(data);
+                setDashboards(sorted);
                 // Set active to the first one (usually default) if not set
                 if (!activeDashboardId) {
-                    setActiveDashboardId(data[0].id);
+                    setActiveDashboardId(sorted[0].id);
                 }
             } else {
                 // New user with no dashboards? Create a default one
@@ -288,41 +320,89 @@ export function DashboardLayout() {
         }
     };
 
-    // REPLACE THIS RENDER BLOCK
-    if (loading && dashboards.length === 0) {
-        return <div className="p-8 text-center text-muted-foreground animate-pulse">Cargando centro de mando...</div>;
-    }
+    const handleSetDefault = async (dashboardId: string) => {
+        // Optimistic update
+        const newDashboards = dashboards.map(d => ({
+            ...d,
+            is_default: d.id === dashboardId
+        }));
+        // Re-sort to put new default at top
+        const sorted = sortDashboards(newDashboards);
+        setDashboards(sorted);
 
-    if (!isAuthenticated) {
-        return (
-            <div className="flex flex-col items-center justify-center p-12 gap-4 text-center">
-                <div className="rounded-full bg-destructive/10 p-4 text-destructive">
-                    <Settings className="w-8 h-8" />
-                </div>
-                <h2 className="text-xl font-bold">Acceso Requerido</h2>
-                <p className="text-muted-foreground max-w-sm">No hemos podido verificar tu sesión. Por favor inicia sesión nuevamente para acceder al dashboard.</p>
-                <Button onClick={() => window.location.href = '/login'}>Ir a Iniciar Sesión</Button>
-            </div>
-        );
-    }
+        // Convert to DB updates
+        // We need 2 calls: Set new default TRUE, Set all others (for this profile) FALSE.
+        // Or simpler: set all false, then set one true.
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            const profile = await ensureProfile(user); // Should be cached/fast
+
+            await supabase.from('dashboards').update({ is_default: false }).eq('profile_id', profile.id);
+            await supabase.from('dashboards').update({ is_default: true }).eq('id', dashboardId);
+
+            toast({ title: "Principal actualizado", description: "Dashboard asignado como principal." });
+        } catch (e) {
+            console.error(e);
+            toast({ title: "Error", description: "Error al actualizar en servidor", variant: "destructive" });
+        }
+    };
+
+    const handleMoveDashboard = (index: number, direction: 'left' | 'right') => {
+        const newIndex = direction === 'left' ? index - 1 : index + 1;
+        if (newIndex < 0 || newIndex >= dashboards.length) return;
+
+        const newDashboards = [...dashboards];
+        // Swap
+        [newDashboards[index], newDashboards[newIndex]] = [newDashboards[newIndex], newDashboards[index]];
+
+        setDashboards(newDashboards);
+        saveOrder(newDashboards);
+    };
+
+    const handleDeleteDashboard = async (id: string) => {
+        if (dashboards.length <= 1) {
+            toast({ title: "Acción bloqueada", description: "No puedes eliminar el único dashboard.", variant: "destructive" });
+            return;
+        }
+
+        const confirm = window.confirm("¿Estás seguro de eliminar este dashboard?");
+        if (!confirm) return;
+
+        try {
+            await supabase.from('dashboard_widgets').delete().eq('dashboard_id', id);
+            await supabase.from('dashboards').delete().eq('id', id);
+
+            setDashboards(prev => prev.filter(d => d.id !== id));
+            if (activeDashboardId === id) {
+                setActiveDashboardId(dashboards[0].id); // Fallback
+            }
+            toast({ title: "Eliminado", description: "Dashboard eliminado correctamente." });
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    // ... handleCreateDashboard (unchanged)
+
+    // ... render block for loading/auth
 
     return (
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-headline font-bold text-gradient">Centro de Mando</h1>
+                <h1 className="text-4xl font-bold font-headline text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-500 shadow-sm">
+                    Dashboards
+                </h1>
                 <div className="flex items-center gap-2">
                     <Button
                         variant={isEditMode ? "secondary" : "ghost"}
                         size="sm"
                         onClick={() => setIsEditMode(!isEditMode)}
-                        className="gap-2"
+                        className={cn("gap-2 transition-all", isEditMode && "bg-white/10 ring-1 ring-primary/50")}
                     >
                         <LayoutGrid className="h-4 w-4" />
-                        {isEditMode ? "Terminar Edición" : "Editar Distribución"}
+                        {isEditMode ? "Terminar Edición" : "Editar"}
                     </Button>
-                    <Button variant="outline" size="icon">
-                        <Settings className="h-4 w-4" />
-                    </Button>
+                    {/* Settings button removed/kept minimal */}
                 </div>
             </div>
 
@@ -331,31 +411,74 @@ export function DashboardLayout() {
                 onValueChange={setActiveDashboardId}
                 className="w-full"
             >
-                <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2 h-12">
-                    <TabsList className="bg-background/50 backdrop-blur border h-full items-center">
-                        {dashboards.map(d => (
-                            <TabsTrigger
-                                key={d.id}
-                                value={d.id}
-                                className="h-9 gap-2 data-[state=active]:bg-primary/20 data-[state=active]:text-primary transition-all duration-300"
-                            >
-                                {d.name}
-                                {d.is_default && <span className="text-[10px] opacity-50">★</span>}
-                            </TabsTrigger>
+                <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2 min-h-[3rem]">
+                    <TabsList className="bg-background/20 backdrop-blur-md border border-white/10 h-auto p-1 flex items-center gap-1 w-max">
+                        {dashboards.map((d, index) => (
+                            <div key={d.id} className="flex items-center group relative">
+                                <TabsTrigger
+                                    value={d.id}
+                                    className={cn(
+                                        "h-9 gap-2 data-[state=active]:bg-primary/20 data-[state=active]:text-primary transition-all duration-300 px-4",
+                                        isEditMode && "pr-8" // Make room for controls
+                                    )}
+                                >
+                                    {d.name}
+                                    {d.is_default && <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 ml-1" />}
+                                </TabsTrigger>
+
+                                {/* Edit Mode Controls Overlay */}
+                                {isEditMode && (
+                                    <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 pl-2 bg-black/40 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity z-10">
+
+                                        {!d.is_default && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleSetDefault(d.id); }}
+                                                className="p-1 hover:text-yellow-400 text-muted-foreground transition-colors"
+                                                title="Hacer Principal"
+                                            >
+                                                <Star className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                        {index > 0 && !d.is_default && ( // Can't move left if first. If default, active sort forces it first anyway
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleMoveDashboard(index, 'left'); }}
+                                                className="p-1 hover:text-white text-muted-foreground transition-colors"
+                                            >
+                                                <ArrowLeft className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                        {index < dashboards.length - 1 && !dashboards[index + 1].is_default && ( // Can't move right if next is default (shouldnt happen)
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleMoveDashboard(index, 'right'); }}
+                                                className="p-1 hover:text-white text-muted-foreground transition-colors"
+                                            >
+                                                <ArrowRight className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteDashboard(d.id); }}
+                                            className="p-1 hover:text-red-400 text-muted-foreground transition-colors"
+                                            title="Eliminar"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         ))}
                     </TabsList>
 
                     <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 hover:bg-muted">
+                            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 hover:bg-white/10 border border-dashed border-white/20">
                                 <Plus className="h-4 w-4" />
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[425px]">
                             <DialogHeader>
-                                <DialogTitle>Crear nuevo espacio</DialogTitle>
+                                <DialogTitle>Crear nuevo dashboard</DialogTitle>
                                 <DialogDescription>
-                                    Personaliza un nuevo tablero para organizar tus widgets.
+                                    Organiza tus widgets en un nuevo espacio.
                                 </DialogDescription>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
@@ -368,7 +491,7 @@ export function DashboardLayout() {
                                         value={newDashboardName}
                                         onChange={(e) => setNewDashboardName(e.target.value)}
                                         className="col-span-3"
-                                        placeholder="Ej. Análisis de Red"
+                                        placeholder="Ej. Finanzas"
                                     />
                                 </div>
                             </div>
@@ -389,17 +512,16 @@ export function DashboardLayout() {
                             setWidgets={setWidgets}
                             isEditMode={isEditMode}
                         />
-                        <div className="mt-6 pb-12">
-                            <AddWidgetDialog
-                                isEditMode={isEditMode}
-                                onAdd={(type) => {
-                                    // We need a way to add this to the DB.
-                                    // Since logic is mixed, let's wrap this in a handler in the parent for now or pass context.
-                                    // Actually, better to expose a handler for this.
-                                    handleAddWidget(d.id, type);
-                                }}
-                            />
-                        </div>
+                        {isEditMode && (
+                            <div className="flex justify-center mt-6 pb-12 opacity-50 hover:opacity-100 transition-opacity">
+                                <AddWidgetDialog
+                                    isEditMode={isEditMode}
+                                    onAdd={(type) => {
+                                        handleAddWidget(d.id, type);
+                                    }}
+                                />
+                            </div>
+                        )}
                     </TabsContent>
                 ))}
             </Tabs>

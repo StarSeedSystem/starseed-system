@@ -32,8 +32,8 @@ export function OmniDock() {
         { id: "messages", label: "Mensajes", icon: <MessageSquare className="w-5 h-5" />, path: "/messages", color: "crimson" },
         { id: "notifications", label: "Notificaciones", icon: <Bell className="w-5 h-5" />, path: "/notifications", color: "amber" },
         { id: "hub", label: "Hub", icon: <Users className="w-5 h-5" />, path: "/hub", color: "emerald" },
-        { id: "mylib", label: "Mi Biblioteca", icon: <Book className="w-5 h-5" />, path: "/library/personal", color: "cyan" },
-        { id: "netlib", label: "Librería Global", icon: <Library className="w-5 h-5" />, path: "/library/global", color: "cyan" },
+        { id: "mylib", label: "Mi Biblioteca", icon: <Book className="w-5 h-5" />, path: "/library?view=personal", color: "cyan" },
+        { id: "netlib", label: "Librería Global", icon: <Library className="w-5 h-5" />, path: "/library?view=global", color: "cyan" },
         { id: "nodes", label: "Nodos", icon: <Network className="w-5 h-5" />, path: "/network", color: "crimson" },
         { id: "settings", label: "Ajustes", icon: <Settings className="w-5 h-5" />, path: "/settings", color: "neutral" },
     ];
