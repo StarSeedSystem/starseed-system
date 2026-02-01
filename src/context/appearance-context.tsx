@@ -43,6 +43,88 @@ export interface AppearanceConfig {
         smoothStepEdge: number;
         distanceOffset: number;
     };
+    mobile: {
+        // FAB (Floating Action Button) Settings
+        fabPosition: "fixed" | "draggable";
+        fabSide: "left" | "right";
+        fabOffsetX: number;
+        fabOffsetY: number;
+        fabVerticalPosition: "top" | "center" | "bottom";
+        // Menu Behavior
+        menuType: "sheet" | "dropdown" | "fullscreen" | "sidebar";
+        menuBehavior: "push" | "overlay" | "slide";
+        menuAnimation: "slide" | "fade" | "scale" | "morph";
+        menuPosition: "left" | "right" | "bottom";
+        // Per-Screen Adjustments
+        autoHideOnScroll: boolean;
+        showOnDesktop: boolean;
+        compactMode: boolean;
+        hapticFeedback: boolean;
+        swipeToOpen: boolean;
+        gestureThreshold: number; // 20-100px
+
+        // Control Panel Specific Settings
+        controlPanel: {
+            fabPosition: "fixed" | "draggable";
+            fabSide: "left" | "right";
+            fabVerticalPosition: "top" | "center" | "bottom";
+            menuPosition: "left" | "right" | "bottom";
+            fabOffsetX: number;
+            fabOffsetY: number;
+        };
+    };
+    trinity: {
+        position: "bottom-center" | "bottom-right" | "right-center" | "left-center" | "top-right";
+        mode: "floating" | "docked";
+        style: "glass" | "solid" | "minimal";
+        isExpanded: boolean;
+    };
+    display: {
+        mode: "standard" | "vr" | "ar" | "spatial";
+        fov: number; // Field of View (60-180)
+        depthScale: number; // For 3D elements (0.5-2)
+        immersiveUI: boolean;
+        curvedUI: boolean; // Curved panels for VR
+        eyeComfort: boolean; // Reduce eye strain
+    };
+    responsive: {
+        // Device-specific layouts
+        smartphone: {
+            orientation: "auto" | "portrait" | "landscape";
+            contentDensity: "compact" | "comfortable" | "spacious";
+            bottomNavigation: boolean;
+            gestureNavigation: boolean;
+            pullToRefresh: boolean;
+        };
+        tablet: {
+            orientation: "auto" | "portrait" | "landscape";
+            splitView: boolean;
+            sidebarCollapsible: boolean;
+            contentWidth: "full" | "centered" | "narrow";
+        };
+        desktop: {
+            sidebarWidth: number; // 200-400px
+            contentMaxWidth: number; // 1200-1920px
+            multiColumn: boolean;
+            stickyHeader: boolean;
+        };
+        largeScreen: {
+            ultraWideLayout: "centered" | "expanded" | "split";
+            columnCount: 2 | 3 | 4;
+            panelSpacing: number; // 16-48px
+            cinematicMode: boolean;
+        };
+        // Global responsive options
+        breakpoints: {
+            sm: number;
+            md: number;
+            lg: number;
+            xl: number;
+            xxl: number;
+        };
+        adaptiveUI: boolean;
+        reducedMotion: boolean;
+    };
     themeStore: {
         activeTemplateId?: string;
     };
@@ -81,6 +163,86 @@ const defaultConfig: AppearanceConfig = {
         distortRadius: 0.6,
         smoothStepEdge: 0.8,
         distanceOffset: 0.15,
+    },
+    mobile: {
+        // FAB Settings
+        fabPosition: "fixed",
+        fabSide: "left",
+        fabOffsetX: 16,
+        fabOffsetY: 16,
+        fabVerticalPosition: "bottom",
+        // Menu Behavior
+        menuType: "sheet",
+        menuBehavior: "overlay",
+        menuAnimation: "slide",
+        menuPosition: "left",
+        // Per-Screen Adjustments
+        autoHideOnScroll: false,
+        showOnDesktop: false,
+        compactMode: false,
+        hapticFeedback: true,
+        swipeToOpen: true,
+        gestureThreshold: 50,
+
+        // Control Panel Defaults
+        controlPanel: {
+            fabPosition: "fixed",
+            fabSide: "right", // Default right to avoid collision with nav (left)
+            fabVerticalPosition: "bottom",
+            menuPosition: "right",
+            fabOffsetX: 16,
+            fabOffsetY: 80, // Slightly higher to avoid collision if both are bottom
+        }
+    },
+    trinity: {
+        position: "bottom-center",
+        mode: "floating",
+        style: "glass",
+        isExpanded: true,
+    },
+    display: {
+        mode: "standard",
+        fov: 110,
+        depthScale: 1,
+        immersiveUI: false,
+        curvedUI: false,
+        eyeComfort: false,
+    },
+    responsive: {
+        smartphone: {
+            orientation: "auto",
+            contentDensity: "comfortable",
+            bottomNavigation: true,
+            gestureNavigation: true,
+            pullToRefresh: true,
+        },
+        tablet: {
+            orientation: "auto",
+            splitView: false,
+            sidebarCollapsible: true,
+            contentWidth: "centered",
+        },
+        desktop: {
+            sidebarWidth: 280,
+            contentMaxWidth: 1400,
+            multiColumn: true,
+            stickyHeader: true,
+        },
+        largeScreen: {
+            ultraWideLayout: "centered",
+            columnCount: 3,
+            panelSpacing: 24,
+            cinematicMode: false,
+        },
+        breakpoints: {
+            sm: 640,
+            md: 768,
+            lg: 1024,
+            xl: 1280,
+            xxl: 1536,
+        },
+        adaptiveUI: true,
+        reducedMotion: false,
     },
     themeStore: {},
 };

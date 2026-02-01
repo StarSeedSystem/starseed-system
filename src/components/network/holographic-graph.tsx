@@ -337,8 +337,8 @@ export function HolographicGraph() {
                 </h2>
             </div>
 
-            {/* Stats Panel */}
-            <div className="absolute top-6 right-6 z-10 flex flex-col gap-2 pointer-events-none fade-in slide-in-from-right-10 duration-700">
+            {/* Stats Panel - Responsive */}
+            <div className="absolute top-6 right-6 z-10 hidden md:flex flex-col gap-2 pointer-events-none fade-in slide-in-from-right-10 duration-700">
                 <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-lg p-3 w-40">
                     <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Active Nodes</div>
                     <div className="text-2xl font-mono text-white">{stats.nodes}</div>
@@ -350,6 +350,18 @@ export function HolographicGraph() {
                 <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-lg p-3 w-40">
                     <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Data Packets</div>
                     <div className="text-2xl font-mono text-pink-400">{stats.packets}</div>
+                </div>
+            </div>
+
+            {/* Mobile Stats (Simplified) */}
+            <div className="absolute top-24 left-6 z-10 flex md:hidden items-center gap-4 pointer-events-none">
+                <div className="flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase">Nodes</span>
+                    <span className="text-sm font-mono text-white">{stats.nodes}</span>
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase">Synapses</span>
+                    <span className="text-sm font-mono text-cyan-400">{stats.connections}</span>
                 </div>
             </div>
 

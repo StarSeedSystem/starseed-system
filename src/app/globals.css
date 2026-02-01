@@ -59,6 +59,18 @@
     --chart-3: 60;
     --chart-4: 120;
     --chart-5: 240;
+
+    /* --- Hyper-Glass Realism Variables --- */
+    --glass-specular-opacity: 0.4;
+    --glass-reflection-opacity: 0.2;
+    --glass-border-opacity: 0.3;
+    --glass-shadow-layer-1: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --glass-shadow-layer-2: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --glass-shadow-layer-3: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    --glass-shadow-ambient: 0 0 40px rgba(255, 255, 255, 0.1);
+    --perspective-depth: 2000px;
+    --card-tilt-intensity: 15;
+    /* degrees */
   }
 
   .dark {
@@ -439,6 +451,25 @@
 .liquid-ui-enabled .popover-content {
   @apply liquid-glass-ui;
   transition: all 0.2s ease;
+}
+
+/* Mobile Responsiveness Improvements */
+@media (max-width: 768px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Improve contrast on mobile */
+  :root {
+    --muted-foreground-hsl: 275 20% 30%;
+    /* Darker for better visibility on light */
+  }
+
+  .dark {
+    --muted-foreground-hsl: 275 20% 75%;
+    /* Lighter for better visibility on dark */
+  }
 }
 
 /* Hover effects for interactive elements */

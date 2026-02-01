@@ -81,6 +81,12 @@ export function AppSidebar({
   return (
     <div className={cn(
       "bg-background/80 backdrop-blur-xl transition-all duration-500 ease-in-out",
+      // Global Toggle Logic: Only applies if we want it to be toggleable.
+      // We will handle this via the specific Sidebar implementation in layout.tsx via className or conditional rendering,
+      // BUT if we want internal animation support, we can use the context here.
+      // For now, let's rely on the parent to hide/show or use a specific prop.
+      // Actually, let's allow the className to control visibility, but use isOpen for state classes if needed.
+
       // Border logic (only if not dock)
       !isDock && !isHorizontal && (side === "left" ? "border-r" : "border-l"),
       !isDock && isHorizontal && (side === "top" ? "border-b" : "border-t"),

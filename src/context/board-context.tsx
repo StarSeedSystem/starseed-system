@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 // --- Types ---
 
-export type WidgetType = "note" | "image" | "checklist" | "ai";
+export type WidgetType = "note" | "image" | "checklist" | "ai" | string;
 
 export interface BoardWidget {
     i: string; // Unique ID for RGL
