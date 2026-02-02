@@ -7,6 +7,7 @@ import { useAppearance } from "@/context/appearance-context";
 import { useBoardSystem } from "@/context/board-context"; // Import BoardContext
 import UniversalBoardViewer from "@/components/control-panel/board/universal-board-viewer"; // Import new Viewer
 import { MarketplaceView } from "@/components/control-panel/board/marketplace-view";
+import { ControlCenter } from "./trinity/control-center";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -207,14 +208,14 @@ export function SideCurtains() {
                     exit={{ x: "100%" }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
                     className={cn(
-                        "fixed top-0 right-0 h-full z-[90] pointer-events-auto border-l border-amber-500/30 shadow-[-10px_0_40px_rgba(245,158,11,0.3)]",
-                        activeBoardId ? "w-full sm:w-[90vw] lg:w-[85vw]" : "w-[350px] md:w-[450px]"
+                        "fixed top-0 right-0 h-full z-[90] pointer-events-auto border-l border-white/10 shadow-[-10px_0_40px_rgba(0,0,0,0.5)]",
+                        activeBoardId ? "w-full sm:w-[90vw] lg:w-[85vw]" : "w-auto"
                     )}
                 >
-                    {/* Glass/Color Background */}
-                    <div className="absolute inset-0 bg-gradient-to-l from-amber-950/95 via-amber-900/90 to-black/80 backdrop-blur-xl" />
+                    {/* Glass/Color Background - Neutral for Control Center */}
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-2xl" />
 
-                    <div className="relative z-10 w-full h-full flex flex-col text-amber-50">
+                    <div className="relative z-10 w-full h-full flex flex-col text-foreground">
 
                         {activeBoardId && activeBoardData ? (
                             <div className="h-full w-full relative">
@@ -231,92 +232,10 @@ export function SideCurtains() {
                             </div>
                         ) : (
                             <>
-                                {/* Integrated Header */}
-                                <div className="flex items-center justify-between p-6 border-b border-amber-500/20 bg-amber-950/20">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 rounded-full bg-amber-500/20 border border-amber-400/30 shadow-[0_0_15px_rgba(245,158,11,0.4)]">
-                                            <Settings className="w-5 h-5 text-amber-300" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-lg font-light tracking-widest uppercase font-headline text-amber-100">
-                                                Panel de Control
-                                            </h2>
-                                            <p className="text-[10px] text-amber-400/60 font-mono">SYSTEM CONTROL PANEL</p>
-                                        </div>
-                                    </div>
-                                    <Button variant="ghost" size="icon" onClick={handleClose} className="text-amber-400/50 hover:text-amber-200">
-                                        <ArrowRight className="w-5 h-5" />
-                                    </Button>
+                                {/* New Trinity Control Center Integration */}
+                                <div className="w-full h-full flex items-center justify-center bg-transparent">
+                                    <ControlCenter />
                                 </div>
-
-                                {/* Main Tabs Area */}
-                                <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-                                    <div className="px-6 pt-4">
-                                        <TabsList className="grid w-full grid-cols-4 bg-black/40 border border-amber-500/20">
-                                            <TabsTrigger value="ai" className={getTabTriggerStyle("ai", "text-cyan-400 data-[state=active]:bg-cyan-950/30 data-[state=active]:text-cyan-300")}>
-                                                <Bot className="h-4 w-4" />
-                                            </TabsTrigger>
-                                            {/* Boards Tab Removed from here - moved to Creation (Left) */}
-                                            <TabsTrigger value="store" className={getTabTriggerStyle("store", "text-purple-400 data-[state=active]:bg-purple-950/30 data-[state=active]:text-purple-300")}>
-                                                <BookOpen className="h-4 w-4" />
-                                            </TabsTrigger>
-                                            <TabsTrigger value="widgets" className={getTabTriggerStyle("widgets", "text-amber-400 data-[state=active]:bg-amber-950/30 data-[state=active]:text-amber-300")}>
-                                                <Settings2 className="h-4 w-4" />
-                                            </TabsTrigger>
-                                        </TabsList>
-                                    </div>
-
-                                    {/* AI CONTENT */}
-                                    <TabsContent value="ai" className="flex-1 flex flex-col p-6 gap-4 overflow-hidden data-[state=active]:animate-in data-[state=active]:slide-in-from-right-2">
-                                        <ScrollArea className="flex-1 rounded-md border p-4 bg-cyan-950/5 border-cyan-500/10">
-                                            <div className="flex flex-col gap-4">
-                                                <div className="flex gap-3 items-start">
-                                                    <div className="h-8 w-8 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0">
-                                                        <Bot className="h-4 w-4 text-cyan-400" />
-                                                    </div>
-                                                    <div className="bg-cyan-950/30 p-3 rounded-lg rounded-tl-none text-sm text-cyan-100 border border-cyan-500/20">
-                                                        Nexus AI conectado. Sistemas de lógica listos.
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </ScrollArea>
-                                        <div className="flex gap-2">
-                                            <Input placeholder="Comando..." className="border-cyan-500/20 bg-black/40 text-cyan-100 placeholder:text-cyan-500/50 focus-visible:ring-cyan-500/30" />
-                                            <Button size="icon" className="bg-cyan-600/20 hover:bg-cyan-500/40 text-cyan-300 border border-cyan-500/30"><Send className="h-4 w-4" /></Button>
-                                        </div>
-                                    </TabsContent>
-
-                                    {/* BOARDS CONTENT REMOVED - Moved to Left Curtain */}
-
-                                    {/* STORE CONTENT */}
-                                    <TabsContent value="store" className="flex-1 overflow-hidden p-0 data-[state=active]:animate-in data-[state=active]:slide-in-from-right-2">
-                                        <MarketplaceView />
-                                    </TabsContent>
-
-                                    {/* WIDGETS / LOGIC CONTENT */}
-                                    <TabsContent value="widgets" className="flex-1 p-6 data-[state=active]:animate-in data-[state=active]:slide-in-from-right-2">
-                                        <div className="grid gap-3">
-                                            <div className="p-4 rounded-lg bg-amber-950/20 border border-amber-500/20">
-                                                <h4 className="text-xs font-semibold text-amber-400 uppercase mb-3">Monitor del Sistema</h4>
-                                                <div className="space-y-2">
-                                                    <div className="flex justify-between text-xs text-amber-200/60">
-                                                        <span>CPU Load</span>
-                                                        <span>12%</span>
-                                                    </div>
-                                                    <div className="h-1 bg-amber-950 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-amber-500 w-[12%]" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <ToolButton
-                                                icon={<Activity className="w-5 h-5" />}
-                                                label="Diagnóstico"
-                                                description="Checkeo completo"
-                                                color="amber"
-                                            />
-                                        </div>
-                                    </TabsContent>
-                                </Tabs>
                             </>
                         )}
                     </div>

@@ -20,10 +20,22 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+import { useAppearance } from "@/context/appearance-context";
+
 export function OmniDock() {
     const { activeEdge } = usePerimeter();
+    const { config } = useAppearance();
     const router = useRouter();
-    const isVisible = activeEdge === "anchor";
+
+    const { dockBehavior = "anchor-only" } = config?.trinity || {};
+
+    let isVisible = false;
+    if (dockBehavior === "always-visible") {
+        isVisible = true;
+    } else {
+        // "anchor-only" and "auto-hide" both rely on the anchor edge for now
+        isVisible = activeEdge === "anchor";
+    }
 
     // Dock Items Configuration
     const dockItems = [

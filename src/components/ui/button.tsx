@@ -56,7 +56,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }), "transition-all duration-300",
+        className={cn(buttonVariants({ variant, size, className }), "transition-all duration-300 shadcn-button",
           // We can add a data attribute or class that global CSS targets
           "data-[liquid-ui=true]:liquid-glass-ui"
         )}

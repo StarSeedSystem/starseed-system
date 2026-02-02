@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AppearanceProvider } from "@/context/appearance-context";
 import { cn } from "@/lib/utils";
 import { LiquidGlass } from "@/components/ui/liquid-glass";
+import { WebGLBackground } from "@/components/ui/backgrounds/webgl-background";
 import { PerimeterProvider } from "@/context/perimeter-context";
 import { PerimeterInterface } from "@/components/layout/perimeter-interface";
 import { ZenithCurtain } from "@/components/layout/zenith-curtain";
@@ -15,7 +16,7 @@ import { ControlPanelProvider } from "@/context/control-panel-context";
 import { SidebarProvider } from "@/context/sidebar-context";
 import { BoardProvider } from "@/context/board-context";
 import { UserProvider } from "@/context/user-context";
-import { TrinityFloatingInterface } from "@/components/layout/trinity-interface";
+
 import { OmniDock } from "@/components/layout/omni-dock";
 
 const fontInter = Inter({
@@ -80,10 +81,11 @@ export default function RootLayout({
                   <ControlPanelProvider>
                     <PerimeterProvider>
                       <LiquidGlass />
+                      <WebGLBackground />
                       {children}
                       <ZenithCurtain />
                       <SideCurtains />
-                      <TrinityFloatingInterface />
+
                       <OmniDock />
                       <PerimeterInterface />
                       <Toaster />

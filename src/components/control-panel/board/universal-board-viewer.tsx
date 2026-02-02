@@ -103,7 +103,7 @@ const UniversalBoardViewer = () => {
     // --- Render ---
 
     const canvasClasses = cn(
-        "relative transition-all duration-700 ease-[cubic-bezier(0.25,0.1,0.25,1)]",
+        "relative transition-all duration-700 ease-out",
         isFullscreen
             ? "fixed inset-0 z-[100] bg-[#0A0A0A] " // Use a solid dark background for focus mode
             : "h-full w-full bg-black/20 rounded-xl border border-white/5 overflow-hidden shadow-2xl"

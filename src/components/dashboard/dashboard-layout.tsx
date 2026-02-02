@@ -337,6 +337,8 @@ export function DashboardLayout() {
             const { data: { user } } = await supabase.auth.getUser();
             const profile = await ensureProfile(user); // Should be cached/fast
 
+            if (!profile) return;
+
             await supabase.from('dashboards').update({ is_default: false }).eq('profile_id', profile.id);
             await supabase.from('dashboards').update({ is_default: true }).eq('id', dashboardId);
 

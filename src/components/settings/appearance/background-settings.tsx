@@ -46,11 +46,55 @@ export function BackgroundSettings() {
     return (
         <div className="space-y-6">
             <Tabs defaultValue="solid" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 mb-6">
+                <TabsList className="grid w-full grid-cols-4 mb-6">
                     <TabsTrigger value="solid" className="gap-2"><PaintBucket className="h-4 w-4" /> Sólido</TabsTrigger>
                     <TabsTrigger value="gradient" className="gap-2"><Sparkles className="h-4 w-4" /> Gradiente</TabsTrigger>
                     <TabsTrigger value="image" className="gap-2"><ImagePlus className="h-4 w-4" /> Imagen</TabsTrigger>
+                    <TabsTrigger value="webgl" className="gap-2">🌐 WebGL</TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="webgl">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Fondos Generativos (WebGL)</CardTitle>
+                            <CardDescription>Experiencias visuales renderizadas en tiempo real.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                {['hex', 'nebula', 'grid', 'waves'].map((variant) => (
+                                    <button
+                                        key={variant}
+                                        onClick={() => updateSection("background", { type: 'webgl', webglVariant: variant as any })}
+                                        className={cn(
+                                            "h-24 rounded-xl border-2 flex items-center justify-center capitalize font-bold transition-all hover:scale-105",
+                                            config.background.type === 'webgl' && config.background.webglVariant === variant
+                                                ? "border-primary bg-primary/10 text-primary"
+                                                : "border-muted bg-muted/20"
+                                        )}
+                                    >
+                                        {variant}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="space-y-4 pt-4 border-t">
+                                <Label>Velocidad de Simulación</Label>
+                                <Slider
+                                    min={0} max={2} step={0.1}
+                                    value={[config.background.webglSpeed || 0.5]}
+                                    onValueChange={([val]) => updateSection("background", { webglSpeed: val })}
+                                />
+
+                                <Label>Zoom / Escala</Label>
+                                <Slider
+                                    min={0.5} max={3} step={0.1}
+                                    value={[config.background.webglZoom || 1.0]}
+                                    onValueChange={([val]) => updateSection("background", { webglZoom: val })}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
 
                 <TabsContent value="solid">
                     <Card>

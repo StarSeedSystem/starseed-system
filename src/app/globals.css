@@ -485,6 +485,24 @@
   transform: translateY(-2px) translateZ(0);
 }
 
+/* Global Button Personalization Effects */
+.buttons-glow-enabled .shadcn-button.bg-primary {
+  box-shadow: 0 0 15px hsl(var(--primary) / 0.5);
+  transition: box-shadow 0.3s ease;
+}
+
+.buttons-glow-enabled .shadcn-button.bg-primary:hover {
+  box-shadow: 0 0 25px hsl(var(--primary) / 0.7), 0 0 10px hsl(var(--primary) / 0.5);
+}
+
+.buttons-animation-enabled .shadcn-button:hover {
+  transform: scale(1.05);
+}
+
+.buttons-animation-enabled .shadcn-button:active {
+  transform: scale(0.95);
+}
+
 .dark .liquid-glass-ui {
   backdrop-filter: blur(var(--glass-blur, 20px)) saturate(var(--glass-saturation, 180%));
   background: linear-gradient(135deg,

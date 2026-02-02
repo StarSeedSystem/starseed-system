@@ -29,6 +29,7 @@ export function WidgetRegistry({ widget }: WidgetProps) {
             return <SystemStatusWidget />;
         case 'RECENT_ACTIVITY':
             return <RecentActivityWidget />;
+
         case 'NEXUS_QUICK_ACCESS':
             return <NexusQuickAccessWidget />;
         case 'LEARNING_PATH':

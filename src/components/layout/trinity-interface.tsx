@@ -27,6 +27,8 @@ import { useRouter } from "next/navigation";
 import { useAppearance } from "@/context/appearance-context";
 import { useSidebar } from "@/context/sidebar-context";
 
+
+
 export function TrinityFloatingInterface() {
     const { toggle: toggleControlPanel, isOpen: isControlPanelOpen, activeTab, setActiveTab, setIsOpen: setControlPanelOpen } = useControlPanel();
     const { toggle: toggleSidebar, isOpen: isSidebarOpen } = useSidebar();
@@ -36,7 +38,14 @@ export function TrinityFloatingInterface() {
     const { activeEdge, setActiveEdge } = usePerimeter();
 
     // Configuration from Context
-    const { position = "bottom-center", mode = "floating", style = "glass", isExpanded: initialExpanded = true } = config?.trinity || {};
+    const {
+        mode = "floating",
+        style = "glass",
+        isExpanded: initialExpanded = true,
+        menuCustomization
+    } = config?.trinity || {};
+
+    const { showLabels = true, iconScale = 1 } = menuCustomization || {};
 
     const [isExpanded, setExpanded] = useState(initialExpanded);
     const [constraints, setConstraints] = useState({ left: 0, right: 0, top: 0, bottom: 0 });
@@ -70,7 +79,6 @@ export function TrinityFloatingInterface() {
     };
 
     // Auto-expand when non-conflicting edges are active (Left/Right)
-    // We removed 'anchor' from here so OmniDock takes over for the bottom edge.
     useEffect(() => {
         if (activeEdge === 'horizon' || activeEdge === 'logic') {
             setExpanded(true);
@@ -79,16 +87,7 @@ export function TrinityFloatingInterface() {
 
     // --- CHROMODYNAMICS & POSITIONING ---
     const getPositionClasses = () => {
-        if (mode === 'docked' || mode === 'floating') {
-            switch (position) {
-                case 'bottom-center': return "bottom-8 left-1/2 -translate-x-1/2 flex-row items-end gap-2";
-                case 'bottom-right': return "bottom-8 right-8 flex-col-reverse items-end gap-2";
-                case 'top-right': return "top-24 right-8 flex-col items-end gap-2";
-                case 'left-center': return "top-1/2 left-8 -translate-y-1/2 flex-row items-center gap-2";
-                case 'right-center': return "top-1/2 right-8 -translate-y-1/2 flex-row-reverse items-center gap-2";
-                default: return "bottom-8 left-1/2 -translate-x-1/2 flex-row items-end gap-2";
-            }
-        }
+        // Standardized to Bottom Center for stability in the new layout system
         return "bottom-8 left-1/2 -translate-x-1/2 flex-row items-end gap-2";
     };
 
@@ -129,7 +128,7 @@ export function TrinityFloatingInterface() {
                                 className={cn(
                                     "flex items-center relative p-4 transition-all gap-3",
                                     // Make sure inner flex direction matches outter for consistency
-                                    position.includes('flex-col') ? "flex-col-reverse" : "flex-row"
+                                    getPositionClasses().includes('flex-col') ? "flex-col-reverse" : "flex-row"
                                 )}
                                 style={{ filter: "url(#goo)" }}
                             >
@@ -144,6 +143,8 @@ export function TrinityFloatingInterface() {
                                             color="neutral"
                                             delay={0.2}
                                             size="normal"
+                                            scale={iconScale}
+                                            showLabel={showLabels}
                                         />,
                                         <FloatingButton
                                             key="profile"
@@ -153,6 +154,8 @@ export function TrinityFloatingInterface() {
                                             color="neutral"
                                             delay={0.15}
                                             size="normal"
+                                            scale={iconScale}
+                                            showLabel={showLabels}
                                         />,
                                         <FloatingButton
                                             key="publish"
@@ -162,6 +165,8 @@ export function TrinityFloatingInterface() {
                                             color="emerald"
                                             delay={0.12}
                                             size="normal"
+                                            scale={iconScale}
+                                            showLabel={showLabels}
                                         />,
                                         <FloatingButton
                                             key="creation"
@@ -172,6 +177,8 @@ export function TrinityFloatingInterface() {
                                             delay={0.1}
                                             isActive={activeEdge === 'horizon'}
                                             size="normal"
+                                            scale={iconScale}
+                                            showLabel={showLabels}
                                         />
                                     ]}
                                 </AnimatePresence>
@@ -188,72 +195,16 @@ export function TrinityFloatingInterface() {
                                 {/* RIGHT WING (Context & Exploration) */}
                                 <AnimatePresence mode="popLayout">
                                     {isExpanded && [
-                                        <FloatingButton
-                                            key="ai"
-                                            onClick={handleAIAssistant}
-                                            icon={<Sparkles className="w-5 h-5" />}
-                                            label="IA Nexus"
-                                            color="cyan"
-                                            delay={0.1}
-                                            isActive={activeEdge === 'zenith'}
-                                            size="normal"
-                                        />,
-                                        <FloatingButton
-                                            key="logic"
-                                            onClick={handleLogic}
-                                            icon={<Settings2 className="w-5 h-5" />}
-                                            label="Panel de Control"
-                                            color="amber"
-                                            delay={0.12}
-                                            isActive={activeEdge === 'logic'}
-                                            size="normal"
-                                        />,
-                                        <FloatingButton
-                                            key="messages"
-                                            onClick={() => router.push("/messages")}
-                                            icon={<MessageSquare className="w-5 h-5" />}
-                                            label="Mensajes"
-                                            color="crimson"
-                                            delay={0.15}
-                                            size="normal"
-                                        />,
-                                        <FloatingButton
-                                            key="network"
-                                            onClick={() => router.push("/network")}
-                                            icon={<Network className="w-5 h-5" />}
-                                            label="Red"
-                                            color="crimson"
-                                            delay={0.2}
-                                            size="normal"
-                                        />,
-                                        <FloatingButton
-                                            key="hub"
-                                            onClick={() => router.push("/hub")}
-                                            icon={<Users className="w-5 h-5" />}
-                                            label="Hub"
-                                            color="crimson"
-                                            delay={0.25}
-                                            size="normal"
-                                        />,
-                                        <FloatingButton
-                                            key="explorer"
-                                            onClick={() => router.push("/explorer")}
-                                            icon={<Globe className="w-5 h-5" />}
-                                            label="Explorador"
-                                            color="crimson"
-                                            delay={0.3}
-                                            size="normal"
-                                        />
+                                        // No ControlCenter here anymore
                                     ]}
                                 </AnimatePresence>
                             </div>
                         </motion.div>
                     </motion.div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
         </>
     );
-
 }
 
 // ------------------------------------------------------------------
@@ -269,9 +220,11 @@ interface FloatingButtonProps {
     color?: "neutral" | "cyan" | "amber" | "emerald" | "crimson";
     size?: "normal" | "large";
     className?: string;
+    showLabel?: boolean;
+    scale?: number;
 }
 
-function FloatingButton({ onClick, icon, label, isActive, delay = 0, color = "neutral", size = "normal", className }: FloatingButtonProps) {
+function FloatingButton({ onClick, icon, label, isActive, delay = 0, color = "neutral", size = "normal", className, showLabel = true, scale = 1 }: FloatingButtonProps) {
 
     // Chromodynamic Map
     const colorStyles = {
@@ -288,7 +241,7 @@ function FloatingButton({ onClick, icon, label, isActive, delay = 0, color = "ne
         <motion.div
             layout
             initial={{ opacity: 0, scale: 0.5, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
+            animate={{ opacity: 1, scale: scale, y: 0 }}
             exit={{ opacity: 0, scale: 0.5, y: 10 }}
             transition={{
                 delay,
@@ -314,7 +267,7 @@ function FloatingButton({ onClick, icon, label, isActive, delay = 0, color = "ne
             </Button>
 
             {/* Tooltip Label */}
-            {label && (
+            {label && showLabel && (
                 <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap backdrop-blur-md border border-white/10">
                     {label}
                 </span>

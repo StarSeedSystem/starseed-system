@@ -103,3 +103,17 @@ This document is the single source of truth for the **StarSeed Network** project
 - **Protocol**: B.L.A.S.T. (Blueprint, Link, Architect, Stylize, Trigger)
 - **Architecture**: A.N.T. 3-Layer System (Abstract, Neural, Tangible)
 - **Priorities**: Reliability > Speed. No guessing.
+
+### Directory Map
+- `.agent/`: Neural Layer (Skills, Agents, Workflows)
+- `architecture/`: Abstract Layer (SOPs, Specs)
+- `tools/`: Tangible Layer (Scripts)
+- `src/`: Tangible Layer (Application Code)
+
+## 4. Agent Roster
+- **Zenith (Top/Blue)**: Contextual Guide. Philosophy: Wisdom, Illumination.
+- **Horizon (Left/Green)**: Creation Canvas. Philosophy: Vitality, Genesis.
+- **Anchor (Bottom/Red)**: System Dock. Philosophy: Stability, Root Access.
+- **Logic (Right/Yellow)**: Control Panel. Philosophy: Order, Execution.
+- **Exocortex**: System Pilot. B.L.A.S.T. Protocol Executor.
+

@@ -26,7 +26,7 @@ export function AIInsightWidget() {
             <div className="relative z-10 flex flex-col items-center">
                 <div className="mb-4 relative">
                     <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full" />
-                    <Sparkles className="w-8 h-8 text-indigo-400 relative z-10 animate-pulse duration-[3000ms]" />
+                    <Sparkles className="w-8 h-8 text-indigo-400 relative z-10 animate-pulse" />
                 </div>
 
                 <h4 className="text-xs font-bold text-indigo-200 mb-3 tracking-widest uppercase flex items-center gap-2">

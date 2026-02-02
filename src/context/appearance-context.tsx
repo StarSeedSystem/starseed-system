@@ -27,12 +27,22 @@ export interface AppearanceConfig {
         opacity: number; // 0 to 1
     };
     background: {
-        type: "solid" | "gradient" | "image" | "video";
+        type: "solid" | "gradient" | "image" | "video" | "webgl";
         value: string; // url or css value
         blur: number; // background blur
         animation: "none" | "pan" | "zoom" | "pulse" | "scroll";
         overlayOpacity: number; // 0 to 1
         overlayColor: "black" | "white";
+        // WebGL specific
+        webglVariant?: "nebula" | "grid" | "waves" | "hex";
+        webglSpeed?: number;
+        webglZoom?: number;
+    };
+    buttons: {
+        style: "default" | "glass" | "liquid" | "neon" | "brutal";
+        radius: number;
+        glow: boolean;
+        animation: boolean;
     };
     liquidGlass: {
         enabled: boolean;
@@ -42,7 +52,7 @@ export interface AppearanceConfig {
         distortRadius: number;
         smoothStepEdge: number;
         distanceOffset: number;
-    };
+    },
     mobile: {
         // FAB (Floating Action Button) Settings
         fabPosition: "fixed" | "draggable";
@@ -74,10 +84,16 @@ export interface AppearanceConfig {
         };
     };
     trinity: {
-        position: "bottom-center" | "bottom-right" | "right-center" | "left-center" | "top-right";
         mode: "floating" | "docked";
         style: "glass" | "solid" | "minimal";
         isExpanded: boolean;
+        dockBehavior: "always-visible" | "auto-hide" | "anchor-only";
+        edgeSensitivity: number; // 0-100
+        menuCustomization: {
+            showLabels: boolean;
+            iconScale: number;
+            animationSpeed: "slow" | "normal" | "fast";
+        };
     };
     display: {
         mode: "standard" | "vr" | "ar" | "spatial";
@@ -154,6 +170,15 @@ const defaultConfig: AppearanceConfig = {
         animation: "none",
         overlayOpacity: 0.2, // Default light overlay
         overlayColor: "black",
+        webglVariant: "hex",
+        webglSpeed: 0.5,
+        webglZoom: 1.0,
+    },
+    buttons: {
+        style: "default",
+        radius: 0.5,
+        glow: false,
+        animation: true,
     },
     liquidGlass: {
         enabled: true,
@@ -195,10 +220,16 @@ const defaultConfig: AppearanceConfig = {
         }
     },
     trinity: {
-        position: "bottom-center",
         mode: "floating",
         style: "glass",
         isExpanded: true,
+        dockBehavior: "anchor-only",
+        edgeSensitivity: 20,
+        menuCustomization: {
+            showLabels: true,
+            iconScale: 1,
+            animationSpeed: "normal"
+        }
     },
     display: {
         mode: "standard",
@@ -368,6 +399,23 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
 
         root.style.setProperty("--glass-blur", `${glassIntensity}px`);
         root.style.setProperty("--glass-opacity", String(opacity));
+
+        // Button Styling
+        if (currentConfig.buttons) {
+            root.style.setProperty("--radius", `${currentConfig.buttons.radius}rem`);
+
+            if (currentConfig.buttons.glow) {
+                document.body.classList.add('buttons-glow-enabled');
+            } else {
+                document.body.classList.remove('buttons-glow-enabled');
+            }
+
+            if (currentConfig.buttons.animation) {
+                document.body.classList.add('buttons-animation-enabled');
+            } else {
+                document.body.classList.remove('buttons-animation-enabled');
+            }
+        }
 
         // Background (Custom handling needed for complex types)
         const background = currentConfig.background || defaultConfig.background;
