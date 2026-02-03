@@ -25,6 +25,19 @@ export interface AppearanceConfig {
         radius: number; // 0 to 1.5rem
         glassIntensity: number; // blur amount in px
         opacity: number; // 0 to 1
+        // Advanced / Theme Specific
+        borderWidth: number; // 0 to 4px
+        refraction: number; // 0 to 1 (Crystal)
+        chromaticAberration: number; // 0 to 10px (Crystal)
+        noiseOpacity: number; // 0 to 1 (Crystal)
+        glowIntensity: number; // 0 to 1 (Neon)
+        hardShadows: boolean; // (Brutalist)
+        uppercase: boolean; // (Brutalist)
+        neonTicker: boolean; // (Neon)
+        fluidity: number; // (Liquid)
+        surfaceTension: number; // (Liquid)
+        frostOpacity: number; // (Glass)
+        glassNoise: number; // (Glass)
     };
     background: {
         type: "solid" | "gradient" | "image" | "video" | "webgl";
@@ -42,7 +55,15 @@ export interface AppearanceConfig {
         style: "default" | "glass" | "liquid" | "neon" | "brutal";
         radius: number;
         glow: boolean;
-        animation: boolean;
+        animation: boolean; // Legacy: Maps to animations.hover
+    };
+    animations: {
+        enabled: boolean; // Global toggle
+        hover: boolean; // Scale/Lift on hover
+        click: boolean; // Ripple/Press effect
+        trinityEntry: "fade" | "slide" | "scale" | "elastic";
+        pageTransition: boolean;
+        microInteractions: boolean; // Smooth icon movements etc
     };
     liquidGlass: {
         enabled: boolean;
@@ -162,6 +183,18 @@ const defaultConfig: AppearanceConfig = {
         radius: 0.5,
         glassIntensity: 10,
         opacity: 0.8,
+        borderWidth: 1,
+        refraction: 0,
+        chromaticAberration: 0,
+        noiseOpacity: 0,
+        glowIntensity: 0,
+        hardShadows: false,
+        uppercase: false,
+        neonTicker: false,
+        fluidity: 50,
+        surfaceTension: 50,
+        frostOpacity: 0.5,
+        glassNoise: 0.05,
     },
     background: {
         type: "solid",
@@ -179,6 +212,14 @@ const defaultConfig: AppearanceConfig = {
         radius: 0.5,
         glow: false,
         animation: true,
+    },
+    animations: {
+        enabled: true,
+        hover: true,
+        click: true,
+        trinityEntry: "scale",
+        pageTransition: true,
+        microInteractions: true,
     },
     liquidGlass: {
         enabled: true,
@@ -400,7 +441,29 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         root.style.setProperty("--glass-blur", `${glassIntensity}px`);
         root.style.setProperty("--glass-opacity", String(opacity));
 
-        // Button Styling
+        // Advanced Styling Vars
+        root.style.setProperty("--border-width", `${styling.borderWidth ?? 1}px`);
+        root.style.setProperty("--glass-refraction", String(styling.refraction ?? 0));
+        root.style.setProperty("--glass-aberration", `${styling.chromaticAberration ?? 0}px`);
+        root.style.setProperty("--glass-noise", String(styling.noiseOpacity ?? 0));
+        root.style.setProperty("--neon-glow", String(styling.glowIntensity ?? 0));
+
+        if (styling.hardShadows) root.classList.add('theme-hard-shadows');
+        else root.classList.remove('theme-hard-shadows');
+
+        if (styling.uppercase) root.classList.add('theme-uppercase');
+        else root.classList.remove('theme-uppercase');
+
+        // Theme Specific Variables
+        root.style.setProperty("--neon-ticker", styling.neonTicker ? "1" : "0");
+        root.style.setProperty("--liquid-fluidity", `${styling.fluidity ?? 50}s`); // Duration inverse? Or raw value
+        root.style.setProperty("--liquid-tension", String(styling.surfaceTension ?? 50));
+        root.style.setProperty("--glass-frost", String(styling.frostOpacity ?? 0.5));
+        root.style.setProperty("--glass-noise-amt", String(styling.glassNoise ?? 0.05));
+
+        if (styling.neonTicker) document.body.classList.add('neon-flicker-enabled');
+        else document.body.classList.remove('neon-flicker-enabled');
+
         if (currentConfig.buttons) {
             root.style.setProperty("--radius", `${currentConfig.buttons.radius}rem`);
 
@@ -410,11 +473,26 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
                 document.body.classList.remove('buttons-glow-enabled');
             }
 
-            if (currentConfig.buttons.animation) {
+            // Legacy button animation + Global Hover
+            const anims = currentConfig.animations || defaultConfig.animations;
+
+            // Toggle global animation class
+            if (anims.enabled) document.body.classList.remove('animations-disabled');
+            else document.body.classList.add('animations-disabled');
+
+            // Button/Hover Scale
+            if (anims.hover || currentConfig.buttons.animation) {
                 document.body.classList.add('buttons-animation-enabled');
             } else {
                 document.body.classList.remove('buttons-animation-enabled');
             }
+
+            // Click Effects
+            if (anims.click) document.body.classList.add('click-effects-enabled');
+            else document.body.classList.remove('click-effects-enabled');
+
+            // Trinity Animation Type
+            root.style.setProperty("--trinity-entry", anims.trinityEntry);
         }
 
         // Background (Custom handling needed for complex types)

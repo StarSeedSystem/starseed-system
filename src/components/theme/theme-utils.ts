@@ -110,38 +110,38 @@ export const themePresets: Record<string, Partial<AppearanceConfig>> = {
         styling: { radius: 0.5, glassIntensity: 0, opacity: 0.95 },
         background: { type: 'solid', value: '#ffffff', blur: 0, animation: 'none', overlayOpacity: 0, overlayColor: 'white' },
         liquidGlass: { enabled: false, applyToUI: false, distortRadius: 0, distortWidth: 0, distortHeight: 0, smoothStepEdge: 0, distanceOffset: 0 },
-        layout: { menuPosition: 'left', menuStyle: 'minimal', iconStyle: 'thin' },
-        typography: { fontFamily: 'Inter', fontSizeScale: 1 }
+        layout: { menuPosition: 'left', menuStyle: 'minimal', iconStyle: 'thin', menuBehavior: 'smart' },
+        typography: { fontFamily: 'Inter', scale: 1, customFonts: [] }
     },
     dark: {
         styling: { radius: 0.75, glassIntensity: 10, opacity: 0.8 },
         background: { type: 'gradient', value: 'linear-gradient(to top, #0f172a 0%, #1e1b4b 100%)', blur: 0, animation: 'pulse', overlayOpacity: 0.2, overlayColor: 'black' },
         liquidGlass: { enabled: true, applyToUI: true, distortRadius: 0.5, distortWidth: 0.2, distortHeight: 0.2, smoothStepEdge: 0.5, distanceOffset: 0.1 },
-        layout: { menuPosition: 'left', menuStyle: 'sidebar', iconStyle: 'outline' },
-        typography: { fontFamily: 'Satoshi', fontSizeScale: 1 }
+        layout: { menuPosition: 'left', menuStyle: 'sidebar', iconStyle: 'outline', menuBehavior: 'smart' },
+        typography: { fontFamily: 'Satoshi', scale: 1, customFonts: [] }
     },
     grey: {
         // Brutalist / Utilitarian
         styling: { radius: 0, glassIntensity: 0, opacity: 1 },
         background: { type: 'solid', value: '#f4f4f5', blur: 0, animation: 'none', overlayOpacity: 0, overlayColor: 'white' },
         liquidGlass: { enabled: false, applyToUI: false, distortRadius: 0, distortWidth: 0, distortHeight: 0, smoothStepEdge: 0, distanceOffset: 0 },
-        layout: { menuPosition: 'top', menuStyle: 'minimal', iconStyle: 'solid' },
-        typography: { fontFamily: 'Space Grotesk', fontSizeScale: 1.05 }
+        layout: { menuPosition: 'top', menuStyle: 'minimal', iconStyle: 'solid', menuBehavior: 'sticky' },
+        typography: { fontFamily: 'Space Grotesk', scale: 1.05, customFonts: [] }
     },
     natural: {
         // Organic / Soft
         styling: { radius: 1.5, glassIntensity: 15, opacity: 0.7 },
         background: { type: 'image', value: 'https://images.unsplash.com/photo-1584714268709-c3dd9c92b378?q=80&w=1480', blur: 5, animation: 'pan', overlayOpacity: 0.3, overlayColor: 'white' },
         liquidGlass: { enabled: true, applyToUI: true, distortRadius: 0.8, distortWidth: 0.1, distortHeight: 0.1, smoothStepEdge: 0.2, distanceOffset: 0.1 },
-        layout: { menuPosition: 'left', menuStyle: 'dock', iconStyle: 'outline' },
-        typography: { fontFamily: 'Outfit', fontSizeScale: 1.02 }
+        layout: { menuPosition: 'left', menuStyle: 'dock', iconStyle: 'outline', menuBehavior: 'smart' },
+        typography: { fontFamily: 'Outfit', scale: 1.02, customFonts: [] }
     },
     glass: {
         // Apple / Crystal
-        styling: { radius: 1, glassIntensity: 30, opacity: 0.4 },
-        background: { type: 'image', value: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1480', blur: 0, animation: 'zoom', overlayOpacity: 0.1, overlayColor: 'black' },
+        styling: { radius: 1, glassIntensity: 30, opacity: 0.6 },
+        background: { type: 'image', value: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1480', blur: 0, animation: 'zoom', overlayOpacity: 0.2, overlayColor: 'black' },
         liquidGlass: { enabled: true, applyToUI: true, distortRadius: 1, distortWidth: 0.3, distortHeight: 0.3, smoothStepEdge: 0.5, distanceOffset: 0.15 },
-        layout: { menuPosition: 'bottom', menuStyle: 'dock', iconStyle: 'thin' },
-        typography: { fontFamily: 'Inter', fontSizeScale: 0.95 }
+        layout: { menuPosition: 'bottom', menuStyle: 'dock', iconStyle: 'thin', menuBehavior: 'smart' },
+        typography: { fontFamily: 'Inter', scale: 0.95, customFonts: [] }
     }
 };

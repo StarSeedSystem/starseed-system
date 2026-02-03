@@ -72,18 +72,22 @@ export function SideCurtains() {
             {/* Horizon (Left) - Creation / Green */}
             {activeEdge === "horizon" && (
                 <motion.div
-                    initial={{ x: "-100%" }}
-                    animate={{ x: 0 }}
-                    exit={{ x: "-100%" }}
+                    initial={{ x: "-100%", y: "-50%", opacity: 0, scale: 0.95 }}
+                    animate={{ x: 0, y: "-50%", opacity: 1, scale: 1 }}
+                    exit={{ x: "-100%", y: "-50%", opacity: 0, scale: 0.95 }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
-                    className="fixed top-0 left-0 h-full w-[350px] md:w-[450px] z-[90] pointer-events-auto"
+                    style={{ top: "50%" }} // Force vertical position
+                    className="fixed left-4 h-auto max-h-[90vh] w-[350px] md:w-[450px] z-[90] pointer-events-auto rounded-3xl overflow-hidden shadow-2xl border border-emerald-500/30 flex flex-col"
                 >
-                    {/* Glass/Color Background */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/90 via-emerald-900/80 to-transparent backdrop-blur-md border-r border-emerald-500/30 shadow-[10px_0_40px_rgba(16,185,129,0.3)]" />
+                    {/* Glass/Color Background - Contained */}
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
 
-                    <div className="relative z-10 w-full h-full flex flex-col p-8 text-emerald-50 overflow-y-auto custom-scrollbar">
+                    {/* Emerald Accent Gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/50 to-transparent pointer-events-none" />
+
+                    <div className="relative z-10 w-full flex-1 flex flex-col p-8 text-emerald-50 overflow-y-auto custom-scrollbar">
                         {/* Header */}
-                        <div className="flex items-center gap-3 mb-8">
+                        <div className="flex items-center gap-3 mb-8 flex-shrink-0">
                             <div className="p-3 rounded-full bg-emerald-500/20 border border-emerald-400/30 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
                                 <Copy className="w-6 h-6 text-emerald-300" />
                             </div>
@@ -96,7 +100,7 @@ export function SideCurtains() {
                         </div>
 
                         {/* Universal Creation Canvas Access */}
-                        <div className="mb-8">
+                        <div className="mb-8 flex-shrink-0">
                             <Button
                                 className="w-full h-auto py-4 flex flex-col items-center gap-2 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 border border-emerald-500/30 hover:border-emerald-400/60 hover:from-emerald-500/30 hover:to-teal-600/30 transition-all group"
                                 onClick={() => setActiveBoard(null)} // Or route to a dedicated canvas page
@@ -191,7 +195,7 @@ export function SideCurtains() {
                         {/* Footer / Close Trigger */}
                         <button
                             onClick={handleClose}
-                            className="flex items-center gap-2 text-emerald-400/50 text-xs mt-auto hover:text-emerald-200 transition-colors pt-6"
+                            className="flex items-center gap-2 text-emerald-400/50 text-xs mt-auto hover:text-emerald-200 transition-colors pt-6 flex-shrink-0"
                         >
                             <ArrowLeft className="w-4 h-4" />
                             <span>Deslizar para cerrar</span>
@@ -203,22 +207,26 @@ export function SideCurtains() {
             {/* Logic (Right) - System / Amber - NOW INTEGRATED CONTROL PANEL */}
             {activeEdge === "logic" && (
                 <motion.div
-                    initial={{ x: "100%" }}
-                    animate={{ x: 0 }}
-                    exit={{ x: "100%" }}
+                    initial={{ x: "100%", y: "-50%", opacity: 0 }}
+                    animate={{ x: 0, y: "-50%", opacity: 1 }}
+                    exit={{ x: "100%", y: "-50%", opacity: 0 }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
+                    style={{ top: "50%" }} // Force vertical position like Left Panel
                     className={cn(
-                        "fixed top-0 right-0 h-full z-[90] pointer-events-auto border-l border-white/10 shadow-[-10px_0_40px_rgba(0,0,0,0.5)]",
-                        activeBoardId ? "w-full sm:w-[90vw] lg:w-[85vw]" : "w-auto"
+                        "fixed right-4 z-[90] flex items-center justify-center pointer-events-none",
+                        activeBoardId ? "w-full sm:w-[90vw] lg:w-[85vw] h-[90vh] bg-black/80 backdrop-blur-xl border border-amber-500/30 rounded-3xl" : "w-auto h-auto"
                     )}
                 >
                     {/* Glass/Color Background - Neutral for Control Center */}
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-2xl" />
+                    {/* Only show background if it's the Board Viewer, otherwise pure floating */}
+                    {!activeBoardId && (
+                        <div className="absolute inset-0 bg-transparent" />
+                    )}
 
                     <div className="relative z-10 w-full h-full flex flex-col text-foreground">
 
                         {activeBoardId && activeBoardData ? (
-                            <div className="h-full w-full relative">
+                            <div className="h-full w-full relative pointer-events-auto">
                                 {/* Close/Back Button for Board Viewer */}
                                 <div className="absolute top-4 left-4 z-50">
                                     <Button variant="secondary" size="sm" onClick={handleCloseBoard} className="gap-2 backdrop-blur-md bg-background/50">
@@ -233,7 +241,8 @@ export function SideCurtains() {
                         ) : (
                             <>
                                 {/* New Trinity Control Center Integration */}
-                                <div className="w-full h-full flex items-center justify-center bg-transparent">
+                                {/* Floating Button Container - Pointer Events Auto */}
+                                <div className="pointer-events-auto">
                                     <ControlCenter />
                                 </div>
                             </>

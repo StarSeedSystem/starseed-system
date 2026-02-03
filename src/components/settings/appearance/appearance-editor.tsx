@@ -4,14 +4,11 @@ import React from "react";
 import { ThemeSelector } from "@/components/theme/theme-selector";
 import { TypographySettings } from "./typography-settings";
 import { LayoutSettings } from "./layout-settings";
-import { StylingSettings } from "./styling-settings";
 import { BackgroundSettings } from "./background-settings";
-import { ButtonSettings } from "./button-settings";
-import { LiquidGlassSettings } from "./liquid-glass-settings";
-
+import { UiElementSettings } from "./ui-element-settings";
 import { ThemeStore } from "./theme-store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Type, Layout, PaintBucket, Image as ImageIcon, Sliders, Droplets, ShoppingBag, Cpu, MousePointerClick } from "lucide-react";
+import { Type, Layout, PaintBucket, Image as ImageIcon, Sliders, Droplets, ShoppingBag, Cpu, MousePointerClick, SquareDashedBottomCode } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function AppearanceEditor() {
@@ -34,10 +31,10 @@ export function AppearanceEditor() {
                 <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8 h-auto">
                     <TabsTrigger value="typography" className="gap-2"><Type className="w-4 h-4" /> Tipografía</TabsTrigger>
                     <TabsTrigger value="layout" className="gap-2"><Layout className="w-4 h-4" /> Interfaz</TabsTrigger>
-                    <TabsTrigger value="styling" className="gap-2"><Sliders className="w-4 h-4" /> Estilos</TabsTrigger>
-                    <TabsTrigger value="buttons" className="gap-2"><MousePointerClick className="w-4 h-4" /> Botones</TabsTrigger>
+                    {/* New UI Elements Tab */}
+                    <TabsTrigger value="ui-elements" className="gap-2"><SquareDashedBottomCode className="w-4 h-4" /> Elementos UI</TabsTrigger>
                     <TabsTrigger value="background" className="gap-2"><ImageIcon className="w-4 h-4" /> Fondo</TabsTrigger>
-                    <TabsTrigger value="liquid-glass" className="gap-2"><Droplets className="w-4 h-4" /> Cristal</TabsTrigger>
+                    {/* Removed standalone Crystal tab */}
 
                     <TabsTrigger value="store" className="gap-2"><ShoppingBag className="w-4 h-4" /> Tienda</TabsTrigger>
                 </TabsList>
@@ -50,20 +47,14 @@ export function AppearanceEditor() {
                     <LayoutSettings />
                 </TabsContent>
 
-                <TabsContent value="styling" className="mt-4">
-                    <StylingSettings />
+                {/* New Tab Content */}
+                <TabsContent value="ui-elements" className="mt-4">
+                    <UiElementSettings />
                 </TabsContent>
 
-                <TabsContent value="buttons" className="mt-4">
-                    <ButtonSettings />
-                </TabsContent>
 
                 <TabsContent value="background" className="mt-4">
                     <BackgroundSettings />
-                </TabsContent>
-
-                <TabsContent value="liquid-glass" className="mt-4">
-                    <LiquidGlassSettings />
                 </TabsContent>
 
 

@@ -118,7 +118,7 @@ export function PerimeterInterface() {
             {/* Zenith (Top) - Blue/Cyan - Persistent Hover (600ms) to unlock AI Curtain */}
             <EdgeSensor
                 edge="zenith"
-                className="top-0 left-0 w-full bg-transparent"
+                className="top-0 left-1/2 -translate-x-1/2 w-[60vw] bg-transparent"
                 dwellTime={600}
                 size={edgeSensitivity}
             />
@@ -126,7 +126,7 @@ export function PerimeterInterface() {
             {/* Anchor (Bottom) - Red/Gray - Longer Dwell (800ms) to avoid accidental Dock triggers */}
             <EdgeSensor
                 edge="anchor"
-                className="bottom-0 left-0 w-full bg-transparent"
+                className="bottom-0 left-1/2 -translate-x-1/2 w-[60vw] bg-transparent"
                 dwellTime={800}
                 size={edgeSensitivity}
             />
@@ -134,7 +134,7 @@ export function PerimeterInterface() {
             {/* Horizon (Left) - Green - Quick Access (400ms) for Creation */}
             <EdgeSensor
                 edge="horizon"
-                className="top-0 left-0 h-full bg-transparent"
+                className="top-1/2 -translate-y-1/2 left-0 h-[60vh] bg-transparent"
                 dwellTime={400}
                 size={edgeSensitivity}
             />
@@ -142,7 +142,7 @@ export function PerimeterInterface() {
             {/* Logic (Right) - Amber - Quick Access (400ms) for System */}
             <EdgeSensor
                 edge="logic"
-                className="top-0 right-0 h-full bg-transparent"
+                className="top-1/2 -translate-y-1/2 right-0 h-[60vh] bg-transparent"
                 dwellTime={400}
                 size={edgeSensitivity}
             />

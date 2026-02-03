@@ -12,10 +12,11 @@ import {
     PanelBottom, PanelRight,
     MousePointerClick, Minimize2, Maximize2,
     Eye, EyeOff, Activity, Move, Anchor,
-    Layout, MousePointer2, Smartphone
+    Layout, MousePointer2, Smartphone, Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 export function LayoutSettings() {
     const { config, updateSection } = useAppearance();
@@ -242,6 +243,10 @@ export function LayoutSettings() {
                     </div>
                 </CardContent>
             </Card>
+
+
+            {/* Legibility & Interface Controls (Moved to UI Elements) */}
+            {/* Removed Card */}
         </div>
     );
 }

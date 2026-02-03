@@ -67,14 +67,16 @@ export function ZenithCurtain() {
         <AnimatePresence>
             {isActive && (
                 <motion.div
-                    initial={{ y: "-100%" }}
-                    animate={{ y: 0 }}
-                    exit={{ y: "-100%" }}
+                    initial={{ y: "-100%", x: "-50%", opacity: 0, scale: 0.95 }}
+                    animate={{ y: 0, x: "-50%", opacity: 1, scale: 1 }}
+                    exit={{ y: "-100%", x: "-50%", opacity: 0, scale: 0.95 }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
-                    className="fixed top-0 left-0 w-full h-[60vh] z-[90] pointer-events-auto overflow-hidden text-cyan-50"
+                    style={{ left: "50%" }} // Force horizontal center
+                    className="fixed top-6 w-[90vw] max-w-4xl h-[70vh] z-[90] pointer-events-auto rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(6,182,212,0.3)] border border-cyan-500/30 text-cyan-50"
                 >
-                    {/* Ethereal Blue Background / "Curtain of Light" */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-cyan-950/95 via-blue-900/90 to-black/80 backdrop-blur-xl border-b border-cyan-500/30 shadow-[0_10px_40px_rgba(6,182,212,0.3)]" />
+                    {/* Ethereal Blue Background / "Curtain of Light" - Contained */}
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-2xl" />
+                    <div className="absolute inset-0 bg-gradient-to-b from-cyan-950/50 to-transparent pointer-events-none" />
 
                     {/* Content Container */}
                     <div className="relative z-10 w-full h-full flex flex-col pt-12 text-cyan-50 overflow-y-auto">

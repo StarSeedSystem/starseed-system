@@ -354,14 +354,15 @@
     background-size: 200% 200%;
   }
 
-  /* Glass Theme Background */
+  /* Glass Theme Background - Removed hardcoded URL to allow dynamic control */
   .glass body {
-    background: url("https://images.unsplash.com/photo-1432251407527-504a6b4174a2?q=80&w=1480&auto=format&fit=crop") center center no-repeat fixed;
+    /* Background is now handled by inline styles in appearance-context */
+    /* background: url("...") ... */
     background-size: cover;
-    animation: moveBackground 60s linear infinite;
+    /* animation: moveBackground 60s linear infinite; <-- animation is also dynamic now */
   }
 
-  @keyframes moveBackground {
+  @keyframes liquid-flow {
     0% {
       background-position: 0% 50%;
     }
@@ -373,6 +374,11 @@
     100% {
       background-position: 0% 50%;
     }
+  }
+
+  .animate-liquid-flow {
+    animation: liquid-flow 20s ease infinite;
+    background-size: 300% 300%;
   }
 
   @keyframes background-pan {
@@ -554,15 +560,15 @@
 
 @keyframes bg-zoom {
   0% {
-    transform: scale(1);
+    opacity: 1;
   }
 
   50% {
-    transform: scale(1.1);
+    opacity: 1;
   }
 
   100% {
-    transform: scale(1);
+    opacity: 1;
   }
 }
 

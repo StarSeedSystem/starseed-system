@@ -6,6 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { RotateCcw, Droplets, Eye, Layers } from "lucide-react";
 
 export function LiquidGlassSettings() {
@@ -51,35 +52,44 @@ export function LiquidGlassSettings() {
 
     return (
         <div className="space-y-6">
-            <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                        <Label className="text-base font-semibold flex items-center gap-2">
-                            <Droplets className="w-4 h-4 text-primary" />
-                            Modo Cristal (Apple-style)
-                        </Label>
-                        <p className="text-sm text-muted-foreground">
-                            Habilita el diseño de cristal premium estático.
-                        </p>
-                    </div>
-                    <Switch
-                        checked={liquidGlass.enabled}
-                        onCheckedChange={(c) => handleChange("enabled", c)}
-                    />
-                </div>
+            <div className="grid md:grid-cols-2 gap-6">
+                <Card className="border-primary/20 bg-primary/5">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="space-y-0.5">
+                                <Label className="text-lg font-bold flex items-center gap-2 text-primary">
+                                    <Droplets className="w-5 h-5" />
+                                    Modo Cristal
+                                </Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Activa el motor de renderizado de cristal líquido.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={liquidGlass.enabled}
+                                onCheckedChange={(c) => handleChange("enabled", c)}
+                                className="data-[state=checked]:bg-primary"
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
 
-                <div className="flex items-center justify-between border-t pt-4">
-                    <div className="space-y-0.5">
-                        <Label className="text-base">Aplicar a UI</Label>
-                        <p className="text-sm text-muted-foreground">
-                            Aplica el efecto a todos los botones y tarjetas.
-                        </p>
-                    </div>
-                    <Switch
-                        checked={liquidGlass.applyToUI}
-                        onCheckedChange={(c) => handleChange("applyToUI", c)}
-                    />
-                </div>
+                <Card>
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                                <Label className="text-base">Aplicar a toda la UI</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Extiende el efecto a botones, tarjetas y paneles.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={liquidGlass.applyToUI}
+                                onCheckedChange={(c) => handleChange("applyToUI", c)}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
 
             <div className="grid gap-6 border rounded-lg p-4 bg-muted/20">
