@@ -63,6 +63,11 @@ export default {
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))',
         },
+        "electric-azure": "#007FFF",
+        "emerald-green": "#10B981",
+        "solar-amber": "#FFBF00",
+        "background-light": "#f8f6f6",
+        "background-dark": "#000510",
       },
       borderRadius: {
         lg: 'var(--radius)',

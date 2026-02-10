@@ -341,7 +341,7 @@
   }
 
   /* Default animated background (for light/dark/grey/natural) */
-  :root:not(.glass) body {
+  :root:not(.glass):not(.webgl-active) body {
     background-image:
       radial-gradient(at 27% 37%, hsl(276, 80%, 30%) 0px, transparent 50%),
       radial-gradient(at 97% 21%, hsl(240, 80%, 40%) 0px, transparent 50%),
@@ -352,6 +352,12 @@
       radial-gradient(at 79% 53%, hsl(120, 40%, 30%) 0px, transparent 50%);
     background-attachment: fixed;
     background-size: 200% 200%;
+  }
+
+  /* Force transparent background when WebGL is active so canvas shows through */
+  .webgl-active body {
+    background: transparent !important;
+    background-image: none !important;
   }
 
   /* Glass Theme Background - Removed hardcoded URL to allow dynamic control */
@@ -398,10 +404,11 @@
 
 @layer components {
   .glass-card {
-    background-color: hsl(var(--card) / var(--glass-opacity, 0.8));
-    backdrop-filter: blur(var(--glass-blur, 10px));
+    background-color: hsl(var(--card) / var(--glass-opacity, 0.65));
+    backdrop-filter: blur(var(--glass-blur, 20px));
     border-radius: var(--radius, 0.5rem);
-    border: 1px solid hsl(var(--border));
+    border: 1px solid hsl(var(--border) / 0.5);
+    /* Increased border visibility */
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   }
 
@@ -423,27 +430,43 @@
   /* filter: url(#liquid-glass-global-filter); */
 
   /* Performance optimization */
-  will-change: transform;
+  will-change: transform, backdrop-filter;
   /* transform: translateZ(0);  <-- REMOVED to prevent overriding Tailwind's translate-x/y for centering Dialogs */
 
-  /* Crystal Material Base - Premium Apple-like Glass */
-  backdrop-filter: blur(var(--glass-blur, 20px)) saturate(var(--glass-saturation, 180%));
+  /* Crystal Material Base - Dynamic Refraction */
+  backdrop-filter:
+    blur(var(--glass-blur, 20px)) saturate(var(--glass-saturation, 180%)) brightness(calc(1 + var(--glass-refraction, 0) * 0.2));
 
+  /* Tuned for better legibility - Uses Frost for gradient decay */
   background: linear-gradient(135deg,
-      rgba(255, 255, 255, var(--glass-opacity, 0.4)) 0%,
-      rgba(255, 255, 255, 0.1) 100%);
+      rgba(255, 255, 255, var(--glass-opacity, 0.65)) 0%,
+      rgba(255, 255, 255, calc(var(--glass-opacity, 0.65) * var(--glass-frost, 0.5))) 100%);
 
-  /* Glass Borders - Subtle and crisp */
-  border-top: 1px solid rgba(255, 255, 255, 0.4);
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  /* Glass Borders - Dynamic Opacity based on Frost/Refraction */
+  border-top: 1px solid rgba(255, 255, 255, calc(0.4 + var(--glass-refraction, 0) * 0.2));
+  border-left: 1px solid rgba(255, 255, 255, calc(0.2 + var(--glass-refraction, 0) * 0.1));
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 
+  /* Chromatic Aberration Simulation via Shadow */
   box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 2px 4px -2px rgba(0, 0, 0, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset var(--glass-aberration, 0px) var(--glass-aberration, 0px) calc(var(--glass-aberration, 0px) * 2) rgba(255, 0, 255, 0.05),
+    inset calc(var(--glass-aberration, 0px) * -1) calc(var(--glass-aberration, 0px) * -1) calc(var(--glass-aberration, 0px) * 2) rgba(0, 255, 255, 0.05);
+}
+
+.glass-displacement {
+  backdrop-filter: url(#frosted-displacement) blur(var(--glass-refraction, 0px));
+  /* Optional: Add a subtle overlay to help visibility */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 8px 32px 0 rgba(31, 38, 135, 0.15),
     inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
+
 
 /* Ensure data-attributes trigger it */
 [data-liquid-ui="true"] .liquid-glass-ui-target,
@@ -482,8 +505,8 @@
 .liquid-ui-enabled [data-component="button"]:hover,
 .liquid-ui-enabled [data-component="card"]:hover {
   background: linear-gradient(145deg,
-      rgba(255, 255, 255, 0.25) 0%,
-      rgba(255, 255, 255, 0.1) 100%);
+      rgba(255, 255, 255, 0.45) 0%,
+      rgba(255, 255, 255, 0.25) 100%);
   box-shadow:
     0 8px 32px 0 rgba(31, 38, 135, 0.2),
     inset 0 0 0 1px rgba(255, 255, 255, 0.2);
@@ -511,9 +534,10 @@
 
 .dark .liquid-glass-ui {
   backdrop-filter: blur(var(--glass-blur, 20px)) saturate(var(--glass-saturation, 180%));
+  /* Dark Mode - Higher Opacity for Legibility */
   background: linear-gradient(135deg,
-      rgba(255, 255, 255, 0.1) 0%,
-      rgba(255, 255, 255, 0.02) 100%);
+      rgba(30, 30, 35, var(--glass-opacity, 0.65)) 0%,
+      rgba(30, 30, 35, calc(var(--glass-opacity, 0.65) * 0.6)) 100%);
   border-top: 1px solid rgba(255, 255, 255, 0.15);
   border-left: 1px solid rgba(255, 255, 255, 0.1);
   border-right: 1px solid rgba(255, 255, 255, 0.05);
@@ -521,13 +545,13 @@
 
   box-shadow:
     0 8px 32px 0 rgba(0, 0, 0, 0.3),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .dark .liquid-glass-ui:hover {
   background: linear-gradient(135deg,
-      rgba(255, 255, 255, 0.15) 0%,
-      rgba(255, 255, 255, 0.05) 100%);
+      rgba(50, 50, 55, var(--glass-opacity, 0.75)) 0%,
+      rgba(50, 50, 55, calc(var(--glass-opacity, 0.75) * 0.6)) 100%);
   box-shadow:
     0 12px 40px -5px rgba(0, 0, 0, 0.4),
     inset 0 0 0 1px rgba(255, 255, 255, 0.08);
@@ -608,4 +632,471 @@
   animation: bg-scroll 600s linear infinite;
   background-size: 500px;
   /* Default for patterns, can be overridden */
+}
+
+/* --- NEW REALISTIC CRYSTAL UI (User Provided & Adapted) --- */
+
+/* Background Orbs */
+.bg-orbs {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  filter: blur(40px);
+  animation: floatOrb 8s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+.orb-1 {
+  width: 200px;
+  height: 200px;
+  top: 20%;
+  left: 10%;
+  animation-delay: 0s;
+  background: radial-gradient(circle, rgba(147, 51, 234, 0.3) 0%, rgba(255, 255, 255, 0) 70%);
+}
+
+.orb-2 {
+  width: 150px;
+  height: 150px;
+  top: 60%;
+  right: 15%;
+  animation-delay: 2s;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, rgba(255, 255, 255, 0) 70%);
+}
+
+.orb-3 {
+  width: 100px;
+  height: 100px;
+  top: 80%;
+  left: 60%;
+  animation-delay: 4s;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.3) 0%, rgba(255, 255, 255, 0) 70%);
+}
+
+@keyframes floatOrb {
+
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-20px) rotate(180deg);
+  }
+}
+
+/* Real Crystal Panel / Notification Style 
+   This is the high-fidelity glass effect 
+*/
+.crystal-panel,
+.crystal-card {
+  position: relative;
+  background: rgba(255, 255, 255, var(--glass-opacity, 0.05));
+  backdrop-filter: blur(var(--glass-blur, 20px)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 20px)) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius, 1rem);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  overflow: hidden;
+}
+
+/* Crystal Shine Layer */
+.crystal-panel::before,
+.crystal-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.15) 0%,
+      rgba(255, 255, 255, 0.02) 40%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.02) 60%,
+      rgba(255, 255, 255, 0.1) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Crystal Reflection Layer */
+.crystal-panel::after,
+.crystal-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.01) 100%);
+  pointer-events: none;
+  z-index: 2;
+  border-radius: calc(var(--radius, 1rem) - 1px) calc(var(--radius, 1rem) - 1px) 0 0;
+}
+
+.crystal-card:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, calc(var(--glass-opacity, 0.05) + 0.05));
+  /* Slightly more opaque on hover */
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* Dark Mode Adaptation for Crystal */
+.dark .crystal-panel,
+.dark .crystal-card {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.05);
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .crystal-panel::before,
+.dark .crystal-card::before {
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.01) 40%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.01) 60%,
+      rgba(255, 255, 255, 0.04) 100%);
+}
+
+/*
+   Button Crystal Variant
+   Applies the logic but scaled for buttons
+*/
+.crystal-button {
+  @apply crystal-panel;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 9999px;
+  /* Pill shape for buttons usually looks "glassier" */
+  transition: all 0.2s ease;
+}
+
+/* Apply Crystal styles to Shadcn Button when Body has class */
+body.style-glass-buttons .shadcn-button,
+body.style-glass-buttons button:not(.ghost):not(.link):not(.plain) {
+  @apply crystal-button;
+}
+
+/* --- Advanced Crystal Tabs --- */
+.crystal-tab-list {
+  background: rgba(var(--glass-rgb, 255, 255, 255), var(--glass-opacity, 0.03));
+  backdrop-filter: blur(var(--tab-glass-blur, 10px));
+  -webkit-backdrop-filter: blur(var(--tab-glass-blur, 10px));
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 4px;
+  border-radius: 9999px;
+  /* Pill shape */
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.crystal-tab-trigger {
+  position: relative;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 9999px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  /* Reserve space */
+}
+
+.crystal-tab-trigger:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: hsl(var(--foreground));
+}
+
+.crystal-tab-trigger[data-state="active"] {
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.15) 0%,
+      rgba(255, 255, 255, 0.05) 100%);
+
+  backdrop-filter: blur(var(--tab-glass-blur, 12px)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--tab-glass-blur, 12px)) saturate(150%);
+  color: hsl(var(--foreground));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+  /* Glowing text */
+}
+
+/* Typography Refinements for Primary/Crystal Modes */
+.text-glow-soft {
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.4), 0 0 4px rgba(255, 255, 255, 0.2);
+}
+
+.text-ombre {
+  background: linear-gradient(to bottom,
+      rgba(255, 255, 255, 1) 0%,
+      rgba(255, 255, 255, 0.8) 60%,
+      rgba(255, 255, 255, 0.4) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Optional: Add a very slight blur to soften edges as requested "sutil difuminación" */
+  filter: blur(0.2px);
+}
+
+/* Apply to headings in Primary Mode by default */
+body[data-mode="primary"] h1,
+body[data-mode="primary"] h2,
+body[data-mode="primary"] h3,
+body[data-mode="primary"] h4,
+body[data-mode="primary"] h5,
+body[data-mode="primary"] h6 {
+  @apply text-ombre;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  /* Slight depth */
+}
+
+/* Global soft blur for all text in Primary Mode as requested "todos los textos... sutil difuminación" */
+body[data-mode="primary"] {
+  --text-soft-blur: 0.3px;
+}
+
+body[data-mode="primary"] p,
+body[data-mode="primary"] span,
+body[data-mode="primary"] button,
+body[data-mode="primary"] div {
+  /* Very subtle text smoothing/blur */
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Primary Mode Custom Sliders (From Liquid Glass React Repo) */
+body[data-mode="primary"] input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 999px;
+  cursor: pointer;
+  height: 24px;
+}
+
+body[data-mode="primary"] input[type="range"]::-webkit-slider-track {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.3), rgba(168, 85, 247, 0.3));
+  height: 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body[data-mode="primary"] input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(135deg, #60a5fa, #a78bfa);
+  height: 24px;
+  width: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(96, 165, 250, 0.4);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  margin-top: -9px;
+  /* Adjust for track height */
+}
+
+body[data-mode="primary"] input[type="range"]::-webkit-slider-thumb:hover {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  transform: scale(1.15);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), 0 0 0 8px rgba(96, 165, 250, 0.2);
+  border-color: white;
+}
+
+/* "Caustic" flow for active tab */
+.crystal-tab-trigger[data-state="active"]::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  animation: crystal-shimmer 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes crystal-shimmer {
+
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+
+  50% {
+    transform: translate(10px, 10px);
+  }
+}
+
+/* --- Crystal Window (Hyper-Realistic Frame) --- */
+.crystal-window {
+  @apply crystal-panel;
+  /* Inherit base */
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 20px 50px -12px rgba(0, 0, 0, 0.25),
+    /* Deep shadow */
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    /* Thin outer rim */
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  /* Top highlight */
+}
+
+/* Window Highlight / Specular Reflection */
+.crystal-window::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      transparent 100%);
+  mask-image: linear-gradient(to bottom, black, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Dark Mode Crystal Window */
+.dark .crystal-window {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 25px 60px -15px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.dark .crystal-tab-list {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.03);
+}
+
+.dark .crystal-tab-trigger[data-state="active"] {
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.01) 100%);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 4px 15px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+}
+
+
+
+body.style-glass-buttons .shadcn-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+
+/* App Icon / Rounded Box Style */
+.crystal-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* --- Text Diffusion & Readability (New) --- */
+/* For Primary Mode: Ensure text is detached from background with subtle glow/blur */
+.text-diffusion {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(0px);
+  /* Hardware acceleration hint */
+}
+
+/* Apply globally to key text elements in Primary Mode */
+body[data-mode="primary"] h1,
+body[data-mode="primary"] h2,
+body[data-mode="primary"] h3,
+body[data-mode="primary"] h4,
+body[data-mode="primary"] h5,
+body[data-mode="primary"] h6,
+body[data-mode="primary"] label,
+body[data-mode="primary"] button,
+body[data-mode="primary"] .crystal-text {
+  position: relative;
+  z-index: 2;
+  color: rgba(255, 255, 255, 0.95);
+  /* High opacity for glass body */
+  /* 3D Liquid Crystal Effect - Dynamic & Customizable */
+  text-shadow:
+    /* 1. Specular Highlight (Rim) - Unchanged for sharpness */
+    -1px -1px 1px rgba(255, 255, 255, 0.6),
+    /* 2. Depth Shadow - Subtle anchoring */
+    1px 2px 4px rgba(0, 0, 0, 0.4),
+    /* 3. DYNAMIC DIFFUSION LAYER */
+    /* Inner Glow (controlled by glowStrength) */
+    0 0 calc(var(--text-diff-blur, 15px) * 0.5) rgba(255, 255, 255, var(--text-diff-glow, 0.5)),
+    /* Outer Diffusion (Background Layer) - controlled by opacity */
+    0 0 var(--text-diff-blur, 15px) rgba(0, 0, 0, var(--text-diff-opacity, 0.7));
+
+  /* Ensure smooth rendering */
+  transform: translateZ(0);
+  letter-spacing: 0.02em;
+}
+
+body[data-mode="primary"] p,
+body[data-mode="primary"] span:not(.no-crystal),
+body[data-mode="primary"] li,
+body[data-mode="primary"] td {
+  /* Body text needs better readability but less intense 3D effect */
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    /* Sharp shadow for contrast */
+    0 0 10px rgba(0, 0, 0, 0.2);
+  /* Diffusion layer */
+  position: relative;
+  z-index: 1;
+}
+
+/* Special "Liquid Title" class for extra large headers if needed */
+.liquid-title-3d {
+  background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 50%, #ffffff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* Enhancing Liquid Buttons with stronger reflections */
+body[data-mode="primary"] .liquid-button-reflection {
+  /* Placeholder for additional CSS if needed, but mainly handled in JS/Canvas now */
 }
