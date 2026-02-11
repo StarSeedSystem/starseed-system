@@ -8,6 +8,7 @@ import { PoliticalSummaryWidget } from "@/components/dashboard/widgets/political
 import { SystemStatusWidget } from "@/components/dashboard/widgets/system-status-widget";
 import { RecentActivityWidget } from "@/components/dashboard/widgets/recent-activity-widget";
 import { NexusQuickAccessWidget } from "@/components/dashboard/widgets/nexus-quick-access-widget";
+import { ThemeManagerWidget } from "@/components/dashboard/widgets/theme-manager-widget";
 
 // We can extract other widgets later
 import { Activity, Calendar, Heart, ArrowRight } from "lucide-react";
@@ -40,6 +41,8 @@ export function WidgetRegistry({ widget }: WidgetProps) {
             return <WellnessWidget />;
         case 'THEME_SELECTOR':
             return <ThemeSelectorWidget />;
+        case 'THEME_MANAGER':
+            return <ThemeManagerWidget />;
         default:
             return (
                 <div className="flex h-full items-center justify-center p-4">

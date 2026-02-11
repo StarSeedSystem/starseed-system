@@ -1,6 +1,10 @@
+"use client";
+
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
+import { useAppearance } from "@/context/appearance-context"
+import { LiquidGlassWrapper } from "@/components/ui/LiquidGlassWrapper"
 
 import { cn } from "@/lib/utils"
 
@@ -41,34 +45,40 @@ export interface ButtonProps
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const { config } = useAppearance();
+    const isPrimary = config.themeStore.activeMode === 'primary';
     const Comp = asChild ? Slot : "button"
 
-    // Optional: Use context if we want granular control, 
-    // OR rely on global CSS targeting .liquid-ui-enabled .button (if we add a marker class)
-    // For specific component targeting, we can read the context.
-    // However, for performance and simplicity in avoiding massive rerenders:
-    // We will rely on the global 'liquid-ui-enabled' class added by AppearanceContext
-    // and just append a marker class here if needed, or let the global CSS utility handle it.
-
-    // Let's use the marker class approach for now to avoid context overhead on every button 
-    // unless strictly necessary. But the user asked for "options... configuration... applied to design".
-    // If we want the specific "liquid-glass-ui" style we defined in CSS:
-
-    return (
+    const buttonContent = (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }), "transition-all duration-300 shadcn-button",
-          // We can add a data attribute or class that global CSS targets
-          "data-[liquid-ui=true]:liquid-glass-ui"
+        className={cn(
+          buttonVariants({ variant, size, className }),
+          "transition-all duration-300 shadcn-button",
+          isPrimary && "bg-transparent/20 hover:bg-transparent/30 border-white/10 text-white shadow-lg backdrop-blur-sm"
         )}
-        // We can't easily read context here without making it client-side and rerendering.
-        // Instead, we will target this via: .liquid-ui-enabled .classname-of-button
-        // But Shadcn buttons don't have a unique stable classname other than utilities.
-        // Let's add a stable class 'shadcn-btn'
         data-component="button"
         ref={ref}
         {...props}
       />
-    )
+    );
+
+    if (isPrimary && variant !== 'link' && variant !== 'ghost') {
+      return (
+        <div className={cn("relative inline-block", className)}>
+          <LiquidGlassWrapper
+            displacementScale={64}
+            blurAmount={0.1}
+            saturation={1.3}
+            forceActive={true}
+            className="rounded-md overflow-hidden"
+          >
+            {buttonContent}
+          </LiquidGlassWrapper>
+        </div>
+      );
+    }
+
+    return buttonContent;
   }
 )
 Button.displayName = "Button"

@@ -98,6 +98,12 @@ const AVAILABLE_WIDGETS: { type: WidgetType; title: string; description: string;
         title: 'Nexus AI & Espacios',
         description: 'Acceso rápido a conversaciones de IA y espacios de trabajo.',
         icon: <BrainCircuit className="h-5 w-5 text-cyan-500" />
+    },
+    {
+        type: 'THEME_MANAGER',
+        title: 'Gestor de Temas',
+        description: 'Organiza, reordena y aplica temas guardados desde el canvas.',
+        icon: <Palette className="h-5 w-5 text-fuchsia-500" />
     }
 ];
 

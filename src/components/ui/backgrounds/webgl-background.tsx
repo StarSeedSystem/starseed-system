@@ -2,16 +2,26 @@
 
 import React, { useEffect, useRef } from "react";
 import { useAppearance } from "@/context/appearance-context";
+import { LiquidGradient } from "@/components/features/backgrounds/liquid-gradient/LiquidGradient";
+import { LiquidWaveFilter } from "@/components/features/backgrounds/filters/LiquidWaveFilter";
 
 export function WebGLBackground() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const { config } = useAppearance();
 
-    // Only render if type is webgl
-    const isActive = config.background.type === 'webgl';
+    const isWebGLActive = config.background.type === 'webgl';
+    const isLiquid = config.background.webglVariant === 'liquid';
+
+    // Filter Logic
+    const isFilterActive = config.background.filter?.enabled;
+    const isWaveFilter = isFilterActive && config.background.filter?.type === 'waves';
+
+    // We render if either WebGL background is active OR a filter is active
+    const shouldRender = isWebGLActive || isFilterActive;
 
     useEffect(() => {
-        if (!isActive || !canvasRef.current) return;
+        // Hex Shader Logic (Only runs if WebGL is active AND variant is NOT Liquid)
+        if (!isWebGLActive || isLiquid || !canvasRef.current) return;
 
         const canvas = canvasRef.current;
         const gl = canvas.getContext('webgl2');
@@ -201,14 +211,45 @@ export function WebGLBackground() {
             cancelAnimationFrame(animationFrameId);
             gl.deleteProgram(program);
         };
-    }, [isActive, config.background.webglSpeed, config.background.webglZoom]);
+    }, [isWebGLActive, isLiquid, config.background.webglSpeed, config.background.webglZoom]);
 
-    if (!isActive) return null;
+    // Safe Mode Check (URL param or feature flag)
+    // Helps with headless browsers or low-end devices
+    const [safeMode, setSafeMode] = React.useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('safe_mode') === 'true' || params.get('disable_webgl') === 'true') {
+                setSafeMode(true);
+                return;
+            }
+            // Basic Feature Detection
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl2');
+            if (!gl) {
+                console.warn("WebGL2 not supported, enabling Safe Mode.");
+                setSafeMode(true);
+            }
+        }
+    }, []);
+
+    if (!shouldRender || safeMode) return null;
 
     return (
-        <canvas
-            ref={canvasRef}
-            className="fixed top-0 left-0 w-full h-full -z-50 pointer-events-none"
-        />
+        <>
+            {/* Base WebGL Background */}
+            {isWebGLActive && isLiquid ? (
+                <LiquidGradient />
+            ) : isWebGLActive ? (
+                <canvas
+                    ref={canvasRef}
+                    className="fixed top-0 left-0 w-full h-full -z-50 pointer-events-none"
+                />
+            ) : null}
+
+            {/* Filter Overlay */}
+            {isWaveFilter && <LiquidWaveFilter />}
+        </>
     );
 }

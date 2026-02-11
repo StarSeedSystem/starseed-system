@@ -95,6 +95,245 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
                 letterSpacing: `${typography.bodyTracking}em`,
             }}
         >
+            {/* ══════════════════════════════════════════════════════════════ */}
+            {/* ─── COLOR PALETTE STRIP ─── */}
+            {/* ══════════════════════════════════════════════════════════════ */}
+            <div id="preview-palette">
+                <FamilyWrapper id="palette" label="🎨 Paleta de Colores" selected={selectedElement === "palette"} onSelect={() => select("palette")} palette={palette}>
+                    <div className="space-y-3">
+                        {/* Primary row */}
+                        <div className="flex gap-2 flex-wrap">
+                            {[
+                                { label: "Primary", color: palette.primary },
+                                { label: "Secondary", color: palette.secondary },
+                                { label: "Accent", color: palette.accent },
+                                { label: "Background", color: palette.background },
+                                { label: "Surface", color: palette.surface },
+                                { label: "Glass Border", color: palette.glassBorder },
+                            ].map(swatch => (
+                                <div key={swatch.label} className="flex flex-col items-center gap-1">
+                                    <div
+                                        className="w-10 h-10 rounded-xl border border-white/10 shadow-inner transition-all"
+                                        style={{ background: swatch.color }}
+                                    />
+                                    <span className="text-[8px] text-white/40 font-mono">{swatch.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                        {/* Text colors */}
+                        <div className="flex gap-3">
+                            <div className="flex-1 px-3 py-2 rounded-xl" style={{ background: palette.background, border: `1px solid ${palette.glassBorder}` }}>
+                                <p className="text-[10px] font-medium" style={{ color: palette.textPrimary }}>Texto Primario</p>
+                                <p className="text-[9px] mt-0.5" style={{ color: palette.textSecondary }}>Texto Secundario</p>
+                            </div>
+                            <div className="flex-1 px-3 py-2 rounded-xl" style={{ background: `linear-gradient(135deg, ${palette.primary}22, ${palette.accent}22)`, border: `1px solid ${palette.glassBorder}` }}>
+                                <p className="text-[10px] font-medium" style={{ color: palette.primary }}>Gradiente</p>
+                                <p className="text-[9px] mt-0.5" style={{ color: palette.accent }}>Primary → Accent</p>
+                            </div>
+                        </div>
+                        {/* Trinity colors */}
+                        <div className="grid grid-cols-4 gap-1.5">
+                            {[
+                                { label: "Zenith", color: palette.trinity.zenith.active },
+                                { label: "Horizonte", color: palette.trinity.horizonte.active },
+                                { label: "Lógica", color: palette.trinity.logica.active },
+                                { label: "Base", color: palette.trinity.base.active },
+                            ].map(t => (
+                                <div key={t.label} className="flex flex-col items-center gap-1 p-1.5 rounded-lg" style={{ background: `${t.color}11`, border: `1px solid ${t.color}22` }}>
+                                    <div className="w-4 h-4 rounded-full" style={{ background: t.color, boxShadow: `0 0 8px ${t.color}44` }} />
+                                    <span className="text-[7px] text-white/40">{t.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </FamilyWrapper>
+            </div>
+
+            {/* ══════════════════════════════════════════════════════════════ */}
+            {/* ─── TYPOGRAPHY SPECIMEN ─── */}
+            {/* ══════════════════════════════════════════════════════════════ */}
+            <div id="preview-typography">
+                <FamilyWrapper id="typography" label="🔤 Tipografía" selected={selectedElement === "typography"} onSelect={() => select("typography")} palette={palette}>
+                    <div className="space-y-3">
+                        {/* Headline */}
+                        <div>
+                            <h2 style={{
+                                fontFamily: typography.fontHeadline,
+                                fontWeight: typography.headerWeight,
+                                fontSize: `${Math.round(typography.baseSize * typography.scaleRatio)}px`,
+                                letterSpacing: `${typography.headerTracking}em`,
+                                color: palette.textPrimary,
+                                lineHeight: 1.2,
+                            }}>
+                                Headline Specimen
+                            </h2>
+                            <p className="text-[9px] text-white/30 font-mono mt-1">
+                                {typography.fontHeadline} · {typography.headerWeight} · {Math.round(typography.baseSize * typography.scaleRatio)}px · {typography.headerTracking}em
+                            </p>
+                        </div>
+                        {/* Body text */}
+                        <div>
+                            <p style={{
+                                fontFamily: typography.fontMain,
+                                fontWeight: typography.bodyWeight,
+                                fontSize: `${typography.baseSize}px`,
+                                letterSpacing: `${typography.bodyTracking}em`,
+                                color: palette.textPrimary,
+                                lineHeight: 1.6,
+                            }}>
+                                La red cuántica sincroniza los nodos de información en tiempo real a través del sistema.
+                            </p>
+                            <p className="text-[9px] text-white/30 font-mono mt-1">
+                                {typography.fontMain} · {typography.bodyWeight} · {typography.baseSize}px · {typography.bodyTracking}em
+                            </p>
+                        </div>
+                        {/* Code */}
+                        <div className="px-3 py-2 rounded-lg" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${palette.glassBorder}` }}>
+                            <code style={{
+                                fontFamily: typography.fontCode,
+                                fontSize: `${Math.round(typography.baseSize * 0.85)}px`,
+                                color: "#A78BFA",
+                            }}>
+                                const quantum = await sync(nodes);
+                            </code>
+                            <p className="text-[9px] text-white/30 font-mono mt-1">{typography.fontCode}</p>
+                        </div>
+                        {/* Scale ratio */}
+                        <div className="flex gap-2 items-end">
+                            {[1, typography.scaleRatio, typography.scaleRatio ** 2].map((scale, i) => (
+                                <div key={i} className="flex flex-col items-center gap-1">
+                                    <span style={{
+                                        fontSize: `${Math.round(typography.baseSize * scale * 0.7)}px`,
+                                        fontFamily: typography.fontHeadline,
+                                        fontWeight: typography.headerWeight,
+                                        color: palette.textPrimary,
+                                    }}>Aa</span>
+                                    <span className="text-[7px] text-white/30 font-mono">{(scale).toFixed(2)}×</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </FamilyWrapper>
+            </div>
+
+            {/* ══════════════════════════════════════════════════════════════ */}
+            {/* ─── EFFECTS SHOWCASE ─── */}
+            {/* ══════════════════════════════════════════════════════════════ */}
+            <div id="preview-effects">
+                <FamilyWrapper id="effects" label="✨ Efectos & Física" selected={selectedElement === "effects"} onSelect={() => select("effects")} palette={palette}>
+                    <div className="space-y-3">
+                        {/* Glass card */}
+                        <div className="relative h-28 rounded-2xl overflow-hidden" style={{ background: `linear-gradient(${effects.gradientAngle}deg, ${palette.primary}22, ${palette.accent}22, ${palette.secondary}15)` }}>
+                            {/* Colored orbs behind glass */}
+                            <div className="absolute top-3 left-4 w-14 h-14 rounded-full opacity-60" style={{ background: `radial-gradient(circle, ${palette.primary}, transparent)` }} />
+                            <div className="absolute bottom-2 right-6 w-10 h-10 rounded-full opacity-50" style={{ background: `radial-gradient(circle, ${palette.accent}, transparent)` }} />
+                            {/* Glass overlay */}
+                            <div className="absolute inset-3 rounded-xl flex items-center justify-center" style={{
+                                backdropFilter: `blur(${effects.backdropBlur}px) saturate(${effects.glassSaturation}%)`,
+                                WebkitBackdropFilter: `blur(${effects.backdropBlur}px) saturate(${effects.glassSaturation}%)`,
+                                background: `rgba(255,255,255,0.05)`,
+                                border: `1px solid rgba(255,255,255,${Math.min(effects.glowIntensity * 0.2, 0.3)})`,
+                                boxShadow: `0 0 ${effects.glowIntensity * 20}px ${palette.primary}${Math.round(effects.glowIntensity * 50).toString(16).padStart(2, '0')}`,
+                            }}>
+                                <div className="text-center">
+                                    <span className="text-xs text-white/70 font-medium">Glass Effect</span>
+                                    <p className="text-[8px] text-white/40 font-mono mt-0.5">blur:{effects.backdropBlur}px · sat:{effects.glassSaturation}% · glow:{effects.glowIntensity.toFixed(1)}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {/* Effect meters */}
+                        <div className="grid grid-cols-3 gap-2">
+                            {[
+                                { label: "Refraction", value: effects.refractionIndex, max: 2.5, color: palette.primary },
+                                { label: "Parallax", value: effects.parallaxDepth, max: 1, color: palette.accent },
+                                { label: "Noise", value: effects.noiseOpacity, max: 0.15, color: "#F59E0B" },
+                            ].map(m => (
+                                <div key={m.label} className="flex flex-col items-center p-2 rounded-lg" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${palette.glassBorder}` }}>
+                                    <div className="w-full h-1.5 rounded-full bg-white/5 mb-1.5">
+                                        <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((m.value / m.max) * 100, 100)}%`, background: m.color, boxShadow: `0 0 6px ${m.color}44` }} />
+                                    </div>
+                                    <span className="text-[7px] text-white/40">{m.label}</span>
+                                    <span className="text-[8px] text-white/60 font-mono">{typeof m.value === 'number' ? (Number.isInteger(m.value) ? m.value : m.value.toFixed(2)) : m.value}</span>
+                                </div>
+                            ))}
+                        </div>
+                        {/* Shadow presets */}
+                        <div className="flex gap-2">
+                            {(["soft", "medium", "dramatic"] as const).map(preset => (
+                                <div key={preset} className={cn("flex-1 h-8 rounded-lg flex items-center justify-center text-[8px] transition-all",
+                                    effects.shadowPreset === preset ? "text-white/80" : "text-white/30"
+                                )} style={{
+                                    background: "rgba(255,255,255,0.03)",
+                                    border: effects.shadowPreset === preset ? `1px solid ${palette.primary}40` : `1px solid ${palette.glassBorder}`,
+                                    boxShadow: preset === "soft" ? "0 2px 8px rgba(0,0,0,0.15)"
+                                        : preset === "medium" ? "0 4px 16px rgba(0,0,0,0.25)"
+                                            : "0 8px 32px rgba(0,0,0,0.4)",
+                                }}>
+                                    {preset}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </FamilyWrapper>
+            </div>
+
+            {/* ══════════════════════════════════════════════════════════════ */}
+            {/* ─── GEOMETRY INSPECTOR ─── */}
+            {/* ══════════════════════════════════════════════════════════════ */}
+            <div id="preview-geometry">
+                <FamilyWrapper id="geometry" label="📐 Layout & Geometría" selected={selectedElement === "geometry"} onSelect={() => select("geometry")} palette={palette}>
+                    <div className="space-y-3">
+                        {/* Radius preview */}
+                        <div className="flex gap-2 items-end">
+                            {[
+                                { label: "sm", r: geometry.radiusSm, size: "w-10 h-10" },
+                                { label: "md", r: geometry.radiusMd, size: "w-12 h-12" },
+                                { label: "lg", r: geometry.radiusLg, size: "w-14 h-14" },
+                                { label: "xl", r: geometry.radiusXl, size: "w-16 h-16" },
+                            ].map(item => (
+                                <div key={item.label} className="flex flex-col items-center gap-1">
+                                    <div className={cn(item.size, "bg-gradient-to-br from-blue-500/15 to-indigo-500/15 border border-blue-500/15 transition-all")}
+                                        style={{ borderRadius: `${item.r}px` }} />
+                                    <span className="text-[8px] text-white/40 font-mono">{item.label}:{item.r}px</span>
+                                </div>
+                            ))}
+                        </div>
+                        {/* Spacing scale */}
+                        <div className="space-y-1">
+                            <span className="text-[8px] text-white/40 font-mono">spacing: {geometry.spacingScale}×</span>
+                            <div className="flex flex-col gap-0.5">
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="h-4 rounded-md bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/8 transition-all"
+                                        style={{ marginBottom: `${3 * geometry.spacingScale}px` }} />
+                                ))}
+                            </div>
+                        </div>
+                        {/* Grid + max width */}
+                        <div className="flex gap-2">
+                            <div className="flex-1 p-2 rounded-lg" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${palette.glassBorder}` }}>
+                                <span className="text-[8px] text-white/40 block mb-1">Grid: {geometry.gridColumns} cols</span>
+                                <div className={cn("grid gap-0.5", `grid-cols-${geometry.gridColumns}`)}>
+                                    {Array.from({ length: geometry.gridColumns }).map((_, j) => (
+                                        <div key={j} className="h-3 rounded-sm bg-indigo-400/20" />
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex-1 p-2 rounded-lg" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${palette.glassBorder}` }}>
+                                <span className="text-[8px] text-white/40 block mb-1">Max: {geometry.contentMaxWidth}px</span>
+                                <div className="relative h-3 rounded-sm bg-white/3">
+                                    <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-sm bg-indigo-400/20 transition-all"
+                                        style={{ width: `${Math.round((geometry.contentMaxWidth / 1920) * 100)}%` }} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </FamilyWrapper>
+            </div>
+
+            {/* ══════════════════════════════════════════════════════════════ */}
+            {/* ─── COMPONENT FAMILIES (existing) ─── */}
+            {/* ══════════════════════════════════════════════════════════════ */}
+
             {/* ─── CARDS ─── */}
             <FamilyWrapper id="cards" label="Cards" selected={selectedElement === "cards"} onSelect={() => select("cards")} palette={palette}>
                 <div style={cardStyle} className="p-4 space-y-3">

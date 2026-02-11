@@ -56,3 +56,44 @@ The "Trinity" system assigns specific energies to screen directions:
 *   **Perimeter Paradigm**: The center of the screen is kept sacred and empty for the "content" or "canvas." Controls live exclusively off-screen until summoned.
 *   **Fluid Grid**: Masonry or organic grids for dashboards, allowing widgets to "float."
 *   **Depth**: Deep layering. Background < Liquid Layer < Content Layer < Floating Controls.
+
+## 6. Crystal Design System (Liquid Glass)
+
+Based on `liquid-glass-react` capabilities, we define the following presets for the "Ontocracia Ciberdélica" aesthetic:
+
+### 1. Crystal Card (Static Container)
+Used for: Info panels, profile cards, static widgets.
+- **Displacement**: 100
+- **Blur**: 0.5 (Frosted)
+- **Saturation**: 140%
+- **Aberration**: 2.0
+- **Elasticity**: 0.0 (Rigid)
+- **Corner Radius**: 32px
+
+### 2. Liquid Action (Interactive Element)
+Used for: Primary buttons, floating triggers.
+- **Displacement**: 64
+- **Blur**: 0.1 (Clearer)
+- **Saturation**: 130%
+- **Aberration**: 2.0
+- **Elasticity**: 0.35 (Fluid response to cursor)
+- **Corner Radius**: 100px (Pill/Circle)
+
+### 3. Holographic Shield (Overlay)
+Used for: Modals, warnings, high-priority notifications.
+- **Displacement**: 150 (High distortion)
+- **Blur**: 0.0 (Clear)
+- **Saturation**: 200% (Vibrant)
+- **Aberration**: 5.0 (Strong rainbow edges)
+- **Mode**: "polar" or "prominent"
+
+### 4. Hyper-Crystal (Realism)
+Used for: Main application windows, docks, and high-fidelity elements.
+- **Reference**: `liquid-glass.io` style.
+- **Displacement**: 120
+- **Blur**: 0.6 (Soft, premium frost)
+- **Saturation**: 110% (More natural)
+- **Aberration**: 3.0
+- **Elasticity**: 0.2 (Subtle physics)
+- **Corner Radius**: 48px+ (Heavy rounding)
+

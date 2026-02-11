@@ -10,7 +10,8 @@ export type WidgetType =
     | 'LIVE_DATA'
     | 'SYSTEM_STATUS'
     | 'RECENT_ACTIVITY'
-    | 'NEXUS_QUICK_ACCESS';
+    | 'NEXUS_QUICK_ACCESS'
+    | 'THEME_MANAGER';
 
 export interface Dashboard {
     id: string;

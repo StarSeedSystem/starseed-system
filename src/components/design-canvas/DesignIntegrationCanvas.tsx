@@ -27,7 +27,9 @@ import { mapCanvasToAppearance, applyCanvasPalette } from "./canvas-to-appearanc
 export type ElementFamily =
     | "buttons" | "cards" | "inputs" | "dialogs" | "tooltips"
     | "badges" | "tabs" | "toggles" | "avatars" | "progress"
-    | "toasts" | "navigation" | null;
+    | "toasts" | "navigation"
+    | "palette" | "typography" | "effects" | "geometry"
+    | null;
 
 // ─── Canvas State ────────────────────────────────────────────────
 export interface CanvasState {
@@ -355,23 +357,55 @@ export function DesignIntegrationCanvas() {
     const [selectedElement, setSelectedElement] = useState<ElementFamily>(null);
     const { updateConfig, saveTheme } = useAppearance();
     const settingsRef = useRef<HTMLDivElement>(null);
+    const previewRef = useRef<HTMLDivElement>(null);
 
     const deviceWidths = { desktop: "100%", mobile: "390px", tablet: "768px" };
 
-    // When an element is selected in the preview, switch to components tab and scroll to it
+    // Map certain preview families to their corresponding tabs
+    const familyToTab: Record<string, string> = {
+        palette: "colors",
+        typography: "typography",
+        effects: "effects",
+        geometry: "layout",
+    };
+
+    // When an element is selected in the preview, switch to the right tab and scroll to it
     const handleSelectElement = useCallback((family: ElementFamily) => {
         setSelectedElement(family);
         if (family) {
-            setActiveTab("components");
-            // Scroll to the section after tab switch
+            const tab = familyToTab[family] || "components";
+            setActiveTab(tab);
+            // Scroll to the section in the settings panel after tab switch
+            if (tab === "components") {
+                setTimeout(() => {
+                    const el = document.getElementById(`family-${family}`);
+                    if (el) {
+                        el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+                }, 150);
+            }
+        }
+    }, []);
+
+    // Auto-scroll preview panel when the active tab changes
+    const tabToPreviewId: Record<string, string> = {
+        colors: "preview-palette",
+        typography: "preview-typography",
+        effects: "preview-effects",
+        layout: "preview-geometry",
+    };
+
+    useEffect(() => {
+        const previewId = tabToPreviewId[activeTab];
+        if (previewId && previewRef.current) {
             setTimeout(() => {
-                const el = document.getElementById(`family-${family}`);
+                const el = document.getElementById(previewId);
                 if (el) {
                     el.scrollIntoView({ behavior: "smooth", block: "start" });
                 }
-            }, 150);
+            }, 100);
         }
-    }, []);
+    }, [activeTab]);
 
     const handleApplyToContext = useCallback((mapped: Record<string, any>) => {
         updateConfig(mapped);
@@ -560,7 +594,7 @@ export function DesignIntegrationCanvas() {
                             <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
                         </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-4 flex justify-center">
+                    <div ref={previewRef} className="flex-1 overflow-y-auto p-4 flex justify-center">
                         <div
                             className="transition-all duration-500 ease-out"
                             style={{ width: deviceWidths[previewDevice], maxWidth: "100%" }}

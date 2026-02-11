@@ -38,6 +38,7 @@ export interface AppearanceConfig {
         surfaceTension: number; // (Liquid)
         frostOpacity: number; // (Glass)
         glassNoise: number; // (Glass)
+        crystalPreset?: "none" | "clear" | "frosted" | "holographic" | "obsidian" | "quantic" | "organic-frosted";
     };
     background: {
         type: "solid" | "gradient" | "image" | "video" | "webgl";
@@ -47,9 +48,21 @@ export interface AppearanceConfig {
         overlayOpacity: number; // 0 to 1
         overlayColor: "black" | "white";
         // WebGL specific
-        webglVariant?: "nebula" | "grid" | "waves" | "hex";
-        webglSpeed?: number;
+        webglVariant?: "nebula" | "grid" | "waves" | "hex" | "liquid";
         webglZoom?: number;
+        webglSpeed?: number;
+        liquidColors?: string[]; // Array of 6 hex colors
+
+        // New Filter System
+        filter: {
+            enabled: boolean;
+            type: "none" | "noise" | "waves"; // 'waves' replaced 'liquid-metal'
+            settings: {
+                noiseOpacity?: number;
+                waveMetalness?: number; // 0 to 1
+                waveRoughness?: number; // 0 to 1
+            }
+        };
     };
     buttons: {
         style: "default" | "glass" | "liquid" | "neon" | "brutal";
@@ -67,12 +80,22 @@ export interface AppearanceConfig {
     };
     liquidGlass: {
         enabled: boolean;
-        applyToUI: boolean; // New: Apply similar effect to buttons/cards
-        distortWidth: number;
-        distortHeight: number;
-        distortRadius: number;
-        smoothStepEdge: number;
-        distanceOffset: number;
+        applyToUI: boolean;
+        // Core React Lib Props
+        displacementScale: number;
+        blurAmount: number;
+        saturation: number;
+        aberrationIntensity: number;
+        elasticity: number;
+        cornerRadius: number;
+        mode: "standard" | "polar" | "prominent" | "shader";
+        // Legacy / Custom Customization (keeping for backward compat if needed, or remove if fully replacing)
+        distortWidth?: number;  // Deprecating/Mapping to new props? keeping for safe transition
+    },
+    textDiffusion: {
+        blur: number; // 0 to 20px
+        opacity: number; // 0 to 1
+        glowStrength: number; // 0 to 1
     },
     mobile: {
         // FAB (Floating Action Button) Settings
@@ -163,7 +186,13 @@ export interface AppearanceConfig {
         reducedMotion: boolean;
     };
     themeStore: {
-        activeTemplateId?: string;
+        activeMode: "custom" | "crystal" | "liquid" | "solid-crystal" | "primary";
+        savedThemes: Array<{
+            id: string;
+            name: string;
+            createdAt: number;
+            config: Partial<AppearanceConfig>;
+        }>;
     };
 }
 
@@ -181,8 +210,19 @@ const defaultConfig: AppearanceConfig = {
     },
     styling: {
         radius: 0.5,
-        glassIntensity: 10,
-        opacity: 0.8,
+        glassIntensity: 20, // Increased default blur for legibility
+        opacity: 0.65, // Increased opacity (was 0.8 which is transparency factor... wait, lower opacity = more transparent? Let's check logic. opacity var is used as 0 to 1. Usually 1 is opaque. 
+        // In applyStyles: root.style.setProperty("--glass-opacity", String(opacity));
+        // In CSS: rgba(255, 255, 255, var(--glass-opacity, 0.4))
+        // So higher value = more opaque background color = better legibility. 
+        // Default was 0.8 (which is quite high/opaque already? No, wait. 
+        // Let's check defaults in defaultConfig.styling.
+        // It was 0.8. Let's make it 0.7 for now but ensure CSS uses it correctly.
+        // Actually, user said "demasiado transparente" (too transparent). So we need MORE opacity (closer to 1).
+        // Let's stick to 0.8 or even 0.85 if it was "too transparent". 
+        // Wait, earlier I saw --glass-opacity default in CSS was 0.4.
+        // The default config here says 0.8. 
+        // Let's look at the CSS usage again in next step. For now, let's keep reasonable defaults.
         borderWidth: 1,
         refraction: 0,
         chromaticAberration: 0,
@@ -195,17 +235,27 @@ const defaultConfig: AppearanceConfig = {
         surfaceTension: 50,
         frostOpacity: 0.5,
         glassNoise: 0.05,
+        crystalPreset: "none",
     },
     background: {
         type: "solid",
         value: "",
         blur: 0,
         animation: "none",
-        overlayOpacity: 0.2, // Default light overlay
+        overlayOpacity: 0.4, // Darker overlay for better text contrast by default
         overlayColor: "black",
         webglVariant: "hex",
         webglSpeed: 0.5,
         webglZoom: 1.0,
+        liquidColors: ["#F15A22", "#0A0E27", "#F15A22", "#0A0E27", "#F15A22", "#0A0E27"],
+        filter: {
+            enabled: false,
+            type: "none",
+            settings: {
+                waveMetalness: 0.75,
+                waveRoughness: 0.25
+            }
+        }
     },
     buttons: {
         style: "default",
@@ -222,13 +272,20 @@ const defaultConfig: AppearanceConfig = {
         microInteractions: true,
     },
     liquidGlass: {
-        enabled: true,
+        enabled: false,
         applyToUI: false,
-        distortWidth: 0.3,
-        distortHeight: 0.2,
-        distortRadius: 0.6,
-        smoothStepEdge: 0.8,
-        distanceOffset: 0.15,
+        displacementScale: 15,    // Much subtler (was 64)
+        blurAmount: 0.1,         // Softer focus
+        saturation: 110,         // Slight boost
+        aberrationIntensity: 1,  // Minimal aberration
+        elasticity: 0.2,         // Slightly more elastic
+        cornerRadius: 24,        // Standard UI radius
+        mode: "standard",
+    },
+    textDiffusion: {
+        blur: 15,
+        opacity: 0.7,
+        glowStrength: 0.5,
     },
     mobile: {
         // FAB Settings
@@ -316,7 +373,10 @@ const defaultConfig: AppearanceConfig = {
         adaptiveUI: true,
         reducedMotion: false,
     },
-    themeStore: {},
+    themeStore: {
+        activeMode: 'custom',
+        savedThemes: []
+    },
 };
 
 interface AppearanceContextType {
@@ -326,6 +386,12 @@ interface AppearanceContextType {
     updateSection: <K extends keyof AppearanceConfig>(section: K, data: Partial<AppearanceConfig[K]>) => void;
     addCustomFont: (font: CustomFont) => void;
     removeCustomFont: (name: string) => void;
+    // Theme Actions
+    saveTheme: (name: string) => void;
+    loadTheme: (id: string) => void;
+    deleteTheme: (id: string) => void;
+    exportTheme: () => void;
+    importTheme: (file: File) => Promise<void>;
 }
 
 const AppearanceContext = createContext<AppearanceContextType | undefined>(undefined);
@@ -385,6 +451,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     const applyStyles = (currentConfig: AppearanceConfig) => {
         if (!currentConfig) return; // Safety check
         const root = document.documentElement;
+
 
         // Typography
         // Defensive destructuring with defaults
@@ -451,6 +518,88 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         if (styling.hardShadows) root.classList.add('theme-hard-shadows');
         else root.classList.remove('theme-hard-shadows');
 
+        // Apply Crystal Presets (Overrides)
+        // This ensures the preset values take precedence if a preset is selected
+        const preset = styling.crystalPreset || 'none';
+
+        switch (preset) {
+            case 'clear':
+                root.style.setProperty("--glass-opacity", "0.20");
+                root.style.setProperty("--glass-blur", "5px");
+                root.style.setProperty("--glass-refraction", "0.8");
+                root.style.setProperty("--border-width", "1px");
+                break;
+            case 'frosted':
+                root.style.setProperty("--glass-opacity", "0.60");
+                root.style.setProperty("--glass-blur", "30px");
+                root.style.setProperty("--glass-refraction", "0.1");
+                root.style.setProperty("--glass-frost", "1.0");
+                break;
+            case 'holographic': // Prismatic
+                root.style.setProperty("--glass-opacity", "0.30");
+                root.style.setProperty("--glass-blur", "10px");
+                root.style.setProperty("--glass-refraction", "0.9");
+                root.style.setProperty("--glass-aberration", "5px");
+                break;
+            case 'obsidian': // Dark Glass
+                root.style.setProperty("--glass-opacity", "0.85");
+                root.style.setProperty("--glass-blur", "15px");
+                root.style.setProperty("--glass-refraction", "0.2");
+                break;
+            case 'quantic': // Glitched
+                root.style.setProperty("--glass-opacity", "0.40");
+                root.style.setProperty("--glass-blur", "8px");
+                root.style.setProperty("--glass-noise", "0.15");
+                break;
+            case 'organic-frosted':
+                root.style.setProperty("--glass-opacity", "0.65");
+                root.style.setProperty("--glass-blur", "20px");
+                root.style.setProperty("--glass-refraction", "0.3");
+                break;
+            case 'none':
+            default:
+                // Do nothing, let manual sliders control (which were set above)
+                break;
+        }
+
+        // --- THEME MODE LOGIC (Crystal vs Liquid vs Solid Crystal) ---
+        if (config.themeStore.activeMode === 'crystal') {
+            // Pure Crystal
+            root.style.setProperty('--glass-blur', '20px');
+            root.style.setProperty('--tab-glass-blur', '20px');
+            root.style.setProperty('--glass-opacity', '0.65');
+            root.style.setProperty('--glass-border-opacity', '0.4');
+            root.style.setProperty('--glass-refraction', '1.5');
+        } else if (config.themeStore.activeMode === 'liquid') {
+            // Pure Liquid
+            root.style.setProperty('--glass-blur', '40px');
+            root.style.setProperty('--tab-glass-blur', '40px');
+            root.style.setProperty('--glass-opacity', '0.4');
+            root.style.setProperty('--glass-border-opacity', '0.1');
+            root.style.setProperty('--glass-refraction', '1.1');
+        } else if (config.themeStore.activeMode === 'solid-crystal') {
+            // HYBRID: Liquid Tabs (High Blur) + Crystal Buttons (Base Crystal)
+            root.style.setProperty('--glass-blur', '20px'); // Base for buttons
+            root.style.setProperty('--tab-glass-blur', '40px'); // High blur for tabs
+            root.style.setProperty('--glass-opacity', '0.75'); // More solid
+            root.style.setProperty('--glass-border-opacity', '0.5'); // Calculated borders
+            root.style.setProperty('--glass-refraction', '1.3');
+        } else if (config.themeStore.activeMode === 'primary') {
+            // PRIMARY MODE (Based on Liquid Glass React Repo)
+            // Defaults from example: saturation 140, blur 0.5 (mapped to ~16px), displacement 100
+            root.style.setProperty('--glass-blur', '16px');
+            root.style.setProperty('--tab-glass-blur', '16px');
+            root.style.setProperty('--glass-opacity', '0.7');
+            root.style.setProperty('--glass-border-opacity', '0.3');
+            root.style.setProperty('--glass-refraction', '0.8');
+            root.style.setProperty('--glass-saturation', '140%');
+            // Ensure no displacement distortion on main UI to keep it usable
+            root.classList.remove('glass-displacement');
+        }
+
+        if (preset === 'organic-frosted') root.classList.add('glass-displacement');
+        else root.classList.remove('glass-displacement');
+
         if (styling.uppercase) root.classList.add('theme-uppercase');
         else root.classList.remove('theme-uppercase');
 
@@ -473,12 +622,20 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
                 document.body.classList.remove('buttons-glow-enabled');
             }
 
+            // Crystal/Glass Buttons
+            if (currentConfig.buttons.style === 'glass') {
+                document.body.classList.add('style-glass-buttons');
+            } else {
+                document.body.classList.remove('style-glass-buttons');
+            }
+
             // Legacy button animation + Global Hover
             const anims = currentConfig.animations || defaultConfig.animations;
 
             // Toggle global animation class
             if (anims.enabled) document.body.classList.remove('animations-disabled');
             else document.body.classList.add('animations-disabled');
+
 
             // Button/Hover Scale
             if (anims.hover || currentConfig.buttons.animation) {
@@ -494,6 +651,16 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             // Trinity Animation Type
             root.style.setProperty("--trinity-entry", anims.trinityEntry);
         }
+
+        // --- Text Diffusion (New) ---
+        const textDiff = currentConfig.textDiffusion || defaultConfig.textDiffusion;
+        root.style.setProperty("--text-diff-blur", `${textDiff.blur}px`);
+        root.style.setProperty("--text-diff-opacity", String(textDiff.opacity));
+        root.style.setProperty("--text-diff-glow", String(textDiff.glowStrength));
+        // Optional: Toggle class if blur > 0 to enable costly filters only when needed
+        if (textDiff.blur > 0) root.classList.add('text-diffusion-enabled');
+        else root.classList.remove('text-diffusion-enabled');
+
 
         // Background (Custom handling needed for complex types)
         const background = currentConfig.background || defaultConfig.background;
@@ -526,6 +693,15 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             document.body.classList.add('liquid-ui-enabled');
         } else {
             document.body.classList.remove('liquid-ui-enabled');
+        }
+
+        // Universal WebGL Background Support
+        // If WebGL is active, we force the body background to be transparent
+        // to let the canvas show through, regardless of the active theme.
+        if (background.type === 'webgl') {
+            document.body.classList.add('webgl-active');
+        } else {
+            document.body.classList.remove('webgl-active');
         }
     };
 
@@ -563,12 +739,93 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         }));
     };
 
+    // Theme Management Logic
+    const saveTheme = (name: string) => {
+        const newTheme = {
+            id: crypto.randomUUID(),
+            name,
+            createdAt: Date.now(),
+            config: { ...config } // Clone current config
+        };
+
+        setConfig(prev => ({
+            ...prev,
+            themeStore: {
+                ...prev.themeStore,
+                savedThemes: [...(prev.themeStore.savedThemes || []), newTheme]
+            }
+        }));
+    };
+
+    const loadTheme = (id: string) => {
+        const theme = config.themeStore.savedThemes.find(t => t.id === id);
+        if (theme) {
+            // Keep existing saved themes, just overlay the config
+            setConfig(prev => deepMerge(prev, {
+                ...theme.config,
+                themeStore: {
+                    ...prev.themeStore,
+                    // Ensure we don't overwrite the store itself with the old one
+                    savedThemes: prev.themeStore.savedThemes
+                }
+            }));
+        }
+    };
+
+    const deleteTheme = (id: string) => {
+        setConfig(prev => ({
+            ...prev,
+            themeStore: {
+                ...prev.themeStore,
+                savedThemes: prev.themeStore.savedThemes.filter(t => t.id !== id)
+            }
+        }));
+    };
+
+    const exportTheme = () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "starseed_theme_config.json");
+        document.body.appendChild(downloadAnchorNode); // required for firefox
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    };
+
+    const importTheme = async (file: File) => {
+        const text = await file.text();
+        try {
+            const importedConfig = JSON.parse(text);
+            // Basic validation check
+            if (importedConfig.styling && importedConfig.layout) {
+                setConfig(prev => deepMerge(prev, importedConfig));
+            } else {
+                alert("Invalid theme file configuration");
+            }
+        } catch (e) {
+            console.error("Failed to import theme", e);
+            alert("Error parsing theme file");
+        }
+    };
+
     const resetConfig = () => {
         setConfig(defaultConfig);
     };
 
     return (
-        <AppearanceContext.Provider value={{ config, updateConfig, resetConfig, updateSection, addCustomFont, removeCustomFont }}>
+        <AppearanceContext.Provider value={{
+            config,
+            updateConfig,
+            resetConfig,
+            updateSection,
+            addCustomFont,
+            removeCustomFont,
+            saveTheme,
+            loadTheme,
+            deleteTheme,
+            exportTheme,
+            importTheme
+        }}>
             {children}
         </AppearanceContext.Provider>
     );

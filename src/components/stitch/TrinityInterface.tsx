@@ -27,6 +27,8 @@ import { cn } from '@/lib/utils'; // Assuming this exists, common in shadcn
 // If LiquidGlassWrapper is too heavy for everything, we use CSS classes for now,
 // but we can wrap the main container or specific widgets if needed.
 // For now, I will simulate the "liquid-glass" and "heavy-glass" classes using standard Tailwind + custom styles in globals.css
+import { SystemMonitor } from "@/components/stitch/SystemMonitor";
+import { NavigationDock } from "@/components/stitch/NavigationDock";
 
 export default function TrinityInterface() {
     const [activePanel, setActivePanel] = useState<'left' | 'right' | null>(null);
@@ -176,27 +178,7 @@ export default function TrinityInterface() {
             </aside>
 
             {/* ANCHOR DOCK (Bottom) */}
-            <nav className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
-                <div className="px-8 py-3 backdrop-blur-xl bg-primary/10 rounded-full flex items-center gap-8 shadow-[0_0_20px_rgba(219,20,60,0.3)] border border-primary/20">
-                    <button className="flex flex-col items-center gap-1 group">
-                        <Home className="text-primary w-6 h-6" />
-                        <span className="w-1 h-1 rounded-full bg-primary"></span>
-                    </button>
-                    <button className="flex flex-col items-center gap-1 group text-white/40 hover:text-white transition-colors">
-                        <Grid className="w-6 h-6" />
-                    </button>
-                    <button className="flex flex-col items-center gap-1 group text-white/40 hover:text-white transition-colors">
-                        <CircleDot className="w-6 h-6" />
-                    </button>
-                    <div className="w-px h-6 bg-white/10 mx-2"></div>
-                    <button className="flex flex-col items-center gap-1 group text-white/40 hover:text-white transition-colors">
-                        <FolderOpen className="w-6 h-6" />
-                    </button>
-                    <button className="flex flex-col items-center gap-1 group text-white/40 hover:text-white transition-colors">
-                        <Network className="w-6 h-6" />
-                    </button>
-                </div>
-            </nav>
+            <NavigationDock />
 
             {/* CENTRAL CONTENT (Masonry Grid) */}
             <main className="h-screen w-screen pt-24 pb-28 px-4 md:px-28 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
@@ -254,7 +236,7 @@ export default function TrinityInterface() {
                             <div className="absolute inset-0 bg-gradient-to-t from-background-dark to-transparent"></div>
                             <div className="absolute bottom-4 left-4">
                                 <span className="px-2 py-1 rounded bg-emerald-green text-[8px] font-bold text-black uppercase">Active</span>
-                                <h4 class="text-xl font-bold mt-1">Project Morphosis</h4>
+                                <h4 className="text-xl font-bold mt-1">Project Morphosis</h4>
                             </div>
                         </div>
                         <div className="p-4 flex justify-between items-center">
@@ -310,29 +292,8 @@ export default function TrinityInterface() {
                     </div>
 
                     {/* Widget: System Health */}
-                    <div className="break-inside-avoid backdrop-blur-md bg-white/5 border border-white/10 rounded-xl p-6">
-                        <div className="flex items-center gap-2 mb-6">
-                            <Heart className="text-primary w-4 h-4" />
-                            <h3 className="text-xs font-bold uppercase tracking-widest">Vitality Matrix</h3>
-                        </div>
-                        <div className="grid grid-cols-2 gap-y-4">
-                            <div>
-                                <p className="text-[10px] text-white/40 uppercase">Core Heat</p>
-                                <p className="text-lg font-bold">34°C</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-white/40 uppercase">Memory</p>
-                                <p className="text-lg font-bold">12.4 GB</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-white/40 uppercase">Uptime</p>
-                                <p className="text-lg font-bold">142:12</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-white/40 uppercase">Latency</p>
-                                <p className="text-lg font-bold text-emerald-green">4ms</p>
-                            </div>
-                        </div>
+                    <div className="break-inside-avoid">
+                        <SystemMonitor className="w-full h-auto aspect-auto min-h-[300px]" />
                     </div>
 
                 </div>
