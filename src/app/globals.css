@@ -796,9 +796,88 @@
 }
 
 /* Apply Crystal styles to Shadcn Button when Body has class */
+/* --- Dynamic Selection --- */
+::selection {
+  background: var(--selection-background, hsl(var(--primary)));
+  color: var(--selection-foreground, hsl(var(--primary-foreground)));
+}
+
+/* --- Scrollbar Utilities --- */
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 99px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+.scrollbar-glow::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollbar-glow::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+.scrollbar-glow::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary));
+  border-radius: 99px;
+  box-shadow: 0 0 10px hsl(var(--primary));
+}
+
+/* Apply Crystal styles to Shadcn Button when Body has class */
 body.style-glass-buttons .shadcn-button,
 body.style-glass-buttons button:not(.ghost):not(.link):not(.plain) {
   @apply crystal-button;
+}
+
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
 }
 
 /* --- Advanced Crystal Tabs --- */

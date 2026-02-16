@@ -30,16 +30,17 @@ export const LiquidGlass = ({
         // Ideally we update the context types, but for now we re-purpose the values or set defaults.
 
         // Default Premium Apple-like Glass Settings
-        const blur = "20px";
-        const opacity = "0.6"; // Light source opacity
-        const saturation = "180%";
+        // const blur = "20px";
+        // const opacity = "0.6"; // Light source opacity
+        // const saturation = "180%";
 
         // If we want to allow user config later, we can read from liquidGlass.distortRadius etc.
         // For now, hardcode the "perfect" settings as requested by the user.
 
-        document.documentElement.style.setProperty('--glass-blur', blur);
-        document.documentElement.style.setProperty('--glass-opacity', opacity);
-        document.documentElement.style.setProperty('--glass-saturation', saturation);
+        // DISABLED: allowing Design Canvas to control these global variables
+        // document.documentElement.style.setProperty('--glass-blur', blur);
+        // document.documentElement.style.setProperty('--glass-opacity', opacity);
+        // document.documentElement.style.setProperty('--glass-saturation', saturation);
 
     }, [isEnabled, liquidGlass]);
 

@@ -3,7 +3,9 @@
 import React, { useState } from "react";
 import { Palette, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { CanvasState } from "../DesignIntegrationCanvas";
+import type { CanvasState } from "../state-types";
+import { usePreviewSync } from "../hooks/usePreviewSync";
+import { SettingControl } from "../controls/SettingControl";
 
 interface ColorPaletteTabProps {
     state: CanvasState;
@@ -14,13 +16,21 @@ function ColorSwatch({
     label,
     color,
     onChange,
+    id,
+    onHighlight
 }: {
     label: string;
     color: string;
     onChange: (val: string) => void;
+    id?: string;
+    onHighlight?: (id: string | null) => void;
 }) {
     return (
-        <div className="flex items-center gap-3 group">
+        <div
+            className="flex items-center gap-3 group"
+            onMouseEnter={() => id && onHighlight && onHighlight(id)}
+            onMouseLeave={() => id && onHighlight && onHighlight(null)}
+        >
             <div className="relative">
                 <div
                     className="w-10 h-10 rounded-xl border border-white/10 shadow-inner cursor-pointer transition-transform group-hover:scale-105"
@@ -34,7 +44,10 @@ function ColorSwatch({
                 />
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-xs text-white/70 font-medium truncate">{label}</p>
+                <div className="flex items-center gap-2">
+                    <p className="text-xs text-white/70 font-medium truncate">{label}</p>
+                    {/* Optional Info Icon could go here via TooltipTrigger/SettingControl logic if needed */}
+                </div>
                 <p className="text-[10px] text-white/50 font-mono">{color}</p>
             </div>
         </div>
@@ -89,8 +102,15 @@ export function ColorPaletteTab({ state, dispatch }: ColorPaletteTabProps) {
 
     const toggleSection = (s: string) => setExpandedSection(expandedSection === s ? null : s);
 
+    const { scrollToPreview } = usePreviewSync();
+
+    const handleHighlight = (id: string | null) => {
+        dispatch({ type: "SET_UI", payload: { activeHighlight: id } });
+    };
+
     const updateColor = (key: keyof CanvasState["palette"], value: string) => {
         dispatch({ type: "SET_PALETTE", payload: { [key]: value } });
+        scrollToPreview("family-wrapper-palette");
     };
 
     const updateTrinity = (axis: string, field: string, value: string) => {
@@ -100,6 +120,7 @@ export function ColorPaletteTab({ state, dispatch }: ColorPaletteTabProps) {
                 [axis]: { ...state.palette.trinity[axis as keyof typeof state.palette.trinity], [field]: value },
             },
         });
+        scrollToPreview("family-wrapper-palette");
     };
 
     const sections = [
@@ -183,9 +204,11 @@ export function ColorPaletteTab({ state, dispatch }: ColorPaletteTabProps) {
                             {section.colors.map(c => (
                                 <ColorSwatch
                                     key={c.key}
+                                    id={c.key}
                                     label={c.label}
                                     color={c.color}
                                     onChange={(val) => updateColor(c.key, val)}
+                                    onHighlight={handleHighlight}
                                 />
                             ))}
                         </div>
@@ -219,12 +242,15 @@ export function ColorPaletteTab({ state, dispatch }: ColorPaletteTabProps) {
                                 <div className="grid grid-cols-2 gap-4">
                                     {ta.fields.map(f => {
                                         const axisData = state.palette.trinity[ta.axis as keyof typeof state.palette.trinity] as Record<string, string>;
+                                        const id = `trinity-${ta.axis}-${f.field}`;
                                         return (
                                             <ColorSwatch
                                                 key={f.field}
+                                                id={id}
                                                 label={f.label}
                                                 color={axisData[f.field]}
                                                 onChange={(val) => updateTrinity(ta.axis, f.field, val)}
+                                                onHighlight={handleHighlight}
                                             />
                                         );
                                     })}

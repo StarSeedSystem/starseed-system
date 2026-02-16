@@ -155,7 +155,7 @@ export function BackgroundSettings() {
                                             const isEnabled = !(config.background.filter?.enabled && config.background.filter?.type === 'waves');
                                             updateSection("background", {
                                                 filter: {
-                                                    ...config.background.filter!,
+                                                    ...(config.background.filter || { settings: { opacity: 0.5, blendMode: 'overlay' } }),
                                                     enabled: isEnabled,
                                                     type: isEnabled ? 'waves' : 'none'
                                                 }
@@ -182,7 +182,7 @@ export function BackgroundSettings() {
                                                 onValueChange={([val]) => updateSection("background", {
                                                     filter: {
                                                         ...config.background.filter!,
-                                                        settings: { ...config.background.filter!.settings, waveMetalness: val }
+                                                        settings: { ...(config.background.filter?.settings || { opacity: 0.5, blendMode: 'overlay' }), waveMetalness: val }
                                                     }
                                                 })}
                                             />
@@ -198,7 +198,7 @@ export function BackgroundSettings() {
                                                 onValueChange={([val]) => updateSection("background", {
                                                     filter: {
                                                         ...config.background.filter!,
-                                                        settings: { ...config.background.filter!.settings, waveRoughness: val }
+                                                        settings: { ...(config.background.filter?.settings || { opacity: 0.5, blendMode: 'overlay' }), waveRoughness: val }
                                                     }
                                                 })}
                                             />

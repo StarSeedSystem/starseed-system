@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { LiquidGlass } from "@/components/ui/liquid-glass";
 import { WebGLBackground } from "@/components/ui/backgrounds/webgl-background";
 import { CrystalFilters } from "@/components/ui/effects/CrystalFilters";
-import { OrbsBackground } from "@/components/features/backgrounds/OrbsBackground";
+import { GlobalEnvironment } from "@/components/ui/global-environment";
 import { PerimeterProvider } from "@/context/perimeter-context";
 import { PerimeterInterface } from "@/components/layout/perimeter-interface";
 import { ZenithCurtain } from "@/components/layout/zenith-curtain";
@@ -85,7 +85,7 @@ export default function RootLayout({
                       <LiquidGlass />
                       <WebGLBackground />
                       <CrystalFilters />
-                      <OrbsBackground />
+                      <GlobalEnvironment />
                       {children}
                       <ZenithCurtain />
                       <SideCurtains />

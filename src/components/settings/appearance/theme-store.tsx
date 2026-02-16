@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useAppearance, AppearanceConfig } from "@/context/appearance-context";
+import { useAppearance, AppearanceConfig, DeepPartial } from "@/context/appearance-context";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ interface ThemeTemplate {
     description: string;
     author: string;
     image: string;
-    config: Partial<AppearanceConfig>;
+    config: DeepPartial<AppearanceConfig>;
     tags: string[];
 }
 
@@ -29,10 +29,10 @@ const templates: ThemeTemplate[] = [
         tags: ["Dark", "Neon", "Liquid"],
         config: {
             background: { type: 'image', value: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1480', blur: 0, animation: 'pan' },
-            liquidGlass: { enabled: true, applyToUI: true, distortRadius: 0.8, distortWidth: 0.4, distortHeight: 0.3, smoothStepEdge: 0.2, distanceOffset: 0.1 },
+            liquidGlass: { enabled: true, applyToUI: true, cornerRadius: 24, distortWidth: 0.4 },
             styling: { radius: 0.75, glassIntensity: 30, opacity: 0.7 },
             layout: { menuPosition: 'left', menuStyle: 'dock', iconStyle: 'solid' },
-            typography: { fontFamily: 'Space Grotesk', fontSizeScale: 1.05 }
+            typography: { fontFamily: 'Space Grotesk', scale: 1.05 }
         }
     },
     {
@@ -44,10 +44,10 @@ const templates: ThemeTemplate[] = [
         tags: ["Light", "Minimal", "Clean"],
         config: {
             background: { type: 'image', value: 'https://images.unsplash.com/photo-1584714268709-c3dd9c92b378?q=80&w=1480', blur: 0, animation: 'pulse' },
-            liquidGlass: { enabled: false, applyToUI: false, distortRadius: 0.5, distortWidth: 0.1, distortHeight: 0.1, smoothStepEdge: 0.1, distanceOffset: 0.1 },
+            liquidGlass: { enabled: false, applyToUI: false, cornerRadius: 16, distortWidth: 0.1 },
             styling: { radius: 1, glassIntensity: 5, opacity: 0.95 },
             layout: { menuPosition: 'top', menuStyle: 'minimal', iconStyle: 'thin' },
-            typography: { fontFamily: 'Outfit', fontSizeScale: 1 }
+            typography: { fontFamily: 'Outfit', scale: 1 }
         }
     },
     {
@@ -59,10 +59,10 @@ const templates: ThemeTemplate[] = [
         tags: ["Dark", "Space", "Immersive"],
         config: {
             background: { type: 'image', value: 'https://images.unsplash.com/photo-1444703686981-a3abbc4d4fe3?q=80&w=1480', blur: 0, animation: 'zoom' },
-            liquidGlass: { enabled: true, applyToUI: true, distortRadius: 0.9, distortWidth: 0.2, distortHeight: 0.2, smoothStepEdge: 0.5, distanceOffset: 0.05 },
+            liquidGlass: { enabled: true, applyToUI: true, cornerRadius: 8, distortWidth: 0.2 },
             styling: { radius: 0.2, glassIntensity: 15, opacity: 0.6 },
             layout: { menuPosition: 'right', menuStyle: 'sidebar', iconStyle: 'outline' },
-            typography: { fontFamily: 'Inter', fontSizeScale: 0.95 }
+            typography: { fontFamily: 'Inter', scale: 0.95 }
         }
     },
     {
@@ -74,10 +74,10 @@ const templates: ThemeTemplate[] = [
         tags: ["Demo", "Vector", "Scroll"],
         config: {
             background: { type: 'image', value: 'https://i.ibb.co/MDbLn4N4/vectors.png', blur: 0, animation: 'scroll' },
-            liquidGlass: { enabled: true, applyToUI: true, distortRadius: 0.3, distortWidth: 0.5, distortHeight: 0.5, smoothStepEdge: 0.1, distanceOffset: 0.1 },
+            liquidGlass: { enabled: true, applyToUI: true, cornerRadius: 12, distortWidth: 0.5 },
             styling: { radius: 0.75, glassIntensity: 20, opacity: 0.85 },
             layout: { menuPosition: 'left', menuStyle: 'dock', iconStyle: 'solid' },
-            typography: { fontFamily: 'Inter', fontSizeScale: 1 }
+            typography: { fontFamily: 'Inter', scale: 1 }
         }
     }
 ];
@@ -87,7 +87,7 @@ export function ThemeStore() {
     const [activeTab, setActiveTab] = React.useState("browse");
 
     const applyTemplate = (template: ThemeTemplate) => {
-        updateConfig(template.config);
+        updateConfig(template.config as any);
         updateSection("themeStore", { activeTemplateId: template.id });
     };
 

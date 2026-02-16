@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ThemeSelector } from "@/components/theme/theme-selector";
+import { ThemeGallery } from "@/components/settings/appearance/theme-gallery";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Palette } from "lucide-react";
 
@@ -14,8 +14,8 @@ export function ThemeSelectorWidget() {
                     Temas del Sistema
                 </CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 flex items-center justify-center pt-0">
-                <ThemeSelector />
+            <CardContent className="flex-1 pt-0 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+                <ThemeGallery compact />
             </CardContent>
         </Card>
     );

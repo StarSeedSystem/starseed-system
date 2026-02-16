@@ -23,7 +23,7 @@ export default function SettingsPage() {
                         <div className="border-b bg-muted/20 p-4">
                             <TabsList className="grid w-full grid-cols-3 max-w-md mx-auto">
                                 <TabsTrigger value="appearance" className="gap-2 data-[state=active]:bg-background/50">
-                                    <Palette className="h-4 w-4" /> Apariencia
+                                    <Palette className="h-4 w-4" /> Diseños de UI
                                 </TabsTrigger>
                                 <TabsTrigger value="profile" className="gap-2 data-[state=active]:bg-background/50">
                                     <User className="h-4 w-4" /> Perfil

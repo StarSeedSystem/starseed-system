@@ -10,16 +10,21 @@ interface LiquidGlassWrapperProps {
     className?: string;
     style?: React.CSSProperties;
     onClick?: React.MouseEventHandler<HTMLDivElement>;
-    // Overrides
+    // Overrides — all map to liquid-glass-react LiquidGlassProps
     displacementScale?: number;
     blurAmount?: number;
     saturation?: number;
     aberrationIntensity?: number;
     elasticity?: number;
+    refraction?: number;
+
     cornerRadius?: number;
+    noiseOpacity?: number;
+    padding?: string;
     mode?: "standard" | "polar" | "prominent" | "shader";
-    overLight?: boolean; // Toggles light-mode optimizations (darker borders/shadows)
-    forceActive?: boolean; // Kept for compatibility with LiquidButton/Card
+    overLight?: boolean;
+    forceActive?: boolean;
+    mouseContainer?: React.RefObject<HTMLElement | null> | null;
 }
 
 export function LiquidGlassWrapper({
@@ -32,10 +37,15 @@ export function LiquidGlassWrapper({
     saturation,
     aberrationIntensity,
     elasticity,
+    refraction,
+
     cornerRadius,
+    noiseOpacity,
+    padding,
     mode,
     overLight = false,
-    forceActive = false
+    forceActive = false,
+    mouseContainer
 }: LiquidGlassWrapperProps) {
     const { config } = useAppearance();
     const { liquidGlass } = config;
@@ -55,7 +65,7 @@ export function LiquidGlassWrapper({
     return (
         <div
             className={cn(
-                "relative group isolation-auto",
+                "relative group isolation-auto rounded-[inherit]",
                 overLight && "text-black border-black/10 shadow-[0_4px_20px_rgba(0,0,0,0.1)]",
                 className
             )}
@@ -71,20 +81,27 @@ export function LiquidGlassWrapper({
                     saturation={saturation ?? liquidGlass.saturation}
                     aberrationIntensity={aberrationIntensity ?? liquidGlass.aberrationIntensity}
                     elasticity={elasticity ?? liquidGlass.elasticity}
+                    // @ts-ignore
+                    refraction={refraction ?? 0.5} // Default if not provided
+                    // @ts-ignore
+                    ior={refraction ?? 0.5} // Alias for Index of Refraction
                     cornerRadius={cornerRadius ?? liquidGlass.cornerRadius}
+                    // @ts-ignore - noiseOpacity might not be in the types yet but is often supported
+                    noiseOpacity={noiseOpacity ?? liquidGlass.noiseOpacity}
+                    padding={padding}
                     mode={mode ?? liquidGlass.mode}
-                    // @ts-ignore - LiquidGlass might not have types for this yet, but we want to pass it if it does
                     overLight={overLight}
-                    className="w-full h-full"
+                    mouseContainer={mouseContainer}
+                    className="w-full h-full rounded-[inherit]"
                 >
                     {/* Empty container for the liquid effect to act upon if needed, 
                         or just to provide the surface area */}
-                    <div className="w-full h-full bg-white/5 opacity-50" />
+                    <div className="w-full h-full bg-white/5 opacity-50 rounded-[inherit]" />
                 </LiquidGlass>
             </div>
 
             {/* Content Layer - Protected from distortion */}
-            <div className="relative z-10 pointer-events-none *:pointer-events-auto">
+            <div className="relative z-10 pointer-events-none *:pointer-events-auto rounded-[inherit]">
                 {children}
             </div>
         </div>

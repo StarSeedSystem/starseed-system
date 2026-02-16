@@ -1,15 +1,23 @@
 "use client";
 
-import React from "react";
-import { Sparkles } from "lucide-react";
+import React, { useRef, useState, useEffect } from "react";
+import { } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { CanvasState } from "../DesignIntegrationCanvas";
+import type { CanvasState } from "../state-types";
+import { usePreviewSync } from "../hooks/usePreviewSync";
+
+import { Switch } from "@/components/ui/switch";
+import { SettingControl } from "../controls/SettingControl";
+
+
+
+
 
 interface Props { state: CanvasState; dispatch: React.Dispatch<any>; }
 
-function Slider({ label, value, min, max, step, unit, onChange, color = "rose" }: {
-    label: string; value: number; min: number; max: number; step: number; unit?: string;
-    onChange: (v: number) => void; color?: string;
+function Slider({ label, description, id, value, min, max, step, unit, onChange, color = "rose", onHighlight }: {
+    label: string; description?: string; id: string; value: number; min: number; max: number; step: number; unit?: string;
+    onChange: (v: number) => void; color?: string; onHighlight: (id: string | null) => void;
 }) {
     const colors: Record<string, string> = {
         rose: "accent-rose-500 [&::-webkit-slider-thumb]:bg-rose-400 [&::-webkit-slider-thumb]:shadow-rose-500/40",
@@ -18,11 +26,13 @@ function Slider({ label, value, min, max, step, unit, onChange, color = "rose" }
         amber: "accent-amber-500 [&::-webkit-slider-thumb]:bg-amber-400 [&::-webkit-slider-thumb]:shadow-amber-500/40",
     };
     return (
-        <div className="space-y-2">
-            <div className="flex justify-between text-xs">
-                <span className="text-white/50">{label}</span>
-                <span className="text-white/70 font-mono text-[11px]">{typeof value === 'number' ? (Number.isInteger(value) ? value : value.toFixed(2)) : value}{unit || ""}</span>
-            </div>
+        <SettingControl
+            id={id}
+            label={label}
+            description={description}
+            onHighlight={onHighlight}
+            headerAction={<span className="text-white/70 font-mono text-[11px]">{typeof value === 'number' ? (Number.isInteger(value) ? value : value.toFixed(2)) : value}{unit || ""}</span>}
+        >
             <input type="range" min={min} max={max} step={step} value={value}
                 onChange={e => onChange(parseFloat(e.target.value))}
                 className={cn("w-full h-1.5 bg-white/5 rounded-full appearance-none cursor-pointer",
@@ -30,7 +40,7 @@ function Slider({ label, value, min, max, step, unit, onChange, color = "rose" }
                     "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg",
                     "[&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white/20",
                     colors[color] || colors.rose)} />
-        </div>
+        </SettingControl>
     );
 }
 
@@ -40,148 +50,196 @@ const SHADOW_PRESETS: { id: CanvasState["effects"]["shadowPreset"]; label: strin
     { id: "dramatic", label: "Dramático", desc: "Sombras profundas", style: { boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2)" } },
 ];
 
+const MODE_INFO: Record<string, { label: string; description: string; emoji: string }> = {
+    standard: { label: "Standard", description: "Refracción clásica con bordes naturales", emoji: "🔷" },
+    polar: { label: "Polar", description: "Efecto de coordenadas polares envolvente", emoji: "🌀" },
+    prominent: { label: "Prominent", description: "Realce de bordes y profundidad extra", emoji: "💎" },
+    shader: { label: "Shader", description: "Renderizado GPU preciso (experimental)", emoji: "⚡" },
+};
+
 export function EffectsPhysicsTab({ state, dispatch }: Props) {
-    const update = (p: Partial<CanvasState["effects"]>) => dispatch({ type: "SET_EFFECTS", payload: p });
+    const { scrollToPreview } = usePreviewSync();
+
+    const update = (p: Partial<CanvasState["effects"]>) => {
+        dispatch({ type: "SET_EFFECTS", payload: p });
+        scrollToPreview('family-wrapper-effects');
+    };
+
+    const updateEnv = (p: Partial<CanvasState["environment"]>) => {
+        dispatch({ type: "SET_ENVIRONMENT", payload: p });
+        scrollToPreview('preview-environment');
+    };
+
+    const mouseAreaRef = useRef<HTMLDivElement>(null);
+    const [demoClickCount, setDemoClickCount] = useState(0);
+
+    const handleHighlight = (id: string | null) => {
+        dispatch({ type: "SET_UI", payload: { activeHighlight: id } });
+    };
+
+    const { effects, environment: env } = state;
 
     const sections = [
         {
-            title: "Liquid Glass",
-            icon: "💧",
+            title: "💧 Liquid Glass",
             items: [
-                { label: "Displacement Scale", key: "displacementScale" as const, min: 0, max: 300, step: 5, unit: "px", color: "cyan" as const },
-                { label: "Blur Amount", key: "blurAmount" as const, min: 0, max: 2, step: 0.05, unit: "×", color: "cyan" as const },
-                { label: "Refraction Index", key: "refractionIndex" as const, min: 1.0, max: 2.5, step: 0.01, color: "purple" as const },
-                { label: "Chromatic Aberration", key: "chromaticAberration" as const, min: 0, max: 10, step: 0.5, unit: "px", color: "purple" as const },
-                { label: "Elasticity", key: "elasticity" as const, min: 0, max: 1, step: 0.05, color: "rose" as const },
+                { label: "Escala de Desplazamiento", description: "Intensidad de la distorsión del vidrio", key: "displacementScale" as const, min: 0, max: 200, step: 5, unit: "px", color: "cyan" as const },
+                { label: "Desenfoque (Blur)", description: "Suavidad de la refracción interna", key: "blurAmount" as const, min: 0, max: 4, step: 0.1, unit: "px", color: "cyan" as const },
+                { label: "Saturación", description: "Intensidad del color dentro del vidrio", key: "glassSaturation" as const, min: 100, max: 200, step: 5, unit: "%", color: "purple" as const },
+                { label: "Aberración Cromática", description: "Separación RGB en bordes (Prisma)", key: "chromaticAberration" as const, min: 0, max: 5, step: 0.1, unit: "px", color: "purple" as const },
+                { label: "Elasticidad", description: "Rebote fluido en interacciones", key: "elasticity" as const, min: 0, max: 0.8, step: 0.05, color: "rose" as const },
             ],
         },
         {
-            title: "Glass & Backdrop",
-            icon: "🔮",
+            title: "🔮 Material de Fondo",
             items: [
-                { label: "Backdrop Blur", key: "backdropBlur" as const, min: 0, max: 40, step: 1, unit: "px", color: "rose" as const },
-                { label: "Glass Saturation", key: "glassSaturation" as const, min: 100, max: 300, step: 5, unit: "%", color: "purple" as const },
-                { label: "Glow Intensity", key: "glowIntensity" as const, min: 0, max: 2, step: 0.1, color: "cyan" as const },
-            ],
-        },
-        {
-            title: "Noise & Scanlines",
-            icon: "📡",
-            items: [
-                { label: "Noise Opacity", key: "noiseOpacity" as const, min: 0, max: 0.15, step: 0.005, color: "rose" as const },
-                { label: "Scanline Opacity", key: "scanlineOpacity" as const, min: 0, max: 0.1, step: 0.005, color: "purple" as const },
-            ],
-        },
-        {
-            title: "Text Diffusion",
-            icon: "✨",
-            items: [
-                { label: "Diffusion Blur", key: "textDiffusionBlur" as const, min: 0, max: 8, step: 0.5, unit: "px", color: "cyan" as const },
-                { label: "Glow Strength", key: "textDiffusionGlow" as const, min: 0, max: 2, step: 0.1, color: "purple" as const },
-                { label: "Diffusion Opacity", key: "textDiffusionOpacity" as const, min: 0, max: 1, step: 0.05, color: "rose" as const },
+                { label: "Backdrop Blur", description: "Desenfoque del fondo detrás del vidrio", key: "backdropBlur" as const, min: 0, max: 40, step: 1, unit: "px", color: "rose" as const },
+                { label: "Índice de Refracción", description: "Cuánto se dobla la luz", key: "refractionIndex" as const, min: 1.0, max: 2.0, step: 0.01, color: "purple" as const },
+                { label: "Opacidad Ruido (Noise)", description: "Textura de grano de película", key: "noiseOpacity" as const, min: 0, max: 0.15, step: 0.005, color: "rose" as const },
             ],
         },
     ];
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-500/20 to-pink-500/20 flex items-center justify-center border border-rose-500/20">
-                    <Sparkles className="w-5 h-5 text-rose-400" />
-                </div>
-                <div>
-                    <h3 className="text-base font-semibold text-white">Efectos & Física</h3>
-                    <p className="text-xs text-white/60">Liquid glass, refracción, blur, glow, parallax y sombras</p>
-                </div>
+            <div>
+                <h3 className="text-base font-semibold text-white">Efectos & Física</h3>
+                <p className="text-xs text-white/60">Liquid glass, refracción, blur, glow, parallax y sombras</p>
             </div>
 
+            {/* ENVIRONMENT CONTROL */}
+            <div className="space-y-3">
+                <h4 className="text-xs text-white/60 uppercase tracking-wider flex items-center justify-between">
+                    <span>🌌 Ambiente de Refracción</span>
+                    <Switch checked={env.show} onCheckedChange={(c) => updateEnv({ show: c })} />
+                </h4>
+
+                {env.show && (
+                    <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-4 animate-in slide-in-from-top-2 fade-in duration-300">
+                        <div className="grid grid-cols-3 gap-2">
+                            {(['orbs', 'grid', 'abstract'] as const).map((t) => (
+                                <button
+                                    key={t}
+                                    onClick={() => updateEnv({ type: t })}
+                                    className={cn(
+                                        "px-2 py-3 rounded-xl border text-center transition-all",
+                                        env.type === t
+                                            ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-200"
+                                            : "bg-white/3 border-white/5 text-white/50 hover:bg-white/5 hover:text-white/70"
+                                    )}
+                                >
+                                    <span className="text-lg block mb-1">
+                                        {t === 'orbs' ? '🔮' : t === 'grid' ? '🕸️' : '🌫️'}
+                                    </span>
+                                    <span className="text-[10px] uppercase font-medium tracking-wide">
+                                        {t}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <Slider
+                            label="Intensidad del Ambiente"
+                            id="env-intensity"
+                            description="Brillo del entorno reflejado"
+                            value={env.intensity}
+                            min={0} max={1} step={0.05}
+                            onChange={(v) => updateEnv({ intensity: v })}
+                            color="purple"
+                            onHighlight={() => { }}
+                        />
+                    </div>
+                )}
+            </div>
+
+            {/* SLIDERS */}
             {sections.map(section => (
                 <div key={section.title} className="space-y-3">
-                    <h4 className="text-xs text-white/60 uppercase tracking-wider">{section.icon} {section.title}</h4>
+                    <h4 className="text-xs text-white/60 uppercase tracking-wider">{section.title}</h4>
                     <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-5">
                         {section.items.map(item => (
-                            <Slider key={item.key} label={item.label} value={state.effects[item.key] as number}
-                                min={item.min} max={item.max} step={item.step} unit={"unit" in item ? item.unit : undefined} color={item.color}
-                                onChange={v => update({ [item.key]: v })} />
+                            <Slider key={item.key}
+                                label={item.label}
+                                description={item.description}
+                                id={item.key}
+                                value={(state.effects[item.key] as number) ?? 0}
+                                min={item.min} max={item.max} step={item.step}
+                                unit={"unit" in item ? item.unit : undefined}
+                                color={item.color}
+                                onChange={v => update({ [item.key]: v })}
+                                onHighlight={handleHighlight}
+                            />
                         ))}
                     </div>
                 </div>
             ))}
 
-            {/* Parallax & Gradient */}
+            {/* REFRACTION MODE */}
             <div className="space-y-3">
-                <h4 className="text-xs text-white/60 uppercase tracking-wider">🌀 Parallax & Gradiente</h4>
-                <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-5">
-                    <Slider label="Parallax Depth" value={state.effects.parallaxDepth} min={0} max={1} step={0.05} unit="×" color="cyan" onChange={v => update({ parallaxDepth: v })} />
-                    <Slider label="Gradient Angle" value={state.effects.gradientAngle} min={0} max={360} step={5} unit="°" color="amber" onChange={v => update({ gradientAngle: v })} />
-
-                    {/* Gradient Preview */}
-                    <div className="relative h-16 rounded-xl overflow-hidden border border-white/5">
-                        <div className="absolute inset-0" style={{
-                            background: `linear-gradient(${state.effects.gradientAngle}deg, rgba(139,92,246,0.3), rgba(6,182,212,0.3), rgba(251,191,36,0.15))`,
-                        }} />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-[10px] text-white/50 font-mono">{state.effects.gradientAngle}°</span>
-                        </div>
+                <h4 className="text-xs text-white/60 uppercase tracking-wider">🔬 Modo de Refracción</h4>
+                <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-4">
+                    <div className="grid grid-cols-2 gap-2">
+                        {(["standard", "polar", "prominent", "shader"] as const).map(m => (
+                            <button
+                                key={m}
+                                onClick={() => {
+                                    update({ mode: m });
+                                    scrollToPreview('family-wrapper-effects');
+                                }}
+                                className={cn(
+                                    "relative overflow-hidden rounded-xl border transition-all text-left group",
+                                    effects.mode === m
+                                        ? "border-cyan-500/40 bg-cyan-500/10 ring-1 ring-cyan-500/20"
+                                        : "border-white/5 bg-white/3 hover:bg-white/5"
+                                )}
+                            >
+                                <div className="px-2.5 py-3">
+                                    <span className="text-[11px] font-medium text-white/90 flex items-center gap-1 group-hover:text-cyan-300 transition-colors">
+                                        {MODE_INFO[m].emoji} {MODE_INFO[m].label}
+                                    </span>
+                                    <p className="text-[9px] text-white/40 mt-0.5 leading-tight">{MODE_INFO[m].description}</p>
+                                </div>
+                            </button>
+                        ))}
                     </div>
+
+                    <SettingControl
+                        id="effects-overlight"
+                        label="Modo Claro (Over Light)"
+                        description="Optimizar bordes para fondos claros"
+                        onHighlight={handleHighlight}
+                    >
+                        <Switch checked={effects.overLight} onCheckedChange={(c) => update({ overLight: c })} />
+                    </SettingControl>
                 </div>
             </div>
 
-            {/* Shadow Presets */}
-            <div className="space-y-3">
-                <h4 className="text-xs text-white/60 uppercase tracking-wider">🌑 Shadow Presets</h4>
-                <div className="grid grid-cols-3 gap-2">
-                    {SHADOW_PRESETS.map(sp => (
-                        <button key={sp.id} onClick={() => update({ shadowPreset: sp.id })}
-                            className={cn("p-3 rounded-xl transition-all border text-center",
-                                state.effects.shadowPreset === sp.id ? "bg-rose-500/10 border-rose-500/30" : "bg-white/3 border-white/5 hover:bg-white/5")}>
-                            <div className="w-10 h-10 mx-auto rounded-lg bg-gradient-to-br from-purple-500/30 to-cyan-500/30 mb-2" style={sp.style} />
-                            <p className="text-xs text-white/80 font-medium">{sp.label}</p>
-                            <p className="text-[9px] text-white/50 mt-0.5">{sp.desc}</p>
-                        </button>
-                    ))}
-                </div>
+            {/* INTERACTIVE DEMOS MOVED TO PREVIEW */}
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
+                <p className="text-xs text-white/60">
+                    Observe los efectos de Liquid Glass y Física en el panel de vista previa (derecha).
+                </p>
             </div>
 
-            {/* Liquid Glass UI Toggle */}
+            {/* LIQUID UI TOGGLE */}
             <div className="space-y-3">
-                <h4 className="text-xs text-white/60 uppercase tracking-wider">🧊 Liquid Glass UI</h4>
+                <h4 className="text-xs text-white/60 uppercase tracking-wider">🧊 Integración UI</h4>
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <span className="text-sm text-white/70">Aplicar a la Interfaz</span>
-                            <p className="text-[10px] text-white/50 mt-0.5">Activa efectos de vidrio líquido en paneles y tarjetas</p>
-                        </div>
-                        <button onClick={() => update({ liquidGlassUI: !state.effects.liquidGlassUI })}
-                            className={cn("relative w-10 h-5 rounded-full transition-all",
-                                state.effects.liquidGlassUI ? "bg-cyan-500/40" : "bg-white/10")}>
-                            <div className={cn("absolute w-4 h-4 rounded-full top-0.5 transition-all",
-                                state.effects.liquidGlassUI ? "left-[22px] bg-cyan-400" : "left-0.5 bg-white/40")} />
-                        </button>
-                    </div>
+                    <SettingControl
+                        id="effects-liquidui-toggle"
+                        label="Aplicar Globalmente"
+                        description="Usar Liquid Glass en todos los componentes compatibles del sistema"
+                        onHighlight={handleHighlight}
+                    >
+                        <Switch
+                            checked={effects.liquidGlassUI}
+                            onCheckedChange={() => update({ liquidGlassUI: !effects.liquidGlassUI })}
+                            className={cn(effects.liquidGlassUI && "bg-cyan-500/40")}
+                        />
+                    </SettingControl>
                 </div>
             </div>
 
-            {/* Live Effect Preview */}
-            <div className="space-y-2">
-                <h4 className="text-xs text-white/60 uppercase tracking-wider">Vista Previa de Efectos</h4>
-                <div className="relative h-32 rounded-2xl overflow-hidden border border-white/5 bg-gradient-to-br from-purple-900/30 to-cyan-900/30">
-                    <div className="absolute inset-4 rounded-xl flex items-center justify-center"
-                        style={{
-                            backdropFilter: `blur(${state.effects.backdropBlur}px) saturate(${state.effects.glassSaturation}%)`,
-                            WebkitBackdropFilter: `blur(${state.effects.backdropBlur}px) saturate(${state.effects.glassSaturation}%)`,
-                            background: `rgba(255,255,255,0.05)`,
-                            border: `1px solid rgba(255,255,255,${state.effects.glowIntensity * 0.15})`,
-                            boxShadow: `0 0 ${state.effects.glowIntensity * 20}px rgba(139,92,246,${state.effects.glowIntensity * 0.3})`,
-                        }}>
-                        <span className="text-white/60 text-sm font-medium">Glass Effect Preview</span>
-                    </div>
-                    {/* Colored circles behind glass */}
-                    <div className="absolute top-4 left-6 w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 opacity-60" />
-                    <div className="absolute bottom-4 right-8 w-12 h-12 rounded-full bg-gradient-to-br from-rose-500 to-purple-600 opacity-60" />
-                    <div className="absolute top-8 right-20 w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 opacity-50" />
-                </div>
-            </div>
         </div>
     );
 }

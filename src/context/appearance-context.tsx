@@ -9,6 +9,16 @@ export interface CustomFont {
     family: string;
 }
 
+export type DeepPartial<T> = {
+    [P in keyof T]?: T[P] extends Array<infer U>
+    ? Array<DeepPartial<U>>
+    : T[P] extends ReadonlyArray<infer U>
+    ? ReadonlyArray<DeepPartial<U>>
+    : T[P] extends object
+    ? DeepPartial<T[P]>
+    : T[P]
+};
+
 export interface AppearanceConfig {
     typography: {
         fontFamily: string;
@@ -63,6 +73,20 @@ export interface AppearanceConfig {
                 waveRoughness?: number; // 0 to 1
             }
         };
+
+        // Environment System (New)
+        environment?: {
+            enabled: boolean;
+            type: "orbs" | "grid" | "abstract";
+            intensity: number;
+        };
+    };
+    secondary: {
+        scrollbars: "default" | "thin" | "hidden" | "glow";
+        selectionColor: string;
+        selectionMode: "text" | "block";
+        cursor: "default" | "custom" | "glow";
+        customCursorSvg?: string;
     };
     buttons: {
         style: "default" | "glass" | "liquid" | "neon" | "brutal";
@@ -71,53 +95,70 @@ export interface AppearanceConfig {
         animation: boolean; // Legacy: Maps to animations.hover
     };
     animations: {
-        enabled: boolean; // Global toggle
-        hover: boolean; // Scale/Lift on hover
-        click: boolean; // Ripple/Press effect
+        enabled: boolean;
+        hover: boolean;
+        click: boolean;
+        micro: boolean;
+        transitionDuration: number;
         trinityEntry: "fade" | "slide" | "scale" | "elastic";
         pageTransition: boolean;
-        microInteractions: boolean; // Smooth icon movements etc
+        microInteractions: boolean;
+    };
+    iconography: {
+        style: "stroke" | "solid";
+        strokeWidth: number;
+        scale: number;
+        animation: "none" | "pulse" | "bounce" | "spin";
+    };
+    positioning: {
+        modalPosition: "center" | "top" | "bottom";
+        borderRadius: {
+            sm: number;
+            md: number;
+            lg: number;
+            xl: number;
+            pill: number;
+        };
+        spacingScale: number;
+    };
+    widgets: {
+        bgStyle: "glass" | "solid" | "cyber" | "mesh";
+        borderStyle: "none" | "thin" | "glow" | "neon";
+        shadows: "none" | "sm" | "md" | "lg" | "neon";
+        glassOpacity: number;
     };
     liquidGlass: {
         enabled: boolean;
-        applyToUI: boolean;
-        // Core React Lib Props
         displacementScale: number;
         blurAmount: number;
-        saturation: number;
-        aberrationIntensity: number;
         elasticity: number;
+        aberrationIntensity: number;
+        applyToUI: boolean;
+        saturation: number;
         cornerRadius: number;
         mode: "standard" | "polar" | "prominent" | "shader";
-        // Legacy / Custom Customization (keeping for backward compat if needed, or remove if fully replacing)
-        distortWidth?: number;  // Deprecating/Mapping to new props? keeping for safe transition
-    },
+    };
     textDiffusion: {
-        blur: number; // 0 to 20px
-        opacity: number; // 0 to 1
-        glowStrength: number; // 0 to 1
-    },
+        blur: number;
+        opacity: number;
+        glowStrength: number;
+    };
     mobile: {
-        // FAB (Floating Action Button) Settings
         fabPosition: "fixed" | "draggable";
         fabSide: "left" | "right";
         fabOffsetX: number;
         fabOffsetY: number;
         fabVerticalPosition: "top" | "center" | "bottom";
-        // Menu Behavior
         menuType: "sheet" | "dropdown" | "fullscreen" | "sidebar";
         menuBehavior: "push" | "overlay" | "slide";
         menuAnimation: "slide" | "fade" | "scale" | "morph";
         menuPosition: "left" | "right" | "bottom";
-        // Per-Screen Adjustments
         autoHideOnScroll: boolean;
         showOnDesktop: boolean;
         compactMode: boolean;
         hapticFeedback: boolean;
         swipeToOpen: boolean;
-        gestureThreshold: number; // 20-100px
-
-        // Control Panel Specific Settings
+        gestureThreshold: number;
         controlPanel: {
             fabPosition: "fixed" | "draggable";
             fabSide: "left" | "right";
@@ -132,7 +173,7 @@ export interface AppearanceConfig {
         style: "glass" | "solid" | "minimal";
         isExpanded: boolean;
         dockBehavior: "always-visible" | "auto-hide" | "anchor-only";
-        edgeSensitivity: number; // 0-100
+        edgeSensitivity: number;
         menuCustomization: {
             showLabels: boolean;
             iconScale: number;
@@ -141,14 +182,13 @@ export interface AppearanceConfig {
     };
     display: {
         mode: "standard" | "vr" | "ar" | "spatial";
-        fov: number; // Field of View (60-180)
-        depthScale: number; // For 3D elements (0.5-2)
+        fov: number;
+        depthScale: number;
         immersiveUI: boolean;
-        curvedUI: boolean; // Curved panels for VR
-        eyeComfort: boolean; // Reduce eye strain
+        curvedUI: boolean;
+        eyeComfort: boolean;
     };
     responsive: {
-        // Device-specific layouts
         smartphone: {
             orientation: "auto" | "portrait" | "landscape";
             contentDensity: "compact" | "comfortable" | "spacious";
@@ -163,18 +203,17 @@ export interface AppearanceConfig {
             contentWidth: "full" | "centered" | "narrow";
         };
         desktop: {
-            sidebarWidth: number; // 200-400px
-            contentMaxWidth: number; // 1200-1920px
+            sidebarWidth: number;
+            contentMaxWidth: number;
             multiColumn: boolean;
             stickyHeader: boolean;
         };
         largeScreen: {
             ultraWideLayout: "centered" | "expanded" | "split";
             columnCount: 2 | 3 | 4;
-            panelSpacing: number; // 16-48px
+            panelSpacing: number;
             cinematicMode: boolean;
         };
-        // Global responsive options
         breakpoints: {
             sm: number;
             md: number;
@@ -187,6 +226,7 @@ export interface AppearanceConfig {
     };
     themeStore: {
         activeMode: "custom" | "crystal" | "liquid" | "solid-crystal" | "primary";
+        activeTemplateId?: string;
         savedThemes: Array<{
             id: string;
             name: string;
@@ -252,10 +292,20 @@ const defaultConfig: AppearanceConfig = {
             enabled: false,
             type: "none",
             settings: {
-                waveMetalness: 0.75,
                 waveRoughness: 0.25
             }
+        },
+        environment: {
+            enabled: false,
+            type: "orbs",
+            intensity: 0.5
         }
+    },
+    secondary: {
+        scrollbars: "default",
+        selectionColor: "auto",
+        selectionMode: "text",
+        cursor: "default"
     },
     buttons: {
         style: "default",
@@ -267,19 +317,44 @@ const defaultConfig: AppearanceConfig = {
         enabled: true,
         hover: true,
         click: true,
+        micro: true,
+        transitionDuration: 200,
         trinityEntry: "scale",
         pageTransition: true,
         microInteractions: true,
     },
+    iconography: {
+        style: "stroke",
+        strokeWidth: 1.5,
+        scale: 1,
+        animation: "none",
+    },
+    positioning: {
+        modalPosition: "center",
+        borderRadius: {
+            sm: 4,
+            md: 8,
+            lg: 16,
+            xl: 24,
+            pill: 9999,
+        },
+        spacingScale: 1,
+    },
+    widgets: {
+        bgStyle: "glass",
+        borderStyle: "thin",
+        shadows: "md",
+        glassOpacity: 0.6,
+    },
     liquidGlass: {
         enabled: false,
         applyToUI: false,
-        displacementScale: 15,    // Much subtler (was 64)
-        blurAmount: 0.1,         // Softer focus
-        saturation: 110,         // Slight boost
-        aberrationIntensity: 1,  // Minimal aberration
-        elasticity: 0.2,         // Slightly more elastic
-        cornerRadius: 24,        // Standard UI radius
+        displacementScale: 15,
+        blurAmount: 0.1,
+        saturation: 1.1,
+        aberrationIntensity: 1,
+        elasticity: 0.2,
+        cornerRadius: 24,
         mode: "standard",
     },
     textDiffusion: {
@@ -288,34 +363,29 @@ const defaultConfig: AppearanceConfig = {
         glowStrength: 0.5,
     },
     mobile: {
-        // FAB Settings
         fabPosition: "fixed",
-        fabSide: "left",
+        fabSide: "right",
         fabOffsetX: 16,
         fabOffsetY: 16,
         fabVerticalPosition: "bottom",
-        // Menu Behavior
         menuType: "sheet",
         menuBehavior: "overlay",
         menuAnimation: "slide",
-        menuPosition: "left",
-        // Per-Screen Adjustments
+        menuPosition: "right",
         autoHideOnScroll: false,
         showOnDesktop: false,
         compactMode: false,
         hapticFeedback: true,
         swipeToOpen: true,
         gestureThreshold: 50,
-
-        // Control Panel Defaults
         controlPanel: {
             fabPosition: "fixed",
-            fabSide: "right", // Default right to avoid collision with nav (left)
+            fabSide: "left",
             fabVerticalPosition: "bottom",
-            menuPosition: "right",
+            menuPosition: "left",
             fabOffsetX: 16,
-            fabOffsetY: 80, // Slightly higher to avoid collision if both are bottom
-        }
+            fabOffsetY: 80,
+        },
     },
     trinity: {
         mode: "floating",
@@ -326,16 +396,16 @@ const defaultConfig: AppearanceConfig = {
         menuCustomization: {
             showLabels: true,
             iconScale: 1,
-            animationSpeed: "normal"
-        }
+            animationSpeed: "normal",
+        },
     },
     display: {
         mode: "standard",
-        fov: 110,
+        fov: 90,
         depthScale: 1,
         immersiveUI: false,
         curvedUI: false,
-        eyeComfort: false,
+        eyeComfort: true,
     },
     responsive: {
         smartphone: {
@@ -347,18 +417,18 @@ const defaultConfig: AppearanceConfig = {
         },
         tablet: {
             orientation: "auto",
-            splitView: false,
+            splitView: true,
             sidebarCollapsible: true,
-            contentWidth: "centered",
+            contentWidth: "full",
         },
         desktop: {
             sidebarWidth: 280,
-            contentMaxWidth: 1400,
+            contentMaxWidth: 1440,
             multiColumn: true,
             stickyHeader: true,
         },
         largeScreen: {
-            ultraWideLayout: "centered",
+            ultraWideLayout: "expanded",
             columnCount: 3,
             panelSpacing: 24,
             cinematicMode: false,
@@ -374,16 +444,16 @@ const defaultConfig: AppearanceConfig = {
         reducedMotion: false,
     },
     themeStore: {
-        activeMode: 'custom',
-        savedThemes: []
+        activeMode: "custom",
+        savedThemes: [],
     },
 };
 
 interface AppearanceContextType {
     config: AppearanceConfig;
-    updateConfig: (updates: Partial<AppearanceConfig>) => void;
+    updateConfig: (updates: DeepPartial<AppearanceConfig>) => void;
     resetConfig: () => void;
-    updateSection: <K extends keyof AppearanceConfig>(section: K, data: Partial<AppearanceConfig[K]>) => void;
+    updateSection: <K extends keyof AppearanceConfig>(section: K, data: DeepPartial<AppearanceConfig[K]>) => void;
     addCustomFont: (font: CustomFont) => void;
     removeCustomFont: (name: string) => void;
     // Theme Actions
@@ -703,13 +773,46 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         } else {
             document.body.classList.remove('webgl-active');
         }
+
+        // Secondary Styles
+        if (currentConfig.secondary) {
+            const { scrollbars, selectionColor, cursor, customCursorSvg } = currentConfig.secondary;
+
+            // Scrollbars
+            document.documentElement.classList.remove('scrollbar-hidden', 'scrollbar-thin', 'scrollbar-glow');
+            if (scrollbars !== 'default') {
+                document.documentElement.classList.add(`scrollbar-${scrollbars}`);
+            }
+
+            // Selection Color
+            if (selectionColor && selectionColor !== 'auto') {
+                root.style.setProperty('--selection-background', selectionColor);
+                // Calculate contrast text color if possible, or default to white/black
+                root.style.setProperty('--selection-foreground', '#ffffff');
+            } else {
+                root.style.removeProperty('--selection-background');
+                root.style.removeProperty('--selection-foreground');
+            }
+
+            // Cursor
+            if (cursor === 'custom' && customCursorSvg) {
+                // Use a detailed SVG cursor if provided
+                // root.style.setProperty('--cursor-image', `url(${customCursorSvg})`); 
+                // For now, simple standard cursors or class-based custom cursors
+                document.body.style.cursor = `url('${customCursorSvg}'), auto`;
+            } else if (cursor === 'glow') {
+                // specific class for glow cursor
+            } else {
+                document.body.style.cursor = 'auto';
+            }
+        }
     };
 
-    const updateConfig = (updates: Partial<AppearanceConfig>) => {
+    const updateConfig = (updates: DeepPartial<AppearanceConfig>) => {
         setConfig((prev) => deepMerge(prev, updates));
     };
 
-    const updateSection = <K extends keyof AppearanceConfig>(section: K, data: Partial<AppearanceConfig[K]>) => {
+    const updateSection = <K extends keyof AppearanceConfig>(section: K, data: DeepPartial<AppearanceConfig[K]>) => {
         setConfig(prev => ({
             ...prev,
             [section]: {

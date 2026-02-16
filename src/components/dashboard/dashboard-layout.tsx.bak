@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { Dashboard, DashboardWidget, WidgetType } from "./dashboard-types";
+import { Dashboard, DashboardWidget } from "./dashboard-types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Plus, Settings, LayoutGrid, Star, ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
 import { GridArea } from "./grid-area";
 import { useToast } from "@/components/ui/use-toast";
 import { AddWidgetDialog } from "./add-widget-dialog";
-
+import { WidgetType } from "./dashboard-types";
 import { cn } from "@/lib/utils";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -23,31 +23,6 @@ export function DashboardLayout() {
     const [loading, setLoading] = useState(true);
     const [isEditMode, setIsEditMode] = useState(false);
     const [isAuthenticated, setIsAuthenticated] = useState(true);
-    const [selectedTemplate, setSelectedTemplate] = useState<"standard" | "analyst" | "creative" | "strategic">("standard");
-
-    // Widget Presets
-    const TEMPLATE_WIDGETS: Record<string, { type: WidgetType; w: number; h: number; x: number; y: number }[]> = {
-        standard: [
-            { type: 'EXPLORE_NETWORK', w: 6, h: 4, x: 0, y: 0 },
-            { type: 'MY_PAGES', w: 4, h: 4, x: 6, y: 0 },
-            { type: 'POLITICAL_SUMMARY', w: 10, h: 3, x: 0, y: 4 }
-        ],
-        analyst: [
-            { type: 'SYSTEM_STATUS', w: 10, h: 2, x: 0, y: 0 },
-            { type: 'LIVE_DATA', w: 6, h: 4, x: 0, y: 2 },
-            { type: 'SOCIAL_RADAR', w: 4, h: 4, x: 6, y: 2 }
-        ],
-        creative: [
-            { type: 'MY_PAGES', w: 3, h: 4, x: 0, y: 0 },
-            { type: 'COLLAB_PROJECTS', w: 7, h: 4, x: 3, y: 0 },
-            { type: 'THEME_SELECTOR', w: 4, h: 2, x: 0, y: 4 }
-        ],
-        strategic: [
-            { type: 'POLITICAL_SUMMARY', w: 5, h: 4, x: 0, y: 0 },
-            { type: 'EXPLORE_NETWORK', w: 5, h: 4, x: 5, y: 0 },
-            { type: 'RECENT_ACTIVITY', w: 10, h: 3, x: 0, y: 4 }
-        ]
-    };
 
     // Dialog State
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -297,16 +272,31 @@ export function DashboardLayout() {
                 toast({ title: "Error", description: error.message, variant: "destructive" });
             } else if (dashboard) {
                 console.log("DEBUG: Dashboard created", dashboard);
-                const widgetsToSeed = TEMPLATE_WIDGETS[selectedTemplate].map(w => ({
-                    dashboard_id: dashboard.id,
-                    widget_type: w.type,
-                    layout: { x: w.x, y: w.y, w: w.w, h: w.h },
-                    settings: {}
-                }));
+                // Seed default widgets
+                const defaultWidgets = [
+                    {
+                        dashboard_id: dashboard.id,
+                        widget_type: 'EXPLORE_NETWORK',
+                        layout: { x: 0, y: 0, w: 6, h: 4 },
+                        settings: {}
+                    },
+                    {
+                        dashboard_id: dashboard.id,
+                        widget_type: 'MY_PAGES',
+                        layout: { x: 6, y: 0, w: 4, h: 4 },
+                        settings: {}
+                    },
+                    {
+                        dashboard_id: dashboard.id,
+                        widget_type: 'POLITICAL_SUMMARY',
+                        layout: { x: 0, y: 4, w: 10, h: 3 },
+                        settings: {}
+                    }
+                ];
 
                 const { error: widgetError } = await supabase
                     .from('dashboard_widgets')
-                    .insert(widgetsToSeed);
+                    .insert(defaultWidgets);
 
                 if (widgetError) {
                     console.error("Error seeding widgets:", widgetError);
@@ -505,22 +495,6 @@ export function DashboardLayout() {
                                         className="col-span-3"
                                         placeholder="Ej. Finanzas"
                                     />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label className="text-right">Plantilla</Label>
-                                    <div className="col-span-3 flex gap-2">
-                                        {['standard', 'analyst', 'creative', 'strategic'].map((t) => (
-                                            <Button
-                                                key={t}
-                                                variant={selectedTemplate === t ? "default" : "outline"}
-                                                size="sm"
-                                                onClick={() => setSelectedTemplate(t as any)}
-                                                className="capitalize"
-                                            >
-                                                {t}
-                                            </Button>
-                                        ))}
-                                    </div>
                                 </div>
                             </div>
                             <DialogFooter>

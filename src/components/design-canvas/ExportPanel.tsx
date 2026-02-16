@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { X, Download, Copy, Check, FileJson, FileCode, Zap, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { CanvasState } from "./DesignIntegrationCanvas";
+import type { CanvasState } from "./state-types";
 import { mapCanvasToAppearance, applyCanvasPalette } from "./canvas-to-appearance";
 
 interface Props {
@@ -12,9 +12,10 @@ interface Props {
     onClose: () => void;
     onApplyToContext?: (mapped: Record<string, any>) => void;
     onSaveTheme?: (name: string, config: Record<string, any>) => void;
+    onImport?: (loadedState: CanvasState) => void;
 }
 
-type ExportFormat = "json" | "css" | "apply";
+type ExportFormat = "json" | "css" | "apply" | "import";
 
 function stateToJSON(state: CanvasState): string {
     const { stitchCode, stitchScreenId, ...exportable } = state;
@@ -80,7 +81,7 @@ function stateToCSS(state: CanvasState): string {
 }`;
 }
 
-export function ExportPanel({ state, onClose, onApplyToContext, onSaveTheme }: Props) {
+export function ExportPanel({ state, onClose, onApplyToContext, onSaveTheme, onImport }: Props) {
     const [format, setFormat] = useState<ExportFormat>("json");
     const [copied, setCopied] = useState(false);
     const [applied, setApplied] = useState(false);
@@ -141,7 +142,39 @@ export function ExportPanel({ state, onClose, onApplyToContext, onSaveTheme }: P
         { id: "json", label: "JSON", icon: FileJson, desc: "Theme package compatible" },
         { id: "css", label: "CSS Variables", icon: FileCode, desc: "Copy-paste ready" },
         { id: "apply", label: "Apply Live", icon: Zap, desc: "Push to network now" },
+        { id: "import", label: "Importar", icon: Download, desc: "Load from JSON file" },
     ];
+
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const json = JSON.parse(event.target?.result as string);
+                // Validate basic structure if needed, or just trust the schema
+                if (onImport && typeof json === 'object') {
+                    // Extract canvasState if nested (from our Export format) or use root if direct
+                    const stateToLoad = json.canvasState || json;
+                    // Sanity check for a known property
+                    if (stateToLoad.palette || stateToLoad.typography) {
+                        onImport(stateToLoad);
+                        setApplied(true); // Reuse applied state for success feedback
+                        setTimeout(() => setApplied(false), 3000);
+                    } else {
+                        alert("Invalid theme file format");
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to parse theme file", err);
+                alert("Error parsing theme file");
+            }
+        };
+        reader.readAsText(file);
+    };
 
     return (
         <div className="border-b border-white/5 bg-black/30 backdrop-blur-xl animate-in slide-in-from-top duration-300">
@@ -180,7 +213,30 @@ export function ExportPanel({ state, onClose, onApplyToContext, onSaveTheme }: P
                 </div>
 
                 {/* Output */}
-                {format !== "apply" ? (
+                {format === "import" ? (
+                    <div className="space-y-4 py-4">
+                        <div className="border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center text-center hover:bg-white/5 transition-colors group cursor-pointer"
+                            onClick={() => fileInputRef.current?.click()}>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept=".json"
+                                onChange={handleImportFile}
+                            />
+                            <Download className="w-8 h-8 text-white/20 mb-3 group-hover:text-purple-400 transition-colors" />
+                            <h4 className="text-sm font-medium text-white/80">Sube tu archivo de tema</h4>
+                            <p className="text-xs text-white/40 mt-1 max-w-[200px]">
+                                Selecciona un archivo .json exportado previamente
+                            </p>
+                        </div>
+                        {applied && (
+                            <div className="text-center text-xs text-green-400 flex items-center justify-center gap-2 animate-in fade-in">
+                                <Check className="w-3 h-3" /> Tema cargado correctamente
+                            </div>
+                        )}
+                    </div>
+                ) : format !== "apply" ? (
                     <div className="space-y-2">
                         <pre className="bg-black/40 border border-white/5 rounded-xl p-4 text-xs font-mono text-emerald-300/70 overflow-auto max-h-48">
                             {output}

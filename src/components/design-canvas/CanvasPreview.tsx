@@ -1,12 +1,14 @@
-"use client";
-
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import type { CanvasState, ElementFamily } from "./DesignIntegrationCanvas";
+import type { CanvasState, ElementFamily } from "./state-types";
+import { defaultCanvasState } from "./state-types";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     Sparkles, ArrowRight, Heart, Star, Bell, Search, User, Settings,
     X, Check, ChevronRight, Info, AlertTriangle, MessageSquare,
-    Home, Compass, Layers, MoreHorizontal
+    Home, Compass, Layers, MoreHorizontal, MousePointer2, Scan, Circle,
+    Zap, Mail, Lock, CircleDot, Shield, LayoutGrid, Bot, Palette, Type, ToggleLeft,
+    BarChart3, Users
 } from "lucide-react";
 
 interface Props {
@@ -14,6 +16,10 @@ interface Props {
     device: "desktop" | "mobile" | "tablet";
     selectedElement: ElementFamily;
     onSelectElement: (family: ElementFamily) => void;
+    onClose?: () => void;
+    onApplyToContext?: (mapped: any) => void;
+    onSaveTheme?: (name: string, config: any) => void;
+    onImport?: (loadedState: any) => void;
 }
 
 function FamilyWrapper({
@@ -28,6 +34,8 @@ function FamilyWrapper({
 }) {
     return (
         <div
+            id={id ? `family-wrapper-${id}` : undefined}
+            data-family={id}
             onClick={(e) => { e.stopPropagation(); onSelect(); }}
             className={cn(
                 "relative rounded-2xl p-4 transition-all cursor-pointer group border",
@@ -55,7 +63,15 @@ function FamilyWrapper({
 }
 
 export function CanvasPreview({ state, device, selectedElement, onSelectElement }: Props) {
-    const { palette, typography, components, effects, geometry } = state;
+    const {
+        palette,
+        typography,
+        components,
+        effects,
+        geometry,
+        layoutConfig = defaultCanvasState.layoutConfig,
+        widgets = defaultCanvasState.widgets
+    } = state;
 
     const btnStyle = (variant: string): React.CSSProperties => {
         const base = { borderRadius: `${components.buttonRadius}px`, transition: "all 0.2s" };
@@ -68,12 +84,83 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
         }
     };
 
-    const cardStyle: React.CSSProperties = {
-        background: palette.surface,
-        backdropFilter: `blur(${effects.backdropBlur}px) saturate(${effects.glassSaturation}%)`,
-        borderRadius: `${geometry.radiusLg}px`,
-        border: `1px solid ${palette.glassBorder}`,
-        boxShadow: state.shadows.md,
+    const widgetStyle = (isHeader: boolean = false): React.CSSProperties => {
+        const style: React.CSSProperties = {
+            transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+            position: "relative",
+            overflow: "hidden",
+        };
+
+        // Base background
+        switch (widgets.bgStyle) {
+            case "solid":
+                style.background = palette.surface;
+                break;
+            case "cyber":
+                style.background = "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)";
+                style.boxShadow = "inset 0 0 20px rgba(0,255,255,0.05)";
+                break;
+            case "mesh":
+                style.background = `radial-gradient(at 0% 0%, ${palette.primary}15 0%, transparent 50%), radial-gradient(at 100% 100%, ${palette.accent}15 0%, transparent 50%)`;
+                style.backgroundColor = palette.surface;
+                break;
+            default: // glass
+                style.background = `rgba(255,255,255,${widgets.glassOpacity || 0.05})`;
+                style.backdropFilter = `blur(${effects.backdropBlur}px)`;
+                break;
+        }
+
+        // Borders
+        switch (widgets.borderStyle) {
+            case "thin":
+                style.border = `1px solid ${palette.glassBorder}`;
+                break;
+            case "glow":
+                style.border = `1px solid ${palette.primary}44`;
+                style.boxShadow = `0 0 10px ${palette.primary}22`;
+                break;
+            case "neon":
+                style.border = `1px solid ${palette.accent}`;
+                style.boxShadow = `0 0 15px ${palette.accent}33`;
+                break;
+            default:
+                style.border = "none";
+        }
+
+        // Shadows
+        if (widgets.shadows !== "none") {
+            const shadowMap: Record<string, string> = {
+                sm: "0 2px 8px rgba(0,0,0,0.2)",
+                md: "0 8px 24px rgba(0,0,0,0.3)",
+                lg: "0 20px 48px rgba(0,0,0,0.4)",
+                neon: `0 0 30px ${palette.primary}33`,
+            };
+            style.boxShadow = (style.boxShadow ? style.boxShadow + ", " : "") + shadowMap[widgets.shadows];
+        }
+
+        // Radius & Smoothing
+        style.borderRadius = `${geometry.radiusLg}px`;
+        // Corner smoothing is hard to do in CSS without clips, but we can simulate by increasing radius
+        if (widgets.cornerSmoothing > 0.5) {
+            style.borderRadius = `${geometry.radiusLg * 1.5}px`;
+        }
+
+        return style;
+    };
+
+    const cardStyle = (preset?: string): React.CSSProperties => {
+        const base = widgetStyle();
+        if (!preset || preset === "crystal") return base;
+
+        switch (preset) {
+            case "liquid-action":
+                return { ...base, background: `linear-gradient(135deg, ${palette.primary}11, ${palette.accent}11)`, backdropFilter: "blur(20px) saturate(180%)" };
+            case "holographic":
+                return { ...base, background: `linear-gradient(135deg, ${palette.primary}15 0%, transparent 50%, ${palette.accent}15 100%)`, border: "1px solid rgba(255,255,255,0.25)" };
+            case "hyper-crystal":
+                return { ...base, background: "rgba(255,255,255,0.03)", backdropFilter: "blur(40px) contrast(110%)", border: "1px solid rgba(255,255,255,0.3)" };
+            default: return base;
+        }
     };
 
     const inputBorderStyles: Record<string, React.CSSProperties> = {
@@ -83,7 +170,17 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
         glow: { border: `1px solid ${palette.primary}66`, boxShadow: `0 0 10px ${palette.primary}22` },
     };
 
-    const select = (family: ElementFamily) => onSelectElement(family === selectedElement ? null : family);
+    const [animActive, setAnimActive] = useState(false);
+
+    useEffect(() => {
+        if (state.ui.lastAnimTrigger > 0) {
+            setAnimActive(true);
+            const timer = setTimeout(() => setAnimActive(false), state.components.transitionSpeed * 3);
+            return () => clearTimeout(timer);
+        }
+    }, [state.ui.lastAnimTrigger, state.components.transitionSpeed]);
+
+    const select = (id: ElementFamily) => onSelectElement(id);
 
     return (
         <div
@@ -334,36 +431,263 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
             {/* ─── COMPONENT FAMILIES (existing) ─── */}
             {/* ══════════════════════════════════════════════════════════════ */}
 
-            {/* ─── CARDS ─── */}
-            <FamilyWrapper id="cards" label="Cards" selected={selectedElement === "cards"} onSelect={() => select("cards")} palette={palette}>
-                <div style={cardStyle} className="p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <h3 style={{ fontFamily: typography.fontHeadline, fontWeight: typography.headerWeight, fontSize: `${Math.round(typography.baseSize * 1.15)}px` }}>
-                                Crystal Dashboard
-                            </h3>
-                            <p className="text-xs mt-0.5" style={{ color: palette.textSecondary }}>Diseño en vivo sincronizado</p>
-                        </div>
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${palette.primary}22` }}>
-                            <Sparkles className="w-3.5 h-3.5" style={{ color: palette.primary }} />
+            {/* ─── WIDGETS & LAYOUTS ─── */}
+            <FamilyWrapper id="widgets" label="Widgets & Layouts" selected={selectedElement === "widgets"} onSelect={() => select("widgets")} palette={palette}>
+
+                <div className="space-y-4">
+                    {/* Header Specimen */}
+                    <div className="p-3 mb-2 rounded-xl" style={widgetStyle()}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full" style={{ background: palette.primary }} />
+                                <span className="text-[10px] font-bold uppercase tracking-wider"
+                                    style={{
+                                        color: state.widgets.headerStyle === 'accented' ? palette.primary : palette.textPrimary,
+                                        borderBottom: state.widgets.headerStyle === 'underlined' ? `1px solid ${palette.primary}44` : 'none'
+                                    }}>
+                                    Global Status
+                                </span>
+                            </div>
+                            <MoreHorizontal className="w-3 h-3 text-white/30" />
                         </div>
                     </div>
-                    {[
-                        { label: "Sistemas", pct: 87, color: palette.trinity.horizonte.active },
-                        { label: "Neural", pct: 63, color: palette.primary },
-                    ].map(m => (
-                        <div key={m.label} className="space-y-1">
-                            <div className="flex justify-between text-[10px]" style={{ color: palette.textSecondary }}>
-                                <span>{m.label}</span>
-                                <span style={{ fontFamily: typography.fontCode }}>{m.pct}%</span>
+
+                    {/* Layout Mockup */}
+                    <div className="grid grid-cols-12 gap-2 min-h-[140px]">
+                        {state.widgets.dashboardTemplate === 'standard' && (
+                            <>
+                                <div className="col-span-8 p-3" style={cardStyle(components.cardPreset)}>
+                                    <div className="h-2 w-1/3 rounded-full mb-3" style={{ background: palette.primary, opacity: 0.3 }} />
+                                    <div className="space-y-2">
+                                        <div className="h-1.5 w-full rounded-full bg-white/5" />
+                                        <div className="h-1.5 w-5/6 rounded-full bg-white/5" />
+                                        <div className="h-1.5 w-4/6 rounded-full bg-white/5" />
+                                    </div>
+                                </div>
+                                <div className="col-span-4 flex flex-col gap-2">
+                                    <div className="flex-1 p-3 flex items-center justify-center" style={cardStyle()}>
+                                        <Bot className="w-5 h-5 text-cyan-400/50" />
+                                    </div>
+                                    <div className="flex-1 p-3 flex items-center justify-center" style={cardStyle()}>
+                                        <Zap className="w-5 h-5 text-amber-400/50" />
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {state.widgets.dashboardTemplate === 'analyst' && (
+                            <>
+                                <div className="col-span-4 p-3" style={cardStyle()}>
+                                    <BarChart3 className="w-4 h-4 mb-2 text-emerald-400" />
+                                    <div className="h-1 w-full bg-white/10 rounded-full" />
+                                </div>
+                                <div className="col-span-4 p-3" style={cardStyle()}>
+                                    <Users className="w-4 h-4 mb-2 text-purple-400" />
+                                    <div className="h-1 w-full bg-white/10 rounded-full" />
+                                </div>
+                                <div className="col-span-4 p-3" style={cardStyle()}>
+                                    <Shield className="w-4 h-4 mb-2 text-rose-400" />
+                                    <div className="h-1 w-full bg-white/10 rounded-full" />
+                                </div>
+                                <div className="col-span-12 p-3 mt-1" style={cardStyle(components.cardPreset)}>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-[9px] uppercase tracking-tighter opacity-50">Trend Analysis</span>
+                                        <span className="text-[10px] text-emerald-400">+12%</span>
+                                    </div>
+                                    <div className="h-8 w-full flex items-end gap-1">
+                                        {[4, 7, 5, 9, 6, 8, 10, 7].map((h, i) => (
+                                            <div key={i} className="flex-1 rounded-t-sm" style={{ height: `${h * 10}%`, background: palette.primary, opacity: 0.4 + (i * 0.05) }} />
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {state.widgets.dashboardTemplate === 'creative' && (
+                            <div className="col-span-12 grid grid-cols-3 gap-2">
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="aspect-square p-2 flex flex-col items-center justify-center group" style={cardStyle(components.cardPreset)}>
+                                        <div className="w-8 h-8 rounded-lg mb-2 flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: `${palette.primary}${i * 22}` }}>
+                                            <Palette className="w-4 h-4 text-white/50" />
+                                        </div>
+                                        <span className="text-[9px] opacity-40">Asset 0{i}</span>
+                                    </div>
+                                ))}
                             </div>
-                            <div className="h-1 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }}>
-                                <div className="h-full rounded-full" style={{ width: `${m.pct}%`, background: `linear-gradient(90deg, ${m.color}, ${m.color}88)`, boxShadow: `0 0 8px ${m.color}44` }} />
+                        )}
+
+                        {state.widgets.dashboardTemplate === 'strategic' && (
+                            <>
+                                <div className="col-span-12 p-4 flex items-center gap-4" style={cardStyle(components.cardPreset)}>
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center bg-cyan-500/10 border border-cyan-500/20">
+                                        <LayoutGrid className="w-5 h-5 text-cyan-400" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="h-2 w-32 rounded-full" style={{ background: palette.primary }} />
+                                        <div className="h-1.5 w-20 rounded-full bg-white/10" />
+                                    </div>
+                                </div>
+                                <div className="col-span-6 p-3" style={cardStyle()}>
+                                    <div className="h-full w-full border-l-2 border-white/5 pl-2">
+                                        <div className="text-[11px] font-bold">ALPHA</div>
+                                        <div className="text-[9px] opacity-40 italic">Active Node</div>
+                                    </div>
+                                </div>
+                                <div className="col-span-6 p-3" style={cardStyle()}>
+                                    <div className="h-full w-full border-l-2 border-white/5 pl-2">
+                                        <div className="text-[11px] font-bold">BETA</div>
+                                        <div className="text-[9px] opacity-40 italic">Standby</div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* ASHost / Players Section (New) */}
+                    <div className="mt-4 p-4 rounded-2xl bg-black/40 border border-white/5 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">ASHost Metrics</span>
+                            <div className="flex gap-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-[8px] text-emerald-500 font-mono">LIVE</span>
                             </div>
                         </div>
-                    ))}
+
+                        {/* Dynamic Graph Render */}
+                        <div className="min-h-[100px] flex items-center justify-center p-3 rounded-xl bg-white/5 border border-white/10 relative overflow-hidden">
+                            {widgets.ashostGraphType === 'bar' && (
+                                <div className="flex items-end gap-1.5 w-full h-20">
+                                    {[40, 70, 50, 90, 65, 80, 45].map((h, i) => (
+                                        <motion.div
+                                            key={i}
+                                            initial={{ height: 0 }}
+                                            animate={{ height: `${h}%` }}
+                                            transition={{ duration: 1 / widgets.ashostSpeed, delay: i * 0.1 }}
+                                            className="flex-1 rounded-t-sm"
+                                            style={{ background: `linear-gradient(to top, ${widgets.ashostColor}aa, ${widgets.ashostColor})` }}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+
+                            {widgets.ashostGraphType === 'line' && (
+                                <svg className="w-full h-20 overflow-visible">
+                                    <motion.path
+                                        d="M0 60 Q 30 10, 60 40 T 120 20 T 180 50 T 240 30"
+                                        fill="none"
+                                        stroke={widgets.ashostColor}
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        initial={{ pathLength: 0 }}
+                                        animate={{ pathLength: 1 }}
+                                        transition={{ duration: 2 / widgets.ashostSpeed, repeat: Infinity, repeatType: "reverse" }}
+                                    />
+                                    <motion.path
+                                        d="M0 60 Q 30 10, 60 40 T 120 20 T 180 50 T 240 30"
+                                        fill="none"
+                                        stroke={widgets.ashostColor}
+                                        strokeWidth="6"
+                                        className="opacity-10"
+                                    />
+                                </svg>
+                            )}
+
+                            {widgets.ashostGraphType === 'dot' && (
+                                <div className="relative w-full h-20 overflow-hidden">
+                                    <div className="absolute inset-0 grid grid-cols-6 gap-2 opacity-20">
+                                        {Array.from({ length: 18 }).map((_, i) => (
+                                            <div key={i} className="w-1.5 h-1.5 rounded-full bg-white" />
+                                        ))}
+                                    </div>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        {[1, 2, 3].map(i => (
+                                            <motion.div
+                                                key={i}
+                                                animate={{
+                                                    scale: [1, 1.5, 1],
+                                                    opacity: [0.3, 0.6, 0.3],
+                                                }}
+                                                transition={{
+                                                    duration: (2 + i) / widgets.ashostSpeed,
+                                                    repeat: Infinity,
+                                                }}
+                                                className="absolute rounded-full border"
+                                                style={{
+                                                    width: `${i * 30}px`,
+                                                    height: `${i * 30}px`,
+                                                    borderColor: widgets.ashostColor,
+                                                }}
+                                            />
+                                        ))}
+                                        <div className="w-2 h-2 rounded-full shadow-[0_0_15px]" style={{ background: widgets.ashostColor }} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {widgets.ashostGraphType === 'radar' && (
+                                <div className="relative w-24 h-24">
+                                    <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
+                                        <circle cx="50" cy="50" r="40" fill="none" stroke="white" strokeWidth="0.5" strokeOpacity="0.1" />
+                                        <circle cx="50" cy="50" r="25" fill="none" stroke="white" strokeWidth="0.5" strokeOpacity="0.1" />
+                                        <path d="M50 10 L50 90 M10 50 L90 50" stroke="white" strokeWidth="0.5" strokeOpacity="0.1" />
+                                        <motion.polygon
+                                            points="50,20 80,50 50,80 20,50"
+                                            fill={widgets.ashostColor}
+                                            fillOpacity="0.2"
+                                            stroke={widgets.ashostColor}
+                                            strokeWidth="1.5"
+                                            animate={{
+                                                points: [
+                                                    "50,20 80,50 50,80 20,50",
+                                                    "50,10 90,50 50,90 10,50",
+                                                    "50,20 80,50 50,80 20,50"
+                                                ]
+                                            }}
+                                            transition={{ duration: 3 / widgets.ashostSpeed, repeat: Infinity }}
+                                        />
+                                    </svg>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-between items-center px-1">
+                            <span className="text-[9px] text-white/30 uppercase tracking-tighter">Current Load: 42%</span>
+                            <span className="text-[9px] font-mono" style={{ color: widgets.ashostColor }}>Nodes Active: 12</span>
+                        </div>
+                    </div>
+
+                    {/* Dialog Specimen */}
+                    <div className="relative mt-4 h-24 flex items-center justify-center overflow-hidden rounded-xl border border-white/5 bg-black/40">
+                        {/* Overlay Mockup */}
+                        <div className="absolute inset-0 bg-black/20" style={{ backdropFilter: `blur(${state.dialogs.overlayBlur}px)`, opacity: state.dialogs.overlayOpacity }} />
+
+                        {/* Modal Mockup */}
+                        <div className="relative p-3 w-4/5 shadow-2xl" style={{ ...widgetStyle(), zIndex: 10 }}>
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-[10px] font-bold">System Dialog</span>
+                                {state.dialogs.closeButtonStyle === 'pill' ? (
+                                    <div className="px-2 py-0.5 rounded-full bg-white/5 text-[8px]">Close</div>
+                                ) : state.dialogs.closeButtonStyle === 'icon' ? (
+                                    <Settings className="w-2.5 h-2.5 opacity-40" />
+                                ) : (
+                                    <X className="w-2.5 h-2.5 opacity-40" />
+                                )}
+                            </div>
+                            <div className="h-1 w-full bg-white/5 rounded-full" />
+                        </div>
+                    </div>
                 </div>
-            </FamilyWrapper>
+            </FamilyWrapper >
+
+            {/* ══════════════════════════════════════════════════════════════ */}
+            {/* ─── UI COMPONENTS ─── */}
+            {/* ══════════════════════════════════════════════════════════════ */}
+            <div id="preview-components" className="py-4 border-y border-white/10 my-8">
+                <h3 className="text-[11px] uppercase tracking-[0.3em] text-white/50 font-bold px-4 flex items-center gap-3">
+                    <LayoutGrid className="w-4 h-4 text-cyan-500/50" />
+                    Interacción & UI
+                </h3>
+            </div>
 
             {/* ─── BUTTONS ─── */}
             <FamilyWrapper id="buttons" label="Botones" selected={selectedElement === "buttons"} onSelect={() => select("buttons")} palette={palette}>
@@ -467,9 +791,10 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
                             style={i === 0 ? {
                                 background: state.tabsConfig.style !== "underline" ? `${state.tabsConfig.activeColor}22` : "transparent",
                                 color: state.tabsConfig.activeColor,
-                                borderColor: state.tabsConfig.style === "underline" ? state.tabsConfig.activeColor : `${state.tabsConfig.activeColor}33`,
-                                border: state.tabsConfig.style !== "underline" ? `1px solid ${state.tabsConfig.activeColor}33` : undefined,
-                                borderBottom: state.tabsConfig.style === "underline" ? `2px solid ${state.tabsConfig.activeColor}` : undefined,
+                                borderBottom: state.tabsConfig.style === "underline" ? `2px solid ${state.tabsConfig.activeColor}` : "none",
+                                borderLeft: state.tabsConfig.style !== "underline" ? `1px solid ${state.tabsConfig.activeColor}33` : "none",
+                                borderRight: state.tabsConfig.style !== "underline" ? `1px solid ${state.tabsConfig.activeColor}33` : "none",
+                                borderTop: state.tabsConfig.style !== "underline" ? `1px solid ${state.tabsConfig.activeColor}33` : "none",
                             } : {
                                 color: palette.textSecondary,
                                 background: "transparent",
@@ -484,29 +809,77 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
 
             {/* ─── TOGGLES ─── */}
             <FamilyWrapper id="toggles" label="Toggles / Controles" selected={selectedElement === "toggles"} onSelect={() => select("toggles")} palette={palette}>
-                <div className="flex items-center gap-4">
-                    {/* Switch */}
-                    <div className="flex items-center gap-2">
-                        <div className="w-9 h-5 rounded-full relative" style={{ background: state.toggles.switchTrackColor }}>
-                            <div className="absolute right-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all" />
+                <div className="grid grid-cols-2 gap-4">
+                    {/* Switch Selection & Design Variety */}
+                    <div className="space-y-3">
+                        <p className="text-[9px] text-white/30 uppercase tracking-tighter mb-1">Configuración Activa</p>
+
+                        {/* Dynamic Active Switch */}
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/20 shadow-[0_0_15px_rgba(var(--primary-rgb),0.1)]">
+                            <span className="text-[10px] text-white font-medium">Switch {state.toggles.switchStyle}</span>
+
+                            {state.toggles.switchStyle === "standard" && (
+                                <div className="w-9 h-5 rounded-full relative transition-all" style={{ background: state.toggles.switchTrackColor }}>
+                                    <div className="absolute right-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow-md" />
+                                </div>
+                            )}
+
+                            {state.toggles.switchStyle === "cyber" && (
+                                <div className="w-10 h-6 rounded-md relative flex items-center p-1 border" style={{ background: "#000", borderColor: state.toggles.switchTrackColor }}>
+                                    <div className="w-4 h-4 rounded-sm shadow-[0_0_10px_white]" style={{ background: state.toggles.switchTrackColor, marginLeft: 'auto' }} />
+                                </div>
+                            )}
+
+                            {state.toggles.switchStyle === "fluid" && (
+                                <div className="w-10 h-5 rounded-full relative overflow-hidden bg-white/10">
+                                    <div className="absolute inset-0 transition-all opacity-40" style={{ background: state.toggles.switchTrackColor, width: '100%' }} />
+                                    <div className="absolute right-1 top-1 w-3 h-3 rounded-full bg-white shadow-[0_0_8px_white]" />
+                                </div>
+                            )}
                         </div>
-                        <span className="text-[10px] text-white/50">Switch</span>
+
+                        <p className="text-[9px] text-white/30 uppercase tracking-tighter mt-4 mb-1">Galería de Estilos</p>
+                        <div className="grid grid-cols-1 gap-2">
+                            <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/5 opacity-50">
+                                <span className="text-[9px] text-white/40">Slim Line</span>
+                                <div className="w-6 h-1 rounded-full bg-white/20 relative">
+                                    <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-white shadow-sm" />
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/5 opacity-50">
+                                <span className="text-[9px] text-white/40">Brutal Square</span>
+                                <div className="w-8 h-4 border-2 border-white bg-white/10 relative">
+                                    <div className="absolute top-0 right-0 w-3 h-full bg-white" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    {/* Checkbox */}
-                    <div className="flex items-center gap-1.5">
-                        <div className={cn("w-4 h-4 flex items-center justify-center",
-                            state.toggles.checkboxStyle === "round" ? "rounded-full" : "rounded-sm"
-                        )} style={{ background: palette.primary, border: `1px solid ${palette.primary}` }}>
-                            <Check className="w-2.5 h-2.5 text-white" />
+
+                    {/* Check / Radio */}
+                    <div className="space-y-3">
+                        <p className="text-[9px] text-white/30 uppercase tracking-tighter mb-1">Entradas de Estado</p>
+
+                        <div className="flex items-center gap-3 p-2.5 rounded-lg bg-white/3 border border-white/5">
+                            <div className={cn("w-5 h-5 flex items-center justify-center transition-all",
+                                state.toggles.checkboxStyle === "round" ? "rounded-full" : "rounded-lg"
+                            )} style={{ background: palette.primary, border: `1px solid ${palette.primary}44`, boxShadow: `0 0 12px ${palette.primary}33` }}>
+                                <Check className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] text-white/80 font-medium">Checkbox</span>
+                                <span className="text-[8px] text-white/30 uppercase">{state.toggles.checkboxStyle}</span>
+                            </div>
                         </div>
-                        <span className="text-[10px] text-white/50">Check</span>
-                    </div>
-                    {/* Radio */}
-                    <div className="flex items-center gap-1.5">
-                        <div className="rounded-full border-2 flex items-center justify-center" style={{ width: `${state.toggles.radioSize}px`, height: `${state.toggles.radioSize}px`, borderColor: palette.primary }}>
-                            <div className="rounded-full" style={{ width: `${state.toggles.radioSize * 0.5}px`, height: `${state.toggles.radioSize * 0.5}px`, background: palette.primary }} />
+
+                        <div className="flex items-center gap-3 p-2.5 rounded-lg bg-white/3 border border-white/5">
+                            <div className="rounded-full border-2 flex items-center justify-center transition-all" style={{ width: `${state.toggles.radioSize}px`, height: `${state.toggles.radioSize}px`, borderColor: palette.primary, boxShadow: `0 0 12px ${palette.primary}22` }}>
+                                <div className="rounded-full scale-75" style={{ width: '100%', height: '100%', background: palette.primary }} />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] text-white/80 font-medium">Radio Button</span>
+                                <span className="text-[8px] text-white/30 uppercase">Size: {state.toggles.radioSize}px</span>
+                            </div>
                         </div>
-                        <span className="text-[10px] text-white/50">Radio</span>
                     </div>
                 </div>
             </FamilyWrapper>
@@ -575,7 +948,12 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
                     ))}
                     {/* Loading spinner */}
                     <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: `${palette.primary}44`, borderTopColor: "transparent" }} />
+                        <div className="w-4 h-4 rounded-full border-2 animate-spin" style={{
+                            borderTopColor: palette.primary,
+                            borderRightColor: 'rgba(255,255,255,0.1)',
+                            borderBottomColor: 'rgba(255,255,255,0.1)',
+                            borderLeftColor: 'rgba(255,255,255,0.1)'
+                        }} />
                         <span className="text-[10px]" style={{ color: palette.textSecondary }}>Cargando...</span>
                     </div>
                 </div>
@@ -602,27 +980,74 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
 
             {/* ─── TOASTS ─── */}
             <FamilyWrapper id="toasts" label="Notificaciones / Toasts" selected={selectedElement === "toasts"} onSelect={() => select("toasts")} palette={palette}>
-                <div className="space-y-2">
+                <div className="space-y-2 relative min-h-[100px] flex flex-col justify-center">
                     {[
-                        { icon: Check, label: "Cambios guardados correctamente", color: "#10B981", type: "success" },
-                        { icon: AlertTriangle, label: "Conexión inestable", color: "#F59E0B", type: "warning" },
-                        { icon: Info, label: "Nueva actualización disponible", color: palette.primary, type: "info" },
+                        { icon: Check, label: "Estilo seleccionado aplicado", color: "#10B981", type: "success" },
+                        { icon: Info, label: "Prueba los estilos Neón y Blast", color: palette.primary, type: "info" },
                     ].map(t => (
                         <div key={t.type} className={cn("flex items-center gap-2.5 px-3 py-2 rounded-xl",
-                            state.toasts.style === "glass" && "backdrop-blur-xl",
-                            state.toasts.style === "solid" && "",
-                            state.toasts.style === "minimal" && "border-l-2"
+                            state.toasts.style === "glass" && "backdrop-blur-xl bg-white/5 border border-white/10",
+                            state.toasts.style === "solid" && "bg-zinc-900 border border-zinc-800",
+                            state.toasts.style === "minimal" && "border-l-2 bg-white/5",
+                            state.toasts.style === "neon" && "bg-black/40 border border-primary/40 shadow-[0_0_10px_rgba(var(--primary-rgb),0.2)]",
+                            state.toasts.style === "cyber" && "bg-black border border-primary rounded-none",
+                            state.toasts.style === "blast" && "bg-gradient-to-r from-primary/20 to-secondary/20 border border-white/10"
                         )} style={{
-                            background: state.toasts.style === "glass" ? "rgba(255,255,255,0.06)" : state.toasts.style === "solid" ? palette.surface : "transparent",
-                            border: state.toasts.style !== "minimal" ? `1px solid ${palette.glassBorder}` : "none",
                             borderLeftColor: state.toasts.style === "minimal" ? t.color : undefined,
                             borderLeftWidth: state.toasts.style === "minimal" ? "2px" : undefined,
                         }}>
                             <t.icon className="w-3.5 h-3.5 flex-none" style={{ color: t.color }} />
-                            <span className="text-[10px] flex-1" style={{ color: palette.textPrimary }}>{t.label}</span>
-                            <X className="w-3 h-3 flex-none" style={{ color: palette.textSecondary }} />
+                            <span className="text-[10px] flex-1 text-white/70">{t.label}</span>
                         </div>
                     ))}
+                    <p className="text-[8px] text-center text-white/20 mt-2 italic uppercase tracking-widest">
+                        Vista Estática • Usa el botón 'Probar' para live view
+                    </p>
+                </div>
+            </FamilyWrapper>
+
+            {/* ─── ANIMATIONS PREVIEW ─── */}
+            <FamilyWrapper id="animations" label="Animaciones Globales" selected={selectedElement === "animations"} onSelect={() => select("animations")} palette={palette}>
+                <div className="flex items-center justify-between p-4 bg-white/3 rounded-xl border border-white/5 relative overflow-hidden group">
+                    <div className="space-y-1 relative z-10">
+                        <p className="text-[10px] font-bold text-white/90">Preview de Movimiento</p>
+                        <p className="text-[9px] text-white/40">Velocidad: {state.components.transitionSpeed}ms</p>
+                    </div>
+
+                    <motion.div
+                        animate={animActive ? {
+                            x: [0, 50, 0, -50, 0],
+                            rotate: [0, 90, 180, 270, 360],
+                            scale: [1, 1.2, 0.8, 1.1, 1]
+                        } : {}}
+                        transition={{ duration: state.components.transitionSpeed / 100, ease: "easeInOut" }}
+                        className="w-10 h-10 rounded-xl flex items-center justify-center relative z-10"
+                        style={{ background: palette.primary, boxShadow: `0 0 20px ${palette.primary}44` }}
+                    >
+                        <Zap className="w-5 h-5 text-white fill-current" />
+                    </motion.div>
+
+                    {/* Animated background lines */}
+                    <AnimatePresence>
+                        {animActive && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 0.2 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 pointer-events-none"
+                            >
+                                <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.1)_50%,transparent_100%)] animate-shimmer"
+                                    style={{ animationDuration: `${state.components.transitionSpeed}ms` }} />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Hover effect demonstration */}
+                    <div className={cn("absolute inset-0 transition-opacity duration-300",
+                        state.components.animateHover ? "opacity-100" : "opacity-0"
+                    )}>
+                        <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/5 to-transparent group-hover:from-cyan-500/10" />
+                    </div>
                 </div>
             </FamilyWrapper>
 
@@ -666,22 +1091,73 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
                             </div>
                         ))}
                     </div>
-                    {/* Menu Items */}
-                    <div className="space-y-0.5">
-                        {["Dashboard", "Red Social", "Configuración"].map((item, i) => (
-                            <div key={item} className="flex items-center gap-2 rounded-lg transition-all text-[11px]"
-                                style={{
-                                    padding: `${state.nav.menuItemPadding}px ${state.nav.menuItemPadding * 1.5}px`,
-                                    background: i === 0 ? `${palette.primary}15` : "transparent",
-                                    color: i === 0 ? palette.primary : palette.textSecondary,
-                                }}>
-                                <ChevronRight className="w-3 h-3" />
-                                {item}
+                </div>
+            </FamilyWrapper>
+
+            {/* ─── LAYOUTS ─── */}
+            <FamilyWrapper id="layouts" label="Sistemas de Layout" selected={selectedElement === "layouts"} onSelect={() => select("layouts")} palette={palette}>
+                <div className="relative p-2 bg-black/20 rounded-2xl min-h-[160px] flex items-center justify-center overflow-hidden">
+                    {/* Abstract Window representation */}
+                    <div
+                        style={{
+                            padding: `${layoutConfig.windowPadding}px`,
+                            backdropFilter: `blur(${layoutConfig.windowBlur}px)`,
+                            background: 'rgba(255,255,255,0.05)',
+                            transition: 'all 0.4s ease',
+                            width: '90%',
+                            position: 'relative',
+                            ...(layoutConfig.windowStyle === 'cyber' ? {
+                                clipPath: 'polygon(0% 15px, 15px 0%, 100% 0%, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0% 100%)',
+                                border: 'none',
+                                background: 'rgba(255,255,255,0.08)',
+                            } : layoutConfig.windowStyle === 'floating' ? {
+                                border: 'none',
+                                boxShadow: `0 20px 50px rgba(0,0,0,0.5), 0 0 20px ${palette.primary}33`,
+                                borderRadius: '24px',
+                            } : {
+                                border: layoutConfig.frameType === 'minimal' ? '1px solid rgba(255,255,255,0.1)' :
+                                    layoutConfig.frameType === 'thick' ? '4px solid rgba(255,255,255,0.2)' :
+                                        `2px solid ${palette.glassBorder}`,
+                                borderRadius: '16px',
+                            })
+                        }}
+                    >
+                        {/* Title Bar Mask */}
+                        {layoutConfig.showTitleBar && (
+                            <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5 text-[9px] uppercase tracking-tighter opacity-60">
+                                <span>StarSeed Interface v2.0</span>
+                                <div className="flex gap-1.5">
+                                    <div className="w-2 h-2 rounded-full bg-white/20" />
+                                    <div className="w-2 h-2 rounded-full bg-white/20" />
+                                    <div className="w-2 h-2 rounded-full bg-white/20" />
+                                </div>
                             </div>
-                        ))}
+                        )}
+
+                        {/* Tab Layout Mask */}
+                        <div className={cn(
+                            "flex gap-3",
+                            layoutConfig.tabLayout === "side" ? "flex-row" :
+                                layoutConfig.tabLayout === "bottom" ? "flex-col-reverse" : "flex-col"
+                        )}>
+                            <div className={cn(
+                                "flex gap-2",
+                                layoutConfig.tabLayout === "side" ? "flex-col border-r border-white/10 pr-3" : "flex-row"
+                            )}>
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="w-6 h-1.5 rounded-full bg-white/20" />
+                                ))}
+                            </div>
+                            <div className="flex-1 space-y-2">
+                                <div className="h-3 w-1/2 rounded bg-white/10" />
+                                <div className="h-10 w-full rounded bg-white/5 border border-white/5" />
+                                <div className="h-3 w-5/6 rounded bg-white/5" />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </FamilyWrapper>
         </div>
     );
 }
+

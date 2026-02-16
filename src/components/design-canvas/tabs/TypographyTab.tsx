@@ -3,7 +3,9 @@
 import React from "react";
 import { Type } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { CanvasState } from "../DesignIntegrationCanvas";
+import type { CanvasState } from "../state-types";
+import { usePreviewSync } from "../hooks/usePreviewSync";
+import { SettingControl } from "../controls/SettingControl";
 
 interface TypographyTabProps {
     state: CanvasState;
@@ -30,6 +32,8 @@ const MONO_FONTS = [
 
 function SliderControl({
     label,
+    description,
+    id,
     value,
     min,
     max,
@@ -37,8 +41,11 @@ function SliderControl({
     unit,
     onChange,
     color = "purple",
+    onHighlight,
 }: {
     label: string;
+    description?: string;
+    id?: string;
     value: number;
     min: number;
     max: number;
@@ -46,6 +53,7 @@ function SliderControl({
     unit?: string;
     onChange: (val: number) => void;
     color?: string;
+    onHighlight?: (id: string | null) => void;
 }) {
     const colorClasses: Record<string, string> = {
         purple: "accent-purple-500 [&::-webkit-slider-thumb]:bg-purple-400 [&::-webkit-slider-thumb]:shadow-purple-500/40",
@@ -54,13 +62,13 @@ function SliderControl({
     };
 
     return (
-        <div className="space-y-2">
-            <div className="flex justify-between text-xs">
-                <span className="text-white/50">{label}</span>
-                <span className="text-white/70 font-mono text-[11px]">
-                    {value}{unit || ""}
-                </span>
-            </div>
+        <SettingControl
+            id={id || label}
+            label={label}
+            description={description}
+            onHighlight={onHighlight}
+            headerAction={<span className="text-white/70 font-mono text-[11px]">{value}{unit || ""}</span>}
+        >
             <input
                 type="range"
                 min={min}
@@ -70,6 +78,7 @@ function SliderControl({
                 onChange={(e) => onChange(parseFloat(e.target.value))}
                 className={cn(
                     "w-full h-1.5 bg-white/5 rounded-full appearance-none cursor-pointer",
+                    `accent-${color}-500`,
                     "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4",
                     "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg",
                     "[&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white/20",
@@ -77,13 +86,20 @@ function SliderControl({
                     colorClasses[color] || colorClasses.purple
                 )}
             />
-        </div>
+        </SettingControl>
     );
 }
 
 export function TypographyTab({ state, dispatch }: TypographyTabProps) {
+    const { scrollToPreview } = usePreviewSync();
+
+    const handleHighlight = (id: string | null) => {
+        dispatch({ type: "SET_UI", payload: { activeHighlight: id } });
+    };
+
     const update = (payload: Partial<CanvasState["typography"]>) => {
         dispatch({ type: "SET_TYPOGRAPHY", payload });
+        scrollToPreview("family-wrapper-typography");
     };
 
     const scalePreview = (level: number) => {
@@ -185,6 +201,8 @@ export function TypographyTab({ state, dispatch }: TypographyTabProps) {
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-5">
                     <SliderControl
                         label="Tamaño Base"
+                        id="baseSize"
+                        description="Base font size across the design"
                         value={state.typography.baseSize}
                         min={12}
                         max={24}
@@ -192,9 +210,12 @@ export function TypographyTab({ state, dispatch }: TypographyTabProps) {
                         unit="px"
                         onChange={(v) => update({ baseSize: v })}
                         color="emerald"
+                        onHighlight={handleHighlight}
                     />
                     <SliderControl
                         label="Ratio de Escala"
+                        id="scaleRatio"
+                        description="Typography scale ratio multiplier"
                         value={state.typography.scaleRatio}
                         min={1.1}
                         max={2.0}
@@ -202,6 +223,7 @@ export function TypographyTab({ state, dispatch }: TypographyTabProps) {
                         unit="×"
                         onChange={(v) => update({ scaleRatio: v })}
                         color="cyan"
+                        onHighlight={handleHighlight}
                     />
 
                     {/* Scale Preview */}
@@ -232,24 +254,32 @@ export function TypographyTab({ state, dispatch }: TypographyTabProps) {
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-5">
                     <SliderControl
                         label="Peso de Titulares"
+                        id="headerWeight"
+                        description="Font weight for headlines"
                         value={state.typography.headerWeight}
                         min={100}
                         max={900}
                         step={100}
                         onChange={(v) => update({ headerWeight: v })}
                         color="emerald"
+                        onHighlight={handleHighlight}
                     />
                     <SliderControl
                         label="Peso del Cuerpo"
+                        id="bodyWeight"
+                        description="Font weight for body text"
                         value={state.typography.bodyWeight}
                         min={100}
                         max={700}
                         step={100}
                         onChange={(v) => update({ bodyWeight: v })}
                         color="cyan"
+                        onHighlight={handleHighlight}
                     />
                     <SliderControl
                         label="Tracking Titulares"
+                        id="headerTracking"
+                        description="Letter spacing for headlines"
                         value={state.typography.headerTracking}
                         min={-0.05}
                         max={0.2}
@@ -257,9 +287,12 @@ export function TypographyTab({ state, dispatch }: TypographyTabProps) {
                         unit="em"
                         onChange={(v) => update({ headerTracking: v })}
                         color="emerald"
+                        onHighlight={handleHighlight}
                     />
                     <SliderControl
                         label="Tracking Cuerpo"
+                        id="bodyTracking"
+                        description="Letter spacing for body text"
                         value={state.typography.bodyTracking}
                         min={0}
                         max={0.1}
@@ -267,6 +300,7 @@ export function TypographyTab({ state, dispatch }: TypographyTabProps) {
                         unit="em"
                         onChange={(v) => update({ bodyTracking: v })}
                         color="cyan"
+                        onHighlight={handleHighlight}
                     />
                 </div>
             </div>

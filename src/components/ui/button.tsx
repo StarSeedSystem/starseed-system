@@ -64,13 +64,13 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     if (isPrimary && variant !== 'link' && variant !== 'ghost') {
       return (
-        <div className={cn("relative inline-block", className)}>
+        <div className={cn("relative inline-block rounded-md", className)}>
           <LiquidGlassWrapper
             displacementScale={64}
             blurAmount={0.1}
             saturation={1.3}
             forceActive={true}
-            className="rounded-md overflow-hidden"
+            className={cn("overflow-hidden", className)}
           >
             {buttonContent}
           </LiquidGlassWrapper>
