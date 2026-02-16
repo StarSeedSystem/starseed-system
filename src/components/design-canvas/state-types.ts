@@ -41,7 +41,6 @@ export interface CanvasState {
     };
     components: {
         buttonStyle: "default" | "glass" | "liquid" | "neon" | "brutal";
-        buttonRadius: number;
         buttonGlow: boolean;
         cardPreset: "crystal" | "liquid-action" | "holographic" | "hyper-crystal";
         inputBorderStyle: "none" | "subtle" | "solid" | "glow";
@@ -88,6 +87,13 @@ export interface CanvasState {
         radiusLg: number;
         radiusXl: number;
         radiusPill: number;
+        radiusButtons: number;
+        radiusInputs: number;
+        radiusWidgets: number;
+        radiusWindows: number;
+        radiusTabs: number;
+        radiusBadges: number;
+        radiusDropdowns: number;
         goldenRatio: number;
         dockMargin: number;
         dockMagnification: number;
@@ -259,7 +265,6 @@ export const defaultCanvasState: CanvasState = {
     },
     components: {
         buttonStyle: "glass",
-        buttonRadius: 12,
         buttonGlow: true,
         cardPreset: "crystal",
         inputBorderStyle: "subtle",
@@ -306,6 +311,13 @@ export const defaultCanvasState: CanvasState = {
         radiusLg: 16,
         radiusXl: 24,
         radiusPill: 9999,
+        radiusButtons: 12,
+        radiusInputs: 8,
+        radiusWidgets: 20,
+        radiusWindows: 24,
+        radiusTabs: 8,
+        radiusBadges: 20,
+        radiusDropdowns: 12,
         goldenRatio: 1.618,
         dockMargin: 20,
         dockMagnification: 1.2,

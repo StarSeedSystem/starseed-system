@@ -225,7 +225,7 @@ export function UIComponentsTab({ state, dispatch, selectedElement }: Props) {
                     ))}
                 </div>
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-4">
-                    <Slider label="Border Radius" id="buttonRadius" description="Roundness of button corners" value={state.components.buttonRadius} min={0} max={9999} step={1} unit="px" onChange={v => update({ buttonRadius: v }, "buttons")} onHighlight={handleHighlight} />
+                    <p className="text-[10px] text-white/40 italic px-1">Nota: El redondeado de botones se gestiona en la pestaña "Geometría" para consistencia global.</p>
                     <Toggle on={state.components.buttonGlow} id="buttonGlow" description="Enable outer glow effect" onToggle={() => update({ buttonGlow: !state.components.buttonGlow }, "buttons")} label="Glow Effect" onHighlight={handleHighlight} />
                 </div>
             </FamilySection>

@@ -74,12 +74,12 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
     } = state;
 
     const btnStyle = (variant: string): React.CSSProperties => {
-        const base = { borderRadius: `${components.buttonRadius}px`, transition: "all 0.2s" };
+        const base = { borderRadius: `${geometry.radiusButtons}px`, transition: "all 0.2s" };
         switch (components.buttonStyle) {
             case "glass": return { ...base, background: `${palette.primary}22`, backdropFilter: `blur(${effects.backdropBlur}px)`, border: `1px solid rgba(255,255,255,0.12)`, boxShadow: components.buttonGlow ? `0 0 15px ${palette.primary}33` : undefined };
             case "liquid": return { ...base, background: `linear-gradient(135deg, ${palette.primary}33, ${palette.accent}33)`, backdropFilter: `blur(${effects.backdropBlur * 1.5}px)`, border: `1px solid rgba(255,255,255,0.15)` };
             case "neon": return { ...base, background: "transparent", border: `2px solid ${palette.accent}`, boxShadow: `0 0 15px ${palette.accent}44` };
-            case "brutal": return { ...base, background: "#fff", color: "#000", border: "2px solid #000", boxShadow: "4px 4px 0 #000", borderRadius: `${Math.min(components.buttonRadius, 8)}px` };
+            case "brutal": return { ...base, background: "#fff", color: "#000", border: "2px solid #000", boxShadow: "4px 4px 0 #000", borderRadius: `${Math.min(geometry.radiusButtons, 8)}px` };
             default: return { ...base, background: palette.primary, border: "none", boxShadow: components.buttonGlow ? `0 0 20px ${palette.primary}66` : undefined };
         }
     };
@@ -139,10 +139,10 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
         }
 
         // Radius & Smoothing
-        style.borderRadius = `${geometry.radiusLg}px`;
+        style.borderRadius = `${geometry.radiusWidgets}px`;
         // Corner smoothing is hard to do in CSS without clips, but we can simulate by increasing radius
         if (widgets.cornerSmoothing > 0.5) {
-            style.borderRadius = `${geometry.radiusLg * 1.5}px`;
+            style.borderRadius = `${geometry.radiusWidgets * 1.5}px`;
         }
 
         return style;
@@ -662,7 +662,7 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
                         <div className="absolute inset-0 bg-black/20" style={{ backdropFilter: `blur(${state.dialogs.overlayBlur}px)`, opacity: state.dialogs.overlayOpacity }} />
 
                         {/* Modal Mockup */}
-                        <div className="relative p-3 w-4/5 shadow-2xl" style={{ ...widgetStyle(), zIndex: 10 }}>
+                        <div className="relative p-3 w-4/5 shadow-2xl" style={{ ...widgetStyle(), borderRadius: `${geometry.radiusWindows}px`, zIndex: 10 }}>
                             <div className="flex justify-between items-center mb-2">
                                 <span className="text-[10px] font-bold">System Dialog</span>
                                 {state.dialogs.closeButtonStyle === 'pill' ? (
@@ -716,12 +716,12 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
                                 Búsqueda
                             </label>
                         )}
-                        <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", borderRadius: `${geometry.radiusMd}px`, ...inputBorderStyles[components.inputBorderStyle] }}>
+                        <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", borderRadius: `${geometry.radiusInputs}px`, ...inputBorderStyles[components.inputBorderStyle] }}>
                             <Search className="w-3.5 h-3.5" style={{ color: `${palette.textSecondary}` }} />
                             <span className="text-xs" style={{ color: `${palette.textSecondary}88` }}>Buscar en la red...</span>
                         </div>
                     </div>
-                    <div className="px-3 py-2 text-xs" style={{ background: "rgba(255,255,255,0.03)", borderRadius: `${geometry.radiusMd}px`, ...inputBorderStyles[components.inputBorderStyle], color: palette.textSecondary, minHeight: "48px" }}>
+                    <div className="px-3 py-2 text-xs" style={{ background: "rgba(255,255,255,0.03)", borderRadius: `${geometry.radiusInputs}px`, ...inputBorderStyles[components.inputBorderStyle], color: palette.textSecondary, minHeight: "48px" }}>
                         Área de texto...
                     </div>
                 </div>
@@ -737,12 +737,13 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
                         { label: "Urgente", color: "#EF4444" },
                     ].map(b => (
                         <span key={b.label}
-                            className={cn("text-[10px] font-medium inline-flex items-center gap-1",
-                                components.badgeStyle === "pill" && "px-2.5 py-1 rounded-full",
-                                components.badgeStyle === "square" && "px-2 py-1 rounded-md",
-                                components.badgeStyle === "dot" && "px-2 py-1 rounded-full"
-                            )}
-                            style={{ background: `${b.color}22`, color: b.color, border: `1px solid ${b.color}33` }}
+                            className={cn("text-[10px] font-medium inline-flex items-center gap-1 px-3 py-1 border")}
+                            style={{
+                                background: `${b.color}22`,
+                                color: b.color,
+                                border: `1px solid ${b.color}33`,
+                                borderRadius: components.badgeStyle === "pill" ? "9999px" : `${geometry.radiusBadges}px`
+                            }}
                         >
                             {components.badgeStyle === "dot" && <span className="w-1.5 h-1.5 rounded-full" style={{ background: b.color }} />}
                             {b.label}
@@ -759,13 +760,12 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
                             <Info className="w-4 h-4" style={{ color: palette.primary }} />
                         </div>
                         <div className={cn("absolute -top-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 text-[10px] whitespace-nowrap",
-                            components.tooltipStyle === "glass" && "rounded-lg backdrop-blur-xl",
-                            components.tooltipStyle === "solid" && "rounded-md",
-                            components.tooltipStyle === "minimal" && "rounded-sm"
+                            components.tooltipStyle === "glass" && "backdrop-blur-xl",
                         )}
                             style={{
                                 background: components.tooltipStyle === "glass" ? "rgba(255,255,255,0.08)" : components.tooltipStyle === "solid" ? palette.surface : "rgba(0,0,0,0.85)",
                                 border: components.tooltipStyle !== "minimal" ? `1px solid ${palette.glassBorder}` : "none",
+                                borderRadius: `${geometry.radiusDropdowns}px`,
                                 color: palette.textPrimary,
                                 boxShadow: components.tooltipStyle === "glass" ? `0 4px 16px rgba(0,0,0,0.3)` : undefined,
                             }}
@@ -783,14 +783,11 @@ export function CanvasPreview({ state, device, selectedElement, onSelectElement 
                 <div className="flex gap-1" style={{ gap: `${state.tabsConfig.spacing}px` }}>
                     {["General", "Avanzado", "Perfil"].map((tab, i) => (
                         <div key={tab}
-                            className={cn("px-3 py-1.5 text-[11px] font-medium transition-all cursor-default",
-                                state.tabsConfig.style === "pill" && "rounded-full",
-                                state.tabsConfig.style === "box" && "rounded-lg",
-                                state.tabsConfig.style === "underline" && "rounded-none border-b-2"
-                            )}
+                            className={cn("px-3 py-1.5 text-[11px] font-medium transition-all cursor-default")}
                             style={i === 0 ? {
                                 background: state.tabsConfig.style !== "underline" ? `${state.tabsConfig.activeColor}22` : "transparent",
                                 color: state.tabsConfig.activeColor,
+                                borderRadius: state.tabsConfig.style === "pill" ? "9999px" : state.tabsConfig.style === "box" ? `${geometry.radiusTabs}px` : "0",
                                 borderBottom: state.tabsConfig.style === "underline" ? `2px solid ${state.tabsConfig.activeColor}` : "none",
                                 borderLeft: state.tabsConfig.style !== "underline" ? `1px solid ${state.tabsConfig.activeColor}33` : "none",
                                 borderRight: state.tabsConfig.style !== "underline" ? `1px solid ${state.tabsConfig.activeColor}33` : "none",

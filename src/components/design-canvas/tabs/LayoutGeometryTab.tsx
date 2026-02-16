@@ -89,15 +89,47 @@ export function LayoutGeometryTab({ state, dispatch }: Props) {
                 </div>
             </div>
 
-            {/* Border Radius */}
-            <div className="space-y-3">
-                <h4 className="text-xs text-white/60 uppercase tracking-wider">⬡ Border Radius</h4>
+            {/* Border Radius System */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h4 className="text-xs text-white/60 uppercase tracking-wider">⬡ Border Radius System</h4>
+                    <span className="text-[10px] text-amber-400/80 font-mono px-2 py-0.5 bg-amber-500/10 rounded-full border border-amber-500/20">Granular Control</span>
+                </div>
+
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-5">
-                    <Slider label="Small (chips, tags)" id="radiusSm" description="Border radius for small elements" value={state.geometry.radiusSm} min={0} max={16} step={1} unit="px" onChange={v => update({ radiusSm: v })} onHighlight={handleHighlight} />
-                    <Slider label="Medium (buttons, inputs)" id="radiusMd" description="Border radius for medium elements" value={state.geometry.radiusMd} min={0} max={32} step={1} unit="px" onChange={v => update({ radiusMd: v })} color="indigo" onHighlight={handleHighlight} />
-                    <Slider label="Large (cards, panels)" id="radiusLg" description="Border radius for large elements" value={state.geometry.radiusLg} min={0} max={48} step={1} unit="px" onChange={v => update({ radiusLg: v })} color="sky" onHighlight={handleHighlight} />
-                    <Slider label="XL (modals, sheets)" id="radiusXl" description="Border radius for extra large elements" value={state.geometry.radiusXl} min={0} max={64} step={1} unit="px" onChange={v => update({ radiusXl: v })} onHighlight={handleHighlight} />
-                    <Slider label="Pill (full-round)" id="radiusPill" description="Border radius for pill-shaped elements" value={state.geometry.radiusPill} min={0} max={9999} step={100} unit="px" onChange={v => update({ radiusPill: v })} color="indigo" onHighlight={handleHighlight} />
+                    {/* Primary Elements */}
+                    <div className="grid grid-cols-1 gap-5">
+                        <Slider label="Ventanas" description="Radio para marcos de aplicación y modales" id="radiusWindows" value={state.geometry.radiusWindows} min={0} max={48} step={1} unit="px" onChange={v => update({ radiusWindows: v })} color="blue" onHighlight={handleHighlight} />
+                        <Slider label="Widgets" description="Radio para tarjetas y contenedores" id="radiusWidgets" value={state.geometry.radiusWidgets} min={0} max={40} step={1} unit="px" onChange={v => update({ radiusWidgets: v })} color="indigo" onHighlight={handleHighlight} />
+                    </div>
+
+                    <div className="h-px bg-white/5 my-2" />
+
+                    {/* Interactive Elements */}
+                    <div className="grid grid-cols-1 gap-5">
+                        <Slider label="Botones" description="Curvatura de botones y acciones" id="radiusButtons" value={state.geometry.radiusButtons} min={0} max={32} step={1} unit="px" onChange={v => update({ radiusButtons: v })} color="sky" onHighlight={handleHighlight} />
+                        <Slider label="Inputs" description="Redondeado de campos de texto" id="radiusInputs" value={state.geometry.radiusInputs} min={0} max={24} step={1} unit="px" onChange={v => update({ radiusInputs: v })} color="cyan" onHighlight={handleHighlight} />
+                    </div>
+
+                    <div className="h-px bg-white/5 my-2" />
+
+                    {/* Navigation & Small UI */}
+                    <div className="grid grid-cols-1 gap-5">
+                        <Slider label="Pestañas / Tabs" description="Curvatura de navegación interna" id="radiusTabs" value={state.geometry.radiusTabs} min={0} max={20} step={1} unit="px" onChange={v => update({ radiusTabs: v })} color="blue" onHighlight={handleHighlight} />
+                        <Slider label="Badges / Tags" description="Redondeado de etiquetas pequeñas" id="radiusBadges" value={state.geometry.radiusBadges} min={0} max={20} step={1} unit="px" onChange={v => update({ radiusBadges: v })} color="indigo" onHighlight={handleHighlight} />
+                        <Slider label="Dropdowns" description="Radio de menús desplegables" id="radiusDropdowns" value={state.geometry.radiusDropdowns} min={0} max={24} step={1} unit="px" onChange={v => update({ radiusDropdowns: v })} color="sky" onHighlight={handleHighlight} />
+                    </div>
+
+                    <div className="h-px bg-white/5 my-2" />
+
+                    {/* Global Scales (Legacy Support / Quick Adjust) */}
+                    <div className="space-y-4">
+                        <p className="text-[10px] text-white/30 uppercase font-bold px-1">Escalas Globales (Referencia)</p>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Slider label="Small" id="radiusSm" value={state.geometry.radiusSm} min={0} max={16} step={1} unit="px" onChange={v => update({ radiusSm: v })} onHighlight={handleHighlight} />
+                            <Slider label="Medium" id="radiusMd" value={state.geometry.radiusMd} min={0} max={32} step={1} unit="px" onChange={v => update({ radiusMd: v })} onHighlight={handleHighlight} color="indigo" />
+                        </div>
+                    </div>
                 </div>
             </div>
 

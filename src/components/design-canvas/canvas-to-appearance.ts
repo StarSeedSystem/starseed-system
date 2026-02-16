@@ -155,6 +155,13 @@ export function applyCanvasPalette(state: CanvasState): void {
     root.style.setProperty("--radius-lg", `${geometry.radiusLg}px`);
     root.style.setProperty("--radius-xl", `${geometry.radiusXl}px`);
     root.style.setProperty("--radius-pill", `${geometry.radiusPill}px`);
+    root.style.setProperty("--radius-buttons", `${geometry.radiusButtons}px`);
+    root.style.setProperty("--radius-inputs", `${geometry.radiusInputs}px`);
+    root.style.setProperty("--radius-widgets", `${geometry.radiusWidgets}px`);
+    root.style.setProperty("--radius-windows", `${geometry.radiusWindows}px`);
+    root.style.setProperty("--radius-tabs", `${geometry.radiusTabs}px`);
+    root.style.setProperty("--radius-badges", `${geometry.radiusBadges}px`);
+    root.style.setProperty("--radius-dropdowns", `${geometry.radiusDropdowns}px`);
     root.style.setProperty("--spacing-scale", `${geometry.spacingScale}`);
     root.style.setProperty("--golden-ratio", `${geometry.goldenRatio}`);
     root.style.setProperty("--panel-blur", `${geometry.panelBlur}px`);
