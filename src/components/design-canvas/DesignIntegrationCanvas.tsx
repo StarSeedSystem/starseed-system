@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 // Tabs
 import { StitchGeneratorTab } from "./tabs/StitchGeneratorTab";
+import { TrinityTab } from "./tabs/TrinityTab";
 
 import { ColorPaletteTab } from "./tabs/ColorPaletteTab";
 
@@ -26,7 +27,7 @@ import { LayoutGeometryTab } from "./tabs/LayoutGeometryTab";
 import { IconographyTab } from "./tabs/IconographyTab";
 import { PositioningTab } from "./tabs/PositioningTab";
 import { WidgetStyleTab } from "./tabs/WidgetStyleTab";
-import { FiltersBackgroundsTab } from "./tabs/FiltersBackgroundsTab";
+import { BackgroundsTab } from "./tabs/BackgroundsTab";
 import { SecondaryElementsTab } from "./tabs/SecondaryElementsTab";
 import { CanvasPreview } from "./CanvasPreview";
 import { ExportPanel } from "./ExportPanel";
@@ -59,6 +60,7 @@ type CanvasAction =
     | { type: "SET_SECONDARY"; payload: Partial<CanvasState["secondary"]> }
     | { type: "SET_AI_CONFIG"; payload: Partial<CanvasState["aiConfig"]> }
     | { type: "SET_LAYOUT_CONFIG"; payload: Partial<CanvasState["layoutConfig"]> }
+    | { type: "SET_ANIMATIONS"; payload: Partial<CanvasState["animations"]> }
     | { type: "SET_UI"; payload: Partial<CanvasState["ui"]> }
     | { type: "LOAD_STATE"; payload: CanvasState }
     | { type: "RESET" };
@@ -111,10 +113,39 @@ function canvasReducer(state: CanvasState, action: CanvasAction): CanvasState {
             return { ...state, aiConfig: { ...state.aiConfig, ...action.payload } };
         case "SET_LAYOUT_CONFIG":
             return { ...state, layoutConfig: { ...state.layoutConfig, ...action.payload } };
+        case "SET_ANIMATIONS":
+            return { ...state, animations: { ...state.animations, ...action.payload } };
         case "SET_UI":
             return { ...state, ui: { ...state.ui, ...action.payload } };
         case "LOAD_STATE":
-            return { ...action.payload };
+            return {
+                ...defaultCanvasState,
+                ...action.payload,
+                palette: {
+                    ...defaultCanvasState.palette,
+                    ...action.payload.palette,
+                    trinity: {
+                        ...defaultCanvasState.palette.trinity,
+                        ...(action.payload.palette?.trinity || {})
+                    }
+                },
+                trinityConfig: { ...defaultCanvasState.trinityConfig, ...action.payload.trinityConfig },
+                typography: { ...defaultCanvasState.typography, ...action.payload.typography },
+                components: { ...defaultCanvasState.components, ...action.payload.components },
+                animations: { ...defaultCanvasState.animations, ...action.payload.animations },
+                effects: { ...defaultCanvasState.effects, ...action.payload.effects },
+                environment: { ...defaultCanvasState.environment, ...action.payload.environment },
+                geometry: { ...defaultCanvasState.geometry, ...action.payload.geometry },
+                shadows: { ...defaultCanvasState.shadows, ...action.payload.shadows },
+                nav: { ...defaultCanvasState.nav, ...action.payload.nav },
+                iconography: { ...defaultCanvasState.iconography, ...action.payload.iconography },
+                positioning: { ...defaultCanvasState.positioning, ...action.payload.positioning },
+                widgets: { ...defaultCanvasState.widgets, ...action.payload.widgets },
+                backgrounds: { ...defaultCanvasState.backgrounds, ...action.payload.backgrounds },
+                secondary: { ...defaultCanvasState.secondary, ...action.payload.secondary },
+                layoutConfig: { ...defaultCanvasState.layoutConfig, ...action.payload.layoutConfig },
+                ui: { ...defaultCanvasState.ui, ...action.payload.ui },
+            };
         case "RESET":
             return { ...defaultCanvasState };
         default:
@@ -192,7 +223,11 @@ export function DesignIntegrationCanvas() {
         cards: "components",
         tooltips: "components",
         badges: "components",
+        cards: "components",
+        tooltips: "components",
+        badges: "components",
         "liquid-examples": "effects",
+        trinity: "trinity",
     };
 
     // When an element is selected in the preview, switch to the right tab and scroll to it
@@ -339,6 +374,7 @@ export function DesignIntegrationCanvas() {
 
     const tabs = [
         { id: "generative", label: "AI Studio", icon: Bot, color: "text-cyan-400" },
+        { id: "trinity", label: "Trinidad", icon: Sparkles, color: "text-cyan-400" },
 
         { id: "colors", label: "Colores", icon: Palette, color: "text-purple-400" },
         { id: "typography", label: "Tipografía", icon: Type, color: "text-emerald-400" },
@@ -353,7 +389,7 @@ export function DesignIntegrationCanvas() {
     ];
 
     return (
-        <div className="flex flex-col h-screen">
+        <div className="flex flex-col h-screen bg-[#050507] text-slate-200 dark">
             {/* ── Header ── */}
             <header className="flex-none flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-6 py-4 border-b border-white/5 bg-black/20 backdrop-blur-xl z-10">
                 <div>
@@ -387,12 +423,12 @@ export function DesignIntegrationCanvas() {
                         ))}
                     </div>
 
-                    <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/5 text-white/60"
+                    <Button size="sm" className="bg-white/5 hover:bg-white/10 border-white/10 text-white/70 transition-all rounded-full px-4"
                         onClick={() => router.push("/settings/appearance")}>
                         <ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Ajustes
                     </Button>
 
-                    <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/5 text-white/60"
+                    <Button size="sm" className="bg-white/5 hover:bg-white/10 border-white/10 text-white/70 transition-all rounded-full px-4"
                         onClick={() => {
                             localStorage.removeItem("starseed-canvas-autosave");
                             dispatch({ type: "RESET" });
@@ -480,6 +516,9 @@ export function DesignIntegrationCanvas() {
                             <TabsContent value="generative" className="h-full mt-0 p-0">
                                 <StitchGeneratorTab dispatch={dispatch} state={state} />
                             </TabsContent>
+                            <TabsContent value="trinity" className="h-full mt-0 p-0">
+                                <TrinityTab dispatch={dispatch} state={state} />
+                            </TabsContent>
 
                             <TabsContent value="colors" className="h-full mt-0 p-0">
                                 <ColorPaletteTab dispatch={dispatch} state={state} />
@@ -506,7 +545,7 @@ export function DesignIntegrationCanvas() {
                                 <WidgetStyleTab dispatch={dispatch} state={state} />
                             </TabsContent>
                             <TabsContent value="backgrounds" className="h-full mt-0 p-0">
-                                <FiltersBackgroundsTab dispatch={dispatch} state={state} />
+                                <BackgroundsTab dispatch={dispatch} state={state} />
                             </TabsContent>
                             <TabsContent value="secondary" className="h-full mt-0 p-0">
                                 <SecondaryElementsTab dispatch={dispatch} state={state} />
@@ -522,13 +561,8 @@ export function DesignIntegrationCanvas() {
                 >
                     <CanvasPreview
                         state={state}
-                        device={previewDevice}
                         selectedElement={selectedElement}
                         onSelectElement={handleSelectElement}
-                        onClose={() => { }}
-                        onApplyToContext={handleApplyToContext}
-                        onSaveTheme={handleSaveTheme}
-                        onImport={(loadedState) => dispatch({ type: "LOAD_STATE", payload: loadedState })}
                     />
                 </div>
             </main>

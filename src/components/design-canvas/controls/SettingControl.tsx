@@ -12,7 +12,7 @@ import {
 
 export interface SettingControlProps {
     id: string; // The highlight ID
-    label: string;
+    label: React.ReactNode;
     description?: string;
     onHighlight?: (id: string | null) => void;
     children?: React.ReactNode;

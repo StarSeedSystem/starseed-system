@@ -1,14 +1,22 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React from "react";
+import { motion } from "framer-motion";
 import {
-    Component, Zap, Square, Type, CircleDot, MessageSquare, Shield,
-    ToggleLeft, Users, BarChart3, Bell, Navigation, Layers, PanelTop, Palette
+    Component, Zap, Type, MessageSquare, Shield,
+    ToggleLeft, Users, BarChart3, Bell, Navigation, Layers, PanelTop,
+    SeparatorHorizontal, Palette, Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CanvasState, ElementFamily } from "../state-types";
 import { usePreviewSync } from "../hooks/usePreviewSync";
 import { SettingControl } from "../controls/SettingControl";
+import { SectionHeader, FamilySection } from "../controls/ControlGroups";
+import { OptionChips } from "../controls/OptionChips";
+import { Toggle } from "../controls/Toggle";
+import { Slider } from "../controls/Slider";
+import { StitchCheckbox } from "../../stitch/StitchCheckbox";
+import { StitchRadio } from "../../stitch/StitchRadio";
 
 interface Props {
     state: CanvasState;
@@ -18,7 +26,6 @@ interface Props {
 
 // ─── Presets ──────────────────────────────────────────────────
 const BUTTON_STYLES: { id: CanvasState["components"]["buttonStyle"]; label: string; desc: string; cls: string }[] = [
-    { id: "default", label: "Standard", desc: "Solid fill", cls: "bg-purple-600" },
     { id: "glass", label: "Crystal Glass", desc: "Frosted blur", cls: "bg-white/10 backdrop-blur-md border border-white/20" },
     { id: "liquid", label: "Liquid", desc: "Morphing refraction", cls: "bg-gradient-to-br from-purple-500/20 to-cyan-500/20 backdrop-blur-lg border border-white/15" },
     { id: "neon", label: "Neon Glow", desc: "Electric borders", cls: "bg-transparent border-2 border-cyan-400 shadow-[0_0_15px_rgba(0,212,255,0.3)]" },
@@ -27,9 +34,12 @@ const BUTTON_STYLES: { id: CanvasState["components"]["buttonStyle"]; label: stri
 
 
 
-const INPUT_BORDERS: { id: CanvasState["components"]["inputBorderStyle"]; label: string }[] = [
-    { id: "none", label: "Sin Borde" }, { id: "subtle", label: "Sutil" },
-    { id: "solid", label: "Sólido" }, { id: "glow", label: "Glow" },
+const INPUT_BORDERS: { id: CanvasState["components"]["inputBorderStyle"]; label: string; desc: string; cls: string }[] = [
+    { id: "default", label: "Standard", desc: "Sólido minimalista", cls: "bg-white/5 border border-white/20 rounded-md" },
+    { id: "glass", label: "Crystal Glass", desc: "Borde refractivo frosted", cls: "bg-white/5 backdrop-blur-sm border border-white/15 rounded-md" },
+    { id: "liquid", label: "Liquid Action", desc: "Entrada enfocada en energía", cls: "bg-gradient-to-r from-cyan-500/15 to-purple-500/15 border border-cyan-400/30 rounded-md" },
+    { id: "neon", label: "Neon Pulse", desc: "Bordes eléctricos brillantes", cls: "bg-transparent border-2 border-cyan-400/60 shadow-[0_0_8px_rgba(0,212,255,0.3)] rounded-md" },
+    { id: "brutal", label: "Brutalism", desc: "Geometría de alto contraste", cls: "bg-white/10 border-2 border-white/40 shadow-[2px_2px_0_rgba(255,255,255,0.2)] rounded-none" },
 ];
 
 const TOOLTIP_STYLES: { id: CanvasState["components"]["tooltipStyle"]; label: string; desc: string }[] = [
@@ -54,90 +64,7 @@ const FRAME_TYPES: { id: CanvasState["layoutConfig"]["frameType"]; label: string
     { id: "glass", label: "Glass", desc: "Soft refractive borders" },
 ];
 
-// ─── Shared Controls ─────────────────────────────────────────
-function Toggle({ on, onToggle, label, description, id, onHighlight }: {
-    on: boolean; onToggle: () => void; label: string; description?: string; id?: string; onHighlight?: (id: string | null) => void;
-}) {
-    return (
-        <SettingControl id={id || label} label={label} description={description} onHighlight={onHighlight}
-            headerAction={
-                <button onClick={onToggle} className={cn("relative w-10 h-5 rounded-full transition-all", on ? "bg-amber-500/40" : "bg-white/10")}>
-                    <div className={cn("absolute w-4 h-4 rounded-full top-0.5 transition-all", on ? "left-[22px] bg-amber-400" : "left-0.5 bg-white/40")} />
-                </button>
-            }
-        />
-    );
-}
-
-function Slider({ label, description, id, value, min, max, step, unit, onChange, color = "amber", onHighlight }: {
-    label: string; description?: string; id?: string; value: number; min: number; max: number; step: number; unit?: string;
-    onChange: (v: number) => void; color?: string; onHighlight?: (id: string | null) => void;
-}) {
-    return (
-        <SettingControl id={id || label} label={label} description={description} onHighlight={onHighlight}
-            headerAction={<span className="text-white/70 font-mono text-[11px]">{value}{unit}</span>}
-        >
-            <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(+e.target.value)}
-                className={cn("w-full h-1.5 bg-white/5 rounded-full appearance-none cursor-pointer",
-                    `accent-${color}-500`,
-                    "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white/20",
-                    color === "amber" && "[&::-webkit-slider-thumb]:bg-amber-400",
-                    color === "cyan" && "[&::-webkit-slider-thumb]:bg-cyan-400",
-                    color === "purple" && "[&::-webkit-slider-thumb]:bg-purple-400",
-                    color === "rose" && "[&::-webkit-slider-thumb]:bg-rose-400",
-                    color === "emerald" && "[&::-webkit-slider-thumb]:bg-emerald-400",
-                )}
-            />
-        </SettingControl>
-    );
-}
-
-function OptionChips<T extends string>({ options, value, onChange, color = "amber", label, description, id, onHighlight }: {
-    options: { id: T; label: string }[]; value: T; onChange: (v: T) => void; color?: string;
-    label?: string; description?: string; id?: string; onHighlight?: (id: string | null) => void;
-}) {
-    const colorMap: Record<string, string> = {
-        amber: "bg-amber-500/15 border-amber-500/30 text-amber-300",
-        cyan: "bg-cyan-500/15 border-cyan-500/30 text-cyan-300",
-        purple: "bg-purple-500/15 border-purple-500/30 text-purple-300",
-        rose: "bg-rose-500/15 border-rose-500/30 text-rose-300",
-        emerald: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
-    };
-
-    const content = (
-        <div className="flex flex-wrap gap-2">
-            {options.map(o => (
-                <button key={o.id} onClick={() => onChange(o.id)}
-                    className={cn("px-3 py-1.5 rounded-lg text-xs transition-all border",
-                        value === o.id ? colorMap[color] : "bg-white/5 border-white/5 text-white/60 hover:bg-white/8")}>
-                    {o.label}
-                </button>
-            ))}
-        </div>
-    );
-
-    if (label) {
-        return (
-            <SettingControl id={id || label} label={label} description={description} onHighlight={onHighlight}>
-                {content}
-            </SettingControl>
-        );
-    }
-
-    return content;
-}
-
-function SectionHeader({ icon: Icon, title, color = "text-amber-400" }: { icon: any; title: string; color?: string }) {
-    return (
-        <h4 className="text-xs text-white/60 uppercase tracking-wider flex items-center gap-2">
-            <Icon className={cn("w-3 h-3", color)} /> {title}
-        </h4>
-    );
-}
-
-function FamilySection({ id, children }: { id: string; children: React.ReactNode }) {
-    return <div id={`family-${id}`} className="space-y-3 scroll-mt-4">{children}</div>;
-}
+// ─── Shared Controls are imported from ../controls/ ─────────
 
 // ─── Main ────────────────────────────────────────────────────
 export function UIComponentsTab({ state, dispatch, selectedElement }: Props) {
@@ -194,6 +121,16 @@ export function UIComponentsTab({ state, dispatch, selectedElement }: Props) {
         scrollToPreview('family-wrapper-layouts');
     };
 
+    const updateSecondary = (p: Partial<CanvasState["secondary"]>) => {
+        dispatch({ type: "SET_SECONDARY", payload: p });
+        scrollToPreview('family-wrapper-separators');
+    };
+
+    const updateIconography = (p: Partial<CanvasState["iconography"]>) => {
+        dispatch({ type: "SET_ICONOGRAPHY", payload: p });
+        scrollToPreview('family-wrapper-iconography');
+    };
+
 
     return (
         <div className="space-y-8">
@@ -213,86 +150,120 @@ export function UIComponentsTab({ state, dispatch, selectedElement }: Props) {
                 <SectionHeader icon={Zap} title="Estilo de Botones" />
                 <div className="space-y-2">
                     {BUTTON_STYLES.map(bs => (
-                        <button key={bs.id} onClick={() => update({ buttonStyle: bs.id }, "buttons")}
-                            className={cn("flex items-center gap-4 w-full p-3 rounded-xl transition-all border text-left",
-                                state.components.buttonStyle === bs.id ? "bg-amber-500/10 border-amber-500/30" : "bg-white/3 border-white/5 hover:bg-white/5")}>
-                            <div className={cn("px-4 py-1.5 rounded-lg text-xs font-medium shrink-0", bs.cls)}>
-                                <span className={bs.id === "brutal" ? "" : "text-white/80"}>Button</span>
+                        <div key={bs.id} onClick={() => update({ buttonStyle: bs.id }, "buttons")}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={state.components.buttonStyle === bs.id}
+                            aria-label={`Estilo de botón: ${bs.label}`}
+                            className={cn("w-full p-2.5 rounded-xl border transition-all flex items-center gap-3 cursor-pointer",
+                                state.components.buttonStyle === bs.id ? "bg-amber-500/10 border-amber-500/30" : "bg-white/3 border-white/5 hover:bg-white/5")}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    update({ buttonStyle: bs.id }, "buttons");
+                                }
+                            }}
+                        >
+                            {/* Mini-preview swatch */}
+                            <div className={cn("w-8 h-5 rounded-md shrink-0 transition-all", bs.cls)} />
+                            <div className="flex-1">
+                                <p className="text-sm text-white/80 font-medium">{bs.label}</p>
+                                <p className="text-[11px] text-white/50">{bs.desc}</p>
                             </div>
-                            <div className="flex-1"><p className="text-sm text-white/80 font-medium">{bs.label}</p><p className="text-[11px] text-white/50">{bs.desc}</p></div>
-                            {state.components.buttonStyle === bs.id && <div className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />}
-                        </button>
+                            {state.components.buttonStyle === bs.id && (
+                                <motion.div
+                                    layoutId="button-style-indicator"
+                                    className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0 shadow-[0_0_10px_#fbbf24]"
+                                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                />
+                            )}
+                        </div>
                     ))}
                 </div>
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-4">
                     <p className="text-[10px] text-white/40 italic px-1">Nota: El redondeado de botones se gestiona en la pestaña "Geometría" para consistencia global.</p>
-                    <Toggle on={state.components.buttonGlow} id="buttonGlow" description="Enable outer glow effect" onToggle={() => update({ buttonGlow: !state.components.buttonGlow }, "buttons")} label="Glow Effect" onHighlight={handleHighlight} />
+                    <Toggle on={state.components.buttonGlow} id="buttonGlow" description="Enable outer glow effect" onToggle={() => update({ buttonGlow: !state.components.buttonGlow }, "buttons")} label="Glow Effect" onHighlight={handleHighlight} config={{ style: state.toggles.switchStyle, activeColor: state.toggles.switchTrackColor }} />
+
+                    <div className="flex items-center gap-3 pt-2 border-t border-white/5">
+                        <label className="text-xs text-white/50" htmlFor="focusRingColor">Color de Enfoque (Ring)</label>
+                        <div className="flex items-center gap-2 ml-auto">
+                            <input id="focusRingColor" type="color" value={state.components.focusRingColor} onChange={e => update({ focusRingColor: e.target.value })}
+                                aria-label="Color de enfoque del anillo"
+                                className="w-8 h-8 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
+                            <span className="text-[11px] text-white/60 font-mono uppercase">{state.components.focusRingColor}</span>
+                        </div>
+                    </div>
                 </div>
             </FamilySection>
-
-
 
             {/* ═══ INPUTS ═══ */}
             <FamilySection id="inputs">
                 <SectionHeader icon={Type} title="Estilo de Inputs" color="text-cyan-400" />
+                <div className="space-y-3">
+                    {INPUT_BORDERS.map(ib => (
+                        <div key={ib.id} onClick={() => update({ inputBorderStyle: ib.id }, "inputs")}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={state.components.inputBorderStyle === ib.id}
+                            aria-label={`Estilo de input: ${ib.label}`}
+                            className={cn("w-full p-2.5 rounded-xl border transition-all flex items-center gap-3 cursor-pointer",
+                                state.components.inputBorderStyle === ib.id ? "bg-cyan-500/10 border-cyan-500/30" : "bg-white/3 border-white/5 hover:bg-white/5")}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    update({ inputBorderStyle: ib.id }, "inputs");
+                                }
+                            }}
+                        >
+                            {/* Mini-preview swatch */}
+                            <div className={cn("w-8 h-5 shrink-0 transition-all", ib.cls)} />
+                            <div className="flex-1">
+                                <p className="text-sm text-white/80 font-medium">{ib.label}</p>
+                                <p className="text-[11px] text-white/50">{ib.desc}</p>
+                            </div>
+                            {state.components.inputBorderStyle === ib.id && (
+                                <motion.div
+                                    layoutId="input-border-indicator"
+                                    className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0 shadow-[0_0_10px_#22d3ee]"
+                                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                />
+                            )}
+                        </div>
+                    ))}
+                </div>
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-4">
-                    <OptionChips options={INPUT_BORDERS} value={state.components.inputBorderStyle} onChange={v => update({ inputBorderStyle: v }, "inputs")} color="cyan" label="Border Style" description="Visual style of the input border" id="inputBorderStyle" onHighlight={handleHighlight} />
-                    <Toggle on={state.components.inputFloatingLabel} onToggle={() => update({ inputFloatingLabel: !state.components.inputFloatingLabel }, "inputs")} label="Floating Label" description="Label moves up when focused" id="inputFloatingLabel" onHighlight={handleHighlight} />
+                    <Toggle on={state.components.inputFloatingLabel} onToggle={() => update({ inputFloatingLabel: !state.components.inputFloatingLabel }, "inputs")} label="Floating Label" description="Label moves up when focused" id="inputFloatingLabel" onHighlight={handleHighlight} config={{ style: state.toggles.switchStyle, activeColor: state.toggles.switchTrackColor }} />
+                </div>
+            </FamilySection>
+
+            {/* ═══ BADGES ═══ */}
+            <FamilySection id="badges">
+                <SectionHeader icon={Shield} title="Badges & Estatus" color="text-amber-400" />
+                <div className="bg-white/3 rounded-2xl p-4 border border-white/5">
+                    <OptionChips
+                        options={BADGE_STYLES}
+                        value={state.components.badgeStyle}
+                        onChange={v => update({ badgeStyle: v }, "badges")}
+                        color="amber"
+                        label="Badge Style"
+                        id="badgeStyle"
+                        onHighlight={handleHighlight}
+                    />
                 </div>
             </FamilySection>
 
             {/* ═══ TOOLTIPS ═══ */}
             <FamilySection id="tooltips">
                 <SectionHeader icon={MessageSquare} title="Estilo de Tooltips" color="text-cyan-400" />
-                <div className="flex gap-2 flex-wrap">
-                    {TOOLTIP_STYLES.map(ts => (
-                        <button key={ts.id} onClick={() => update({ tooltipStyle: ts.id }, "tooltips")}
-                            className={cn("px-4 py-2.5 rounded-xl text-left transition-all border",
-                                state.components.tooltipStyle === ts.id ? "bg-cyan-500/10 border-cyan-500/30" : "bg-white/3 border-white/5 hover:bg-white/5")}>
-                            <p className="text-sm text-white/80 font-medium">{ts.label}</p>
-                            <p className="text-[10px] text-white/50 mt-0.5">{ts.desc}</p>
-                        </button>
-                    ))}
-                </div>
-            </FamilySection>
-
-            {/* ═══ BADGES ═══ */}
-            <FamilySection id="badges">
-                <SectionHeader icon={CircleDot} title="Estilo de Badges" color="text-rose-400" />
-                <div className="flex gap-3">
-                    {BADGE_STYLES.map(bs => (
-                        <button key={bs.id} onClick={() => update({ badgeStyle: bs.id }, "badges")}
-                            className={cn("flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all border",
-                                state.components.badgeStyle === bs.id ? "bg-rose-500/10 border-rose-500/30" : "bg-white/3 border-white/5 hover:bg-white/5")}>
-                            <div className={cn("bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center",
-                                bs.id === "pill" && "px-2 py-0.5 rounded-full min-w-[20px]",
-                                bs.id === "square" && "px-1.5 py-0.5 rounded-md min-w-[20px]",
-                                bs.id === "dot" && "w-2.5 h-2.5 rounded-full"
-                            )}>{bs.id !== "dot" && "3"}</div>
-                            <span className="text-xs text-white/70">{bs.label}</span>
-                        </button>
-                    ))}
-                </div>
-            </FamilySection>
-
-            {/* ═══ FOCUS RING ═══ */}
-            <FamilySection id="focus">
-                <SectionHeader icon={Shield} title="Focus Ring" color="text-amber-400" />
-                <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-4">
-                    <div className="flex items-center gap-3">
-                        <label className="text-xs text-white/50">Color del anillo</label>
-                        <div className="flex items-center gap-2 ml-auto">
-                            <input type="color" value={state.components.focusRingColor} onChange={e => update({ focusRingColor: e.target.value }, "inputs")}
-                                className="w-8 h-8 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
-                            <span className="text-[11px] text-white/60 font-mono">{state.components.focusRingColor}</span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white/70"
-                            style={{ boxShadow: `0 0 0 2px ${state.components.focusRingColor}66, 0 0 8px ${state.components.focusRingColor}33` }}>
-                            Input enfocado
-                        </div>
-                        <span className="text-[10px] text-white/40">Preview</span>
+                <div className="bg-white/3 rounded-2xl p-4 border border-white/5">
+                    <div className="flex gap-2 flex-wrap">
+                        {TOOLTIP_STYLES.map(ts => (
+                            <button key={ts.id} onClick={() => update({ tooltipStyle: ts.id }, "tooltips")}
+                                className={cn("px-4 py-2 rounded-xl text-left transition-all border",
+                                    state.components.tooltipStyle === ts.id ? "bg-cyan-500/10 border-cyan-500/30" : "bg-white/3 border-white/5 hover:bg-white/5")}>
+                                <p className="text-[11px] text-white/80 font-medium">{ts.label}</p>
+                            </button>
+                        ))}
                     </div>
                 </div>
             </FamilySection>
@@ -302,25 +273,81 @@ export function UIComponentsTab({ state, dispatch, selectedElement }: Props) {
                 <SectionHeader icon={Layers} title="Pestañas / Tabs" color="text-purple-400" />
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-4">
                     <OptionChips
-                        options={[{ id: "underline" as const, label: "Underline" }, { id: "pill" as const, label: "Pill" }, { id: "box" as const, label: "Box" }]}
+                        options={[
+                            { id: "underline" as const, label: "Underline" },
+                            { id: "pill" as const, label: "Pill" },
+                            { id: "box" as const, label: "Box" },
+                            { id: "ghost" as const, label: "Ghost" }
+                        ]}
                         value={state.tabsConfig.style}
                         onChange={v => updateTabs({ style: v })}
                         color="purple"
                         label="Tab Style"
-                        description="Visual appearance of tabs"
                         id="tabsStyle"
                         onHighlight={handleHighlight}
                     />
-                    <div className="flex items-center gap-3">
-                        <label className="text-xs text-white/50">Color activo</label>
-                        <div className="flex items-center gap-2 ml-auto">
-                            <input type="color" value={state.tabsConfig.activeColor} onChange={e => updateTabs({ activeColor: e.target.value })}
-                                className="w-8 h-8 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
-                            <span className="text-[11px] text-white/60 font-mono">{state.tabsConfig.activeColor}</span>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] text-white/40 uppercase tracking-wider font-bold">Activo</label>
+                            <div className="flex items-center gap-2">
+                                <input type="color" value={state.tabsConfig.activeColor} onChange={e => updateTabs({ activeColor: e.target.value })}
+                                    className="w-8 h-8 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
+                                <span className="text-[10px] text-white/60 font-mono">{state.tabsConfig.activeColor}</span>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] text-white/40 uppercase tracking-wider font-bold">Inactivo</label>
+                            <div className="flex items-center gap-2">
+                                <input type="color" value={state.tabsConfig.inactiveColor || "#ffffff66"} onChange={e => updateTabs({ inactiveColor: e.target.value })}
+                                    className="w-8 h-8 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
+                                <span className="text-[10px] text-white/60 font-mono">{state.tabsConfig.inactiveColor}</span>
+                            </div>
                         </div>
                     </div>
-                    <Slider label="Spacing" id="tabsSpacing" description="Gap between tab items" value={state.tabsConfig.spacing} min={0} max={12} step={1} unit="px"
-                        onChange={v => updateTabs({ spacing: v })} color="purple" onHighlight={handleHighlight} />
+
+                    <OptionChips
+                        options={[
+                            { id: "line" as const, label: "Line" },
+                            { id: "pill" as const, label: "Pill Glow" },
+                            { id: "dot" as const, label: "Dot" },
+                            { id: "neon" as const, label: "Neon" }
+                        ]}
+                        value={state.tabsConfig.indicatorStyle}
+                        onChange={v => updateTabs({ indicatorStyle: v })}
+                        color="purple"
+                        label="Indicator Style"
+                        id="tabsIndicator"
+                        onHighlight={handleHighlight}
+                    />
+
+                    <OptionChips
+                        options={[
+                            { id: "smooth" as const, label: "Smooth" },
+                            { id: "elastic" as const, label: "Elastic" },
+                            { id: "bounce" as const, label: "Bounce" }
+                        ]}
+                        value={state.tabsConfig.animationType}
+                        onChange={v => updateTabs({ animationType: v })}
+                        color="purple"
+                        label="Animation Type"
+                        id="tabsAnimation"
+                        onHighlight={handleHighlight}
+                    />
+
+                    <div className="space-y-3 pt-2 border-t border-white/5">
+                        <Slider label="Padding" id="tabsPadding" value={state.tabsConfig.tabPadding} min={8} max={32} step={1} unit="px"
+                            onChange={v => updateTabs({ tabPadding: v })} color="purple" onHighlight={handleHighlight} />
+
+                        <Slider label="Spacing" id="tabsSpacing" value={state.tabsConfig.spacing} min={0} max={20} step={1} unit="px"
+                            onChange={v => updateTabs({ spacing: v })} color="purple" onHighlight={handleHighlight} />
+
+                        <Slider label="Indicator Thickness" id="tabsThickness" value={state.tabsConfig.indicatorThickness} min={1} max={6} step={1} unit="px"
+                            onChange={v => updateTabs({ indicatorThickness: v })} color="purple" onHighlight={handleHighlight} />
+
+                        <Slider label="Active Opacity" id="tabsOpacity" value={state.tabsConfig.activeBgOpacity} min={0} max={1} step={0.05} unit=""
+                            onChange={v => updateTabs({ activeBgOpacity: v })} color="purple" onHighlight={handleHighlight} />
+                    </div>
                 </div>
             </FamilySection>
 
@@ -360,10 +387,27 @@ export function UIComponentsTab({ state, dispatch, selectedElement }: Props) {
                     />
                     <Slider label="Tamaño Radio" id="radioSize" value={state.toggles.radioSize} min={12} max={24} step={1} unit="px"
                         onChange={v => updateToggles({ radioSize: v })} color="emerald" onHighlight={handleHighlight} />
+
+                    <div className="space-y-3 pt-4 border-t border-white/5">
+                        <SettingControl id="modoSync" label="MODO SYNC" headerAction={
+                            <StitchCheckbox
+                                checked={true}
+                                onChange={() => { }}
+                                style={state.toggles.checkboxStyle}
+                                activeColor={state.toggles.switchTrackColor}
+                            />
+                        } />
+                        <SettingControl id="autoFix" label="AUTO-FIX" headerAction={
+                            <StitchRadio
+                                checked={true}
+                                onChange={() => { }}
+                                size={state.toggles.radioSize}
+                                activeColor={state.toggles.switchTrackColor}
+                            />
+                        } />
+                    </div>
                 </div>
             </FamilySection>
-
-
 
             {/* ═══ AVATARS ═══ */}
             <FamilySection id="avatars">
@@ -396,6 +440,20 @@ export function UIComponentsTab({ state, dispatch, selectedElement }: Props) {
             <FamilySection id="progress">
                 <SectionHeader icon={BarChart3} title="Barras de Progreso" color="text-emerald-400" />
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-4">
+                    <OptionChips
+                        options={[
+                            { id: "flat" as const, label: "Flat" },
+                            { id: "rounded" as const, label: "Rounded" },
+                            { id: "neon" as const, label: "Neón" },
+                            { id: "cyber" as const, label: "Cyber" }
+                        ]}
+                        value={state.progressBars.barStyle}
+                        onChange={v => updateProgress({ barStyle: v })}
+                        color="emerald"
+                        label="Estilo"
+                        id="progressStyle"
+                        onHighlight={handleHighlight}
+                    />
                     <Slider label="Altura" id="progressHeight" value={state.progressBars.height} min={2} max={16} step={1} unit="px"
                         onChange={v => updateProgress({ height: v })} color="emerald" onHighlight={handleHighlight} />
                     <OptionChips
@@ -407,7 +465,22 @@ export function UIComponentsTab({ state, dispatch, selectedElement }: Props) {
                         id="progressColor"
                         onHighlight={handleHighlight}
                     />
-                    <Toggle on={state.progressBars.animated} onToggle={() => updateProgress({ animated: !state.progressBars.animated })} label="Animación pulsante" id="progressAnimated" onHighlight={handleHighlight} />
+                    <OptionChips
+                        options={[
+                            { id: "top" as const, label: "Arriba" },
+                            { id: "inline" as const, label: "En Línea" },
+                            { id: "hidden" as const, label: "Oculto" }
+                        ]}
+                        value={state.progressBars.labelPosition}
+                        onChange={v => updateProgress({ labelPosition: v })}
+                        color="emerald"
+                        label="Posición Label"
+                        id="progressLabel"
+                        onHighlight={handleHighlight}
+                    />
+                    <Toggle on={state.progressBars.animated} onToggle={() => updateProgress({ animated: !state.progressBars.animated })} label="Animación pulsante" id="progressAnimated" onHighlight={handleHighlight} config={{ style: state.toggles.switchStyle, activeColor: state.toggles.switchTrackColor }} />
+                    <Slider label="Velocidad de Pulso" id="pulseSpeed" value={state.progressBars.pulseSpeed} min={0.5} max={5} step={0.5} unit="s"
+                        onChange={v => updateProgress({ pulseSpeed: v })} color="emerald" onHighlight={handleHighlight} />
                 </div>
             </FamilySection>
 
@@ -470,6 +543,60 @@ export function UIComponentsTab({ state, dispatch, selectedElement }: Props) {
                         onHighlight={handleHighlight}
                     />
                     <OptionChips
+                        options={[
+                            { id: "bottom" as const, label: "⬇ Abajo" },
+                            { id: "top" as const, label: "⬆ Arriba" },
+                            { id: "left" as const, label: "⬅ Izquierda" },
+                            { id: "right" as const, label: "➡ Derecha" }
+                        ]}
+                        value={state.nav.dockPosition}
+                        onChange={v => updateNav({ dockPosition: v })}
+                        color="cyan"
+                        label="Posición del Dock"
+                        id="dockPosition"
+                        onHighlight={handleHighlight}
+                    />
+                    <OptionChips
+                        options={[
+                            { id: "glass" as const, label: "Glass" },
+                            { id: "solid" as const, label: "Sólido" },
+                            { id: "transparent" as const, label: "Transparente" }
+                        ]}
+                        value={state.nav.dockBg}
+                        onChange={v => updateNav({ dockBg: v })}
+                        color="cyan"
+                        label="Fondo del Dock"
+                        id="dockBg"
+                        onHighlight={handleHighlight}
+                    />
+                    <OptionChips
+                        options={[
+                            { id: "standard" as const, label: "Standard" },
+                            { id: "social" as const, label: "Social" },
+                            { id: "productivity" as const, label: "Work" }
+                        ]}
+                        value={state.nav.dockIcons}
+                        onChange={v => updateNav({ dockIcons: v })}
+                        color="cyan"
+                        label="Icon Preset"
+                        id="dockIcons"
+                        onHighlight={handleHighlight}
+                    />
+                    <div className="flex items-center justify-between py-1">
+                        <Toggle
+                            on={state.nav.showLabels}
+                            onToggle={() => updateNav({ showLabels: !state.nav.showLabels })}
+                            label="Mostrar Etiquetas"
+                            id="showLabels"
+                            onHighlight={handleHighlight}
+                            config={{ style: state.toggles.switchStyle, activeColor: state.toggles.switchTrackColor }}
+                        />
+                    </div>
+                    <Slider label="Escala de Iconos" id="iconScale" value={state.nav.iconScale} min={0.5} max={1.5} step={0.1} unit="x"
+                        onChange={v => updateNav({ iconScale: v })} color="cyan" onHighlight={handleHighlight} />
+                    <Slider label="Elevación" id="dockElevation" value={state.nav.dockElevation} min={0} max={24} step={1} unit="px"
+                        onChange={v => updateNav({ dockElevation: v })} color="cyan" onHighlight={handleHighlight} />
+                    <OptionChips
                         options={[{ id: "slash" as const, label: "/" }, { id: "arrow" as const, label: "›" }, { id: "dot" as const, label: "•" }]}
                         value={state.nav.breadcrumbSeparator}
                         onChange={v => updateNav({ breadcrumbSeparator: v })}
@@ -481,24 +608,65 @@ export function UIComponentsTab({ state, dispatch, selectedElement }: Props) {
                     <Slider label="Padding de ítems" id="menuItemPadding" value={state.nav.menuItemPadding} min={4} max={16} step={1} unit="px"
                         onChange={v => updateNav({ menuItemPadding: v })} color="cyan" onHighlight={handleHighlight} />
                 </div>
-            </FamilySection>
 
-            {/* ═══ ANIMATIONS ═══ */}
-            <FamilySection id="animations">
-                <SectionHeader icon={Zap} title="Animaciones Globales" />
-                <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-4">
-                    <button
-                        onClick={() => dispatch({ type: "SET_UI", payload: { lastAnimTrigger: Date.now() } })}
-                        className="w-full py-2.5 rounded-xl bg-purple-500/20 text-purple-300 text-xs font-bold border border-purple-500/30 hover:bg-purple-500/30 transition-all mb-2"
-                    >
-                        Previsualizar Animaciones
-                    </button>
-                    <Toggle on={state.components.animateHover} onToggle={() => update({ animateHover: !state.components.animateHover })} label="Hover Animations" id="animateHover" onHighlight={handleHighlight} />
-                    <Toggle on={state.components.animateClick} onToggle={() => update({ animateClick: !state.components.animateClick })} label="Click Animations" id="animateClick" onHighlight={handleHighlight} />
-                    <Toggle on={state.components.microInteractions} onToggle={() => update({ microInteractions: !state.components.microInteractions })} label="Micro-Interactions" id="microInteractions" onHighlight={handleHighlight} />
-                    <Slider label="Transition Speed" id="transitionSpeed" value={state.components.transitionSpeed} min={50} max={500} step={10} unit="ms" onChange={v => update({ transitionSpeed: v })} onHighlight={handleHighlight} />
+                {/* ─── TRINITY SETTINGS ─── */}
+                <div className="mt-3 bg-gradient-to-br from-purple-500/5 to-cyan-500/5 rounded-2xl p-4 border border-purple-500/10 space-y-4">
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 rounded-full bg-gradient-to-r from-purple-400 to-cyan-400 animate-pulse" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">Interfaz Trinidad</span>
+                    </div>
+                    <OptionChips
+                        options={[
+                            { id: "gooey" as const, label: "Gooey" },
+                            { id: "minimal" as const, label: "Minimal" },
+                            { id: "glass" as const, label: "Glass" }
+                        ]}
+                        value={state.nav.trinityStyle}
+                        onChange={v => updateNav({ trinityStyle: v })}
+                        color="purple"
+                        label="Estilo Trinity"
+                        id="trinityStyle"
+                        onHighlight={handleHighlight}
+                    />
+                    <OptionChips
+                        options={[
+                            { id: "horizontal" as const, label: "Horizontal" },
+                            { id: "arc" as const, label: "Arco" },
+                            { id: "radial" as const, label: "Radial" }
+                        ]}
+                        value={state.nav.trinityLayout}
+                        onChange={v => updateNav({ trinityLayout: v })}
+                        color="purple"
+                        label="Disposición"
+                        id="trinityLayout"
+                        onHighlight={handleHighlight}
+                    />
+                    <OptionChips
+                        options={[
+                            { id: "spring" as const, label: "Spring" },
+                            { id: "elastic" as const, label: "Elástico" },
+                            { id: "smooth" as const, label: "Suave" }
+                        ]}
+                        value={state.nav.trinityPhysics}
+                        onChange={v => updateNav({ trinityPhysics: v })}
+                        color="purple"
+                        label="Física de Paneles"
+                        id="trinityPhysics"
+                        onHighlight={handleHighlight}
+                    />
+                    <Slider label="Peek Distance" id="trinityPeek" value={state.nav.trinityPeekDistance} min={2} max={20} step={1} unit="px"
+                        onChange={v => updateNav({ trinityPeekDistance: v })} color="purple" onHighlight={handleHighlight} />
+                    <Slider label="Auto-Hide Delay" id="trinityAutoHide" value={state.nav.trinityAutoHideDelay} min={1} max={8} step={0.5} unit="s"
+                        onChange={v => updateNav({ trinityAutoHideDelay: v })} color="purple" onHighlight={handleHighlight} />
+                    <div className="space-y-2">
+                        <Toggle on={state.nav.trinityGlow} onToggle={() => updateNav({ trinityGlow: !state.nav.trinityGlow })} label="Glow de Proximidad" description="Destello luminoso al acercarse al borde" id="trinityGlow" onHighlight={handleHighlight} config={{ style: state.toggles.switchStyle, activeColor: state.toggles.switchTrackColor }} />
+                        <Toggle on={state.nav.trinityCornerBlend} onToggle={() => updateNav({ trinityCornerBlend: !state.nav.trinityCornerBlend })} label="Fusión de Esquinas" description="Mezcla cromática aditiva en esquinas" id="trinityCornerBlend" onHighlight={handleHighlight} config={{ style: state.toggles.switchStyle, activeColor: state.toggles.switchTrackColor }} />
+                        <Toggle on={state.nav.trinityColorShadow} onToggle={() => updateNav({ trinityColorShadow: !state.nav.trinityColorShadow })} label="Sombras de Color" description="Paneles proyectan sombra teñida de su propio color" id="trinityColorShadow" onHighlight={handleHighlight} config={{ style: state.toggles.switchStyle, activeColor: state.toggles.switchTrackColor }} />
+                    </div>
                 </div>
             </FamilySection>
+
+
 
             {/* ═══ LAYOUTS ═══ */}
             <FamilySection id="layouts">
@@ -535,11 +703,117 @@ export function UIComponentsTab({ state, dispatch, selectedElement }: Props) {
                         id="tabLayout"
                         onHighlight={handleHighlight}
                     />
-                    <Toggle on={state.layoutConfig.showTitleBar} onToggle={() => updateLayout({ showTitleBar: !state.layoutConfig.showTitleBar })} label="Barra de Título" id="showTitleBar" onHighlight={handleHighlight} />
+                    <Toggle on={state.layoutConfig.showTitleBar} onToggle={() => updateLayout({ showTitleBar: !state.layoutConfig.showTitleBar })} label="Barra de Título" id="showTitleBar" onHighlight={handleHighlight} config={{ style: state.toggles.switchStyle, activeColor: state.toggles.switchTrackColor }} />
                     <Slider label="Window Padding" id="windowPadding" value={state.layoutConfig.windowPadding} min={0} max={48} step={1} unit="px"
                         onChange={v => updateLayout({ windowPadding: v })} color="cyan" onHighlight={handleHighlight} />
                     <Slider label="Window Blur" id="windowBlur" value={state.layoutConfig.windowBlur} min={0} max={64} step={1} unit="px"
                         onChange={v => updateLayout({ windowBlur: v })} color="cyan" onHighlight={handleHighlight} />
+                </div>
+            </FamilySection>
+            {/* ═══ SEPARATORS ═══ */}
+            <FamilySection id="separators">
+                <SectionHeader icon={SeparatorHorizontal} title="Separadores / Divisores" color="text-rose-400" />
+                <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-4">
+                    <OptionChips
+                        options={[
+                            { id: "none" as const, label: "Ninguno" },
+                            { id: "line" as const, label: "Línea" },
+                            { id: "gradient" as const, label: "Gradiente" },
+                            { id: "dotted" as const, label: "Punteado" },
+                            { id: "glow" as const, label: "Glow" }
+                        ]}
+                        value={state.secondary.dividers}
+                        onChange={v => updateSecondary({ dividers: v })}
+                        color="rose"
+                        label="Tipo"
+                        id="dividerType"
+                        onHighlight={handleHighlight}
+                    />
+                    <Slider label="Grosor" id="dividerThickness" value={state.secondary.dividerThickness} min={1} max={4} step={0.5} unit="px"
+                        onChange={v => updateSecondary({ dividerThickness: v })} color="rose" onHighlight={handleHighlight} />
+                    <div className="flex items-center gap-3">
+                        <label className="text-xs text-white/50">Color</label>
+                        <div className="flex items-center gap-2 ml-auto">
+                            <input type="color" value={state.secondary.dividerColor?.startsWith('rgba') ? '#ffffff' : (state.secondary.dividerColor || '#ffffff')} onChange={e => updateSecondary({ dividerColor: e.target.value })}
+                                className="w-8 h-8 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
+                        </div>
+                    </div>
+                    {/* Live preview */}
+                    <div className="py-2">
+                        <div className="text-[9px] uppercase tracking-widest text-white/30 mb-2">Vista Previa</div>
+                        <div className="flex flex-col gap-3">
+                            <div className="text-[10px] text-white/40">Contenido arriba</div>
+                            <div
+                                className={cn(
+                                    state.secondary.dividers === 'none' ? 'hidden' : '',
+                                    state.secondary.dividers === 'glow' ? 'shadow-[0_0_8px_rgba(255,255,255,0.2)]' : ''
+                                )}
+                                style={{
+                                    height: `${state.secondary.dividerThickness}px`,
+                                    background: state.secondary.dividers === 'gradient'
+                                        ? `linear-gradient(to right, transparent, ${state.secondary.dividerColor || 'rgba(255,255,255,0.1)'}, transparent)`
+                                        : state.secondary.dividers === 'glow'
+                                            ? `linear-gradient(to right, transparent, ${state.secondary.dividerColor || 'rgba(255,255,255,0.2)'}, transparent)`
+                                            : state.secondary.dividerColor || 'rgba(255,255,255,0.1)',
+                                    borderStyle: state.secondary.dividers === 'dotted' ? 'dotted' : undefined,
+                                    borderWidth: state.secondary.dividers === 'dotted' ? `${state.secondary.dividerThickness}px 0 0 0` : undefined,
+                                    borderColor: state.secondary.dividers === 'dotted' ? (state.secondary.dividerColor || 'rgba(255,255,255,0.1)') : undefined,
+                                }}
+                            />
+                            <div className="text-[10px] text-white/40">Contenido abajo</div>
+                        </div>
+                    </div>
+                </div>
+            </FamilySection>
+
+            {/* ═══ ICON PRESETS ═══ */}
+            <FamilySection id="iconography">
+                <SectionHeader icon={Sparkles} title="Presets de Iconos" color="text-indigo-400" />
+                <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-4">
+                    <OptionChips
+                        options={[
+                            { id: "outline" as const, label: "✏️ Outline" },
+                            { id: "solid" as const, label: "■ Solid" },
+                            { id: "duotone" as const, label: "◐ Duotone" },
+                            { id: "neon" as const, label: "💡 Neon" },
+                            { id: "glass" as const, label: "🪟 Glass" },
+                            { id: "minimal" as const, label: "— Minimal" }
+                        ]}
+                        value={state.iconography.iconPreset}
+                        onChange={v => updateIconography({ iconPreset: v })}
+                        color="indigo"
+                        label="Icon Style"
+                        id="iconPreset"
+                        onHighlight={handleHighlight}
+                    />
+                    <OptionChips
+                        options={[
+                            { id: "stroke" as const, label: "Trazo" },
+                            { id: "solid" as const, label: "Sólido" }
+                        ]}
+                        value={state.iconography.style}
+                        onChange={v => updateIconography({ style: v })}
+                        color="indigo"
+                        label="Estilo"
+                        id="iconStyle"
+                        onHighlight={handleHighlight}
+                    />
+                    <Slider label="Grosor Trazo" id="iconStroke" value={state.iconography.strokeWidth} min={1} max={3} step={0.5} unit="px"
+                        onChange={v => updateIconography({ strokeWidth: v })} color="indigo" onHighlight={handleHighlight} />
+                    <OptionChips
+                        options={[
+                            { id: "none" as const, label: "Ninguna" },
+                            { id: "pulse" as const, label: "Pulso" },
+                            { id: "bounce" as const, label: "Rebote" },
+                            { id: "spin" as const, label: "Giro" }
+                        ]}
+                        value={state.iconography.animation}
+                        onChange={v => updateIconography({ animation: v })}
+                        color="indigo"
+                        label="Animación"
+                        id="iconAnimation"
+                        onHighlight={handleHighlight}
+                    />
                 </div>
             </FamilySection>
         </div>

@@ -7,8 +7,8 @@
 ---
 
 **Project:** StarSeed System
-**Generated:** 2026-02-01 21:13:57
-**Category:** Autonomous Drone Fleet Manager
+**Generated:** 2026-02-16 00:02:16
+**Category:** Luxury/Premium Brand
 
 ---
 
@@ -18,24 +18,24 @@
 
 | Role | Hex | CSS Variable |
 |------|-----|--------------|
-| Primary | `#FFFFFF` | `--color-primary` |
-| Secondary | `#E5E5E5` | `--color-secondary` |
-| CTA/Accent | `#007AFF` | `--color-cta` |
-| Background | `#888888` | `--color-background` |
-| Text | `#000000` | `--color-text` |
+| Primary | `#1C1917` | `--color-primary` |
+| Secondary | `#44403C` | `--color-secondary` |
+| CTA/Accent | `#CA8A04` | `--color-cta` |
+| Background | `#FAFAF9` | `--color-background` |
+| Text | `#0C0A09` | `--color-text` |
 
-**Color Notes:** Glass white + system blue
+**Color Notes:** Premium black + gold accent
 
 ### Typography
 
-- **Heading Font:** Inter
-- **Body Font:** Inter
-- **Mood:** spatial, legible, glass, system, clean, neutral
-- **Google Fonts:** [Inter + Inter](https://fonts.google.com/share?selection.family=Inter:wght@300;400;500;600)
+- **Heading Font:** Satoshi
+- **Body Font:** General Sans
+- **Mood:** premium, modern, clean, sophisticated, versatile, balanced
+- **Google Fonts:** [Satoshi + General Sans](https://fonts.google.com/share?selection.family=DM+Sans:wght@400;500;700)
 
 **CSS Import:**
 ```css
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
 ```
 
 ### Spacing Variables
@@ -68,7 +68,7 @@
 ```css
 /* Primary Button */
 .btn-primary {
-  background: #007AFF;
+  background: #CA8A04;
   color: white;
   padding: 12px 24px;
   border-radius: 8px;
@@ -85,8 +85,8 @@
 /* Secondary Button */
 .btn-secondary {
   background: transparent;
-  color: #FFFFFF;
-  border: 2px solid #FFFFFF;
+  color: #1C1917;
+  border: 2px solid #1C1917;
   padding: 12px 24px;
   border-radius: 8px;
   font-weight: 600;
@@ -99,7 +99,7 @@
 
 ```css
 .card {
-  background: #888888;
+  background: #FAFAF9;
   border-radius: 12px;
   padding: 24px;
   box-shadow: var(--shadow-md);
@@ -125,9 +125,9 @@
 }
 
 .input:focus {
-  border-color: #FFFFFF;
+  border-color: #1C1917;
   outline: none;
-  box-shadow: 0 0 0 3px #FFFFFF20;
+  box-shadow: 0 0 0 3px #1C191720;
 }
 ```
 
@@ -153,27 +153,31 @@
 
 ## Style Guidelines
 
-**Style:** Real-Time Monitoring
+**Style:** Liquid Glass
 
-**Keywords:** Live data updates, status indicators, alert notifications, streaming data visualization, active monitoring, streaming charts
+**Keywords:** Flowing glass, morphing, smooth transitions, fluid effects, translucent, animated blur, iridescent, chromatic aberration
 
-**Best For:** System monitoring dashboards, DevOps dashboards, real-time analytics, stock market dashboards, live event tracking
+**Best For:** Premium SaaS, high-end e-commerce, creative platforms, branding experiences, luxury portfolios
 
-**Key Effects:** Real-time chart animations, alert pulse/glow, status indicator blink animation, smooth data stream updates, loading effect
+**Key Effects:** Morphing elements (SVG/CSS), fluid animations (400-600ms curves), dynamic blur (backdrop-filter), color transitions
 
 ### Page Pattern
 
-**Pattern Name:** Real-Time + Feature-Rich
+**Pattern Name:** Horizontal Scroll Journey
 
-- **CTA Placement:** Above fold
-- **Section Order:** Hero > Features > CTA
+- **Conversion Strategy:** Immersive product discovery. High engagement. Keep navigation visible.
+28,Bento Grid Showcase,bento,  grid,  features,  modular,  apple-style,  showcase", 1. Hero, 2. Bento Grid (Key Features), 3. Detail Cards, 4. Tech Specs, 5. CTA, Floating Action Button or Bottom of Grid, Card backgrounds: #F5F5F7 or Glass. Icons: Vibrant brand colors. Text: Dark., Hover card scale (1.02), video inside cards, tilt effect, staggered reveal, Scannable value props. High information density without clutter. Mobile stack.
+29,Interactive 3D Configurator,3d,  configurator,  customizer,  interactive,  product", 1. Hero (Configurator), 2. Feature Highlight (synced), 3. Price/Specs, 4. Purchase, Inside Configurator UI + Sticky Bottom Bar, Neutral studio background. Product: Realistic materials. UI: Minimal overlay., Real-time rendering, material swap animation, camera rotate/zoom, light reflection, Increases ownership feeling. 360 view reduces return rates. Direct add-to-cart.
+30,AI-Driven Dynamic Landing,ai,  dynamic,  personalized,  adaptive,  generative", 1. Prompt/Input Hero, 2. Generated Result Preview, 3. How it Works, 4. Value Prop, Input Field (Hero) + 'Try it' Buttons, Adaptive to user input. Dark mode for compute feel. Neon accents., Typing text effects, shimmering generation loaders, morphing layouts, Immediate value demonstration. 'Show, don't tell'. Low friction start.
+- **CTA Placement:** Floating Sticky CTA or End of Horizontal Track
+- **Section Order:** 1. Intro (Vertical), 2. The Journey (Horizontal Track), 3. Detail Reveal, 4. Vertical Footer
 
 ---
 
 ## Anti-Patterns (Do NOT Use)
 
-- ❌ Slow updates
-- ❌ Poor spatial viz
+- ❌ Cheap visuals
+- ❌ Fast animations
 
 ### Additional Forbidden Patterns
 

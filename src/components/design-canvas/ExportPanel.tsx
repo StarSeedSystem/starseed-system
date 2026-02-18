@@ -41,10 +41,11 @@ function stateToCSS(state: CanvasState): string {
   --color-glass-border: ${palette.glassBorder};
 
   /* Trinity Axes */
-  --trinity-zenith: ${palette.trinity.zenith.active};
-  --trinity-horizonte: ${palette.trinity.horizonte.active};
-  --trinity-logica: ${palette.trinity.logica.active};
-  --trinity-base: ${palette.trinity.base.active};
+  --trinity-zenith: ${palette.trinity?.zenith?.active || "#06B6D4"};
+  --trinity-horizonte: ${palette.trinity?.horizonte?.active || "#EF4444"};
+  --trinity-creation: ${palette.trinity?.nucleo?.creation || "#10B981"};
+  --trinity-logic: ${palette.trinity?.nucleo?.logic || "#F59E0B"};
+  --trinity-base: ${palette.trinity?.base?.active || "#8B5CF6"};
 
   /* ── Typography ── */
   --font-main: '${typography.fontMain}', system-ui, sans-serif;

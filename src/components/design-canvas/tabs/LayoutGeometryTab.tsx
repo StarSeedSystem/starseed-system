@@ -16,14 +16,19 @@ import {
 
 interface Props { state: CanvasState; dispatch: React.Dispatch<any>; }
 
-function Slider({ label, description, id, value, min, max, step, unit, onChange, color = "blue", onHighlight }: {
-    label: string; description?: string; id?: string; value: number; min: number; max: number; step: number; unit?: string;
+function Slider({ label, description, icon, id, value, min, max, step, unit, onChange, color = "blue", onHighlight }: {
+    label: string; description?: string; icon?: React.ReactNode; id?: string; value: number; min: number; max: number; step: number; unit?: string;
     onChange: (v: number) => void; color?: string; onHighlight?: (id: string | null) => void;
 }) {
     return (
         <SettingControl
             id={id || label}
-            label={label}
+            label={
+                <div className="flex items-center gap-2">
+                    {icon && <span className="opacity-50 group-hover:opacity-100 transition-opacity">{icon}</span>}
+                    <span>{label}</span>
+                </div>
+            }
             description={description}
             onHighlight={onHighlight}
             headerAction={<span className="text-white/70 font-mono text-[11px]">{typeof value === 'number' ? (Number.isInteger(value) ? value : value.toFixed(2)) : value}{unit || ""}</span>}
@@ -92,32 +97,47 @@ export function LayoutGeometryTab({ state, dispatch }: Props) {
             {/* Border Radius System */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                    <h4 className="text-xs text-white/60 uppercase tracking-wider">⬡ Border Radius System</h4>
+                    <h4 className="text-xs text-white/60 uppercase tracking-wider flex items-center gap-2"><ArrowRight className="w-3 h-3 rotate-45" /> Border Radius System</h4>
                     <span className="text-[10px] text-amber-400/80 font-mono px-2 py-0.5 bg-amber-500/10 rounded-full border border-amber-500/20">Granular Control</span>
+                </div>
+
+                {/* Border Presets */}
+                <div className="flex gap-2 p-1 bg-white/5 rounded-xl border border-white/5">
+                    {[
+                        { id: "sharp", label: "Sharp", radius: { radiusWindows: 0, radiusWidgets: 0, radiusButtons: 0, radiusInputs: 0, radiusTabs: 0, radiusBadges: 0, radiusDropdowns: 0 } },
+                        { id: "soft", label: "Soft", radius: { radiusWindows: 16, radiusWidgets: 12, radiusButtons: 8, radiusInputs: 8, radiusTabs: 6, radiusBadges: 4, radiusDropdowns: 8 } },
+                        { id: "fluid", label: "Fluid", radius: { radiusWindows: 24, radiusWidgets: 16, radiusButtons: 12, radiusInputs: 12, radiusTabs: 10, radiusBadges: 10, radiusDropdowns: 12 } },
+                        { id: "round", label: "Full", radius: { radiusWindows: 32, radiusWidgets: 24, radiusButtons: 24, radiusInputs: 24, radiusTabs: 12, radiusBadges: 20, radiusDropdowns: 16 } },
+                    ].map(bp => (
+                        <button key={bp.id} onClick={() => update(bp.radius)}
+                            className="flex-1 py-2 text-[10px] font-bold uppercase tracking-wider text-white/60 hover:text-white hover:bg-white/5 rounded-lg transition-all">
+                            {bp.label}
+                        </button>
+                    ))}
                 </div>
 
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-5">
                     {/* Primary Elements */}
                     <div className="grid grid-cols-1 gap-5">
-                        <Slider label="Ventanas" description="Radio para marcos de aplicación y modales" id="radiusWindows" value={state.geometry.radiusWindows} min={0} max={48} step={1} unit="px" onChange={v => update({ radiusWindows: v })} color="blue" onHighlight={handleHighlight} />
-                        <Slider label="Widgets" description="Radio para tarjetas y contenedores" id="radiusWidgets" value={state.geometry.radiusWidgets} min={0} max={40} step={1} unit="px" onChange={v => update({ radiusWidgets: v })} color="indigo" onHighlight={handleHighlight} />
+                        <Slider label="Ventanas" icon={<Monitor className="w-3 h-3" />} description="Radio para marcos de aplicación y modales" id="radiusWindows" value={state.geometry.radiusWindows} min={0} max={48} step={1} unit="px" onChange={v => update({ radiusWindows: v })} color="blue" onHighlight={handleHighlight} />
+                        <Slider label="Widgets" icon={<LayoutGrid className="w-3 h-3" />} description="Radio para tarjetas y contenedores" id="radiusWidgets" value={state.geometry.radiusWidgets} min={0} max={40} step={1} unit="px" onChange={v => update({ radiusWidgets: v })} color="indigo" onHighlight={handleHighlight} />
                     </div>
 
                     <div className="h-px bg-white/5 my-2" />
 
                     {/* Interactive Elements */}
                     <div className="grid grid-cols-1 gap-5">
-                        <Slider label="Botones" description="Curvatura de botones y acciones" id="radiusButtons" value={state.geometry.radiusButtons} min={0} max={32} step={1} unit="px" onChange={v => update({ radiusButtons: v })} color="sky" onHighlight={handleHighlight} />
-                        <Slider label="Inputs" description="Redondeado de campos de texto" id="radiusInputs" value={state.geometry.radiusInputs} min={0} max={24} step={1} unit="px" onChange={v => update({ radiusInputs: v })} color="cyan" onHighlight={handleHighlight} />
+                        <Slider label="Botones" icon={<ArrowRight className="w-3 h-3" />} description="Curvatura de botones y acciones" id="radiusButtons" value={state.geometry.radiusButtons} min={0} max={32} step={1} unit="px" onChange={v => update({ radiusButtons: v })} color="sky" onHighlight={handleHighlight} />
+                        <Slider label="Inputs" icon={<Monitor className="w-3 h-3" />} description="Redondeado de campos de texto" id="radiusInputs" value={state.geometry.radiusInputs} min={0} max={24} step={1} unit="px" onChange={v => update({ radiusInputs: v })} color="cyan" onHighlight={handleHighlight} />
                     </div>
 
                     <div className="h-px bg-white/5 my-2" />
 
                     {/* Navigation & Small UI */}
                     <div className="grid grid-cols-1 gap-5">
-                        <Slider label="Pestañas / Tabs" description="Curvatura de navegación interna" id="radiusTabs" value={state.geometry.radiusTabs} min={0} max={20} step={1} unit="px" onChange={v => update({ radiusTabs: v })} color="blue" onHighlight={handleHighlight} />
-                        <Slider label="Badges / Tags" description="Redondeado de etiquetas pequeñas" id="radiusBadges" value={state.geometry.radiusBadges} min={0} max={20} step={1} unit="px" onChange={v => update({ radiusBadges: v })} color="indigo" onHighlight={handleHighlight} />
-                        <Slider label="Dropdowns" description="Radio de menús desplegables" id="radiusDropdowns" value={state.geometry.radiusDropdowns} min={0} max={24} step={1} unit="px" onChange={v => update({ radiusDropdowns: v })} color="sky" onHighlight={handleHighlight} />
+                        <Slider label="Pestañas / Tabs" icon={<Rows3 className="w-3 h-3" />} description="Curvatura de navegación interna" id="radiusTabs" value={state.geometry.radiusTabs} min={0} max={20} step={1} unit="px" onChange={v => update({ radiusTabs: v })} color="blue" onHighlight={handleHighlight} />
+                        <Slider label="Badges / Tags" icon={<Circle className="w-3 h-3" />} description="Redondeado de etiquetas pequeñas" id="radiusBadges" value={state.geometry.radiusBadges} min={0} max={20} step={1} unit="px" onChange={v => update({ radiusBadges: v })} color="indigo" onHighlight={handleHighlight} />
+                        <Slider label="Dropdowns" icon={<Dock className="w-3 h-3" />} description="Radio de menús desplegables" id="radiusDropdowns" value={state.geometry.radiusDropdowns} min={0} max={24} step={1} unit="px" onChange={v => update({ radiusDropdowns: v })} color="sky" onHighlight={handleHighlight} />
                     </div>
 
                     <div className="h-px bg-white/5 my-2" />

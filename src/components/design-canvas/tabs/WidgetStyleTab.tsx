@@ -41,11 +41,13 @@ function Slider({ label, value, min, max, step, unit, onChange, color = "teal" }
     );
 }
 
-const CARD_PRESETS: { id: CanvasState["components"]["cardPreset"]; label: string; desc: string }[] = [
-    { id: "crystal", label: "Crystal Clear", desc: "Transparent glass" },
-    { id: "liquid-action", label: "Liquid Action", desc: "Motion blur depth" },
-    { id: "holographic", label: "Holographic", desc: "Prismatic shimmer" },
-    { id: "hyper-crystal", label: "Hyper Crystal", desc: "Max refraction" },
+const CARD_PRESETS: { id: CanvasState["components"]["cardPreset"]; label: string; desc: string; theme: any }[] = [
+    { id: "crystal", label: "Crystal Clear", desc: "Transparent glass", theme: "glass" },
+    { id: "liquid-action", label: "Liquid Action", desc: "Motion blur depth", theme: "liquid" },
+    { id: "holographic", label: "Holographic", desc: "Prismatic shimmer", theme: "holographic" },
+    { id: "mesh", label: "Digital Mesh", desc: "Animated gradients", theme: "mesh" },
+    { id: "cyber", label: "Cyber Terminal", desc: "Scanline interface", theme: "cyber" },
+    { id: "brutal", label: "Neo Brutalism", desc: "High contrast geometry", theme: "brutal" },
 ];
 
 export function WidgetStyleTab({ state, dispatch }: Props) {
@@ -147,13 +149,17 @@ export function WidgetStyleTab({ state, dispatch }: Props) {
                             <div className="grid grid-cols-1 gap-2">
                                 {CARD_PRESETS.map(cp => (
                                     <button key={cp.id} onClick={() => updateComp({ cardPreset: cp.id })}
-                                        className={cn("flex justify-between items-center p-3 rounded-xl transition-all border text-left",
-                                            components.cardPreset === cp.id ? "bg-purple-500/10 border-purple-500/30" : "bg-white/3 border-white/5 hover:bg-white/5")}>
-                                        <div>
-                                            <p className="text-xs text-white/80 font-medium">{cp.label}</p>
-                                            <p className="text-[10px] text-white/40">{cp.desc}</p>
+                                        className={cn("relative group p-4 rounded-xl transition-all border text-left overflow-hidden",
+                                            components.cardPreset === cp.id ? "border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.15)]" : "bg-black/20 border-white/5 hover:bg-white/5")}>
+                                        <div className="relative z-10">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <p className="text-xs text-white/90 font-bold tracking-tight">{cp.label}</p>
+                                                {components.cardPreset === cp.id && <Sparkles className="w-3 h-3 text-purple-400" />}
+                                            </div>
+                                            <p className="text-[10px] text-white/40 leading-tight">{cp.desc}</p>
                                         </div>
-                                        {components.cardPreset === cp.id && <Sparkles className="w-3 h-3 text-purple-400" />}
+                                        {/* Background Preview */}
+                                        <div className="absolute inset-x-0 bottom-0 h-1 z-0 bg-gradient-to-r from-purple-500/50 to-pink-500/50 opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </button>
                                 ))}
                             </div>

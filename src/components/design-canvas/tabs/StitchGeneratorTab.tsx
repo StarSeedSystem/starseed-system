@@ -288,7 +288,8 @@ export function StitchGeneratorTab({ state, dispatch }: StitchGeneratorTabProps)
                         : "Describe el componente UI que quieres generar..."
                     }
                     rows={4}
-                    className="w-full bg-white/3 border border-white/8 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-purple-500/40 focus:border-purple-500/30 resize-none transition-all"
+                    className="w-full bg-[#0a0a0c]/80 border border-white/8 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-purple-500/40 focus:border-purple-500/30 resize-none transition-all shadow-inner"
+                    style={{ backgroundColor: '#0a0a0c' }}
                 />
             </div>
             {/* Device Toggle - Only show for component mode */}

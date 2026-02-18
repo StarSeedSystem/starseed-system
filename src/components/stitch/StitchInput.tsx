@@ -1,68 +1,207 @@
-import React from "react";
+import React, { useState } from "react";
 import { cn } from "@/lib/utils";
-import { motion, HTMLMotionProps } from "framer-motion";
+import { motion, AnimatePresence, HTMLMotionProps } from "framer-motion";
 
 interface StitchInputProps extends Omit<HTMLMotionProps<"input">, "ref"> {
-    theme?: "liquid" | "organic" | "glass";
+    theme?: "default" | "glass" | "liquid" | "neon" | "brutal";
     label?: string;
+    floatingLabel?: boolean;
+    styleConfig?: {
+        cornerRadius?: number;
+        primaryColor?: string;
+        secondaryColor?: string;
+        borderWidth?: number;
+        fontFamily?: string;
+        blur?: number;
+        glowIntensity?: number;
+        focusRingColor?: string;
+    };
+    icon?: React.ReactNode;
 }
 
 export function StitchInput({
     className,
-    theme = "liquid",
+    theme = "glass",
     label,
+    floatingLabel = true,
+    styleConfig = {},
+    icon,
+    onFocus,
+    onBlur,
     ...props
 }: StitchInputProps) {
+    const [isFocused, setIsFocused] = useState(false);
+    const [hasValue, setHasValue] = useState(false);
+
+    const {
+        cornerRadius = 12,
+        primaryColor = "#8B5CF6",
+        secondaryColor = "#A78BFA",
+        borderWidth = 1,
+        fontFamily,
+        blur = 12,
+        glowIntensity = 0.8,
+        focusRingColor
+    } = styleConfig;
+
+    const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+        setIsFocused(true);
+        onFocus?.(e);
+    };
+
+    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        setIsFocused(false);
+        setHasValue(e.target.value.length > 0);
+        onBlur?.(e);
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setHasValue(e.target.value.length > 0);
+        props.onChange?.(e);
+    };
+
+    const getThemeStyles = () => {
+        switch (theme) {
+            case "liquid":
+                return {
+                    container: "bg-white/5",
+                    border: isFocused ? `rgba(255,255,255,0.4)` : `rgba(255,255,255,0.1)`,
+                    glow: isFocused ? `0 0 ${20 * glowIntensity}px ${primaryColor}44` : "none",
+                    backdrop: `blur(${blur}px)`
+                };
+            case "neon":
+                return {
+                    container: "bg-transparent",
+                    border: isFocused ? primaryColor : "rgba(255,255,255,0.2)",
+                    glow: isFocused ? `0 0 ${15 * glowIntensity}px ${primaryColor}66` : "none",
+                    backdrop: "none"
+                };
+            case "brutal":
+                return {
+                    container: "bg-white text-black",
+                    border: "#000000",
+                    glow: isFocused ? `4px 4px 0px #000000` : "2px 2px 0px #000000",
+                    backdrop: "none",
+                    cornerRadius: 0
+                };
+            case "default":
+                return {
+                    container: "bg-white text-black",
+                    border: isFocused ? primaryColor : "#e2e8f0",
+                    glow: "none",
+                    backdrop: "none"
+                };
+            case "glass":
+            default:
+                return {
+                    container: "bg-white/3",
+                    border: isFocused ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.1)",
+                    glow: isFocused ? "0 0 15px rgba(255,255,255,0.1)" : "none",
+                    backdrop: `blur(${blur}px)`
+                };
+        }
+    };
+
+    const styles = getThemeStyles();
+    const isLabelFloating = floatingLabel && (isFocused || hasValue || !!props.placeholder);
 
     return (
-        <div className="flex flex-col gap-1.5 w-full">
-            {label && (
-                <span className={cn(
-                    "text-[10px] uppercase tracking-wider font-semibold ml-1",
-                    theme === "liquid" ? "text-cyan-400" :
-                        theme === "organic" ? "text-emerald-400" :
-                            "text-white/50"
-                )}>
+        <div className="flex flex-col w-full group" style={{ fontFamily }}>
+            {!floatingLabel && label && (
+                <span className="text-[10px] uppercase tracking-wider font-bold mb-1.5 ml-1 opacity-50">
                     {label}
                 </span>
             )}
-            <div className="relative group">
-                <motion.input
-                    whileFocus={{ scale: 1.01 }}
+
+            <div className="relative">
+                {/* Floating Label */}
+                {floatingLabel && label && (
+                    <motion.label
+                        initial={false}
+                        animate={{
+                            y: isLabelFloating ? -26 : 0,
+                            x: isLabelFloating ? -4 : 0,
+                            scale: isLabelFloating ? 0.85 : 1,
+                            color: isFocused ? primaryColor : (isLabelFloating ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.3)")
+                        }}
+                        transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                        className={cn(
+                            "absolute left-4 top-[10px] pointer-events-none z-10 text-sm origin-left select-none uppercase tracking-wider font-medium",
+                            theme === "brutal" && !isFocused && !hasValue && "text-black/40",
+                            theme === "default" && !isFocused && !hasValue && "text-slate-400"
+                        )}
+                    >
+                        {label}
+                    </motion.label>
+                )}
+
+                <div
                     className={cn(
-                        "w-full bg-transparent outline-none transition-all duration-300",
-                        "placeholder:text-white/20 text-sm",
-                        // Base structure
-                        "px-4 py-2.5",
-
-                        // Theme Styles
-                        theme === "liquid" && [
-                            "rounded-xl border border-cyan-500/20 bg-cyan-950/20 text-cyan-100",
-                            "focus:border-cyan-400/60 focus:bg-cyan-900/30 focus:shadow-[0_0_15px_rgba(6,182,212,0.15)]",
-                            "group-hover:border-cyan-500/40"
-                        ],
-                        theme === "organic" && [
-                            "rounded-[16px] border border-emerald-500/20 bg-emerald-950/20 text-emerald-100",
-                            "focus:border-emerald-400/60 focus:bg-emerald-900/30 focus:shadow-[0_0_15px_rgba(16,185,129,0.15)]",
-                            "group-hover:border-emerald-500/40"
-                        ],
-                        theme === "glass" && [
-                            "rounded-lg border border-white/10 bg-white/5 text-white/90",
-                            "focus:border-white/30 focus:bg-white/10",
-                            "group-hover:border-white/20"
-                        ],
-                        className
+                        "relative flex items-center transition-all duration-300",
+                        theme === "liquid" && "overflow-hidden"
                     )}
-                    {...props}
-                />
+                    style={{
+                        borderRadius: theme === "brutal" ? "0px" : `${cornerRadius}px`,
+                        backgroundColor: styles.container.includes('bg-') ? undefined : styles.container,
+                        border: `${borderWidth}px solid ${styles.border}`,
+                        boxShadow: styles.glow,
+                        backdropFilter: styles.backdrop
+                    }}
+                >
+                    {/* Liquid Effect Background */}
+                    {theme === "liquid" && (
+                        <motion.div
+                            className="absolute inset-0 opacity-20 pointer-events-none"
+                            animate={{
+                                background: [
+                                    `radial-gradient(circle at 0% 0%, ${primaryColor}22 0%, transparent 50%)`,
+                                    `radial-gradient(circle at 100% 100%, ${primaryColor}22 0%, transparent 50%)`,
+                                    `radial-gradient(circle at 0% 0%, ${primaryColor}22 0%, transparent 50%)`,
+                                ]
+                            }}
+                            transition={{ duration: 10, repeat: Infinity }}
+                        />
+                    )}
 
-                {/* Focus Indicator Line */}
-                <div className={cn(
-                    "absolute bottom-0 left-2 right-2 h-[1px] scale-x-0 transition-transform duration-300 origin-left group-focus-within:scale-x-100",
-                    theme === "liquid" ? "bg-cyan-400" :
-                        theme === "organic" ? "bg-emerald-400" :
-                            "bg-white/50"
-                )} />
+                    {icon && (
+                        <div className={cn(
+                            "pl-4 py-3 opacity-40 group-focus-within:opacity-100 transition-opacity",
+                            theme === "brutal" && "text-black",
+                            theme === "default" && "text-slate-400"
+                        )}>
+                            {icon}
+                        </div>
+                    )}
+
+                    <motion.input
+                        className={cn(
+                            "w-full bg-transparent outline-none border-none py-3 px-4 text-sm font-medium",
+                            theme === "brutal" ? "text-black placeholder:text-black/30" :
+                                theme === "default" ? "text-slate-900 placeholder:text-slate-300" :
+                                    "text-white placeholder:text-white/20",
+                            icon && "pl-2"
+                        )}
+                        onFocus={handleFocus}
+                        onBlur={handleBlur}
+                        onChange={handleChange}
+                        {...props}
+                    />
+                </div>
+
+                {/* Focus Line for Glass/Liquid */}
+                {(theme === "glass" || theme === "liquid") && (
+                    <motion.div
+                        className="absolute bottom-0 left-4 right-4 h-[2px] rounded-full pointer-events-none origin-center"
+                        initial={{ scaleX: 0, opacity: 0 }}
+                        animate={{
+                            scaleX: isFocused ? 1 : 0,
+                            opacity: isFocused ? 1 : 0,
+                            backgroundColor: focusRingColor || primaryColor,
+                            boxShadow: `0 0 10px ${focusRingColor || primaryColor}`
+                        }}
+                        transition={{ duration: 0.3 }}
+                    />
+                )}
             </div>
         </div>
     );

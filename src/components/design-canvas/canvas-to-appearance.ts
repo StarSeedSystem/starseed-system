@@ -1,4 +1,5 @@
 import type { CanvasState } from "./state-types";
+import { defaultCanvasState } from "./state-types";
 
 /**
  * Maps a CanvasState from the Design Canvas into a partial AppearanceConfig
@@ -33,7 +34,7 @@ export function mapCanvasToAppearance(state: CanvasState): Record<string, any> {
         buttons: {
             style: components.buttonStyle,
             // buttonRadius is in px (9999 = pill), convert to rem safely
-            radius: clamp(components.buttonRadius <= 100 ? components.buttonRadius / 16 : 1.5, 0, 1.5),
+            radius: clamp(geometry.radiusButtons <= 100 ? geometry.radiusButtons / 16 : 1.5, 0, 1.5),
             glow: components.buttonGlow,
         },
 
@@ -52,10 +53,10 @@ export function mapCanvasToAppearance(state: CanvasState): Record<string, any> {
         },
 
         animations: {
-            hover: components.animateHover,
-            click: components.animateClick,
-            micro: components.microInteractions,
-            transitionDuration: clamp(components.transitionSpeed, 50, 500),
+            hover: state.animations.hover,
+            click: state.animations.click,
+            micro: state.animations.microInteractions,
+            transitionDuration: clamp(state.animations.duration, 50, 500),
         },
 
         responsive: {
@@ -100,14 +101,16 @@ export function applyCanvasPalette(state: CanvasState): void {
     root.style.setProperty("--color-glass-border", palette.glassBorder);
 
     // Trinity axis colors
-    root.style.setProperty("--trinity-zenith", palette.trinity.zenith.active);
-    root.style.setProperty("--trinity-horizonte", palette.trinity.horizonte.active);
-    root.style.setProperty("--trinity-logica", palette.trinity.logica.active);
-    root.style.setProperty("--trinity-base", palette.trinity.base.active);
+    const trinity = palette.trinity || defaultCanvasState.palette.trinity;
+    root.style.setProperty("--trinity-zenith", trinity.zenith?.active || "#06B6D4");
+    root.style.setProperty("--trinity-horizonte", trinity.horizonte?.active || "#EF4444");
+    root.style.setProperty("--trinity-creation", trinity.nucleo?.creation || "#10B981");
+    root.style.setProperty("--trinity-logic", trinity.nucleo?.logic || "#F59E0B");
+    root.style.setProperty("--trinity-base", trinity.base?.active || "#8B5CF6");
 
     // ─── Element Family Tokens ───────────────────────────────
     // Buttons
-    root.style.setProperty("--btn-radius", `${components.buttonRadius}px`);
+    root.style.setProperty("--btn-radius", `${geometry.radiusButtons}px`);
     root.style.setProperty("--btn-glow", components.buttonGlow ? `0 0 20px ${palette.primary}44` : "none");
 
     // Cards
@@ -178,7 +181,7 @@ export function applyCanvasPalette(state: CanvasState): void {
     // Effects — core
     root.style.setProperty("--backdrop-blur", `${effects.backdropBlur}px`);
     root.style.setProperty("--glass-saturation", `${effects.glassSaturation}%`);
-    root.style.setProperty("--transition-speed", `${components.transitionSpeed}ms`);
+    root.style.setProperty("--transition-speed", `${state.animations.duration}ms`);
     root.style.setProperty("--glow-intensity", `${effects.glowIntensity}`);
     root.style.setProperty("--noise-opacity", `${effects.noiseOpacity}`);
     root.style.setProperty("--scanline-opacity", `${effects.scanlineOpacity}`);

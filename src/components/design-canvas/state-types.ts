@@ -4,10 +4,10 @@
 export type ElementFamily =
     | "buttons" | "cards" | "inputs" | "dialogs" | "tooltips"
     | "badges" | "tabs" | "toggles" | "avatars" | "progress"
-    | "toasts" | "navigation" | "animations"
+    | "toasts" | "navigation" | "animations" | "separators"
     | "palette" | "typography" | "effects" | "geometry"
     | "iconography" | "secondary" | "widgets" | "backgrounds" | "positioning"
-    | "layouts" | "liquid-examples"
+    | "layouts" | "liquid-examples" | "trinity"
     | null;
 
 // Define the CanvasState interface
@@ -24,7 +24,7 @@ export interface CanvasState {
         trinity: {
             zenith: { active: string; glow: string };
             horizonte: { active: string; panel: string };
-            logica: { active: string; panel: string };
+            nucleo: { creation: string; logic: string; panel: string };
             base: { active: string; neutral: string };
         };
     };
@@ -40,18 +40,27 @@ export interface CanvasState {
         bodyTracking: number;
     };
     components: {
-        buttonStyle: "default" | "glass" | "liquid" | "neon" | "brutal";
+        buttonStyle: "liquid" | "organic" | "neon" | "brutal" | "glass";
         buttonGlow: boolean;
-        cardPreset: "crystal" | "liquid-action" | "holographic" | "hyper-crystal";
-        inputBorderStyle: "none" | "subtle" | "solid" | "glow";
+        cardPreset: "crystal" | "liquid-action" | "holographic" | "hyper-crystal" | "mesh" | "cyber" | "brutal";
+        cardTilt: boolean;
+        cardGlowPointer: boolean;
+        cardInteractive: boolean;
+        inputBorderStyle: "default" | "glass" | "liquid" | "neon" | "brutal";
         inputFloatingLabel: boolean;
-        animateHover: boolean;
-        animateClick: boolean;
-        microInteractions: boolean;
-        transitionSpeed: number;
         tooltipStyle: "glass" | "solid" | "minimal";
         badgeStyle: "pill" | "square" | "dot";
         focusRingColor: string;
+    };
+    animations: {
+        hover: "none" | "lift" | "glow" | "scale" | "liquid" | "glitch";
+        click: "none" | "ripple" | "press" | "bounce" | "confetti";
+        entrance: "none" | "fade" | "slide-up" | "scale-in" | "blur-in" | "flip-in";
+        duration: number;
+        delay: number;
+        stagger: number;
+        easing: "ease-out" | "elastic" | "spring" | "linear" | "back-out";
+        microInteractions: boolean;
     };
     effects: {
         backdropBlur: number;
@@ -121,6 +130,7 @@ export interface CanvasState {
         navigationIcons: "default" | "minimal" | "filled";
         widgetIcons: "default" | "colorful" | "glass";
         customIcons: Array<{ name: string; svg: string }>;
+        iconPreset: "outline" | "solid" | "duotone" | "neon" | "glass" | "minimal";
     };
     positioning: {
         modalPosition: "center" | "top" | "bottom";
@@ -136,6 +146,24 @@ export interface CanvasState {
             maxWidth: number;
         };
         containerFlex: "fluid" | "fixed" | "elastic";
+    };
+    trinityConfig: {
+        energyLevel: number;       // 0-1, controls animation speed/intensity
+        fluidTension: number;      // 0-1, controls gooeyness
+        morphState: "solid" | "liquid" | "ethereal";
+        interactionMode: "touch" | "magnetic" | "static";
+        showAura: boolean;
+        absolutePosition: "bottom" | "left" | "right" | "top"; // Zenith bar position
+        // Extended fields
+        auraIntensity: number;     // 0-1, strength of the AI aura glow
+        metaballRadius: number;    // 0-1, size of goo metaballs
+        showZenith: boolean;       // show/hide Zenith top panel
+        showCreation: boolean;     // show/hide Creation left panel
+        showLogic: boolean;        // show/hide Logic right panel
+        panelOpacity: number;      // 0-1, opacity of Trinity panels
+        panelBlur: number;         // 0-60, backdrop blur of panels
+        creationPeek: number;      // 0-100, % of Creation panel hidden when inactive
+        logicPeek: number;         // 0-100, % of Logic panel hidden when inactive
     };
     widgets: {
         dashboardTemplate: "standard" | "analyst" | "creative" | "strategic";
@@ -170,7 +198,9 @@ export interface CanvasState {
         selectionColor: string;
         selectionMode: "precise" | "block";
         cursor: "default" | "custom" | "glow";
-        dividers: "none" | "line" | "gradient";
+        dividers: "none" | "line" | "gradient" | "dotted" | "glow";
+        dividerThickness: number;
+        dividerColor: string;
         customCursorSvg: string;
         mask: "none" | "hex" | "circle";
     };
@@ -187,9 +217,16 @@ export interface CanvasState {
         closeButtonStyle: "x" | "pill" | "icon";
     };
     tabsConfig: {
-        style: "underline" | "pill" | "box";
+        style: "pill" | "underline" | "box" | "ghost";
         activeColor: string;
+        inactiveColor?: string;
         spacing: number;
+        indicatorType: "line" | "dot" | "none";
+        indicatorStyle: "glow" | "line" | "pill" | "dot" | "neon";
+        animationType: "smooth" | "elastic" | "bounce";
+        tabPadding: number;
+        activeBgOpacity: number;
+        indicatorThickness: number;
     };
     toggles: {
         switchTrackColor: string;
@@ -198,7 +235,7 @@ export interface CanvasState {
         switchStyle: "standard" | "cyber" | "fluid";
     };
     avatars: {
-        shape: "circle" | "rounded" | "square";
+        shape: "circle" | "square" | "rounded";
         sizeScale: number;
         statusDotPosition: "top-right" | "bottom-right";
     };
@@ -206,6 +243,9 @@ export interface CanvasState {
         height: number;
         colorScheme: "primary" | "gradient" | "rainbow";
         animated: boolean;
+        barStyle: "flat" | "rounded" | "neon" | "cyber";
+        labelPosition: "top" | "inline" | "hidden";
+        pulseSpeed: number;
     };
     toasts: {
         position: "top-right" | "top-center" | "bottom-right" | "bottom-center";
@@ -215,8 +255,23 @@ export interface CanvasState {
     };
     nav: {
         dockStyle: "floating" | "attached" | "minimal";
+        dockAnimation: "elastic" | "smooth" | "linear";
+        dockIcons: "standard" | "social" | "productivity";
+        trinityStyle: "gooey" | "minimal" | "glass";
+        showLabels: boolean;
+        iconScale: number;
         breadcrumbSeparator: "slash" | "arrow" | "dot";
         menuItemPadding: number;
+        dockPosition: "bottom" | "top" | "left" | "right";
+        dockBg: "glass" | "solid" | "transparent";
+        dockElevation: number;
+        trinityPeekDistance: number;
+        trinityAutoHideDelay: number;
+        trinityGlow: boolean;
+        trinityPhysics: "spring" | "elastic" | "smooth";
+        trinityCornerBlend: boolean;
+        trinityColorShadow: boolean;
+        trinityLayout: "horizontal" | "arc" | "radial";
     };
     ui: {
         activeHighlight: string | null;
@@ -246,9 +301,13 @@ export const defaultCanvasState: CanvasState = {
         textSecondary: "rgba(248, 250, 252, 0.7)",
         glassBorder: "rgba(255, 255, 255, 0.12)",
         trinity: {
-            zenith: { active: "#10B981", glow: "rgba(16, 185, 129, 0.4)" },
-            horizonte: { active: "#3B82F6", panel: "rgba(59, 130, 246, 0.1)" },
-            logica: { active: "#F59E0B", panel: "rgba(245, 158, 11, 0.1)" },
+            zenith: { active: "#06B6D4", glow: "rgba(6, 182, 212, 0.6)" }, // Cyan/Blue (AI)
+            horizonte: { active: "#EF4444", panel: "rgba(239, 68, 68, 0.1)" }, // Red (Nav)
+            nucleo: {
+                creation: "#10B981", // Green (Creation)
+                logic: "#F59E0B",   // Yellow (Logic)
+                panel: "rgba(255, 255, 255, 0.05)"
+            },
             base: { active: "#8B5CF6", neutral: "rgba(139, 92, 246, 0.05)" },
         },
     },
@@ -267,15 +326,24 @@ export const defaultCanvasState: CanvasState = {
         buttonStyle: "glass",
         buttonGlow: true,
         cardPreset: "crystal",
-        inputBorderStyle: "subtle",
+        cardTilt: true,
+        cardGlowPointer: true,
+        cardInteractive: true,
+        inputBorderStyle: "glass",
         inputFloatingLabel: true,
-        animateHover: true,
-        animateClick: true,
-        microInteractions: true,
-        transitionSpeed: 300,
         tooltipStyle: "glass",
         badgeStyle: "pill",
         focusRingColor: "#8B5CF6",
+    },
+    animations: {
+        hover: "lift",
+        click: "press",
+        entrance: "fade",
+        duration: 300,
+        delay: 0,
+        stagger: 50,
+        easing: "ease-out",
+        microInteractions: true,
     },
     effects: {
         backdropBlur: 12,
@@ -345,6 +413,7 @@ export const defaultCanvasState: CanvasState = {
         navigationIcons: "default",
         widgetIcons: "default",
         customIcons: [],
+        iconPreset: "outline",
     },
     positioning: {
         modalPosition: "center",
@@ -360,6 +429,23 @@ export const defaultCanvasState: CanvasState = {
             maxWidth: 1440,
         },
         containerFlex: "fluid",
+    },
+    trinityConfig: {
+        energyLevel: 0.5,
+        fluidTension: 0.7,
+        morphState: "liquid",
+        interactionMode: "magnetic",
+        showAura: true,
+        absolutePosition: "bottom",
+        auraIntensity: 0.7,
+        metaballRadius: 0.5,
+        showZenith: true,
+        showCreation: true,
+        showLogic: true,
+        panelOpacity: 0.85,
+        panelBlur: 20,
+        creationPeek: 67,
+        logicPeek: 80,
     },
     widgets: {
         dashboardTemplate: "standard",
@@ -393,6 +479,8 @@ export const defaultCanvasState: CanvasState = {
         selectionMode: "block",
         cursor: "default",
         dividers: "line",
+        dividerThickness: 1,
+        dividerColor: "rgba(255,255,255,0.1)",
         customCursorSvg: "",
         mask: "none",
     },
@@ -411,7 +499,14 @@ export const defaultCanvasState: CanvasState = {
     tabsConfig: {
         style: "pill",
         activeColor: "#8B5CF6",
+        inactiveColor: "rgba(255,255,255,0.4)",
         spacing: 4,
+        indicatorType: "none",
+        indicatorStyle: "pill",
+        animationType: "smooth",
+        tabPadding: 16,
+        activeBgOpacity: 0.1,
+        indicatorThickness: 2,
     },
     toggles: {
         switchTrackColor: "#8B5CF6",
@@ -428,6 +523,9 @@ export const defaultCanvasState: CanvasState = {
         height: 6,
         colorScheme: "primary",
         animated: true,
+        barStyle: "rounded",
+        labelPosition: "top",
+        pulseSpeed: 2,
     },
     toasts: {
         position: "bottom-right",
@@ -437,8 +535,23 @@ export const defaultCanvasState: CanvasState = {
     },
     nav: {
         dockStyle: "floating",
+        dockAnimation: "smooth",
+        dockIcons: "standard",
+        trinityStyle: "gooey",
+        showLabels: true,
+        iconScale: 1,
         breadcrumbSeparator: "slash",
         menuItemPadding: 8,
+        dockPosition: "bottom",
+        dockBg: "glass",
+        dockElevation: 8,
+        trinityPeekDistance: 8,
+        trinityAutoHideDelay: 3,
+        trinityGlow: true,
+        trinityPhysics: "spring",
+        trinityCornerBlend: true,
+        trinityColorShadow: true,
+        trinityLayout: "horizontal",
     },
     ui: {
         activeHighlight: null,

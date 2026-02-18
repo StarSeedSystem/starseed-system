@@ -159,8 +159,9 @@ export function ColorPaletteTab({ state, dispatch }: ColorPaletteTabProps) {
             ]
         },
         {
-            axis: "logica", label: "⬇ Lógica", desc: "Producción y lógica", fields: [
-                { field: "active", label: "Activo" },
+            axis: "nucleo", label: "⬇ Núcleo", desc: "Producción y lógica", fields: [
+                { field: "creation", label: "Creación" },
+                { field: "logic", label: "Lógica" },
                 { field: "panel", label: "Panel" },
             ]
         },
@@ -182,6 +183,29 @@ export function ColorPaletteTab({ state, dispatch }: ColorPaletteTabProps) {
                 <div>
                     <h3 className="text-base font-semibold text-white">Paleta de Colores</h3>
                     <p className="text-xs text-white/60">Trinity axes, colores base, cristal y glow</p>
+                </div>
+            </div>
+
+            {/* COLOR PRESETS */}
+            <div className="space-y-3">
+                <h4 className="text-xs text-white/60 uppercase tracking-wider flex items-center gap-2">🎨 Presets de Color</h4>
+                <div className="grid grid-cols-2 gap-2">
+                    {[
+                        { label: "Cyber Neon", colors: { primary: "#d946ef", secondary: "#06b6d4", accent: "#f43f5e", background: "#0f172a" } },
+                        { label: "Deep Sea", colors: { primary: "#3b82f6", secondary: "#10b981", accent: "#f59e0b", background: "#020617" } },
+                        { label: "Golden Rose", colors: { primary: "#f43f5e", secondary: "#fbbf24", accent: "#ec4899", background: "#18181b" } },
+                        { label: "Matrix Edge", colors: { primary: "#22c55e", secondary: "#14b8a6", accent: "#84cc16", background: "#050505" } },
+                    ].map(preset => (
+                        <button key={preset.label} onClick={() => dispatch({ type: "SET_PALETTE", payload: preset.colors })}
+                            className="p-2 rounded-xl bg-white/5 border border-white/5 hover:border-white/20 transition-all text-left flex items-center gap-2">
+                            <div className="flex -space-x-1.5">
+                                <div className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: preset.colors.primary }} />
+                                <div className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: preset.colors.secondary }} />
+                                <div className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: preset.colors.accent }} />
+                            </div>
+                            <span className="text-[10px] font-bold text-white/70">{preset.label}</span>
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -231,32 +255,34 @@ export function ColorPaletteTab({ state, dispatch }: ColorPaletteTabProps) {
                 </button>
                 {expandedSection === "trinity" && (
                     <div className="space-y-4">
-                        {trinityAxes.map(ta => (
-                            <div key={ta.axis} className="bg-white/3 rounded-2xl p-4 border border-white/5">
-                                <div className="flex items-center justify-between mb-3">
-                                    <div>
-                                        <span className="text-sm font-medium text-white/80">{ta.label}</span>
-                                        <span className="text-xs text-white/50 ml-2">{ta.desc}</span>
+                        {trinityAxes.map(ta => {
+                            const axisData = (state.palette.trinity?.[ta.axis as keyof typeof state.palette.trinity] || {}) as Record<string, string>;
+                            return (
+                                <div key={ta.axis} className="bg-white/3 rounded-2xl p-4 border border-white/5">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div>
+                                            <span className="text-sm font-medium text-white/80">{ta.label}</span>
+                                            <span className="text-xs text-white/50 ml-2">{ta.desc}</span>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {ta.fields.map(f => {
+                                            const id = `trinity-${ta.axis}-${f.field}`;
+                                            return (
+                                                <ColorSwatch
+                                                    key={f.field}
+                                                    id={id}
+                                                    label={f.label}
+                                                    color={axisData[f.field] || "#000000"}
+                                                    onChange={(val) => updateTrinity(ta.axis, f.field, val)}
+                                                    onHighlight={handleHighlight}
+                                                />
+                                            );
+                                        })}
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    {ta.fields.map(f => {
-                                        const axisData = state.palette.trinity[ta.axis as keyof typeof state.palette.trinity] as Record<string, string>;
-                                        const id = `trinity-${ta.axis}-${f.field}`;
-                                        return (
-                                            <ColorSwatch
-                                                key={f.field}
-                                                id={id}
-                                                label={f.label}
-                                                color={axisData[f.field]}
-                                                onChange={(val) => updateTrinity(ta.axis, f.field, val)}
-                                                onHighlight={handleHighlight}
-                                            />
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -269,10 +295,10 @@ export function ColorPaletteTab({ state, dispatch }: ColorPaletteTabProps) {
                         state.palette.primary,
                         state.palette.secondary,
                         state.palette.accent,
-                        state.palette.trinity.zenith.active,
-                        state.palette.trinity.horizonte.active,
-                        state.palette.trinity.logica.active,
-                        state.palette.trinity.base.active,
+                        state.palette.trinity?.zenith?.active || "#06B6D4",
+                        state.palette.trinity?.horizonte?.active || "#EF4444",
+                        state.palette.trinity?.nucleo?.creation || "#10B981",
+                        state.palette.trinity?.base?.active || "#8B5CF6",
                     ].map((c, i) => (
                         <div
                             key={i}
