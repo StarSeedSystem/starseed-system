@@ -8,10 +8,10 @@ import { Palette, User, Shield } from "lucide-react";
 
 export default function SettingsPage() {
     return (
-        <div className="w-full max-w-[1200px] mx-auto px-[clamp(0.75rem,2vw,2rem)] py-[clamp(1rem,2vw,2rem)] space-y-[clamp(1rem,2vw,2rem)]">
-            <div className="flex flex-col gap-[clamp(0.25rem,0.5vw,0.5rem)]">
-                <h1 className="page-title">Configuración</h1>
-                <p className="page-subtitle">
+        <div className="w-full mx-auto px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] space-y-[clamp(1.5rem,3vw,3rem)] pb-24">
+            <div className="flex flex-col gap-[clamp(0.5rem,1vw,1rem)] text-center md:text-left items-center md:items-start w-full">
+                <h1 className="page-title w-full text-center md:text-left">Configuración</h1>
+                <p className="text-[clamp(0.9rem,1.2vw,1.2rem)] text-muted-foreground max-w-2xl text-balance w-full text-center md:text-left">
                     Gestiona tus preferencias, apariencia y seguridad.
                 </p>
             </div>
@@ -34,7 +34,7 @@ export default function SettingsPage() {
                             </TabsList>
                         </div>
 
-                        <div className="p-6 min-h-[600px] bg-gradient-to-br from-background/50 to-background/10">
+                        <div className="p-6 bg-gradient-to-br from-background/50 to-background/10 min-h-[50vh]">
                             <TabsContent value="appearance" className="m-0 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <AppearanceEditor />
                             </TabsContent>

@@ -60,55 +60,63 @@ export function MyPagesWidget() {
     }, []);
 
     return (
-        <div className="flex h-full flex-col p-0 overflow-hidden bg-card/30 backdrop-blur-sm">
-            <div className="flex items-center justify-between p-4 border-b border-border/50">
-                <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                        <Book className="h-4 w-4" />
+        <div className="@container w-full h-full bg-card/10 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-4 @sm:p-6 border border-border/40 shadow-2xl text-foreground font-display group">
+            {/* Background Effects */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] bg-[conic-gradient(at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-accent/10 opacity-30 pointer-events-none group-hover:rotate-12 transition-transform duration-1000"></div>
+
+            <div className="flex items-center justify-between pb-6 shrink-0 z-10 relative">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-primary/10 shadow-sm border border-primary/20">
+                        <Book className="h-5 w-5 text-primary" />
                     </div>
-                    <h3 className="text-sm font-semibold">Mis Páginas</h3>
+                    <div>
+                        <h3 className="font-black text-xs @sm:text-sm tracking-[0.2em] uppercase">My Modules</h3>
+                        <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">Personal Nodes</p>
+                    </div>
                 </div>
-                <Button variant="ghost" size="icon" className="h-6 w-6">
-                    <Plus className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-muted/10 hover:bg-primary/20 hover:text-primary transition-all border border-border/10">
+                    <Plus className="h-4 w-4" />
                 </Button>
             </div>
 
-            <ScrollArea className="flex-1 p-2">
-                <div className="space-y-1">
+            <ScrollArea className="flex-1 w-full z-10 relative pr-2">
+                <div className="space-y-3">
                     {loading ? (
                         [1, 2, 3].map(i => (
-                            <div key={i} className="flex items-center gap-3 p-2 rounded-lg">
-                                <div className="h-8 w-8 rounded-md bg-muted animate-pulse" />
-                                <div className="space-y-1 flex-1">
-                                    <div className="h-3 w-24 bg-muted animate-pulse rounded" />
-                                    <div className="h-2 w-16 bg-muted/50 animate-pulse rounded" />
+                            <div key={i} className="flex items-center gap-4 p-3 rounded-2xl bg-muted/5 border border-border/10 animate-pulse">
+                                <div className="h-10 w-10 rounded-xl bg-muted" />
+                                <div className="space-y-2 flex-1">
+                                    <div className="h-3 w-32 bg-muted rounded" />
+                                    <div className="h-2 w-20 bg-muted/50 rounded" />
                                 </div>
                             </div>
                         ))
                     ) : pages.length > 0 ? (
                         pages.map(page => (
-                            <div key={page.id} className="group flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-all cursor-pointer">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <Avatar className="h-9 w-9 rounded-md border border-border/50">
+                            <div key={page.id} className="group flex items-center justify-between p-3 rounded-2xl bg-muted/5 border border-border/10 hover:bg-muted/10 hover:border-primary/30 transition-all cursor-pointer shadow-sm">
+                                <div className="flex items-center gap-4 overflow-hidden">
+                                    <Avatar className="h-10 w-10 rounded-xl border border-border/20 shadow-sm">
                                         <AvatarImage src={page.avatar_url} />
-                                        <AvatarFallback className="rounded-md bg-secondary text-xs">{page.title?.[0] || '?'}</AvatarFallback>
+                                        <AvatarFallback className="rounded-xl bg-secondary text-xs font-black">{page.title?.[0] || '?'}</AvatarFallback>
                                     </Avatar>
                                     <div className="min-w-0">
-                                        <p className="font-medium text-sm truncate text-foreground/90 group-hover:text-primary transition-colors">{page.title}</p>
-                                        <p className="text-[10px] text-muted-foreground capitalize font-medium tracking-wide">{page.type?.toLowerCase()}</p>
+                                        <p className="font-black text-sm truncate text-foreground/90 group-hover:text-primary transition-colors tracking-tight">{page.title}</p>
+                                        <p className="text-[10px] text-muted-foreground/60 capitalize font-bold tracking-[0.1em]">{page.type?.toLowerCase()}</p>
                                     </div>
                                 </div>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg opacity-0 group-hover:opacity-100 bg-primary/10 text-primary hover:bg-primary/20 transition-all">
+                                    <ExternalLink className="h-3.5 w-3.5" />
                                 </Button>
                             </div>
                         ))
                     ) : (
-                        <div className="h-[150px] flex flex-col items-center justify-center text-center p-4 text-muted-foreground">
-                            <Book className="h-8 w-8 mb-2 opacity-20" />
-                            <p className="text-xs">Sin páginas activas</p>
+                        <div className="min-h-[200px] flex flex-col items-center justify-center text-center p-8 bg-muted/5 rounded-3xl border border-dashed border-border/20">
+                            <div className="p-4 rounded-full bg-muted/10 mb-4 opacity-50">
+                                <Book className="h-10 w-10 text-muted-foreground" />
+                            </div>
+                            <p className="text-xs font-bold text-muted-foreground/80 tracking-widest uppercase mb-4">No active nodes</p>
                             <Link href="/pages/new">
-                                <Button variant="link" size="sm" className="text-xs h-6">Crear una</Button>
+                                <Button variant="outline" size="sm" className="rounded-full px-6 border-primary/30 text-primary hover:bg-primary/5 text-[10px] font-black uppercase tracking-widest">Generate Node</Button>
                             </Link>
                         </div>
                     )}

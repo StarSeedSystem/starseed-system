@@ -1,138 +1,134 @@
+'use client';
+
 import React from 'react';
-import { ChevronRight, Network, Rocket, Terminal, Layers } from 'lucide-react';
+import { ChevronRight, Network, Rocket, Terminal, Layers, Zap, Users, Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
+
+interface Project {
+    id: string;
+    title: string;
+    lead: string;
+    progress: number;
+    members: number;
+    color: string;
+    status: 'active' | 'pending' | 'syncing';
+}
+
+const projects: Project[] = [
+    { id: '1', title: 'Orbit Redesign', lead: '@aether_visionary', progress: 75, members: 5, color: 'primary', status: 'active' },
+    { id: '2', title: 'Lunar Hub', lead: '@selene_architect', progress: 42, members: 8, color: 'accent', status: 'syncing' },
+    { id: '3', title: 'Bio-Neural Interface', lead: '@neuro_linker', progress: 90, members: 3, color: 'secondary', status: 'active' },
+    { id: '4', title: 'Quantum Mesh', lead: '@quant_dev', progress: 15, members: 12, color: 'primary', status: 'pending' },
+];
 
 export function ActiveProjectsWidget() {
     return (
-        <div className="w-full h-full bg-[#0a060c]/80 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-4 sm:p-6 border border-[#a60df2]/20 shadow-2xl text-slate-100 font-display">
-            {/* Ambient Background Glows */}
-            <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#a60df2]/10 rounded-full blur-[80px] pointer-events-none" />
-            <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-indigo-600/10 rounded-full blur-[80px] pointer-events-none" />
-
-            {/* Widget Header */}
-            <div className="flex justify-between items-start mb-4 z-10 shrink-0">
-                <div>
-                    <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#a60df2]/10 border border-[#a60df2]/20 text-[#a60df2] text-[8px] font-bold tracking-widest uppercase mb-2">
-                        Quantum Stream
+        <div className="@container w-full h-full bg-card/10 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-3 border border-border/40 shadow-2xl text-foreground font-display group/widget">
+            {/* Header */}
+            <header className="flex items-center justify-between pb-2 mb-2 border-b border-white/5 shrink-0 z-10 relative">
+                <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg border border-white/10">
+                        <Rocket size={14} className="text-primary-foreground" />
                     </div>
-                    <h3 className="text-lg sm:text-2xl font-bold text-white tracking-tight">Active <span className="text-[#a60df2]">Genesis</span></h3>
-                    <p className="text-slate-500 text-[10px] sm:text-xs">Priority collaboration sequence</p>
+                    <div className="space-y-0 text-left">
+                        <h2 className="text-[8px] uppercase tracking-[0.25em] text-primary/70 font-black leading-tight">Project Stream</h2>
+                        <h1 className="text-xs font-black text-foreground tracking-widest uppercase leading-none">Active Genesis</h1>
+                    </div>
                 </div>
-
-                <div className="flex gap-2">
-                    <div className="hidden sm:flex flex-col items-end mr-4">
-                        <span className="text-xl font-bold text-white">98%</span>
-                        <span className="text-[8px] text-slate-500 uppercase tracking-widest">Uptime Sync</span>
-                    </div>
-                    <button className="px-3 py-1.5 h-fit rounded-full border border-[#a60df2]/30 text-[#a60df2] text-[10px] sm:text-xs font-bold hover:bg-[#a60df2]/10 transition-colors uppercase tracking-widest whitespace-nowrap hidden sm:block">
-                        Sync
+                <div className="flex items-center gap-1.5">
+                    <button className="h-7 px-3 flex items-center gap-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all text-primary text-[10px] font-black uppercase tracking-wider">
+                        <Plus size={10} />
+                        New
                     </button>
                 </div>
+            </header>
+
+            {/* Scrollable Area */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                <AnimatePresence>
+                    {projects.map((project, idx) => (
+                        <motion.div
+                            key={project.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.1 }}
+                            whileHover={{ scale: 1.01, x: 2 }}
+                            className="group/card relative bg-white/5 hover:bg-white/10 border border-white/5 hover:border-primary/30 rounded-xl p-2.5 transition-all cursor-pointer overflow-hidden"
+                        >
+                            {/* Accent Line */}
+                            <div className={cn(
+                                "absolute left-0 top-0 bottom-0 w-1 transition-all group-hover/card:w-1.5",
+                                project.color === 'primary' ? "bg-primary" : project.color === 'accent' ? "bg-accent" : "bg-secondary"
+                            )} />
+
+                            <div className="flex items-center gap-3">
+                                {/* Progress Ring */}
+                                <div className="relative h-10 w-10 shrink-0">
+                                    <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
+                                        <circle className="stroke-white/5" cx="18" cy="18" fill="none" r="16" strokeWidth="3" />
+                                        <motion.circle
+                                            initial={{ strokeDashoffset: 100 }}
+                                            animate={{ strokeDashoffset: 100 - project.progress }}
+                                            transition={{ duration: 1.5, ease: "easeOut" }}
+                                            className={cn(
+                                                "drop-shadow-[0_0_5px_rgba(var(--primary-hsl),0.5)]",
+                                                project.color === 'primary' ? "stroke-primary" : project.color === 'accent' ? "stroke-accent" : "stroke-secondary"
+                                            )}
+                                            cx="18" cy="18" fill="none" r="16" strokeDasharray="100" strokeLinecap="round" strokeWidth="3"
+                                        />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-foreground/80">
+                                        {project.progress}%
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="text-[11px] font-black text-foreground uppercase tracking-tight truncate leading-tight">
+                                        {project.title}
+                                    </h3>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-[8px] font-bold text-muted-foreground/60 truncate italic">{project.lead}</span>
+                                        <div className="h-1 w-1 rounded-full bg-white/20" />
+                                        <div className="flex items-center gap-1 text-[8px] font-black text-primary/70 uppercase tracking-tighter">
+                                            <Users size={8} />
+                                            {project.members}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                                    <div className="h-6 w-6 flex items-center justify-center rounded-lg bg-white/5 text-muted-foreground">
+                                        <ChevronRight size={14} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {project.status === 'syncing' && (
+                                <motion.div
+                                    animate={{ x: ['100%', '-100%'] }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                    className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-accent to-transparent opacity-50"
+                                />
+                            )}
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
             </div>
 
-            {/* Scrollable Projects Container */}
-            <div className="flex-1 overflow-y-auto space-y-3 z-10 pr-1 scrollbar-thin scrollbar-thumb-[#a60df2]/20 scrollbar-track-transparent">
-
-                {/* Project Card 1 */}
-                <div className="bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-lg flex items-center p-3 relative overflow-hidden group border border-white/5 hover:border-[#a60df2]/40 transition-all cursor-pointer">
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#a60df2]/80 to-indigo-600 transition-all group-hover:w-1.5" />
-
-                    <div className="flex-1 flex items-center gap-3 sm:gap-4 pl-2">
-                        {/* Progress Ring */}
-                        <div className="relative w-10 h-10 sm:w-12 sm:h-12 shrink-0">
-                            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                                <circle className="stroke-white/5" cx="18" cy="18" fill="none" r="16" strokeWidth="3"></circle>
-                                <circle className="stroke-[#a60df2] drop-shadow-[0_0_8px_rgba(166,13,242,0.6)]" cx="18" cy="18" fill="none" r="16" strokeDasharray="100" strokeDashoffset="25" strokeLinecap="round" strokeWidth="3"></circle>
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white">75%</div>
-                        </div>
-                        <div className="min-w-0">
-                            <h4 className="text-white font-semibold text-sm sm:text-base truncate">Orbit Redesign</h4>
-                            <p className="text-slate-400 text-[9px] sm:text-xs truncate">Lead: Aether Visionary</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 ml-2">
-                        <div className="flex -space-x-2 hidden sm:flex">
-                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-[#110816] bg-slate-800" />
-                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-[#110816] bg-slate-700" />
-                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-[#110816] bg-slate-600" />
-                        </div>
-                        <button className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-[#a60df2]/20 group-hover:text-white transition-colors">
-                            <ChevronRight size={14} />
-                        </button>
+            {/* Footer */}
+            <footer className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between z-10 relative">
+                <div className="flex items-center gap-3">
+                    <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-foreground leading-none">98%</span>
+                        <span className="text-[7px] text-muted-foreground/40 uppercase tracking-tighter font-bold">Uptime</span>
                     </div>
                 </div>
-
-                {/* Project Card 2 */}
-                <div className="bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-lg flex items-center p-3 relative overflow-hidden group border border-white/5 hover:border-[#a60df2]/40 transition-all cursor-pointer">
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#a60df2]/80 to-indigo-600 transition-all group-hover:w-1.5" />
-
-                    <div className="flex-1 flex items-center gap-3 sm:gap-4 pl-2">
-                        <div className="relative w-10 h-10 sm:w-12 sm:h-12 shrink-0">
-                            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                                <circle className="stroke-white/5" cx="18" cy="18" fill="none" r="16" strokeWidth="3"></circle>
-                                <circle className="stroke-[#a60df2] drop-shadow-[0_0_8px_rgba(166,13,242,0.6)]" cx="18" cy="18" fill="none" r="16" strokeDasharray="100" strokeDashoffset="58" strokeLinecap="round" strokeWidth="3"></circle>
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white">42%</div>
-                        </div>
-                        <div className="min-w-0">
-                            <h4 className="text-white font-semibold text-sm sm:text-base truncate">Lunar Hub</h4>
-                            <p className="text-slate-400 text-[9px] sm:text-xs truncate">Lead: Selene Architect</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 ml-2">
-                        <div className="flex -space-x-2 hidden sm:flex">
-                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-[#110816] bg-indigo-900" />
-                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-[#110816] bg-indigo-800" />
-                        </div>
-                        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#a60df2] flex items-center justify-center text-[8px] font-bold text-white border-2 border-[#110816] hidden sm:flex z-10 -ml-2">
-                            +3
-                        </div>
-                        <button className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-[#a60df2]/20 group-hover:text-white transition-colors">
-                            <ChevronRight size={14} />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Project Card 3 */}
-                <div className="bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-lg flex items-center p-3 relative overflow-hidden group border border-white/5 hover:border-[#a60df2]/40 transition-all cursor-pointer">
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#a60df2]/80 to-indigo-600 transition-all group-hover:w-1.5" />
-
-                    <div className="flex-1 flex items-center gap-3 sm:gap-4 pl-2">
-                        <div className="relative w-10 h-10 sm:w-12 sm:h-12 shrink-0">
-                            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                                <circle className="stroke-white/5" cx="18" cy="18" fill="none" r="16" strokeWidth="3"></circle>
-                                <circle className="stroke-[#a60df2] drop-shadow-[0_0_8px_rgba(166,13,242,0.6)]" cx="18" cy="18" fill="none" r="16" strokeDasharray="100" strokeDashoffset="10" strokeLinecap="round" strokeWidth="3"></circle>
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white">90%</div>
-                        </div>
-                        <div className="min-w-0">
-                            <h4 className="text-white font-semibold text-sm sm:text-base truncate">Bio-Neural Interface</h4>
-                            <p className="text-slate-400 text-[9px] sm:text-xs truncate">Lead: Neuro Linker</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 ml-2">
-                        <div className="flex -space-x-2 hidden sm:flex">
-                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-[#110816] bg-cyan-900" />
-                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-[#110816] bg-cyan-800" />
-                        </div>
-                        <button className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-[#a60df2]/20 group-hover:text-white transition-colors">
-                            <ChevronRight size={14} />
-                        </button>
-                    </div>
-                </div>
-
-            </div>
-
-            <div className="mt-3 flex justify-center shrink-0">
-                <a className="text-slate-500 hover:text-[#a60df2] text-[10px] sm:text-sm font-medium flex items-center gap-2 transition-colors group cursor-pointer">
-                    View All Project Architectures
-                    <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                </a>
-            </div>
-
+                <button className="text-[8px] font-black text-primary uppercase tracking-[0.2em] flex items-center gap-1 hover:gap-2 transition-all group/link">
+                    View Network
+                    <ChevronRight size={10} className="transition-transform" />
+                </button>
+            </footer>
         </div>
     );
 }

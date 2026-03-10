@@ -82,12 +82,12 @@ export default function ResourceInterchangePage() {
     };
 
     return (
-        <div className="flex flex-col gap-8 min-h-screen pb-20">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-4xl font-bold font-headline bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500 animate-in fade-in slide-in-from-left-4 duration-700">
+        <div className="flex flex-col gap-[clamp(1.5rem,3vw,3rem)] min-h-screen pb-24 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] w-full mx-auto text-center md:text-left">
+            <div className="flex flex-col gap-2 items-center md:items-start w-full">
+                <h1 className="text-[clamp(2.5rem,4vw,3.5rem)] w-full text-center md:text-left font-bold font-headline bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500 animate-in fade-in slide-in-from-left-4 duration-700">
                     Intercambio de Recursos
                 </h1>
-                <p className="text-muted-foreground text-lg max-w-2xl">
+                <p className="text-[clamp(1rem,1.3vw,1.2rem)] text-muted-foreground max-w-3xl text-balance w-full text-center md:text-left">
                     Economía del Regalo. Todo es libre. Replica, mejora y comparte activos digitales para la expansión de la consciencia.
                 </p>
             </div>
@@ -126,7 +126,7 @@ export default function ResourceInterchangePage() {
             </div>
 
             {/* Resource Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-[clamp(1.5rem,2.5vw,2.5rem)] w-full mt-4">
                 {resources.filter(r => r.title.toLowerCase().includes(searchQuery.toLowerCase())).map(resource => (
                     <GlassCard key={resource.id} variant="hover" className="flex flex-col h-full group">
                         <div className="aspect-[4/3] relative overflow-hidden bg-black/20">

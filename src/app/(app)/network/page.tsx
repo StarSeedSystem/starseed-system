@@ -46,13 +46,13 @@ export default function NetworkPage() {
   };
 
   return (
-    <div className="container py-[clamp(1rem,2vw,2rem)] space-y-[clamp(1rem,2vw,2rem)] animate-in fade-in duration-500 pb-24">
+    <div className="w-full px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] space-y-[clamp(1.5rem,3vw,3rem)] animate-in fade-in duration-500 pb-24">
       {/* Header Section */}
-      <div className="space-y-[clamp(0.25rem,0.5vw,0.5rem)] relative z-10 text-center flex flex-col items-center">
+      <div className="space-y-[clamp(0.25rem,0.5vw,0.5rem)] relative z-10 w-full flex flex-col items-center text-center mt-4">
         <h1 className="page-title font-headline text-transparent bg-clip-text bg-gradient-to-b from-foreground to-foreground/60 filter drop-shadow-[0_0_20px_rgba(var(--foreground-rgb),0.2)]">
           StarSeed <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">Network</span>
         </h1>
-        <p className="page-subtitle text-muted-foreground max-w-2xl">
+        <p className="text-[clamp(0.9rem,1.2vw,1.2rem)] text-muted-foreground max-w-3xl text-balance">
           Connect with the living ontology. Share concepts, visualize data, and replicate knowledge.
         </p>
       </div>

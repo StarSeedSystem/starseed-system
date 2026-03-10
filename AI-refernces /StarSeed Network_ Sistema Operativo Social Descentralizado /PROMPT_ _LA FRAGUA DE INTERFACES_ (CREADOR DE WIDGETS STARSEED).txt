@@ -1,0 +1,25 @@
+﻿PROMPT MAESTRO OPTIMIZADO: "LA FRAGUA DE INTERFACES" (CREADOR DE WIDGETS STARSEED)
+Rol Asignado: Actúa como un Arquitecto de Sistemas Senior, Ingeniero Full-Stack, Especialista en UX/UI Ciberdélica y Experto en Integración de Modelos de IA. Tu misión es desarrollar el código y la arquitectura de "La Fragua de Interfaces", el entorno de creación nativo para el Sistema Operativo Social Descentralizado (SOSD) StarSeed.
+Objetivo del Software: Desarrollar un entorno de creación impulsado por IA que permita a cualquier ciudadano concebir, diseñar, editar y publicar widgets totalmente funcionales, utilizando un motor dual de Stitch (para renderizado visual) y Gemini (para lógica y código).
+El software debe programarse estructurando la creación del usuario en las siguientes tres fases consecutivas, respaldadas por principios de hiper-personalización:
+FASE 1: Divergencia Estructural y Topología Geométrica
+El programa inicia permitiendo al usuario definir el "esqueleto" del widget. La IA debe ofrecer una amplia gama de opciones y ajustes matemáticos y geométricos:
+* Estructuras Base: Opciones de mallas modulares (Grids), geometrías sagradas (Proporción Áurea, Secuencia de Fibonacci), estructuras radiales o contenedores asimétricos orgánicos.
+* Ajustes Espaciales: Deslizadores para modificar la profundidad (Eje Z para AR/VR), curvatura de los bordes, márgenes líquidos, y la distribución de los "paneles de cristal" (Glassmorfismo).
+* Definición de Contenedores: Asignación previa de qué zonas geométricas albergarán texto, cuáles serán gráficos interactivos y cuáles serán botones, creando un esqueleto lógico antes de aplicar cualquier color o dato.
+FASE 2: Manifestación Visual Generativa (Motor Stitch)
+Una vez que el esqueleto geométrico está definido y ajustado, el sistema pasa a la renderización estética:
+* Síntesis de Entradas: El sistema toma la topología exacta aprobada en la Fase 1 y la cruza con los datos del usuario (prompts de texto, paletas de colores deseadas, imágenes de referencia o el estilo ciberdélico actual de su dispositivo).
+* Generación de Opciones (Stitch): Utilizando el motor gráfico Stitch, la IA genera visualmente múltiples opciones (mockups de alta fidelidad) del widget. Estas no son líneas de código aún, sino imágenes fotorrealistas de la interfaz de usuario (UI) que muestran cómo se verá el widget terminado, permitiendo al usuario ver distintas interpretaciones de su idea sobre la misma base geométrica.
+FASE 3: Metamorfosis Funcional y Convergencia Lógica (Motor Gemini)
+Tras elegir la imagen/diseño favorito en la Fase 2, el motor Gemini procesa ese diseño y lo traduce a código base funcional. Aquí se abre el "Panel de Soberanía Absoluta", donde el usuario puede realizar variaciones y ajustes infinitos:
+* Ajustes Físicos y Cinéticos: Modificación de tamaños reactivos (para 2D, AR o VR), físicas de animación (curvas de Bezier personalizadas, fricción, rebote de fluidos al tacto).
+* Conexiones y Enrutamiento (APIs y MCP): Interfaz visual para conectar los campos de datos del widget a fuentes de verdad. Permite integrar APIs externas, oráculos de blockchain, y protocolos MCP (Model Context Protocol) para conectar el widget directamente con bases de datos descentralizadas o herramientas del SOSD sin escribir código backend.
+* IA y Skills Personalizadas: Capacidad de inyectar un "micro-cerebro" en el widget. El usuario puede asignarle al widget habilidades (skills) de IA personalizadas (ej. que el widget no solo muestre el clima, sino que la IA analice los datos y recomiende qué semillas plantar oralmente).
+* Micro-Interacciones: Edición del comportamiento de botones, hipervínculos profundos (deep-linking) hacia otras áreas de la red, respuestas hápticas y acústicas.
+* Acceso al Código Fuente: Para los usuarios avanzados, un editor translúcido que permite modificar directamente cualquier parámetro de código (frontend y lógica), viendo los cambios renderizados en tiempo real.
+Exportación y Sembrado Universal
+Una vez que el widget pasa por las tres fases y es perfeccionado en la Fase 3, el programa debe ofrecer:
+1. Guardado Local: Exportar el widget como un archivo ejecutable/código abierto para su entorno personal.
+2. Sembrado en el Códice Akáshico: Publicarlo en la biblioteca pública en línea de StarSeed. El sistema compilará automáticamente el widget en un instalador universal, permitiendo que cualquier otro ciudadano lo agregue a su propio Dashboard con un solo clic, heredando todas las conexiones APIs y skills de IA configuradas.
+Formato de Salida Esperado del LLM: Proporciona la arquitectura de software de esta aplicación, definiendo el stack tecnológico para manejar el puente entre Stitch y Gemini, el diagrama de flujo de las 3 Fases, y el seudocódigo del motor de interpretación semántica (Fase 3) que conecta el diseño visual con los protocolos MCP y APIs.

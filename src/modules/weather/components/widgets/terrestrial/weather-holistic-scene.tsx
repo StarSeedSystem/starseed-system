@@ -1,112 +1,185 @@
-'use client';
-
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-export default function WeatherHolisticScene({ temp, kpIndex }: { temp: number, kpIndex: number }) {
+interface WeatherHolisticSceneProps {
+    temp: number;
+    kpIndex: number;
+    humidity?: number;
+    condition?: string;
+}
+
+export default function WeatherHolisticScene({ temp, kpIndex, humidity = 50, condition = "Clear" }: WeatherHolisticSceneProps) {
     const mountRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (!mountRef.current) return;
 
-        // Scene setup
+        // --- Scene Config ---
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
-        camera.position.z = 4.5;
+        const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+        camera.position.z = 4;
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            powerPreference: "high-performance"
+        });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        // Ensure the canvas fully covers the container
         const currentRef = mountRef.current;
         const rect = currentRef.getBoundingClientRect();
         renderer.setSize(rect.width, rect.height);
         currentRef.appendChild(renderer.domElement);
 
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
+        // --- Colors & Theme ---
+        const isHot = temp > 28;
+        const isCold = temp < 10;
+        const themeColor = isHot ? new THREE.Color(0xff4444) : isCold ? new THREE.Color(0x00f2ff) : new THREE.Color(0x06f9c8);
+        const secondaryColor = new THREE.Color(kpIndex > 4 ? 0xff00ff : 0x0ea5e9);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        dirLight.position.set(5, 5, 5);
-        scene.add(dirLight);
+        // --- Objects ---
 
-        // Colors
-        const earthColor = temp > 25 ? 0xef4444 : temp > 15 ? 0x25f46a : 0x0ea5e9;
-        const auraColor = kpIndex > 5 ? 0xff00ff : kpIndex > 3 ? 0xd946ef : 0x25f46a;
-
-        // Core Earth (Simulated with simple phong material instead of complex distort for raw performance)
-        const earthGeo = new THREE.SphereGeometry(1.5, 64, 64);
-        const earthMat = new THREE.MeshStandardMaterial({
-            color: earthColor,
-            roughness: 0.2,
-            metalness: 0.8
-        });
-        const earth = new THREE.Mesh(earthGeo, earthMat);
-        scene.add(earth);
-
-        // Energetic Aura
-        const auraGeo = new THREE.SphereGeometry(1.6, 32, 32);
-        const auraMat = new THREE.MeshBasicMaterial({
-            color: auraColor,
-            transparent: true,
-            opacity: 0.3,
+        // 1. Neural Core Earth
+        const coreGeo = new THREE.IcosahedronGeometry(1.5, 15);
+        const coreMat = new THREE.MeshStandardMaterial({
+            color: themeColor,
+            emissive: themeColor,
+            emissiveIntensity: 0.5,
             wireframe: true,
+            transparent: true,
+            opacity: 0.15,
             blending: THREE.AdditiveBlending
         });
-        const aura = new THREE.Mesh(auraGeo, auraMat);
-        scene.add(aura);
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        scene.add(core);
 
+        // 2. Inner Solid Glow
+        const innerGeo = new THREE.SphereGeometry(1.45, 64, 64);
+        const innerMat = new THREE.MeshPhongMaterial({
+            color: 0x000000,
+            emissive: themeColor,
+            emissiveIntensity: 0.2,
+            shininess: 100,
+            transparent: true,
+            opacity: 0.8
+        });
+        const inner = new THREE.Mesh(innerGeo, innerMat);
+        scene.add(inner);
+
+        // 3. Atmospheric Particulate Swarm (Swarm of "Weather Spirits")
+        const particleCount = 1200;
+        const particlesGeo = new THREE.BufferGeometry();
+        const posArr = new Float32Array(particleCount * 3);
+        const colorArr = new Float32Array(particleCount * 3);
+
+        for (let i = 0; i < particleCount; i++) {
+            const r = 1.6 + Math.random() * 0.4;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+
+            posArr[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+            posArr[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+            posArr[i * 3 + 2] = r * Math.cos(phi);
+
+            const mixed = themeColor.clone().lerp(secondaryColor, Math.random());
+            colorArr[i * 3] = mixed.r;
+            colorArr[i * 3 + 1] = mixed.g;
+            colorArr[i * 3 + 2] = mixed.b;
+        }
+
+        particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+        particlesGeo.setAttribute('color', new THREE.BufferAttribute(colorArr, 3));
+
+        const particlesMat = new THREE.PointsMaterial({
+            size: 0.015,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            sizeAttenuation: true
+        });
+
+        const particleSystem = new THREE.Points(particlesGeo, particlesMat);
+        scene.add(particleSystem);
+
+        // 4. Energetic Rings (Orbital data paths)
+        const ringGeo = new THREE.TorusGeometry(2.2, 0.005, 16, 100);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: secondaryColor,
+            transparent: true,
+            opacity: 0.3,
+            blending: THREE.AdditiveBlending
+        });
+
+        const rings: THREE.Mesh[] = [];
+        for (let i = 0; i < 3; i++) {
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = Math.random() * Math.PI;
+            ring.rotation.y = Math.random() * Math.PI;
+            scene.add(ring);
+            rings.push(ring);
+        }
+
+        // --- Lights ---
+        const ambL = new THREE.AmbientLight(0xffffff, 0.2);
+        scene.add(ambL);
+        const ptL = new THREE.PointLight(themeColor, 2, 10);
+        ptL.position.set(5, 5, 5);
+        scene.add(ptL);
+
+        // --- Animation ---
         const clock = new THREE.Clock();
+        let frameId: number;
 
-        // Animation Loop
-        let animationFrameId: number;
         const animate = () => {
-            animationFrameId = requestAnimationFrame(animate);
+            frameId = requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
             const delta = clock.getDelta();
-            const elapsedTime = clock.getElapsedTime();
 
-            earth.rotation.y += delta * 0.1;
+            // Rotation
+            core.rotation.y += 0.1 * delta;
+            inner.rotation.y += 0.05 * delta;
+            particleSystem.rotation.y += 0.08 * delta;
 
-            aura.rotation.y -= delta * 0.15;
-            aura.rotation.z += delta * 0.05;
+            // Pulsing based on Kp Index (Space Weather)
+            const pulseFactor = 1 + Math.sin(time * (1 + kpIndex * 0.3)) * 0.03;
+            core.scale.set(pulseFactor, pulseFactor, pulseFactor);
+            particleSystem.scale.set(pulseFactor, pulseFactor, pulseFactor);
 
-            const scaleBase = 1.1 + (kpIndex * 0.02);
-            const pulse = Math.sin(elapsedTime * (1 + kpIndex * 0.5)) * 0.05;
-            const newScale = scaleBase + pulse;
-            aura.scale.set(newScale, newScale, newScale);
+            // Ring Motion
+            rings.forEach((r, idx) => {
+                r.rotation.z += 0.1 * delta * (idx + 1);
+                r.rotation.x += 0.05 * delta;
+            });
 
-            // Float effect (bobbing up and down)
-            const floatOffset = Math.sin(elapsedTime * 2) * 0.1;
-            earth.position.y = floatOffset;
-            aura.position.y = floatOffset;
+            // Float
+            const float = Math.sin(time * 0.5) * 0.1;
+            scene.position.y = float;
 
             renderer.render(scene, camera);
         };
-
         animate();
 
-        // Handle Resize
+        // --- Handle Resize ---
         const handleResize = () => {
             if (!currentRef) return;
-            const rect = currentRef.getBoundingClientRect();
-            camera.aspect = rect.width / rect.height;
+            const newRect = currentRef.getBoundingClientRect();
+            camera.aspect = newRect.width / newRect.height;
             camera.updateProjectionMatrix();
-            renderer.setSize(rect.width, rect.height);
+            renderer.setSize(newRect.width, newRect.height);
         };
         window.addEventListener('resize', handleResize);
 
-        // Cleanup
+        // --- Cleanup ---
         return () => {
             window.removeEventListener('resize', handleResize);
-            cancelAnimationFrame(animationFrameId);
+            cancelAnimationFrame(frameId);
             renderer.dispose();
-            if (currentRef) {
+            if (currentRef.contains(renderer.domElement)) {
                 currentRef.removeChild(renderer.domElement);
             }
         };
-    }, [temp, kpIndex]); // Re-initialize if values change significantly (simplified for fix)
+    }, [temp, kpIndex, humidity, condition]);
 
-    return (
-        <div ref={mountRef} className="w-full h-full relative" />
-    );
+    return <div ref={mountRef} className="w-full h-full relative" />;
 }

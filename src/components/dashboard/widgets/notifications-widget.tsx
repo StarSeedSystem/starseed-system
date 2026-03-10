@@ -1,84 +1,121 @@
+'use client';
+
 import React from 'react';
-import { Bell, AlertTriangle, Info, CheckCircle, Flame } from 'lucide-react';
+import { Bell, AlertTriangle, Info, CheckCircle, Flame, Clock, X, Zap } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
+interface Notification {
+    id: string;
+    type: 'critical' | 'warning' | 'success' | 'info';
+    title: string;
+    desc: string;
+    time: string;
+    icon: any;
+}
+
+const notifications: Notification[] = [
+    { id: '1', type: 'critical', title: 'P2P Network Overload', desc: 'Global bandwidth reached 98% capacity.', time: '2m', icon: Flame },
+    { id: '2', type: 'warning', title: 'Anomaly Detected', desc: 'Potential fork in sector Terra-4.', time: '15m', icon: AlertTriangle },
+    { id: '3', type: 'success', title: 'Block Minz Verified', desc: 'Quantum sync is now stable.', time: '1h', icon: CheckCircle },
+    { id: '4', type: 'info', title: 'System Update', desc: 'V4 modules ready for deployment.', time: '3h', icon: Info },
+];
+
 export function NotificationsWidget() {
-    const notifications = [
-        { id: 1, type: 'critical', title: 'Sobrecarga de Red P2P', desc: 'Banda ancha global en 98% de capacidad.', time: '2m', icon: Flame },
-        { id: 2, type: 'warning', title: 'Anomalía Detectada', desc: 'Posible bifurcación en sector Terra-4.', time: '15m', icon: AlertTriangle },
-        { id: 3, type: 'success', title: 'Bloque Minz Verificado', desc: 'Sincronización cuántica estable.', time: '1h', icon: CheckCircle },
-        { id: 4, type: 'info', title: 'Actualización de Sistema', desc: 'Módulos V4 listos para descarga.', time: '3h', icon: Info },
-    ];
-
     return (
-        <div className="w-full h-full bg-slate-900/60 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-5 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] text-white font-display">
-
-            {/* Ambient Alert Glow - pulses if critical exists */}
-            <div className="absolute top-0 right-0 w-full h-32 bg-gradient-to-b from-rose-500/10 to-transparent pointer-events-none animate-pulse"></div>
-
+        <div className="@container w-full h-full bg-card/10 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-3 border border-border/40 shadow-2xl text-foreground font-display group/widget">
             {/* Header */}
-            <header className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0 z-10 relative">
-                <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-rose-500 to-orange-600 flex items-center justify-center shadow-[0_0_15px_rgba(244,63,94,0.4)]">
-                        <Bell size={16} className="text-white drop-shadow-md" />
+            <header className="flex items-center justify-between pb-2 mb-2 border-b border-white/5 shrink-0 z-10 relative">
+                <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-destructive to-orange-600 flex items-center justify-center shadow-lg border border-white/10">
+                        <Bell size={14} className="text-white" />
                     </div>
-                    <div>
-                        <h1 className="text-[10px] uppercase tracking-[0.3em] text-rose-200 mt-1">Monitoreo Sensorial</h1>
-                        <h2 className="text-sm font-semibold text-white tracking-wide">ALERTAS DEL SISTEMA</h2>
+                    <div className="space-y-0 text-left">
+                        <h2 className="text-[8px] uppercase tracking-[0.25em] text-destructive/70 font-black leading-tight">Sensory Monitor</h2>
+                        <h1 className="text-xs font-black text-foreground tracking-widest uppercase leading-none">System Alerts</h1>
                     </div>
                 </div>
-
-                <button className="text-[9px] uppercase tracking-widest px-2 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-white/70">
-                    Limpiar
+                <button className="h-7 px-3 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-muted-foreground text-[10px] font-black uppercase tracking-wider">
+                    Clear
                 </button>
             </header>
 
-            {/* Notifications List */}
-            <main className="flex-1 overflow-y-auto mt-4 space-y-2 pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent z-10 relative">
-                {notifications.map(note => {
-                    const Icon = note.icon;
-                    return (
-                        <div key={note.id} className={cn(
-                            "flex items-start gap-3 p-3 rounded-lg border transition-all cursor-default relative overflow-hidden group",
-                            note.type === 'critical' ? "bg-rose-500/10 border-rose-500/30 hover:bg-rose-500/20" :
-                                note.type === 'warning' ? "bg-amber-500/5 border-amber-500/20 hover:bg-amber-500/10" :
-                                    note.type === 'success' ? "bg-emerald-500/5 border-emerald-500/20 hover:bg-emerald-500/10" :
-                                        "bg-white/5 border-white/5 hover:bg-white/10"
-                        )}>
+            {/* Scrollable Area */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                <AnimatePresence mode="popLayout">
+                    {notifications.map((note, idx) => {
+                        const Icon = note.icon;
+                        return (
+                            <motion.div
+                                key={note.id}
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{ delay: idx * 0.1 }}
+                                whileHover={{ x: -2 }}
+                                className={cn(
+                                    "relative group/note bg-white/5 hover:bg-white/10 border border-white/5 hover:border-border/30 rounded-xl p-3 transition-all cursor-pointer overflow-hidden",
+                                    note.type === 'critical' && "border-destructive/20 bg-destructive/5 hover:bg-destructive/10"
+                                )}
+                            >
+                                {/* Accent Pillar */}
+                                <div className={cn(
+                                    "absolute left-0 top-0 bottom-0 w-1 transition-all group-hover/note:w-1.5",
+                                    note.type === 'critical' ? "bg-destructive shadow-[0_0_10px_rgba(var(--destructive-hsl),0.5)]" :
+                                        note.type === 'warning' ? "bg-amber-500" :
+                                            note.type === 'success' ? "bg-emerald-500" :
+                                                "bg-primary"
+                                )} />
 
-                            {/* Side accent line */}
-                            <div className={cn(
-                                "absolute left-0 top-0 bottom-0 w-1 opacity-70 group-hover:opacity-100 transition-opacity",
-                                note.type === 'critical' ? "bg-rose-500" :
-                                    note.type === 'warning' ? "bg-amber-500" :
-                                        note.type === 'success' ? "bg-emerald-500" :
-                                            "bg-cyan-500"
-                            )}></div>
+                                <div className="flex items-start gap-3">
+                                    <div className={cn(
+                                        "mt-0.5 shrink-0 p-1.5 rounded-lg bg-white/5 border border-white/10",
+                                        note.type === 'critical' ? "text-destructive" :
+                                            note.type === 'warning' ? "text-amber-500" :
+                                                note.type === 'success' ? "text-emerald-500" :
+                                                    "text-primary"
+                                    )}>
+                                        <Icon size={14} />
+                                    </div>
 
-                            <div className={cn(
-                                "mt-0.5 shrink-0",
-                                note.type === 'critical' ? "text-rose-400" :
-                                    note.type === 'warning' ? "text-amber-400" :
-                                        note.type === 'success' ? "text-emerald-400" :
-                                            "text-cyan-400"
-                            )}>
-                                <Icon size={14} />
-                            </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between items-center mb-0.5">
+                                            <h3 className="text-[11px] font-black text-foreground uppercase tracking-tight truncate leading-tight">
+                                                {note.title}
+                                            </h3>
+                                            <span className="text-[8px] text-muted-foreground/40 font-black uppercase tracking-tighter shrink-0 ml-2">
+                                                {note.time}
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground/60 leading-tight line-clamp-2">
+                                            {note.desc}
+                                        </p>
+                                    </div>
+                                </div>
 
-                            <div className="flex-1 min-w-0">
-                                <h3 className="text-[11px] font-bold text-white mb-0.5 flex justify-between">
-                                    {note.title}
-                                    <span className="text-[9px] text-white/40 font-mono font-normal tracking-wider">{note.time}</span>
-                                </h3>
-                                <p className="text-[10px] text-white/60 leading-snug">{note.desc}</p>
-                            </div>
-                        </div>
-                    )
-                })}
-            </main>
+                                {note.type === 'critical' && (
+                                    <motion.div
+                                        animate={{ opacity: [0.3, 0.6, 0.3] }}
+                                        transition={{ duration: 1.5, repeat: Infinity }}
+                                        className="absolute inset-0 bg-destructive/5 pointer-events-none"
+                                    />
+                                )}
+                            </motion.div>
+                        );
+                    })}
+                </AnimatePresence>
+            </div>
 
-            {/* Overlays */}
-            <div className="absolute inset-0 border border-white/5 rounded-xl pointer-events-none mix-blend-overlay"></div>
+            {/* Footer */}
+            <footer className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between z-10 relative">
+                <div className="flex items-center gap-2 text-[8px] font-black tracking-widest uppercase text-muted-foreground/40">
+                    <Zap size={10} className="text-primary" />
+                    <span>Real-time Sync Active</span>
+                </div>
+                <button className="h-5 w-5 flex items-center justify-center rounded-md bg-white/5 hover:bg-white/10 text-muted-foreground transition-colors group/x">
+                    <X size={10} className="group-hover/x:rotate-90 transition-transform" />
+                </button>
+            </footer>
         </div>
     );
 }

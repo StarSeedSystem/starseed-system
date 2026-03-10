@@ -91,12 +91,12 @@ export default function ExplorerPage() {
     );
 
     return (
-        <div className="flex flex-col min-h-screen pb-20 px-[clamp(0.75rem,2vw,2rem)] py-[clamp(0.75rem,1.5vw,1.5rem)] max-w-[1200px] mx-auto gap-[clamp(1.5rem,3vw,3rem)]">
+        <div className="flex flex-col min-h-screen pb-20 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] w-full mx-auto gap-[clamp(1.5rem,3vw,3rem)]">
 
             {/* --- HERO SECTION: Neural Search --- */}
-            <div className="flex flex-col items-center justify-center gap-[clamp(1rem,2vw,2rem)] mt-[clamp(1.5rem,4vw,5rem)]">
+            <div className="flex flex-col items-center justify-center gap-[clamp(1rem,2vw,2rem)] mt-[clamp(1.5rem,3vw,4rem)] w-full">
 
-                <div className="text-center space-y-[clamp(0.25rem,0.75vw,1rem)] relative z-10 max-w-2xl">
+                <div className="text-center space-y-[clamp(0.25rem,0.75vw,1rem)] relative z-10 w-full max-w-4xl mx-auto flex flex-col items-center">
                     <div className="flex items-center justify-center gap-3 mb-2">
                         <div className="p-2.5 rounded-2xl bg-primary/20 text-primary backdrop-blur-md">
                             <Compass className="w-8 h-8" />
@@ -140,8 +140,8 @@ export default function ExplorerPage() {
                             <Input
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
-                                placeholder="Busca nodos, artículos, herramientas o personas..."
-                                className="w-full pl-12 pr-12 h-14 text-base backdrop-blur-xl bg-background/40 border-primary/20 focus-visible:border-primary/50 focus-visible:ring-1 focus-visible:ring-primary/30"
+                                placeholder="Busca nodos, artículos, herramientas, personas o parámetros globales..."
+                                className="w-full pl-12 pr-12 h-14 md:h-16 text-base md:text-lg backdrop-blur-xl bg-background/40 border-primary/20 focus-visible:border-primary/50 focus-visible:ring-1 focus-visible:ring-primary/30 text-center"
                                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                             />
                             <Button
@@ -185,55 +185,58 @@ export default function ExplorerPage() {
             </div>
 
             {/* --- RESULTS MATRIX --- */}
-            <div className="space-y-6 px-[clamp(0.75rem,2vw,2rem)]">
-                <div className="flex items-center justify-between text-sm text-muted-foreground border-b border-white/5 pb-2">
-                    <span>Resultados ({filteredResults.length})</span>
-                    <div className="flex items-center gap-2 cursor-pointer hover:text-white"><Filter className="w-3 h-3" /> Filtros Avanzados</div>
+            <div className="space-y-6 px-[clamp(0.5rem,1vw,1rem)] w-full flex-1 flex flex-col items-center">
+                <div className="flex items-center justify-between text-[clamp(0.8rem,1vw,1rem)] text-muted-foreground border-b border-white/10 pb-3 w-full max-w-screen-3xl">
+                    <span className="font-semibold text-white/80 tracking-widest uppercase">Resultados ({filteredResults.length})</span>
+                    <div className="flex items-center gap-2 cursor-pointer hover:text-white bg-white/5 px-4 py-1.5 rounded-full border border-white/10 transition-colors"><Filter className="w-4 h-4" /> Filtros Avanzados</div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-[clamp(1rem,2vw,2rem)] w-full max-w-screen-3xl overflow-hidden mt-4">
                     {filteredResults.map((result) => (
-                        <GlassCard key={result.id} className="p-0 flex flex-col md:flex-row overflow-hidden group hover:border-primary/50 transition-colors">
-                            {/* Visual/Icon Area */}
+                        <GlassCard key={result.id} className="p-0 flex flex-col overflow-hidden group hover:border-primary/50 transition-colors h-full shadow-lg">
+                            {/* Visual/Icon Top Area */}
                             <div className={cn(
-                                "w-full md:w-32 bg-gradient-to-br flex items-center justify-center p-6",
-                                result.domain === 'POLITICS' && "from-orange-500/20 to-red-600/10 text-orange-400",
-                                result.domain === 'EDUCATION' && "from-blue-500/20 to-cyan-600/10 text-blue-400",
-                                result.domain === 'CULTURE' && "from-purple-500/20 to-pink-600/10 text-purple-400",
-                                result.domain === 'SYSTEM' && "from-emerald-500/20 to-green-600/10 text-emerald-400",
+                                "w-full h-28 relative overflow-hidden flex flex-col items-center justify-center p-4",
+                                result.domain === 'POLITICS' && "bg-gradient-to-br from-orange-500/20 to-red-600/10 text-orange-400 border-b border-orange-500/20",
+                                result.domain === 'EDUCATION' && "bg-gradient-to-br from-blue-500/20 to-cyan-600/10 text-blue-400 border-b border-blue-500/20",
+                                result.domain === 'CULTURE' && "bg-gradient-to-br from-purple-500/20 to-pink-600/10 text-purple-400 border-b border-purple-500/20",
+                                result.domain === 'SYSTEM' && "bg-gradient-to-br from-emerald-500/20 to-green-600/10 text-emerald-400 border-b border-emerald-500/20",
                             )}>
-                                <BrainCircuit className="w-10 h-10 opacity-80" />
+                                {/* Inner glow/pattern */}
+                                <div className="absolute inset-0 opacity-20 mix-blend-overlay" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '12px 12px' }} />
+                                <div className="relative z-10 p-3 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 group-hover:scale-110 transition-transform duration-500">
+                                    <BrainCircuit className="w-8 h-8 opacity-90" />
+                                </div>
                             </div>
 
-                            {/* Content */}
-                            <div className="flex-1 p-5 flex flex-col gap-3">
-                                <div className="flex justify-between items-start">
-                                    <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                            <Badge variant="outline" className="text-[10px] py-0 h-5 border-white/10">{result.type}</Badge>
-                                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{result.domain}</span>
-                                        </div>
-                                        <h3 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors">{result.title}</h3>
-                                    </div>
-                                    <span className="text-xs font-mono text-emerald-400">{result.relevance}% Match</span>
+                            {/* Main Content (Centered) */}
+                            <div className="flex-1 p-[clamp(1rem,1.5vw,1.5rem)] flex flex-col items-center text-center gap-3 w-full">
+                                {/* Type & Domain */}
+                                <div className="flex items-center justify-center gap-2 mb-2 w-full flex-wrap">
+                                    <Badge variant="outline" className="text-[10px] md:text-sm py-0.5 h-6 border-white/10 bg-black/20 uppercase font-bold tracking-wider">{result.type}</Badge>
+                                    <span className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-[0.2em] font-bold mx-2">{result.domain}</span>
+                                    <span className="text-[10px] md:text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded border border-emerald-500/30 shrink-0 font-bold tracking-widest">{result.relevance}% Match</span>
                                 </div>
 
-                                <p className="text-sm text-gray-400 line-clamp-2">{result.description}</p>
+                                <h3 className="font-bold text-[clamp(1.1rem,1.5vw,1.4rem)] leading-snug group-hover:text-primary transition-colors text-balance mb-2 px-2 w-full">{result.title}</h3>
 
-                                <div className="flex gap-2 mt-auto pt-2">
+                                <p className="text-[clamp(0.85rem,1vw,1rem)] text-white/60 line-clamp-4 md:line-clamp-5 w-full flex-1 leading-relaxed px-2">{result.description}</p>
+
+                                {/* Tags */}
+                                <div className="flex flex-wrap justify-center gap-[clamp(0.25rem,0.5vw,0.5rem)] mt-auto pt-4 w-full">
                                     {result.tags.map(tag => (
-                                        <span key={tag} className="text-[10px] text-muted-foreground">#{tag}</span>
+                                        <span key={tag} className="text-[10px] md:text-xs px-2 py-1 rounded-md bg-white/5 text-muted-foreground border border-white/5 hover:bg-white/10 hover:text-white transition-colors truncate max-w-[120px]">#{tag}</span>
                                     ))}
                                 </div>
                             </div>
 
-                            {/* Actions */}
-                            <div className="p-4 border-l border-white/5 flex flex-col items-center justify-center gap-2 bg-black/20">
-                                <Button onClick={() => handleReplicate(result.title)} size="sm" className="w-full gap-2 bg-white/5 hover:bg-white/20 text-white border border-white/10">
-                                    <Copy className="w-3 h-3" /> Replicar
+                            {/* Footer Actions */}
+                            <div className="p-[clamp(1rem,1.5vw,1.5rem)] border-t border-white/10 flex flex-row items-center justify-between gap-3 md:gap-4 bg-black/40 mt-auto w-full">
+                                <Button onClick={() => handleReplicate(result.title)} size="default" className="flex-1 gap-2 bg-primary/15 hover:bg-primary/30 text-primary border border-primary/30 transition-all font-bold tracking-wider uppercase text-xs h-10">
+                                    <Copy className="w-4 h-4" /> Replicar Nodo
                                 </Button>
-                                <Button size="sm" variant="ghost" className="w-full gap-2 text-muted-foreground hover:text-white">
-                                    <ArrowRight className="w-3 h-3" /> Abrir
+                                <Button size="default" variant="ghost" className="flex-1 gap-2 bg-white/5 hover:bg-white/15 text-white border border-white/20 transition-all font-bold tracking-wider uppercase text-xs h-10">
+                                    <ArrowRight className="w-4 h-4" /> Inspeccionar
                                 </Button>
                             </div>
                         </GlassCard>

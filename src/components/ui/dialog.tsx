@@ -6,7 +6,6 @@ import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAppearance } from "@/context/appearance-context"
-import { SplineUIWrapper } from "@/components/ui/spline-ui-wrapper"
 
 const Dialog = DialogPrimitive.Root
 
@@ -44,7 +43,7 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+          "fixed left-[50%] top-[50%] z-50 flex flex-col w-[95vw] md:w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
           isPrimary ? "bg-black/10 border-white/10 text-white shadow-2xl backdrop-blur-sm overflow-hidden" : "bg-background liquid-glass-panel",
           className
         )}
@@ -52,10 +51,7 @@ const DialogContent = React.forwardRef<
         {...props}
       >
         {isPrimary && (
-          <SplineUIWrapper
-            sceneUrl="https://prod.spline.design/f-FmokKwZQASiVE9/scene.splinecode"
-            className="absolute inset-0 z-0 opacity-80 pointer-events-none"
-          />
+          <div className="absolute inset-0 z-0 opacity-40 bg-gradient-to-br from-white/10 to-transparent pointer-events-none sm:rounded-lg" />
         )}
         <div className={cn("relative z-10 w-full h-full", isPrimary && "drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]")}>
           {children}

@@ -160,14 +160,14 @@ function LibraryContent() {
   };
 
   return (
-    <div className="flex flex-col gap-6 min-h-screen pb-20 p-4 md:p-8 max-w-[1600px] mx-auto">
+    <div className="flex flex-col gap-[clamp(1.5rem,3vw,3rem)] min-h-screen pb-24 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] w-full mx-auto">
       {/* Header & Mode Switcher */}
-      <div className="flex flex-col md:flex-row items-end justify-between gap-6">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-4xl font-bold font-headline text-primary bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">
+      <div className="flex flex-col md:flex-row items-center md:items-end justify-between gap-[clamp(1rem,2vw,2rem)] w-full text-center md:text-left">
+        <div className="flex flex-col gap-2 items-center md:items-start w-full md:w-auto">
+          <h1 className="text-[clamp(2rem,4vw,3rem)] font-bold font-headline text-primary bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500 w-full text-center md:text-left">
             {mode === 'GLOBAL' ? "Librería Global" : "Mi Biblioteca"}
           </h1>
-          <p className="text-muted-foreground text-sm max-w-md">
+          <p className="text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground max-w-3xl text-balance w-full text-center md:text-left">
             {mode === 'GLOBAL'
               ? "Accede al conocimiento y recursos compartidos por toda la red StarSeed."
               : "Tu espacio personal seguro para archivos, ideas y proyectos."}
@@ -286,7 +286,7 @@ function LibraryContent() {
 
       {/* Content Grid */}
       {viewMode === 'GRID' ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-[clamp(1rem,2vw,2rem)] w-full">
           {filteredAssets.map(asset => (
             <GlassCard
               key={asset.id}

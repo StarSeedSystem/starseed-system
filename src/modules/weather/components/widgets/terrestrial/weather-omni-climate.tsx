@@ -1,7 +1,17 @@
-import { motion } from 'framer-motion';
+'use client';
+
+import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { useWeatherLocation } from '@/modules/weather/context/weather-location-context';
 import { fetchWeatherData } from '@/lib/weather-mock';
+import {
+    Sparkles, Wind, CloudRain, Cloud, Sun, Zap, Info, MapPin,
+    Activity, Navigation, Maximize2, Droplets, Thermometer, ShieldCheck,
+    ArrowDownToLine, Eye, Gauge
+} from 'lucide-react';
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import Link from 'next/link';
 
 export function WeatherOmniClimateWidget() {
     const { location } = useWeatherLocation();
@@ -32,266 +42,247 @@ export function WeatherOmniClimateWidget() {
 
     if (loading || !weatherData) {
         return (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-[#0d1117] text-slate-400 p-8 rounded-2xl border border-white/5 font-display min-h-[400px]">
-                <div className="w-12 h-12 border-2 border-[#06f9c8] border-t-transparent rounded-full animate-spin mb-4" />
-                <p className="text-[10px] uppercase tracking-widest animate-pulse">Establishing atmospheric link...</p>
+            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950 text-slate-400 p-8 rounded-[2.5rem] border border-white/5 font-display min-h-[400px] overflow-hidden relative">
+                <motion.div
+                    className="absolute inset-0 bg-gradient-to-br from-[#06f9c8]/10 via-transparent to-transparent"
+                    animate={{ opacity: [0.3, 0.6, 0.3] }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                />
+                <div className="w-16 h-16 border-4 border-[#06f9c8]/30 border-t-[#06f9c8] rounded-full animate-spin mb-6 shadow-[0_0_20px_rgba(6,249,200,0.4)]" />
+                <p className="text-[10px] uppercase font-black tracking-[0.4em] animate-pulse text-[#06f9c8]">Establishing atmospheric link...</p>
             </div>
         );
     }
 
-    const temp = Math.round(weatherData.current?.temperature_2m || 0);
-    const windSpeed = weatherData.current?.wind_speed_10m || 0;
-    const humidity = weatherData.current?.relative_humidity_2m || 0;
-
-    const cloudCover = weatherData.current?.cloud_cover || 0;
-    const wmoCode = weatherData.current?.weather_code ?? weatherData.current?.weathercode;
+    const current = weatherData.current || {};
+    const temp = Math.round(current.temperature_2m || 0);
+    const windSpeed = current.wind_speed_10m || 0;
+    const humidity = current.relative_humidity_2m || 0;
+    const cloudCover = current.cloud_cover || 0;
+    const wmoCode = current.weather_code ?? current.weathercode;
 
     let condition = "Clear";
     let conditionLabel = "Stable / Clear";
     if (wmoCode !== undefined) {
         if ([1, 2, 3, 45, 48].includes(wmoCode)) { condition = "Cloudy"; conditionLabel = "Stable / Cloudy"; }
-        else if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(wmoCode)) { condition = "Rain"; conditionLabel = "Precipitation / Rain"; }
-        else if ([71, 73, 75, 77, 85, 86].includes(wmoCode)) { condition = "Snow"; conditionLabel = "Precipitation / Snow"; }
-        else if ([95, 96, 99].includes(wmoCode)) { condition = "Thunderstorm"; conditionLabel = "Volatile / Storm"; }
-        else if (wmoCode === 0) { condition = "Clear"; conditionLabel = "Stable / Clear"; }
+        else if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(wmoCode)) { condition = "Rain"; conditionLabel = "Liquid Precipitation"; }
+        else if ([71, 73, 75, 77, 85, 86].includes(wmoCode)) { condition = "Snow"; conditionLabel = "Crystalline Precip"; }
+        else if ([95, 96, 99].includes(wmoCode)) { condition = "Thunderstorm"; conditionLabel = "Kinetic Storm"; }
+        else if (wmoCode === 0) { condition = "Clear"; conditionLabel = "Stable / Optimal"; }
     } else {
         condition = cloudCover > 50 ? "Cloudy" : "Clear";
-        conditionLabel = condition === "Cloudy" ? "Stable / Cloudy" : "Stable / Clear";
+        conditionLabel = condition === "Cloudy" ? "Stable / Cloudy" : "Stable / Optimal";
     }
 
     const aqi = weatherData.air_quality?.us_aqi || 24;
 
     return (
-        <motion.div
-            layout="position"
-            className="@container/widget relative w-full h-full flex flex-col gap-3 bg-[#0d1117] text-slate-100 font-display overflow-hidden rounded-2xl p-4 transition-all duration-500 ease-out z-10"
-        >
-            {/* Background Base */}
-            <div className="absolute inset-0 bg-gradient-to-br from-[#0d1117] to-slate-900 z-0"></div>
+        <Card className="@container/widget relative w-full h-full flex flex-col gap-6 bg-slate-950/60 backdrop-blur-3xl border-white/10 group rounded-[2.5rem] p-6 @md:p-8 transition-all duration-700 hover:border-[#06f9c8]/30 shadow-2xl overflow-hidden">
 
-            {/* Header: Location - Always Visible */}
-            <motion.header layout="position" className="flex items-center justify-between z-10 shrink-0">
-                <div className="flex flex-col">
-                    <span className="text-[10px] uppercase tracking-[0.3em] text-[#06f9c8]/60 font-bold hidden @[200px]/widget:block">Location Sync</span>
-                    <h1 className="text-sm @[250px]/widget:text-lg font-bold tracking-tighter text-white uppercase italic truncate max-w-[120px] @[250px]/widget:max-w-[200px]">{location.name}</h1>
+            {/* Liquid Crystal Overlay */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(6,249,200,0.05),transparent_70%)] z-0" />
+            <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+                className="absolute -top-[20%] -right-[20%] w-full h-full bg-emerald-500/5 blur-[120px] rounded-full z-0"
+            />
+
+            {/* Header: Atmospheric Status HUD */}
+            <div className="flex justify-between items-start z-10 w-full p-6 pb-2 shrink-0">
+                <div className="flex items-center gap-4">
+                    <div className="relative">
+                        <div className="absolute inset-0 bg-[#06f9c8] blur-xl opacity-20 animate-pulse" />
+                        <div className="relative p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-3xl shadow-2xl">
+                            <Activity className="w-5 h-5 text-[#06f9c8]" />
+                        </div>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black tracking-[0.4em] text-[#06f9c8] uppercase leading-none mb-1.5 opacity-60">Climate_Omni_Link</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xl font-black tracking-tight text-white leading-none capitalize">{location.name.split(',')[0]}</span>
+                            <div className="px-2 py-0.5 rounded-full bg-[#06f9c8]/10 border border-[#06f9c8]/20">
+                                <span className="text-[8px] font-black text-[#06f9c8] uppercase tracking-tighter">Verified</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#06f9c8] text-xs @[250px]/widget:text-sm">sensors</span>
-                    <span className="material-symbols-outlined text-slate-400 text-sm hidden @[200px]/widget:block">more_vert</span>
+
+                <div className="flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/5 backdrop-blur-xl">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+                        <span className="text-[9px] font-black text-white/70 tracking-[0.1em] uppercase">Status:_Nominal</span>
+                    </div>
+                    <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em]">Sync_T: {new Date().toLocaleTimeString()}</span>
                 </div>
-            </motion.header>
-
-            {/* Main Content Area: Responsive flex direction based on container width */}
-            <div className="flex flex-col @[300px]/widget:flex-row gap-4 flex-1 z-10 min-h-0">
-
-                {/* Hero Section: Icon & Temp */}
-                <motion.section
-                    layout="position"
-                    className="flex-1 bg-white/[0.03] backdrop-blur-[24px] border border-[#06f9c8]/10 hover:bg-white/[0.06] hover:border-[#06f9c8]/30 transition-all duration-300 rounded-xl relative overflow-hidden flex flex-row @[300px]/widget:flex-col items-center justify-center p-4 min-h-[120px]"
-                >
-                    {/* Decorative Scanline Gradient */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-[#06f9c8]/5 via-transparent to-transparent pointer-events-none"></div>
-
-                    {/* Animated Graphic based on condition */}
-                    <motion.div layout="position" className="relative w-20 h-20 @[250px]/widget:w-24 @[250px]/widget:h-24 @[300px]/widget:w-28 @[300px]/widget:h-28 flex items-center justify-center mr-4 @[300px]/widget:mr-0 @[300px]/widget:mb-2 shrink-0">
-                        {condition === "Clear" && (
-                            <>
-                                <div className="absolute inset-0 animate-[spin_20s_linear_infinite] opacity-40">
-                                    <svg className="w-full h-full text-[#06f9c8]" viewBox="0 0 100 100">
-                                        <defs>
-                                            <linearGradient id="ray-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                                                <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
-                                                <stop offset="50%" stopColor="currentColor" stopOpacity="1" />
-                                                <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-                                            </linearGradient>
-                                        </defs>
-                                        <g transform="translate(50,50)">
-                                            <rect x="-1" y="-50" width="2" height="100" fill="url(#ray-grad)" />
-                                            <rect x="-1" y="-50" width="2" height="100" fill="url(#ray-grad)" transform="rotate(45)" />
-                                            <rect x="-1" y="-50" width="2" height="100" fill="url(#ray-grad)" transform="rotate(90)" />
-                                            <rect x="-1" y="-50" width="2" height="100" fill="url(#ray-grad)" transform="rotate(135)" />
-                                        </g>
-                                    </svg>
-                                </div>
-                                <div className="w-12 h-12 @[250px]/widget:w-16 @[250px]/widget:h-16 @[300px]/widget:w-20 @[300px]/widget:h-20 rounded-full bg-gradient-to-tr from-[#06f9c8] to-emerald-400 relative z-10" style={{ filter: 'drop-shadow(0 0 15px rgba(6, 249, 200, 0.6))', boxShadow: '0 0 30px rgba(6,249,200,0.4)' }}></div>
-                            </>
-                        )}
-                        {condition === "Cloudy" && (
-                            <div className="w-full h-full flex flex-col items-center justify-center relative">
-                                <motion.div
-                                    animate={{ x: [-5, 5, -5], y: [-2, 2, -2] }}
-                                    transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-                                    className="w-12 h-6 @[250px]/widget:w-20 @[250px]/widget:h-10 bg-slate-300 rounded-full blur-md opacity-80 z-10"
-                                    style={{ boxShadow: 'inset -5px -5px 10px rgba(0,0,0,0.5), 0 0 15px rgba(255,255,255,0.2)' }}
-                                />
-                                <motion.div
-                                    animate={{ x: [3, -10, 3], y: [1, -4, 1] }}
-                                    transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                                    className="absolute w-8 h-6 @[250px]/widget:w-16 @[250px]/widget:h-12 bg-slate-400 rounded-full blur-lg opacity-60 top-2 right-2 @[250px]/widget:top-4 @[250px]/widget:right-4 z-0"
-                                />
-                            </div>
-                        )}
-                        {condition === "Rain" && (
-                            <div className="w-full h-full flex flex-col items-center justify-center relative scale-75 @[250px]/widget:scale-100">
-                                <motion.div
-                                    animate={{ x: [-5, 5, -5], y: [-2, 2, -2] }}
-                                    transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                                    className="w-20 h-10 bg-slate-500 rounded-full blur-md opacity-90 z-20"
-                                    style={{ boxShadow: 'inset -10px -10px 20px rgba(0,0,0,0.6), 0 0 30px rgba(255,255,255,0.1)' }}
-                                />
-                                <div className="absolute inset-x-0 bottom-0 top-12 overflow-hidden flex justify-center gap-2 z-10">
-                                    {[...Array(5)].map((_, i) => (
-                                        <motion.div
-                                            key={i}
-                                            initial={{ y: -20, opacity: 0 }}
-                                            animate={{ y: 80, opacity: [0, 1, 0] }}
-                                            transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.2, ease: "linear" }}
-                                            className="w-[2px] h-6 bg-blue-400/80 rounded-full blur-[1px]"
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        {condition === "Snow" && (
-                            <div className="w-full h-full flex flex-col items-center justify-center relative scale-75 @[250px]/widget:scale-100">
-                                <motion.div
-                                    animate={{ x: [-8, 8, -8], y: [-3, 3, -3] }}
-                                    transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-                                    className="w-20 h-10 bg-slate-200 rounded-full blur-md opacity-80 z-20"
-                                    style={{ boxShadow: 'inset -10px -10px 20px rgba(0,0,0,0.2), 0 0 30px rgba(255,255,255,0.4)' }}
-                                />
-                                <div className="absolute inset-x-0 bottom-0 top-12 overflow-hidden flex justify-center gap-3 z-10">
-                                    {[...Array(6)].map((_, i) => (
-                                        <motion.div
-                                            key={i}
-                                            initial={{ y: -10, x: 0, opacity: 0, rotate: 0 }}
-                                            animate={{ y: 80, x: Math.sin(i) * 15, opacity: [0, 1, 0], rotate: 360 }}
-                                            transition={{ duration: 2.5, repeat: Infinity, delay: i * 0.4, ease: "linear" }}
-                                            className="w-2 h-2 bg-white rounded-full blur-[1px]"
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        {condition === "Thunderstorm" && (
-                            <div className="w-full h-full flex flex-col items-center justify-center relative scale-75 @[250px]/widget:scale-100">
-                                <motion.div
-                                    animate={{ x: [-5, 5, -5], y: [-2, 2, -2] }}
-                                    transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                                    className="w-20 h-10 bg-slate-700 rounded-full blur-md opacity-90 z-20"
-                                    style={{ boxShadow: 'inset -10px -10px 20px rgba(0,0,0,0.8), 0 0 30px rgba(255,255,255,0.1)' }}
-                                />
-                                <motion.div
-                                    animate={{ opacity: [0, 0, 1, 0, 0, 0.5, 0] }}
-                                    transition={{ duration: 4, repeat: Infinity, times: [0, 0.8, 0.82, 0.84, 0.9, 0.92, 1] }}
-                                    className="absolute inset-0 bg-yellow-200 blur-2xl z-0 rounded-full mix-blend-overlay"
-                                />
-                                <motion.svg
-                                    animate={{ opacity: [0, 0, 1, 0, 0, 1, 0] }}
-                                    transition={{ duration: 4, repeat: Infinity, times: [0, 0.8, 0.82, 0.84, 0.9, 0.92, 1] }}
-                                    className="absolute w-8 h-12 text-yellow-300 z-30 top-12"
-                                    fill="currentColor" viewBox="0 0 24 24"
-                                >
-                                    <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" />
-                                </motion.svg>
-                                <div className="absolute inset-x-0 bottom-0 top-12 overflow-hidden flex justify-center gap-2 z-10">
-                                    {[...Array(5)].map((_, i) => (
-                                        <motion.div
-                                            key={i}
-                                            initial={{ y: -20, opacity: 0 }}
-                                            animate={{ y: 80, opacity: [0, 1, 0] }}
-                                            transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15, ease: "linear" }}
-                                            className="w-[2px] h-8 bg-blue-300/80 rounded-full blur-[1px]"
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </motion.div>
-
-                    {/* Temperature */}
-                    <div className="flex flex-col items-start @[300px]/widget:items-center justify-center z-20 flex-1">
-                        <div className="flex items-start">
-                            <motion.span layout="position" className="text-5xl @[250px]/widget:text-6xl @[300px]/widget:text-7xl font-bold tracking-tighter text-white leading-none">{temp}</motion.span>
-                            <motion.span layout="position" className="text-2xl @[250px]/widget:text-2xl @[300px]/widget:text-3xl font-light text-[#06f9c8] mt-0 @[250px]/widget:mt-1">°</motion.span>
-                        </div>
-                        <motion.p layout="position" className="text-[9px] @[250px]/widget:text-xs tracking-[0.2em] @[250px]/widget:tracking-[0.4em] uppercase font-semibold text-[#06f9c8]/80 mt-1">{conditionLabel}</motion.p>
-                    </div>
-                </motion.section>
-
-                {/* Secondary Metrics: Only visible if width > 250px */}
-                <motion.div
-                    layout="position"
-                    className="hidden @[250px]/widget:flex flex-row @[300px]/widget:flex-col gap-3 flex-1 overflow-hidden"
-                >
-                    {/* AQI Panel */}
-                    <div className="flex-1 bg-white/[0.03] backdrop-blur-[24px] border border-[#06f9c8]/10 hover:bg-white/[0.06] hover:border-[#06f9c8]/30 transition-all rounded-xl p-3 flex flex-col justify-between">
-                        <div className="flex items-center justify-between">
-                            <span className="material-symbols-outlined text-[#06f9c8] text-sm @[300px]/widget:text-lg">air</span>
-                            <span className="text-[8px] @[300px]/widget:text-[9px] uppercase font-bold text-slate-400 tracking-wider">AQI</span>
-                        </div>
-                        <div className="flex flex-col mt-2">
-                            <span className="text-xl font-bold text-white leading-none">{aqi.toString().padStart(3, '0')}</span>
-                            <span className="text-[8px] @[300px]/widget:text-[9px] text-[#06f9c8]/60 font-medium">{aqi < 50 ? "EXCELLENT" : "MODERATE"}</span>
-                        </div>
-                        <div className="hidden @[300px]/widget:block h-1 w-full bg-slate-800 rounded-full overflow-hidden mt-2">
-                            <div className="h-full bg-[#06f9c8] shadow-[0_0_8px_rgba(6,249,200,0.8)]" style={{ width: `${Math.min(aqi, 100)}%` }}></div>
-                        </div>
-                    </div>
-
-                    {/* Wind Panel */}
-                    <div className="flex-1 bg-white/[0.03] backdrop-blur-[24px] border border-[#06f9c8]/10 hover:bg-white/[0.06] hover:border-[#06f9c8]/30 transition-all rounded-xl p-3 flex flex-col justify-between overflow-hidden relative">
-                        <div className="flex items-center justify-between relative z-10">
-                            <span className="material-symbols-outlined text-[#06f9c8] text-sm @[300px]/widget:text-lg">cyclone</span>
-                            <span className="text-[8px] @[300px]/widget:text-[9px] uppercase font-bold text-slate-400 tracking-wider">Wind</span>
-                        </div>
-                        <div className="flex flex-col mt-2 relative z-10">
-                            <span className="text-xl font-bold text-white leading-none">{windSpeed}</span>
-                            <span className="text-[8px] @[300px]/widget:text-[9px] text-[#06f9c8]/60 font-medium">KM/H</span>
-                        </div>
-                        {/* Flowing Lines SVG */}
-                        <div className="absolute bottom-0 left-0 w-full h-8 @[300px]/widget:h-12 opacity-40 pointer-events-none hidden @[250px]/widget:block">
-                            <svg className="w-full h-full pointer-events-none" viewBox="0 0 100 20" preserveAspectRatio="none">
-                                <motion.path d="M0,10 Q25,0 50,10 T100,10" fill="none" stroke="#06f9c8" strokeWidth="0.5" animate={{ d: ["M0,10 Q25,0 50,10 T100,10", "M0,10 Q25,20 50,10 T100,10", "M0,10 Q25,0 50,10 T100,10"] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }} />
-                                <motion.path d="M0,15 Q25,5 50,15 T100,15" fill="none" stroke="#06f9c8" strokeWidth="0.5" animate={{ d: ["M0,15 Q25,5 50,15 T100,15", "M0,15 Q25,25 50,15 T100,15", "M0,15 Q25,5 50,15 T100,15"] }} transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }} />
-                            </svg>
-                        </div>
-                    </div>
-                </motion.div>
             </div>
 
-            {/* Tertiary Block: Temporal Forecast. Only visible in large heights + widths */}
-            {/* We'll use @[300px]/widget for width, but we can't easily query height with tailwind container queries smoothly without plugins. Thus, we'll hide it on very small widths, and use flex-1 on the main container to push it. */}
-            <motion.div
-                layout="position"
-                className="hidden @[300px]/widget:flex bg-white/[0.03] backdrop-blur-[24px] border border-[#06f9c8]/10 hover:bg-white/[0.06] hover:border-[#06f9c8]/30 transition-all rounded-xl p-3 flex-col gap-2 relative overflow-hidden shrink-0 mt-auto min-h-[90px]"
-            >
-                <div className="flex items-center justify-between shrink-0">
-                    <span className="material-symbols-outlined text-[#06f9c8] text-sm">timeline</span>
-                    <span className="text-[8px] uppercase font-bold text-slate-400 tracking-wider">Temporal</span>
+            {/* Main Stage: Core Telemetry Matrix */}
+            <div className="flex-1 flex flex-col z-10 px-6 py-4 relative overflow-hidden">
+                <div className="grid grid-cols-1 @[35rem]:grid-cols-2 gap-6 h-full">
+
+                    {/* Left Panel: Primary Thermal Node */}
+                    <div className="relative flex flex-col items-center justify-center p-8 rounded-[3rem] bg-gradient-to-br from-white/5 to-transparent border border-white/5 backdrop-blur-2xl shadow-inner group/thermal overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-tr from-[#06f9c8]/5 via-transparent to-transparent opacity-50" />
+
+                        {/* Thermal Core Visual */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#06f9c8] blur-[100px] opacity-10 group-hover/thermal:scale-125 transition-transform duration-1000" />
+
+                        <div className="relative flex items-center justify-center">
+                            <Thermometer className="absolute -top-12 -right-8 w-16 h-16 text-[#06f9c8] opacity-10 rotate-12" />
+                            <div className="relative flex items-start">
+                                <motion.span
+                                    key={temp}
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="text-9xl font-black text-white leading-none tracking-tighter drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
+                                >
+                                    {Math.round(temp)}
+                                </motion.span>
+                                <span className="text-5xl font-black text-[#06f9c8] mt-4 ml-1 drop-shadow-[0_0_20px_rgba(6,249,200,0.4)]">°</span>
+                            </div>
+                        </div>
+
+                        <div className="mt-4 px-4 py-2 rounded-xl bg-black/20 border border-white/5 backdrop-blur-md">
+                            <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Thermal_Equilibrium</span>
+                        </div>
+                    </div>
+
+                    {/* Right Panel: Data Mosaic */}
+                    <div className="grid grid-cols-2 gap-4 h-full">
+                        <MiniDataNode
+                            icon={<Droplets className="w-4 h-4" />}
+                            value={`${Math.round(humidity)}%`}
+                            label="Moisture"
+                            color="text-blue-400"
+                            desc="H2O Saturation"
+                        />
+                        <MiniDataNode
+                            icon={<Wind className="w-4 h-4" />}
+                            value={`${Math.round(windSpeed)}k`}
+                            label="Kinetic"
+                            color="text-sky-400"
+                            desc="Vec_Neutral"
+                        />
+                        <MiniDataNode
+                            icon={<Eye className="w-4 h-4" />}
+                            value={`${(weatherData.current?.visibility / 1000).toFixed(1)}km`}
+                            label="Visual"
+                            color="text-indigo-400"
+                            desc="Range_Index"
+                        />
+                        <MiniDataNode
+                            icon={<ArrowDownToLine className="w-4 h-4" />}
+                            value={`${Math.round(weatherData.current?.surface_pressure || 1013)}h`}
+                            label="Mass"
+                            color="text-[#06f9c8]"
+                            desc="Baro_Force"
+                        />
+                    </div>
                 </div>
 
-                <div className="flex-1 min-h-[30px] flex flex-col justify-end w-full relative pr-2">
-                    <svg className="w-full h-full overflow-visible absolute inset-0" viewBox="0 0 100 40" preserveAspectRatio="none">
-                        <defs>
-                            <linearGradient id="spark-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" stopColor="#06f9c8" stopOpacity="0.3" />
-                                <stop offset="100%" stopColor="#06f9c8" stopOpacity="0" />
-                            </linearGradient>
-                        </defs>
-                        <path d="M0,35 Q10,32 20,28 T40,20 T60,25 T80,15 T100,10" fill="none" stroke="#06f9c8" strokeWidth="2" />
-                        <path d="M0,35 Q10,32 20,28 T40,20 T60,25 T80,15 T100,10 L100,40 L0,40 Z" fill="url(#spark-grad)" />
-                        <circle cx="100" cy="10" r="2.5" fill="#06f9c8" style={{ filter: 'drop-shadow(0 0 10px rgba(6, 249, 200, 0.8))' }} />
-                    </svg>
-                </div>
-                <div className="flex justify-between text-[8px] text-slate-500 font-mono shrink-0 pt-1">
-                    <span>NOW</span><span>+2H</span><span>+4H</span>
-                </div>
-            </motion.div>
+                {/* Holistic Temporal Grid */}
+                <div className="hidden @[600px]/widget:flex flex-col gap-6 mt-2 relative z-10">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-1.5 rounded-lg bg-[#06f9c8]/10">
+                                <Zap className="w-4 h-4 text-[#06f9c8]" />
+                            </div>
+                            <span className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">Neural_Cycle_Projection</span>
+                        </div>
+                        <Link href="/atmosphere" className="text-[10px] font-black text-[#06f9c8] uppercase hover:underline">Full Audit</Link>
+                    </div>
 
-            {/* Bottom Glow */}
-            <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-3/4 h-20 bg-[#06f9c8]/20 blur-[50px] pointer-events-none z-0"></div>
+                    <div className="grid grid-cols-5 gap-4">
+                        {weatherData.daily?.time?.slice(0, 5).map((day: any, i: number) => (
+                            <motion.div
+                                key={day}
+                                whileHover={{ y: -4, scale: 1.02 }}
+                                className="flex flex-col items-center justify-center p-4 rounded-3xl bg-white/5 border border-white/5 hover:border-[#06f9c8]/20 transition-all shadow-lg"
+                            >
+                                <span className="text-[9px] font-black text-white/40 tracking-widest uppercase mb-3 text-center">{new Date(day).toLocaleDateString(undefined, { weekday: 'short' })}</span>
+                                <span className="text-2xl font-black text-white tabular-nums">{Math.round(weatherData.daily.temperature_2m_max[i])}°</span>
+                                <span className="text-[11px] font-bold text-[#06f9c8]/60 mt-1">{Math.round(weatherData.daily.temperature_2m_min[i])}°</span>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
 
-        </motion.div>
+                {/* Scanline Overlay */}
+                <motion.div
+                    animate={{ top: ['-10%', '110%'] }}
+                    transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+                    className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-[#06f9c8]/20 to-transparent z-20 pointer-events-none"
+                />
+            </div>
+        </Card>
     );
 }
+
+const MiniDataNode = ({ icon, value, label, color, desc }: any) => (
+    <div className="flex flex-col p-5 rounded-[2.5rem] bg-white/5 border border-white/5 hover:border-white/10 transition-all group/node overflow-hidden relative">
+        <div className="flex items-center gap-3 mb-2">
+            <div className={cn("p-2 rounded-xl bg-white/5 border border-white/5", color)}>
+                {icon}
+            </div>
+            <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">{label}</span>
+        </div>
+        <div className="flex flex-col">
+            <span className="text-2xl font-black text-white tabular-nums">{value}</span>
+            <span className="text-[8px] font-bold text-white/20 uppercase tracking-tighter mt-1">{desc}</span>
+        </div>
+
+        {/* Hover Accent */}
+        <div className={cn("absolute bottom-0 left-0 w-full h-0.5 opacity-0 group-hover/node:opacity-100 transition-opacity bg-gradient-to-r from-transparent via-current to-transparent", color)} />
+    </div>
+);
+
+const StripMetric = ({ icon, label, value, color }: any) => (
+    <div className="flex items-center gap-4 px-5 py-3 rounded-2xl bg-white/5 border border-white/5">
+        <div className={cn("p-2 rounded-lg bg-white/5", color)}>
+            {icon}
+        </div>
+        <div className="flex flex-col">
+            <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em]">{label}</span>
+            <span className="text-sm font-black text-white tracking-tight">{value}</span>
+        </div>
+    </div>
+);
+
+const MetricCard = ({ icon, label, value, subValue, color, bg, progress, isWind }: any) => (
+    <div className={cn("flex-1 p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group/card shadow-xl", bg)}>
+        <div className="relative z-10 flex items-center justify-between">
+            <div className={cn("p-2.5 rounded-xl border border-white/10", color)}>
+                {icon}
+            </div>
+            <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">{label}</span>
+        </div>
+
+        <div className="relative z-10 mt-4 flex items-baseline gap-3">
+            <span className="text-4xl font-black text-white">{value}</span>
+            <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/5 border border-white/5", color)}>
+                {subValue}
+            </span>
+        </div>
+
+        {progress !== undefined && (
+            <div className="relative z-10 mt-4 h-1.5 bg-black/40 rounded-full overflow-hidden">
+                <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ duration: 2, delay: 0.5 }}
+                    className={cn("h-full", isWind ? "bg-blue-400" : "bg-emerald-400")}
+                />
+            </div>
+        )}
+
+        {isWind && (
+            <div className="absolute inset-0 opacity-10 pointer-events-none">
+                <motion.div
+                    animate={{ x: [-200, 200] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-400 to-transparent skew-x-12"
+                />
+            </div>
+        )}
+    </div>
+);

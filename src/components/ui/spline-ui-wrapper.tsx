@@ -114,7 +114,7 @@ export function SplineUIWrapper({
     const removeSplineWatermarks = useCallback((container: HTMLElement | null) => {
         if (!container) return;
 
-        const killWatermarks = (root: HTMLElement | Document = document) => {
+        const killWatermarks = (root: HTMLElement | Document | ShadowRoot = document) => {
             // Spline injects an anchor with its brand logo inside and next to canvas containers
             const selectors = [
                 'a[href*="spline.design"]',
@@ -122,6 +122,8 @@ export function SplineUIWrapper({
                 'div[class*="logo"]',
                 'div[class*="watermark"]',
                 'a[target="_blank"][class*="spline"]',
+                '[part*="logo"]',
+                '#logo'
             ];
 
             selectors.forEach(sel => {
@@ -144,6 +146,28 @@ export function SplineUIWrapper({
                         el.parentNode?.removeChild(el);
                     }
                 });
+
+                // CRITICAL: Penetrate shadow DOM if Spline is using Web Components
+                const tryShadow = (el: Element) => {
+                    if (el.shadowRoot) {
+                        selectors.forEach(sel => {
+                            el.shadowRoot?.querySelectorAll(sel).forEach(watermark => {
+                                (watermark as HTMLElement).style.display = 'none';
+                                watermark.parentNode?.removeChild(watermark);
+                            });
+                        });
+                        // Remove generic anchors in shadow root
+                        el.shadowRoot?.querySelectorAll('a').forEach(watermark => {
+                            if ((watermark as HTMLAnchorElement).href?.includes('spline')) {
+                                (watermark as HTMLElement).style.display = 'none';
+                                watermark.parentNode?.removeChild(watermark);
+                            }
+                        });
+                    }
+                };
+
+                tryShadow(container);
+                container.querySelectorAll('*').forEach(tryShadow);
             }
         };
 
@@ -246,6 +270,7 @@ export function SplineUIWrapper({
                         opacity: isLoaded ? opacity : 0,
                         transition: 'opacity 0.6s ease-in-out',
                         pointerEvents: interactive ? 'auto' : 'none',
+                        transform: 'scale(1.08) translateY(2%)',
                     }}
                 />
             )}

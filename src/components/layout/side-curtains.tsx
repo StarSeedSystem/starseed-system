@@ -16,7 +16,7 @@ import {
     Plus, Library, Import,
     Sliders, Activity, Terminal,
     Bot, Layout, BookOpen, Settings2,
-    Send, Maximize2, Trash2, X, Sparkles, Users, Palette, Globe
+    Send, Maximize2, Trash2, X, Sparkles, Users, Palette, Globe, Cpu
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -100,7 +100,7 @@ export function SideCurtains() {
                         </div>
 
                         {/* Universal Creation Canvas Access */}
-                        <div className="mb-10 flex-shrink-0 px-2">
+                        <div className="mb-6 flex-shrink-0 px-2">
                             <Button
                                 className="w-full h-auto py-6 rounded-3xl flex flex-col items-center gap-3 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 border border-emerald-500/30 hover:border-emerald-400/60 hover:from-emerald-500/30 hover:to-teal-600/30 transition-all group shadow-lg"
                                 onClick={() => setActiveBoard(null)} // Or route to a dedicated canvas page
@@ -111,6 +111,26 @@ export function SideCurtains() {
                                 <div className="text-center">
                                     <span className="block text-xl font-light tracking-wider text-emerald-100 mb-1">Lienzo Universal</span>
                                     <span className="text-sm text-emerald-200/60 font-light px-4 whitespace-normal">Espacio de creación libre para cualquier contexto y disciplina.</span>
+                                </div>
+                            </Button>
+                        </div>
+
+                        {/* Widget Forge - AI Widget Generator */}
+                        <div className="mb-10 flex-shrink-0 px-2">
+                            <Button
+                                className="w-full h-auto py-5 rounded-3xl flex items-center gap-4 bg-gradient-to-r from-indigo-600/20 via-purple-600/20 to-emerald-600/20 border border-indigo-500/30 hover:border-indigo-400/50 hover:from-indigo-600/30 hover:via-purple-600/30 hover:to-emerald-600/30 transition-all group shadow-lg"
+                                onClick={() => {
+                                    setActiveEdge(null);
+                                    // Dispatch custom event to open forge from anywhere
+                                    window.dispatchEvent(new CustomEvent('starseed:open-forge'));
+                                }}
+                            >
+                                <div className="p-3 rounded-full bg-indigo-500/20 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+                                    <Cpu className="w-7 h-7 text-indigo-300" />
+                                </div>
+                                <div className="text-left">
+                                    <span className="block text-lg font-light tracking-wider text-indigo-100">Fragua de Widgets</span>
+                                    <span className="text-xs text-indigo-300/50 font-mono uppercase tracking-wider">Motor Gemini AI // Forge</span>
                                 </div>
                             </Button>
                         </div>

@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+Icon?
 
 # debug
 npm-debug.log*
@@ -43,3 +44,7 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+
+# environment
+venv/
+.venv/

@@ -34,7 +34,7 @@ export function LiquidTabs({ tabs, activeTab, onChange, className }: LiquidTabsP
         <div className={cn("relative flex items-center gap-2 p-2 rounded-full bg-white/5 backdrop-blur-md border border-white/10", className)}>
             {/* Liquid Indicator */}
             <div
-                className="absolute top-2 bottom-2 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                className="absolute top-2 bottom-2 transition-all duration-500 ease-out"
                 style={{
                     left: indicatorStyle.left,
                     width: indicatorStyle.width

@@ -1,7 +1,16 @@
-import { motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useWeatherLocation } from '@/modules/weather/context/weather-location-context';
 import { fetchWeatherData } from '@/lib/weather-mock';
+import { Card } from "@/components/ui/card";
+import {
+    Maximize2, Wind, Droplets, Sun, Moon, Cloud, CloudRain,
+    Navigation, Sparkles, Zap, Activity, Orbit, Search
+} from "lucide-react";
+import Link from 'next/link';
+import { cn } from "@/lib/utils";
 
 export function WeatherBasicAuroraWidget() {
     const { location } = useWeatherLocation();
@@ -24,167 +33,208 @@ export function WeatherBasicAuroraWidget() {
         return () => { mounted = false; };
     }, [location.lat, location.lon]);
 
-    const current = data?.current || {};
+    const cur = data?.current || {};
     const forecastHourly = data?.forecast?.hourly || {};
-    const forecastDaily = data?.forecast?.daily || {};
+    const temp = cur.temperature_2m !== undefined ? Math.round(cur.temperature_2m) : '--';
+    const windSpeed = cur.wind_speed_10m !== undefined ? Math.round(cur.wind_speed_10m) : '--';
+    const humidity = cur.relative_humidity_2m !== undefined ? Math.round(cur.relative_humidity_2m) : '--';
+    const wmo = cur.weather_code || 0;
 
-    const temp = current.temperature_2m !== undefined ? Math.round(current.temperature_2m) : '--';
-    const humidity = current.relative_humidity_2m !== undefined ? Math.round(current.relative_humidity_2m) : '--';
-    const wind = current.wind_speed_10m !== undefined ? Math.round(current.wind_speed_10m) : '--';
+    const conditionStr = wmo === 0 ? "Clear Cosmic Skies" : wmo < 40 ? "Nebular Clouds" : wmo < 70 ? "Stellar Rain" : "Magnetic Storm";
+    const statusLabel = wmo < 40 ? "Stable" : "Active";
 
-    // Determine condition string from WMO code (simplified)
-    const wmo = current.weather_code || 0;
-    const conditionStr = wmo === 0 ? "Clear Sky" : wmo < 40 ? "Partly Cloudy" : wmo < 70 ? "Rainy" : wmo < 80 ? "Snow" : "Stormy";
-    const highTemp = forecastDaily.temperature_2m_max?.[0] ? Math.round(forecastDaily.temperature_2m_max[0]) : '--';
-
-    // Parse next few hours
+    // Parse next few hours for cycle
     const nextHours = [];
     if (forecastHourly.time && forecastHourly.temperature_2m) {
-        // Find current index (approximate based on current hour)
         const currentHourStr = new Date().toISOString().slice(0, 14) + "00";
-        const idx = forecastHourly.time.findIndex((t: string) => t >= currentHourStr) || 0;
-
+        const idx = Math.max(0, forecastHourly.time.findIndex((t: string) => t >= currentHourStr));
         for (let i = 0; i < 4; i++) {
-            if (forecastHourly.time[idx + i * 2]) { // Skip every 2 hours
-                const timeStr = new Date(forecastHourly.time[idx + i * 2]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const icon = [51, 53, 55, 61, 63, 65].includes(forecastHourly.weather_code?.[idx + i * 2]) ? 'rainy' : (forecastHourly.weather_code?.[idx + i * 2] === 0 ? 'sunny' : 'cloud');
+            const hIdx = idx + i * 2;
+            if (forecastHourly.time[hIdx]) {
+                const code = forecastHourly.weather_code?.[hIdx];
                 nextHours.push({
-                    time: i === 0 ? 'Now' : timeStr,
-                    temp: Math.round(forecastHourly.temperature_2m[idx + i * 2]),
-                    icon
+                    time: i === 0 ? 'Now' : new Date(forecastHourly.time[hIdx]).toLocaleTimeString([], { hour: '2-digit' }),
+                    temp: Math.round(forecastHourly.temperature_2m[hIdx]),
+                    icon: code === 0 ? <Sun className="w-4 h-4" /> : code < 50 ? <Cloud className="w-4 h-4" /> : <CloudRain className="w-4 h-4" />
                 });
             }
         }
     }
 
     return (
-        <div className="@container relative w-full h-full min-h-[300px] @sm:min-h-[500px] flex flex-col font-display text-slate-100 rounded-[2rem] overflow-hidden border border-[#895af6]/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)]"
-            style={{ backgroundColor: '#0F0F23' }}>
+        <Card className="@container w-full h-full relative overflow-hidden bg-[#0a0a1a]/80 backdrop-blur-3xl border-violet-500/20 group rounded-[2.5rem] transition-all duration-700 hover:border-violet-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
 
-            {/* Animated Aurora Ribbons (Decorative) */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+            {/* Animated Aurora Background */}
+            <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
                 <motion.div
-                    className="absolute -top-[10%] -left-[10%] w-[80%] h-[60%] bg-[#895af6] rounded-full blur-[80px] opacity-20"
-                    animate={{ x: [0, 50, 0], scale: [1, 1.1, 1] }}
-                    transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+                    animate={{
+                        opacity: [0.1, 0.3, 0.1],
+                        scale: [1, 1.2, 1],
+                        rotate: [0, 5, 0]
+                    }}
+                    transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] bg-gradient-to-br from-violet-600/30 via-transparent to-cyan-500/20 blur-[100px]"
                 />
                 <motion.div
-                    className="absolute -bottom-[10%] -right-[10%] w-[70%] h-[50%] bg-[#22d3ee]/20 rounded-full blur-[80px]"
-                    animate={{ y: [0, -30, 0], scale: [1, 1.05, 1] }}
-                    transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+                    animate={{
+                        opacity: [0.1, 0.2, 0.1],
+                        x: [0, 50, 0],
+                        y: [0, -30, 0]
+                    }}
+                    transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                    className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(139,92,246,0.15),transparent_70%)]"
                 />
+                {/* Star Field Effect */}
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10 mix-blend-screen" />
             </div>
 
-            {/* Top Navigation Bar */}
-            <div className="relative z-10 flex items-center justify-between px-4 @sm:px-6 pt-4 @sm:pt-6 pb-2 shrink-0">
-                <div className="text-left flex flex-col items-start">
-                    <h2 className="text-[8px] @sm:text-[10px] font-medium tracking-widest uppercase text-slate-400">Cosmos Station 01</h2>
-                    <div className="flex items-center justify-start gap-1">
-                        <span className="material-symbols-outlined text-[10px] text-[#895af6]">location_on</span>
-                        <p className="text-[10px] @sm:text-xs font-bold text-slate-100 uppercase tracking-tighter">{location?.name || "Sector 7-G"}</p>
-                    </div>
-                </div>
-                {loading && <div className="w-4 h-4 rounded-full border-2 border-[#895af6]/50 border-t-[#895af6] animate-spin"></div>}
-            </div>
+            {/* Content Hub */}
+            <div className="relative z-10 w-full h-full p-6 @md:p-8 flex flex-col justify-between">
 
-            {/* Main HUD Content */}
-            <div className="relative z-10 flex flex-1 flex-col items-center justify-start px-4 @sm:px-6 pt-2 @sm:pt-4 gap-4 @sm:gap-6 pb-4">
-
-                {/* Hero Temperature Display */}
-                <div className="flex flex-col items-center shrink-0">
-                    <div className="relative">
-                        <motion.h1
-                            className="text-6xl @sm:text-[90px] font-thin leading-none tracking-tighter text-white"
-                            style={{ textShadow: '0 0 20px rgba(137, 90, 246, 0.5)' }}
-                            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                        >
-                            {temp}°C
-                        </motion.h1>
-                        <div className="absolute -right-4 top-0 @sm:top-2 bg-[#895af6]/20 backdrop-blur-md px-2 @sm:px-3 py-0.5 @sm:py-1 rounded-full border border-[#895af6]/30">
-                            <p className="text-[8px] @sm:text-[10px] font-bold text-[#895af6] uppercase">Optimal</p>
+                {/* Header HUD */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 rounded-2xl bg-violet-500/10 border border-violet-500/20 backdrop-blur-md">
+                            <Orbit className="w-5 h-5 text-violet-400 animate-spin-slow" />
                         </div>
-                    </div>
-                    <p className="mt-1 text-slate-400 text-[9px] @sm:text-xs font-light tracking-[0.2em] uppercase text-center mx-auto max-w-[80%]">
-                        {conditionStr} • Highs {highTemp}°
-                    </p>
-                </div>
-
-                {/* Dashboard Layout: Metrics & Moon */}
-                <div className="grid w-full grid-cols-1 @sm:grid-cols-2 gap-3 @sm:gap-4 shrink-0">
-
-                    {/* Left: Metrics Vertical Pane */}
-                    <div className="flex flex-row @sm:flex-col gap-3 rounded-xl bg-white/[0.03] backdrop-blur-[32px] border-t border-l border-white/20 border-white/10 p-3 @sm:p-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] min-h-[80px]">
-                        <div className="flex flex-1 items-center gap-2 @sm:gap-3">
-                            <div className="flex size-8 @sm:size-10 items-center justify-center rounded-full bg-[#895af6]/10 border border-[#895af6]/20">
-                                <span className="material-symbols-outlined text-[#895af6] text-lg @sm:text-xl">air</span>
-                            </div>
-                            <div>
-                                <p className="text-[8px] @sm:text-[10px] font-medium text-slate-400 uppercase leading-none mb-1">Wind</p>
-                                <p className="text-sm @sm:text-xl font-bold text-white leading-none">{wind}<span className="text-[10px] @sm:text-xs font-normal text-slate-400 ml-0.5">km/h</span></p>
-                            </div>
-                        </div>
-                        <div className="hidden @sm:block h-[1px] w-full bg-white/5 my-1"></div>
-                        <div className="flex flex-1 items-center gap-2 @sm:gap-3">
-                            <div className="flex size-8 @sm:size-10 items-center justify-center rounded-full bg-[#22d3ee]/10 border border-[#22d3ee]/20">
-                                <span className="material-symbols-outlined text-[#22d3ee] text-lg @sm:text-xl">humidity_low</span>
-                            </div>
-                            <div>
-                                <p className="text-[8px] @sm:text-[10px] font-medium text-slate-400 uppercase leading-none mb-1">Humidity</p>
-                                <p className="text-sm @sm:text-xl font-bold text-white leading-none">{humidity}<span className="text-[10px] @sm:text-xs font-normal text-slate-400 ml-0.5">%</span></p>
-                            </div>
+                        <div>
+                            <h3 className="text-[10px] font-black text-violet-400 uppercase tracking-[0.4em] leading-none mb-1.5">Cosmos_Station_01</h3>
+                            <p className="text-xl font-display font-medium text-white/90 tracking-tight">{location.name.split(',')[0]}</p>
                         </div>
                     </div>
 
-                    {/* Right: Circular Moon Portal */}
-                    <div className="relative hidden @sm:flex items-center justify-center rounded-xl bg-white/[0.03] backdrop-blur-[32px] border-t border-l border-white/20 border-white/10 p-4 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] overflow-hidden h-full">
-                        <div className="absolute inset-0 bg-gradient-to-tr from-[#895af6]/10 to-transparent opacity-50"></div>
-                        <div className="relative z-10 flex flex-col items-center">
-                            <div className="relative size-[72px] rounded-full overflow-hidden bg-[#1a1a1a] flex items-center justify-center" style={{ boxShadow: 'inset -15px -15px 30px rgba(0,0,0,0.8), inset 10px 10px 20px rgba(255,255,255,0.1)' }}>
-                                <motion.div
-                                    className="absolute inset-0 bg-cover bg-center mix-blend-screen opacity-80"
-                                    style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuBaP9lDKThomPhS_bxWvuddKkomrL444ywq2OilulUKsgmet61Sqp2TC935ViG9s98g91I3WqLlY9BHbRQWcJz41tV07T_UPk3WNZVjux5IL0H8CRNEZO8E6v3jzQ5zloG9Fxzd3YnUOEOvztmz72-BAVWbxNmqJHPxKzwHmUs9L9Zb4ku-nWBvPy6fmnFj55r5GBOOZ8hHvU_7UN_FFvLtSL-qIV05bcj_LewZtKqEzTNCR4iKqV8dvqBk8qkJF03_QlhONlGNtOc')" }}
-                                    animate={{ rotate: 360 }}
-                                    transition={{ duration: 100, repeat: Infinity, ease: "linear" }}
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-transparent to-transparent"></div>
-                            </div>
-                            <p className="mt-3 text-[9px] font-bold text-white uppercase tracking-widest text-center">Cosmic Body</p>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-white/5 border border-white/5 backdrop-blur-md">
+                            <div className={cn("w-2.5 h-2.5 rounded-full", statusLabel === 'Stable' ? "bg-emerald-400 shadow-[0_0_10px_#34d399]" : "bg-amber-400 shadow-[0_0_10px_#fbbf24]")} />
+                            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">{statusLabel}</span>
                         </div>
                     </div>
                 </div>
 
-                {/* Horizontal Hourly Forecast */}
-                <div className="w-full mt-auto flex-1 flex flex-col justify-end">
-                    <div className="flex items-center justify-between mb-2 @sm:mb-3 shrink-0">
-                        <h3 className="text-[8px] @sm:text-[10px] font-bold text-slate-100 uppercase tracking-widest">Atmospheric Cycle</h3>
-                        <span className="text-[8px] @sm:text-[9px] text-[#895af6] font-bold uppercase underline decoration-[#895af6]/50 underline-offset-4">Next Hours</span>
-                    </div>
+                {/* Main Content Area */}
+                <div className="flex-1 grid grid-cols-1 @md:grid-cols-2 gap-8 items-center py-6">
 
-                    <div className="flex justify-between w-full h-auto min-h-[60px] @sm:min-h-[90px] gap-2 shrink-0">
-                        {nextHours.length > 0 ? nextHours.map((hr, idx) => (
-                            <div key={idx} className={`flex flex-col items-center justify-center gap-1 @sm:gap-1.5 flex-1 rounded-xl @sm:rounded-2xl bg-white/[0.03] backdrop-blur-[32px] border-t border-l border-white/20 border-white/10 ${idx === 0 ? 'bg-[#895af6]/20 border-[#895af6]/40' : ''} py-2 @sm:py-3`}>
-                                <p className="text-[8px] @sm:text-[9px] font-medium text-slate-400 uppercase">{hr.time}</p>
-                                <span className="material-symbols-outlined text-white text-base @sm:text-xl" style={idx === 0 ? { filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.6))' } : {}}>{hr.icon}</span>
-                                <p className="text-xs @sm:text-sm font-bold text-white">{hr.temp}°</p>
-                            </div>
-                        )) : (
-                            // Placeholder if API format prevents hourly slice loading
-                            [...Array(4)].map((_, idx) => (
-                                <div key={idx} className={`flex flex-col items-center justify-center gap-1.5 flex-1 rounded-2xl bg-white/[0.03] backdrop-blur-[32px] border-t border-l border-white/20 border-white/10 ${idx === 0 ? 'bg-[#895af6]/20 border-[#895af6]/40' : ''} py-3 animate-pulse`}>
-                                    <div className="w-5 @sm:w-6 h-1.5 @sm:h-2 bg-white/20 rounded"></div>
-                                    <div className="size-4 @sm:size-6 bg-white/20 rounded-full my-0.5"></div>
-                                    <div className="w-3 @sm:w-4 h-2 @sm:h-3 bg-white/20 rounded"></div>
+                    {/* Temperature Focal Point */}
+                    <div className="flex flex-col items-center @md:items-start justify-center">
+                        <div className="relative group/temp">
+                            <motion.div
+                                animate={{ opacity: [0, 0.5, 0] }}
+                                transition={{ duration: 5, repeat: Infinity }}
+                                className="absolute -inset-12 bg-violet-600/20 blur-[60px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            />
+                            <div className="relative flex flex-col items-center @md:items-start">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-8xl @md:text-9xl font-black font-display text-white tracking-tighter drop-shadow-[0_0_40px_rgba(139,92,246,0.4)]">
+                                        {temp}
+                                    </span>
+                                    <span className="text-3xl font-light text-violet-400/50">°</span>
                                 </div>
-                            ))
-                        )}
+                                <div className="flex items-center gap-3 mt-1 px-4 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 backdrop-blur-md">
+                                    <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+                                    <span className="text-[11px] font-black text-violet-300 uppercase tracking-[0.3em]">
+                                        {conditionStr}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Secondary Metrics & Moon Phase */}
+                    <div className="flex flex-col gap-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <MetricBox icon={<Wind className="w-4 h-4" />} label="WIND" value={`${windSpeed}k/h`} color="text-emerald-400" />
+                            <MetricBox icon={<Droplets className="w-4 h-4" />} label="HUMIDITY" value={`${humidity}%`} color="text-blue-400" />
+                        </div>
+
+                        {/* Interactive Moon Phase Visual */}
+                        <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-violet-600/10 to-indigo-600/10 border border-white/5 p-5 group/moon">
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-black text-violet-400/60 uppercase tracking-widest mb-1">Celestial_Body</span>
+                                    <span className="text-sm font-bold text-white tracking-tight">Waxing Crescent</span>
+                                </div>
+                                <div className="relative size-14 @md:size-16 rounded-full bg-[#111] overflow-hidden shadow-inner preserve-3d group-hover/moon:scale-110 transition-transform duration-500">
+                                    <motion.div
+                                        animate={{ rotate: 360 }}
+                                        transition={{ duration: 120, repeat: Infinity, ease: "linear" }}
+                                        className="absolute inset-0 bg-[url('https://lh3.googleusercontent.com/aida-public/AB6AXuBaP9lDKThomPhS_bxWvuddKkomrL444ywq2OilulUKsgmet61Sqp2TC935ViG9s98g91I3WqLlY9BHbRQWcJz41tV07T_UPk3WNZVjux5IL0H8CRNEZO8E6v3jzQ5zloG9Fxzd3YnUOEOvztmz72-BAVWbxNmqJHPxKzwHmUs9L9Zb4ku-nWBvPy6fmnFj55r5GBOOZ8hHvU_7UN_FFvLtSL-qIV05bcj_LewZtKqEzTNCR4iKqV8dvqBk8qkJF03_QlhONlGNtOc')] bg-cover opacity-60 mix-blend-screen"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-transparent to-transparent opacity-80" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Hourly Cycle List */}
+                <div className="mt-4">
+                    <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-[10px] font-black text-white/30 uppercase tracking-[0.4em]">Atmospheric_Cycle</h4>
+                        <div className="flex gap-1">
+                            {[1, 2, 3].map(i => <div key={i} className="w-1 h-1 rounded-full bg-violet-600/40" />)}
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3">
+                        {nextHours.map((hr, i) => (
+                            <motion.div
+                                key={i}
+                                whileHover={{ y: -5, scale: 1.05 }}
+                                className={cn(
+                                    "flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-300",
+                                    i === 0 ? "bg-violet-600/20 border-violet-500/40 shadow-lg shadow-violet-600/20" : "bg-white/5 border-white/5 hover:bg-white/10"
+                                )}
+                            >
+                                <span className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-2">{hr.time}</span>
+                                <div className={cn("mb-2", i === 0 ? "text-violet-400" : "text-white/60")}>
+                                    {hr.icon}
+                                </div>
+                                <span className="text-sm font-bold text-white">{hr.temp}°</span>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Footer UI */}
+                <div className="flex items-center justify-between pt-6 border-t border-white/5">
+                    <div className="flex items-center gap-3">
+                        <div className="px-3 py-1 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                            <Activity className="w-3.5 h-3.5 text-violet-400 animate-pulse" />
+                        </div>
+                        <span className="text-[9px] font-mono text-white/20 tracking-[0.3em] uppercase">LINK_ESTABLISHED</span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <Link href="/atmosphere" className="flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-violet-600/20 border border-violet-600/30 text-white hover:bg-violet-600/40 transition-all group/btn active:scale-95 shadow-xl">
+                            <span className="text-[10px] font-black uppercase tracking-widest">Deep Scan</span>
+                            <Search className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
+                        </Link>
                     </div>
                 </div>
             </div>
-            {/* View Toggle Button */}
-            <div className="mt-auto mb-4 mx-4 @sm:mx-6 flex w-auto p-1 rounded-full bg-white/[0.03] backdrop-blur-[32px] border-t border-l border-white/20 border-white/10 shrink-0">
-                <button className="flex-1 rounded-full bg-[#895af6] py-1.5 @sm:py-2 text-[8px] @sm:text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-[#895af6]/40">Atmospheric</button>
-                <button className="flex-1 rounded-full py-1.5 @sm:py-2 text-[8px] @sm:text-[10px] font-black uppercase tracking-widest text-slate-500">Orbital View</button>
-            </div>
-        </div>
+
+            {/* Liquid Shine Overlay */}
+            <motion.div
+                animate={{ x: ['-100%', '200%'] }}
+                transition={{ duration: 5, repeat: Infinity, ease: "linear", repeatDelay: 4 }}
+                className="absolute top-0 bottom-0 w-40 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 z-20 pointer-events-none"
+            />
+        </Card>
     );
 }
+
+const MetricBox = ({ icon, label, value, color }: { icon: React.ReactNode, label: string, value: string, color: string }) => (
+    <div className="flex items-center justify-between p-4 rounded-[1.5rem] bg-[#111]/40 border border-white/5 backdrop-blur-sm group/pill relative overflow-hidden">
+        <div className="relative z-10 flex flex-col">
+            <span className="text-[8px] font-black text-white/20 uppercase tracking-widest mb-1.5">{label}</span>
+            <div className="flex items-center gap-2.5">
+                <div className={cn("p-1.5 rounded-lg bg-white/5", color)}>
+                    {icon}
+                </div>
+                <span className="text-base font-bold text-white tracking-tight">{value}</span>
+            </div>
+        </div>
+        <div className="absolute -right-4 -bottom-4 opacity-5 scale-150 rotate-12">
+            {icon}
+        </div>
+    </div>
+);

@@ -3,6 +3,7 @@ import path from 'path';
 
 const nextConfig: NextConfig = {
   /* config options here */
+  outputFileTracingRoot: path.join(__dirname),
   transpilePackages: ['@splinetool/react-spline'],
   typescript: {
     ignoreBuildErrors: true,

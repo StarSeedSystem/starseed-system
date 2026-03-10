@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback } from "react";
-import { Palette, GripVertical, Trash2, Check, Plus, ExternalLink } from "lucide-react";
+import { Palette, GripVertical, Trash2, Check, Plus, ExternalLink, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
 import Link from "next/link";
@@ -72,35 +72,38 @@ export function ThemeManagerWidget() {
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="@container w-full h-full bg-card/10 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-4 @sm:p-6 border border-border/40 shadow-2xl text-foreground font-display group">
+            {/* Background Effects */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] bg-[conic-gradient(at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-accent/10 opacity-30 pointer-events-none group-hover:rotate-12 transition-transform duration-1000"></div>
+
             {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center border border-violet-500/20">
-                        <Palette className="w-4 h-4 text-violet-400" />
+            <header className="flex items-center justify-between pb-6 border-b border-border/10 shrink-0 z-10 relative">
+                <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-background/40 border border-border/10 flex items-center justify-center shadow-sm">
+                        <Palette className="w-5 h-5 text-primary" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-semibold text-white">Temas Guardados</h3>
-                        <p className="text-[10px] text-white/30">{savedThemes.length} tema{savedThemes.length !== 1 ? "s" : ""}</p>
+                        <h2 className="text-[10px] @sm:text-xs font-black text-foreground tracking-[0.3em] uppercase">Archive</h2>
+                        <p className="text-muted-foreground text-[8px] font-bold uppercase tracking-widest mt-0.5">{savedThemes.length} Theme{savedThemes.length !== 1 ? "s" : ""} Saved</p>
                     </div>
                 </div>
                 <Link href="/design-canvas"
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-500/10 border border-violet-500/20 text-[11px] text-violet-300 hover:bg-violet-500/20 transition-all">
-                    <Plus className="w-3 h-3" /> Crear
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/20 transition-all">
+                    <Plus className="w-3.5 h-3.5" /> Genesis
                 </Link>
-            </div>
+            </header>
 
             {/* Theme List */}
-            <div className="flex-1 space-y-1.5 min-h-0 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
+            <main className="flex-1 space-y-2 mt-6 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent z-10 relative">
                 {savedThemes.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center py-6">
-                        <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-3">
-                            <Palette className="w-6 h-6 text-white/20" />
+                    <div className="flex flex-col items-center justify-center h-full text-center py-6 opacity-60">
+                        <div className="w-16 h-16 rounded-2xl bg-background/40 border border-border/10 flex items-center justify-center mb-4">
+                            <Palette className="w-8 h-8 text-muted-foreground/40" />
                         </div>
-                        <p className="text-xs text-white/30 mb-2">No hay temas guardados</p>
+                        <p className="text-xs font-bold text-foreground/40 uppercase tracking-widest mb-3">No Stored Blueprints</p>
                         <Link href="/design-canvas"
-                            className="text-[11px] text-violet-400 hover:text-violet-300 flex items-center gap-1">
-                            <ExternalLink className="w-3 h-3" /> Abrir Design Canvas
+                            className="text-[10px] font-black text-primary hover:text-primary/80 uppercase tracking-widest flex items-center gap-2">
+                            <ExternalLink className="w-4 h-4" /> Initialize Design Canvas
                         </Link>
                     </div>
                 ) : (
@@ -119,63 +122,66 @@ export function ThemeManagerWidget() {
                                 onDrop={() => handleDrop(idx)}
                                 onClick={() => handleApply(theme)}
                                 className={cn(
-                                    "group flex items-center gap-2.5 p-2.5 rounded-xl cursor-pointer transition-all border",
-                                    "hover:bg-white/5",
+                                    "group/item flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-all border relative overflow-hidden",
+                                    "hover:bg-background/40 hover:shadow-lg",
                                     isDragging && "opacity-40 scale-95",
-                                    isOver && "border-violet-500/40 bg-violet-500/5",
-                                    isActive ? "bg-emerald-500/10 border-emerald-500/30" : "bg-white/[0.02] border-white/5",
+                                    isOver && "border-primary/40 bg-primary/5",
+                                    isActive ? "bg-primary/10 border-primary/30" : "bg-background/20 border-border/10",
                                 )}
                             >
                                 {/* Drag Handle */}
-                                <div className="opacity-0 group-hover:opacity-40 transition-opacity cursor-grab active:cursor-grabbing shrink-0">
-                                    <GripVertical className="w-3.5 h-3.5 text-white/40" />
+                                <div className="hidden @sm:flex opacity-0 group-hover/item:opacity-40 transition-opacity cursor-grab active:cursor-grabbing shrink-0">
+                                    <GripVertical className="w-4 h-4 text-muted-foreground" />
                                 </div>
 
                                 {/* Color Preview */}
-                                <div className="flex -space-x-1 shrink-0">
+                                <div className="flex -space-x-2 shrink-0">
                                     {colors.map((c, i) => (
-                                        <div key={i} className="w-4 h-4 rounded-full border border-black/30"
+                                        <div key={i} className="w-6 h-6 rounded-full border border-black/20 shadow-sm"
                                             style={{ backgroundColor: c, zIndex: 3 - i }} />
                                     ))}
                                 </div>
 
                                 {/* Name & Date */}
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-xs text-white/80 font-medium truncate">{theme.name}</p>
-                                    <p className="text-[10px] text-white/25 truncate">
-                                        {theme.date ? new Date(theme.date).toLocaleDateString("es-MX", {
+                                    <p className="text-sm font-black text-foreground/90 tracking-tight truncate">{theme.name}</p>
+                                    <p className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-widest mt-1">
+                                        {theme.date ? new Date(theme.date).toLocaleDateString("en-US", {
                                             day: "numeric", month: "short",
-                                        }) : "—"}
+                                        }) : "STABLE"}
                                     </p>
                                 </div>
 
                                 {/* Actions */}
-                                <div className="flex items-center gap-1 shrink-0">
+                                <div className="flex items-center gap-2 shrink-0">
                                     {isActive && (
-                                        <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                                            <Check className="w-3 h-3 text-emerald-400" />
+                                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                                            <Check className="w-4 h-4 text-primary" />
                                         </div>
                                     )}
                                     <button
                                         onClick={(e) => handleDelete(e, theme.name)}
-                                        className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full hover:bg-red-500/20 flex items-center justify-center transition-all"
+                                        className="opacity-0 group-hover/item:opacity-100 w-8 h-8 rounded-xl bg-destructive/10 hover:bg-destructive/20 flex items-center justify-center transition-all"
                                     >
-                                        <Trash2 className="w-3 h-3 text-white/30 hover:text-red-400" />
+                                        <Trash2 className="w-4 h-4 text-destructive" />
                                     </button>
                                 </div>
                             </div>
                         );
                     })
                 )}
-            </div>
+            </main>
 
             {/* Quick Actions Footer */}
-            <div className="flex gap-2 mt-3 pt-3 border-t border-white/5">
+            <footer className="mt-6 pt-6 border-t border-border/10 flex gap-3 z-10 relative">
                 <Link href="/design-canvas"
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/15 text-xs text-violet-300 hover:from-violet-500/20 hover:to-fuchsia-500/20 transition-all">
-                    <Palette className="w-3.5 h-3.5" /> Design Canvas
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-primary/10 border border-primary/20 text-[10px] font-black uppercase tracking-[0.2em] text-primary hover:bg-primary/20 transition-all">
+                    <Palette className="w-4 h-4" /> Architect Canvas
                 </Link>
-            </div>
+            </footer>
+
+            {/* Decorative Liquid Accents */}
+            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent/20 rounded-full blur-[80px] pointer-events-none"></div>
         </div>
     );
 }

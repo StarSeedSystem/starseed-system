@@ -1,6 +1,7 @@
 'use client';
 
 import { History, FileEdit, Users, Zap, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function RecentActivityWidget() {
     const activities = [
@@ -11,45 +12,51 @@ export function RecentActivityWidget() {
     ];
 
     return (
-        <div className="w-full h-full bg-slate-900/60 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-5 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] text-white font-display">
-            {/* Ambient Background Effects */}
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-[50px] pointer-events-none"></div>
+        <div className="@container w-full h-full bg-card/10 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-4 @sm:p-6 border border-border/40 shadow-2xl text-foreground font-display group">
+            {/* Background Effects */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] bg-[conic-gradient(at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-accent/10 opacity-30 pointer-events-none group-hover:rotate-12 transition-transform duration-1000"></div>
 
-            <header className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0 z-10 relative">
+            <header className="flex items-center justify-between pb-6 border-b border-border/10 shrink-0 z-10 relative">
                 <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
-                        <History size={16} className="text-white/80" />
+                    <div className="h-10 w-10 rounded-xl bg-background/40 border border-border/10 flex items-center justify-center shadow-sm">
+                        <History size={18} className="text-primary animate-pulse" />
                     </div>
                     <div>
-                        <h1 className="text-[10px] uppercase tracking-[0.3em] text-white/50 mt-1">Bitácora</h1>
-                        <h2 className="text-sm font-semibold text-white tracking-wide">ACTIVIDAD RECIENTE</h2>
+                        <h2 className="text-[10px] @sm:text-xs font-black text-foreground tracking-[0.3em] uppercase">Chronicle</h2>
+                        <p className="text-muted-foreground text-[8px] font-bold uppercase tracking-widest mt-0.5">Recent Cycle Log</p>
                     </div>
                 </div>
             </header>
 
-            <main className="flex-1 space-y-4 overflow-y-auto mt-4 pr-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent z-10 relative">
+            <main className="flex-1 space-y-6 overflow-y-auto mt-6 pr-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent z-10 relative">
                 {activities.map((activity, index) => (
-                    <div key={activity.id} className="relative pl-8 pb-2 last:pb-0 group">
+                    <div key={activity.id} className="relative pl-10 pb-2 last:pb-0 group/item">
                         {/* Timeline line */}
                         {index !== activities.length - 1 && (
-                            <div className="absolute left-[11px] top-7 bottom-[-10px] w-px bg-white/10 group-hover:bg-white/20 transition-colors" />
+                            <div className="absolute left-[15px] top-8 bottom-[-10px] w-0.5 bg-border/20 group-hover/item:bg-primary/30 transition-colors" />
                         )}
 
                         {/* Timeline dot */}
-                        <div className={`absolute left-0 top-1 h-6 w-6 rounded-full border flex items-center justify-center z-10 ${activity.color} shadow-sm group-hover:scale-110 transition-transform`}>
-                            <activity.icon className="h-3 w-3" />
+                        <div className={cn(
+                            "absolute left-0 top-1 h-8 w-8 rounded-xl border flex items-center justify-center z-10 shadow-sm transition-all duration-300 group-hover/item:scale-110 group-hover/item:shadow-[0_0_15px_rgba(var(--primary-hsl),0.3)]",
+                            activity.id === 1 ? "bg-blue-500/10 border-blue-500/30 text-blue-500" :
+                                activity.id === 2 ? "bg-amber-500/10 border-amber-500/30 text-amber-500" :
+                                    activity.id === 3 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500" :
+                                        "bg-purple-500/10 border-purple-500/30 text-purple-500"
+                        )}>
+                            <activity.icon className="h-4 w-4" />
                         </div>
 
-                        <div className="flex flex-col pt-1.5 hover:translate-x-1 transition-transform">
-                            <span className="text-xs font-medium text-white/90">{activity.text}</span>
-                            <span className="text-[10px] text-white/40 font-mono mt-0.5">{activity.time}</span>
+                        <div className="flex flex-col pt-1 group-hover/item:translate-x-1 transition-transform">
+                            <span className="text-sm font-black text-foreground/90 tracking-tight">{activity.text}</span>
+                            <span className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-widest mt-1">{activity.time}</span>
                         </div>
                     </div>
                 ))}
             </main>
 
-            {/* Glass Overlay Effects */}
-            <div className="absolute inset-0 border border-white/5 rounded-xl pointer-events-none mix-blend-overlay"></div>
+            {/* Decorative Liquid Accents */}
+            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[80px] pointer-events-none"></div>
         </div>
     );
 }

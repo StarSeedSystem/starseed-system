@@ -12,8 +12,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <div className="flex flex-col min-w-0 transition-all duration-300 flex-1">
         <AppHeader />
         <main className="flex-1 flex flex-col bg-muted/40 transition-all duration-300 overflow-y-auto">
-          {/* Centered, fluid content container with organic spacing */}
-          <div className="w-full max-w-[1400px] mx-auto px-[clamp(0.75rem,2vw,2rem)] py-[clamp(0.75rem,1.5vw,1.5rem)] flex flex-col gap-[clamp(0.75rem,1.5vw,1.5rem)] flex-1">
+          {/* Fluid content container utilizing full space */}
+          <div className="w-full px-[clamp(0.75rem,2vw,2rem)] py-[clamp(0.75rem,1.5vw,1.5rem)] flex flex-col gap-[clamp(0.75rem,1.5vw,1.5rem)] flex-1">
             {children}
           </div>
         </main>

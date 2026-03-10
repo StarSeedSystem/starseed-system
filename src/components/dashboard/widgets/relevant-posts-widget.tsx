@@ -1,84 +1,132 @@
+'use client';
+
 import React, { useState } from 'react';
-import { Layers, Zap, Hexagon, Feather, ChevronRight } from 'lucide-react';
+import { Layers, Zap, Hexagon, Feather, ChevronRight, Heart, MessageSquare, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+
+interface Post {
+    id: string;
+    type: 'nexus' | 'ontocracy' | 'culture';
+    tag: string;
+    title: string;
+    author: string;
+    time: string;
+    likes: number;
+    comments: number;
+}
+
+const posts: Post[] = [
+    { id: '1', type: 'nexus', tag: 'Update', title: 'Nueva versión del motor cuántico v4.2', author: 'Nexus Core', time: '2h', likes: 124, comments: 12 },
+    { id: '2', type: 'ontocracy', tag: 'Proposal', title: 'Ajuste de parámetros éticos en la red', author: 'Consejo Alpha', time: '5h', likes: 89, comments: 45 },
+    { id: '3', type: 'culture', tag: 'Art', title: 'Exhibición: Sueños del Silicio Transparente', author: 'Lyra', time: '12h', likes: 256, comments: 34 },
+];
 
 export function RelevantPostsWidget() {
     const [activeTab, setActiveTab] = useState<'all' | 'ontocracy' | 'nexus'>('all');
 
     const tabs = [
         { id: 'all', label: 'Global', icon: Layers },
-        { id: 'ontocracy', label: 'Ontocracia', icon: Hexagon },
+        { id: 'ontocracy', label: 'Ontocracy', icon: Hexagon },
         { id: 'nexus', label: 'Nexus', icon: Zap },
     ] as const;
 
-    const posts = [
-        { id: 1, type: 'nexus', tag: 'Actualización', title: 'Nueva versión del motor cuántico v4.2', author: 'Nexus Core', time: '2h' },
-        { id: 2, type: 'ontocracy', tag: 'Propuesta', title: 'Ajuste de parámetros éticos en la red', author: 'Consejo Alpha', time: '5h' },
-        { id: 3, type: 'culture', tag: 'Arte', title: 'Exhibición: Sueños del Silicio Transparente', author: 'Lyra', time: '12h' },
-    ];
-
     return (
-        <div className="w-full h-full bg-slate-900/60 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-5 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] text-white font-display">
-
+        <div className="@container w-full h-full bg-card/10 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-3 border border-border/40 shadow-2xl text-foreground font-display group/widget">
             {/* Header */}
-            <header className="flex items-center justify-between pb-3 shrink-0 z-10 relative">
+            <header className="flex items-center justify-between pb-2 mb-2 border-b border-white/5 shrink-0 z-10 relative">
                 <div className="flex items-center gap-2">
-                    <Feather size={14} className="text-purple-400" />
-                    <h2 className="text-[10px] font-semibold text-white tracking-widest uppercase">Destacados</h2>
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg border border-white/10">
+                        <Feather size={14} className="text-primary-foreground" />
+                    </div>
+                    <div className="space-y-0 text-left">
+                        <h2 className="text-[8px] uppercase tracking-[0.25em] text-primary/70 font-black leading-tight">Insight Stream</h2>
+                        <h1 className="text-xs font-black text-foreground tracking-widest uppercase leading-none">Relevant Posts</h1>
+                    </div>
                 </div>
-                <button className="text-[9px] uppercase tracking-wider text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1 font-semibold">
-                    Ver Red <ChevronRight size={10} />
+                <button className="text-[8px] font-black text-primary uppercase tracking-[0.2em] flex items-center gap-1 hover:gap-2 transition-all">
+                    View Network <ChevronRight size={10} />
                 </button>
             </header>
 
-            {/* Elegant Tabs */}
-            <div className="flex gap-1 p-1 bg-black/40 rounded-lg border border-white/5 mb-4 relative z-10">
+            {/* Tabs */}
+            <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/5 mb-3 relative z-10">
                 {tabs.map(tab => {
                     const isActive = activeTab === tab.id;
                     const Icon = tab.icon;
                     return (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as 'all' | 'ontocracy' | 'nexus')}
+                            onClick={() => setActiveTab(tab.id as any)}
                             className={cn(
-                                "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-wider font-semibold rounded-md transition-all",
-                                isActive
-                                    ? "bg-purple-500/20 text-purple-200 shadow-[0_0_10px_rgba(168,85,247,0.2)] border border-purple-500/30"
-                                    : "text-white/40 hover:text-white/70 hover:bg-white/5"
+                                "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[9px] uppercase tracking-widest font-black rounded-lg transition-all relative",
+                                isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                             )}
                         >
-                            <Icon size={10} />
-                            {tab.label}
+                            {isActive && (
+                                <motion.div
+                                    layoutId="activeTabPost"
+                                    className="absolute inset-0 bg-primary rounded-lg shadow-lg shadow-primary/20"
+                                />
+                            )}
+                            <Icon size={10} className="relative z-10" />
+                            <span className="relative z-10">{tab.label}</span>
                         </button>
                     )
                 })}
             </div>
 
             {/* Posts List */}
-            <main className="flex-1 space-y-2 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10 z-10 relative">
-                {posts.map(post => (
-                    <div key={post.id} className="p-3 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-purple-500/30 rounded-lg transition-all cursor-pointer group">
-                        <div className="flex justify-between items-start mb-1">
-                            <span className={cn(
-                                "text-[8px] uppercase tracking-widest px-1.5 py-0.5 rounded border font-semibold",
-                                post.type === 'nexus' ? "text-cyan-300 border-cyan-500/30 bg-cyan-500/10" :
-                                    post.type === 'ontocracy' ? "text-amber-300 border-amber-500/30 bg-amber-500/10" :
-                                        "text-pink-300 border-pink-500/30 bg-pink-500/10"
-                            )}>
-                                {post.tag}
-                            </span>
-                            <span className="text-[9px] text-white/40 font-mono">{post.time}</span>
-                        </div>
-                        <h3 className="text-xs font-medium text-white/90 group-hover:text-purple-300 transition-colors leading-snug mb-1">
-                            {post.title}
-                        </h3>
-                        <p className="text-[10px] text-white/50">Por <span className="text-white/70">{post.author}</span></p>
-                    </div>
-                ))}
-            </main>
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                <AnimatePresence mode="popLayout">
+                    {posts.filter(p => activeTab === 'all' || p.type === activeTab).map((post, idx) => (
+                        <motion.div
+                            key={post.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ delay: idx * 0.1 }}
+                            whileHover={{ y: -2 }}
+                            className="group/card bg-white/5 hover:bg-white/10 border border-white/5 hover:border-primary/30 rounded-xl p-3 transition-all cursor-pointer relative overflow-hidden"
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <span className={cn(
+                                    "text-[7px] uppercase tracking-[0.2em] px-2 py-0.5 rounded-full border font-black",
+                                    post.type === 'nexus' ? "text-primary border-primary/20 bg-primary/10" :
+                                        post.type === 'ontocracy' ? "text-amber-500 border-amber-500/20 bg-amber-500/10" :
+                                            "text-accent border-accent/20 bg-accent/10"
+                                )}>
+                                    {post.tag}
+                                </span>
+                                <div className="flex items-center gap-1 text-[7px] text-muted-foreground/40 font-black uppercase">
+                                    <Clock size={8} />
+                                    {post.time}
+                                </div>
+                            </div>
 
-            {/* Overlays */}
-            <div className="absolute inset-0 border border-white/5 rounded-xl pointer-events-none mix-blend-overlay z-20"></div>
+                            <h3 className="text-[11px] font-black text-foreground group-hover/card:text-primary transition-colors leading-snug mb-2 uppercase tracking-tight line-clamp-2 italic">
+                                "{post.title}"
+                            </h3>
+
+                            <div className="flex items-center justify-between">
+                                <span className="text-[8px] font-bold text-muted-foreground/60 uppercase tracking-widest">
+                                    @{post.author.replace(' ', '_')}
+                                </span>
+                                <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-1 text-[8px] font-black text-muted-foreground/40">
+                                        <Heart size={8} className="group-hover/card:text-red-500 transition-colors" />
+                                        {post.likes}
+                                    </div>
+                                    <div className="flex items-center gap-1 text-[8px] font-black text-muted-foreground/40">
+                                        <MessageSquare size={8} className="group-hover/card:text-primary transition-colors" />
+                                        {post.comments}
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+            </div>
         </div>
     );
 }

@@ -66,13 +66,13 @@ export default function HubPage() {
     );
 
     return (
-        <div className="flex flex-col gap-[clamp(1rem,2vw,1.5rem)] pb-24">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-[clamp(0.5rem,1vw,1rem)]">
-                <div>
-                    <h1 className="page-title font-headline text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400 drop-shadow-[0_0_15px_rgba(168,85,247,0.3)]">
+        <div className="flex flex-col w-full gap-[clamp(1.5rem,2.5vw,2.5rem)] pb-24 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] mx-auto">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-[clamp(1rem,2vw,2rem)] w-full text-center md:text-left">
+                <div className="flex-1 flex flex-col md:items-start items-center">
+                    <h1 className="page-title font-headline text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400 drop-shadow-[0_0_15px_rgba(168,85,247,0.3)] w-full">
                         Hub de Conexiones
                     </h1>
-                    <p className="page-subtitle text-muted-foreground mt-2">
+                    <p className="text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground mt-2 max-w-2xl text-balance">
                         Centro de mando para toda tu actividad social, política y colaborativa en la red.
                     </p>
                 </div>
@@ -87,7 +87,7 @@ export default function HubPage() {
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-[clamp(0.5rem,1vw,1rem)]">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-[clamp(1rem,2vw,2rem)] w-full">
                 {[
                     { label: "Reputación", value: "1,842", icon: <Star className="w-5 h-5 text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]" />, trend: "+24 esta semana", bg: "bg-amber-500/10" },
                     { label: "Contribuciones", value: "347", icon: <Activity className="w-5 h-5 text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]" />, trend: "+12 este mes", bg: "bg-emerald-500/10" },
@@ -108,33 +108,33 @@ export default function HubPage() {
             </div>
 
             {/* Badges Row */}
-            < div className="flex flex-wrap gap-2 items-center" >
-                <span className="text-xs text-muted-foreground mr-1">Tus insignias:</span>
+            < div className="flex flex-wrap gap-3 items-center justify-center md:justify-start w-full bg-white/5 p-4 rounded-2xl border border-white/10 shadow-inner" >
+                <span className="text-sm font-semibold text-muted-foreground mr-2 tracking-wider uppercase">Tus insignias:</span>
                 {
-                    userBadges.slice(0, 4).map((badge) => (
-                        <badge key={badge.id} className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border backdrop-blur-sm cursor-default", {
+                    userBadges.slice(0, 5).map((badge) => (
+                        <Badge key={badge.id} className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-sm cursor-default transition-transform hover:scale-105", {
                             "bg-blue-500/10 border-blue-500/30 text-blue-300": badge.color === 'blue',
                             "bg-purple-500/10 border-purple-500/30 text-purple-300": badge.color === 'purple',
                             "bg-amber-500/10 border-amber-500/30 text-amber-300": badge.color === 'gold',
                             "bg-emerald-500/10 border-emerald-500/30 text-emerald-300": badge.color === 'green',
                         })} title={badge.description}>
                             <span>{badge.icon}</span> {badge.name}
-                        </badge>
+                        </Badge>
                     ))
                 }
-                <Button variant="ghost" size="sm" className="text-xs h-7 rounded-full">
-                    <Award className="w-3 h-3 mr-1" /> Ver todas
+                <Button variant="ghost" size="sm" className="text-xs h-8 rounded-full ml-auto uppercase tracking-wider font-bold">
+                    <Award className="w-4 h-4 mr-1.5" /> Ver todas
                 </Button>
             </div >
 
-            <Tabs defaultValue="participations">
-                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 max-w-[clamp(20rem,80vw,56rem)] mx-auto">
-                    <TabsTrigger value="participations"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />Participaciones</TabsTrigger>
-                    <TabsTrigger value="my-pages"><Globe className="w-3.5 h-3.5 mr-1.5" />Mis Páginas</TabsTrigger>
-                    <TabsTrigger value="groups"><Users className="w-3.5 h-3.5 mr-1.5" />Grupos</TabsTrigger>
-                    <TabsTrigger value="events"><Calendar className="w-3.5 h-3.5 mr-1.5" />Eventos</TabsTrigger>
-                    <TabsTrigger value="parties"><Flame className="w-3.5 h-3.5 mr-1.5" />Partidos</TabsTrigger>
-                    <TabsTrigger value="vote-management"><Vote className="w-3.5 h-3.5 mr-1.5" />Votos</TabsTrigger>
+            <Tabs defaultValue="participations" className="w-full flex-1 flex flex-col mt-4">
+                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 max-w-full lg:max-w-5xl mx-auto h-auto min-h-[50px] gap-2 bg-black/20 p-2 rounded-2xl border border-white/5">
+                    <TabsTrigger value="participations" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm"><CheckCircle2 className="w-4 h-4 mr-2" />Participaciones</TabsTrigger>
+                    <TabsTrigger value="my-pages" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm"><Globe className="w-4 h-4 mr-2" />Mis Páginas</TabsTrigger>
+                    <TabsTrigger value="groups" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm"><Users className="w-4 h-4 mr-2" />Grupos</TabsTrigger>
+                    <TabsTrigger value="events" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm"><Calendar className="w-4 h-4 mr-2" />Eventos</TabsTrigger>
+                    <TabsTrigger value="parties" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm"><Flame className="w-4 h-4 mr-2" />Partidos</TabsTrigger>
+                    <TabsTrigger value="vote-management" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm"><Vote className="w-4 h-4 mr-2" />Votos</TabsTrigger>
                 </TabsList>
 
                 {/* ── PARTICIPACIONES ── */}

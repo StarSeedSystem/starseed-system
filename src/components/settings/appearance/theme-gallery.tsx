@@ -209,8 +209,8 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                 SECTION 1 — Base Theme Presets
                ═══════════════════════════════════════════════ */}
             <div>
-                <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <Star className="w-3.5 h-3.5 text-amber-400" /> Temas Base
+                <h3 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Star className="w-3.5 h-3.5 text-amber-500" /> Temas Base
                 </h3>
                 <div className={cn(
                     "grid gap-2.5",
@@ -227,7 +227,7 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                                     "hover:scale-[1.04] hover:shadow-lg",
                                     isActive
                                         ? "border-primary/50 bg-primary/10 shadow-primary/20 shadow-md ring-1 ring-primary/30"
-                                        : "border-white/[0.06] bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]"
+                                        : "border-border/50 bg-foreground/[0.02] hover:border-border hover:bg-foreground/[0.04]"
                                 )}
                             >
                                 {/* Color Preview Dots */}
@@ -246,7 +246,7 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                                     "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
                                     isActive
                                         ? "bg-primary/20 text-primary"
-                                        : "bg-white/[0.04] text-white/40 group-hover:text-white/70"
+                                        : "bg-foreground/[0.04] text-muted-foreground group-hover:text-foreground/70"
                                 )} style={isActive ? { color: p.accent } : undefined}>
                                     {p.icon}
                                 </div>
@@ -254,7 +254,7 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                                 {/* Label */}
                                 <span className={cn(
                                     "text-[11px] font-medium transition-colors",
-                                    isActive ? "text-primary" : "text-white/40 group-hover:text-white/70"
+                                    isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground/70"
                                 )}>
                                     {p.label}
                                 </span>
@@ -276,9 +276,9 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                ═══════════════════════════════════════════════ */}
             <div>
                 <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wider flex items-center gap-2">
-                        <Palette className="w-3.5 h-3.5 text-violet-400" /> Temas Guardados
-                        <span className="text-[10px] text-white/25 font-normal normal-case ml-1">
+                    <h3 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-2">
+                        <Palette className="w-3.5 h-3.5 text-violet-500" /> Temas Guardados
+                        <span className="text-[10px] text-muted-foreground/60 font-normal normal-case ml-1">
                             {savedThemes.length} tema{savedThemes.length !== 1 ? "s" : ""}
                         </span>
                     </h3>
@@ -291,11 +291,11 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                 </div>
 
                 {savedThemes.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.01]">
-                        <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-3">
-                            <Palette className="w-6 h-6 text-white/15" />
+                    <div className="flex flex-col items-center justify-center py-8 rounded-2xl border border-dashed border-border/50 bg-foreground/[0.01]">
+                        <div className="w-12 h-12 rounded-2xl bg-foreground/5 flex items-center justify-center mb-3">
+                            <Palette className="w-6 h-6 text-muted-foreground/40" />
                         </div>
-                        <p className="text-xs text-white/30 mb-2">Aún no has guardado temas</p>
+                        <p className="text-xs text-muted-foreground/70 mb-2">Aún no has guardado temas</p>
                         <Link
                             href="/design-canvas"
                             className="text-[11px] text-violet-400 hover:text-violet-300 flex items-center gap-1"
@@ -324,17 +324,17 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                                     onClick={() => handleApply(t)}
                                     className={cn(
                                         "group flex items-center gap-2.5 p-2.5 rounded-xl cursor-pointer transition-all border",
-                                        "hover:bg-white/[0.04]",
+                                        "hover:bg-foreground/[0.04]",
                                         isDragging && "opacity-40 scale-95",
                                         isOver && "border-violet-500/40 bg-violet-500/5",
                                         isActive
                                             ? "bg-emerald-500/10 border-emerald-500/30"
-                                            : "bg-white/[0.02] border-white/5"
+                                            : "bg-foreground/[0.02] border-border/50"
                                     )}
                                 >
                                     {/* Drag Handle */}
                                     <div className="opacity-0 group-hover:opacity-40 transition-opacity cursor-grab active:cursor-grabbing shrink-0">
-                                        <GripVertical className="w-3.5 h-3.5 text-white/40" />
+                                        <GripVertical className="w-3.5 h-3.5 text-muted-foreground" />
                                     </div>
                                     {/* Color Preview */}
                                     <div className="flex -space-x-1 shrink-0">
@@ -345,8 +345,8 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                                     </div>
                                     {/* Name & Date */}
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-xs text-white/80 font-medium truncate">{t.name}</p>
-                                        <p className="text-[10px] text-white/25 truncate">
+                                        <p className="text-xs text-foreground/80 font-medium truncate">{t.name}</p>
+                                        <p className="text-[10px] text-muted-foreground/60 truncate">
                                             {t.date ? new Date(t.date).toLocaleDateString("es-MX", { day: "numeric", month: "short" }) : "—"}
                                         </p>
                                     </div>
@@ -361,7 +361,7 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                                             onClick={(e) => handleDelete(e, t.name)}
                                             className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full hover:bg-red-500/20 flex items-center justify-center transition-all"
                                         >
-                                            <Trash2 className="w-3 h-3 text-white/30 hover:text-red-400" />
+                                            <Trash2 className="w-3 h-3 text-muted-foreground/50 hover:text-red-500" />
                                         </button>
                                     </div>
                                 </div>
@@ -379,7 +379,7 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                     variant="outline"
                     size="sm"
                     onClick={() => { try { exportTheme(); toast.success("Tema exportado"); } catch { toast.error("Error al exportar"); } }}
-                    className="flex-1 gap-2 text-xs bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
+                    className="flex-1 gap-2 text-xs bg-foreground/[0.02] border-border/20 hover:bg-foreground/[0.06]"
                 >
                     <Download className="w-3.5 h-3.5" /> Exportar
                 </Button>
@@ -395,7 +395,7 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                         variant="outline"
                         size="sm"
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-full gap-2 text-xs bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
+                        className="w-full gap-2 text-xs bg-foreground/[0.02] border-border/20 hover:bg-foreground/[0.06]"
                     >
                         <Upload className="w-3.5 h-3.5" /> Importar
                     </Button>
@@ -409,12 +409,12 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                 <div>
                     <button
                         onClick={() => setShowCommunity(!showCommunity)}
-                        className="w-full flex items-center justify-between py-2 text-sm font-semibold text-white/70 uppercase tracking-wider hover:text-white/90 transition-colors"
+                        className="w-full flex items-center justify-between py-2 text-sm font-semibold text-foreground/70 uppercase tracking-wider hover:text-foreground/90 transition-colors"
                     >
                         <span className="flex items-center gap-2">
-                            <Globe className="w-3.5 h-3.5 text-cyan-400" /> Temas de la Comunidad
+                            <Globe className="w-3.5 h-3.5 text-cyan-500" /> Temas de la Comunidad
                         </span>
-                        <ChevronDown className={cn("w-4 h-4 text-white/30 transition-transform duration-300", showCommunity && "rotate-180")} />
+                        <ChevronDown className={cn("w-4 h-4 text-muted-foreground/50 transition-transform duration-300", showCommunity && "rotate-180")} />
                     </button>
 
                     {showCommunity && (
@@ -428,7 +428,7 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                                         "hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5",
                                         config.themeStore?.activeTemplateId === tpl.id
                                             ? "border-emerald-500/30 ring-1 ring-emerald-500/20"
-                                            : "border-white/[0.06] bg-white/[0.02]"
+                                            : "border-border/50 bg-foreground/[0.02]"
                                     )}
                                 >
                                     {/* Image Header */}
@@ -458,9 +458,9 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
 
                                     {/* Info */}
                                     <div className="p-3">
-                                        <p className="text-sm font-semibold text-white/90">{tpl.name}</p>
-                                        <p className="text-[11px] text-white/40 mt-0.5 line-clamp-1">{tpl.description}</p>
-                                        <p className="text-[10px] text-white/20 mt-1.5">por {tpl.author}</p>
+                                        <p className="text-sm font-semibold text-foreground/90">{tpl.name}</p>
+                                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{tpl.description}</p>
+                                        <p className="text-[10px] text-muted-foreground/60 mt-1.5">por {tpl.author}</p>
                                     </div>
                                 </div>
                             ))}

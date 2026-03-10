@@ -13,6 +13,8 @@ import { NexusQuickAccessWidget } from "@/components/dashboard/widgets/nexus-qui
 import { ThemeManagerWidget } from "@/components/dashboard/widgets/theme-manager-widget";
 import { MentalCoherenceWidget } from "@/components/dashboard/widgets/mental-coherence-widget";
 import { ActiveProjectsWidget } from "@/components/dashboard/widgets/active-projects-widget";
+import { CollabProjectsWidget } from "@/components/dashboard/widgets/collab-projects-widget";
+import { EconomicOverviewWidget } from "@/components/dashboard/widgets/economic-overview-widget";
 
 import { WeatherBasicWidget } from "@/modules/weather/components/widgets/terrestrial/weather-basic-widget";
 import { WeatherBasicFluidWidget } from "@/modules/weather/components/widgets/terrestrial/weather-basic-fluid";
@@ -40,6 +42,7 @@ import { CalculatorWidget } from "@/components/dashboard/widgets/calculator-widg
 import { RelevantPostsWidget } from "@/components/dashboard/widgets/relevant-posts-widget";
 import { MessagesWidget } from "@/components/dashboard/widgets/messages-widget";
 import { NotificationsWidget } from "@/components/dashboard/widgets/notifications-widget";
+import { AiGeneratedWidget } from "@/components/dashboard/widgets/ai-generated-widget";
 
 // We can extract other widgets later
 import { Activity, Calendar, Heart, ArrowRight } from "lucide-react";
@@ -71,6 +74,10 @@ export function WidgetRegistry({ widget }: WidgetProps) {
         case 'SOCIAL_RADAR':
             return <SocialRadarWidget />;
         case 'COLLAB_PROJECTS':
+            return <CollabProjectsWidget />;
+        case 'ECONOMIC_OVERVIEW':
+            return <EconomicOverviewWidget />;
+        case 'ACTIVE_PROJECTS':
             return <ActiveProjectsWidget />;
         case 'WELLNESS':
             return <MentalCoherenceWidget />;
@@ -128,6 +135,8 @@ export function WidgetRegistry({ widget }: WidgetProps) {
             return <MessagesWidget />;
         case 'NOTIFICATIONS':
             return <NotificationsWidget />;
+        case 'AI_GENERATED':
+            return <AiGeneratedWidget widget={widget} />;
         default:
             return (
                 <div className="flex h-full items-center justify-center p-4">

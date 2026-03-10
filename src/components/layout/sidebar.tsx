@@ -70,7 +70,7 @@ export function AppSidebar({
     );
 
     const baseClass = cn(
-      "flex items-center gap-3 md:gap-4 rounded-full px-4 py-3 md:px-5 md:py-3 transition-all hover:text-foreground cursor-pointer text-base md:text-lg",
+      "flex items-center gap-4 rounded-full px-5 py-3.5 transition-all hover:text-foreground cursor-pointer text-base md:text-lg w-full",
       isActive ? "bg-foreground/10 text-foreground font-medium shadow-sm backdrop-blur-md border border-foreground/5" : "text-foreground/70 hover:bg-foreground/5",
       className
     );
@@ -127,8 +127,8 @@ export function AppSidebar({
           isHorizontal && "flex items-center justify-center w-full"
         )}>
           <nav className={cn(
-            "grid font-medium",
-            !isHorizontal && "items-start px-3 lg:px-5 gap-2",
+            "grid font-medium w-full",
+            !isHorizontal && "items-stretch px-4 lg:px-6 gap-2",
             isHorizontal && "flex items-center justify-center w-full gap-2 md:gap-4 lg:gap-6 mx-auto"
           )}>
             <NavItem href="/dashboard" icon={Home} label="Dashboard" />
@@ -156,8 +156,8 @@ export function AppSidebar({
             </div>
             {!isHorizontal && (
               <Accordion type="single" collapsible defaultValue={isNetworkActive ? "network" : ""}>
-                <AccordionItem value="network" className="border-b-0">
-                  <AccordionTrigger className="flex items-center gap-3 md:gap-4 rounded-full px-4 py-3 md:px-5 md:py-3 text-base md:text-lg text-foreground/70 transition-all hover:text-foreground hover:bg-foreground/5 hover:no-underline [&[data-state=open]]:text-foreground [&[data-state=open]]:bg-foreground/5 [&[data-state=open]]:font-medium">
+                <AccordionItem value="network" className="border-b-0 w-full">
+                  <AccordionTrigger className="flex items-center w-full gap-4 rounded-full px-5 py-3.5 text-base md:text-lg text-foreground/70 transition-all hover:text-foreground hover:bg-foreground/5 hover:no-underline [&[data-state=open]]:text-foreground [&[data-state=open]]:bg-foreground/5 [&[data-state=open]]:font-medium">
                     <div className="flex items-center gap-3 md:gap-4">
                       <Network {...getIconProps()} />
                       La Red

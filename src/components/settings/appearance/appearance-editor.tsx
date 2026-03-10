@@ -22,13 +22,13 @@ function LienzoCanvasTab() {
 
     return (
         <div className="space-y-4">
-            <Card className="bg-white/[0.02] border-white/[0.06]">
+            <Card className="bg-foreground/[0.02] border-border/50">
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-white/90">
-                        <Paintbrush className="w-5 h-5 text-cyan-400" />
+                    <CardTitle className="flex items-center gap-2 text-foreground/90">
+                        <Paintbrush className="w-5 h-5 text-cyan-500" />
                         Lienzo de Diseño
                     </CardTitle>
-                    <CardDescription className="text-white/40">
+                    <CardDescription className="text-muted-foreground">
                         Herramienta visual avanzada para paletas, tipografía, efectos, geometría, componentes UI y generación con Stitch AI.
                     </CardDescription>
                 </CardHeader>
@@ -41,16 +41,16 @@ function LienzoCanvasTab() {
                             { label: "Radius", value: `${radius}rem` },
                             { label: "Temas", value: `${savedCount} guardado${savedCount !== 1 ? "s" : ""}` },
                         ].map((item) => (
-                            <div key={item.label} className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                                <p className="text-[10px] text-white/30 uppercase tracking-wider">{item.label}</p>
-                                <p className="text-sm font-semibold text-white/80 truncate">{item.value}</p>
+                            <div key={item.label} className="p-3 rounded-xl bg-foreground/[0.03] border border-border/50">
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{item.label}</p>
+                                <p className="text-sm font-semibold text-foreground/80 truncate">{item.value}</p>
                             </div>
                         ))}
                     </div>
 
                     {/* Active Mode Badge */}
                     <div className="flex items-center gap-2">
-                        <span className="text-xs text-white/30">Modo activo:</span>
+                        <span className="text-xs text-muted-foreground">Modo activo:</span>
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20 capitalize">
                             {activeMode}
                         </span>
@@ -66,9 +66,9 @@ function LienzoCanvasTab() {
                             { icon: "🧩", label: "Componentes UI" },
                             { icon: "🤖", label: "Stitch AI" },
                         ].map((item) => (
-                            <div key={item.label} className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                            <div key={item.label} className="flex items-center gap-2 p-2 rounded-lg bg-foreground/[0.02] border border-border/50">
                                 <span className="text-sm">{item.icon}</span>
-                                <span className="text-[11px] text-white/50 font-medium">{item.label}</span>
+                                <span className="text-[11px] text-muted-foreground font-medium">{item.label}</span>
                             </div>
                         ))}
                     </div>
@@ -95,28 +95,28 @@ export function AppearanceEditor() {
         <div className="space-y-6">
             {/* Tabs */}
             <Tabs defaultValue="gallery" className="w-full">
-                <TabsList className="grid w-full grid-cols-4 h-auto bg-white/[0.03] border border-white/[0.06] rounded-xl p-1">
+                <TabsList className="flex flex-wrap w-full sm:w-auto justify-center mx-auto h-auto bg-foreground/[0.03] border border-border/50 rounded-xl p-1 gap-1">
                     <TabsTrigger
                         value="gallery"
-                        className="gap-2 rounded-lg data-[state=active]:bg-white/[0.08] data-[state=active]:text-white data-[state=active]:shadow-sm text-white/40"
+                        className="flex-1 sm:flex-none px-6 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
                     >
                         <Palette className="w-4 h-4" /> Galería
                     </TabsTrigger>
                     <TabsTrigger
                         value="canvas"
-                        className="gap-2 rounded-lg data-[state=active]:bg-white/[0.08] data-[state=active]:text-white data-[state=active]:shadow-sm text-white/40"
+                        className="flex-1 sm:flex-none px-6 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
                     >
                         <Paintbrush className="w-4 h-4" /> Lienzo
                     </TabsTrigger>
                     <TabsTrigger
                         value="interface"
-                        className="gap-2 rounded-lg data-[state=active]:bg-white/[0.08] data-[state=active]:text-white data-[state=active]:shadow-sm text-white/40"
+                        className="flex-1 sm:flex-none px-6 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
                     >
                         <Monitor className="w-4 h-4" /> Interfaz
                     </TabsTrigger>
                     <TabsTrigger
                         value="background"
-                        className="gap-2 rounded-lg data-[state=active]:bg-white/[0.08] data-[state=active]:text-white data-[state=active]:shadow-sm text-white/40"
+                        className="flex-1 sm:flex-none px-6 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
                     >
                         <Sparkles className="w-4 h-4" /> Fondo
                     </TabsTrigger>

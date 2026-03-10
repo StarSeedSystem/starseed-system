@@ -7,7 +7,6 @@ import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAppearance } from "@/context/appearance-context"
-import { SplineUIWrapper } from "@/components/ui/spline-ui-wrapper"
 
 const Sheet = SheetPrimitive.Root
 
@@ -75,10 +74,7 @@ const SheetContent = React.forwardRef<
         {...props}
       >
         {isPrimary && (
-          <SplineUIWrapper
-            sceneUrl="https://prod.spline.design/f-FmokKwZQASiVE9/scene.splinecode"
-            className="absolute inset-0 z-0 opacity-80 pointer-events-none"
-          />
+          <div className="absolute inset-0 z-0 opacity-40 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
         )}
         <div className={cn("relative z-10 w-full h-full flex flex-col", isPrimary && "drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]")}>
           {children}

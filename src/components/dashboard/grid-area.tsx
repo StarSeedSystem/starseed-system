@@ -5,18 +5,14 @@ import dynamic from "next/dynamic";
 
 import { DashboardWidget } from "./dashboard-types";
 import { WidgetRegistry } from "./widget-registry";
-import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { useWidth } from "@/hooks/use-width";
-import { SplineBackground } from "@/components/ui/SplineBackground";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
-// Dynamic import with SSR disabled to avoid "Window is not defined" and generic hydration errors
-// Also helps with the "Invalid hook call" if it was due to generic SSR checks in RGL
+// Dynamic import with SSR disabled
 const ResponsiveGridLayout = dynamic(
     () => import("react-grid-layout").then((mod) => {
-        // Robustly finding the specific export
         return mod.Responsive || (mod as any).default?.Responsive || (mod as any).default;
     }),
     {
@@ -35,11 +31,11 @@ interface GridAreaProps {
     widgets: DashboardWidget[];
     setWidgets: (widgets: DashboardWidget[]) => void;
     isEditMode: boolean;
+    onPinWidget?: (widget: DashboardWidget) => void;
 }
 
-export function GridArea({ dashboardId, widgets, setWidgets, isEditMode }: GridAreaProps) {
+export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWidget }: GridAreaProps) {
     const { width, containerRef } = useWidth();
-    const supabase = createClient();
     const { toast } = useToast();
     const [layouts, setLayouts] = useState<any>({});
     const [mounted, setMounted] = useState(false);
@@ -49,7 +45,6 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode }: GridA
     }, []);
 
     // Sync widgets to layout format expected by RGL
-    // IMPORTANT: Only update if the widget count or IDs change to avoid infinite loops with layout state
     useEffect(() => {
         const layout = widgets.map(w => ({
             i: w.layout.i || w.id,
@@ -59,8 +54,6 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode }: GridA
             h: w.layout.h
         }));
         setLayouts((prev: any) => {
-            // Simple equality check to prevent unnecessary updates
-            // In a real app, use deep comparison or a stable ID check
             if (JSON.stringify(prev.lg) === JSON.stringify(layout)) return prev;
             return { lg: layout, md: layout, sm: layout };
         });
@@ -68,9 +61,6 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode }: GridA
 
     const onLayoutChange = useCallback((currentLayout: any[], allLayouts: any) => {
         if (!isEditMode) return;
-
-        // Debounce or verify if change is meaningful
-        // For now, we update local state but avoid re-triggering the parent unnecessarily if possible
     }, [isEditMode]);
 
     const handleDragStop = useCallback((layout: any[], oldItem: any, newItem: any) => {
@@ -93,26 +83,20 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode }: GridA
             return w;
         });
 
-        // Update parent state
+        // Update parent state (which auto-persists to localStorage via handleSetWidgets)
         setWidgets(updatedWidgets);
+    }, [isEditMode, widgets, setWidgets]);
 
-        // Persist to DB
-        const changedWidget = updatedWidgets.find(w => (w.layout.i || w.id) === newItem.i);
-        if (changedWidget) {
-            supabase.from('dashboard_widgets').update({
-                layout: changedWidget.layout
-            }).eq('id', changedWidget.id).then();
-        }
-    }, [isEditMode, widgets, setWidgets, supabase]);
+    const handleDeleteWidget = (widgetId: string) => {
+        const updated = widgets.filter(w => w.id !== widgetId);
+        setWidgets(updated);
+        toast({ title: "Widget eliminado", description: "El widget ha sido removido del dashboard." });
+    };
 
-    const handleDeleteWidget = async (widgetId: string) => {
-        const { error } = await supabase.from('dashboard_widgets').delete().eq('id', widgetId);
-
-        if (error) {
-            toast({ title: "Error", description: "No se pudo eliminar el widget", variant: "destructive" });
-        } else {
-            setWidgets(widgets.filter(w => w.id !== widgetId));
-            toast({ title: "Widget eliminado", description: "El widget ha sido removido del dashboard." });
+    const handlePinWidget = (widget: DashboardWidget) => {
+        if (onPinWidget) {
+            onPinWidget(widget);
+            toast({ title: "📌 Widget fijado", description: "El widget aparecerá flotante sobre todas las secciones." });
         }
     };
 
@@ -161,9 +145,19 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode }: GridA
 
                                 {isEditMode && (
                                     <>
-                                        <div className="drag-handle absolute top-2 right-12 bg-background/80 hover:bg-background border rounded p-1 cursor-grab active:cursor-grabbing z-50 transition-colors">
+                                        <div className="drag-handle absolute top-2 right-[5.5rem] bg-background/80 hover:bg-background border rounded p-1 cursor-grab active:cursor-grabbing z-50 transition-colors">
                                             ✋
                                         </div>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handlePinWidget(widget);
+                                            }}
+                                            className="absolute top-2 right-12 bg-indigo-500/60 hover:bg-indigo-500 text-white border border-indigo-400/50 rounded p-1 cursor-pointer z-50 transition-colors"
+                                            title="Fijar en pantalla"
+                                        >
+                                            📌
+                                        </button>
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -184,3 +178,4 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode }: GridA
         </div>
     );
 }
+

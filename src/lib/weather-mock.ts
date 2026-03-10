@@ -58,6 +58,13 @@ export const MOCK_WEATHER_DATA = {
                 nitrogen_dioxide: 18.5,
                 ozone: 45
             }
+        },
+        astronomical: {
+            moon_phase: 0.65,
+            sunrise: "06:12",
+            sunset: "19:42",
+            zenith: 42.1,
+            azimuth: 284
         }
     },
     energetic: {

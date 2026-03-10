@@ -23,10 +23,10 @@ export function NavigationBar({ position = "top" }: { position?: "top" | "bottom
 
     return (
         <div className={cn(
-            "flex items-center justify-between backdrop-blur-xl border-b liquid-glass-panel shadow-sm transition-all duration-300",
-            position === "bottom" && "border-t border-b-0 order-last"
+            "flex items-center justify-between backdrop-blur-xl border-b liquid-glass-panel shadow-sm transition-all duration-300 w-full max-w-[98vw] mx-auto rounded-b-2xl md:rounded-b-3xl",
+            position === "bottom" && "border-t border-b-0 order-last rounded-t-2xl md:rounded-t-3xl rounded-b-none"
         )}
-            style={{ paddingInline: 'clamp(0.75rem,2vw,1.75rem)', paddingBlock: 'clamp(0.25rem,0.5vw,0.5rem)' }}
+            style={{ paddingInline: 'clamp(1rem,3vw,2.5rem)', paddingBlock: 'clamp(0.5rem,1vw,1rem)' }}
         >
             {/* Left — Logo + Brand */}
             <div className="flex items-center gap-3 flex-shrink-0">
@@ -38,8 +38,8 @@ export function NavigationBar({ position = "top" }: { position?: "top" | "bottom
                 </Link>
             </div>
 
-            {/* Center — Primary Nav (fully centered) */}
-            <nav className="hidden md:flex items-center gap-0.5 absolute left-1/2 -translate-x-1/2">
+            {/* Center — Primary Nav (fully centered, max width optimization) */}
+            <nav className="hidden md:flex items-center justify-center gap-1 absolute left-1/2 -translate-x-1/2 w-full max-w-fit mx-auto">
                 <NavItem href="/dashboard" icon={Home}>Dashboard</NavItem>
                 <NavItem href="/network" icon={Network}>Red</NavItem>
                 <NavItem href="/agent" icon={Bot}>Agente</NavItem>

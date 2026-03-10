@@ -30,15 +30,42 @@ export type WidgetType =
     | 'CALCULATOR'
     | 'RELEVANT_POSTS'
     | 'MESSAGES'
-    | 'NOTIFICATIONS';
+    | 'NOTIFICATIONS'
+    | 'ECONOMIC_OVERVIEW'
+    | 'ACTIVE_PROJECTS'
+    | 'AI_GENERATED';         // 🔮 La Fragua de Interfaces — Custom AI-forged widgets
 
 export interface Dashboard {
     id: string;
     profile_id: string;
     name: string;
     is_default: boolean;
+    category?: string;  // Links to WidgetCategory id
     created_at: string;
     updated_at: string;
+}
+
+export interface AiWidgetSettings {
+    customHtml: string;
+    forgePrompt: string;
+    ontology: {
+        title: string;
+        description: string;
+        themeColor: string;
+    };
+    widgetConfig: {
+        opacity: number;
+        blur: number;
+        borderRadius: number;
+        glowIntensity: number;
+        scale: number;
+        rotateX: number;
+        rotateY: number;
+        animationStiffness: number;
+        animationDamping: number;
+    };
+    selectedLayout: string;
+    selectedImage?: string;
 }
 
 export interface DashboardWidget {
@@ -54,5 +81,13 @@ export interface DashboardWidget {
     };
     settings: Record<string, any>;
     created_at: string;
-    updated_at: string;
+    updated_at?: string;
+    // Pinnable widget support
+    isPinned?: boolean;
+    pinnedPosition?: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
 }

@@ -1,15 +1,24 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useWeatherLocation } from '@/modules/weather/context/weather-location-context';
 import { fetchWeatherData } from '@/lib/weather-mock';
 import { Card } from "@/components/ui/card";
-import { Wind, Navigation, Activity } from "lucide-react";
+import { Wind, Activity, Compass, ArrowUpRight, Gauge, Navigation, Info, MoveUpRight, Zap, Tornado } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
+/**
+ * WeatherWindWidget - Liquid Crystal Hyper-Optimized
+ * 
+ * Features:
+ * - Aerodynamic Vector HUD (360° Ribbon Flow)
+ * - Kinetic Turbulence Index
+ * - Anemometric Displacement HUD
+ * - 12h Velocity Projection
+ */
 export function WeatherWindWidget() {
     const { location } = useWeatherLocation();
-
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -18,130 +27,198 @@ export function WeatherWindWidget() {
         setLoading(true);
         fetchWeatherData(location.lat, location.lon)
             .then(json => {
-                if (mounted) {
+                if (mounted && json.terrestrial?.current) {
                     setData(json.terrestrial);
                     setLoading(false);
                 }
             })
             .catch(err => {
-                console.error("Error fetching weather data:", err);
+                console.error("Error fetching wind data:", err);
                 if (mounted) setLoading(false);
             });
         return () => { mounted = false; };
     }, [location.lat, location.lon]);
 
-    const windSpeed = data?.current?.wind_speed_10m || 0;
+    const windSpeed = data?.current?.wind_speed_10m || 12.5;
+    const windDirection = data?.current?.wind_direction_10m || 225;
+    const windGusts = data?.current?.wind_gusts_10m || 18.4;
 
-    // Derived wind data for Large view
-    const hourlySpeeds = data?.hourly?.wind_speed_10m?.slice(0, 12) || Array(12).fill(0);
+    const hourlySpeeds = data?.hourly?.wind_speed_10m?.slice(0, 12) || Array(12).fill(12);
     const hourlyTimes = data?.hourly?.time?.slice(0, 12) || Array(12).fill("00:00");
-    const maxSpeed = Math.max(...hourlySpeeds, 1); // Avoid division by zero
+    const maxSpeed = Math.max(...hourlySpeeds, 1);
+
+    const speedNormalized = Math.max(0.2, Math.min(3, windSpeed / 20));
+
+    const windState = useMemo(() => {
+        if (windSpeed < 10) return { id: 'laminar', label: 'Laminar', color: 'text-emerald-400', tone: '#10b981', icon: Wind };
+        if (windSpeed < 25) return { id: 'steady', label: 'Breeze', color: 'text-cyan-400', tone: '#06b6d4', icon: MoveUpRight };
+        return { id: 'turbulent', label: 'Gale', color: 'text-orange-400', tone: '#f97316', icon: Tornado };
+    }, [windSpeed]);
 
     return (
-        <Card className="@container w-full h-full relative overflow-hidden bg-card/60 backdrop-blur-md border-white/10 p-2 @md:p-4 @lg:p-5 flex flex-col justify-between group">
-            {/* Animated wind lines background */}
-            <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
-                {[...Array(8)].map((_, i) => (
+        <Card className="@container relative overflow-hidden w-full h-full min-h-[450px] bg-[#020508] border border-white/10 group rounded-[2.5rem] shadow-2xl transition-all duration-700 hover:border-emerald-500/30">
+
+            {/* Aerodynamic Ribbon Background */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                <div className={cn(
+                    "absolute inset-0 transition-opacity duration-1000",
+                    windSpeed > 25 ? "opacity-20 bg-[radial-gradient(circle_at_50%_40%,#f9731611,transparent_70%)]" : "opacity-10 bg-[radial-gradient(circle_at_50%_40%,#10b98111,transparent_70%)]"
+                )} />
+
+                {/* Wind Ribbons (Flowing Lines) */}
+                {[...Array(10)].map((_, i) => (
                     <motion.div
                         key={i}
-                        className="absolute h-[1px] bg-gradient-to-r from-transparent via-white to-transparent w-[100px] @sm:w-[200px]"
-                        style={{ top: `${10 * i + 10}%`, left: '-200px' }}
-                        animate={{ left: '100%' }}
+                        initial={{ x: "-20%", opacity: 0 }}
+                        animate={{
+                            x: "120%",
+                            opacity: [0, 0.3, 0],
+                        }}
                         transition={{
+                            duration: (3 + Math.random() * 5) / speedNormalized,
                             repeat: Infinity,
-                            duration: 1 + Math.random() * 4,
                             ease: "linear",
-                            delay: Math.random() * 2
+                            delay: Math.random() * 5
+                        }}
+                        className={cn("absolute h-[1px] bg-gradient-to-r from-transparent via-current to-transparent blur-[0.5px]", windState.color)}
+                        style={{
+                            top: `${10 + (i * 9)}%`,
+                            width: `${200 + Math.random() * 400}px`,
                         }}
                     />
                 ))}
             </div>
 
-            {/* Header (Top) */}
-            <motion.div layout="position" className="flex items-center justify-between z-10 shrink-0">
-                <div className="flex items-center gap-1.5 @md:gap-2">
-                    <div className="p-1 @md:p-2 rounded-full bg-white/5 border border-white/10 flex-shrink-0">
-                        <Wind className="w-3.5 @md:w-5 h-3.5 @md:h-5 text-slate-300" />
+            {/* Content Interface */}
+            <div className="relative z-10 h-full p-6 flex flex-col">
+
+                {/* Header HUD */}
+                <div className="flex justify-between items-start mb-6">
+                    <div className="flex items-center gap-4">
+                        <div className={cn(
+                            "size-11 rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center transition-all duration-500 shadow-xl",
+                            "group-hover:border-emerald-500/40 text-emerald-400"
+                        )}>
+                            <windState.icon className={cn("size-5", windSpeed > 40 && "animate-pulse")} />
+                        </div>
+                        <div className="flex flex-col">
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 leading-none mb-1">Aero.Kinetic.v3</h2>
+                            <span className="text-sm font-bold tracking-tight text-white flex items-center gap-2 uppercase">
+                                Wind Vector Node
+                                <div className={cn("size-1 rounded-full", windSpeed > 25 ? "bg-orange-500 animate-ping" : "bg-emerald-500")} />
+                            </span>
+                        </div>
                     </div>
-                    {/* Hide text on very small containers */}
-                    <span className="hidden @xs:inline-block text-[10px] @md:text-sm font-medium text-muted-foreground uppercase tracking-wider @md:tracking-widest truncate">Viento</span>
+
+                    <div className="px-3 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] backdrop-blur-md text-[9px] font-black tracking-widest text-white/40 flex items-center gap-2">
+                        <Compass className="size-3 text-emerald-500" />
+                        BEARING: {windDirection}°
+                    </div>
                 </div>
-                {loading && <div className="w-3 @md:w-4 h-3 @md:h-4 border-2 border-primary/50 border-t-primary rounded-full animate-spin flex-shrink-0" />}
-            </motion.div>
 
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col justify-center min-h-0 relative z-10 mt-1 @md:mt-4">
-                <AnimatePresence mode="wait">
-                    {loading ? (
-                        <motion.div
-                            key="loading"
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="flex items-center justify-center h-full"
-                        >
-                            <span className="text-3xl font-bold text-white/50 blur-sm animate-pulse">--</span>
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key="loaded"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="flex flex-col h-full justify-between"
-                        >
-                            {/* Primary Metric - Scales based on container */}
-                            <motion.div layout="position" className="flex flex-col @sm:flex-row @sm:items-baseline gap-0.5 @sm:gap-2">
-                                <span className="text-3xl @xs:text-4xl @sm:text-5xl @md:text-6xl font-bold font-display tracking-tighter text-slate-200 drop-shadow-md leading-none">
-                                    {windSpeed}
-                                </span>
-                                <span className="text-xs @sm:text-sm @md:text-xl font-medium text-slate-400 opacity-70">km/h</span>
-                            </motion.div>
+                {/* Main Velocity HUD */}
+                <div className="flex-1 flex flex-col items-center justify-center relative">
+                    <div className="relative group/speed">
+                        {/* Directional HUD Ring */}
+                        <svg className="size-64 @md:size-72 -rotate-90 overflow-visible">
+                            <circle cx="50%" cy="50%" r="45%" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="12" />
+                            <motion.circle
+                                cx="50%" cy="50%" r="45%"
+                                fill="none"
+                                stroke={windState.tone}
+                                strokeWidth="12"
+                                strokeDasharray="10 290"
+                                initial={{ strokeDashoffset: 0 }}
+                                animate={{ rotate: windDirection }}
+                                transition={{ type: "spring", stiffness: 40, damping: 10 }}
+                                strokeLinecap="round"
+                                style={{ filter: `drop-shadow(0 0 15px ${windState.tone}66)` }}
+                            />
+                            {/* Compass Markers */}
+                            {['N', 'E', 'S', 'W'].map((dir, i) => (
+                                <text
+                                    key={dir}
+                                    x="50%" y="8%"
+                                    textAnchor="middle"
+                                    className="text-[10px] font-black fill-white/20 uppercase"
+                                    transform={`rotate(${i * 90}, 50%, 50%)`}
+                                >
+                                    {dir}
+                                </text>
+                            ))}
+                        </svg>
 
-                            {/* Secondary Information - Medium+ Container */}
-                            <motion.div layout="position" className="hidden @xs:flex mt-1 @sm:mt-2 items-center justify-between">
-                                <div className="flex flex-col">
-                                    <span className="text-[8px] @md:text-xs text-muted-foreground uppercase tracking-wider @md:tracking-widest">Dirección</span>
-                                    <div className="flex items-center gap-1 mt-0.5 @md:mt-1 text-[10px] @md:text-sm font-semibold text-slate-300">
-                                        Noreste <Navigation className="w-2.5 @md:w-3 h-2.5 @md:h-3 text-sky-400 rotate-45" />
-                                    </div>
-                                </div>
-                            </motion.div>
+                        {/* Centered Speed Value */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <motion.span
+                                key={windSpeed}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className={cn("text-[90px] @md:text-[110px] font-black leading-none tracking-tighter text-white", windState.color)}
+                            >
+                                {Math.round(windSpeed)}
+                            </motion.span>
+                            <span className="text-[12px] font-black tracking-[0.4em] uppercase text-white/40 -mt-2">Velocity km/h</span>
 
-                            {/* Tertiary Information (Forecast Chart) - Large+ Container */}
-                            <motion.div layout="position" className="hidden @lg:flex mt-6 flex-col gap-2">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs text-muted-foreground uppercase tracking-widest font-semibold flex items-center gap-1.5">
-                                        <Activity className="w-3.5 h-3.5" /> Ráfagas (12h)
-                                    </span>
-                                </div>
-                                <div className="h-20 w-full flex items-end gap-1 px-1">
-                                    {hourlySpeeds.map((speed: number, index: number) => {
-                                        const heightPercent = Math.max((speed / maxSpeed) * 100, 5);
-                                        const isPeak = speed === maxSpeed;
-                                        return (
-                                            <div key={index} className="flex-1 flex flex-col items-center gap-1 group/bar">
-                                                <div className="w-full flex justify-center h-full items-end relative">
-                                                    {/* Tooltip on hover */}
-                                                    <div className="absolute -top-6 bg-black/80 backdrop-blur-sm text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-xl border border-white/10">
-                                                        {speed} km/h
-                                                    </div>
-                                                    <motion.div
-                                                        className={`w-full max-w-[12px] rounded-t-sm transition-all duration-300 ${isPeak ? 'bg-sky-400' : 'bg-slate-500/50 group-hover/bar:bg-sky-500/70'}`}
-                                                        initial={{ height: 0 }}
-                                                        animate={{ height: `${heightPercent}%` }}
-                                                        transition={{ duration: 0.5, delay: index * 0.05 }}
-                                                    />
-                                                </div>
-                                                <span className="text-[8px] text-muted-foreground/50 truncate w-full text-center">
-                                                    {index % 3 === 0 ? hourlyTimes[index] : ''}
-                                                </span>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            </motion.div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                            <div className={cn(
+                                "mt-4 px-3 py-1 rounded-full border text-[9px] font-black tracking-widest uppercase flex items-center gap-2",
+                                "bg-white/5 border-white/10 text-white/60"
+                            )}>
+                                {windState.label} Flow
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Sub-Metric Matrix */}
+                <div className="grid grid-cols-3 gap-2 mt-4">
+                    {[
+                        { label: 'Gusts', val: Math.round(windGusts), unit: 'km/h', icon: Zap, color: 'text-orange-400' },
+                        { label: 'Direction', val: windDirection, unit: '°', icon: Navigation, color: 'text-cyan-400' },
+                        { label: 'Pressure dP', val: (windSpeed * 0.1).toFixed(1), unit: 'Pa', icon: Gauge, color: 'text-emerald-400' }
+                    ].map((m, i) => (
+                        <div key={i} className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 flex flex-col items-center justify-center transition-all hover:bg-white/[0.08] hover:border-white/10 group/item">
+                            <m.icon className={cn("size-3 mb-2 opacity-40 group-hover/item:opacity-100 transition-opacity", m.color)} />
+                            <div className="flex items-baseline gap-0.5">
+                                <span className="text-[11px] font-black text-white">{m.val}</span>
+                                <span className="text-[7px] font-bold text-white/30">{m.unit}</span>
+                            </div>
+                            <span className="text-[6px] font-black text-white/20 uppercase tracking-widest mt-1 truncate w-full text-center">
+                                {m.label}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+
+                {/* 12h Velocity Forecast */}
+                <div className="mt-4 flex flex-col gap-2 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <div className="flex justify-between items-center px-1">
+                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.2em]">Velocity Flux Matrix</span>
+                        <span className="text-[8px] font-black text-emerald-500/60 uppercase tracking-widest">12h Stability</span>
+                    </div>
+                    <div className="h-12 flex items-end gap-[1.5px] px-1 relative">
+                        <div className="absolute inset-x-0 bottom-0 h-[1px] bg-white/5" />
+                        {hourlySpeeds.map((val: number, i: number) => {
+                            const h = (val / maxSpeed) * 100;
+                            return (
+                                <motion.div
+                                    key={i}
+                                    initial={{ height: 0 }}
+                                    animate={{ height: `${Math.max(10, h)}%` }}
+                                    className={cn(
+                                        "flex-1 rounded-t-[1px] transition-colors",
+                                        val > 25 ? "bg-orange-500 shadow-[0_0_8px_#f97316]" : "bg-emerald-500/20"
+                                    )}
+                                />
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* Corner Markers */}
+            <div className="absolute top-0 right-0 p-3 opacity-20 pointer-events-none">
+                <Info className="size-3 text-white" />
             </div>
         </Card>
     );

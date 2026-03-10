@@ -64,7 +64,7 @@ export function BackgroundSettings() {
                     <Card>
                         <CardHeader>
                             <h3 className="text-lg font-medium mb-1">Fondos Dinámicos (WebGL)</h3>
-                            <p className="text-sm text-white/60 mb-6">
+                            <p className="text-sm text-muted-foreground mb-6">
                                 Experiencias visuales renderizadas en tiempo real.</p>
                         </CardHeader>
                         <CardContent className="space-y-6">

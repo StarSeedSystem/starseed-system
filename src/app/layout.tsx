@@ -21,6 +21,7 @@ import { BoardProvider } from "@/context/board-context";
 import { UserProvider } from "@/context/user-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
+import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -93,6 +94,7 @@ export default function RootLayout({
                       <SideCurtains />
 
                       <OmniDock />
+                      <PinnedWidgetOverlay />
                       <PerimeterInterface />
                       <Toaster />
                       <Sonner />

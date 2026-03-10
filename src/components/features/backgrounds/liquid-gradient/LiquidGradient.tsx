@@ -17,31 +17,40 @@ export function LiquidGradient() {
     useEffect(() => {
         if (!containerRef.current) return;
 
-        // Cleanup any existing children to prevent duplication
-        while (containerRef.current.firstChild) {
-            containerRef.current.removeChild(containerRef.current.firstChild);
-        }
+        let reqId: number;
+        let renderer: THREE.WebGLRenderer | undefined;
+        let geometry: THREE.PlaneGeometry | undefined;
+        let material: THREE.ShaderMaterial | undefined;
 
-        const renderer = new THREE.WebGLRenderer({
-            antialias: true,
-            powerPreference: "high-performance",
-            alpha: false,
-            stencil: false,
-            depth: false,
-        });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        containerRef.current.appendChild(renderer.domElement);
+        let onMouseMove: (e: MouseEvent) => void = () => {};
+        let onResize: () => void = () => {};
 
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 10000);
-        camera.position.z = 50;
+        try {
+            // Cleanup any existing children to prevent duplication
+            while (containerRef.current.firstChild) {
+                containerRef.current.removeChild(containerRef.current.firstChild);
+            }
 
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0a0e27);
+            renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                powerPreference: "high-performance",
+                alpha: false,
+                stencil: false,
+                depth: false,
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            containerRef.current.appendChild(renderer.domElement);
 
-        const clock = new THREE.Clock();
-        const touchTexture = new TouchTexture();
-        touchTextureRef.current = touchTexture;
+            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 10000);
+            camera.position.z = 50;
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0e27);
+
+            const clock = new THREE.Clock();
+            const touchTexture = new TouchTexture();
+            touchTextureRef.current = touchTexture;
 
         // Initial uniforms
         const uniforms = {
@@ -67,8 +76,8 @@ export function LiquidGradient() {
 
         uniformsRef.current = uniforms;
 
-        const geometry = new THREE.PlaneGeometry(100, 100);
-        const material = new THREE.ShaderMaterial({
+        geometry = new THREE.PlaneGeometry(100, 100);
+        material = new THREE.ShaderMaterial({
             uniforms,
             vertexShader,
             fragmentShader,
@@ -76,7 +85,7 @@ export function LiquidGradient() {
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
 
-        const onMouseMove = (e: MouseEvent) => {
+        onMouseMove = (e: MouseEvent) => {
             const mouse = {
                 x: e.clientX / window.innerWidth,
                 y: 1 - e.clientY / window.innerHeight,
@@ -84,10 +93,10 @@ export function LiquidGradient() {
             touchTexture.addTouch(mouse);
         };
 
-        const onResize = () => {
+        onResize = () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer!.setSize(window.innerWidth, window.innerHeight);
             uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
 
             const fovRad = (camera.fov * Math.PI) / 180;
@@ -100,29 +109,33 @@ export function LiquidGradient() {
         window.addEventListener("resize", onResize);
         onResize();
 
-        let reqId: number;
+        // declare animate inside try block
         const animate = () => {
             reqId = requestAnimationFrame(animate);
             const delta = clock.getDelta();
             uniforms.uTime.value += delta;
             touchTexture.update();
-            renderer.render(scene, camera);
+            renderer!.render(scene, camera);
         };
         animate();
+        } catch (error) {
+            console.error("LiquidGradient WebGL failed to initialize:", error);
+            return () => {}; // return empty cleanup
+        }
 
         return () => {
             window.removeEventListener("mousemove", onMouseMove);
             window.removeEventListener("resize", onResize);
-            cancelAnimationFrame(reqId);
-            if (containerRef.current) {
-                // Check if child still exists before removing
+            if (reqId) cancelAnimationFrame(reqId);
+            
+            if (containerRef.current && renderer?.domElement) {
                 if (renderer.domElement.parentNode === containerRef.current) {
                     containerRef.current.removeChild(renderer.domElement);
                 }
             }
-            geometry.dispose();
-            material.dispose();
-            renderer.dispose();
+            if (geometry) geometry.dispose();
+            if (material) material.dispose();
+            if (renderer) renderer.dispose();
         };
     }, []);
 

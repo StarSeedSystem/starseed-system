@@ -17,6 +17,23 @@ import { XRayFlareWidget } from "@/modules/weather/components/widgets/space/spac
 import { UnifiedSpaceWeather } from "@/modules/weather/services/space/schema";
 import { SplineUIWrapper } from "@/components/ui/spline-ui-wrapper";
 
+// Import Polished Terrestrial Weather Widgets
+import { WeatherTemperatureWidget } from "@/modules/weather/components/widgets/terrestrial/weather-temperature-widget";
+import { WeatherWindWidget } from "@/modules/weather/components/widgets/terrestrial/weather-wind-widget";
+import { WeatherHumidityWidget } from "@/modules/weather/components/widgets/terrestrial/weather-humidity-widget";
+import { WeatherAirQualityWidget } from "@/modules/weather/components/widgets/terrestrial/weather-air-quality-widget";
+import { WeatherAstronomyWidget } from "@/modules/weather/components/widgets/terrestrial/weather-astronomy-widget";
+import { WeatherForecastWidget } from "@/modules/weather/components/widgets/terrestrial/weather-forecast-widget";
+import { WeatherUvWidget } from "@/modules/weather/components/widgets/terrestrial/weather-uv-widget";
+import { WeatherPressureWidget } from "@/modules/weather/components/widgets/terrestrial/weather-pressure-widget";
+import { WeatherVisibilityWidget } from "@/modules/weather/components/widgets/terrestrial/weather-visibility-widget";
+import dynamic from 'next/dynamic';
+
+const WeatherHolisticWidget = dynamic(
+    () => import("@/modules/weather/components/widgets/terrestrial/weather-holistic-widget").then(mod => mod.WeatherHolisticWidget),
+    { ssr: false, loading: () => <div className="w-full h-full flex items-center justify-center bg-black/50 text-white/50 animate-pulse text-xs">Sincronizando Holístico...</div> }
+);
+
 type TabState = 'terrestre' | 'espacial' | 'solar';
 
 function AtmosphereDashboard() {
@@ -249,82 +266,60 @@ function AtmosphereDashboard() {
             < div className="absolute top-[clamp(5rem,12vw,6.5rem)] bottom-[clamp(3.5rem,6vw,5rem)] left-0 right-0 px-[clamp(0.75rem,3vw,2.5rem)] z-10 pointer-events-none overflow-hidden" >
                 <AnimatePresence mode="wait">
 
-                    {/* TERRESTRY TAB */}
+                    {/* TERRESTRIAL TAB */}
                     {activeTab === 'terrestre' && (
                         <motion.div
                             key="terrestre"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 1.05 }}
-                            transition={{ duration: 0.4, ease: "easeOut" }}
-                            className="w-full h-full max-w-7xl mx-auto flex flex-col lg:flex-row justify-center items-start gap-[clamp(1rem,2vw,1.5rem)] overflow-y-auto scrollbar-none pb-4 pt-4 lg:pt-6"
+                            initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 1.02, y: -10 }}
+                            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                            className="w-full h-full max-w-[1800px] mx-auto overflow-y-auto scrollbar-none pb-12 pt-4 lg:pt-6"
                         >
-                            {/* Left Col */}
-                            <div className="w-full lg:w-1/2 lg:max-w-[500px] flex flex-col gap-[clamp(0.75rem,1.5vw,1.25rem)] pointer-events-auto shrink-0">
-                                <Card className="p-[clamp(1rem,2.5vw,1.75rem)] bg-[#001F3F]/40 backdrop-blur-[40px] border border-[#39FF14]/20 rounded-[clamp(1.25rem,3vw,2rem)] shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-[clamp(0.75rem,1.5vw,1.5rem)] shrink-0">
-                                    <div className="flex justify-between items-start">
-                                        <h2 className="text-[clamp(0.6rem,0.75vw,0.8rem)] font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
-                                            <MapPin className="w-[clamp(0.875rem,1vw,1.125rem)] h-[clamp(0.875rem,1vw,1.125rem)] text-[#39FF14]" /> {location.name || "Coordinates"}
-                                        </h2>
-                                        {loadingTerrestrial && <RefreshCw className="w-[clamp(0.875rem,1vw,1.125rem)] h-[clamp(0.875rem,1vw,1.125rem)] text-[#39FF14] animate-spin" />}
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pointer-events-auto">
+                                {/* Row 1: Primary Metrics */}
+                                <div className="xl:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                    <div className="h-full">
+                                        <WeatherTemperatureWidget />
                                     </div>
-                                    <div className="flex items-end gap-2">
-                                        <span className="text-[clamp(3rem,7vw,5rem)] font-display font-light text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] leading-none">{Math.round(temp)}°</span>
+                                    <div className="grid grid-rows-2 gap-6">
+                                        <WeatherWindWidget />
+                                        <WeatherAirQualityWidget />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-[clamp(0.5rem,1vw,0.875rem)]">
-                                        {/* Grid items */}
-                                        <div className="bg-white/5 p-[clamp(0.625rem,1.2vw,1rem)] rounded-[clamp(0.75rem,1.5vw,1.25rem)] border border-white/5 flex flex-col">
-                                            <span className="text-[clamp(0.5rem,0.65vw,0.7rem)] text-slate-400 uppercase tracking-widest font-bold flex items-center gap-1.5 mb-1"><Droplets className="w-[clamp(0.625rem,0.8vw,0.875rem)] h-[clamp(0.625rem,0.8vw,0.875rem)] text-[#007FFF]" /> Hum</span>
-                                            <span className="text-[clamp(1rem,1.5vw,1.35rem)] font-bold text-white">{Math.round(humidity)}%</span>
-                                        </div>
-                                        <div className="bg-white/5 p-[clamp(0.625rem,1.2vw,1rem)] rounded-[clamp(0.75rem,1.5vw,1.25rem)] border border-white/5 flex flex-col">
-                                            <span className="text-[clamp(0.5rem,0.65vw,0.7rem)] text-slate-400 uppercase tracking-widest font-bold flex items-center gap-1.5 mb-1"><Wind className="w-[clamp(0.625rem,0.8vw,0.875rem)] h-[clamp(0.625rem,0.8vw,0.875rem)] text-slate-300" /> Wind</span>
-                                            <span className="text-[clamp(1rem,1.5vw,1.35rem)] font-bold text-white">{Math.round(windSpeed)} <span className="text-[clamp(0.5rem,0.6vw,0.7rem)] text-slate-500">km/h</span></span>
-                                        </div>
-                                        <div className="bg-white/5 p-[clamp(0.625rem,1.2vw,1rem)] rounded-[clamp(0.75rem,1.5vw,1.25rem)] border border-white/5 flex flex-col">
-                                            <span className="text-[clamp(0.5rem,0.65vw,0.7rem)] text-slate-400 uppercase tracking-widest font-bold flex items-center gap-1.5 mb-1"><Gauge className="w-[clamp(0.625rem,0.8vw,0.875rem)] h-[clamp(0.625rem,0.8vw,0.875rem)] text-[#39FF14]" /> AQI</span>
-                                            <span className="text-[clamp(1rem,1.5vw,1.35rem)] font-bold text-white">{Math.round(aqi)}</span>
-                                        </div>
-                                        <div className="bg-white/5 p-[clamp(0.625rem,1.2vw,1rem)] rounded-[clamp(0.75rem,1.5vw,1.25rem)] border border-white/5 flex flex-col">
-                                            <span className="text-[clamp(0.5rem,0.65vw,0.7rem)] text-slate-400 uppercase tracking-widest font-bold flex items-center gap-1.5 mb-1"><Sun className="w-[clamp(0.625rem,0.8vw,0.875rem)] h-[clamp(0.625rem,0.8vw,0.875rem)] text-[#FFbf00]" /> UV</span>
-                                            <span className="text-[clamp(1rem,1.5vw,1.35rem)] font-bold text-white">{uvIndex}</span>
-                                        </div>
-                                    </div>
-                                </Card>
-                            </div>
+                                </div>
 
-                            {/* Right Col */}
-                            <div className="w-full lg:w-1/2 lg:max-w-[520px] flex flex-col pointer-events-auto shrink-0">
-                                <Card className="p-[clamp(1rem,2.5vw,1.75rem)] bg-[#001F3F]/40 backdrop-blur-[40px] border border-white/10 rounded-[clamp(1.25rem,3vw,2rem)] shadow-[0_8px_32px_rgba(0,0,0,0.5)] lg:h-full overflow-hidden flex flex-col">
-                                    <h2 className="text-[clamp(0.6rem,0.75vw,0.8rem)] font-bold text-[#007FFF] uppercase tracking-widest flex items-center gap-2 mb-[clamp(0.75rem,1.5vw,1.5rem)]">
-                                        <Calendar className="w-[clamp(0.875rem,1vw,1.125rem)] h-[clamp(0.875rem,1vw,1.125rem)]" /> 7-Day Projection
-                                    </h2>
-                                    <div className="flex flex-col gap-[clamp(0.25rem,0.5vw,0.5rem)] overflow-y-auto pr-2 scrollbar-none flex-1">
-                                        {(forecast?.time || []).slice(0, 7).map((timeStr: string, index: number) => {
-                                            const date = new Date(timeStr);
-                                            const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-                                            const isToday = index === 0;
-                                            return (
-                                                <div key={timeStr} className={`flex items-center justify-between p-[clamp(0.625rem,1.2vw,1rem)] rounded-[clamp(0.75rem,1.5vw,1.25rem)] ${isToday ? 'bg-white/10 border border-white/20' : 'bg-transparent border border-transparent'} hover:bg-white/5 transition-colors`}>
-                                                    <span className={`${isToday ? 'text-white font-bold' : 'text-slate-300 font-medium'} w-[clamp(2rem,4vw,3rem)] text-[clamp(0.7rem,0.85vw,0.95rem)]`}>
-                                                        {isToday ? 'Hoy' : dayName}
-                                                    </span>
-                                                    <div className="flex items-center gap-[clamp(0.375rem,0.8vw,0.75rem)] flex-1 ml-4 justify-end">
-                                                        <div className="flex items-center gap-1 w-[clamp(2rem,4vw,3rem)] text-[#007FFF]/80 text-[clamp(0.5rem,0.65vw,0.7rem)] font-bold">
-                                                            <Droplets className="w-[clamp(0.625rem,0.8vw,0.875rem)] h-[clamp(0.625rem,0.8vw,0.875rem)]" />
-                                                            <span>{forecast?.precipitation_probability_max?.[index] || 0}%</span>
-                                                        </div>
-                                                        <span className="text-[#007FFF] font-bold w-[clamp(1.25rem,2vw,1.75rem)] text-right text-[clamp(0.7rem,0.85vw,0.95rem)]">{Math.round(forecast?.temperature_2m_min?.[index] || 0)}°</span>
-                                                        <div className="w-[clamp(2.5rem,6vw,4rem)] h-1 bg-black/50 rounded-full overflow-hidden hidden sm:block">
-                                                            <div className="h-full bg-gradient-to-r from-[#007FFF] to-[#39FF14] rounded-full w-full" />
-                                                        </div>
-                                                        <span className="text-[#39FF14] font-bold w-[clamp(1.25rem,2vw,1.75rem)] text-left text-[clamp(0.7rem,0.85vw,0.95rem)]">{Math.round(forecast?.temperature_2m_max?.[index] || 0)}°</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                {/* Row 1-3 Right: Forecast Stream */}
+                                <div className="xl:row-span-3 h-full">
+                                    <WeatherForecastWidget />
+                                </div>
+
+                                {/* Row 2: Secondary Sensors */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 xl:col-span-2">
+                                    <div className="h-full min-h-[280px]">
+                                        <WeatherHumidityWidget />
                                     </div>
-                                </Card>
+                                    <div className="h-full min-h-[280px]">
+                                        <WeatherUvWidget />
+                                    </div>
+                                </div>
+
+                                {/* Row 3: Advanced Environmentals */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 xl:col-span-2">
+                                    <div className="h-full min-h-[280px]">
+                                        <WeatherPressureWidget />
+                                    </div>
+                                    <div className="h-full min-h-[280px]">
+                                        <WeatherVisibilityWidget />
+                                    </div>
+                                </div>
+
+                                {/* Row 4: Advanced Telemetry & Holistic Scene */}
+                                <div className="xl:col-span-2">
+                                    <WeatherAstronomyWidget />
+                                </div>
+                                <div className="xl:col-span-1 h-full min-h-[500px]">
+                                    <WeatherHolisticWidget />
+                                </div>
                             </div>
                         </motion.div>
                     )}
@@ -337,16 +332,16 @@ function AtmosphereDashboard() {
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 1.05 }}
                             transition={{ duration: 0.4, ease: "easeOut" }}
-                            className="w-full h-full max-w-7xl mx-auto flex flex-col lg:flex-row justify-center items-start gap-[clamp(1rem,2vw,1.5rem)] overflow-y-auto scrollbar-none pb-4 pt-4 lg:pt-6"
+                            className="w-full h-full max-w-[1800px] mx-auto flex flex-col lg:flex-row justify-center items-stretch gap-[clamp(1rem,2vw,1.5rem)] overflow-y-auto scrollbar-none pb-4 pt-4 lg:pt-6"
                         >
                             {/* Left Col (Magnetosphere) */}
-                            <div className="w-full lg:w-1/2 lg:max-w-[520px] flex flex-col gap-[clamp(1rem,2vw,1.5rem)] pointer-events-auto shrink-0">
+                            <div className="w-full lg:flex-1 flex flex-col gap-[clamp(1rem,2vw,1.5rem)] pointer-events-auto shrink-0 min-w-0">
                                 <KpIndexWidget data={spaceData} loading={loadingSpace} />
                                 <MagnetometerWidget data={spaceData} loading={loadingSpace} />
                             </div>
 
                             {/* Right Col (Ionosphere / Secondary) */}
-                            <div className="w-full lg:w-1/2 lg:max-w-[520px] flex flex-col gap-[clamp(1rem,2vw,1.5rem)] pointer-events-auto shrink-0">
+                            <div className="w-full lg:flex-1 flex flex-col gap-[clamp(1rem,2vw,1.5rem)] pointer-events-auto shrink-0 min-w-0 h-full">
                                 <Card className="p-[clamp(1rem,2.5vw,1.75rem)] bg-[#001F3F]/40 backdrop-blur-[40px] border border-[#007FFF]/20 rounded-[clamp(1.25rem,3vw,2rem)] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
                                     <h2 className="text-[clamp(0.6rem,0.75vw,0.8rem)] font-bold text-[#007FFF] uppercase tracking-widest flex items-center gap-2 mb-[clamp(0.75rem,1.5vw,1.5rem)]">
                                         <Satellite className="w-[clamp(0.875rem,1vw,1.125rem)] h-[clamp(0.875rem,1vw,1.125rem)]" /> Ionospheric Status
@@ -396,16 +391,16 @@ function AtmosphereDashboard() {
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 1.05 }}
                             transition={{ duration: 0.4, ease: "easeOut" }}
-                            className="w-full h-full max-w-7xl mx-auto flex flex-col lg:flex-row justify-center items-start gap-[clamp(1rem,2vw,1.5rem)] overflow-y-auto scrollbar-none pb-4 pt-4 lg:pt-6"
+                            className="w-full h-full max-w-[1800px] mx-auto flex flex-col lg:flex-row justify-center items-stretch gap-[clamp(1rem,2vw,1.5rem)] overflow-y-auto scrollbar-none pb-4 pt-4 lg:pt-6"
                         >
                             {/* Left Col (Sun Activity) */}
-                            <div className="w-full lg:w-1/2 lg:max-w-[520px] flex flex-col gap-[clamp(1rem,2vw,1.5rem)] pointer-events-auto shrink-0">
+                            <div className="w-full lg:flex-1 flex flex-col gap-[clamp(1rem,2vw,1.5rem)] pointer-events-auto shrink-0 min-w-0">
                                 <SolarWindWidget data={spaceData} loading={loadingSpace} />
                                 <XRayFlareWidget data={spaceData} loading={loadingSpace} />
                             </div>
 
                             {/* Right Col (Imagery / SSN) */}
-                            <div className="w-full lg:w-1/2 lg:max-w-[520px] flex flex-col gap-[clamp(1rem,2vw,1.5rem)] pointer-events-auto shrink-0">
+                            <div className="w-full lg:flex-1 flex flex-col gap-[clamp(1rem,2vw,1.5rem)] pointer-events-auto shrink-0 min-w-0 h-full">
 
                                 <Card className="p-[clamp(0.25rem,0.5vw,0.375rem)] bg-[#001F3F]/40 backdrop-blur-[40px] border border-[#FFbf00]/30 rounded-[clamp(1.25rem,3vw,2rem)] shadow-[0_8px_32px_rgba(255,191,0,0.15)] overflow-hidden">
                                     <div className="relative w-full aspect-square rounded-[clamp(1rem,2.5vw,1.75rem)] overflow-hidden bg-black/50">

@@ -5,7 +5,6 @@ import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 import { useAppearance } from "@/context/appearance-context"
 import { LiquidGlassWrapper } from "@/components/ui/LiquidGlassWrapper"
-import { SplineUIWrapper } from "@/components/ui/spline-ui-wrapper"
 
 import { cn } from "@/lib/utils"
 
@@ -65,18 +64,14 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     if (isPrimary && variant !== 'link' && variant !== 'ghost') {
       const isSecondary = variant === 'secondary' || variant === 'outline';
-      const splineUrl = isSecondary
-        ? "https://prod.spline.design/zJacodBoEMgObolF/scene.splinecode"
-        : "https://prod.spline.design/f-FmokKwZQASiVE9/scene.splinecode";
 
       if (asChild) {
-        // We cannot easily inject Spline inside a Slot. We fallback to CSS classes for asChild.
         return (
           <Comp
             className={cn(
               buttonVariants({ variant, size, className }),
-              isSecondary ? "liquid-glass-panel border-opacity-50" : "spline-primary-button",
-              "transition-all duration-300 text-foreground shadow-lg relative z-10 drop-shadow-sm",
+              isSecondary ? "liquid-glass-panel border-opacity-50" : "bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md transition-all duration-300",
+              "text-foreground shadow-lg relative z-10 drop-shadow-sm",
             )}
             data-component="button"
             ref={ref}
@@ -85,23 +80,18 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         );
       }
 
-      // Native WebGL Injection for regular buttons
+      // Native Pure CSS Glass Injection
       return (
         <button
           className={cn(
             buttonVariants({ variant, size, className }),
-            "relative overflow-hidden transition-all duration-300 text-foreground bg-transparent hover:bg-foreground/10 border border-foreground/20 shadow-lg group/splinebtn",
+            "relative overflow-hidden transition-all duration-300 text-foreground bg-white/5 hover:bg-white/15 border border-white/20 shadow-lg backdrop-blur-md group/glassbtn",
           )}
           data-component="button"
           ref={ref}
           {...props}
         >
-          <div className="absolute inset-[-50%] z-0 pointer-events-none opacity-80 group-hover/splinebtn:opacity-100 transition-opacity duration-500 flex items-center justify-center">
-            <SplineUIWrapper
-              sceneUrl={splineUrl}
-              className="w-[200%] h-[200%] scale-150 transform-gpu"
-            />
-          </div>
+          <div className="absolute inset-0 z-0 bg-gradient-to-tr from-white/5 via-transparent to-white/10 opacity-0 group-hover/glassbtn:opacity-100 transition-opacity duration-500 pointer-events-none" />
           <span className="relative z-10 drop-shadow-sm flex items-center justify-center gap-2">
             {props.children}
           </span>
