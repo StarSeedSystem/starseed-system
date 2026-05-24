@@ -58,7 +58,8 @@ Heredado del `gemini.md` original. Tres capas claras:
 - **Realtime:** Supabase Realtime (websockets nativos)
 - **Storage:** Supabase Storage (futuro: IPFS para `LibraryItem`)
 - **Edge functions:** Supabase Edge Functions (Deno) — no usadas todavía
-- **IA:** Genkit + Google AI (Gemini) — futuro: modelos open
+- **IA (server-side legacy):** Genkit + Google AI para flujos que requieren ejecución en servidor (RAG con datos privados, schedulers).
+- **IA (client-side, capa nueva):** Capa multi-proveedor en `src/ai/providers/` + `src/ai/client/`. Ver §12.
 
 ### Infraestructura
 - **Hosting Fase Semilla:** Vercel (auto-deploy desde `main`)
@@ -279,18 +280,117 @@ src/
 
 ---
 
-## 11. Decisiones pendientes (lista de ADRs futuros)
+## 12. Capa de IA multi-proveedor (Exocórtex soberano)
+
+Añadida en sesión 2 (2026-05-24). Implementa el principio constitucional del
+Exocórtex: la IA personal es **propiedad del usuario**, no del sistema.
+
+### Layout
+
+```
+src/ai/
+├── genkit.ts                   ← legacy server-side (se conserva)
+├── flows/                      ← legacy flows server-side
+├── providers/
+│   ├── types.ts                ← interfaz Provider + tipos compartidos
+│   ├── index.ts                ← registry + orden de presentación
+│   ├── ollama.ts               ← local (sin clave)
+│   ├── openai.ts               ← OpenAI + compatibles (Groq, Together, ...)
+│   ├── anthropic.ts            ← Claude (direct-browser-access)
+│   ├── google.ts               ← Gemini REST
+│   └── README.md
+└── client/
+    ├── chat.ts                 ← punto único de entrada
+    ├── keyStorage.ts           ← AES-GCM + PBKDF2 (WebCrypto)
+    └── providerStore.ts        ← localStorage + export/import
+```
+
+### Cómo se usa
+
+```ts
+import { chat } from "@/ai/client/chat";
+
+const response = await chat({
+  messages: [
+    { role: "system", content: "Eres el Núcleo StarSeed." },
+    { role: "user", content: "Hola." },
+  ],
+  passphrase,                  // si el usuario configuró frase
+  onChunk: (delta) => updateUI(delta),
+});
+```
+
+`chat()` resuelve qué proveedor está activo, descifra la clave en memoria, y
+delega al adapter correspondiente. Streaming uniforme.
+
+### Cómo añadir un nuevo proveedor
+
+1. Crear `src/ai/providers/mi-proveedor.ts` que exporte un objeto `Provider`
+   con `info` y `chat()`.
+2. Registrarlo en `src/ai/providers/index.ts` (mapa `PROVIDERS` y
+   `PROVIDER_ORDER`).
+3. (Opcional) Implementar `listModels()` para que el botón "Refrescar modelos"
+   funcione en la UI.
+
+Sin tocar UI: el panel `ai-providers-panel.tsx` recorre el registry y los
+muestra automáticamente.
+
+### Modelo de seguridad
+
+- **Cifrado:** AES-GCM 256-bit; clave derivada con PBKDF2-SHA256, 250k iter,
+  salt aleatorio por instalación (almacenado en `starseed.ai.salt`).
+- **Frase de paso opcional:** si el usuario no introduce frase, se usa una
+  default device-bound (menos segura, pero conveniente).
+- **Verificador de frase:** `starseed.ai.verifier` guarda un ciphertext de "ok"
+  para validar la frase rápidamente sin tener que descifrar todas las claves.
+- **Llaves descifradas:** solo en memoria, durante la duración de una llamada
+  a `provider.chat()`. Jamás se serializan, jamás se logean.
+- **Tráfico:** las llamadas a proveedores externos parten siempre del
+  navegador del usuario. El backend de Next.js nunca ve las claves ni las
+  conversaciones.
+
+### UI de gestión
+
+- `/settings` → tab "IA & Modelos" (`AiProvidersPanel`): catálogo + gestor de
+  proveedores con guardado cifrado, test de conexión, refresh de modelos,
+  gestión de frase de paso.
+- `/settings` → tab "Privacidad" (`PrivacyPanel`): Modo Fantasma, telemetría
+  opt-in, exportar/importar configuración IA, ver desglose de localStorage,
+  borrado total.
+- `/agent`: selector de proveedor activo + input opcional de frase + botón
+  Detener (AbortController). Streaming visible con cursor parpadeante.
+
+### Integración con el sistema de agentes
+
+Cada agente del Foundry (system prompt, temperatura, capacidades) es
+provider-agnostic. La capa multi-proveedor solo ejecuta el contrato del
+agente sobre el modelo que el usuario eligió. Las reglas (`rules`) activas se
+inyectan automáticamente en el `system` prompt en cada llamada.
+
+### Roadmap específico de esta capa
+
+- [ ] Streaming real para Google AI (`streamGenerateContent`).
+- [ ] Soporte de vision (imágenes) por proveedor.
+- [ ] Tool-use / function calling unificado.
+- [ ] Provider "Federación StarSeed": un nodo ofrece su modelo a otros nodos.
+- [ ] Vector store local (IndexedDB + embeddings) para memoria persistente
+      del Exocórtex.
+
+---
+
+## 13. Decisiones pendientes (lista de ADRs futuros)
 
 A documentar en `architecture/specifications/decisions/` como ADRs (Architecture Decision Records):
 
 - [ ] ADR-001: Elección de protocolo de federación
 - [ ] ADR-002: Migración Supabase → Postgres propio (cuándo y cómo)
-- [ ] ADR-003: Sistema de cifrado E2E para Exocórtex
+- [x] ADR-003: Sistema de cifrado E2E para Exocórtex → **DECIDIDO sesión 2**: AES-GCM 256 + PBKDF2-SHA256 250k iter, WebCrypto API, claves en localStorage cifrado.
 - [ ] ADR-004: Tauri vs. Capacitor para apps nativas
 - [ ] ADR-005: Distro base para StarSeed OS (Debian / Arch / NixOS)
 - [ ] ADR-006: Manejo de moneda interna (Seeds / Karma) — si es token, qué tipo
 - [ ] ADR-007: Provider de Proof of Personhood
 - [ ] ADR-008: Política de retención de datos y derecho al olvido federado
+- [ ] ADR-009: Estrategia de migración Genkit → capa cliente para flujos sin estado
 
 ---
 

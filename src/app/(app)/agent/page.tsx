@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,11 @@ import {
   Save,
   Trash2,
   Sliders,
-  Play
+  Play,
+  Square,
+  Lock,
+  Cpu,
+  Cloud,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,6 +37,11 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+
+import { chat } from "@/ai/client/chat";
+import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
+import { PROVIDERS, type ProviderId } from "@/ai/providers";
+import type { ProviderConfig, ChatMessage } from "@/ai/providers/types";
 
 // --- Types ---
 type Agent = {
@@ -88,9 +98,11 @@ const initialWorkflows: WorkflowItem[] = [
   { id: "w2", name: "Auto-Tag Library", trigger: "On File Upload", action: "Analyze Content -> Add AI Tags", isActive: false },
 ];
 
+type ChatTurn = { role: "user" | "agent"; content: string; timestamp: string; pending?: boolean };
+
 export default function AgentPage() {
-  const [messages, setMessages] = useState([
-    { role: 'agent', content: 'Sistemas neurales activos. El estudio de orquestación está listo.', timestamp: 'Ahora' }
+  const [messages, setMessages] = useState<ChatTurn[]>([
+    { role: 'agent', content: 'Sistemas neurales activos. Elige un proveedor de IA en Ajustes → IA & Modelos para empezar a conversar de verdad.', timestamp: 'Ahora' }
   ]);
   const [inputValue, setInputValue] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -102,17 +114,103 @@ export default function AgentPage() {
   const [workflows, setWorkflows] = useState<WorkflowItem[]>(initialWorkflows);
   const [selectedAgentId, setSelectedAgentId] = useState<string>("1");
 
-  const activeAgent = agents.find(a => a.id === selectedAgentId) || agents[0];
+  // Provider state — wired to the new multi-provider layer.
+  const [configs, setConfigs] = useState<ProviderConfig[]>([]);
+  const [activeProviderId, setActiveProviderIdState] = useState<ProviderId | null>(null);
+  const [passphrase, setPassphrase] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
+  const [streaming, setStreaming] = useState(false);
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
-    const newMsg = { role: 'user', content: inputValue, timestamp: 'Ahora' };
-    setMessages(prev => [...prev, newMsg]);
+  useEffect(() => {
+    setConfigs(loadConfigs());
+    setActiveProviderIdState(getActiveProviderId());
+  }, []);
+
+  const activeAgent = agents.find(a => a.id === selectedAgentId) || agents[0];
+  const activeProviderConfig = useMemo(
+    () => configs.find(c => c.enabled && c.id === activeProviderId) ?? configs.find(c => c.enabled),
+    [configs, activeProviderId]
+  );
+  const activeProviderInfo = activeProviderConfig ? PROVIDERS[activeProviderConfig.id].info : null;
+
+  function setProvider(id: ProviderId) {
+    setActiveProviderId(id);
+    setActiveProviderIdState(id);
+    toast.success(`Proveedor activo: ${PROVIDERS[id].info.label}`);
+  }
+
+  async function handleSend() {
+    const text = inputValue.trim();
+    if (!text || streaming) return;
+
     setInputValue("");
-    setTimeout(() => {
-      setMessages(prev => [...prev, { role: 'agent', content: `[${activeAgent.name}]: Procesando solicitud con temperatura ${activeAgent.temperature}...`, timestamp: 'Ahora' }]);
-    }, 600);
-  };
+    const now = new Date().toLocaleTimeString();
+    setMessages(prev => [...prev, { role: 'user', content: text, timestamp: now }]);
+
+    if (!activeProviderConfig) {
+      setMessages(prev => [...prev, {
+        role: 'agent',
+        timestamp: now,
+        content: 'Aún no tienes un proveedor de IA configurado. Ve a Ajustes → IA & Modelos y añade Ollama (local) u otro proveedor con tu propia clave.',
+      }]);
+      return;
+    }
+
+    // Build the conversation context: persona + system prompt + active rules + history.
+    const systemPieces: string[] = [activeAgent.systemPrompt];
+    rules.filter(r => r.isActive).forEach(r => systemPieces.push(`Regla "${r.name}": ${r.content}`));
+    const history: ChatMessage[] = [
+      { role: 'system', content: systemPieces.join('\n\n') },
+      ...messages.filter(m => !m.pending).map<ChatMessage>(m => ({
+        role: m.role === 'agent' ? 'assistant' : 'user',
+        content: m.content,
+      })),
+      { role: 'user', content: text },
+    ];
+
+    // Placeholder turn that we'll fill via streaming.
+    const placeholderIdx = -1;
+    setMessages(prev => [...prev, { role: 'agent', content: '', timestamp: now, pending: true }]);
+
+    abortRef.current = new AbortController();
+    setStreaming(true);
+    try {
+      await chat({
+        messages: history,
+        temperature: activeAgent.temperature,
+        passphrase,
+        signal: abortRef.current.signal,
+        onChunk: (delta) => {
+          setMessages(prev => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last && last.role === 'agent' && last.pending) {
+              next[next.length - 1] = { ...last, content: last.content + delta };
+            }
+            return next;
+          });
+        },
+      });
+      setMessages(prev => prev.map(m => (m.pending ? { ...m, pending: false } : m)));
+    } catch (err) {
+      const msg = (err as Error).message;
+      setMessages(prev => {
+        const next = prev.filter(m => !m.pending);
+        next.push({ role: 'agent', content: `⚠ ${msg}`, timestamp: now });
+        return next;
+      });
+      toast.error(`Error: ${msg}`);
+    } finally {
+      setStreaming(false);
+      abortRef.current = null;
+    }
+  }
+
+  function handleStop() {
+    abortRef.current?.abort();
+    setStreaming(false);
+    setMessages(prev => prev.map(m => (m.pending ? { ...m, pending: false, content: m.content + ' (cancelado)' } : m)));
+  }
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -123,14 +221,32 @@ export default function AgentPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] gap-4 p-4 md:p-6 max-w-[1600px] mx-auto w-full">
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-3">
           <BrainCircuit className="w-8 h-8 text-primary" />
           AI Studio & Orchestration
         </h1>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="border-green-500/50 text-green-400 bg-green-500/10">System Online</Badge>
-          <Badge variant="outline" className="border-blue-500/50 text-blue-400 bg-blue-500/10">{agents.length} Agents Active</Badge>
+        <div className="flex items-center gap-2 flex-wrap">
+          {activeProviderConfig ? (
+            <Badge
+              variant="outline"
+              className={`gap-1 ${
+                activeProviderInfo?.local
+                  ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10"
+                  : "border-blue-500/50 text-blue-400 bg-blue-500/10"
+              }`}
+            >
+              {activeProviderInfo?.local ? <Cpu className="h-3 w-3" /> : <Cloud className="h-3 w-3" />}
+              {activeProviderConfig.label} · {activeProviderConfig.defaultModel}
+            </Badge>
+          ) : (
+            <Link href="/settings">
+              <Badge variant="outline" className="border-amber-500/50 text-amber-400 bg-amber-500/10 cursor-pointer hover:bg-amber-500/20">
+                Configura un proveedor de IA →
+              </Badge>
+            </Link>
+          )}
+          <Badge variant="outline" className="border-blue-500/50 text-blue-400 bg-blue-500/10">{agents.length} agentes</Badge>
         </div>
       </div>
 
@@ -146,10 +262,27 @@ export default function AgentPage() {
         <TabsContent value="chat" className="flex-1 flex gap-6 min-h-0">
           {/* Chat Interface */}
           <div className="flex-1 flex flex-col rounded-xl border bg-background/50 overflow-hidden shadow-sm relative">
-            <div className="absolute top-4 right-4 z-10">
+            <div className="absolute top-4 right-4 z-10 flex gap-2">
+              {configs.filter(c => c.enabled).length > 0 && (
+                <Select
+                  value={activeProviderId ?? configs[0]?.id}
+                  onValueChange={(v) => setProvider(v as ProviderId)}
+                >
+                  <SelectTrigger className="w-[200px] bg-black/50 backdrop-blur border-white/10">
+                    <SelectValue placeholder="Proveedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {configs.filter(c => c.enabled).map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {PROVIDERS[c.id].info.local ? "🖥 " : "☁ "}{c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
                 <SelectTrigger className="w-[180px] bg-black/50 backdrop-blur border-white/10">
-                  <SelectValue placeholder="Select Agent" />
+                  <SelectValue placeholder="Agente" />
                 </SelectTrigger>
                 <SelectContent>
                   {agents.map(agent => (
@@ -170,30 +303,50 @@ export default function AgentPage() {
                         <AvatarImage src="https://placehold.co/40x40.png" />
                       )}
                     </Avatar>
-                    <div className={`p-3 rounded-2xl max-w-[80%] text-sm shadow-sm ${msg.role === 'user'
+                    <div className={`p-3 rounded-2xl max-w-[80%] text-sm shadow-sm whitespace-pre-wrap ${msg.role === 'user'
                       ? 'bg-primary text-primary-foreground rounded-tr-none'
                       : 'bg-card border rounded-tl-none'
                       }`}>
                       {msg.content}
+                      {msg.pending && <span className="inline-block w-2 h-4 ml-1 bg-primary/70 animate-pulse align-middle" />}
                     </div>
                   </div>
                 ))}
               </div>
             </ScrollArea>
 
-            <div className="p-4 border-t bg-background/40 backdrop-blur-md">
+            <div className="p-4 border-t bg-background/40 backdrop-blur-md space-y-2">
+              {activeProviderConfig?.encryptedKey && (
+                <div className="flex gap-2 max-w-3xl mx-auto items-center">
+                  <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+                  <Input
+                    type="password"
+                    placeholder="Frase de paso (descifra tu clave de API)"
+                    className="flex-1 bg-background/50 text-xs h-8"
+                    value={passphrase}
+                    onChange={(e) => setPassphrase(e.target.value)}
+                  />
+                </div>
+              )}
               <div className="flex gap-2 max-w-3xl mx-auto items-center">
-                <Button variant="outline" size="icon" className="shrink-0"><Mic className="w-4 h-4" /></Button>
+                <Button variant="outline" size="icon" className="shrink-0" disabled><Mic className="w-4 h-4" /></Button>
                 <Input
-                  placeholder={`Chatting with ${activeAgent.name}...`}
+                  placeholder={`Conversando con ${activeAgent.name}${activeProviderConfig ? ` vía ${activeProviderConfig.label}` : ""}...`}
                   className="flex-1 bg-background/50"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                  onKeyDown={(e) => e.key === 'Enter' && !streaming && handleSend()}
+                  disabled={streaming}
                 />
-                <Button onClick={handleSend} className="shrink-0 gap-2">
-                  <Send className="w-4 h-4" />
-                </Button>
+                {streaming ? (
+                  <Button onClick={handleStop} variant="destructive" className="shrink-0 gap-2">
+                    <Square className="w-4 h-4" /> Detener
+                  </Button>
+                ) : (
+                  <Button onClick={handleSend} className="shrink-0 gap-2" disabled={!inputValue.trim()}>
+                    <Send className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
             </div>
           </div>

@@ -92,4 +92,58 @@
 
 ---
 
-<!-- Las siguientes entradas se añaden al final, no se sobrescriben. -->
+---
+
+## 2026-05-24 — Sesión 2: Multi-proveedor de IA + privacidad + cleanup
+
+**Sesión por:** Claude (Cowork mode, Opus 4.7) bajo dirección de Alex Bordón Garrigós.
+**Resumen ejecutivo:** Implementada la capa multi-proveedor de IA del Exocórtex (Ollama local, OpenAI-compatible, Anthropic Claude, Google Gemini), con cifrado AES-GCM de claves en navegador. Añadido panel de Privacidad/Soberanía de Datos en /settings. Página /agent ahora hace chat real con streaming y stop. Cleanup de carpetas duplicadas.
+
+### Hecho
+- **Capa multi-proveedor de IA** (`src/ai/providers/` y `src/ai/client/`):
+  - `types.ts` con la interfaz `Provider` y tipos `ChatMessage`/`ChatOptions`/`ChatResponse`.
+  - `ollama.ts` — proveedor local (sin clave, streaming NDJSON).
+  - `openai.ts` — OpenAI y compatibles (Groq, Together, OpenRouter, LM Studio, vLLM). Streaming SSE.
+  - `anthropic.ts` — Claude con `anthropic-dangerous-direct-browser-access`. Streaming SSE.
+  - `google.ts` — Gemini vía REST directo. Sin SDK extra.
+  - `index.ts` — registro central + orden de presentación.
+  - `README.md` — documentación de cómo añadir nuevos proveedores y modelo de seguridad.
+- **Almacenamiento seguro** (`src/ai/client/`):
+  - `keyStorage.ts` — AES-GCM 256-bit + PBKDF2-SHA256 (250k iter) + salt aleatorio por instalación. Soporta modo con/sin frase de paso.
+  - `providerStore.ts` — gestión de configs en localStorage, export/import JSON, wipe.
+  - `chat.ts` — punto único de entrada `chat({messages, ...})` provider-agnostic.
+- **UI:**
+  - `src/components/settings/ai/ai-providers-panel.tsx` — catálogo + gestor con guardado cifrado, test de conexión, refresh de modelos, frase de paso.
+  - `src/components/settings/privacy/privacy-panel.tsx` — Modo Fantasma, telemetría opt-in, exportar/importar/borrar IA, ver desglose localStorage, borrado total.
+- **Página /agent** refactorizada:
+  - Reemplaza el `setTimeout` simulado por `chat()` real con streaming.
+  - Selector de proveedor activo + selector de agente en cabecera.
+  - Input opcional de frase de paso si el proveedor activo tiene clave cifrada.
+  - Botón Detener (AbortController).
+  - Inyecta automáticamente el system prompt del agente + reglas activas en el contexto.
+- **Settings page** expandida de 3 a 5 tabs: Diseño · IA & Modelos · Privacidad · Perfil · Seguridad.
+- **Cleanup:** eliminadas `src/contexts/` y `src/components/trinity/` (vacías). Verificado que no hay imports rotos.
+
+### Decisiones tomadas
+- **Privacidad por diseño:** las claves de IA viven solo en el navegador del usuario, cifradas con AES-GCM. El backend de Next.js nunca las ve. Las llamadas a OpenAI/Anthropic/Google parten del browser (CORS).
+- **Ollama es el default sugerido** (proveedor por defecto en `defaultConfigs()`): cero datos a terceros, alineado con la Ciberdelia y la soberanía.
+- **No reemplazar Genkit todavía:** `src/ai/genkit.ts` y los flujos en `src/ai/flows/` se mantienen para casos server-side. La nueva capa convive con ellos. Migración progresiva.
+- **Configuración portable:** la export/import de configuración de IA permite trasladar setup entre dispositivos.
+
+### Pendiente / Próximos pasos
+1. **Verificar el typecheck** localmente — el sandbox excede timeout. Si hay errores, arreglar.
+2. **Streaming real para Google AI:** sustituir `:generateContent` por `:streamGenerateContent` con parseo SSE.
+3. **Persistir agentes/reglas/workflows** en Supabase (hoy son mocks en estado local de la página).
+4. **Migrar flujos de Genkit** que no requieran server al nuevo `chat()` client-side.
+5. **Vincular activación de IA al sistema de Insignias** — cuando un usuario contribuye con su modelo a la federación, recibe una insignia.
+6. **Tests:** la capa de providers es pura y testeable con MSW — añadir cobertura.
+7. **i18n** — el panel está en español; preparar para EN/FR/PT.
+8. **Vector storage local** para que el Exocórtex tenga memoria persistente del usuario (IndexedDB + embeddings).
+
+### Notas / aprendizajes
+- La constitución del proyecto se traduce muy bien a decisiones técnicas concretas: "el usuario es soberano de su IA" → multi-proveedor + claves locales + sin lock-in. Cada feature debería poder justificarse así.
+- Anthropic ya permite uso directo desde browser (header `anthropic-dangerous-direct-browser-access`). Esto cambia el paradigma respecto a hace 2 años: ya no necesitamos backend obligatorio para LLM calls.
+- El TypeScript del proyecto compila lento — vale la pena considerar mover a SWC o evaluar si hay dependencias circulares en los contextos.
+- Limpieza incremental: la primera sesión quitó scripts huérfanos; ésta limpió carpetas duplicadas. Próxima sesión: revisar `apphosting.yaml` (Firebase) si vamos solo a Vercel; revisar `src/components/stitch/` para ver si sigue siendo necesario.
+
+

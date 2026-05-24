@@ -2,9 +2,11 @@
 
 import React from "react";
 import { AppearanceEditor } from "@/components/settings/appearance/appearance-editor";
+import { AiProvidersPanel } from "@/components/settings/ai/ai-providers-panel";
+import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Palette, User, Shield } from "lucide-react";
+import { Palette, User, Shield, Sparkles, ShieldCheck } from "lucide-react";
 
 export default function SettingsPage() {
     return (
@@ -21,15 +23,21 @@ export default function SettingsPage() {
                 <div className="backdrop-blur-xl bg-background/30 border rounded-xl overflow-hidden shadow-2xl">
                     <Tabs defaultValue="appearance" className="w-full">
                         <div className="border-b bg-muted/20 p-4">
-                            <TabsList className="grid w-full grid-cols-3 max-w-md mx-auto">
+                            <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 max-w-3xl mx-auto gap-1">
                                 <TabsTrigger value="appearance" className="gap-2 data-[state=active]:bg-background/50">
-                                    <Palette className="h-4 w-4" /> Diseños de UI
+                                    <Palette className="h-4 w-4" /> <span className="hidden sm:inline">Diseño</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-background/50">
+                                    <Sparkles className="h-4 w-4" /> <span className="hidden sm:inline">IA & Modelos</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="privacy" className="gap-2 data-[state=active]:bg-background/50">
+                                    <ShieldCheck className="h-4 w-4" /> <span className="hidden sm:inline">Privacidad</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="profile" className="gap-2 data-[state=active]:bg-background/50">
-                                    <User className="h-4 w-4" /> Perfil
+                                    <User className="h-4 w-4" /> <span className="hidden sm:inline">Perfil</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-background/50">
-                                    <Shield className="h-4 w-4" /> Seguridad
+                                    <Shield className="h-4 w-4" /> <span className="hidden sm:inline">Seguridad</span>
                                 </TabsTrigger>
                             </TabsList>
                         </div>
@@ -37,6 +45,14 @@ export default function SettingsPage() {
                         <div className="p-6 bg-gradient-to-br from-background/50 to-background/10 min-h-[50vh]">
                             <TabsContent value="appearance" className="m-0 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <AppearanceEditor />
+                            </TabsContent>
+
+                            <TabsContent value="ai" className="m-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <AiProvidersPanel />
+                            </TabsContent>
+
+                            <TabsContent value="privacy" className="m-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <PrivacyPanel />
                             </TabsContent>
 
                             <TabsContent value="profile" className="m-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
