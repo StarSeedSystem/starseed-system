@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bio-Organic Liquid Glass Weather Widget</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00ffff",
+                        "emerald-glow": "#10b981",
+                        "background-light": "#f5f8f8",
+                        "background-dark": "#050505",
+                        "obsidian": "#050505",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #050505;
+        }
+        .glass-capsule {
+            background: rgba(0, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 255, 255, 0.15);
+            box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2);
+        }
+        .bio-glow-cyan {
+            filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.6));
+        }
+        .bio-glow-emerald {
+            filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.4));
+        }
+        .liquid-sphere {
+            background: radial-gradient(circle at 30% 30%, rgba(0, 255, 255, 0.4), rgba(0, 255, 255, 0.1) 50%, rgba(0, 0, 0, 0.8));
+            box-shadow: inset -5px -5px 15px rgba(0, 255, 255, 0.2), 0 0 30px rgba(0, 255, 255, 0.3);
+        }
+        .floating-spore {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: #00ffff;
+            border-radius: 50%;
+            opacity: 0.4;
+            filter: blur(1px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center p-4">
+<!-- Main Mobile Container -->
+<div class="relative w-full max-w-[400px] aspect-[9/19] bg-obsidian rounded-[3rem] overflow-hidden border-[8px] border-slate-800 shadow-2xl flex flex-col">
+<!-- Status Bar -->
+<div class="flex justify-between items-center px-8 pt-6 pb-2 text-xs font-medium tracking-tight">
+<span>9:41</span>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px]">signal_cellular_4_bar</span>
+<span class="material-symbols-outlined text-[14px]">wifi</span>
+<span class="material-symbols-outlined text-[14px]">battery_full</span>
+</div>
+</div>
+<!-- Bio-Interface Header -->
+<div class="flex items-center justify-between px-6 py-4 z-20">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary bio-glow-cyan">temp_preferences_custom</span>
+<h1 class="text-sm font-bold tracking-widest uppercase text-primary/80">Bio-Interface</h1>
+</div>
+<button class="w-10 h-10 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20">
+<span class="material-symbols-outlined text-primary text-xl">grid_view</span>
+</button>
+</div>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col items-center justify-center relative px-6">
+<!-- Background Decorative Tendrils (SVG Overlay Concept) -->
+<div class="absolute inset-0 z-0 pointer-events-none opacity-40 overflow-hidden">
+<!-- Top Right Emerald Tendril -->
+<div class="absolute -top-10 -right-10 w-64 h-64 bg-emerald-glow/20 rounded-full blur-[80px]"></div>
+<!-- Bottom Left Cyan Tendril -->
+<div class="absolute -bottom-20 -left-20 w-80 h-80 bg-primary/10 rounded-full blur-[100px]"></div>
+<!-- Floating Spores (Absolute Positioned) -->
+<div class="floating-spore top-1/4 left-1/4"></div>
+<div class="floating-spore top-1/2 right-1/3"></div>
+<div class="floating-spore bottom-1/3 left-1/2"></div>
+<div class="floating-spore top-2/3 right-1/4"></div>
+</div>
+<!-- Main Weather Widget Card -->
+<div class="w-full glass-capsule rounded-3xl p-8 flex flex-col items-center gap-10 relative z-10 border-t border-primary/30">
+<!-- Atmospheric Status Label -->
+<div class="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-primary/10 border border-primary/20">
+<span class="text-[10px] font-bold tracking-[0.2em] text-primary uppercase">Atmospheric Status</span>
+</div>
+<!-- Liquid Sun & Main Temp Row -->
+<div class="flex items-center justify-between w-full mt-4">
+<!-- Liquid Glass Sphere -->
+<div class="relative w-24 h-24 flex items-center justify-center">
+<div class="absolute inset-0 liquid-sphere rounded-full animate-pulse"></div>
+<!-- Inner Glowing "Fluid" Rays -->
+<div class="absolute w-full h-full border border-dashed border-primary/40 rounded-full animate-[spin_10s_linear_infinite]"></div>
+<span class="material-symbols-outlined text-4xl text-primary bio-glow-cyan">filter_drama</span>
+</div>
+<!-- Temperature Display -->
+<div class="text-right">
+<h2 class="text-7xl font-bold text-slate-100 tracking-tighter bio-glow-cyan leading-none">24°C</h2>
+<p class="text-emerald-glow font-medium text-sm mt-2 tracking-wide flex items-center justify-end gap-1">
+<span class="material-symbols-outlined text-xs">eco</span>
+                            Glowing Rays
+                        </p>
+</div>
+</div>
+<!-- Metrics Grid -->
+<div class="grid grid-cols-2 gap-4 w-full">
+<!-- Wind Speed Capsule -->
+<div class="glass-capsule rounded-2xl p-4 flex flex-col items-start gap-2 border-l-4 border-l-primary">
+<div class="flex items-center gap-2 text-primary/60">
+<span class="material-symbols-outlined text-lg">air</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Wind</span>
+</div>
+<div class="flex items-end gap-1">
+<span class="text-xl font-bold text-slate-100">14</span>
+<span class="text-[10px] text-primary/60 pb-1">km/h</span>
+</div>
+<div class="text-[10px] text-emerald-glow font-medium">+2% flow rate</div>
+</div>
+<!-- Humidity Capsule -->
+<div class="glass-capsule rounded-2xl p-4 flex flex-col items-start gap-2 border-l-4 border-l-emerald-glow">
+<div class="flex items-center gap-2 text-emerald-glow/60">
+<span class="material-symbols-outlined text-lg">humidity_mid</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Humid</span>
+</div>
+<div class="flex items-end gap-1">
+<span class="text-xl font-bold text-slate-100">62</span>
+<span class="text-[10px] text-emerald-glow/60 pb-1">%</span>
+</div>
+<div class="text-[10px] text-red-400 font-medium">-5% saturation</div>
+</div>
+</div>
+<!-- Organic Detail Overlay (Floral Vines) -->
+<div class="absolute -bottom-6 -right-6 w-32 h-32 pointer-events-none opacity-80">
+<svg class="w-full h-full text-emerald-glow bio-glow-emerald fill-none stroke-current stroke-[2]" viewbox="0 0 100 100">
+<path d="M100,100 Q80,50 40,70 T0,20"></path>
+<circle cx="40" cy="70" fill="currentColor" r="2"></circle>
+<circle cx="80" cy="85" fill="currentColor" r="1.5"></circle>
+</svg>
+</div>
+</div>
+<!-- Secondary List: Bio-Metrics Ecosystem -->
+<div class="w-full mt-10 space-y-4">
+<h3 class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500 pl-2">System Vitals</h3>
+<div class="glass-capsule rounded-2xl p-4 flex items-center justify-between group cursor-pointer hover:bg-primary/10 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+<span class="material-symbols-outlined text-primary">psychiatry</span>
+</div>
+<div>
+<p class="text-sm font-bold text-slate-100">Bioluminescence</p>
+<p class="text-[10px] text-primary/60">Active Ecosystem</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-primary/40 group-hover:translate-x-1 transition-transform">chevron_right</span>
+</div>
+<div class="glass-capsule rounded-2xl p-4 flex items-center justify-between group cursor-pointer hover:bg-emerald-glow/10 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-xl bg-emerald-glow/10 flex items-center justify-center border border-emerald-glow/20">
+<span class="material-symbols-outlined text-emerald-glow">potted_plant</span>
+</div>
+<div>
+<p class="text-sm font-bold text-slate-100">Flora Hydration</p>
+<p class="text-[10px] text-emerald-glow/60">Optimal Status</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-emerald-glow/40 group-hover:translate-x-1 transition-transform">chevron_right</span>
+</div>
+</div>
+</div>
+<!-- Bottom Tab Bar -->
+<div class="bg-obsidian/80 backdrop-blur-xl border-t border-white/5 px-8 pt-4 pb-8 flex justify-between items-center z-30">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined fill-1">home</span>
+<span class="text-[10px] font-bold">Bio-Core</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-500 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-[10px] font-bold">Vitals</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-500 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">hub</span>
+<span class="text-[10px] font-bold">Node</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-500 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-bold">Configs</span>
+</a>
+</div>
+<!-- Background Image for Overall Texture (Hidden Behind Layers) -->
+<div class="absolute inset-0 -z-10 opacity-20">
+<div class="w-full h-full bg-cover bg-center" data-alt="Abstract dark bio-organic texture with faint cyan patterns" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC2phbLiIa3ZdmiiQWgjVPL9eUXzNj1qCUSFWa9J2NEemIcmr9cQIdOVx4WLFx1_WIqWp3CKdTz4NhSjdJAN8meKAYt0aX7ftyrjNXRgviLkt9XbX4P7p-kuRnSRf2thiRDoMuCbOzauXi7m-3JFoPbgQmuqhbSjkj1wgU0gqGOR2blvtlSz-S8bBToGOjO_vO8H7k4PmTaJcXxA5fvGCJgjI4s0N-yftKb15oLHGpyp08Eid8OT3JKxCPoakywvvIjRkbafd3gabs')"></div>
+</div>
+</div>
+</body></html>

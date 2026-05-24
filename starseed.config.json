@@ -1,0 +1,20 @@
+{
+  "systemName": "StarSeed Nexus",
+  "version": "1.0.0-alpha",
+  "description": "The digital incarnation of the StarSeed Society: a living, self-organized social network.",
+  "theme": {
+    "default": "liquid-crystal",
+    "allowUserOverride": true
+  },
+  "modulesConfig": {
+    "dashboardEnabled": true,
+    "aiWidgetForgeEnabled": true,
+    "supabaseIntegrationActive": false,
+    "telemetry": false
+  },
+  "deployment": {
+    "url": "https://starseed-nexus.vercel.app",
+    "provider": "Vercel",
+    "autoDeploy": true
+  }
+}

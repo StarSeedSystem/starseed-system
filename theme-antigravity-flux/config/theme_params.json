@@ -1,0 +1,156 @@
+{
+    "meta": {
+        "name": "Antigravity Flux",
+        "version": "2.0.0",
+        "author": "System Pilot",
+        "description": "Trans-dimensional interface theme with liquid glass aesthetics, Trinity chromodynamic mapping, and golden ratio harmonies for the StarSeed SOSD.",
+        "compatibility": {
+            "react": ">=18.0.0",
+            "tailwindcss": ">=3.0.0",
+            "framer-motion": ">=10.0.0"
+        }
+    },
+    "palette": {
+        "primary": "#8B5CF6",
+        "secondary": "#A78BFA",
+        "accent": "#FBBF24",
+        "background": "#0F0F23",
+        "surface": "rgba(15, 15, 35, 0.65)",
+        "surface_elevated": "rgba(20, 20, 45, 0.75)",
+        "glass_border": "rgba(255, 255, 255, 0.12)",
+        "glass_highlight": "rgba(255, 255, 255, 0.25)",
+        "text_primary": "#F8FAFC",
+        "text_secondary": "rgba(248, 250, 252, 0.7)",
+        "text_muted": "rgba(248, 250, 252, 0.4)",
+        "trinity": {
+            "zenith": {
+                "label": "AI & Wisdom",
+                "active": "#007FFF",
+                "inactive": "#001F3F",
+                "glow": "rgba(0, 127, 255, 0.5)",
+                "mist": "rgba(0, 200, 255, 0.08)"
+            },
+            "horizonte": {
+                "label": "Genesis & Vitality",
+                "active": "#39FF14",
+                "panel": "#10B981",
+                "glow": "rgba(16, 185, 129, 0.5)",
+                "mist": "rgba(57, 255, 20, 0.06)"
+            },
+            "logica": {
+                "label": "Order & Control",
+                "active": "#FFBF00",
+                "panel": "#D4AF37",
+                "glow": "rgba(255, 191, 0, 0.5)",
+                "mist": "rgba(212, 175, 55, 0.08)"
+            },
+            "base": {
+                "label": "Stability & Architecture",
+                "active": "#DC143C",
+                "neutral": "#F8F9FA",
+                "glow": "rgba(220, 20, 60, 0.4)",
+                "mist": "rgba(220, 20, 60, 0.06)"
+            }
+        }
+    },
+    "typography": {
+        "font_family_main": "'Inter', sans-serif",
+        "font_family_headline": "'Rajdhani', 'Inter', sans-serif",
+        "font_family_code": "'JetBrains Mono', monospace",
+        "base_size": "16px",
+        "scale_ratio": 1.618,
+        "weights": {
+            "thin": 300,
+            "regular": 400,
+            "medium": 500,
+            "semibold": 600,
+            "bold": 700
+        },
+        "header_tracking": "0.05em",
+        "body_tracking": "0.01em"
+    },
+    "geometry": {
+        "border_radius_sm": "4px",
+        "border_radius_md": "12px",
+        "border_radius_lg": "24px",
+        "border_radius_xl": "42px",
+        "border_radius_pill": "9999px",
+        "golden_ratio": 1.618,
+        "phi": 0.618,
+        "tab_curvature": "16px 16px 0 0",
+        "menu_corner_radius": "20px",
+        "dock_pill_radius": "9999px"
+    },
+    "shadows": {
+        "sm": "0 1px 3px rgba(0, 0, 0, 0.2)",
+        "md": "0 4px 12px rgba(0, 0, 0, 0.25)",
+        "lg": "0 8px 32px rgba(0, 0, 0, 0.3)",
+        "xl": "0 16px 48px rgba(0, 0, 0, 0.4)",
+        "extreme": "0 24px 64px rgba(0, 0, 0, 0.5)",
+        "glow_primary": "0 0 20px rgba(139, 92, 246, 0.4)",
+        "glow_zenith": "0 0 24px rgba(0, 127, 255, 0.35)",
+        "glow_horizonte": "0 0 24px rgba(16, 185, 129, 0.35)",
+        "glow_logica": "0 0 24px rgba(255, 191, 0, 0.35)",
+        "glow_base": "0 0 20px rgba(220, 20, 60, 0.3)",
+        "inner_glass": "inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.1)"
+    },
+    "elevation": {
+        "background": 0,
+        "surface": 10,
+        "panel": 20,
+        "dock": 30,
+        "overlay": 40,
+        "modal": 50,
+        "tooltip": 60,
+        "system_tray": 70
+    },
+    "effects": {
+        "backdrop_blur": "16px",
+        "backdrop_blur_heavy": "24px",
+        "glass_saturation": "180%",
+        "noise_opacity": "0.03",
+        "glow_intensity": "0.8",
+        "refraction_index": 1.52,
+        "chromatic_aberration": 2.0,
+        "scanline_opacity": 0.03
+    },
+    "containers": {
+        "window": {
+            "title_bar_height": "44px",
+            "title_bar_style": "liquid",
+            "border_opacity": 0.12,
+            "backdrop_blur": "16px",
+            "refraction_distortion": 0.08
+        },
+        "tabs": {
+            "height": "36px",
+            "curvature": "16px 16px 0 0",
+            "indicator_color": "var(--trinity-active)",
+            "transition": "fade",
+            "gap": "2px"
+        },
+        "panel": {
+            "slide_direction": "edge",
+            "tint_opacity": 0.15,
+            "backdrop_blur": "20px"
+        }
+    },
+    "dock": {
+        "floating_margin": "16px",
+        "magnification_scale": 1.35,
+        "magnification_range": 3,
+        "background_opacity": 0.4,
+        "pill_padding": "8px 16px",
+        "icon_size": "24px",
+        "icon_gap": "8px",
+        "process_indicator_size": "4px"
+    },
+    "accessibility": {
+        "min_contrast_ratio": 4.5,
+        "focus_ring_width": "2px",
+        "focus_ring_offset": "2px",
+        "focus_ring_color": "rgba(139, 92, 246, 0.6)",
+        "reduced_motion_duration": "0.01ms",
+        "min_touch_target": "44px"
+    }
+}

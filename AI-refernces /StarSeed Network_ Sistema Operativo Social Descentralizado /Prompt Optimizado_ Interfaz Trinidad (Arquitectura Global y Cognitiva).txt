@@ -1,0 +1,43 @@
+﻿Prompt para el Desarrollo de la Interfaz Trinidad (Menú Principal) - Arquitectura Global y Cognitiva
+Rol Sugerido para el LLM: Actúa como un Systems Architect, Senior Creative Technologist & Interaction Designer con especialización en "Zero UI" (Interfaces Invisibles) y Computación Espacial. Tu experiencia se centra en crear entornos digitales donde la fricción entre la intención humana y la respuesta del sistema sea inexistente, utilizando principios de diseño bio-inspirado y dinámica de fluidos.
+Tarea: Conceptualizar, estructurar y documentar detalladamente la arquitectura de la "Interfaz Trinidad". El sistema debe fundamentarse en un paradigma de Activación Perimetral Automática 360°, donde los límites físicos de la pantalla actúan como membranas sensibles. El objetivo es que la interfaz permanezca oculta para maximizar la inmersión, emergiendo solo mediante gestos intuitivos o la proximidad del cursor a los "umbrales calientes" de la pantalla.
+1. Sistema de Umbrales Perimetrales y Psicología de los Cuadrantes
+Debes definir una lógica de detección en los cuatro bordes de la pantalla. Cada dirección no es solo una posición, sino un estado cognitivo vinculado a una función y un color:
+* Borde Superior: El Zenith del Guía (Azul Eléctrico / Azul Profundo):
+   * Filosofía: Representa la sabiduría, la asistencia y la visión desde arriba. Es el punto de iluminación del sistema.
+   * Acción: Activación por "hover" persistente en el borde superior (Desktop) o un "swipe-down" desde el borde (Touch).
+   * Resultado: Despliegue de la IA Contextual. El asistente no aparece como una ventana rígida, sino como una cortina de luz azul etérea que se desliza sobre la interfaz, sugiriendo guías, correcciones o automatizaciones basadas en lo que el usuario está viendo.
+* Borde Inferior: El Ancla de la Trinidad (Gris Neutro / Blanco Prisma / Rojo):
+   * Filosofía: Es la base gravitacional, el suelo donde se apoyan todas las funciones. Representa la estabilidad y el acceso raíz.
+   * Acción: Movimiento del cursor al límite inferior o un "swipe-up" desde la base física del dispositivo.
+   * Resultado: Emerge el Menú Principal de la Trinidad. Este componente es un núcleo de tres botones que sintetiza el acceso a la IA, al Panel de Control y al Menú General (Rojo). El rojo aquí actúa como una señal de navegación profunda; al activarlo, la pantalla se inunda de este tono para indicar que el usuario ha salido del "flujo de trabajo" y ha entrado en la "arquitectura del sistema".
+* Borde Izquierdo: El Horizonte de Creación (Verde Esmeralda / Lima Vivo):
+   * Filosofía: El lado izquierdo es tradicionalmente el punto de inicio de la lectura y la génesis. Representa la vitalidad, la experimentación y el crecimiento.
+   * Acción: Presión del cursor contra el borde izquierdo o arrastre lateral hacia la derecha.
+   * Resultado: Despliegue del Lienzo de Creación Universal. Un espacio infinito para idear, dibujar o generar contenido. El panel fluye lateralmente con un aura verde que invita a la iteración creativa sin límites.
+* Borde Derecho: El Eje de Lógica y Control (Amarillo Ámbar / Dorado):
+   * Filosofía: El lado derecho representa el orden, la ejecución y el análisis técnico. Es la energía que refina lo creado.
+   * Acción: Contacto del cursor con el extremo derecho o arrastre lateral hacia la izquierda.
+   * Resultado: Despliegue de la Sección de Control Lógica. Aquí residen los parámetros técnicos, las métricas de rendimiento y la configuración del sistema. El tono amarillo debe proyectar claridad mental y precisión matemática.
+2. Dinámica de Invocación: El Algoritmo de Intención
+Para evitar que el usuario abra menús por error mientras trabaja, el sistema debe implementar una lógica de Detección de Intención de Umbral:
+* El Efecto "Peek" (Asomo): Cuando el cursor entra en una zona de proximidad (15px), el borde correspondiente emite un brillo sutil y el panel se asoma apenas 5px, como si estuviera "respirando". Esto da feedback visual inmediato sin interrumpir.
+* Activación por Presión Virtual: Si el usuario mantiene el cursor en el borde durante >200ms o aplica una aceleración específica hacia el borde, el panel se despliega totalmente.
+* Física de los Fluidos: Las animaciones deben usar una lógica de resortes (spring physics). En lugar de una velocidad constante, los paneles deben tener "masa" e "inercia". Al llegar a su posición final, deben tener un ligero rebote elástico que refuerce la sensación de que son objetos físicos vivos.
+* Auto-Ocultamiento Inteligente: El sistema detecta cuando el foco de atención se aleja. Si el cursor sale del área del menú o si la interacción cesa por un tiempo determinado, el panel se "succiona" de vuelta hacia el borde con una animación de desvanecimiento suave.
+3. Cromodinámica y Fusión Líquida (Shader Logic)
+El color es el tejido conectivo de la interfaz. Debes describir cómo interactúan estos colores:
+* Mezcla Aditiva en Esquinas: ¿Qué sucede cuando el usuario lleva el cursor a la esquina superior izquierda? Describe una fusión de gradientes. El Azul (IA) y el Verde (Creación) deben mezclarse formando una transición orgánica (Cyan) que sugiera una "Creación Asistida".
+* Sombras Proyectadas de Color: Cada panel no proyecta una sombra negra, sino una sombra teñida de su propio color (ej. el panel verde proyecta una penumbra verde sobre el contenido central), creando una sensación de profundidad volumétrica.
+* El Efecto "Glow" de Proximidad: A medida que el usuario desliza el dedo o el cursor por los bordes, un destello luminoso debe seguir la trayectoria, indicando que la pantalla es consciente de la posición del usuario en todo momento.
+4. Especificaciones Técnicas para el Desarrollo
+Restricciones y Reglas de Oro:
+* Latencia Cero: La respuesta visual al toque del borde debe ocurrir en menos de 16ms (60fps mínimo, ideal 120fps).
+* Consistencia de Gestos: Los gestos táctiles deben ser idénticos en dirección a los movimientos del mouse para asegurar una curva de aprendizaje unificada.
+* Accesibilidad Cognitiva: Aunque los menús se ocultan, debe haber una opción en el "Panel de Control Lógico" para mantener indicadores visuales permanentes (pequeñas líneas de color en los bordes) para usuarios que prefieran guías visuales constantes.
+Formato de Salida Esperado:
+Proporciona una propuesta técnica exhaustiva que incluya:
+1. Matriz de Interacción: Tabla que cruce bordes, colores, funciones y gestos (Desktop vs Touch).
+2. Guía de Shaders y Animación: Descripción de los algoritmos de mezcla de color y las funciones de "easing" para el movimiento elástico.
+3. Mapa de Estados (FSM): Definición de los estados de cada panel: Oculto, Asomando (Peek), Desplegando, Activo, Retrayéndose.
+4. Diagrama de Flujo de Usuario: Ejemplo detallado de cómo un usuario inicia una tarea en el Lienzo (Verde), consulta a la IA (Azul) y ajusta los parámetros (Amarillo) sin pulsar un solo botón estático, solo navegando por los límites de la pantalla.

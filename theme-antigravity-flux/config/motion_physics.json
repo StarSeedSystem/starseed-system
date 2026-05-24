@@ -1,0 +1,137 @@
+{
+    "springs": {
+        "gentle": {
+            "type": "spring",
+            "stiffness": 100,
+            "damping": 15,
+            "mass": 0.5,
+            "description": "Soft, organic movement for ambient transitions"
+        },
+        "snappy": {
+            "type": "spring",
+            "stiffness": 300,
+            "damping": 20,
+            "mass": 0.8,
+            "description": "Quick responsive snaps for navigation"
+        },
+        "wobbly": {
+            "type": "spring",
+            "stiffness": 180,
+            "damping": 12,
+            "mass": 0.5,
+            "description": "Playful wobble for attention-grabbing elements"
+        },
+        "button_press": {
+            "type": "spring",
+            "stiffness": 500,
+            "damping": 30,
+            "mass": 0.6,
+            "description": "Physical sink-and-rebound on press — feels like touching real glass"
+        },
+        "toggle_snap": {
+            "type": "spring",
+            "stiffness": 700,
+            "damping": 25,
+            "mass": 0.4,
+            "description": "Crisp toggle switch snap with minimal overshoot"
+        },
+        "slider_thumb": {
+            "type": "spring",
+            "stiffness": 200,
+            "damping": 20,
+            "mass": 0.3,
+            "description": "Smooth drag for slider thumb tracking"
+        },
+        "dock_magnify": {
+            "type": "spring",
+            "stiffness": 350,
+            "damping": 28,
+            "mass": 0.5,
+            "description": "macOS-style proximity magnification on dock icons"
+        },
+        "panel_slide": {
+            "type": "spring",
+            "stiffness": 200,
+            "damping": 25,
+            "mass": 0.8,
+            "description": "Trinity panel emerge from edge with boing effect"
+        },
+        "widget_emerge": {
+            "type": "spring",
+            "stiffness": 180,
+            "damping": 15,
+            "mass": 0.5,
+            "description": "Widget collision float-in with light bounce"
+        },
+        "modal_scale": {
+            "type": "spring",
+            "stiffness": 260,
+            "damping": 22,
+            "mass": 0.7,
+            "description": "Modal window scale-in with premium feel"
+        },
+        "menu_elastic": {
+            "type": "spring",
+            "stiffness": 400,
+            "damping": 20,
+            "mass": 0.4,
+            "description": "Elastic dropdown menu entrance"
+        }
+    },
+    "tweens": {
+        "fade": {
+            "type": "tween",
+            "duration": 0.3,
+            "ease": "easeInOut"
+        },
+        "tab_switch": {
+            "type": "tween",
+            "duration": 0.25,
+            "ease": [
+                0.22,
+                1,
+                0.36,
+                1
+            ]
+        },
+        "color_shift": {
+            "type": "tween",
+            "duration": 0.4,
+            "ease": "easeOut"
+        },
+        "glow_pulse": {
+            "type": "tween",
+            "duration": 1.5,
+            "ease": "easeInOut",
+            "repeat": "Infinity",
+            "repeatType": "reverse"
+        }
+    },
+    "gestures": {
+        "tap_scale": 0.95,
+        "tap_y_offset": 1,
+        "hover_scale": 1.05,
+        "hover_glow_opacity": 0.5,
+        "active_saturation_shift": 1.2,
+        "drag_elasticity": 0.1,
+        "drag_momentum": true
+    },
+    "shaders": {
+        "refraction_index": 1.52,
+        "distortion_scale": 64,
+        "glow_radius": 20,
+        "aberration_strength": 2.0,
+        "noise_frequency": 3.0,
+        "noise_amplitude": 0.5
+    },
+    "reduced_motion": {
+        "all_springs": {
+            "type": "tween",
+            "duration": 0.01
+        },
+        "all_tweens": {
+            "type": "tween",
+            "duration": 0.01
+        }
+    }
+}

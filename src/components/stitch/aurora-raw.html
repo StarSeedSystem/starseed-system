@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aurora Glass Cosmic Weather HUD</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#895af6",
+                        "background-light": "#f6f5f8",
+                        "background-dark": "#0F0F23", // Deep Space Blue
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1.5rem",
+                        "lg": "2.5rem",
+                        "xl": "4rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .aurora-bg {
+            background: radial-gradient(circle at 20% 30%, rgba(137, 90, 246, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 70%, rgba(34, 211, 238, 0.1) 0%, transparent 50%);
+            background-color: #0F0F23;
+        }
+        .aurora-ribbon {
+            position: absolute;
+            filter: blur(80px);
+            opacity: 0.4;
+            z-index: 0;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+        .refractive-edge {
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .glow-text {
+            text-shadow: 0 0 20px rgba(137, 90, 246, 0.5);
+        }
+        .moon-shadow {
+            box-shadow: inset -20px -20px 50px rgba(0,0,0,0.8), inset 10px 10px 30px rgba(255,255,255,0.1);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased overflow-hidden">
+<div class="relative flex h-screen w-full flex-col aurora-bg overflow-hidden">
+<!-- Animated Aurora Ribbons (Decorative) -->
+<div class="aurora-ribbon top-[-10%] left-[-10%] w-[80%] h-[60%] bg-primary rounded-full"></div>
+<div class="aurora-ribbon bottom-[-10%] right-[-10%] w-[70%] h-[50%] bg-cyan-500/30 rounded-full"></div>
+<!-- Top Navigation Bar -->
+<div class="relative z-10 flex items-center justify-between px-6 pt-12 pb-4">
+<button class="flex size-10 items-center justify-center rounded-full glass-panel refractive-edge">
+<span class="material-symbols-outlined text-slate-100">search</span>
+</button>
+<div class="text-center">
+<h2 class="text-sm font-medium tracking-widest uppercase text-slate-400">Cosmos Station 01</h2>
+<div class="flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-[12px] text-primary">location_on</span>
+<p class="text-[10px] font-bold text-slate-100 uppercase tracking-tighter">Sector 7-G</p>
+</div>
+</div>
+<button class="flex size-10 items-center justify-center rounded-full glass-panel refractive-edge">
+<span class="material-symbols-outlined text-slate-100">settings</span>
+</button>
+</div>
+<!-- Main HUD Content -->
+<div class="relative z-10 flex flex-1 flex-col items-center justify-start px-6 pt-8 gap-8">
+<!-- Hero Temperature Display -->
+<div class="flex flex-col items-center">
+<div class="relative">
+<h1 class="text-[100px] font-thin leading-none tracking-tighter text-white glow-text">24°C</h1>
+<div class="absolute -right-4 top-4 bg-primary/20 backdrop-blur-md px-3 py-1 rounded-full border border-primary/30">
+<p class="text-[10px] font-bold text-primary uppercase">Optimal</p>
+</div>
+</div>
+<p class="mt-2 text-slate-400 font-light tracking-[0.2em] uppercase">Partly Cloudy • Highs 26°</p>
+</div>
+<!-- Dashboard Layout: Metrics & Moon -->
+<div class="grid w-full grid-cols-2 gap-4">
+<!-- Left: Metrics Vertical Pane -->
+<div class="flex flex-col gap-3 rounded-xl glass-panel refractive-edge p-5">
+<div class="flex items-center gap-3">
+<div class="flex size-10 items-center justify-center rounded-full bg-primary/10 border border-primary/20">
+<span class="material-symbols-outlined text-primary text-xl">air</span>
+</div>
+<div>
+<p class="text-[10px] font-medium text-slate-400 uppercase">Wind</p>
+<p class="text-lg font-bold text-white">12<span class="text-xs font-normal text-slate-400">km/h</span></p>
+</div>
+</div>
+<div class="h-[1px] w-full bg-white/5"></div>
+<div class="flex items-center gap-3">
+<div class="flex size-10 items-center justify-center rounded-full bg-cyan-500/10 border border-cyan-500/20">
+<span class="material-symbols-outlined text-cyan-400 text-xl">humidity_low</span>
+</div>
+<div>
+<p class="text-[10px] font-medium text-slate-400 uppercase">Humidity</p>
+<p class="text-lg font-bold text-white">54<span class="text-xs font-normal text-slate-400">%</span></p>
+</div>
+</div>
+</div>
+<!-- Right: Circular Moon Portal -->
+<div class="relative flex aspect-square items-center justify-center rounded-xl glass-panel refractive-edge overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-tr from-primary/10 to-transparent opacity-50"></div>
+<div class="relative z-10 flex flex-col items-center">
+<div class="relative size-20 rounded-full moon-shadow overflow-hidden bg-[#1a1a1a] flex items-center justify-center">
+<div class="absolute inset-0 bg-cover bg-center mix-blend-screen opacity-80" data-alt="Hyper-realistic close-up of the moon surface details" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBaP9lDKThomPhS_bxWvuddKkomrL444ywq2OilulUKsgmet61Sqp2TC935ViG9s98g91I3WqLlY9BHbRQWcJz41tV07T_UPk3WNZVjux5IL0H8CRNEZO8E6v3jzQ5zloG9Fxzd3YnUOEOvztmz72-BAVWbxNmqJHPxKzwHmUs9L9Zb4ku-nWBvPy6fmnFj55r5GBOOZ8hHvU_7UN_FFvLtSL-qIV05bcj_LewZtKqEzTNCR4iKqV8dvqBk8qkJF03_QlhONlGNtOc')"></div>
+<div class="absolute inset-0 bg-gradient-to-r from-black/80 via-transparent to-transparent"></div>
+</div>
+<p class="mt-3 text-[10px] font-bold text-white uppercase tracking-widest">Waxing Gibbous</p>
+<p class="text-[8px] text-slate-500 uppercase">Illumination 78%</p>
+</div>
+</div>
+</div>
+<!-- Horizontal Hourly Forecast -->
+<div class="w-full">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-xs font-bold text-slate-100 uppercase tracking-widest">Atmospheric Cycle</h3>
+<span class="text-[10px] text-primary font-bold uppercase underline decoration-primary/50 underline-offset-4">Next 24h</span>
+</div>
+<div class="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+<!-- Forecast Cards -->
+<div class="flex min-w-[70px] flex-col items-center gap-2 rounded-full glass-panel refractive-edge py-4">
+<p class="text-[10px] font-medium text-slate-400 uppercase">Now</p>
+<span class="material-symbols-outlined text-primary text-2xl">partly_cloudy_day</span>
+<p class="text-sm font-bold text-white">24°</p>
+</div>
+<div class="flex min-w-[70px] flex-col items-center gap-2 rounded-full glass-panel refractive-edge py-4 bg-primary/20 border-primary/40">
+<p class="text-[10px] font-medium text-slate-400 uppercase">16:00</p>
+<span class="material-symbols-outlined text-white text-2xl">sunny</span>
+<p class="text-sm font-bold text-white">26°</p>
+</div>
+<div class="flex min-w-[70px] flex-col items-center gap-2 rounded-full glass-panel refractive-edge py-4">
+<p class="text-[10px] font-medium text-slate-400 uppercase">18:00</p>
+<span class="material-symbols-outlined text-primary text-2xl">cloud</span>
+<p class="text-sm font-bold text-white">22°</p>
+</div>
+<div class="flex min-w-[70px] flex-col items-center gap-2 rounded-full glass-panel refractive-edge py-4">
+<p class="text-[10px] font-medium text-slate-400 uppercase">20:00</p>
+<span class="material-symbols-outlined text-primary text-2xl">nights_stay</span>
+<p class="text-sm font-bold text-white">19°</p>
+</div>
+<div class="flex min-w-[70px] flex-col items-center gap-2 rounded-full glass-panel refractive-edge py-4">
+<p class="text-[10px] font-medium text-slate-400 uppercase">22:00</p>
+<span class="material-symbols-outlined text-primary text-2xl">bedtime</span>
+<p class="text-sm font-bold text-white">17°</p>
+</div>
+</div>
+</div>
+<!-- View Toggle Button -->
+<div class="mt-2 flex w-full p-1 rounded-full glass-panel refractive-edge">
+<button class="flex-1 rounded-full bg-primary py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-primary/40">Atmospheric</button>
+<button class="flex-1 rounded-full py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Orbital View</button>
+</div>
+</div>
+<!-- Bottom Navigation Bar -->
+<div class="relative z-20 mt-auto flex items-center justify-around border-t border-white/10 bg-[#0F0F23]/80 backdrop-blur-xl px-4 pb-8 pt-4">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined text-[28px]">cloud</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined text-[28px]">map</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined text-[28px]">star</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined text-[28px]">person</span>
+</a>
+</div>
+</div>
+<style>
+        /* Hide scrollbar for cleaner HUD feel */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</body></html>

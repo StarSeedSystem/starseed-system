@@ -1,0 +1,173 @@
+{
+    "typography": {
+        "fontFamily": "Inter",
+        "scale": 1,
+        "customFonts": []
+    },
+    "layout": {
+        "menuPosition": "left",
+        "menuStyle": "sidebar",
+        "menuBehavior": "sticky",
+        "iconStyle": "outline"
+    },
+    "styling": {
+        "radius": 0.5,
+        "glassIntensity": 20,
+        "opacity": 0.8,
+        "borderWidth": 1,
+        "refraction": 0,
+        "chromaticAberration": 0,
+        "noiseOpacity": 0,
+        "glowIntensity": 0,
+        "hardShadows": false,
+        "uppercase": false,
+        "neonTicker": false,
+        "fluidity": 50,
+        "surfaceTension": 50,
+        "frostOpacity": 0.5,
+        "glassNoise": 0.05,
+        "crystalPreset": "none"
+    },
+    "background": {
+        "type": "solid",
+        "value": "#0F0F23",
+        "blur": 0,
+        "animation": "none",
+        "overlayOpacity": 0.4,
+        "overlayColor": "black",
+        "webglVariant": "hex",
+        "webglSpeed": 0.5,
+        "webglZoom": 1.0,
+        "liquidColors": [
+            "#F15A22",
+            "#0A0E27",
+            "#F15A22",
+            "#0A0E27",
+            "#F15A22",
+            "#0A0E27"
+        ],
+        "filter": {
+            "enabled": false,
+            "type": "none",
+            "settings": {
+                "waveMetalness": 0.75,
+                "waveRoughness": 0.25
+            }
+        }
+    },
+    "buttons": {
+        "style": "default",
+        "radius": 0.5,
+        "glow": false,
+        "animation": true
+    },
+    "animations": {
+        "enabled": true,
+        "hover": true,
+        "click": true,
+        "trinityEntry": "scale",
+        "pageTransition": true,
+        "microInteractions": true
+    },
+    "liquidGlass": {
+        "enabled": false,
+        "applyToUI": false,
+        "displacementScale": 15,
+        "blurAmount": 0.1,
+        "saturation": 110,
+        "aberrationIntensity": 1,
+        "elasticity": 0.2,
+        "cornerRadius": 24,
+        "mode": "standard"
+    },
+    "textDiffusion": {
+        "blur": 15,
+        "opacity": 0.7,
+        "glowStrength": 0.5
+    },
+    "mobile": {
+        "fabPosition": "fixed",
+        "fabSide": "left",
+        "fabOffsetX": 16,
+        "fabOffsetY": 16,
+        "fabVerticalPosition": "bottom",
+        "menuType": "sheet",
+        "menuBehavior": "overlay",
+        "menuAnimation": "slide",
+        "menuPosition": "left",
+        "autoHideOnScroll": false,
+        "showOnDesktop": false,
+        "compactMode": false,
+        "hapticFeedback": true,
+        "swipeToOpen": true,
+        "gestureThreshold": 50,
+        "controlPanel": {
+            "fabPosition": "fixed",
+            "fabSide": "right",
+            "fabVerticalPosition": "bottom",
+            "menuPosition": "right",
+            "fabOffsetX": 16,
+            "fabOffsetY": 80
+        }
+    },
+    "trinity": {
+        "mode": "floating",
+        "style": "glass",
+        "isExpanded": true,
+        "dockBehavior": "anchor-only",
+        "edgeSensitivity": 20,
+        "menuCustomization": {
+            "showLabels": true,
+            "iconScale": 1,
+            "animationSpeed": "normal"
+        }
+    },
+    "display": {
+        "mode": "standard",
+        "fov": 110,
+        "depthScale": 1,
+        "immersiveUI": false,
+        "curvedUI": false,
+        "eyeComfort": false
+    },
+    "responsive": {
+        "smartphone": {
+            "orientation": "auto",
+            "contentDensity": "comfortable",
+            "bottomNavigation": true,
+            "gestureNavigation": true,
+            "pullToRefresh": true
+        },
+        "tablet": {
+            "orientation": "auto",
+            "splitView": false,
+            "sidebarCollapsible": true,
+            "contentWidth": "centered"
+        },
+        "desktop": {
+            "sidebarWidth": 280,
+            "contentMaxWidth": 1400,
+            "multiColumn": true,
+            "stickyHeader": true
+        },
+        "largeScreen": {
+            "ultraWideLayout": "centered",
+            "columnCount": 3,
+            "panelSpacing": 24,
+            "cinematicMode": false
+        },
+        "breakpoints": {
+            "sm": 640,
+            "md": 768,
+            "lg": 1024,
+            "xl": 1280,
+            "xxl": 1536
+        },
+        "adaptiveUI": true,
+        "reducedMotion": false
+    },
+    "themeStore": {
+        "activeMode": "custom",
+        "savedThemes": []
+    }
+}

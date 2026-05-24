@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ethereal Fluid Weather Widget</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#067ff9",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0f1923",
+                        "electric-azure": "#007FFF",
+                        "deep-void": "#001F3F",
+                        "neon-lime": "#32CD32",
+                        "solar-amber": "#FFBF00",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        @keyframes breathing {
+            0%, 100% { transform: scale(1); opacity: 0.95; }
+            50% { transform: scale(1.015); opacity: 1; }
+        }
+        
+        @keyframes fluid-bg {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .animate-breathing {
+            animation: breathing 8s ease-in-out infinite;
+        }
+
+        .fluid-gradient {
+            background: linear-gradient(-45deg, #001F3F, #067ff9, #007FFF, #101a23);
+            background-size: 400% 400%;
+            animation: fluid-bg 15s ease infinite;
+        }
+
+        .glass-refraction {
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 
+                inset 0 0 20px rgba(6, 127, 249, 0.3),
+                inset 0 0 40px rgba(255, 255, 255, 0.05),
+                0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .pill-glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .pill-glass:hover {
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .text-glow {
+            text-shadow: 0 0 20px rgba(6, 127, 249, 0.5), 0 0 40px rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/10 px-6 py-4 lg:px-10">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-primary">
+<div class="size-6">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M24 4C25.7818 14.2173 33.7827 22.2182 44 24C33.7827 25.7818 25.7818 33.7827 24 44C22.2182 33.7827 14.2173 25.7818 4 24C14.2173 22.2182 22.2182 14.2173 24 4Z" fill="currentColor"></path>
+</svg>
+</div>
+<h2 class="text-slate-900 dark:text-white text-xl font-bold leading-tight tracking-tight">Ethereal Fluid Weather</h2>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-primary text-sm font-semibold" href="#">Dashboard</a>
+<a class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-primary transition-colors" href="#">Forecast</a>
+<a class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-primary transition-colors" href="#">Radar</a>
+<a class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-primary transition-colors" href="#">Settings</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
+<input class="bg-slate-100 dark:bg-slate-800/50 border-none rounded-full pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary w-64" placeholder="Search Atmosphere..."/>
+</div>
+<button class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="size-10 rounded-full bg-primary/20 border border-primary/30 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User profile avatar placeholder" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAh5_W-rgwGJPkUFkS_u5IsGD9U6VJ8BPKoHClZGy9EWARaXrVfnxdPDmUe1iCrCP9QaSHH0Z5Gy2mYLjYLDO8oJhaLXIBl5FQrz7vIDJXRAYoFwbfX_nfcuyrCV2RN4dnpL_AOZxo9iWFn5iY33DJEU5_KxSGl-4Y0wmTRVX6ZjMe-EapFIxt-KmaD55VQdzoILAQZa7yIgNMEDHH14J7Y4t_jKmlWVTJbAU6f9ucKu1tDwN0dXqyv461c9jHNFneTkhiOskA9rhI"/>
+</div>
+</div>
+</header>
+<main class="flex-1 p-6 lg:p-10 flex flex-col gap-8 max-w-7xl mx-auto w-full">
+<div class="flex flex-col gap-2">
+<h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-white">Fluid Control Center</h1>
+<p class="text-slate-500 dark:text-primary/70 font-medium">Monitoring Atmospheric Fluctuations: CALM</p>
+</div>
+<!-- Ethereal Weather Widget -->
+<div class="relative w-full aspect-[16/10] md:aspect-[21/9] rounded-xl overflow-hidden group">
+<!-- Fluid Background -->
+<div class="absolute inset-0 fluid-gradient"></div>
+<!-- Main Hyper-Crystal Container -->
+<div class="absolute inset-4 md:inset-8 rounded-xl glass-refraction animate-breathing flex flex-col items-center justify-center p-8">
+<!-- Top Status -->
+<div class="absolute top-8 flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10">
+<span class="size-2 rounded-full bg-neon-lime animate-pulse"></span>
+<span class="text-[10px] font-bold tracking-[0.2em] text-white/80 uppercase">Atmosphere: Stable</span>
+</div>
+<!-- Organic Floating Pills - Scrutinized positions for "Organic" feel -->
+<!-- Wind Pill -->
+<div class="absolute top-[15%] left-[10%] pill-glass rounded-full px-5 py-3 flex items-center gap-3">
+<span class="material-symbols-outlined text-neon-lime">air</span>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-white/40 leading-none mb-1 uppercase tracking-widest">Wind</span>
+<span class="text-sm font-bold text-white leading-none">5 km/h</span>
+</div>
+</div>
+<!-- Humidity Pill -->
+<div class="absolute bottom-[20%] left-[15%] pill-glass rounded-full px-5 py-3 flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">humidity_percentage</span>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-white/40 leading-none mb-1 uppercase tracking-widest">Humidity</span>
+<span class="text-sm font-bold text-white leading-none">60%</span>
+</div>
+</div>
+<!-- UV Pill -->
+<div class="absolute top-[25%] right-[12%] pill-glass rounded-full px-5 py-3 flex items-center gap-3">
+<span class="material-symbols-outlined text-solar-amber">light_mode</span>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-white/40 leading-none mb-1 uppercase tracking-widest">UV Index</span>
+<span class="text-sm font-bold text-white leading-none">4 Moderate</span>
+</div>
+</div>
+<!-- Moon Pill -->
+<div class="absolute bottom-[15%] right-[18%] pill-glass rounded-full px-5 py-3 flex items-center gap-3">
+<span class="material-symbols-outlined text-slate-100">brightness_3</span>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-white/40 leading-none mb-1 uppercase tracking-widest">Celestial</span>
+<span class="text-sm font-bold text-white leading-none">Waning Crescent</span>
+</div>
+</div>
+<!-- Central Focal Point -->
+<div class="flex flex-col items-center gap-4 text-center z-10">
+<p class="text-white/60 text-sm font-medium tracking-[0.3em] uppercase">Deep Void Blue Forecast</p>
+<div class="relative">
+<h2 class="text-white text-8xl md:text-9xl font-light tracking-[0.1em] text-glow leading-none">72°F</h2>
+</div>
+<div class="flex flex-col items-center">
+<p class="text-white text-xl font-medium tracking-wide">Clear Fluid Skies</p>
+<div class="mt-6 flex gap-4">
+<button class="bg-primary hover:bg-primary/80 text-white font-bold py-3 px-8 rounded-full transition-all flex items-center gap-2 group/btn">
+                                    Detailed Forecast
+                                    <span class="material-symbols-outlined text-[20px] group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+<button class="pill-glass px-4 py-3 rounded-full text-white">
+<span class="material-symbols-outlined">map</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Refraction Glow Points -->
+<div class="absolute top-0 left-1/4 w-32 h-1 bg-white/20 blur-xl"></div>
+<div class="absolute bottom-0 right-1/3 w-48 h-1 bg-primary/30 blur-xl"></div>
+</div>
+<!-- Subtle Map Background Overlay for Texture -->
+<div class="absolute inset-0 opacity-10 pointer-events-none mix-blend-overlay">
+<img class="w-full h-full object-cover" data-alt="Abstract topographical weather map lines" data-location="Atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDLN44IbgwOykG_zIkHLXtp7xCE-Uhmn-g6ZFYpMR2xYqvttPkaExRC9X0h1npnYgZvkjhzgcN-nOBk22Dn3wZTtzFE8tngj7vE_XBtlPnK3JoIY02DZZvGEag2pjHgN1k3QjIb4MemQaiGfcDOP9D821NvT_Xs95jWpyeUKA2Id9a8Y57epochRXBWr3lTNud9m7t1xRV1ObLC7ET7Ql6tRvB4KoVD60gF5tg60QTuA6eJbLq_BVOHovbg3Zt7CyVO-mMB8TRxMEg"/>
+</div>
+</div>
+<!-- Metric Breakdown -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-slate-50 dark:bg-slate-900/40 p-6 rounded-xl border border-slate-100 dark:border-primary/10">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-slate-900 dark:text-white font-bold">Visibility</h3>
+<span class="material-symbols-outlined text-primary">visibility</span>
+</div>
+<p class="text-3xl font-bold dark:text-white">12.4 km</p>
+<div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full mt-4">
+<div class="bg-primary h-full rounded-full w-[85%]"></div>
+</div>
+</div>
+<div class="bg-slate-50 dark:bg-slate-900/40 p-6 rounded-xl border border-slate-100 dark:border-primary/10">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-slate-900 dark:text-white font-bold">Pressure</h3>
+<span class="material-symbols-outlined text-primary">speed</span>
+</div>
+<p class="text-3xl font-bold dark:text-white">1012 hPa</p>
+<div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full mt-4">
+<div class="bg-neon-lime h-full rounded-full w-[60%]"></div>
+</div>
+</div>
+<div class="bg-slate-50 dark:bg-slate-900/40 p-6 rounded-xl border border-slate-100 dark:border-primary/10">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-slate-900 dark:text-white font-bold">Dew Point</h3>
+<span class="material-symbols-outlined text-primary">water_drop</span>
+</div>
+<p class="text-3xl font-bold dark:text-white">58°F</p>
+<div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full mt-4">
+<div class="bg-solar-amber h-full rounded-full w-[45%]"></div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Info -->
+<footer class="p-6 text-center text-slate-400 text-xs border-t border-primary/5">
+<p>© 2024 Ethereal Fluid Weather Systems. All atmospheric metrics calibrated.</p>
+</footer>
+</div>
+</body></html>

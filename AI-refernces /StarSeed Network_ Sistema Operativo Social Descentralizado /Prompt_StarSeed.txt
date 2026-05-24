@@ -1,0 +1,423 @@
+
+
+Prompt Maestro Definitivo para el Desarrollo y Estructura de la Red Social "StarSeed Network"
+1. Rol y Objetivo Principal
+Tu rol: Eres una IA Arquitecta de Sistemas y Desarrolladora Full-Stack. Tu especialidad es la creación de ecosistemas digitales que fomentan la colaboración, la inteligencia colectiva y la evolución personal. Tu misión es materializar la "Red StarSeed" como una plataforma viva, auto-organizada y expansiva.
+Objetivo: Construir la encarnación digital de la Sociedad StarSeed. No solo crearás una aplicación, sino un entorno digital que aprende y evoluciona con sus usuarios. Seguirás este plano maestro para desarrollar un sistema modular e interconectado, garantizando que cada función contribuya al propósito global: una red social para la gobernanza ontocrática, la educación universal y la cultura floreciente, todo sincronizado en tiempo real.
+2. Filosofía y Principios de Diseño
+Núcleo Filosófico: Ontocracia Ciberdélica Transhumanista Comunista.
+	•	Ontocracia en la Práctica: El sistema se basa en la meritocracia demostrada. Las capacidades y responsabilidades de un usuario dentro de la plataforma se expanden a medida que contribuye positivamente al ecosistema, lo cual se refleja en un sistema de Insignias y Logros.
+	•	Ciberdelia en la Práctica: La interfaz debe ser una herramienta para la comprensión sistémica. Visualiza los datos de formas que revelan patrones y conexiones, ayudando al usuario a entender la complejidad de la red.
+	•	Transhumanismo en la Práctica: La IA es un asistente colaborativo que aumenta las capacidades del usuario en memoria, creatividad y toma de decisiones.
+	•	Comunismo en la Práctica: Los recursos (información, herramientas, soluciones, plantillas, avatares) son de código abierto y propiedad colectiva. Todas las "tiendas" son bibliotecas para compartir libre y gratuitamente, sin sistemas de cobro ni dinero.
+Estética Visual:
+	•	Interfaz Viva: La estética debe sentirse biológica y tecnológica. Utiliza el efecto glassmorphism para menús y tarjetas. Incorpora elementos 3D de "cristal líquido" que pulsan suavemente y cuyos reflejos reaccionan al movimiento del cursor y al flujo de datos (ej. se vuelven más iridiscentes durante una votación importante).
+	•	Visualización de Datos Vivos: Las redes de amistades, alianzas entre comunidades y flujos de votación se representan como gráficos interactivos y animados que el usuario puede explorar.
+	•	Transiciones Coreografiadas: El paso de una sección a otra es una metamorfosis fluida. Por ejemplo, al hacer clic en una Entidad Federativa en el mapa, la vista hace un zoom que transforma el mapa en la red de participantes de esa entidad.
+	•	Experiencia de Usuario (UX Intuitiva y Reveladora): La interfaz debe guiar al usuario a través de su complejidad de forma natural. La primera vez que un usuario encuentra una función compleja, la IA ofrece un micro-tutorial interactivo y visual.
+3. Stack Tecnológico
+Tu tarea es seleccionar el stack tecnológico óptimo que permita esta visión. Debe ser extremadamente performante para las visualizaciones 3D en tiempo real (considera WebGL, Three.js), robusto para la lógica de negocio compleja y perfectamente integrado con una base de datos en tiempo real. La elección debe ser justificada en términos de escalabilidad, mantenibilidad y capacidad para crear la experiencia de usuario descrita.
+4. Estructura de Navegación y Funcionalidad Detallada del Menú
+El menú principal es el portal a las 11 dimensiones interconectadas de la Red.
+	•	Dashboard (Centro de Mando Personal): Es la primera página que ve el usuario. No es un feed estático, sino un espacio de trabajo modular y personalizable. (Ver Módulo 1 para la descripción detallada).
+	•	Notificaciones (Pulso de la Red): Abre el centro de notificaciones, un espacio inteligente para gestionar toda la actividad relevante para el usuario. (Ver Módulo 2 para la descripción detallada).
+	•	Agente de IA (Exocórtex Digital): Abre la interfaz principal para interactuar con tu asistente de IA personal, gestionar sus habilidades y personalizar su comportamiento. (Ver Módulo 11 para la descripción detallada).
+	•	Mensajes (Nexo de Comunicación Multimodal): Abre la interfaz de comunicación. Esta no es una simple app de chat, sino un entorno de comunicación inmersivo y extensible. (Ver Módulo 9 para la descripción detallada).
+	•	Hub de conexiones (Colaboración): Centraliza toda la actividad grupal y asociativa. La interfaz de esta sección estará organizada en pestañas o secciones claras. (Ver Módulo 10 para la descripción detallada).
+	•	Red (El Corazón del Sistema): Un menú desplegable que lleva a las tres secciones principales, cada una con su propia sub-navegación y funcionalidades detalladas (ver Módulo 4).
+	•	Política: Para la gobernanza y toma de decisiones.
+	•	Educación: Para el aprendizaje y la gestión del conocimiento.
+	•	Cultura: Para la expresión social, artística y recreativa.
+	•	Publicar (El Acto Creador): Único punto de entrada para la creación de contenido. Al hacer clic, se abre una interfaz modal o una página dedicada que guía al usuario en la creación de cualquier tipo de publicación, asegurando que el contenido sea contextualizado y dirigido correctamente desde su origen.
+	•	Biblioteca (Apps y Archivos): Despliega un menú rápido con pestañas para "Apps Favoritas" y "Archivos Recientes". Contiene el enlace para abrir la interfaz completa de la Biblioteca, donde el usuario puede organizar todas sus herramientas y archivos.
+	•	Información (Base de Conocimiento): Un portal a la documentación fundamental de la Sociedad StarSeed. Esta sección debe ser rica en contenido y estar bien estructurada.
+	•	Constitución StarSeed: El texto completo de las leyes fundamentales, derechos, límites y principios que guían a la sociedad.
+	•	Fundamentos y Visión de StarSeed: Una explicación detallada del propósito, las misiones y los pilares del sistema social (político, económico, educativo, cultural). Debe incluir la conceptualización de los fundamentos universales para la paz y la felicidad.
+	•	Funcionamiento de la Red: Un manual de usuario detallado que explica cómo funciona cada sección de la plataforma (Política, Educación, Cultura), cómo interactúan entre sí, y cómo utilizar sus herramientas más avanzadas.
+	•	Diccionario y Guías: El diccionario para unificar el lenguaje y las guías para la salud física, emocional, social y espiritual.
+	•	Configuración (Panel de Control): El área para gestionar todos los aspectos técnicos y personales de la cuenta.
+	•	Cuenta y Perfil Activo (Menú de Usuario): Este es un elemento crucial en el menú principal, usualmente en una esquina. Muestra la foto y el nombre del perfil actualmente activo. Al hacer clic, despliega un menú con las siguientes opciones:
+	•	Ver Perfil: Un enlace directo a la página del perfil activo.
+	•	Gestionar Perfiles: Abre una interfaz para crear nuevos perfiles o cambiar entre los existentes.
+	•	Configuración del Perfil: Lleva a la configuración específica del perfil activo (apariencia, plantillas, información pública).
+	•	Configuración de la Cuenta: Lleva a la configuración global de la cuenta (email, contraseña, seguridad, verificación de identidad).
+	•	Cerrar Sesión.
+5. Módulos y Funcionalidades Detalladas
+Módulo 1: Dashboard - El Centro de Mando Personalizado y Proactivo
+El Dashboard es la puerta de entrada a la experiencia StarSeed y debe ser un reflejo dinámico de la vida digital del usuario.
+A. Filosofía del Dashboard: De Pasivo a Proactivo Visión: No es un simple agregador de notificaciones, sino un asistente de organización personal que ayuda al usuario a enfocarse en lo que es importante para él. Su objetivo es reducir el ruido y aumentar la claridad y la intención.
+B. El Motor de Personalización: El Lienzo de Widgets
+	•	Interfaz de Edición: El usuario puede entrar en un "modo de edición" del Dashboard. En este modo, la interfaz se convierte en un lienzo tipo grid.
+	•	Añadir Widgets: Aparece un panel lateral que se conecta directamente con la Biblioteca de Apps y Archivos. El usuario puede navegar por sus apps (o la tienda) y arrastrar cualquier app marcada como "compatible con widget" directamente al lienzo.
+	•	Organización Flexible: Una vez en el lienzo, los widgets pueden ser:
+	•	Movidos: Arrastrados a cualquier posición del grid.
+	•	Redimensionados: Ajustados para ocupar más o menos espacio, permitiendo al usuario dar prioridad visual a ciertos widgets.
+	•	Configurados: Cada widget tiene su propio menú de configuración (un ícono de engranaje) para personalizar su contenido (ej. "en el widget de Noticias, muéstrame solo noticias de la categoría 'Tecnología'").
+C. Tipos de Widgets Innovadores y Útiles
+	•	Widgets de Acceso Directo (Predeterminados):
+	•	Explorar la Red: Un widget simple y claro con tres botones prominentes que sirven como accesos directos a las secciones principales: Política, Educación y Cultura.
+	•	Mis Páginas: Un widget que muestra una lista de las Páginas en las que el usuario participa. Incluye un botón de "Filtro" que permite ordenar la lista por actividad reciente o alfabéticamente, y filtrar por tipo de Página (Comunidades, E.F., etc.) para un acceso rápido y organizado.
+	•	Widgets de Información y Estado:
+	•	Resumen Político: Muestra un resumen de las propuestas más relevantes en las Páginas de E.F. del usuario, destacando las que están cerca de su fecha límite o marcadas como urgentes.
+	•	Ruta de Aprendizaje: Visualiza el progreso del usuario en sus cursos y rutas de aprendizaje activas en la sección de Educación, sugiriendo el siguiente paso.
+	•	Radar Social: Muestra eventos culturales y actividades de amigos o Páginas de interés que ocurren cerca de la ubicación geográfica del usuario o en sus Entornos Virtuales frecuentados.
+	•	Bienestar: Se conecta con la sección de Orientación y Bienestar y puede mostrar recordatorios personalizados, sugerencias de meditación o ejercicios basados en los objetivos del usuario.
+	•	Proyectos Colaborativos: Un resumen del estado de las tareas y proyectos en los que el usuario participa en la sección Ejecutiva.
+	•	Widgets de Datos Vivos: Widgets que se conectan a APIs (con permiso del usuario) para mostrar información en tiempo real, como el clima, datos de sensores de una comunidad autosuficiente, etc.
+D. Inteligencia Artificial Proactiva
+	•	Sugerencias Inteligentes: La IA del Dashboard analiza los patrones de uso del usuario (de forma privada y local) y sugiere nuevos widgets o cambios en la disposición. ("He notado que visitas mucho la sección de Legislativo. ¿Quieres añadir un widget para seguir las propuestas en tiempo real?").
+	•	Plantillas de Dashboard: La IA puede proponer "plantillas de dashboard" preconfiguradas basadas en roles o intereses. ("Parece que estás muy enfocado en el aprendizaje. ¿Quieres probar el 'Dashboard del Estudiante' que prioriza los widgets de cursos, grupos de estudio y noticias educativas?").
+E. Múltiples Dashboards
+	•	Función: Un usuario no está limitado a un solo dashboard. Puede crear múltiples dashboards, cada uno enfocado en un aspecto de su vida digital.
+	•	Interfaz: Una gestión de pestañas en la parte superior de la página del Dashboard permite al usuario nombrar y cambiar entre sus diferentes configuraciones. (Ej. "Dashboard Principal", "Dashboard Político", "Dashboard Creativo").
+Módulo 2: Centro de Notificaciones - El Pulso Inteligente de la Red
+Esta sección es fundamental para que el usuario pueda navegar la vasta cantidad de información de la red sin sentirse abrumado.
+A. Filosofía: De la Interrupción a la Intención Visión: El centro de notificaciones no es una lista interminable de alertas que compiten por la atención. Es un centro de gestión de la atención, diseñado para agrupar, priorizar y permitir acciones rápidas, devolviendo el control al usuario.
+B. Interfaz y Acceso
+	•	Icono en el Menú Principal: Un icono en el menú principal muestra un contador de notificaciones no leídas.
+	•	Vista Rápida (Popover): Al hacer clic en el icono, se despliega una vista rápida (popover) con las notificaciones más recientes y urgentes, permitiendo una revisión sin salir de la página actual.
+	•	Página Completa: Un enlace en el popover lleva a la página completa del Centro de Notificaciones, que ofrece herramientas de gestión avanzadas.
+C. Organización y Estructura
+	•	Agrupación Inteligente: El sistema agrupa automáticamente notificaciones similares. Por ejemplo, "A 15 personas les ha gustado tu publicación" en lugar de 15 alertas separadas.
+	•	Pestañas de Categorización: La página principal está organizada en pestañas para una fácil clasificación:
+	•	Todas: Un feed cronológico de todas las notificaciones.
+	•	Menciones y Respuestas: Notificaciones donde el usuario ha sido directamente mencionado o sus publicaciones/comentarios han recibido una respuesta.
+	•	Actividad Política: Alertas sobre propuestas en sus Páginas de E.F. (nuevas propuestas, inicio de votación, resultados, propuestas urgentes).
+	•	Invitaciones y Solicitudes: Invitaciones a Páginas, eventos, solicitudes de amistad, etc.
+D. Funcionalidades Clave
+	•	Acciones Directas: Cada notificación es interactiva. El usuario puede:
+	•	Responder a un comentario directamente desde la notificación.
+	•	Votar en una propuesta.
+	•	Aceptar/Rechazar una invitación.
+	•	Marcar como leída/no leída.
+	•	Filtros Avanzados: En la página completa, un panel de filtros permite al usuario buscar y filtrar notificaciones por tipo, por Página, por fecha o por usuario.
+	•	Resúmenes por IA: El usuario puede solicitar a su Agente de IA que le genere un resumen de sus notificaciones. ("Agente, dame un resumen de las notificaciones más importantes de las últimas 24 horas").
+E. Personalización en Configuración En Configuración > Notificaciones, el usuario tiene control granular sobre qué eventos generan una notificación y cómo se le entrega (notificación en la app, notificación push en el móvil, correo electrónico). Puede configurar reglas complejas, como "solo notifícame por correo si una propuesta en mi E.F. es marcada como urgente".
+Módulo 3: La Red de Conocimiento - El Tejido Conectivo de la Información
+Esta es una estructura de datos fundamental que organiza todo el contenido temático de la red.
+A. Estructura de Dos Niveles: Categorías y Temas
+	•	Categorías (La Estructura): Son los grandes pilares organizativos de la información. Funcionan como un sistema de carpetas jerárquico y ramificado (una "raíz"). Por ejemplo: Ciencia > Física > Física Cuántica. Las categorías proporcionan la estructura y el orden.
+	•	Temas (El Contenido Conectivo): Son conceptos, ideas o palabras clave específicas que se vinculan a una o más categorías. Los temas son los que crean la "red". Por ejemplo, el tema Entrelazamiento Cuántico está vinculado a la categoría Física Cuántica.
+B. Interconexión a través de Temas La verdadera red se forma porque un Tema puede estar vinculado a múltiples Categorías en diferentes ramas. Esto permite una comprensión holística y multidisciplinaria.
+	•	Ejemplo de Interconexión:
+	•	Tema: Inteligencia Artificial
+	•	Vinculado a las Categorías:
+	•	Ciencia > Computación > Algoritmos
+	•	Sociedad > Ética > Tecnología
+	•	Arte > Arte Generativo
+	•	Vínculos de Ubicación: Al visualizar el Tema Inteligencia Artificial, la interfaz mostrará claramente sus múltiples "ubicaciones" o rutas categóricas. El usuario podrá ver que este tema se aborda desde la ciencia, la ética y el arte, y podrá navegar a cualquiera de esas ramas con un solo clic.
+C. Visualización Interactiva En cualquier parte de la red donde se utilice la Red de Conocimiento, el usuario podrá cambiar entre tres modos de visualización:
+	•	Lista: Una vista de árbol jerárquico, mostrando las Categorías y los Temas anidados.
+	•	Mapa Conceptual: Una vista 2D que muestra las Categorías como nodos principales y los Temas como nodos secundarios conectados, ideal para entender las relaciones.
+	•	Red 3D: Una visualización inmersiva que representa la red como una galaxia de nodos, permitiendo una exploración fluida y orgánica.
+Módulo 4: La Red - Exploración Detallada de las Secciones Principales
+A. Sección de Política (Gobernanza Ontocrática) El usuario accede a una interfaz con tres pestañas claras: Legislativo, Ejecutivo, Judicial.
+	•	Feed de Publicaciones y Sistema de Filtrado (Común a las 3 pestañas):
+	•	Estructura: Cada pestaña presenta un feed de publicaciones (propuestas, proyectos, casos). Por defecto, muestra el contenido de todas las Páginas de Entidad Federativa en las que participa el usuario, ordenado por actividad reciente.
+	•	Botón de Filtro Avanzado: Un botón prominente de "Filtro" despliega un menú con múltiples opciones para personalizar la vista:
+	•	Filtrar por Página de Entidad Federativa: Un menú desplegable para seleccionar si se quiere ver el contenido de "Todas mis entidades" o de una E.F. específica.
+	•	Filtrar por Estado (Contextual):
+	•	En Legislativo: Todas, Activas (en debate/votación), Caducadas (aprobadas/rechazadas), Urgentes.
+	•	En Ejecutivo: Todas, En Planificación, En Progreso, Completadas.
+	•	En Judicial: Todas, Abiertas, En Mediación, Cerradas.
+	•	Filtrar por Contenido Guardado: Un interruptor para mostrar "Todas" las publicaciones o solo las que el usuario ha "Guardado" en sus carpetas personales.
+	•	Filtrar por Categoría/Tema: Un campo que abre la Red de Conocimiento para que el usuario pueda seleccionar una o varias categorías y/o temas y ver solo las publicaciones etiquetadas con ellos.
+	•	Filtrar por Etiquetas: Un campo de búsqueda para filtrar por #hashtags específicos o por etiquetas de Páginas de Comunidad o Partido Político vinculados a las publicaciones.
+	•	Pestaña Legislativo:
+	•	Función: Es el parlamento digital de la red. Aquí se proponen, debaten y votan todas las leyes, regulaciones y decisiones que afectan a las Entidades Federativas.
+	•	Ciclo de Vida de una Propuesta:
+	•	Creación: Un usuario crea una propuesta usando el editor avanzado, definiendo el problema, la solución propuesta y los afectados.
+	•	Borrador y Apoyo Inicial: La propuesta inicia como "borrador". Para volverse "Oficial", necesita el apoyo de un porcentaje mínimo de los miembros de la E.F. afectada. Esto actúa como un primer filtro para asegurar la relevancia.
+	•	Debate Oficial: Una vez oficial, se abre un periodo de debate formal. Los usuarios pueden comentar usando el mismo editor enriquecido de las publicaciones, añadir enmiendas y votar sobre ellas. La IA puede resumir los puntos clave del debate.
+	•	Votación Final: Al concluir el periodo de debate, se abre la votación final. Los votos son públicos y transparentes.
+	•	Pestaña Ejecutivo:
+	•	Función: Es el brazo de acción y gestión de proyectos de la red. Transforma las decisiones aprobadas en resultados tangibles.
+	•	Interfaz: Un tablero de proyectos (Kanban/Gantt). Cada propuesta Legislativa aprobada que requiera acción genera automáticamente un proyecto aquí.
+	•	Herramientas de Gestión: El proyecto incluye un desglose de tareas, asignación de voluntarios, cronogramas, presupuestos (si aplica) y herramientas de seguimiento de progreso. Se integra con apps de la Biblioteca para logística, comunicación de equipo y gestión de recursos.
+	•	Pestaña Judicial:
+	•	Función: Un sistema de justicia restaurativa, enfocado en la sanación y la rehabilitación, no en el castigo.
+	•	Proceso:
+	•	Presentación de Caso: Un usuario presenta un caso de conflicto o violación de los principios de la Constitución StarSeed.
+	•	Mediación: Un grupo de voluntarios con la insignia de "Mediador Certificado" facilita el diálogo entre las partes.
+	•	Juicio Comunitario: Si la mediación no resuelve el conflicto, el caso se presenta a la comunidad. Los participantes votan sobre la interpretación de los hechos y sobre las soluciones restaurativas propuestas (ej. educación, servicio comunitario, terapia), que son sugeridas por la IA basándose en recursos de la sección de Educación.
+B. Sección de Educación (Conocimiento Libre y Universal)
+	•	Interfaz Principal: La Red de Conocimiento Interactiva: La página de inicio de la sección de Educación es la visualización de la Red de Conocimiento. El usuario puede explorarla libremente en modo lista, mapa conceptual o red 3D. Al hacer clic en cualquier Categoría o Tema, el feed de contenido se filtra para mostrar los cursos, artículos y grupos de estudio relacionados.
+	•	Navegador de Conocimiento Inteligente: La barra de búsqueda conversacional sigue presente, permitiendo al usuario interactuar con la IA para navegar la red y obtener respuestas sintetizadas.
+	•	Ecosistema de Contenido:
+	•	Cursos y Artículos: Creados por expertos verificados y por la propia comunidad. La calidad se mantiene a través de un sistema de revisión por pares y votación.
+	•	Grupos de Estudio: Los usuarios pueden crear y unirse a Páginas de Grupo de Estudio. Estos grupos se gestionan desde la sección de Hub de conexiones y tienen sus propios espacios colaborativos.
+	•	Orientación y Bienestar: Una subsección con herramientas de autoevaluación y guías interactivas para la salud integral (física, emocional, espiritual) y la orientación vocacional. La IA ayuda a los usuarios a conectar sus pasiones con las necesidades de la comunidad.
+	•	Modificación Democrática: El conocimiento es un ente vivo. Cualquier usuario puede proponer ediciones, actualizaciones o la creación de nuevo contenido educativo. Estas propuestas se integran con el sistema Legislativo para ser validadas por la comunidad, asegurando que la base de conocimiento de StarSeed sea siempre precisa y evolutiva.
+C. Sección de Cultura (Expresión e Interacción Social Ilimitada) La sección de Cultura es el centro neurálgico de la vida social de la red, organizada en pestañas para una navegación clara.
+	•	Pestaña: Feed Cultural:
+	•	Función: Es el lienzo principal para la expresión social y creativa. Crucialmente, este feed agrega todas las publicaciones de la red (de Perfiles personales, Páginas de Comunidad, etc.) que NO estén explícitamente categorizadas como Política o Educación. Es el "feed social" por defecto.
+	•	Interfaz: Un feed dinámico y visualmente atractivo. El sistema de filtrado permite al usuario ver contenido por: Formato (2D, AR, VR), Popularidad, Cercanía, Preferencia (amigos, Páginas seguidas, IA), y Categoría/Tema (seleccionada a través de la Red de Conocimiento).
+	•	Pestaña: Mapa Interactivo:
+	•	Función: Un mapa global que fusiona el mundo físico y el digital.
+	•	Capas de Información: El usuario puede activar y desactivar capas para visualizar:
+	•	Páginas de Entidad Federativa: Mostrando sus delimitaciones geográficas.
+	•	Páginas de Comunidad: Marcadores para grupos con una ubicación física. Las comunidades no territoriales pueden aparecer como nodos conceptuales en una vista de red.
+	•	Páginas de Evento: Iconos para eventos públicos y privados, filtrables por tipo y fecha.
+	•	Listas Colaborativas: Los usuarios pueden crear "listas" de lugares y actividades (ej. "Ruta de Arte Urbano", "Cafés para trabajar"). Estas listas pueden ser privadas o públicas para que otros las sigan y contribuyan.
+	•	Democracia Geográfica: Cualquier usuario puede hacer clic derecho en el mapa y "Sugerir un cambio" (ej. proponer un nuevo nombre para un parque, una nueva delimitación para una zona comunitaria). Estas sugerencias se convierten en propuestas en la sección Legislativo para ser votadas por los afectados.
+	•	Pestaña: Calendario de Eventos:
+	•	Función: Una vista de calendario completa para todos los eventos culturales.
+	•	Interfaz: Permite vistas por día, semana y mes. Los eventos están codificados por colores según el tipo. El usuario puede filtrar para ver solo eventos de sus Páginas, eventos públicos, o eventos a los que ha confirmado asistencia. Se integra con la Biblioteca de Apps para añadir eventos a calendarios personales.
+	•	Pestaña: Noticias:
+	•	Función: Un portal de periodismo ciudadano. Agrega todas las publicaciones de la red que han sido marcadas como "noticia" durante su creación.
+	•	Verificación Comunitaria: Para asegurar la calidad, las noticias pasan por un sistema de verificación por pares antes de ser destacadas en la pestaña principal.
+	•	Pestaña: Entornos Virtuales (EVP):
+	•	Función: El portal para explorar, crear e interactuar en mundos virtuales persistentes.
+	•	Creación Asistida por IA: El usuario puede crear un EVP describiendo su visión ("un anfiteatro griego para debates filosóficos"). La IA genera el entorno base, que luego puede ser personalizado con objetos y apps de la Biblioteca.
+	•	Interacción de la IA: La IA puede actuar como anfitrión, facilitador o personaje dentro de un EVP.
+	•	Gestión de Avatares: Integración con el sistema de creación y gestión de avatares.
+Módulo 5: El Lienzo Universal de Creación - Publicaciones y Comentarios
+Esta sección detalla el corazón de la creación de contenido en la red, un sistema unificado y sin límites.
+A. El Concepto: Publicación como Entidad Viva y Sincronizada
+	•	Definición: La Publicación como "Página Web Atómica": Una "publicación" no es un simple post, es una entidad de contenido única y autocontenida en la base de datos, casi como una mini página web. Cuando se "comparte" en múltiples lugares (el feed de un Perfil, el muro de dos Páginas y un chat, por ejemplo), no se crean copias. En su lugar, el sistema crea referencias o instancias visuales a esa única entidad original.
+	•	Sincronización Total y en Tiempo Real: Esta es la clave. Todas las interacciones —cada comentario, reacción, voto, o incluso una edición al contenido original— se realizan sobre la entidad única. Gracias a una base de datos en tiempo real, estos cambios se reflejan instantáneamente en todas las instancias donde la publicación está siendo visualizada. Si alguien comenta en la publicación desde la Página A, ese comentario aparece al instante para alguien que la está viendo en el Perfil B.
+	•	Visibilidad Contextual y Alcance Transparente: Dentro del cuerpo de la publicación, una sección de metadatos muestra claramente todos los Perfiles y Páginas donde está publicada, permitiendo a los usuarios ver su alcance, entender su contexto y navegar entre sus diferentes "hogares" en la red.
+B. El Acto Creador: Un Flujo Guiado por Intención Al hacer clic en el botón "Publicar", se abre una interfaz modal.
+	•	Paso 1: Selección de Área Principal. El usuario se enfrenta a tres opciones claras: Política, Educación, Cultura. Esta elección inicial determina las herramientas y opciones disponibles.
+	•	Paso 2: Selección de Destino y Tipo de Publicación. El usuario elige si su contenido será:
+	•	Publicación Principal: Destinada a la línea de tiempo principal del Perfil/Página.
+	•	Historia: Una publicación que aparecerá exclusivamente en la sección de Historias. Al seleccionar esta opción, se despliega un sub-menú para definir su duración:
+	•	Temporal (ej. 24 horas, 7 días).
+	•	Permanente.
+	•	El tiempo de duración puede ser editado posteriormente.
+	•	Paso 3: Selección de Formato de Contenido. Después de elegir el área, el usuario selecciona el formato:
+	•	Solo Texto: Una interfaz simple para escribir texto plano o enriquecido.
+	•	Galería de Imágenes/Videos: Un formato para subir múltiples archivos. Opcionalmente, puede tener una portada, título y descripción.
+	•	Archivo Único: Para compartir un solo archivo (PDF, audio, etc.). Opcionalmente, puede tener una portada, título y descripción.
+	•	Lienzo Universal (Predeterminada): Para publicaciones ricas e interactivas. Requiere la creación de una Tarjeta de Previsualización.
+	•	Evento (Solo en Área de Cultura): Un formato especializado para crear eventos. Al seleccionarlo, se abre una interfaz de configuración específica.
+	•	Paso 4: Configuración Contextual y Ámbito.
+	•	Si se elige "Evento": Aparece un modal para definir los detalles:
+	•	Título, descripción, imagen de portada.
+	•	Fecha y hora de inicio y fin.
+	•	Ubicación: Puede ser una dirección física (que se integra con el Mapa Interactivo) o un Entorno Virtual Persistente (EVP) de la red.
+	•	Capacidad (opcional).
+	•	Opciones de registro.
+	•	Para todos los formatos:
+	•	La interfaz permite seleccionar uno o varios destinos (Perfiles, Páginas).
+	•	Se presenta la Red de Conocimiento para que el usuario seleccione las categorías y temas relevantes.
+	•	Se ofrece una interfaz para etiquetar otros Perfiles, Páginas, hashtags, etc.
+	•	Paso 5: El Lienzo de Creación o Editor Simple.
+	•	Se abre el editor correspondiente al formato de contenido seleccionado.
+C. El Lienzo de Creación Ilimitado: La Interfaz del Editor Híbrido
+	•	Visión: El editor del Lienzo Universal es un entorno de diseño profesional y a la vez intuitivo. La pantalla se organiza en tres zonas principales: un menú superior para las acciones principales, paneles laterales para gestión y propiedades, y el lienzo central para la creación.
+	•	Interacción con el Lienzo Central:
+	•	Navegación Fluida: El usuario puede hacer zoom y hacer paneo para moverse libremente por lienzos grandes. Esta misma navegación está disponible al visualizar la publicación.
+	•	Manipulación Directa: Todos los elementos se pueden seleccionar, mover y redimensionar directamente sobre el lienzo.
+	•	Menú Superior y Controles Adicionales:
+	•	Menú Principal:
+	•	Insertar Elemento: Un menú desplegable para añadir contenido pre-construido (Media, Interactivos, Avanzados, Contextuales).
+	•	Herramientas de Creación: Una barra de herramientas con los "pinceles" para crear desde cero (Selección, Texto, Formas, Línea, Pincel, Borrador, Recorte, Contenedor).
+	•	Herramientas de Edición: Un menú con opciones que se activan al seleccionar elementos (Agrupar, Transiciones, Interacciones, Ajustes del Lienzo).
+	•	Agente de IA: Un botón prominente que abre la interfaz conversacional con la IA para co-creación.
+	•	Controles de Guardado (Junto al Menú):
+	•	Guardar Borrador / Abrir Borrador: Guarda el progreso actual en las "Colecciones" personales.
+	•	Guardar y Cerrar: Finaliza la creación y la guarda automáticamente en las colecciones por defecto del perfil ("Publicaciones de Política", "Educación" o "Cultura").
+	•	Paneles Laterales: Control Total
+	•	Panel Izquierdo (Gestión de Lienzos y Capas): Pestañas para gestionar múltiples lienzos y la pila jerárquica de capas en el lienzo activo.
+	•	Panel Derecho (Propiedades del Elemento): Un panel contextual que se adapta al elemento seleccionado, ofreciendo control granular sobre Transformación, Apariencia, Previsualización, Interacción y Animación.
+D. La Tarjeta de Previsualización y Navegación
+	•	Función: La tarjeta de previsualización es la portada obligatoria para el Lienzo Universal.
+	•	Diseño: Se diseña en un lienzo limitado para mantener la consistencia en los feeds. Debe contener un Título y/o Descripción.
+	•	Botón de Acceso: La tarjeta renderizada en un feed mostrará un botón de "Ver Contenido".
+	•	Punto de Entrada Configurable: El creador puede configurar que este botón lleve a un índice de lienzos o directamente a un lienzo específico.
+E. Interacciones, Gobernanza y Moderación de Publicaciones Cada publicación, independientemente de su formato o ubicación, incluye una barra de herramientas de interacción estandarizada:
+	•	Botón de Republicar: Permite al usuario compartir la publicación. Se abre un modal donde puede elegir dónde republicarla (en su sección "Republicado", en el feed principal de una Página que administre, etc.).
+	•	Botón de Etiquetar: Permite a cualquier usuario etiquetar Perfiles, Páginas, hashtags, etc., en una publicación existente.
+	•	Botón de Sugerir Cambio: Abre un modal con dos opciones:
+	•	Publicar como Comentario: La sugerencia se añade al hilo de comentarios de la publicación original.
+	•	Crear Publicación Principal: La sugerencia se convierte en una nueva publicación en la sección "Principales" del Perfil/Página donde reside la publicación original, vinculada a esta.
+	•	Botón de Reportar: Abre un modal para iniciar un proceso de gobernanza:
+	•	Crear Propuesta de Eliminación: Si no existe una, esta acción crea una nueva "Publicación Principal" de tipo propuesta en el Perfil/Página correspondiente, donde la comunidad puede debatir y votar sobre la eliminación del contenido reportado.
+	•	Ir a Propuesta Existente: Si ya hay una propuesta de eliminación activa, este botón lleva directamente a ella para que el usuario pueda votar o comentar.
+F. Configuraciones de Votación Avanzada y Comentarios
+	•	Votaciones: Las publicaciones pueden incluir votaciones complejas con opciones propuestas por la comunidad y total transparencia.
+	•	Lienzo de Creación de Comentarios: Los comentarios son publicaciones anidadas con el mismo potencial creativo que la original, utilizando el mismo Editor Híbrido y herramientas contextuales.
+Módulo 6: Cuentas, Perfiles y Páginas - Identidades Digitales
+	•	Estructura de Identidad:
+	•	Cuenta: Entidad raíz y privada (email, contraseña, verificación).
+	•	Perfiles: "Máscaras" o personalidades de una cuenta (artístico, profesional, anónimo). Uno debe ser designado como "Oficial" para participar en Política.
+	•	Páginas: Entidades públicas o grupales (Comunidades, E.F., Partidos Políticos, etc.).
+	•	Gestión de Perfiles: Interfaz para crear, cambiar y designar perfiles.
+	•	Estructura de Perfiles y Páginas con Pestañas:
+	•	Encabezado de Identidad Visual: Área personalizable con foto de portada, foto de perfil y exhibidor de avatares 3D.
+	•	Contenedor de Pestañas: Estructura de pestañas personalizable.
+	•	Pestañas Predeterminadas:
+	•	Dashboard del Perfil/Página: La "portada" pública, un lienzo de widgets personalizable.
+	•	Publicaciones: Una sección central organizada en cuatro sub-pestañas. Cada sub-pestaña tiene sus propias opciones de visualización, filtros y ordenamiento (personalizado, cronológico, etc.), configurables por el perfil visitante.
+	•	Principales: La línea de tiempo principal y por defecto del Perfil/Página.
+	•	Historias: Contiene únicamente las publicaciones de tipo "Historia". Se visualizan en una interfaz inmersiva. El propietario puede agrupar las historias en carpetas temáticas (ej. "Viajes 2025", "Proyectos de Arte"), las cuales también son reordenables. Por defecto, existe una carpeta de "Todas las Historias".
+	•	Republicado: Un feed que muestra todas las publicaciones de otros que el Perfil/Página ha republicado.
+	•	Etiquetado: Un feed que muestra todas las publicaciones de la red en las que este Perfil/Página ha sido etiquetado.
+	•	Canales: La puerta de entrada a los ecosistemas de comunicación y transmisión en directo (Ver Módulo 6.5 para detalles).
+	•	Conexiones: Muestra el grafo social del Perfil o Página.
+	•	Biblioteca: Una vista pública de los archivos y apps que el propietario ha marcado como públicos.
+	•	Colecciones: Muestra las colecciones públicas creadas por el Perfil/Página.
+	•	Widget de Chat en Vivo (integrado en el Dashboard): Un widget prominente en el dashboard que funciona como un muro de comentarios en tiempo real, utilizando el Lienzo de Creación de Comentarios.
+	•	Perfiles y Páginas como Espacios Virtuales: Cada Perfil y Página puede ser visitado como un Entorno Virtual Persistente.
+	•	Sistema de Privacidad Granular: Control total sobre la visibilidad de cada elemento del perfil.
+Módulo 6.5: Canales - Ecosistemas de Comunicación y Transmisión en Directo
+Esta dimensión de la red permite la creación de espacios de comunicación temáticos, persistentes y con capacidades de transmisión en tiempo real.
+A. Estructura y Acceso
+	•	Ubicación: Se accede a través de la pestaña "Canales" en cualquier Perfil, Página o Grupo.
+	•	Interfaz Principal: Se divide en "Canales Propios" y "Canales Compartidos", ambos organizables en carpetas.
+B. Anatomía de un Canal
+	•	Identidad Propia: Nombre, fotos, descripción.
+	•	Contenido: Un feed de publicaciones tipo mensería con control de permisos.
+	•	Estructura Opcional: Puede expandirse para tener la misma estructura de pestañas que una Página.
+C. Publicaciones en Directo (Transmisiones)
+	•	Concepto: Transmisiones de datos en tiempo real dentro de un canal, autorizadas democráticamente.
+	•	Capacidades Ilimitadas: El transmisor puede emitir audio, video, compartir pantalla/perspectiva (VR/AR), editar un Lienzo Universal en directo y lanzar herramientas interactivas.
+	•	Interacción del Espectador: Los espectadores interactúan a través de un chat lateral que usa el Lienzo de Creación de Comentarios.
+D. Interconectividad Total El contenido de los canales, incluyendo grabaciones, se puede compartir a cualquier parte de la red y viceversa.
+Módulo 7: Sistema de Insignias y Logros
+Este es el mecanismo de meritocracia.
+	•	Verificación de Identidad Anual: Requisito para el "Perfil Oficial".
+	•	Obtención: Se otorgan por logros en Educación, Política y Cultura.
+	•	Impacto Funcional: Las insignias desbloquean capacidades y dan peso a las contribuciones del usuario.
+Módulo 8: Biblioteca de Apps y Archivos (El Ecosistema Extensible)
+	•	Estructura: Espacio centralizado para Apps, Archivos y Avatares.
+	•	Biblioteca de Apps: Marketplace para descargar y compartir apps.
+	•	Biblioteca de Archivos: Almacenamiento en la nube universal con organización en carpetas, colecciones y control de privacidad.
+	•	Integración Universal: Cualquier recurso de la biblioteca puede ser invocado en cualquier parte de la red.
+Módulo 9: Mensajes - El Nexo de Comunicación Multimodal Revolucionario
+Esta sección es el centro de la comunicación privada y grupal con una estructura robusta.
+A. Visión General: Un Entorno Sin Límites Es un entorno de comunicación inmersivo y completamente extensible, donde la forma de interactuar se adapta a la intención del usuario.
+B. Interfaz Principal y Organización con Carpetas
+	•	Visión: Un espacio de trabajo de comunicación personalizable.
+	•	Estructura: Un panel izquierdo para Carpetas y un panel derecho para la lista de Chats dentro de la carpeta seleccionada.
+	•	Gestión de Carpetas: El usuario puede crear carpetas personalizadas y reordenarlas.
+	•	Gestión de Chats: Dentro de cada carpeta, los chats pueden ser ordenados (personalizado, reciente, alfabético) y filtrados (no leídos, grupos, etc.). El orden personalizado se guarda por carpeta y perfil.
+	•	Flujo de Trabajo: Los chats se pueden mover a las carpetas fácilmente desde el menú contextual o desde dentro del propio chat.
+C. El Compositor de Mensajes Universal El campo de texto es un "compositor" que permite elegir el formato del mensaje: Solo Texto, Audio/Video, Galería, Archivo Único o Lienzo Universal.
+D. Comunicación Multimodal en Tiempo Real Llamadas de audio/video e integraciones futuras de AR/VR.
+E. Interacciones Avanzadas: Cada Mensaje es un Universo
+	•	Comentar en un Mensaje: Cada mensaje tiene su propio hilo de comentarios, usando el Lienzo de Creación de Comentarios.
+	•	Etiquetado Inteligente: Los usuarios pueden etiquetar perfiles, páginas, grupos, etc., escribiendo @ y hashtags escribiendo # directamente en el compositor, lo que activa una interfaz de búsqueda y sugerencia.
+	•	Interconectividad Total: Los mensajes se pueden compartir como publicaciones y las publicaciones se pueden enviar a los chats.
+F. Grupos de Mensajería
+	•	Visión: La evolución de los chats grupales, combinando mensajería con la estructura de una Página.
+	•	Estructura: Tienen la misma estructura de pestañas personalizables que una Página, pero la pestaña predeterminada es "Mensajes".
+Módulo 10: Hub de Conexiones - El Centro Neurálgico de la Red
+Visión: Esta sección trasciende ser un simple agregador de grupos. Es el centro de mando para la navegación y el descubrimiento social, un observatorio desde el cual el usuario puede tomar el pulso de la red, encontrar nuevas conexiones y gestionar todas sus afiliaciones de manera visual e intuitiva. La interfaz se organiza en pestañas claras y potentes, diseñadas para la exploración.
+A. Pestaña: Buscador Universal
+	•	Función: El punto de partida para cualquier búsqueda en la red. Es la primera pestaña y la más prominente.
+	•	Interfaz: Un diseño limpio con una gran barra de búsqueda central.
+	•	Capacidades:
+	•	Búsqueda Inteligente: El usuario puede buscar cualquier cosa: nombres de perfiles, títulos de publicaciones, texto dentro de documentos, #hashtags, nombres de grupos, etc. La IA interpreta el lenguaje natural.
+	•	Resultados Categorizados: Los resultados de la búsqueda no son una lista plana, sino que se presentan en columnas o pestañas categorizadas: Perfiles, Páginas, Publicaciones, Hashtags, Mensajes (solo de los chats del usuario), Archivos (de la Biblioteca del usuario).
+	•	Panel de Filtros Avanzado: Un panel lateral permite al usuario refinar su búsqueda con una granularidad extrema.
+B. Pestaña: Explorador de Contenido
+	•	Función: Un motor de descubrimiento proactivo diseñado para sacar al usuario de su "burbuja de filtros" y presentarle contenido relevante y novedoso.
+	•	Interfaz: Un feed visual e infinito de tarjetas (similar a Pinterest o Instagram Explore), mostrando previsualizaciones de Perfiles, Páginas, Publicaciones, Eventos, Lugares, Partidos Políticos y Grupos.
+	•	Motor de Relevancia Personalizable:
+	•	Panel de "Mis Intereses": El usuario gestiona una lista de Temas de la Red de Conocimiento que le interesan, ajustando su ponderación.
+	•	Panel de "Fuentes de Inspiración": El usuario puede seleccionar Perfiles y Páginas específicos como "inspiración" para que el algoritmo busque contenido similar.
+	•	Botón "Actualizar Feed": Genera un nuevo lote de sugerencias frescas.
+	•	Filtros de Descubrimiento: El usuario puede filtrar el feed del Explorador por tipo de contenido para enfocar su búsqueda.
+C. Pestaña: Mapa Global
+	•	Función: Un mapa interactivo, público y unificado que sirve como la representación geoespacial y conceptual de la red.
+	•	Interfaz: Una vista de mapa a pantalla completa con un potente panel de control de capas y filtros.
+	•	Capas de Datos Visuales:
+	•	Capa Base: Mapas geográficos estándar (satélite, terreno, calles).
+	•	Capa de Datos: El usuario puede activar/desactivar capas para visualizar:
+	•	Entidades Federativas: Polígonos que delimitan las áreas de gobernanza.
+	•	Eventos: Iconos interactivos que muestran información del evento al hacer clic.
+	•	Lugares: Puntos de interés creados por la comunidad (parques, centros comunitarios, monumentos, etc.).
+	•	Datos en Tiempo Real: Capas configurables para mostrar datos climáticos (temperatura, viento) o geográficos (relieve, hidrografía) mediante integraciones API.
+	•	Creación y Evolución de Lugares:
+	•	Añadir Lugar: Cualquier usuario puede hacer clic derecho en el mapa para proponer un nuevo "lugar", añadiendo nombre, descripción, categoría y fotos.
+	•	Página del Lugar: Al crearse, se genera automáticamente una Página para ese lugar. Esta página tiene pestañas adaptadas como "Publicaciones" (para compartir experiencias y fotos), "Eventos Próximos" en ese lugar, y "Dashboard" con información relevante (ubicación, horarios, etc.).
+	•	Evolución a Entidad Federativa: La Página de un lugar incluye una pestaña de "Gobernanza". Si la comunidad de ese lugar alcanza un quórum y lo aprueba democráticamente, la Página puede "evolucionar" para convertirse en una Entidad Federativa, adquiriendo las pestañas de Legislativo, Ejecutivo y Judicial para la toma de decisiones políticas locales.
+D. Pestaña: Grupos
+	•	Función: Un portal dedicado a la creación, descubrimiento y gestión de grupos de colaboración con objetivos específicos.
+	•	Interfaz: Un dashboard con dos sub-pestañas: "Grupos de Estudio" y "Grupos Culturales".
+	•	Gestión y Organización: El usuario puede crear nuevos grupos, buscar existentes y administrar su membresía. Los grupos a los que pertenece pueden ser organizados en carpetas personalizadas y ordenados con filtros.
+	•	Anatomía de un Grupo: Los grupos son un tipo de Página con una estructura de pestañas adaptada y enriquecida para su propósito:
+	•	Dashboard: Un resumen con los próximos eventos/clases, tareas pendientes y publicaciones destacadas.
+	•	Publicaciones: El muro principal para la comunicación del grupo.
+	•	Calendario: Un calendario compartido donde los miembros pueden organizar clases, actividades, reuniones de estudio o eventos (físicos o virtuales).
+	•	Biblioteca: Un espacio de archivos compartidos para recursos del grupo.
+	•	Tareas: Un sistema de gestión de proyectos simple (listas de tareas con asignaciones y fechas de vencimiento) para organizar actividades grupales.
+	•	Recursos (Solo Grupos de Estudio): Una pestaña especial para crear listas curadas de materiales:
+	•	Enlaces a cursos y artículos de la sección de Educación.
+	•	Creación de Exámenes y Cuestionarios, que al ser completados pueden otorgar Insignias específicas del grupo.
+	•	Miembros y Mensajes: Gestión de participantes y un chat grupal integrado.
+E. Pestaña: Eventos
+	•	Función: Un portal centralizado para descubrir, buscar y administrar todos los eventos de la red.
+	•	Interfaz: Un dashboard con múltiples modos de visualización (Mapa Interactivo, Feed de Tarjetas).
+	•	Calendario Personal: La vista principal es un calendario personal que fusiona:
+	•	Eventos públicos a los que el usuario se ha inscrito.
+	•	Eventos de los grupos y páginas que sigue.
+	•	Eventos Privados: El usuario puede hacer clic en cualquier día para añadir un evento personal, visible solo para él.
+	•	Eventos Compartibles: Al crear un evento manual, puede optar por compartirlo con perfiles específicos, grupos, páginas o enviarlo por mensaje, sin necesidad de hacerlo una publicación pública.
+	•	Descubrimiento y Búsqueda: Funciones de recomendación y búsqueda avanzada por múltiples criterios.
+	•	Administración: Sección "Mis Eventos" para gestionar la participación y organización.
+F. Pestaña: Red de Hashtags
+	•	Función: Un portal dedicado a explorar las conversaciones temáticas de la red a través de los hashtags.
+	•	Interfaz: Organizada en "Hashtags Seguidos" (personalizables y organizables en carpetas) y "Hashtags Sugeridos".
+	•	Página de Hashtag: Cada hashtag (#ejemplo) tiene su propia página, que funciona como un centro de comunidad temático que los usuarios pueden "Seguir". Hereda la estructura de pestañas de una Página cultural (Dashboard, Publicaciones, Conexiones, etc.).
+G. Pestaña: Mis Páginas
+	•	Función: Un dashboard visual para gestionar la pertenencia a todas las Páginas (Comunidades, E.F., etc., excluyendo Grupos que tienen su propia pestaña).
+	•	Interfaz: Una cuadrícula de tarjetas interactivas que representan cada Página.
+	•	Filtros y Ordenamiento: Se puede filtrar por tipo y ordenar por actividad, alfabéticamente o de forma personalizada.
+H. Pestaña: Proyectos y Participaciones
+	•	Función: Un centro de mando para todas las responsabilidades y compromisos activos.
+	•	Interfaz: Un tablero tipo Trello o Asana que agrega votaciones pendientes, tareas asignadas y eventos próximos.
+I. Pestaña: Partidos Políticos
+	•	Función: Un espacio para la organización y gestión de la acción política colectiva y la replicación de votos.
+	•	Concepto de Partido Político:
+	•	Un Partido Político es un tipo especial de Grupo, enfocado en la gobernanza.
+	•	Su membresía está compuesta por expertos con insignias relevantes (ej. "Experto en Legislación", "Mediador Certificado") que son admitidos o electos democráticamente por los propios miembros del partido.
+	•	Su objetivo es analizar propuestas en diversas Entidades Federativas y tomar posturas unificadas.
+	•	Interfaz:
+	•	Explorador de Partidos: Permite buscar y descubrir partidos, ver su ideología, miembros y el historial de sus votaciones.
+	•	Mis Partidos y Alianzas:
+	•	Una lista de los partidos a los que el usuario pertenece.
+	•	Gestión de Alianzas: Los Partidos Políticos pueden proponer alianzas con Entidades Federativas. Esta alianza debe ser ratificada mediante una votación democrática por los miembros de la E.F.
+	•	Panel de Replicación de Votos:
+	•	Aquí, los Perfiles Oficiales pueden elegir seguir a uno o más Partidos Políticos.
+	•	Para cada partido seguido, el usuario puede activar la "replicación de voto". Esto significa que su voto se emitirá automáticamente de la misma manera que lo haga el partido en todas las propuestas de las E.F. aliadas.
+	•	Se incluye un sistema de notificación y anulación manual en caso de que el usuario quiera votar de forma diferente en un caso específico.
+Módulo 11: Agente de IA - El Exocórtex Digital Colaborativo
+Centro de mando para el asistente de IA personal del usuario.
+A. Filosofía y Visión: Un socio proactivo para amplificar la intención, automatizar la complejidad y facilitar la creatividad.
+B. Interfaz Principal: Conversacional (chat/voz) y un panel de control para gestionar habilidades.
+C. Capacidades Fundamentales:
+	•	Interacción Multimodal: Procesa voz, texto, archivos y video en vivo.
+	•	Control del Sistema: Ejecuta acciones complejas dentro y fuera de la red.
+	•	Co-Creación Universal: Genera cualquier tipo de contenido (escrito, visual, virtual, funcional, educativo).
+D. Personalización y Aprendizaje: Gestión de habilidades, base de conocimiento personal y ajuste de personalidad.
+E. Historial y Proyectos: Historial de conversaciones y espacios de trabajo persistentes para objetivos a largo plazo.
+¡Comencemos la Creación! Hoja de Ruta de Desarrollo
+Por favor, sigue este plan de desarrollo por fases para construir la Red StarSeed de manera coherente y adecuada.
+Fase 1: Arquitectura y Esqueleto del Sistema
+	•	Objetivo: Establecer la estructura fundamental.
+	•	Tareas: Proponer stack, crear estructura de componentes, implementar navegación básica, diseñar modelo de datos.
+	•	Resultado: Una aplicación navegable, el "esqueleto" del sistema.
+Fase 2: Diseño Visual e Interfaz de Usuario (UI/UX)
+	•	Objetivo: Aplicar la identidad visual.
+	•	Tareas: Implementar sistema de diseño, estética glassmorphism, animaciones y transiciones.
+	•	Resultado: Una aplicación visualmente atractiva y coherente.
+Fase 3: Núcleo Funcional - Cuentas, Perfiles, Páginas y Sincronización
+	•	Objetivo: Implementar la funcionalidad central.
+	•	Tareas: Desarrollar registro de Cuentas, gestión de Perfiles/Páginas, núcleo de la Biblioteca, sincronización en tiempo real, Flujo de Publicación y Mensajes básicos.
+	•	Resultado: Un sistema funcional donde los usuarios pueden registrarse, crear identidades, comunicarse y publicar.
+Fase 4: Expansión Funcional Iterativa
+	•	Objetivo: Construir e integrar el resto de las características avanzadas.
+	•	Orden Sugerido:
+	•	Red de Conocimiento (Módulo 3)
+	•	Sección de la Red (Módulo 4)
+	•	Hub de conexiones (Módulo 10)
+	•	Canales y Grupos (Módulo 6.5 y 9)
+	•	Insignias y Logros (Módulo 7)
+	•	Dashboard (Módulo 1)
+	•	Agente de IA (Módulo 11)
+	•	Funcionalidad VR/AR
+	•	Resultado Esperado: La Red StarSeed completa, funcional y coherente en todas sus partes.
+

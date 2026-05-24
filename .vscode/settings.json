@@ -1,0 +1,6 @@
+{
+    "window.confirmSaveUntitledWorkspace": false,
+    "explorer.confirmDelete": false,
+    "explorer.confirmDragAndDrop": false,
+    "explorer.confirmPasteNative": false
+}
