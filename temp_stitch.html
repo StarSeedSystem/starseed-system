@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Trinity Interface: Ontocracia Ciberdélica</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;600;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#db143c",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#000510", // Deep Space Override for theme context
+                        "electric-azure": "#007FFF",
+                        "emerald-green": "#10B981",
+                        "solar-amber": "#FFBF00"
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #000510;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+        .liquid-glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .heavy-glass {
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+        .glow-azure { box-shadow: 0 0 20px rgba(0, 127, 255, 0.3); }
+        .glow-emerald { box-shadow: 0 0 20px rgba(16, 185, 129, 0.3); }
+        .glow-amber { box-shadow: 0 0 20px rgba(255, 191, 0, 0.3); }
+        .glow-crimson { box-shadow: 0 0 20px rgba(219, 20, 60, 0.3); }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-white font-display selection:bg-primary/40 h-screen w-screen relative overflow-hidden">
+<!-- ZENITH PANEL (Top) -->
+<header class="absolute top-0 left-0 right-0 z-50 px-10 pt-4 flex justify-center">
+<div class="w-full max-w-4xl heavy-glass bg-electric-azure/10 rounded-b-xl border-t-0 p-4 flex items-center gap-4 glow-azure">
+<div class="flex items-center gap-3 px-4 border-r border-white/10">
+<span class="material-icons-round text-electric-azure">psychology</span>
+<span class="text-xs font-bold tracking-[0.2em] uppercase text-electric-azure/80">Zenith AI</span>
+</div>
+<div class="flex-1 flex items-center bg-white/5 rounded-full px-4 py-2 border border-white/5 focus-within:border-electric-azure/50 transition-all">
+<span class="material-icons-round text-white/40 mr-2 text-sm">search</span>
+<input class="bg-transparent border-none outline-none text-sm w-full placeholder:text-white/20" placeholder="Initiate neural query..." type="text"/>
+<span class="text-[10px] text-white/30 font-mono">⌘+K</span>
+</div>
+<div class="flex gap-2">
+<button class="p-2 rounded-full hover:bg-white/10 text-white/60 transition-colors">
+<span class="material-icons-round text-sm">notifications_active</span>
+</button>
+</div>
+</div>
+</header>
+<!-- CREATION SIDEBAR (Left) -->
+<aside class="absolute left-0 top-0 bottom-0 z-40 w-20 flex items-center justify-center pl-4">
+<div class="h-[70%] w-full heavy-glass bg-emerald-green/10 rounded-r-xl flex flex-col items-center py-8 gap-8 glow-emerald">
+<div class="p-3 bg-emerald-green/20 rounded-full mb-4">
+<span class="material-icons-round text-emerald-green">auto_fix_high</span>
+</div>
+<button class="group relative p-3 rounded-xl hover:bg-emerald-green/20 text-white/40 hover:text-emerald-green transition-all">
+<span class="material-icons-round">architecture</span>
+<span class="absolute left-full ml-4 px-2 py-1 bg-emerald-green text-black text-[10px] font-bold rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">DRAFT</span>
+</button>
+<button class="group relative p-3 rounded-xl hover:bg-emerald-green/20 text-white/40 hover:text-emerald-green transition-all">
+<span class="material-icons-round">blur_on</span>
+<span class="absolute left-full ml-4 px-2 py-1 bg-emerald-green text-black text-[10px] font-bold rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">MORPH</span>
+</button>
+<button class="group relative p-3 rounded-xl hover:bg-emerald-green/20 text-white/40 hover:text-emerald-green transition-all">
+<span class="material-icons-round">stream</span>
+<span class="absolute left-full ml-4 px-2 py-1 bg-emerald-green text-black text-[10px] font-bold rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">FLOW</span>
+</button>
+<div class="mt-auto">
+<button class="p-3 rounded-xl text-white/20 hover:text-white transition-colors">
+<span class="material-icons-round">add_circle_outline</span>
+</button>
+</div>
+</div>
+</aside>
+<!-- LOGIC SIDEBAR (Right) -->
+<aside class="absolute right-0 top-0 bottom-0 z-40 w-80 flex items-center justify-center pr-4">
+<div class="h-[85%] w-full heavy-glass bg-solar-amber/10 rounded-l-xl p-6 flex flex-col gap-6 glow-amber overflow-hidden">
+<div class="flex items-center justify-between border-b border-white/5 pb-4">
+<h2 class="text-xs font-bold tracking-[0.3em] uppercase text-solar-amber">Logic Core</h2>
+<span class="material-icons-round text-solar-amber text-sm animate-pulse">settings_input_component</span>
+</div>
+<!-- Technical Stats -->
+<div class="space-y-4 overflow-y-auto custom-scroll pr-2">
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] text-white/40 uppercase tracking-widest">
+<span>Entropy Sync</span>
+<span>88%</span>
+</div>
+<div class="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-solar-amber w-[88%] rounded-full shadow-[0_0_10px_#FFBF00]"></div>
+</div>
+</div>
+<div class="p-4 rounded-lg bg-white/5 border border-white/5 space-y-3">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-solar-amber"></span>
+<span class="text-[10px] font-bold text-solar-amber/80 uppercase">Node Activity</span>
+</div>
+<div class="h-20 flex items-end justify-between gap-1">
+<div class="w-full bg-solar-amber/20 h-[40%] rounded-t-sm"></div>
+<div class="w-full bg-solar-amber/40 h-[70%] rounded-t-sm"></div>
+<div class="w-full bg-solar-amber/60 h-[50%] rounded-t-sm"></div>
+<div class="w-full bg-solar-amber/30 h-[90%] rounded-t-sm"></div>
+<div class="w-full bg-solar-amber/50 h-[60%] rounded-t-sm"></div>
+<div class="w-full bg-solar-amber/20 h-[30%] rounded-t-sm"></div>
+</div>
+</div>
+<div class="space-y-3">
+<h3 class="text-[10px] text-white/40 uppercase tracking-widest font-bold">System Log</h3>
+<div class="text-[10px] font-mono space-y-2 text-white/60">
+<div class="flex gap-2">
+<span class="text-solar-amber">[OK]</span>
+<span>Neural link established</span>
+</div>
+<div class="flex gap-2">
+<span class="text-solar-amber">[OK]</span>
+<span>Buffer optimized (2ms)</span>
+</div>
+<div class="flex gap-2">
+<span class="text-primary">[WARN]</span>
+<span>Packet jitter in sector 7</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- ANCHOR DOCK (Bottom) -->
+<nav class="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
+<div class="px-8 py-3 heavy-glass bg-primary/10 rounded-full flex items-center gap-8 glow-crimson border border-primary/20">
+<button class="flex flex-col items-center gap-1 group">
+<span class="material-icons-round text-primary text-2xl">home_filled</span>
+<span class="w-1 h-1 rounded-full bg-primary"></span>
+</button>
+<button class="flex flex-col items-center gap-1 group text-white/40 hover:text-white transition-colors">
+<span class="material-icons-round text-2xl">grid_view</span>
+</button>
+<button class="flex flex-col items-center gap-1 group text-white/40 hover:text-white transition-colors">
+<span class="material-icons-round text-2xl">bubble_chart</span>
+</button>
+<div class="w-px h-6 bg-white/10 mx-2"></div>
+<button class="flex flex-col items-center gap-1 group text-white/40 hover:text-white transition-colors">
+<span class="material-icons-round text-2xl">folder_open</span>
+</button>
+<button class="flex flex-col items-center gap-1 group text-white/40 hover:text-white transition-colors">
+<span class="material-icons-round text-2xl">hub</span>
+</button>
+</div>
+</nav>
+<!-- CENTRAL CONTENT (Masonry Grid) -->
+<main class="h-screen w-screen pt-24 pb-28 px-28 overflow-y-auto custom-scroll">
+<div class="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
+<!-- Widget: Live Feed -->
+<div class="break-inside-avoid liquid-glass rounded-xl p-6 group hover:border-white/20 transition-all">
+<div class="flex items-center justify-between mb-4">
+<span class="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">Ontocratic News</span>
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+</div>
+<h3 class="text-lg font-light mb-4">Hyper-reality integration protocol V2.4 successfully deployed in Tokyo-Berlin corridor.</h3>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-electric-azure flex items-center justify-center text-[10px] font-bold">OZ</div>
+<span class="text-xs text-white/40">Nexus Network · 2m ago</span>
+</div>
+</div>
+<!-- Widget: Stats Card -->
+<div class="break-inside-avoid liquid-glass rounded-xl p-6 flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-electric-azure/20 rounded-lg">
+<span class="material-icons-round text-electric-azure">query_stats</span>
+</div>
+<div>
+<p class="text-[10px] uppercase text-white/40 font-bold tracking-widest">Network Flow</p>
+<p class="text-2xl font-bold">1.42 Pb/s</p>
+</div>
+</div>
+<div class="relative h-24 overflow-hidden rounded-lg">
+<div class="absolute inset-0 bg-gradient-to-t from-electric-azure/10 to-transparent"></div>
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 100 40">
+<path d="M0 40 Q 10 10 20 30 T 40 20 T 60 30 T 80 10 T 100 25 V 40 H 0 Z" fill="rgba(0, 127, 255, 0.2)" stroke="rgba(0, 127, 255, 0.5)" stroke-width="0.5"></path>
+</svg>
+</div>
+</div>
+<!-- Widget: Active Project -->
+<div class="break-inside-avoid liquid-glass rounded-xl overflow-hidden group">
+<div class="relative h-48">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="Abstract colorful flowing liquid silk pattern" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDuimXLSfo_gPVMATaNeNzV8_g96UJcJ7V04ZX5VF2FP0AN52KvtTmjsBUdAsJTMj04BHk0Zbzpj_sRbKIrQfumqwz-9ooGXisS8L6txq1iann58p2QpcDRYZ1i5YFop7cdmNp4qRM_yTJ3qQS1THF05uuohvJGKaJbknoyDJoQEi2B_gl97xkZVr2lPjLhwFBA7pFnv2OEjP7pYvPOceIitQjLzfywZKiVNJjzaJc9CDN6Hf7NGb2Ag9mkYosNSsQsNczfqnbfoEE"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark to-transparent"></div>
+<div class="absolute bottom-4 left-4">
+<span class="px-2 py-1 rounded bg-emerald-green text-[8px] font-bold text-black uppercase">Active</span>
+<h4 class="text-xl font-bold mt-1">Project Morphosis</h4>
+</div>
+</div>
+<div class="p-4 flex justify-between items-center">
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full border-2 border-background-dark bg-white/20"></div>
+<div class="w-6 h-6 rounded-full border-2 border-background-dark bg-white/40"></div>
+<div class="w-6 h-6 rounded-full border-2 border-background-dark bg-white/60"></div>
+</div>
+<span class="text-[10px] text-white/40 uppercase font-bold">72% Optimized</span>
+</div>
+</div>
+<!-- Widget: Quick Actions -->
+<div class="break-inside-avoid liquid-glass rounded-xl p-6 grid grid-cols-2 gap-3">
+<button class="flex flex-col items-center justify-center p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors gap-2">
+<span class="material-icons-round text-emerald-green">cyclone</span>
+<span class="text-[10px] font-bold text-white/60 uppercase">Sync</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors gap-2">
+<span class="material-icons-round text-solar-amber">rocket_launch</span>
+<span class="text-[10px] font-bold text-white/60 uppercase">Deploy</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors gap-2">
+<span class="material-icons-round text-electric-azure">bolt</span>
+<span class="text-[10px] font-bold text-white/60 uppercase">Overdrive</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors gap-2">
+<span class="material-icons-round text-primary">security</span>
+<span class="text-[10px] font-bold text-white/60 uppercase">Protect</span>
+</button>
+</div>
+<!-- Widget: Node Map -->
+<div class="break-inside-avoid liquid-glass rounded-xl p-2 relative">
+<div class="rounded-lg overflow-hidden h-64 grayscale contrast-125 brightness-50">
+<img class="w-full h-full object-cover" data-alt="Stylized glowing binary map of world nodes" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCO3uE1cz5d6Wc-YIBJS02tCauAeYURA2j74WIGYRowYcX3JJWY6ktrf8-B_4co9Di_oPRV3hlEBcn5XO9Q6xpWSVK8sn2JLjxyGDv9Z51CEEh9etqJdbWNLfuiXl3mEBSceIkQtHKsCSaNxGnGAeYeLg_a1uFbWz4qcBZd37zmnE_lM1xupfh7qm-J1eEdemeYsSD7roooE0-bKJXhfda99e-uGTRbjetNqSCYGNWtvdawqAKzpCe53BrId1myhqs0FdhCwucPhmI"/>
+<div class="absolute inset-0 bg-primary/10 mix-blend-overlay"></div>
+</div>
+<div class="absolute top-6 left-6 flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-emerald-green animate-ping"></div>
+<span class="text-[10px] font-bold uppercase tracking-widest text-emerald-green">Live Topology</span>
+</div>
+<div class="p-4 flex items-center justify-between">
+<div>
+<p class="text-xs font-bold">Active Nodes</p>
+<p class="text-[10px] text-white/40">Global Distribution</p>
+</div>
+<p class="text-xl font-bold text-emerald-green">14,288</p>
+</div>
+</div>
+<!-- Widget: System Health -->
+<div class="break-inside-avoid liquid-glass rounded-xl p-6">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-icons-round text-primary">favorite</span>
+<h3 class="text-xs font-bold uppercase tracking-widest">Vitality Matrix</h3>
+</div>
+<div class="grid grid-cols-2 gap-y-4">
+<div>
+<p class="text-[10px] text-white/40 uppercase">Core Heat</p>
+<p class="text-lg font-bold">34°C</p>
+</div>
+<div>
+<p class="text-[10px] text-white/40 uppercase">Memory</p>
+<p class="text-lg font-bold">12.4 GB</p>
+</div>
+<div>
+<p class="text-[10px] text-white/40 uppercase">Uptime</p>
+<p class="text-lg font-bold">142:12</p>
+</div>
+<div>
+<p class="text-[10px] text-white/40 uppercase">Latency</p>
+<p class="text-lg font-bold text-emerald-green">4ms</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- LIQUID EDGES (Visual Markers) -->
+<div class="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-electric-azure rounded-b-full shadow-[0_0_15px_#007FFF]"></div>
+<div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-32 bg-emerald-green rounded-r-full shadow-[0_0_15px_#10B981]"></div>
+<div class="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-32 bg-solar-amber rounded-l-full shadow-[0_0_15px_#FFBF00]"></div>
+<div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-primary rounded-t-full shadow-[0_0_15px_#db143c]"></div>
+<!-- BACKGROUND NEBULA EFFECT (CSS Gradient) -->
+<div class="fixed inset-0 pointer-events-none -z-10 opacity-30">
+<div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-electric-azure/10 blur-[150px] rounded-full"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/10 blur-[150px] rounded-full"></div>
+</div>
+</body></html>

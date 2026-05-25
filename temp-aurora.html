@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aurora Glass Weather Widget</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#06f9c8",
+                        "background-light": "#f5f8f8",
+                        "background-dark": "#0f231f",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .aurora-bg {
+            background: radial-gradient(circle at 20% 30%, rgba(6, 249, 200, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 70%, rgba(147, 51, 234, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 50% 50%, rgba(20, 184, 166, 0.1) 0%, transparent 80%);
+            position: relative;
+            overflow: hidden;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 0 20px rgba(6, 249, 200, 0.05);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3),
+                        inset 0 0 12px rgba(6, 249, 200, 0.1);
+        }
+        .glow-text {
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.4), 0 0 40px rgba(6, 249, 200, 0.2);
+        }
+        .wave-path {
+            filter: drop-shadow(0 0 8px rgba(6, 249, 200, 0.6));
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center p-4 aurora-bg">
+<!-- Main Widget Container -->
+<div class="relative w-full max-w-5xl aspect-[16/10] lg:aspect-[16/9] glass-panel rounded-xl overflow-hidden flex flex-col">
+<!-- Navigation Bar -->
+<header class="flex items-center justify-between px-10 py-6 border-b border-white/5">
+<div class="flex items-center gap-10">
+<div class="flex items-center gap-3">
+<div class="size-8 bg-primary rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(6,249,200,0.4)]">
+<span class="material-symbols-outlined text-background-dark font-bold text-xl">cyclone</span>
+</div>
+<h2 class="text-xl font-bold tracking-tight text-slate-100">Aurora Glass</h2>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-primary text-sm font-medium tracking-wide" href="#">Dashboard</a>
+<a class="text-slate-400 hover:text-slate-100 transition-colors text-sm font-medium" href="#">Forecast</a>
+<a class="text-slate-400 hover:text-slate-100 transition-colors text-sm font-medium" href="#">Radar</a>
+<a class="text-slate-400 hover:text-slate-100 transition-colors text-sm font-medium" href="#">Settings</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+<input class="bg-white/5 border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary/50 w-48 transition-all" placeholder="Search city..." type="text"/>
+</div>
+<button class="size-10 rounded-full glass-card flex items-center justify-center text-slate-300 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="size-10 rounded-full border-2 border-primary/30 p-0.5">
+<div class="w-full h-full rounded-full bg-cover bg-center" data-alt="User profile circular avatar portrait" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCBTHeSZjB7LjsmRbl6EyHSY5vkBOf_cLg2mH6ocQBgbDIVN9cdkKqy_chKADuSThuhBoOYYr1DuGc5J-S2ZpqpXT3uKliYdvZtRzQ0pOfM1pLshYFMAUGoWB7IRuaVrfpibcvjZySQL8x16TkLrOPsP6zmVvGePQdh-0rjOkhuGUlvsiZ927-5PrYNQ_0Wcp_cb-2ENXdQaNEmiu5m8xeQNJ5wcJeU_3abnbHB3iOcPHlbKdimLG126NrsgYWDVDEBemag6PsFgbo')"></div>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col md:flex-row p-10 gap-10">
+<!-- Left Section: Hero Weather -->
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-2 text-primary font-medium mb-2">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span class="tracking-wide">Reykjavik, Iceland</span>
+</div>
+<h1 class="text-8xl md:text-9xl font-bold text-slate-100 glow-text flex items-start">
+                        12<span class="text-4xl md:text-5xl mt-4 font-light opacity-80">°C</span>
+</h1>
+<p class="text-2xl text-slate-400 font-light mt-2 tracking-wide">Clear Sky · High: 14° Low: 8°</p>
+</div>
+<!-- Organic Wave Forecast Container -->
+<div class="mt-auto pt-10">
+<div class="flex items-end justify-between mb-4">
+<h3 class="text-sm font-semibold text-slate-300 uppercase tracking-widest">5-Hour Forecast</h3>
+<span class="text-xs text-primary/70">Updated 2m ago</span>
+</div>
+<div class="relative h-32 w-full glass-card rounded-lg px-6 py-4 overflow-hidden">
+<svg class="absolute inset-0 w-full h-full" preserveaspectratio="none" viewbox="0 0 400 100">
+<defs>
+<lineargradient id="waveGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:rgba(6,249,200,0.2);stop-opacity:1"></stop>
+<stop offset="100%" style="stop-color:rgba(6,249,200,0);stop-opacity:0"></stop>
+</lineargradient>
+</defs>
+<path d="M0,80 C50,75 70,30 100,30 C130,30 150,60 200,55 C250,50 270,10 320,15 C370,20 400,60 400,60 L400,100 L0,100 Z" fill="url(#waveGradient)"></path>
+<path class="wave-path" d="M0,80 C50,75 70,30 100,30 C130,30 150,60 200,55 C250,50 270,10 320,15 C370,20 400,60 400,60" fill="none" stroke="#06f9c8" stroke-width="2"></path>
+</svg>
+<div class="relative z-10 flex justify-between h-full items-end pb-2">
+<div class="text-center">
+<p class="text-[10px] text-slate-500 font-bold mb-1">14:00</p>
+<p class="text-xs font-medium">12°</p>
+</div>
+<div class="text-center">
+<p class="text-[10px] text-slate-500 font-bold mb-1">15:00</p>
+<p class="text-xs font-medium">13°</p>
+</div>
+<div class="text-center">
+<p class="text-[10px] text-slate-500 font-bold mb-1">16:00</p>
+<p class="text-xs font-medium">12°</p>
+</div>
+<div class="text-center">
+<p class="text-[10px] text-slate-500 font-bold mb-1">17:00</p>
+<p class="text-xs font-medium">14°</p>
+</div>
+<div class="text-center">
+<p class="text-[10px] text-slate-500 font-bold mb-1">18:00</p>
+<p class="text-xs font-medium">11°</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Section: Floating Metrics & Details -->
+<div class="w-full md:w-80 flex flex-col gap-6">
+<!-- Humidity Pod -->
+<div class="glass-card rounded-xl p-6 flex items-center justify-between group transition-all hover:translate-y-[-4px]">
+<div>
+<p class="text-slate-400 text-xs font-medium mb-1 uppercase tracking-wider">Humidity</p>
+<p class="text-3xl font-bold text-slate-100">58%</p>
+<p class="text-primary text-xs mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +2% today
+                        </p>
+</div>
+<div class="size-14 rounded-full bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+<span class="material-symbols-outlined text-3xl">water_drop</span>
+</div>
+</div>
+<!-- Wind Speed Pod -->
+<div class="glass-card rounded-xl p-6 flex items-center justify-between group transition-all hover:translate-y-[-4px]">
+<div>
+<p class="text-slate-400 text-xs font-medium mb-1 uppercase tracking-wider">Wind Speed</p>
+<p class="text-3xl font-bold text-slate-100">9km/h</p>
+<p class="text-rose-400 text-xs mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_down</span> -1% today
+                        </p>
+</div>
+<div class="size-14 rounded-full bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+<span class="material-symbols-outlined text-3xl">air</span>
+</div>
+</div>
+<!-- Time of Day Transitions (Liquid segments) -->
+<div class="flex-1 glass-card rounded-xl p-6">
+<p class="text-slate-400 text-xs font-medium mb-4 uppercase tracking-wider">Atmospheric Mood</p>
+<div class="space-y-4">
+<div class="flex items-center gap-4 p-3 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+<div class="size-10 rounded-lg overflow-hidden bg-cover bg-center" data-alt="Soft morning sunlight over misty hills" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuALMH2vkOtImv_OGjncAyAOmSgH5N6KHiX3uYYsw98Ml8j529blp_tV2FwMLTSmhHNW0rRHDFHG7RyP5qaeZxYAWipin8pY5p7QinjgfjwiUErLNL5RkD2jYBt0dc767LtyfQ3qy1N-9yGcTJRHo869imxvWC4o5vIrvTURHmIRHNZlhlcvPh5MBu0xpsEowiiPu8gJphN5aUcdfaPGpGOBUMtfVcoEPAmXswky0QZ_E3HPj6ofl-1wVkJFfpdnQytvZD63FjfElOM')"></div>
+<div class="flex-1">
+<p class="text-sm font-bold">Morning</p>
+<p class="text-[10px] text-slate-400">06:00 - 11:00</p>
+</div>
+<span class="material-symbols-outlined text-primary text-sm">wb_sunny</span>
+</div>
+<div class="flex items-center gap-4 p-3 rounded-lg bg-primary/20 border border-primary/30 shadow-[0_0_15px_rgba(6,249,200,0.15)] cursor-pointer">
+<div class="size-10 rounded-lg overflow-hidden bg-cover bg-center" data-alt="Vibrant mid day blue sky with white clouds" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAYQS3Rp8-tSIcbwjvBcVPahhCzCGyNfrT_uvmNbeM9yqs5AZvTTxMEjUpv8PPm4nQLqNi5QwIDxqBFDutEwOj4eDWAMS4xzWsBEjLvHZvW0H6PK4twS-ADD6QijiZ2eVhhH5A5DsbQ5RKS7m7wAdsg7Odw7oYudPAz3eYMEcj1IJn9UpsK82Ye3siwiZdhaOCI8Gg6rFlKMLctCf3cFYYQyGXB8W3qWKOUOhrMPyuGaEEZLSqnMGoWmOfKUZfgtKC5zdZA2ap0e5g')"></div>
+<div class="flex-1">
+<p class="text-sm font-bold">Afternoon</p>
+<p class="text-[10px] text-primary/80">12:00 - 17:00</p>
+</div>
+<span class="material-symbols-outlined text-primary text-sm">light_mode</span>
+</div>
+<div class="flex items-center gap-4 p-3 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+<div class="size-10 rounded-lg overflow-hidden bg-cover bg-center" data-alt="Deep purple and blue night sky with stars" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDNYHs0RwqAILbPY_GQYz4u7t0-hWjVnzJ7P1lQ_U_EIuCTbM_rhOE2m-NKk2ytX0AkkWYlCwFul9lCTv339_58PS1r8zLCEICyZsG1uv2PosFTHs14V4RvJGKZIFKYQZxaW1il8zrjvZeM16ksml5cnZqoyqB0EhQYfDY5Sl1d_cgoCR5FJ13-ReBjhouAFb_WdFatIFWhPHgkDhHX-aS8W-7Zt5p4RnSAWN371of9e8N6Y1T6b6CD64xqOkWAoXFCm5t6Je7aNB4')"></div>
+<div class="flex-1">
+<p class="text-sm font-bold">Evening</p>
+<p class="text-[10px] text-slate-400">18:00 - 23:00</p>
+</div>
+<span class="material-symbols-outlined text-slate-400 text-sm">dark_mode</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Decoration / Liquid Edge -->
+<div class="absolute bottom-0 left-0 w-full overflow-hidden leading-[0]">
+<svg class="relative block w-[200%] h-20 fill-primary/5" preserveaspectratio="none" viewbox="0 0 1200 120">
+<path d="M0,0 C150,90 400,0 600,60 C800,120 1050,30 1200,90 L1200,120 L0,120 Z"></path>
+</svg>
+</div>
+</div>
+<!-- Background Decorative Aurora Ribbons -->
+<div class="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] -z-10 animate-pulse"></div>
+<div class="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[150px] -z-10"></div>
+<div class="fixed top-[40%] left-[60%] w-[30%] h-[30%] bg-teal-500/10 rounded-full blur-[100px] -z-10"></div>
+</body></html>

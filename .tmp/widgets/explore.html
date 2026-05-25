@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Explore Network: Topology Widget</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0a07d5",
+                        "cyber-cyan": "#00f3ff",
+                        "neon-magenta": "#ff00ff",
+                        "background-light": "#f5f5f8",
+                        "background-dark": "#100f23",
+                        "obsidian": "#020205",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.05);
+        }
+        .grid-overlay {
+            background-image: linear-gradient(rgba(10, 7, 213, 0.05) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(10, 7, 213, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .node-pulse {
+            box-shadow: 0 0 15px currentColor;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-obsidian font-display text-slate-900 dark:text-slate-100 min-h-screen overflow-hidden">
+<!-- Background Grid Layer -->
+<div class="fixed inset-0 grid-overlay pointer-events-none"></div>
+<div class="fixed inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/5 pointer-events-none"></div>
+<div class="relative flex h-screen w-full flex-col">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-white/10 px-10 py-4 glass-panel z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-4">
+<div class="size-6 text-primary dark:text-cyber-cyan">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M24 0.757355L47.2426 24L24 47.2426L0.757355 24L24 0.757355ZM21 35.7574V12.2426L9.24264 24L21 35.7574Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h2 class="text-xl font-bold leading-tight tracking-tight">StarSeed Trinity</h2>
+</div>
+<nav class="hidden md:flex items-center gap-9">
+<a class="text-slate-400 hover:text-white text-sm font-medium transition-colors" href="#">Explore</a>
+<a class="text-primary dark:text-cyber-cyan text-sm font-medium border-b-2 border-primary dark:border-cyber-cyan pb-1" href="#">Network</a>
+<a class="text-slate-400 hover:text-white text-sm font-medium transition-colors" href="#">Topology</a>
+<a class="text-slate-400 hover:text-white text-sm font-medium transition-colors" href="#">Nodes</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center bg-white/5 rounded-full px-4 py-1.5 border border-white/10">
+<span class="material-symbols-outlined text-sm text-cyber-cyan mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48 placeholder:text-slate-500" placeholder="Search Neural Nodes..." type="text"/>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center justify-center rounded-full size-10 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+</button>
+<button class="flex items-center justify-center rounded-full size-10 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
+<span class="material-symbols-outlined text-[20px]">account_circle</span>
+</button>
+</div>
+</div>
+</header>
+<main class="flex-1 p-8 flex items-center justify-center relative">
+<!-- Glassmorphic Main Panel -->
+<div class="w-full max-w-[1200px] h-[720px] glass-panel rounded-xl relative overflow-hidden flex flex-col p-8 border border-white/20">
+<!-- Corner Decoration Accents -->
+<div class="absolute top-0 left-0 w-12 h-12 border-t-2 border-l-2 border-cyber-cyan/50 rounded-tl-xl"></div>
+<div class="absolute top-0 right-0 w-12 h-12 border-t-2 border-r-2 border-white/20 rounded-tr-xl"></div>
+<div class="absolute bottom-0 left-0 w-12 h-12 border-b-2 border-l-2 border-white/20 rounded-bl-xl"></div>
+<div class="absolute bottom-0 right-0 w-12 h-12 border-b-2 border-r-2 border-neon-magenta/50 rounded-br-xl"></div>
+<!-- Panel Header -->
+<div class="flex justify-between items-start z-10">
+<div class="space-y-1">
+<h1 class="text-4xl font-light tracking-wider text-white uppercase font-display">Network Topology</h1>
+<p class="text-cyber-cyan/70 text-sm tracking-[0.2em] font-medium uppercase">Hyper-Crystal Node Mapping</p>
+</div>
+<div class="flex flex-col items-end gap-2 font-mono">
+<div class="flex items-center gap-3 px-4 py-2 bg-obsidian/40 border border-white/10 rounded-lg">
+<span class="size-2 bg-cyber-cyan rounded-full animate-pulse node-pulse text-cyber-cyan"></span>
+<span class="text-xs text-slate-400">ACTIVE NODES:</span>
+<span class="text-lg font-bold text-white tracking-tighter">1204</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-2 bg-obsidian/40 border border-white/10 rounded-lg">
+<span class="size-2 bg-neon-magenta rounded-full node-pulse text-neon-magenta"></span>
+<span class="text-xs text-slate-400">SYNC LEVEL:</span>
+<span class="text-lg font-bold text-cyber-cyan tracking-tighter">MAX</span>
+</div>
+</div>
+</div>
+<!-- 3D-Style Visualization Area -->
+<div class="flex-1 relative mt-4 flex items-center justify-center">
+<!-- Central Hub Graphic -->
+<div class="absolute inset-0 flex items-center justify-center opacity-60">
+<svg class="filter drop-shadow-[0_0_10px_rgba(0,243,255,0.2)]" height="500" viewbox="0 0 800 500" width="800">
+<!-- Connection Lines -->
+<g stroke="rgba(255,255,255,0.1)" stroke-width="0.5">
+<line stroke="url(#cyan-grad)" stroke-width="1" x1="400" x2="200" y1="250" y2="100"></line>
+<line stroke="url(#magenta-grad)" stroke-width="1" x1="400" x2="600" y1="250" y2="100"></line>
+<line stroke="rgba(255,255,255,0.2)" x1="400" x2="650" y1="250" y2="350"></line>
+<line stroke="rgba(255,255,255,0.2)" x1="400" x2="150" y1="250" y2="350"></line>
+<line stroke="rgba(255,255,255,0.1)" stroke-dasharray="5,5" x1="200" x2="600" y1="100" y2="100"></line>
+<line stroke="rgba(255,255,255,0.1)" stroke-dasharray="5,5" x1="150" x2="650" y1="350" y2="350"></line>
+</g>
+<!-- Gradients -->
+<defs>
+<lineargradient id="cyan-grad" x1="0%" x2="100%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:#00f3ff;stop-opacity:1"></stop>
+<stop offset="100%" style="stop-color:#0a07d5;stop-opacity:0"></stop>
+</lineargradient>
+<lineargradient id="magenta-grad" x1="100%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:#ff00ff;stop-opacity:1"></stop>
+<stop offset="100%" style="stop-color:#0a07d5;stop-opacity:0"></stop>
+</lineargradient>
+</defs>
+<!-- Nodes -->
+<circle class="animate-pulse" cx="400" cy="250" fill="#00f3ff" r="8"></circle>
+<circle cx="200" cy="100" fill="#ffffff" fill-opacity="0.8" r="5"></circle>
+<circle cx="600" cy="100" fill="#ffffff" fill-opacity="0.8" r="5"></circle>
+<circle cx="650" cy="350" fill="#ff00ff" r="5"></circle>
+<circle cx="150" cy="350" fill="#ffffff" fill-opacity="0.8" r="5"></circle>
+<!-- Tiny floating nodes -->
+<circle cx="320" cy="180" fill="#00f3ff" r="2"></circle>
+<circle cx="480" cy="180" fill="#ff00ff" r="2"></circle>
+<circle cx="350" cy="320" fill="#ffffff" r="2"></circle>
+</svg>
+</div>
+<!-- Overlaying Data Tooltip Example -->
+<div class="absolute top-1/2 left-[60%] transform -translate-y-1/2 -translate-x-1/2 glass-panel p-4 rounded-lg border-white/20 z-20">
+<div class="text-[10px] text-cyber-cyan uppercase font-mono mb-1">Node Protocol Alpha</div>
+<div class="text-white text-sm font-bold mb-2">Crystal_Mapping_09</div>
+<div class="flex gap-4">
+<div class="text-center">
+<div class="text-[8px] text-slate-400">LATENCY</div>
+<div class="text-xs text-white">4.2ms</div>
+</div>
+<div class="text-center">
+<div class="text-[8px] text-slate-400">FLOW</div>
+<div class="text-xs text-cyber-cyan">98%</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Panel Footer -->
+<div class="mt-auto flex justify-between items-center z-10 pt-4 border-t border-white/5">
+<div class="flex items-center gap-4">
+<div class="px-3 py-1 bg-primary/20 rounded-full border border-primary/30">
+<span class="text-[10px] font-mono text-primary-300 tracking-tighter text-blue-300">STREAM_ACTIVE</span>
+</div>
+<div class="text-[10px] font-mono text-slate-500 opacity-60 tracking-widest">
+                            DATA_STREAM: 0x8F2A...9C1
+                        </div>
+</div>
+<div class="flex gap-2">
+<button class="px-6 py-2 bg-white/5 hover:bg-white/10 rounded-full text-xs font-bold border border-white/10 transition-all uppercase tracking-widest">
+                            Reset View
+                        </button>
+<button class="px-6 py-2 bg-primary hover:bg-primary/80 rounded-full text-xs font-bold text-white transition-all uppercase tracking-widest shadow-[0_0_20px_rgba(10,7,213,0.4)]">
+                            Export Logs
+                        </button>
+</div>
+</div>
+</div>
+<!-- Floating Decorative Element -->
+<div class="absolute bottom-12 left-12 w-48 h-48 bg-primary/20 blur-[100px] rounded-full"></div>
+<div class="absolute top-12 right-12 w-64 h-64 bg-neon-magenta/10 blur-[120px] rounded-full"></div>
+</main>
+<!-- Sidebar (Hidden in current layout but space reserved) -->
+<aside class="fixed right-8 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-40">
+<button class="size-12 rounded-full glass-panel flex items-center justify-center hover:text-cyber-cyan transition-colors border-white/10">
+<span class="material-symbols-outlined">zoom_in</span>
+</button>
+<button class="size-12 rounded-full glass-panel flex items-center justify-center hover:text-cyber-cyan transition-colors border-white/10">
+<span class="material-symbols-outlined">zoom_out</span>
+</button>
+<button class="size-12 rounded-full glass-panel flex items-center justify-center hover:text-cyber-cyan transition-colors border-white/10">
+<span class="material-symbols-outlined">layers</span>
+</button>
+<button class="size-12 rounded-full glass-panel flex items-center justify-center hover:text-cyber-cyan transition-colors border-white/10">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</aside>
+</div>
+</body></html>

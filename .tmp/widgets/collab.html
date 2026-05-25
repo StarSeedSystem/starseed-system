@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>StarSeed Trinity Interface - Active Genesis Projects</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#a60df2",
+                        "background-light": "#f7f5f8",
+                        "background-dark": "#0a060c",
+                        "obsidian": "#110816",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px",
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(17, 8, 22, 0.6);
+            backdrop-filter: blur(40px);
+            border: 1px solid rgba(166, 13, 242, 0.15);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(166, 13, 242, 0.4);
+            transform: translateY(-2px);
+        }
+        .neon-glow {
+            filter: drop-shadow(0 0 8px rgba(166, 13, 242, 0.6));
+        }
+        .avatar-stack img {
+            border: 2px solid #110816;
+            box-shadow: 0 0 10px rgba(166, 13, 242, 0.2);
+        }
+        body {
+            background: radial-gradient(circle at top right, #2d0a42 0%, #0a060c 60%);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<!-- Top Navigation Bar -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-white/10 px-6 py-4 lg:px-20">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-primary">
+<div class="size-8 flex items-center justify-center bg-primary/20 rounded-lg">
+<span class="material-symbols-outlined text-primary">deployed_code</span>
+</div>
+<h2 class="text-slate-100 text-lg font-bold tracking-tight">StarSeed Trinity</h2>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-slate-400 hover:text-primary text-sm font-medium transition-colors" href="#">Dashboard</a>
+<a class="text-primary text-sm font-medium" href="#">Projects</a>
+<a class="text-slate-400 hover:text-primary text-sm font-medium transition-colors" href="#">Collaborators</a>
+<a class="text-slate-400 hover:text-primary text-sm font-medium transition-colors" href="#">Settings</a>
+</nav>
+</div>
+<div class="flex flex-1 justify-end gap-4 items-center">
+<div class="hidden sm:flex relative max-w-xs w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">search</span>
+<input class="w-full pl-10 pr-4 py-2 rounded-full bg-white/5 border-none focus:ring-1 focus:ring-primary text-sm text-slate-200 placeholder:text-slate-500" placeholder="Search universe..."/>
+</div>
+<button class="flex items-center justify-center size-10 rounded-full bg-white/5 text-slate-300 hover:bg-primary/20 hover:text-primary transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="size-10 rounded-full border-2 border-primary/40 p-0.5">
+<img class="w-full h-full rounded-full object-cover" data-alt="User profile avatar close up" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXg4yXpYqJSrtVOqG38QZI-PGuTJcntiWbn9wQ6lEuI25O4kfLiI4o7ox1RFIjk9B6CyqFPMyob5VR3UYPJP2hJ6ErjBszQ7u46S6Hdj2dQ84Z7FL5cUSIzom1lKdgTpnrPtQFI60BcqSTBodTPUDYnhwg1CUzhQvGcl40xfMYfBP3tNWx0y-CZ1e7GCbR3NgLJLzivgc1GiaR9ncywi6pgZGx9g_q_Xp7MwyhT4AVPid1sgQFIpoGIhfVxURvYwfKPZ_mf-mVoF4"/>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-6 py-12 lg:px-20">
+<div class="flex flex-col lg:flex-row gap-12 items-start">
+<!-- Left Content: Introduction -->
+<div class="w-full lg:w-1/3 space-y-6">
+<div class="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold tracking-widest uppercase">
+                    Quantum Stream
+                </div>
+<h1 class="text-5xl font-bold leading-tight tracking-tight text-white">
+                    Active <span class="text-primary">Genesis</span> Projects
+                </h1>
+<p class="text-slate-400 text-lg leading-relaxed">
+                    Real-time collaboration tracking for seed-stage bio-neural and orbital infrastructure projects.
+                </p>
+<div class="pt-4 grid grid-cols-2 gap-4">
+<div class="p-4 rounded-xl bg-white/5 border border-white/10">
+<div class="text-primary font-bold text-2xl">12</div>
+<div class="text-slate-500 text-xs uppercase tracking-wider">Active Nodes</div>
+</div>
+<div class="p-4 rounded-xl bg-white/5 border border-white/10">
+<div class="text-primary font-bold text-2xl">98%</div>
+<div class="text-slate-500 text-xs uppercase tracking-wider">Uptime Sync</div>
+</div>
+</div>
+</div>
+<!-- Right Content: The High-Fidelity Glass Widget -->
+<div class="w-full lg:w-2/3">
+<div class="glass-panel rounded-lg p-8 shadow-2xl relative overflow-hidden">
+<!-- Subtle ambient glow in background -->
+<div class="absolute -top-20 -right-20 size-64 bg-primary/10 rounded-full blur-[100px]"></div>
+<div class="flex justify-between items-center mb-8">
+<div>
+<h3 class="text-2xl font-bold text-white tracking-tight">Collaboration Interface</h3>
+<p class="text-slate-500 text-sm">Priority sequence tracking</p>
+</div>
+<button class="px-4 py-2 rounded-full border border-primary/30 text-primary text-xs font-bold hover:bg-primary/10 transition-colors uppercase tracking-widest">
+                            Sync Interface
+                        </button>
+</div>
+<div class="space-y-4">
+<!-- Card 1: Orbit Redesign -->
+<div class="glass-card rounded-lg flex items-center p-5 relative overflow-hidden group">
+<!-- Gradient Accent Line -->
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary/80 to-indigo-600 transition-all group-hover:w-1.5"></div>
+<div class="flex-1 flex items-center gap-6">
+<!-- Progress Ring SVG -->
+<div class="relative size-16 shrink-0">
+<svg class="size-full -rotate-90" viewbox="0 0 36 36">
+<circle class="stroke-white/5" cx="18" cy="18" fill="none" r="16" stroke-width="3"></circle>
+<circle class="stroke-primary neon-glow" cx="18" cy="18" fill="none" r="16" stroke-dasharray="100" stroke-dashoffset="25" stroke-linecap="round" stroke-width="3"></circle>
+</svg>
+<div class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">75%</div>
+</div>
+<div>
+<h4 class="text-white font-semibold text-lg">Orbit Redesign</h4>
+<p class="text-slate-400 text-sm">Lead: Aether Visionary</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="avatar-stack flex -space-x-3">
+<img class="size-10 rounded-full object-cover" data-alt="Team member portrait 1" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3HbIQBxmHD-ZHcobdNGgJDUnWhEJXd5h-YZQCC-MMOpMoYzRw_R-85hW213z5U9-RrhsJiU2zUM9kvMtOW4tx-A0md9Y_p5BUcxBtbDgYLDfA9Hr24iRanTFxKtLx2_JbqHsd59ggQGuWnPo0vNS3d57pW6e-cyrg4WrCWIU4lWqwIZ_PgANDjNdSJ5PKHBq-DHsPgrytyFoNLSP7g7e9mUtLWfUx1qkkiw8awrv5hPQ8uROfRKVGZrmTQ1fxMAJHMUFF8krYS8A"/>
+<img class="size-10 rounded-full object-cover" data-alt="Team member portrait 2" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAibZtSF3HeH4n4daZJCGOeuM87kfgDa5xxJG1uvyatadu7vtelVeIBMg8YnAOaEdC6QZllV1vTZsmya34W3I6P4-Q4GBISSmGBtXT0oWDAM77LWZlP0LsKeR3OydVWjm6K4MkokzVj7FdZW1ow3eBuHXnek0jVrriMgK_gKeosjYDY1YML2RYqQGe1q_q_rZK6pUjv8IC1dxTEUwsudKv4V_6wGqQbGf0spOQPAef5jSpjGeJ_1VmVrem0mCivIjiU7ppXHHUFadI"/>
+<img class="size-10 rounded-full object-cover" data-alt="Team member portrait 3" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3BbWppDeKuBc04k7jxaEUJ98QIl7Rjj7a0dbUzvpZ-q9CIwFeF2XPgNnXws6HDRD8TJCPBnhcRKye8EYj-lOmm36tBUDeoTJ3JfoXFImnw_R79dkal3Pw0ffTPt6XjdeYNTPlaRBTQXDeRYNcyvw-5PL2KSTQb9NzIwZUXu4xi9LBpBaPkcmuh10uQb9ClgofH7oCGb2Q7GzE6O6s9UgX1wYiliEob6FIAzblLgDySrbxRxAX8GiH7VQcxm8tILHu7wDyATrTdT4"/>
+</div>
+<button class="size-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-xl">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Card 2: Lunar Hub -->
+<div class="glass-card rounded-lg flex items-center p-5 relative overflow-hidden group">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary/80 to-indigo-600 transition-all group-hover:w-1.5"></div>
+<div class="flex-1 flex items-center gap-6">
+<div class="relative size-16 shrink-0">
+<svg class="size-full -rotate-90" viewbox="0 0 36 36">
+<circle class="stroke-white/5" cx="18" cy="18" fill="none" r="16" stroke-width="3"></circle>
+<circle class="stroke-primary neon-glow" cx="18" cy="18" fill="none" r="16" stroke-dasharray="100" stroke-dashoffset="58" stroke-linecap="round" stroke-width="3"></circle>
+</svg>
+<div class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">42%</div>
+</div>
+<div>
+<h4 class="text-white font-semibold text-lg">Lunar Hub</h4>
+<p class="text-slate-400 text-sm">Lead: Selene Architect</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="avatar-stack flex -space-x-3">
+<img class="size-10 rounded-full object-cover" data-alt="Team member portrait 4" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCuEQhcz29mAMrpO_4Xr_IO2TUn97_AFWV1q3jU22GqM7GLw1FaoPUppki0jftCLl00HH5e_VNzwfi-QcCUWIhwbuKhadM4lp3sP4fK4DTQPnG-BJbQqW13XBiwL3A3vDDbhbv3UsijAj1snW5hm1-XC0iT5T3xE1LnCeJ993jqmEGE0TxR2-tWhaxEBWnyJghpr5YyTKQ-q_N20_UE-KrWW0pmSQGdUl1-fAeDmQRGKUm5EPiR_rikgkNDgmjiR-wZXIR3kXwJSd4"/>
+<img class="size-10 rounded-full object-cover" data-alt="Team member portrait 5" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBMQddsr2JgOzF1dW2htIqZ_pasnUPFzx0hPFobGkj79eb7YnFRd1Ul6tFk5nwGYkxTujddXVStxfM75FsbRYpZO-OeZ1PX2SXVATUf16tiQ0MmBbRvdGlRB3jtSRMxfeMs8qlVaPuqSZgZ1R7HHRhc7M5bK3cC3qmdk8MvkDjALuhBTv9FCOAW0ENpt9PWTKb0nCM9gH63X78Xz7fWFAkbqzTFN7zYouLQDZJcnfx4AgSvbhNAO6inpFssAnuh6_8TewYpxwuM37Y"/>
+<div class="size-10 rounded-full bg-primary flex items-center justify-center text-[10px] font-bold text-white border-2 border-obsidian">+3</div>
+</div>
+<button class="size-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-xl">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Card 3: Bio-Neural Interface -->
+<div class="glass-card rounded-lg flex items-center p-5 relative overflow-hidden group">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary/80 to-indigo-600 transition-all group-hover:w-1.5"></div>
+<div class="flex-1 flex items-center gap-6">
+<div class="relative size-16 shrink-0">
+<svg class="size-full -rotate-90" viewbox="0 0 36 36">
+<circle class="stroke-white/5" cx="18" cy="18" fill="none" r="16" stroke-width="3"></circle>
+<circle class="stroke-primary neon-glow" cx="18" cy="18" fill="none" r="16" stroke-dasharray="100" stroke-dashoffset="10" stroke-linecap="round" stroke-width="3"></circle>
+</svg>
+<div class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">90%</div>
+</div>
+<div>
+<h4 class="text-white font-semibold text-lg">Bio-Neural Interface</h4>
+<p class="text-slate-400 text-sm">Lead: Neuro Linker</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="avatar-stack flex -space-x-3">
+<img class="size-10 rounded-full object-cover" data-alt="Team member portrait 6" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvky_DzFql_ehkNnmkxHVt0zV9bbblP92joCU02sSDMP5KPAD7RxMF9Yfc5v2rPyQ5Czk8H2YD76etCbQZ578HR9uGB9SPht9_KJyROKiJrERo3KgS_n2uhDHFJclG6BPmNfuWqmxBpqr0X7z7C1Ol2wuqN1O4daU2oB10eADppa7SPdr0oxcVMfLp-9Pkxa22GvzRrmYMeMGBR3004qfpcyLdJMYzflVeleXWiX-qSDSFwoObVy3xeR3tD0oBZV2yYf9u1RWYz10"/>
+<img class="size-10 rounded-full object-cover" data-alt="Team member portrait 7" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_zfuBAUgar6oGS80HiVnf4wdBNzu_nHBhGHoJFgkyi_r1NQSASrwhvH2NFGg3mRKITcJCJ5rccGcpQO6hamSbKZSk8EBtoQysLUcglM2jUM3LIw6ZRDJkp4UfE0bZ761yrgBy0YoclqPVOUkh7lHzu3dQ_dIBwM1ZH5FYz6byHG2axxqIc2u9BG8yub7l5wr62i3ApiETqHA3YVz0KSd5a_CJPYXoPGXSjjsE0veZ2zgEbWOV5u1Vbhl5HM3oiu19oy0ZDRK5ITw"/>
+</div>
+<button class="size-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-xl">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<div class="mt-8 flex justify-center">
+<a class="text-slate-500 hover:text-primary text-sm font-medium flex items-center gap-2 transition-colors group" href="#">
+                            View All Project Architectures
+                            <span class="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">arrow_right_alt</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+<!-- Secondary Information Section -->
+<div class="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8">
+<div class="p-6 rounded-lg bg-white/5 border border-white/10 hover:border-primary/30 transition-all">
+<span class="material-symbols-outlined text-primary mb-4 block">hub</span>
+<h5 class="text-white font-bold mb-2">Neural Linkage</h5>
+<p class="text-slate-500 text-sm">Encrypted peer-to-peer data transmission across genesis nodes.</p>
+</div>
+<div class="p-6 rounded-lg bg-white/5 border border-white/10 hover:border-primary/30 transition-all">
+<span class="material-symbols-outlined text-primary mb-4 block">stream</span>
+<h5 class="text-white font-bold mb-2">Temporal Sync</h5>
+<p class="text-slate-500 text-sm">Real-time collaboration across disparate orbital time zones.</p>
+</div>
+<div class="p-6 rounded-lg bg-white/5 border border-white/10 hover:border-primary/30 transition-all">
+<span class="material-symbols-outlined text-primary mb-4 block">security</span>
+<h5 class="text-white font-bold mb-2">Zero-Trust Protocol</h5>
+<p class="text-slate-500 text-sm">Biometric validation for all seed-level architectural changes.</p>
+</div>
+</div>
+</main>
+<footer class="mt-20 border-t border-white/5 py-10 px-6 lg:px-20 text-center">
+<div class="flex justify-center gap-6 mb-4">
+<div class="size-10 bg-white/5 rounded-full flex items-center justify-center text-slate-500 hover:text-primary cursor-pointer transition-colors">
+<span class="material-symbols-outlined">captive_portal</span>
+</div>
+<div class="size-10 bg-white/5 rounded-full flex items-center justify-center text-slate-500 hover:text-primary cursor-pointer transition-colors">
+<span class="material-symbols-outlined">rocket_launch</span>
+</div>
+<div class="size-10 bg-white/5 rounded-full flex items-center justify-center text-slate-500 hover:text-primary cursor-pointer transition-colors">
+<span class="material-symbols-outlined">terminal</span>
+</div>
+</div>
+<p class="text-slate-600 text-xs uppercase tracking-[0.2em]">StarSeed Trinity Interface © 2024 • Genesis Tier Access Only</p>
+</footer>
+</body></html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Mental Coherence | StarSeed Trinity</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13b6ec",
+                        "background-light": "#f6f8f8",
+                        "background-dark": "#0a0f12",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Manrope', sans-serif;
+            background-color: #0a0f12; /* Deep Obsidian */
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .coherence-orb {
+            background: radial-gradient(circle at 30% 30%, #13b6ec, transparent),
+                        radial-gradient(circle at 70% 60%, #ec4899, transparent),
+                        radial-gradient(circle at 50% 50%, #ffffff, transparent);
+            filter: blur(45px);
+            opacity: 0.6;
+        }
+        .liquid-progress {
+            background: linear-gradient(90deg, #13b6ec 0%, #ec4899 100%);
+            box-shadow: 0 0 15px rgba(19, 182, 236, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center overflow-hidden">
+<!-- Background Decoration -->
+<div class="fixed inset-0 z-0 pointer-events-none">
+<div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-pink-500/10 rounded-full blur-[120px]"></div>
+</div>
+<!-- Main Content Container -->
+<div class="relative z-10 w-full max-w-5xl px-6 py-12 flex flex-col items-center">
+<!-- Header Section -->
+<header class="w-full flex justify-between items-center mb-12 px-8">
+<div class="flex items-center gap-3">
+<div class="size-8 text-primary">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M24 0.757355L47.2426 24L24 47.2426L0.757355 24L24 0.757355ZM21 35.7574V12.2426L9.24264 24L21 35.7574Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h2 class="text-slate-100 text-lg font-bold tracking-widest uppercase">StarSeed Trinity</h2>
+</div>
+<nav class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
+<a class="hover:text-primary transition-colors" href="#">Wellness</a>
+<a class="hover:text-primary transition-colors" href="#">Mindfulness</a>
+<a class="text-primary border-b border-primary/50 pb-1" href="#">Coherence</a>
+<a class="hover:text-primary transition-colors" href="#">Insights</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="size-10 rounded-full glass-panel flex items-center justify-center hover:bg-white/10 transition-all">
+<span class="material-symbols-outlined text-slate-100 text-[20px]">notifications</span>
+</button>
+<div class="size-10 rounded-full border border-primary/30 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User profile portrait in soft lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtc5OMDdikbJn7XBeYYPRyExhH-xN4DaMimySSrb9eHvPnD9a2MiAozhIEFpOnZ91GkK_eVOyN_xW08qFGqhB1sGHS2b-nk90qKAOlClPROYVG5jF2_yx6GGF2MaXKpGwGrBeS0mp-XGw_8WyQuFjLy-LBIAyyc3c-AazGA2avNZGIsaAvt1PB_dG10wC8c6uC-oS1P2WjEIwmOPIvcX9-verO1UzRjHcC5ZxnQKaMm4ASNuTov9YvGla-7WiIWiuUr03kyoGPOng"/>
+</div>
+</div>
+</header>
+<!-- The Mental Coherence Widget Panel -->
+<main class="w-full max-w-[860px] glass-panel rounded-xl p-8 md:p-12 relative overflow-hidden">
+<!-- Title and Description -->
+<div class="text-center mb-16 relative z-10">
+<h1 class="text-4xl md:text-6xl font-extralight tracking-tight text-slate-100 mb-4">Mental Coherence</h1>
+<p class="text-slate-400 text-base md:text-lg max-w-md mx-auto font-light">Achieve clarity through bioluminescent soundscapes and alpha-wave synchronization.</p>
+</div>
+<!-- Central Bioluminescent Orb -->
+<div class="relative flex justify-center items-center py-20 mb-8">
+<!-- Pulsating Rings -->
+<div class="absolute size-64 rounded-full border border-primary/20 animate-ping opacity-20"></div>
+<div class="absolute size-48 rounded-full border border-pink-500/20 animate-pulse opacity-30"></div>
+<!-- Main Orb -->
+<div class="coherence-orb size-56 md:size-80 rounded-full relative z-0"></div>
+<!-- Inner Core -->
+<div class="absolute size-32 md:size-48 rounded-full bg-white/5 backdrop-blur-3xl border border-white/10 flex items-center justify-center z-10">
+<div class="text-center">
+<span class="block text-primary text-xs font-bold tracking-widest uppercase mb-1">Coherence</span>
+<span class="block text-white text-3xl font-light">94%</span>
+</div>
+</div>
+</div>
+<!-- Minimal Audio Player -->
+<div class="w-full max-w-xl mx-auto relative z-10">
+<div class="text-center mb-8">
+<h3 class="text-white text-xl font-light mb-1">Binaural Beats - 14Hz Crystal Resonator</h3>
+<p class="text-slate-500 text-sm tracking-widest uppercase">StarSeed Wellness Audio</p>
+</div>
+<!-- Liquid Timeline Bar -->
+<div class="mb-8">
+<div class="flex justify-between items-end mb-3 px-1">
+<span class="text-[10px] text-slate-500 font-medium">12:45</span>
+<span class="text-[10px] text-slate-500 font-medium">20:00</span>
+</div>
+<div class="h-1 w-full bg-white/5 rounded-full relative">
+<div class="absolute top-0 left-0 h-full w-[63%] liquid-progress rounded-full">
+<div class="absolute right-0 top-1/2 -translate-y-1/2 size-3 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)]"></div>
+</div>
+</div>
+</div>
+<!-- Playback Controls -->
+<div class="flex items-center justify-center gap-10">
+<button class="text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[28px]">skip_previous</span>
+</button>
+<button class="text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[28px]">replay_10</span>
+</button>
+<button class="size-20 rounded-full bg-white text-background-dark flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.2)]">
+<span class="material-symbols-outlined text-[40px] fill-1">play_arrow</span>
+</button>
+<button class="text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[28px]">forward_10</span>
+</button>
+<button class="text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[28px]">skip_next</span>
+</button>
+</div>
+</div>
+<!-- Bottom Stats Grid -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 pt-8 border-t border-white/5">
+<div class="text-center p-4">
+<p class="text-slate-500 text-[10px] uppercase tracking-widest mb-1">Focus</p>
+<p class="text-slate-100 text-lg font-light">Deep</p>
+</div>
+<div class="text-center p-4 border-l border-white/5">
+<p class="text-slate-500 text-[10px] uppercase tracking-widest mb-1">BPM</p>
+<p class="text-slate-100 text-lg font-light">60</p>
+</div>
+<div class="text-center p-4 border-l border-white/5">
+<p class="text-slate-500 text-[10px] uppercase tracking-widest mb-1">Sessions</p>
+<p class="text-slate-100 text-lg font-light">12/30</p>
+</div>
+<div class="text-center p-4 border-l border-white/5">
+<p class="text-slate-500 text-[10px] uppercase tracking-widest mb-1">State</p>
+<p class="text-primary text-lg font-light">Optimal</p>
+</div>
+</div>
+</main>
+<!-- Footer / Call to Action -->
+<footer class="mt-12 flex flex-col items-center gap-6">
+<button class="px-8 py-3 rounded-full border border-primary/30 text-primary text-sm font-medium tracking-widest uppercase hover:bg-primary/10 transition-all backdrop-blur-sm">
+                Enter Immersive Focus Mode
+            </button>
+<div class="flex gap-4">
+<div class="size-2 rounded-full bg-primary"></div>
+<div class="size-2 rounded-full bg-white/20"></div>
+<div class="size-2 rounded-full bg-white/20"></div>
+</div>
+</footer>
+</div>
+<!-- Static Background Elements -->
+<div class="fixed top-1/4 left-1/4 size-96 coherence-orb -z-10 opacity-10"></div>
+<div class="fixed bottom-1/4 right-1/4 size-96 coherence-orb -z-10 opacity-10" style="background: radial-gradient(circle, #ec4899, transparent)"></div>
+</body></html>

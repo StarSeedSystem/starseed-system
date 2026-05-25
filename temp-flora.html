@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bioluminescent Flora Weather Widget</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#06f9c8",
+                        "secondary": "#ff00ff",
+                        "background-light": "#f5f8f8",
+                        "background-dark": "#0d1117",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+        @keyframes drift {
+            0% { transform: translate(0, 0); }
+            50% { transform: translate(15px, -15px); }
+            100% { transform: translate(0, 0); }
+        }
+        @keyframes flow {
+            0% { stroke-dashoffset: 1000; }
+            100% { stroke-dashoffset: 0; }
+        }
+        .glow-text {
+            text-shadow: 0 0 20px rgba(6, 249, 200, 0.8), 0 0 40px rgba(6, 249, 200, 0.4);
+        }
+        .glow-magenta {
+            filter: drop-shadow(0 0 8px rgba(255, 0, 255, 0.8));
+        }
+        .organic-bg {
+            background: radial-gradient(circle at center, rgba(6, 249, 200, 0.05) 0%, transparent 70%);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen overflow-hidden selection:bg-primary/30">
+<div class="relative w-full h-screen flex flex-col items-center justify-center overflow-hidden organic-bg">
+<!-- Top Navigation (Modified from Component List) -->
+<nav class="absolute top-0 w-full px-8 py-6 flex justify-between items-center z-50">
+<div class="flex items-center gap-3">
+<div class="size-8 text-primary">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M12.0799 24L4 19.2479L9.95537 8.75216L18.04 13.4961L18.0446 4H29.9554L29.96 13.4961L38.0446 8.75216L44 19.2479L35.92 24L44 28.7521L38.0446 39.2479L29.96 34.5039L29.9554 44H18.0446L18.04 34.5039L9.95537 39.2479L4 28.7521L12.0799 24Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h1 class="text-xl font-bold tracking-tight uppercase opacity-80">Bioluminescent Flora</h1>
+</div>
+<div class="flex items-center gap-8">
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Dashboard</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Ecosystem</a>
+<div class="size-10 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-xl">psychology_alt</span>
+</div>
+</div>
+</nav>
+<!-- Main Living Ecosystem Canvas -->
+<div class="relative w-full max-w-5xl h-[70vh] flex items-center justify-center">
+<!-- Wind Tendrils (SVG Visualization) -->
+<div class="absolute inset-0 z-0 pointer-events-none opacity-40">
+<svg height="100%" preserveaspectratio="none" viewbox="0 0 1000 600" width="100%">
+<!-- Tendril 1 -->
+<path d="M-100,300 C150,250 350,350 500,300 S850,250 1100,300" fill="none" stroke="#06f9c8" stroke-dasharray="10 20" stroke-width="2" style="animation: flow 10s linear infinite;"></path>
+<!-- Tendril 2 -->
+<path d="M-100,350 C200,400 400,300 600,350 S900,400 1100,350" fill="none" opacity="0.5" stroke="#06f9c8" stroke-width="1" style="animation: flow 15s linear infinite reverse;"></path>
+<!-- Tendril 3 -->
+<path d="M-100,200 C100,150 400,250 700,200 S950,150 1100,200" fill="none" opacity="0.7" stroke="#06f9c8" stroke-width="1.5" style="animation: flow 12s linear infinite;"></path>
+</svg>
+</div>
+<!-- Humidity Spores (Animated Particles) -->
+<div class="absolute inset-0 z-10 pointer-events-none">
+<!-- Spore Cluster 1 -->
+<div class="absolute top-1/4 left-1/4 size-2 bg-secondary rounded-full glow-magenta" style="animation: drift 8s ease-in-out infinite;"></div>
+<div class="absolute top-1/3 left-1/2 size-1.5 bg-secondary rounded-full glow-magenta" style="animation: drift 12s ease-in-out infinite 1s;"></div>
+<div class="absolute top-2/3 left-1/3 size-2.5 bg-secondary rounded-full glow-magenta" style="animation: drift 10s ease-in-out infinite 0.5s;"></div>
+<div class="absolute bottom-1/4 right-1/3 size-1.5 bg-secondary rounded-full glow-magenta" style="animation: drift 14s ease-in-out infinite 2s;"></div>
+<div class="absolute top-1/2 right-1/4 size-2 bg-secondary rounded-full glow-magenta" style="animation: drift 9s ease-in-out infinite 3s;"></div>
+<div class="absolute bottom-1/3 left-2/3 size-1 bg-secondary rounded-full glow-magenta" style="animation: drift 11s ease-in-out infinite 1.5s;"></div>
+</div>
+<!-- Central Temperature Core -->
+<div class="relative z-20 flex flex-col items-center">
+<!-- Glowing Pulse Aura -->
+<div class="absolute size-96 bg-primary/10 rounded-full blur-[100px] -z-10" style="animation: pulse-glow 4s ease-in-out infinite;"></div>
+<p class="text-[12rem] font-bold leading-none glow-text text-primary tracking-tighter">12°</p>
+<div class="flex items-center gap-4 -mt-4">
+<span class="text-2xl font-light tracking-[0.4em] opacity-60">CELSIUS</span>
+</div>
+</div>
+<!-- Floating Data Points -->
+<!-- Wind Label -->
+<div class="absolute top-1/4 right-10 flex flex-col items-end z-30">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary text-xl">air</span>
+<span class="text-sm font-bold tracking-widest uppercase opacity-50">Wind Speed</span>
+</div>
+<p class="text-4xl font-bold">9 <span class="text-lg font-normal opacity-50">km/h</span></p>
+<p class="text-primary text-xs mt-1 tracking-wider">VINES WEAVING STABLE</p>
+</div>
+<!-- Humidity Label -->
+<div class="absolute bottom-1/4 left-10 flex flex-col items-start z-30">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-secondary text-xl">water_drop</span>
+<span class="text-sm font-bold tracking-widest uppercase opacity-50">Humidity</span>
+</div>
+<p class="text-4xl font-bold">58 <span class="text-lg font-normal opacity-50">%</span></p>
+<div class="w-32 h-1 bg-secondary/20 mt-2 rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[58%] glow-magenta"></div>
+</div>
+<p class="text-secondary text-xs mt-1 tracking-wider">PURPLE SPORES DRIFTING</p>
+</div>
+</div>
+<!-- Footer Stats Bar -->
+<footer class="absolute bottom-0 w-full p-8 flex justify-center z-50">
+<div class="flex items-center gap-12 bg-white/5 backdrop-blur-xl px-12 py-4 rounded-full border border-white/10">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary/70">wb_twilight</span>
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-widest opacity-40">Pulse Rate</span>
+<span class="text-sm font-bold">STABLE</span>
+</div>
+</div>
+<div class="w-px h-6 bg-white/10"></div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary/70">visibility</span>
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-widest opacity-40">Atmosphere</span>
+<span class="text-sm font-bold">LUMINESCENT</span>
+</div>
+</div>
+<div class="w-px h-6 bg-white/10"></div>
+<div class="flex items-center gap-3">
+<button class="bg-primary text-background-dark text-xs font-black px-6 py-2 rounded-full hover:scale-105 transition-transform uppercase tracking-tighter">
+                        Sync Ecosystem
+                    </button>
+</div>
+</div>
+</footer>
+<!-- Decorative Background Elements -->
+<div class="absolute -bottom-20 -left-20 size-80 bg-primary/5 rounded-full blur-[120px]"></div>
+<div class="absolute -top-20 -right-20 size-80 bg-secondary/5 rounded-full blur-[120px]"></div>
+</div>
+</body></html>

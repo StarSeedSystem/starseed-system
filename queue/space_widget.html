@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>StarSeed Energy Resonance Variant 2</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#2b6cee",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#050505",
+                        "space-void": "#0a0a15",
+                        "glass-border": "rgba(43, 108, 238, 0.2)",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>body {
+    font-family: "Space Grotesk", sans-serif;
+    overflow: hidden
+    }
+.glass-panel {
+    background: rgba(10, 10, 21, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(43, 108, 238, 0.15)
+    }
+.neon-glow-primary {
+    box-shadow: 0 0 15px rgba(43, 108, 238, 0.4)
+    }
+.noise-bg {
+    background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuAQ1LQEx-ZCb3nWXiOD9HRlpN9xnmSGEcC8kaDFrlv9r5s9Kr9iHY_watNyLmcV_Qun6xczYWCNhPL8Ach_Kt011CJ_RdL3WAlDD1EUrh8Ok23xGOEwdi6Vqh7GexNA2mxw9JSB6lSohsPnbC0ncMIfKuKTTUyrapNc9-X9doQHFTX46nMdgmu1OIhc0n9CnYaYbCUdgXMnpaNX1bQB4MtN1JXZjQ3xokW1xeLGDEvSC1eO4RO6nita5y8AeD7IqrwpBpGQOx0iObw)
+    }
+.fluid-visualizer {
+    background: radial-gradient(circle at center, rgba(43, 108, 238, 0.15) 0%, transparent 70%)
+    }
+.ripple {
+    position: absolute;
+    border: 1px solid rgba(43, 108, 238, 0.3);
+    border-radius: 50%;
+    transform: scale(0)
+    }</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen selection:bg-primary/30">
+<div class="relative w-full h-screen overflow-hidden bg-space-void noise-bg">
+<!-- Top Navigation -->
+<header class="relative z-50 flex items-center justify-between px-8 py-4 glass-panel border-b border-white/5">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-3 text-primary">
+<span class="material-symbols-outlined text-3xl">flare</span>
+<h1 class="text-xl font-bold tracking-tight text-slate-100">StarSeed <span class="font-light opacity-60">Resonance</span></h1>
+</div>
+<nav class="hidden md:flex items-center gap-8 ml-8">
+<a class="text-sm font-medium text-primary border-b-2 border-primary pb-1" href="#">Live Monitor</a>
+<a class="text-sm font-medium text-slate-400 hover:text-slate-100 transition-colors" href="#">Historical</a>
+<a class="text-sm font-medium text-slate-400 hover:text-slate-100 transition-colors" href="#">Anomaly Detection</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/30">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-primary">Live Sync Active</span>
+</div>
+<button class="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 transition-all">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User profile avatar abstract" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWd4xnGcvw0s4sud7YSfMXpILC6QDDmd1PWXcqlTV4dhRM8mYOmtZEXJxXL2t0fdLI9AImNS1gSaGfXbUkvOJTk_Bh3jefvq1No1dQ4-BwA3pHNK7px8HmQwUWMi_m5kAUJi_7vngDGcnj0Ct-XoewCMF3DkcznjTV9gmhhb7jJpg2y_j0qe3lW7lE8K3CbajV9c3QA6WjK6dcuoFPtqjw5-O0JsGj5JQNWYUQXJSAdX4DmbEys7W2FHV1_HcDp6679YKZKMUazd4"/>
+</div>
+</div>
+</header>
+<!-- Main Dashboard Area -->
+<main class="relative h-[calc(100vh-72px)] w-full flex p-6 gap-6">
+<!-- Left Column: Fluid Visualizer -->
+<div class="relative flex-[2] flex flex-col gap-6">
+<!-- Central Widget -->
+<div class="flex-1 glass-panel rounded-xl relative overflow-hidden flex items-center justify-center group">
+<div class="absolute inset-0 fluid-visualizer opacity-50"></div>
+<!-- Abstract Noise Particles Representation -->
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+<div class="w-2/3 h-2/3 rounded-full bg-primary/5 blur-3xl animate-pulse"></div>
+</div>
+<!-- SVG Fluid Simulation Mockup -->
+<svg class="w-full h-full opacity-80 z-10" viewbox="0 0 800 500">
+<defs>
+<lineargradient id="neonGrad" x1="0%" x2="100%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:#2b6cee;stop-opacity:1"></stop>
+<stop offset="100%" style="stop-color:#60a5fa;stop-opacity:0.2"></stop>
+</lineargradient>
+<filter id="glow">
+<fegaussianblur result="coloredBlur" stddeviation="2.5"></fegaussianblur>
+<femerge>
+<femergenode in="coloredBlur"></femergenode>
+<femergenode in="SourceGraphic"></femergenode>
+</femerge>
+</filter>
+</defs>
+<!-- Resonance Waves -->
+<path d="M 0 250 Q 200 150 400 250 T 800 250" fill="none" filter="url(#glow)" opacity="0.4" stroke="url(#neonGrad)" stroke-width="1">
+<animate attributename="d" dur="5s" repeatcount="indefinite" values="M 0 250 Q 200 150 400 250 T 800 250; M 0 250 Q 200 350 400 250 T 800 250; M 0 250 Q 200 150 400 250 T 800 250"></animate>
+</path>
+<path d="M 0 250 Q 200 200 400 250 T 800 250" fill="none" opacity="0.2" stroke="#2b6cee" stroke-width="0.5"></path>
+<!-- Floating Data Nodes -->
+<circle cx="200" cy="180" fill="#2b6cee" filter="url(#glow)" r="3"></circle>
+<circle cx="600" cy="320" fill="#2b6cee" opacity="0.6" r="2"></circle>
+<circle cx="400" cy="250" fill="#fff" filter="url(#glow)" r="4"></circle>
+</svg>
+<!-- Overlay Labels -->
+<div class="absolute top-8 left-8">
+<p class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">Current Frequency</p>
+<p class="text-5xl font-bold text-slate-100 tracking-tighter">7.83 <span class="text-xl font-normal opacity-40">Hz</span></p>
+</div>
+<div class="absolute bottom-8 right-8 text-right">
+<p class="text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">Resonance Magnitude</p>
+<p class="text-2xl font-medium text-primary">0.142 <span class="text-xs opacity-60">mT</span></p>
+</div>
+<!-- HUD Elements -->
+<div class="absolute inset-0 pointer-events-none border-[1px] border-primary/5 rounded-xl">
+<div class="absolute top-0 left-1/2 -translate-x-1/2 h-1 w-24 bg-primary/20 rounded-b-full"></div>
+<div class="absolute bottom-0 left-1/2 -translate-x-1/2 h-1 w-24 bg-primary/20 rounded-t-full"></div>
+</div>
+</div>
+<!-- Bottom Minimalism Graph -->
+<div class="h-48 glass-panel rounded-xl p-6 relative">
+<div class="flex justify-between items-start mb-4">
+<h3 class="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-primary">timeline</span>
+                            Harmonics Over Time (24h)
+                        </h3>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+<span class="text-[10px] text-slate-500 uppercase">Primary</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-slate-700"></div>
+<span class="text-[10px] text-slate-500 uppercase">Secondary</span>
+</div>
+</div>
+</div>
+<div class="w-full h-24 flex items-end gap-1">
+<!-- Mock Bars/Waveform -->
+<div class="flex-1 bg-primary/10 rounded-t-sm h-1/2 hover:bg-primary/30 transition-all cursor-crosshair"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm h-2/3"></div>
+<div class="flex-1 bg-primary/15 rounded-t-sm h-1/3"></div>
+<div class="flex-1 bg-primary/40 rounded-t-sm h-3/4"></div>
+<div class="flex-1 bg-primary/10 rounded-t-sm h-1/2"></div>
+<div class="flex-1 bg-primary/60 rounded-t-sm h-[90%] neon-glow-primary"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm h-1/2"></div>
+<div class="flex-1 bg-primary/10 rounded-t-sm h-1/3"></div>
+<div class="flex-1 bg-primary/15 rounded-t-sm h-2/5"></div>
+<div class="flex-1 bg-primary/10 rounded-t-sm h-1/4"></div>
+<div class="flex-1 bg-primary/30 rounded-t-sm h-1/2"></div>
+<div class="flex-1 bg-primary/10 rounded-t-sm h-1/3"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm h-1/2"></div>
+<div class="flex-1 bg-primary/10 rounded-t-sm h-1/3"></div>
+<div class="flex-1 bg-primary/10 rounded-t-sm h-1/2"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm h-1/2"></div>
+<div class="flex-1 bg-primary/15 rounded-t-sm h-2/3"></div>
+<div class="flex-1 bg-primary/10 rounded-t-sm h-1/2"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm h-1/3"></div>
+</div>
+<div class="flex justify-between mt-2 text-[10px] font-medium text-slate-600 uppercase tracking-tighter">
+<span>00:00</span>
+<span>06:00</span>
+<span>12:00</span>
+<span>18:00</span>
+<span>23:59</span>
+</div>
+</div>
+</div>
+<!-- Right Column: Stats & Kp Index -->
+<aside class="w-80 flex flex-col gap-6">
+<!-- Kp Index Gauge Card -->
+<div class="glass-panel rounded-xl p-6 flex flex-col items-center">
+<h3 class="w-full text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Geomagnetic Kp Index</h3>
+<div class="relative w-48 h-48 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-slate-800" cx="96" cy="96" fill="none" r="80" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-primary neon-glow-primary" cx="96" cy="96" fill="none" r="80" stroke="currentColor" stroke-dasharray="502" stroke-dashoffset="250" stroke-linecap="round" stroke-width="8"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-4xl font-bold">4.2</span>
+<span class="text-[10px] uppercase text-slate-500 tracking-widest mt-1">Status: Moderate</span>
+</div>
+</div>
+<div class="mt-6 w-full grid grid-cols-5 gap-1 px-4">
+<div class="h-1 bg-primary rounded-full"></div>
+<div class="h-1 bg-primary rounded-full"></div>
+<div class="h-1 bg-primary rounded-full"></div>
+<div class="h-1 bg-primary rounded-full opacity-40"></div>
+<div class="h-1 bg-slate-800 rounded-full"></div>
+</div>
+</div>
+<!-- Secondary Data Grid -->
+<div class="flex-1 flex flex-col gap-4">
+<div class="glass-panel rounded-xl p-5 flex flex-col justify-between group hover:border-primary/40 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform">cloudy_snowing</span>
+<span class="text-[10px] text-green-500 font-bold uppercase">+1.2%</span>
+</div>
+<div>
+<p class="text-xs text-slate-500 uppercase tracking-wider">Ionospheric Density</p>
+<p class="text-xl font-bold">1.28 <span class="text-xs font-normal opacity-50">M e/cm³</span></p>
+</div>
+</div>
+<div class="glass-panel rounded-xl p-5 flex flex-col justify-between group hover:border-primary/40 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform">cyclone</span>
+<span class="text-[10px] text-amber-500 font-bold uppercase">-0.4%</span>
+</div>
+<div>
+<p class="text-xs text-slate-500 uppercase tracking-wider">Solar Wind Speed</p>
+<p class="text-xl font-bold">412.5 <span class="text-xs font-normal opacity-50">km/s</span></p>
+</div>
+</div>
+<div class="glass-panel rounded-xl p-5 flex flex-col justify-between group hover:border-primary/40 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform">thermostat</span>
+<span class="text-[10px] text-slate-500 font-bold uppercase">Stable</span>
+</div>
+<div>
+<p class="text-xs text-slate-500 uppercase tracking-wider">Atmospheric Temp</p>
+<p class="text-xl font-bold">-54.2 <span class="text-xs font-normal opacity-50">°C</span></p>
+</div>
+</div>
+</div>
+<!-- Action Button -->
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 group">
+<span class="material-symbols-outlined group-hover:rotate-12 transition-transform">download</span>
+                    Export Intelligence Report
+                </button>
+</aside>
+</main>
+<!-- Background Atmospheric Element: Map/Grid Mock -->
+<div class="fixed bottom-0 left-0 w-full h-1/3 pointer-events-none opacity-10">
+<div class="w-full h-full border-t border-primary/20" style="background-image: radial-gradient(circle at 2px 2px, rgba(43, 108, 238, 0.15) 1px, transparent 0); background-size: 40px 40px;"></div>
+</div>
+<!-- System Alerts Bar -->
+<footer class="absolute bottom-4 left-6 right-6 h-10 flex items-center justify-between px-4 glass-panel rounded-lg text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+<span>Global Sensor Array: Online</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_5px_#2b6cee]"></div>
+<span>Resonance Lock: Active</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span>Lat: 48.8566 N</span>
+<span>Lon: 2.3522 E</span>
+<span class="text-slate-300">UTC: 14:32:05</span>
+</div>
+</footer>
+</div>
+</body></html>

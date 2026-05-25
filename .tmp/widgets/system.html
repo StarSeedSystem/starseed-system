@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>System Status: Telemetry &amp; Core Status</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00f2ff",
+                        "background-light": "#f5f8f8",
+                        "background-dark": "#02040a",
+                        "surface-dark": "#0f2223",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(15, 34, 35, 0.4);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(0, 242, 255, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+        }
+        .bioluminescent-fill {
+            background: linear-gradient(180deg, #00f2ff 0%, #0088ff 100%);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.5);
+        }
+        .radar-line {
+            background: linear-gradient(90deg, rgba(0, 242, 255, 0.8) 0%, rgba(0, 242, 255, 0) 100%);
+            transform-origin: center;
+        }
+        .scanline {
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+        .terminal-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .terminal-scroll::-webkit-scrollbar-thumb {
+            background: rgba(0, 242, 255, 0.2);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center p-8 overflow-hidden relative">
+<!-- Background Abstract Pattern -->
+<div class="fixed inset-0 opacity-20 pointer-events-none">
+<div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,#00f2ff22_0%,transparent_70%)]"></div>
+<div class="absolute w-full h-full opacity-10" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBTO1oRzrpm4lnUIAb3_HP72a1IcocNY2p3kPC2NlzRtwVAYlpImEXPDWCDaNfYjjHjhsd3WW_bw80bjw-JQSye56sK5unyV3a_VHbE2PYfwvbwEpUg5ayo6JMW569VBDDDlkj7xYsIUcxY6ERXCZAKmabtsCHNVMcZTKEexfuIqAcq-_P-rhtUySzSv0PaSnHwfjeMJ2ttPg6ZfkWdUHsscfeafHKZ6Op8E6crj2FNf2ug5oO08CV_yv-c_GBFsaYwyZPwGw1POf0');"></div>
+</div>
+<!-- Main Widget Container -->
+<div class="relative w-full max-w-6xl aspect-[16/10] glass-panel rounded-xl flex flex-col overflow-hidden">
+<!-- Header -->
+<header class="flex items-center justify-between px-10 py-6 border-b border-primary/10">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary text-3xl">hub</span>
+<div>
+<h1 class="text-xs uppercase tracking-[0.4em] text-primary/60 font-medium">StarSeed Trinity Interface</h1>
+<h2 class="text-2xl font-light tracking-wider text-primary">TELEMETRY &amp; CORE STATUS</h2>
+</div>
+</div>
+<div class="flex items-center gap-8">
+<div class="text-right">
+<p class="text-[10px] uppercase tracking-widest text-primary/40">Mission Time</p>
+<p class="font-mono text-xl text-primary/90">08:42:11:04</p>
+</div>
+<div class="flex gap-2">
+<button class="size-10 flex items-center justify-center rounded border border-primary/20 hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-primary text-lg">settings</span>
+</button>
+<button class="size-10 flex items-center justify-center rounded border border-primary/20 hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-primary text-lg">notifications</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Dashboard Content -->
+<main class="flex-1 grid grid-cols-12 gap-6 p-10 relative">
+<!-- Left Side Status Bars -->
+<div class="col-span-2 flex flex-col justify-between py-4">
+<div class="space-y-6">
+<div>
+<p class="text-[10px] uppercase tracking-widest text-primary/60 mb-3">CPU Cores</p>
+<div class="flex gap-2 h-32">
+<div class="flex-1 bg-primary/5 rounded-t-sm relative overflow-hidden">
+<div class="absolute bottom-0 w-full bioluminescent-fill h-[65%]"></div>
+</div>
+<div class="flex-1 bg-primary/5 rounded-t-sm relative overflow-hidden">
+<div class="absolute bottom-0 w-full bioluminescent-fill h-[42%]"></div>
+</div>
+<div class="flex-1 bg-primary/5 rounded-t-sm relative overflow-hidden">
+<div class="absolute bottom-0 w-full bioluminescent-fill h-[88%]"></div>
+</div>
+<div class="flex-1 bg-primary/5 rounded-t-sm relative overflow-hidden">
+<div class="absolute bottom-0 w-full bioluminescent-fill h-[30%]"></div>
+</div>
+</div>
+</div>
+<div>
+<p class="text-[10px] uppercase tracking-widest text-primary/60 mb-3">Memory Load</p>
+<div class="w-full bg-primary/5 h-2 rounded-full overflow-hidden border border-primary/10">
+<div class="bioluminescent-fill h-full w-[74%]"></div>
+</div>
+<p class="text-right font-mono text-xs mt-2 text-primary">74.2%</p>
+</div>
+</div>
+<div class="p-4 border border-primary/20 rounded-lg bg-primary/5">
+<p class="text-[10px] uppercase tracking-widest text-primary/60 mb-1">Thermal</p>
+<p class="text-2xl font-bold text-primary">32.4<span class="text-sm font-light">K</span></p>
+<p class="text-[10px] text-primary/40 mt-1">STABLE RESISTANCE</p>
+</div>
+</div>
+<!-- Central Holographic Radar -->
+<div class="col-span-8 flex flex-col items-center justify-center relative">
+<!-- Decorative Rings -->
+<div class="absolute size-96 border border-primary/10 rounded-full animate-pulse"></div>
+<div class="absolute size-[420px] border border-primary/5 rounded-full"></div>
+<div class="absolute size-[450px] border-t border-b border-primary/20 rounded-full"></div>
+<!-- Radar UI -->
+<div class="relative size-80 flex items-center justify-center">
+<div class="absolute inset-0 rounded-full border-2 border-primary/20 shadow-[0_0_50px_rgba(0,242,255,0.1)]"></div>
+<div class="absolute w-full h-px bg-primary/20"></div>
+<div class="absolute h-full w-px bg-primary/20"></div>
+<!-- Radar Sweep -->
+<div class="absolute inset-0 radar-line rounded-full opacity-40 rotate-[120deg]"></div>
+<!-- Holographic Core Nodes -->
+<div class="absolute size-4 bg-primary rounded-full blur-[2px] shadow-[0_0_15px_#00f2ff] translate-x-12 -translate-y-16"></div>
+<div class="absolute size-2 bg-primary/60 rounded-full -translate-x-20 translate-y-8"></div>
+<div class="absolute size-3 bg-primary/80 rounded-full translate-x-16 translate-y-20"></div>
+<!-- Center Label -->
+<div class="z-10 text-center">
+<p class="text-xs tracking-[0.3em] text-primary mb-1">QUANTUM</p>
+<p class="text-3xl font-black text-white drop-shadow-[0_0_10px_#00f2ff]">98.2%</p>
+<p class="text-[10px] text-primary/60 mt-2">RESONANCE SYNC</p>
+</div>
+</div>
+<!-- Coordinate Data -->
+<div class="absolute bottom-0 left-1/2 -translate-x-1/2 flex gap-12 font-mono text-[10px] text-primary/60 tracking-widest">
+<span>X: 192.441.002</span>
+<span>Y: 004.882.115</span>
+<span>Z: 992.001.442</span>
+</div>
+</div>
+<!-- Right Side Data -->
+<div class="col-span-2 flex flex-col justify-between py-4 text-right">
+<div class="space-y-8">
+<div>
+<p class="text-[10px] uppercase tracking-widest text-primary/60 mb-2">Network I/O</p>
+<div class="flex flex-col gap-1 items-end">
+<div class="text-xs text-primary/90 flex gap-2">DL: <span class="font-mono">1.2 GB/s</span></div>
+<div class="w-full bg-primary/5 h-1 rounded-full overflow-hidden">
+<div class="bioluminescent-fill h-full w-[85%]"></div>
+</div>
+<div class="text-xs text-primary/90 flex gap-2 mt-2">UL: <span class="font-mono">450 MB/s</span></div>
+<div class="w-full bg-primary/5 h-1 rounded-full overflow-hidden">
+<div class="bioluminescent-fill h-full w-[32%]"></div>
+</div>
+</div>
+</div>
+<div>
+<p class="text-[10px] uppercase tracking-widest text-primary/60 mb-2">Neural Link</p>
+<div class="inline-flex items-center gap-2 text-primary font-bold">
+<span class="size-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_#00f2ff]"></span>
+                            ACTIVE
+                        </div>
+</div>
+</div>
+<div class="p-4 border border-primary/20 rounded-lg bg-primary/5">
+<p class="text-[10px] uppercase tracking-widest text-primary/60 mb-1">Uptime</p>
+<p class="text-xl font-bold text-primary font-mono tracking-tighter">142:18:22</p>
+<p class="text-[10px] text-primary/40 mt-1">NOMINAL POWER</p>
+</div>
+</div>
+</main>
+<!-- Bottom Terminal -->
+<footer class="h-32 bg-black/40 border-t border-primary/10 p-4 font-mono text-[11px] overflow-hidden">
+<div class="terminal-scroll h-full overflow-y-auto pr-4 space-y-1">
+<div class="flex gap-3 text-primary/40">
+<span class="text-primary/60">[08:42:11]</span>
+<span>INIT QUANTUM RESONANCE CORE... SUCCESS</span>
+</div>
+<div class="flex gap-3 text-primary/40">
+<span class="text-primary/60">[08:42:12]</span>
+<span>NEURAL GRID ESTABLISHED - LATENCY 0.4ms</span>
+</div>
+<div class="flex gap-3 text-primary/90">
+<span class="text-primary/60">[08:42:13]</span>
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[12px]">check_circle</span>
+                        TELEMETRY HANDSHAKE COMPLETE
+                    </span>
+</div>
+<div class="flex gap-3 text-primary/40">
+<span class="text-primary/60">[08:42:15]</span>
+<span>CORE TEMPERATURE STABILIZED AT 32.4K</span>
+</div>
+<div class="flex gap-3 text-primary/40">
+<span class="text-primary/60">[08:42:18]</span>
+<span>MONITORING ACTIVE PROCESSES: 142 TOTAL</span>
+</div>
+<div class="flex gap-3 text-amber-400/60">
+<span class="text-amber-400/80">[08:42:20]</span>
+<span>WARNING: SECTOR 7 PACKET LOSS DETECTED - REROUTING...</span>
+</div>
+<div class="flex gap-3 text-primary/40">
+<span class="text-primary/60">[08:42:22]</span>
+<span>SYNCING NEURAL GRID TO TRINITY MAINLINE</span>
+</div>
+<div class="flex gap-3 text-primary/40">
+<span class="text-primary/60">[08:42:25]</span>
+<span>SYSTEM READY. STANDING BY FOR INPUT.</span>
+</div>
+</div>
+</footer>
+<!-- Scanline Overlay -->
+<div class="absolute inset-0 scanline opacity-10 pointer-events-none"></div>
+</div>
+</body></html>

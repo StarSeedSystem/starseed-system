@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>StarSeed Holistic 3D Sphere Variant 3</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#25f46a",
+                        "secondary": "#ff00ff", // Magenta for solar wind
+                        "background-light": "#f5f8f6",
+                        "background-dark": "#080f0a",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .glass-card {
+            background: rgba(16, 34, 22, 0.4);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(37, 244, 106, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .liquid-glass {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .sphere-glow {
+            box-shadow: 0 0 100px rgba(37, 244,  green, 0.1), 0 0 150px rgba(255, 0, 255, 0.1);
+        }
+        .node-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
+        }
+        .gradient-sphere {
+            background: radial-gradient(circle at 30% 30%, rgba(37, 244, 106, 0.4) 0%, rgba(255, 0, 255, 0.2) 40%, rgba(8, 15, 10, 1) 80%);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen overflow-hidden font-display">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 w-full z-50 border-b border-primary/10 glass-card">
+<div class="max-w-[1600px] mx-auto flex items-center justify-between px-8 py-4">
+<div class="flex items-center gap-12">
+<div class="flex items-center gap-3">
+<div class="text-primary size-8 flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl">star_rate</span>
+</div>
+<h2 class="text-2xl font-bold tracking-tighter">StarSeed</h2>
+</div>
+<nav class="hidden md:flex items-center gap-8 uppercase text-[10px] tracking-[0.2em] font-semibold text-slate-400">
+<a class="text-primary border-b border-primary pb-1" href="#">Terrestrial</a>
+<a class="hover:text-primary transition-colors" href="#">Cosmic Ops</a>
+<a class="hover:text-primary transition-colors" href="#">Ionosphere</a>
+<a class="hover:text-primary transition-colors" href="#">Archive</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative group">
+<div class="absolute inset-y-0 left-3 flex items-center text-primary/50">
+<span class="material-symbols-outlined text-sm">search</span>
+</div>
+<input class="bg-primary/5 border border-primary/20 rounded-full pl-10 pr-4 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none w-64 uppercase tracking-widest placeholder:text-primary/30" placeholder="QUERY COORDINATES..." type="text"/>
+</div>
+<button class="size-10 flex items-center justify-center rounded-full bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all text-primary">
+<span class="material-symbols-outlined">notifications_active</span>
+</button>
+<div class="flex items-center gap-3 border-l border-primary/20 pl-6">
+<div class="text-right">
+<div class="text-[10px] font-bold text-primary/70 tracking-widest uppercase">Operator</div>
+<div class="text-sm font-medium">E. Vance</div>
+</div>
+<div class="size-10 rounded-full overflow-hidden border border-primary/40 bg-primary/20 p-0.5">
+<img alt="User profile avatar" data-alt="Portrait of a modern technology operator" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBm2r905AYmEMHLerx3mNf0NVwESdLFnwuyScEPZwK1ABx-xy3ZcmujKxWL2g4WUbUMVKbyA5MLgNiV2wxuoW90ZUcD21hNdZbFdI3mjk5wFyUYkqs7fPKIc4dp5Y-Jd0SDcez3E-apN7HBkN15G2moHk6cObPg2tYhTktZmdxZSbZufNOtaf4Ed96GkZVyky0ZY2S_iVHVXBCx9PGv5G50M49-XCTNqREZlSCMdgJhpLv4meEgXmKpK8nUrL6cR_Tgi4sGQfxAmAg"/>
+</div>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="relative h-screen w-full pt-20 flex overflow-hidden">
+<!-- Left Glass Sidebar -->
+<aside class="w-20 lg:w-72 h-full glass-card border-r border-primary/10 flex flex-col p-6 z-40 transition-all duration-500">
+<div class="flex-1 space-y-8">
+<div>
+<h3 class="text-[10px] text-primary/50 font-bold uppercase tracking-[0.3em] mb-4 hidden lg:block">System Monitors</h3>
+<ul class="space-y-2">
+<li>
+<button class="w-full flex items-center gap-4 px-3 py-3 rounded-lg bg-primary/20 text-primary border border-primary/30 group">
+<span class="material-symbols-outlined">public</span>
+<span class="text-sm font-medium hidden lg:block uppercase tracking-wider">Holistic Sphere</span>
+</button>
+</li>
+<li>
+<button class="w-full flex items-center gap-4 px-3 py-3 rounded-lg hover:bg-primary/10 text-slate-400 hover:text-primary transition-all group">
+<span class="material-symbols-outlined">query_stats</span>
+<span class="text-sm font-medium hidden lg:block uppercase tracking-wider">Solar Flux</span>
+</button>
+</li>
+<li>
+<button class="w-full flex items-center gap-4 px-3 py-3 rounded-lg hover:bg-primary/10 text-slate-400 hover:text-primary transition-all group">
+<span class="material-symbols-outlined">hub</span>
+<span class="text-sm font-medium hidden lg:block uppercase tracking-wider">Node Network</span>
+</button>
+</li>
+</ul>
+</div>
+<div>
+<h3 class="text-[10px] text-primary/50 font-bold uppercase tracking-[0.3em] mb-4 hidden lg:block">Real-time Feed</h3>
+<div class="space-y-4 hidden lg:block">
+<div class="p-3 rounded-lg bg-black/40 border border-primary/10">
+<div class="flex justify-between items-center mb-1">
+<span class="text-[10px] font-bold text-primary uppercase">Kp Index</span>
+<span class="text-[10px] text-slate-500">14:22 UTC</span>
+</div>
+<div class="h-1.5 bg-primary/10 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[40%]"></div>
+</div>
+<div class="mt-2 text-xs text-slate-300">Level G1 - Minor activity</div>
+</div>
+<div class="p-3 rounded-lg bg-black/40 border border-secondary/20">
+<div class="flex justify-between items-center mb-1">
+<span class="text-[10px] font-bold text-secondary uppercase">Solar Flare</span>
+<span class="text-[10px] text-slate-500">Live</span>
+</div>
+<div class="h-1.5 bg-secondary/10 rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[15%]"></div>
+</div>
+<div class="mt-2 text-xs text-slate-300">Class C Detection Prob: 12%</div>
+</div>
+</div>
+</div>
+</div>
+<div class="pt-6 border-t border-primary/10">
+<div class="flex items-center gap-3 p-3 rounded-lg bg-primary/5">
+<span class="material-symbols-outlined text-primary animate-pulse">settings_input_antenna</span>
+<div class="hidden lg:block">
+<div class="text-[10px] font-bold uppercase">Satellite Link</div>
+<div class="text-[10px] text-primary">STABLE - 104Gbps</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Visualization Area -->
+<div class="flex-1 relative bg-black flex items-center justify-center">
+<!-- Background Decorative Stars -->
+<div class="absolute inset-0 overflow-hidden opacity-30 pointer-events-none">
+<div class="absolute top-1/4 left-1/4 w-1 h-1 bg-white rounded-full"></div>
+<div class="absolute top-1/2 left-3/4 w-0.5 h-0.5 bg-white rounded-full"></div>
+<div class="absolute top-3/4 left-1/2 w-1.5 h-1.5 bg-primary/40 rounded-full blur-sm"></div>
+<div class="absolute top-1/3 right-1/4 w-1 h-1 bg-secondary/30 rounded-full"></div>
+</div>
+<!-- The Holistic Sphere Container -->
+<div class="relative w-[600px] h-[600px] flex items-center justify-center">
+<!-- Outer Glow Orbits -->
+<div class="absolute inset-0 border border-primary/10 rounded-full scale-110"></div>
+<div class="absolute inset-0 border border-secondary/10 rounded-full scale-125 rotate-45"></div>
+<!-- Main Sphere -->
+<div class="w-[500px] h-[500px] rounded-full gradient-sphere sphere-glow relative overflow-hidden flex items-center justify-center">
+<!-- Texture Overlays (Terrestrial/Cloud Patterns) -->
+<div class="absolute inset-0 opacity-40 mix-blend-screen bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+<!-- Aurora Visuals -->
+<div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-secondary/30 to-transparent blur-2xl"></div>
+<div class="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-primary/20 to-transparent blur-3xl"></div>
+<!-- Centered Map Indicator (Stylized) -->
+<div class="w-full h-full opacity-50 contrast-125">
+<img alt="Stylized earth satellite view" class="w-full h-full object-cover mix-blend-overlay rounded-full" data-alt="Futuristic satellite earth visualization with neon accents" data-location="Global" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDT-JYIbBqQOiAy1-MQEOxvV-X0hO70LkyNXAQvH0gloJf1aqjXQFNK7AtN1cfmTZbaQGoNqZ1iCDGkYgggP2gf3Vrg0_mBwkkwRGMR_2ICjFdVO5jPvkgpc0pExvKNW0o2YcGO9ZU1snevTrW6B5-p6adM3CDX-Qfo6yivMWqG_dHZewGQ-b_nLJ0oNH5m1nDPYjHaR3eAVr6gpp3bLi563Q73-kOMTOiMDS6852EFAMAkvJpwHRUSOejlRpPGIiy6ciV8k_DPuNQ"/>
+</div>
+</div>
+<!-- Floating Data Nodes -->
+<div class="absolute top-[10%] left-[20%] z-20 group">
+<div class="w-4 h-4 rounded-full bg-primary border-4 border-black node-pulse cursor-pointer"></div>
+<div class="absolute top-6 left-0 w-48 liquid-glass p-3 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
+<div class="text-[10px] font-bold text-primary uppercase mb-1">Anomaly Alpha</div>
+<div class="text-xl font-bold">14.2 m/s</div>
+<div class="text-[10px] text-slate-400">Ionospheric Drift detected near Arctic circle</div>
+</div>
+</div>
+<div class="absolute bottom-[25%] right-[15%] z-20 group">
+<div class="w-4 h-4 rounded-full bg-secondary border-4 border-black node-pulse cursor-pointer"></div>
+<div class="absolute bottom-6 right-0 w-48 liquid-glass p-3 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 -translate-y-2 group-hover:translate-y-0">
+<div class="text-[10px] font-bold text-secondary uppercase mb-1">Solar Node 04</div>
+<div class="text-xl font-bold">821 KeV</div>
+<div class="text-[10px] text-slate-400">High energy particle flux detected</div>
+</div>
+</div>
+</div>
+<!-- Bottom Control HUD -->
+<div class="absolute bottom-10 inset-x-0 px-10 flex items-end justify-between">
+<!-- Left: Navigation Info -->
+<div class="liquid-glass p-6 rounded-xl flex items-center gap-6">
+<div>
+<div class="text-[10px] text-primary/70 font-bold uppercase tracking-widest">Active Focus</div>
+<div class="text-2xl font-bold">48.8566° N, 2.3522° E</div>
+</div>
+<div class="h-10 w-px bg-primary/20"></div>
+<div class="grid grid-cols-2 gap-x-4 gap-y-1">
+<span class="text-[10px] text-slate-400">PRESSURE</span>
+<span class="text-[10px] text-slate-400">DENSITY</span>
+<span class="text-xs font-bold text-primary">1013.2 hPa</span>
+<span class="text-xs font-bold text-primary">1.22 kg/m³</span>
+</div>
+</div>
+<!-- Center: Scrubbing Timeline -->
+<div class="w-1/3 liquid-glass p-4 rounded-xl flex flex-col gap-3">
+<div class="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
+<span>Predictive Forecast</span>
+<span class="text-primary">+12.00 Hours</span>
+</div>
+<div class="relative h-2 bg-primary/10 rounded-full flex items-center">
+<div class="absolute left-0 h-full bg-primary/40 rounded-full w-3/4"></div>
+<div class="absolute left-3/4 -translate-x-1/2 size-4 bg-primary rounded-full shadow-[0_0_15px_rgba(37,244,106,0.8)] cursor-pointer"></div>
+</div>
+<div class="flex justify-between text-[8px] text-slate-500 font-bold tracking-tighter">
+<span>12:00 UTC</span>
+<span>18:00 UTC</span>
+<span>00:00 UTC</span>
+<span>06:00 UTC</span>
+<span>12:00 UTC</span>
+</div>
+</div>
+<!-- Right: Legend & Toggles -->
+<div class="liquid-glass p-4 rounded-xl space-y-3">
+<div class="flex items-center gap-3">
+<div class="size-2 rounded-full bg-primary"></div>
+<span class="text-[10px] font-bold uppercase tracking-widest">Terrestrial Cloud Data</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="size-2 rounded-full bg-secondary shadow-[0_0_8px_#ff00ff]"></div>
+<span class="text-[10px] font-bold uppercase tracking-widest">Solar Wind Aurora</span>
+</div>
+<div class="pt-2 flex gap-2">
+<button class="flex-1 py-1.5 px-3 rounded bg-primary/10 border border-primary/30 text-[9px] font-bold uppercase hover:bg-primary/20 transition-all">Export</button>
+<button class="flex-1 py-1.5 px-3 rounded bg-white/5 border border-white/10 text-[9px] font-bold uppercase hover:bg-white/10 transition-all">Layers</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Side Stats HUD -->
+<aside class="w-80 h-full glass-card border-l border-primary/10 flex flex-col p-6 gap-6 z-40">
+<h3 class="text-[10px] text-primary/50 font-bold uppercase tracking-[0.3em]">Atmospheric Indices</h3>
+<div class="space-y-4">
+<div class="liquid-glass p-4 rounded-lg relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-2 text-primary opacity-20 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-4xl">air</span>
+</div>
+<div class="text-3xl font-bold">1.28</div>
+<div class="text-[10px] font-bold text-primary uppercase">Ozone Layer Density</div>
+<div class="mt-4 flex items-center justify-between text-[10px]">
+<span class="text-slate-500 italic">Within safety parameters</span>
+<span class="text-primary font-bold">↑ 0.2%</span>
+</div>
+</div>
+<div class="liquid-glass p-4 rounded-lg relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-2 text-secondary opacity-20 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-4xl">thunderstorm</span>
+</div>
+<div class="text-3xl font-bold">42%</div>
+<div class="text-[10px] font-bold text-secondary uppercase">Ionization Potential</div>
+<div class="mt-4 flex items-center justify-between text-[10px]">
+<span class="text-slate-500 italic">High variance region</span>
+<span class="text-secondary font-bold">↓ 4.1%</span>
+</div>
+</div>
+<div class="liquid-glass p-4 rounded-lg relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-2 text-primary opacity-20 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-4xl">wb_sunny</span>
+</div>
+<div class="text-3xl font-bold">1,361</div>
+<div class="text-[10px] font-bold text-primary uppercase">Total Solar Irradiance</div>
+<div class="mt-4 flex items-center justify-between text-[10px]">
+<span class="text-slate-500 italic">W/m² unit scale</span>
+<span class="text-primary font-bold">STABLE</span>
+</div>
+</div>
+</div>
+<div class="mt-auto">
+<div class="p-4 rounded-lg bg-primary/5 border border-primary/20">
+<h4 class="text-[10px] font-bold text-primary uppercase mb-2">Live Diagnostics</h4>
+<div class="space-y-2">
+<div class="flex justify-between items-center text-[10px]">
+<span class="text-slate-400 uppercase">GPU Load</span>
+<span class="text-slate-200">22%</span>
+</div>
+<div class="flex justify-between items-center text-[10px]">
+<span class="text-slate-400 uppercase">Render Res</span>
+<span class="text-slate-200">3840x2160</span>
+</div>
+<div class="flex justify-between items-center text-[10px]">
+<span class="text-slate-400 uppercase">Sync Status</span>
+<span class="text-primary">OPTIMIZED</span>
+</div>
+</div>
+</div>
+</div>
+</aside>
+</main>
+<!-- UI Overlay Controls -->
+<div class="fixed top-24 right-8 flex flex-col gap-2 z-50">
+<button class="size-12 rounded-lg liquid-glass flex items-center justify-center hover:bg-primary/20 transition-all text-primary border border-primary/30">
+<span class="material-symbols-outlined">add</span>
+</button>
+<button class="size-12 rounded-lg liquid-glass flex items-center justify-center hover:bg-primary/20 transition-all text-primary border border-primary/30">
+<span class="material-symbols-outlined">remove</span>
+</button>
+<div class="h-px bg-primary/20 my-2"></div>
+<button class="size-12 rounded-lg liquid-glass flex items-center justify-center hover:bg-primary/20 transition-all text-primary border border-primary/30">
+<span class="material-symbols-outlined">near_me</span>
+</button>
+</div>
+</body></html>

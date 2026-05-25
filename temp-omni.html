@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Omni-Climate HUD</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#06f9c8",
+                        "background-light": "#f5f8f8",
+                        "background-dark": "#0d1117",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(6, 249, 200, 0.1);
+        }
+        .glass-panel:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(6, 249, 200, 0.3);
+        }
+        .sun-glow {
+            filter: drop-shadow(0 0 15px rgba(6, 249, 200, 0.6));
+        }
+        @keyframes rotate-rays {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+            animation: rotate-rays 20s linear infinite;
+        }
+        .arc-path {
+            stroke-dasharray: 100;
+            stroke-dashoffset: 40;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col items-center justify-start p-4 antialiased">
+<!-- Main HUD Container -->
+<div class="relative w-full max-w-md mx-auto flex flex-col gap-4">
+<!-- Header -->
+<header class="flex items-center justify-between px-2 pt-4">
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-[0.3em] text-primary/60 font-bold">Location Sync</span>
+<h1 class="text-lg font-bold tracking-tighter text-white uppercase italic">Neo-Tokyo Sector 4</h1>
+</div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-sm">sensors</span>
+<span class="material-symbols-outlined text-slate-400">more_vert</span>
+</div>
+</header>
+<!-- Top 50%: Hero Temperature & Sun Widget -->
+<section class="glass-panel rounded-xl p-8 relative overflow-hidden flex flex-col items-center justify-center min-h-[360px]">
+<!-- Decorative Scanline Gradient -->
+<div class="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none"></div>
+<!-- Animated Sun Graphic -->
+<div class="relative w-48 h-48 mb-6 flex items-center justify-center">
+<!-- Outer Bioluminescent Rays -->
+<div class="absolute inset-0 animate-spin-slow opacity-40">
+<svg class="w-full h-full text-primary" viewbox="0 0 100 100">
+<defs>
+<lineargradient id="ray-grad" x1="0%" x2="100%" y1="0%" y2="0%">
+<stop offset="0%" style="stop-color:currentColor;stop-opacity:0"></stop>
+<stop offset="50%" style="stop-color:currentColor;stop-opacity:1"></stop>
+<stop offset="100%" style="stop-color:currentColor;stop-opacity:0"></stop>
+</lineargradient>
+</defs>
+<g transform="translate(50,50)">
+<rect fill="url(#ray-grad)" height="100" width="2" x="-1" y="-50"></rect>
+<rect fill="url(#ray-grad)" height="100" transform="rotate(45)" width="2" x="-1" y="-50"></rect>
+<rect fill="url(#ray-grad)" height="100" transform="rotate(90)" width="2" x="-1" y="-50"></rect>
+<rect fill="url(#ray-grad)" height="100" transform="rotate(135)" width="2" x="-1" y="-50"></rect>
+</g>
+</svg>
+</div>
+<!-- Core -->
+<div class="w-24 h-24 rounded-full bg-gradient-to-tr from-primary to-emerald-400 sun-glow relative z-10 shadow-[0_0_50px_rgba(6,249,200,0.4)]"></div>
+</div>
+<!-- Temperature -->
+<div class="text-center z-20">
+<div class="flex items-start justify-center">
+<span class="text-8xl font-bold tracking-tighter text-white">72</span>
+<span class="text-4xl font-light text-primary mt-2">°</span>
+</div>
+<p class="text-sm tracking-[0.4em] uppercase font-semibold text-primary/80 mt-2">Stable / Clear</p>
+</div>
+<!-- Data Meta -->
+<div class="absolute bottom-4 left-6 right-6 flex justify-between text-[10px] uppercase tracking-widest text-slate-500 font-mono">
+<span>Ref: 09:42:00</span>
+<span>Altimetry: 124m</span>
+</div>
+</section>
+<!-- Bottom Grid -->
+<div class="grid grid-cols-2 gap-4">
+<!-- Bottom Left 25%: Vital Metrics -->
+<div class="flex flex-col gap-4">
+<!-- AQI Panel -->
+<div class="glass-panel rounded-xl p-4 flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-primary text-xl">air</span>
+<span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">AQI</span>
+</div>
+<div class="flex flex-col">
+<span class="text-2xl font-bold text-white leading-none">024</span>
+<span class="text-[10px] text-primary/60 font-medium">EXCELLENT</span>
+</div>
+<div class="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[24%] shadow-[0_0_8px_rgba(6,249,200,0.8)]"></div>
+</div>
+</div>
+<!-- Wind Speed Panel -->
+<div class="glass-panel rounded-xl p-4 flex flex-col gap-3 overflow-hidden relative">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-primary text-xl">cyclone</span>
+<span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Wind</span>
+</div>
+<div class="flex flex-col">
+<span class="text-2xl font-bold text-white leading-none">12.4</span>
+<span class="text-[10px] text-primary/60 font-medium">KM/H NW</span>
+</div>
+<!-- Flowing Lines SVG -->
+<div class="h-8 w-full mt-1 opacity-40">
+<svg class="w-full h-full" viewbox="0 0 100 20">
+<path class="animate-pulse" d="M0,10 Q25,5 50,10 T100,10" fill="none" stroke="#06f9c8" stroke-width="0.5"></path>
+<path class="animate-pulse" d="M0,15 Q25,10 50,15 T100,15" fill="none" stroke="#06f9c8" stroke-width="0.5" style="animation-delay: 0.5s"></path>
+</svg>
+</div>
+</div>
+</div>
+<!-- Bottom Right 25%: Temporal Forecast -->
+<div class="glass-panel rounded-xl p-4 flex flex-col gap-4 relative overflow-hidden">
+<div class="flex items-center justify-between mb-2">
+<span class="material-symbols-outlined text-primary text-xl">timeline</span>
+<span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Temporal</span>
+</div>
+<!-- 4-Hour Sparkline -->
+<div class="flex-1 flex flex-col justify-end gap-4">
+<div class="h-16 w-full">
+<svg class="w-full h-full overflow-visible" viewbox="0 0 100 40">
+<defs>
+<lineargradient id="spark-grad" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:#06f9c8;stop-opacity:0.3"></stop>
+<stop offset="100%" style="stop-color:#06f9c8;stop-opacity:0"></stop>
+</lineargradient>
+</defs>
+<path d="M0,35 Q10,32 20,28 T40,20 T60,25 T80,15 T100,10" fill="none" stroke="#06f9c8" stroke-width="2"></path>
+<path d="M0,35 Q10,32 20,28 T40,20 T60,25 T80,15 T100,10 L100,40 L0,40 Z" fill="url(#spark-grad)"></path>
+<circle class="sun-glow" cx="100" cy="10" fill="#06f9c8" r="2.5"></circle>
+</svg>
+</div>
+<div class="flex justify-between text-[10px] text-slate-500 font-mono">
+<span>12:00</span>
+<span>14:00</span>
+<span>16:00</span>
+</div>
+</div>
+<!-- Solar Trajectory Arc -->
+<div class="border-t border-white/5 pt-4">
+<div class="relative h-12 w-full flex items-center justify-center">
+<svg class="w-24 h-12" viewbox="0 0 100 50">
+<path d="M10,45 A40,40 0 0,1 90,45" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2"></path>
+<path class="arc-path" d="M10,45 A40,40 0 0,1 60,12" fill="none" stroke="#06f9c8" stroke-width="2"></path>
+<circle class="sun-glow" cx="60" cy="12" fill="#06f9c8" r="3"></circle>
+</svg>
+<div class="absolute bottom-0 w-full flex justify-between px-2 text-[9px] text-slate-600 uppercase">
+<span>05:31</span>
+<span>18:44</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- System Navbar Replacement -->
+<nav class="glass-panel mt-4 rounded-full px-6 py-4 flex items-center justify-between border-primary/20">
+<a class="text-primary flex items-center justify-center" href="#">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1">home</span>
+</a>
+<a class="text-slate-500 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-2xl">public</span>
+</a>
+<a class="text-slate-500 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-2xl">notifications</span>
+</a>
+<a class="text-slate-500 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-2xl">settings</span>
+</a>
+</nav>
+<!-- Footer Metric Labels -->
+<div class="flex justify-center gap-6 py-4 opacity-50">
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
+<span class="text-[10px] uppercase tracking-widest font-bold">Network Prime</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-slate-600"></div>
+<span class="text-[10px] uppercase tracking-widest font-bold">Encrypted Link</span>
+</div>
+</div>
+</div>
+</body></html>

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>StarSeed Basic Weather Variant 1</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13b6ec",
+                        "background-light": "#f6f8f8",
+                        "background-dark": "#0a0d0e",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .liquid-glass {
+            background: linear-gradient(135deg, rgba(19, 182, 236, 0.05) 0%, rgba(138, 43, 226, 0.05) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .neon-glow {
+            box-shadow: 0 0 15px rgba(19, 182, 236, 0.3);
+        }
+        .pulse-border:hover {
+            border-color: #13b6ec;
+            box-shadow: 0 0 20px rgba(19, 182, 236, 0.4);
+            transition: all 0.4s ease;
+        }
+        .rain-particle {
+            position: absolute;
+            background: linear-gradient(to bottom, transparent, #13b6ec);
+            width: 2px;
+            height: 10px;
+            opacity: 0.6;
+        }
+        .ethereal-bg {
+            background: radial-gradient(circle at 20% 30%, rgba(19, 182, 236, 0.15) 0%, transparent 40%),
+                        radial-gradient(circle at 80% 70%, rgba(138, 43, 226, 0.15) 0%, transparent 40%);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center p-4 ethereal-bg overflow-hidden">
+<div class="w-full max-w-5xl space-y-6">
+<!-- Top Navigation Bar -->
+<header class="flex items-center justify-between px-6 py-4 liquid-glass rounded-xl mb-8">
+<div class="flex items-center gap-4">
+<div class="size-8 text-primary">
+<span class="material-symbols-outlined text-4xl">wb_sunny</span>
+</div>
+<h2 class="text-xl font-bold tracking-tight">StarSeed <span class="text-primary/80 font-light text-sm ml-2 uppercase tracking-widest">Cosmos</span></h2>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-slate-400 hover:text-primary transition-colors text-sm font-medium" href="#">Dashboard</a>
+<a class="text-slate-400 hover:text-primary transition-colors text-sm font-medium" href="#">Cosmic Map</a>
+<a class="text-slate-400 hover:text-primary transition-colors text-sm font-medium" href="#">Satellite</a>
+<a class="text-slate-400 hover:text-primary transition-colors text-sm font-medium" href="#">Settings</a>
+</nav>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined p-2 bg-white/5 rounded-full cursor-pointer hover:bg-white/10 transition-all">notifications</span>
+<span class="absolute top-2 right-2 size-2 bg-primary rounded-full border-2 border-background-dark"></span>
+</div>
+<div class="size-10 rounded-full border border-primary/30 p-0.5 overflow-hidden">
+<img class="w-full h-full object-cover rounded-full" data-alt="Portrait of a futuristic dashboard user" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCRYSi1-FNC0WAZRZVPlupOidMNjsiqZ6wAHdbcWjwMr4SN8HaO9XsKIlQf2aXlgV_taoKodniMiq_ftjQ8rW5SwxabbF39RlA0kTyQ58ogB-fRJPxvhu2-7_kju15CMdx4YNLNMu7P1xhD2vxNE8YqqlafBIgPULgJa6ILT_0e2-FKP7d3pjxMfHUeVE9uiOKgrt1pTePUJVAqyGxxQ9VlwfCzOtCZ2NBWhw4Dn_b2kjWvG8IRcfLAnZuRtFKTgJS2Prtt8vMxKHA"/>
+</div>
+</div>
+</header>
+<!-- Main Dashboard Layout -->
+<main class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- Horizontal Condensed Weather Widget (Variant 1) -->
+<div class="lg:col-span-12 liquid-glass rounded-xl p-8 relative overflow-hidden pulse-border">
+<!-- Tab Navigation inside Widget -->
+<div class="flex border-b border-white/10 mb-8 gap-8 relative z-10">
+<button class="pb-4 text-slate-400 hover:text-slate-200 transition-all text-sm font-bold tracking-wider uppercase">History</button>
+<button class="pb-4 text-primary border-b-2 border-primary text-sm font-bold tracking-wider uppercase">Today</button>
+<button class="pb-4 text-slate-400 hover:text-slate-200 transition-all text-sm font-bold tracking-wider uppercase">Tomorrow</button>
+</div>
+<div class="flex flex-col md:flex-row items-center justify-between gap-12 relative z-10">
+<!-- Left: Large Animated Weather Icon Section -->
+<div class="flex flex-col items-center gap-4 relative group">
+<div class="relative size-48 flex items-center justify-center">
+<!-- Background Glow -->
+<div class="absolute inset-0 bg-primary/20 blur-[60px] rounded-full group-hover:bg-primary/30 transition-all"></div>
+<!-- Neon Cloud Icon -->
+<div class="relative z-10 text-primary drop-shadow-[0_0_15px_rgba(19,182,236,0.8)]">
+<span class="material-symbols-outlined text-[120px] leading-none select-none">thunderstorm</span>
+</div>
+<!-- Animated Rain Particles (Pure CSS simulation) -->
+<div class="absolute inset-0 overflow-hidden pointer-events-none opacity-60">
+<div class="rain-particle left-[30%] top-[70%]" style="animation: rain-fall 1.2s infinite linear;"></div>
+<div class="rain-particle left-[45%] top-[75%]" style="animation: rain-fall 0.8s infinite linear 0.2s;"></div>
+<div class="rain-particle left-[60%] top-[72%]" style="animation: rain-fall 1.5s infinite linear 0.1s;"></div>
+<div class="rain-particle left-[50%] top-[80%]" style="animation: rain-fall 1s infinite linear 0.4s;"></div>
+</div>
+<style>
+                                @keyframes rain-fall {
+                                    0% { transform: translateY(-20px); opacity: 0; }
+                                    50% { opacity: 1; }
+                                    100% { transform: translateY(60px); opacity: 0; }
+                                }
+                            </style>
+</div>
+<div class="text-center">
+<p class="text-primary text-sm font-bold tracking-[0.2em] uppercase mb-1">Cosmic Sync: Active</p>
+<p class="text-4xl font-light text-white">Thunderstorm</p>
+</div>
+</div>
+<!-- Center: Core Metrics -->
+<div class="flex flex-col items-center md:items-start gap-2">
+<div class="flex items-start">
+<span class="text-[120px] font-bold leading-none tracking-tighter text-white">24</span>
+<span class="text-4xl font-medium text-primary mt-6">°C</span>
+</div>
+<div class="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+<span class="material-symbols-outlined text-primary text-sm">location_on</span>
+<span class="text-sm font-medium tracking-wide">Neo Tokyo Station</span>
+</div>
+</div>
+<!-- Right: Sub-Metrics Grid -->
+<div class="grid grid-cols-2 gap-4 w-full md:w-auto">
+<div class="liquid-glass border-white/5 p-5 rounded-lg flex flex-col gap-2 min-w-[160px] group/item hover:bg-white/5 transition-all">
+<div class="flex items-center gap-2 text-primary/70 mb-1">
+<span class="material-symbols-outlined text-lg">humidity_percentage</span>
+<span class="text-xs font-bold uppercase tracking-widest">Humidity</span>
+</div>
+<p class="text-2xl font-bold text-white group-hover/item:text-primary transition-colors">82%</p>
+<div class="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-2">
+<div class="h-full bg-primary rounded-full" style="width: 82%"></div>
+</div>
+</div>
+<div class="liquid-glass border-white/5 p-5 rounded-lg flex flex-col gap-2 min-w-[160px] group/item hover:bg-white/5 transition-all">
+<div class="flex items-center gap-2 text-primary/70 mb-1">
+<span class="material-symbols-outlined text-lg">air</span>
+<span class="text-xs font-bold uppercase tracking-widest">Wind</span>
+</div>
+<p class="text-2xl font-bold text-white group-hover/item:text-primary transition-colors">12<span class="text-sm font-light ml-1">km/h</span></p>
+<p class="text-[10px] text-slate-500 font-medium">Direction: North-East</p>
+</div>
+<div class="liquid-glass border-white/5 p-5 rounded-lg flex flex-col gap-2 min-w-[160px] group/item hover:bg-white/5 transition-all">
+<div class="flex items-center gap-2 text-primary/70 mb-1">
+<span class="material-symbols-outlined text-lg">compress</span>
+<span class="text-xs font-bold uppercase tracking-widest">Pressure</span>
+</div>
+<p class="text-2xl font-bold text-white group-hover/item:text-primary transition-colors">1012<span class="text-sm font-light ml-1">hPa</span></p>
+<p class="text-[10px] text-slate-500 font-medium">Stable Gradient</p>
+</div>
+<div class="liquid-glass border-white/5 p-5 rounded-lg flex flex-col gap-2 min-w-[160px] group/item hover:bg-white/5 transition-all">
+<div class="flex items-center gap-2 text-primary/70 mb-1">
+<span class="material-symbols-outlined text-lg">umbrella</span>
+<span class="text-xs font-bold uppercase tracking-widest">Precipitation</span>
+</div>
+<p class="text-2xl font-bold text-white group-hover/item:text-primary transition-colors">65%</p>
+<p class="text-[10px] text-slate-500 font-medium">Expected in 2h</p>
+</div>
+</div>
+</div>
+<!-- Subtle Bottom Bar with Status -->
+<div class="mt-12 pt-6 border-t border-white/5 flex flex-wrap justify-between items-center gap-4 text-xs font-medium text-slate-500 uppercase tracking-widest">
+<div class="flex items-center gap-2">
+<span class="size-2 rounded-full bg-green-500 neon-glow animate-pulse"></span>
+                        Satellite Linked: Orion-X4
+                    </div>
+<div class="flex items-center gap-6">
+<span>Last Updated: 2 min ago</span>
+<button class="text-primary hover:text-white transition-colors flex items-center gap-1 group">
+                            Full Analysis
+                            <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Abstract Glow Overlay Background -->
+<div class="absolute top-0 right-0 w-1/3 h-full bg-primary/5 blur-[120px] pointer-events-none -z-10"></div>
+<div class="absolute bottom-0 left-0 w-1/4 h-full bg-purple-500/5 blur-[120px] pointer-events-none -z-10"></div>
+</div>
+<!-- Lower Widgets Section -->
+<div class="lg:col-span-8 liquid-glass rounded-xl p-6 pulse-border">
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-lg font-bold">24-Hour Forecast</h3>
+<div class="flex gap-2">
+<button class="size-8 rounded-lg bg-white/5 flex items-center justify-center hover:bg-white/10 text-slate-400"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
+<button class="size-8 rounded-lg bg-white/5 flex items-center justify-center hover:bg-white/10 text-slate-400"><span class="material-symbols-outlined text-sm">chevron_right</span></button>
+</div>
+</div>
+<div class="flex justify-around items-end h-32 gap-4">
+<div class="flex flex-col items-center gap-2 h-full justify-end">
+<span class="text-xs font-bold text-slate-400">14:00</span>
+<div class="w-10 bg-primary/20 rounded-t-lg border-t border-primary/40 relative h-20">
+<div class="absolute top-[-24px] left-0 w-full text-center text-[10px] font-bold">24°</div>
+</div>
+</div>
+<div class="flex flex-col items-center gap-2 h-full justify-end">
+<span class="text-xs font-bold text-slate-400">15:00</span>
+<div class="w-10 bg-primary/40 rounded-t-lg border-t border-primary/60 relative h-24">
+<div class="absolute top-[-24px] left-0 w-full text-center text-[10px] font-bold">25°</div>
+</div>
+</div>
+<div class="flex flex-col items-center gap-2 h-full justify-end">
+<span class="text-xs font-bold text-slate-400">16:00</span>
+<div class="w-10 bg-primary/10 rounded-t-lg border-t border-primary/30 relative h-16">
+<div class="absolute top-[-24px] left-0 w-full text-center text-[10px] font-bold">22°</div>
+</div>
+</div>
+<div class="flex flex-col items-center gap-2 h-full justify-end">
+<span class="text-xs font-bold text-slate-400">17:00</span>
+<div class="w-10 bg-primary/20 rounded-t-lg border-t border-primary/40 relative h-18">
+<div class="absolute top-[-24px] left-0 w-full text-center text-[10px] font-bold">23°</div>
+</div>
+</div>
+<div class="flex flex-col items-center gap-2 h-full justify-end">
+<span class="text-xs font-bold text-slate-400">18:00</span>
+<div class="w-10 bg-primary/30 rounded-t-lg border-t border-primary/50 relative h-22">
+<div class="absolute top-[-24px] left-0 w-full text-center text-[10px] font-bold text-primary">24°</div>
+</div>
+</div>
+<div class="flex flex-col items-center gap-2 h-full justify-end">
+<span class="text-xs font-bold text-slate-400">19:00</span>
+<div class="w-10 bg-white/5 rounded-t-lg border-t border-white/10 relative h-14">
+<div class="absolute top-[-24px] left-0 w-full text-center text-[10px] font-bold">21°</div>
+</div>
+</div>
+</div>
+</div>
+<div class="lg:col-span-4 liquid-glass rounded-xl p-6 pulse-border flex flex-col">
+<h3 class="text-lg font-bold mb-6">Cosmic Visibility</h3>
+<div class="flex-1 flex flex-col justify-center items-center text-center gap-4">
+<div class="relative size-32">
+<svg class="size-full transform -rotate-90">
+<circle class="text-white/5" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-primary neon-glow" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-dasharray="364.4" stroke-dashoffset="91.1" stroke-width="8"></circle>
+</svg>
+<div class="absolute inset-0 flex items-center justify-center flex-col">
+<span class="text-2xl font-bold">75%</span>
+<span class="text-[8px] uppercase tracking-widest text-slate-500 font-bold">Clear Sky</span>
+</div>
+</div>
+<div>
+<p class="text-sm text-slate-300 font-medium mb-1">Star Observation: Optimal</p>
+<p class="text-xs text-slate-500">Mars Transit visible in 4h 12m</p>
+</div>
+<button class="mt-2 w-full bg-primary/20 text-primary py-2 rounded-lg text-sm font-bold hover:bg-primary/30 transition-all uppercase tracking-widest">Astro View</button>
+</div>
+</div>
+</main>
+</div>
+<!-- Background Decoration Elements -->
+<div class="fixed top-[-10%] left-[-10%] w-1/2 h-1/2 bg-primary/10 rounded-full blur-[150px] -z-20"></div>
+<div class="fixed bottom-[-10%] right-[-10%] w-1/2 h-1/2 bg-purple-600/10 rounded-full blur-[150px] -z-20"></div>
+</body></html>
