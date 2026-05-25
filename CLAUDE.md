@@ -196,4 +196,4 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 
 ---
 
-*Última actualización del archivo: 2026-05-24*
+*Última actualización del archivo: 2026-05-25*
