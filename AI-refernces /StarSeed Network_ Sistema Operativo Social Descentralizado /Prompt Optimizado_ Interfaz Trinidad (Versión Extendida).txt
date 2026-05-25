@@ -1,0 +1,39 @@
+﻿Prompt para el Desarrollo de la Interfaz Trinidad (Menú Principal) - Versión Macro
+Rol Sugerido para el LLM: Actúa como un Creative Technologist, Senior UI/UX Designer & Systems Architect especializado en diseño bio-inspirado, ergonomía cognitiva y computación espacial. Tu misión es concebir interfaces que trasciendan lo estático, transformando la interacción en una experiencia orgánica, fluida y semánticamente coherente.
+Tarea: Diseñar, estructurar y documentar la arquitectura funcional y visual de la "Interfaz Trinidad". Este sistema debe fundamentarse en la síntesis de cuatro pilares operativos, representados por un espectro cromático específico y una distribución espacial que maximice la eficiencia del usuario mediante la memoria muscular y visual. El núcleo de la tarea es la creación de un ecosistema de menús que se "funden" y "brotan" de la pantalla como si fueran fluidos inteligentes.
+1. Arquitectura Cromodinámica y Psicología Espacial
+El sistema no utiliza el color de forma estética, sino funcional. Debes definir cómo los colores se comportan en las "zonas de transición" o nexos donde los paneles convergen:
+* Eje Superior (El Guía - Azul Eléctrico/Cian): Representa la Inteligencia Artificial Contextual. No es solo un chat, es un sistema de guías que "ilumina" la interfaz desde arriba. El tono azul debe evocar confianza, claridad y serenidad. Al activarse, debe emitir un resplandor que bañe sutilmente los componentes inferiores.
+* Eje Inferior (La Base - Menú Principal - Gradiente de Control): Es el ancla gravitacional del sistema. Desde aquí nace la interacción. Su color debe ser neutro pero reactivo, actuando como un prisma que distribuye los otros colores.
+* Eje Izquierdo (Lienzo de Creación Universal - Verde Esmeralda/Lima): Ubicado en el Panel de Control. Simboliza la generación, el crecimiento y el potencial ilimitado. Este espacio es para el "hacer". Las herramientas aquí deben tener un aura verde que indique vitalidad y libertad creativa.
+* Eje Derecho (Sección de Control Lógica - Amarillo Ámbar/Dorado): Ubicado en el Panel de Control. Representa el orden, el procesamiento de datos y la energía analítica. Es la parte "cerebral" y técnica del sistema. El amarillo debe ser cálido pero nítido, facilitando la lectura de métricas y configuraciones complejas.
+* Componente Emergente (Navegación Global - Rojo Carmesí/Escarlata): El Menú General. El uso del rojo no implica peligro, sino jerarquía máxima y pasión por la exploración del sistema completo. Es un color de "alerta de navegación" que destaca sobre los demás paneles para evitar la desorientación.
+2. Especificaciones de Posicionamiento Adaptativo y Ergonomía
+La "Interfaz Trinidad" debe ser agnóstica al hardware pero consciente del contexto:
+* Dinámica de Dispositivos Táctiles: * Gesto de Invocación: Un "swipe-up" elástico desde el borde inferior que haga que el menú aparezca con una inercia física realista.
+   * Modo Pulgar: Optimización de la curvatura de los botones para ser alcanzados fácilmente en dispositivos móviles de gran formato.
+* Dinámica de Puntero (Mouse/Trackpad):
+   * Modo Flotante Magnético: El menú puede desprenderse de la base y flotar. Al acercar el puntero, los botones deben tener un efecto de "atracción magnética" suave.
+   * Fijación (Docking): Posibilidad de anclarse en cualquier borde, transformando la orientación de los paneles de horizontal a vertical sin perder la lógica de colores.
+* Configuración Inteligente: Un conmutador dentro del Panel de Control que permita al usuario definir la sensibilidad de los gestos y la opacidad de los gradientes de fusión.
+3. Dinámica de Interacción: El Efecto "Fluido"
+Debes describir cómo se implementan las Transiciones Líquidas (Metaballs UI):
+* Fusión de Paneles: Al abrir el Panel de Control, el verde y el amarillo no deben chocar; deben "gotear" uno hacia el otro, mezclándose en un gradiente central que cambie según qué lado tenga más actividad del usuario.
+* Sincronía de Capas: Si el Menú General (Rojo) se despliega, debe "teñir" las sombras de los paneles inferiores, creando una atmósfera inmersiva.
+* Aura de la IA: La Inteligencia Artificial debe manifestarse como una "niebla azul" o un sistema de partículas suspendidas que se agrupan sobre los elementos que el usuario está editando en el Lienzo Verde o analizando en la Lógica Amarilla.
+4. Funcionalidad Expandida de los Tres Botones de la Trinidad
+Cada botón es un portal a un estado mental distinto:
+1. Botón IA (Zenith): Activa el agente. No solo responde preguntas; debe realizar acciones proactivas sobre la interfaz (ej. "IA, organiza mi lienzo de creación" causa que las partículas azules muevan los objetos verdes).
+2. Botón Menú General (Horizonte): Expande un mapa estelar de navegación. El rojo domina para mostrar dónde está el usuario en la inmensidad del sistema.
+3. Botón Panel de Control (Núcleo): Despliega la dualidad Creación/Lógica. Es un espacio de trabajo dividido donde la parte izquierda (Verde) y la derecha (Amarillo) interactúan en tiempo real.
+Restricciones y Reglas de Diseño Senior:
+* Regla del 60-30-10: El color predominante debe ser el del panel activo, pero siempre debe haber presencia de los colores de la "Trinidad" en los bordes para mantener la cohesión.
+* Micro-interacciones: Cada interacción debe tener un feedback háptico (en móvil) o auditivo (en escritorio) que coincida con la "frecuencia" del color (tonos graves para el rojo, agudos para el azul).
+* Accesibilidad (A11y): A pesar del uso intensivo de color, debe haber indicadores iconográficos claros y modos de alto contraste para usuarios con daltonismo.
+Formato de Salida:
+Proporciona una propuesta técnica exhaustiva que incluya:
+1. Manifiesto de UX (User Experience): Filosofía de flujo y cómo se reduce la carga cognitiva mediante el color.
+2. Especificaciones de Animación Avanzada: Uso de curvas de Bezier personalizadas, tiempos de respuesta (ms) y dinámicas de fluidos.
+3. Arquitectura de Desarrollo: Sugerencias para implementar esto usando WebGL, Shaders de Fragmentos (GLSL) o librerías de animación de alto rendimiento (ej. GSAP, Framer Motion).
+4. Diseño Iconográfico y de Botones: Descripción de los glifos de la "Trinidad" y cómo cambian de forma (morphing) al ser presionados.
+5. Casos de Uso: Ejemplo de cómo un usuario pasa de crear un objeto (Verde) a optimizarlo (Amarillo) con la ayuda de la guía (Azul).
