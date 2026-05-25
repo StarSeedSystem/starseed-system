@@ -147,3 +147,55 @@
 - Limpieza incremental: la primera sesión quitó scripts huérfanos; ésta limpió carpetas duplicadas. Próxima sesión: revisar `apphosting.yaml` (Firebase) si vamos solo a Vercel; revisar `src/components/stitch/` para ver si sigue siendo necesario.
 
 
+---
+
+## 2026-05-24 — Sesión 3: Sistema de Apariencia expandido
+
+**Sesión por:** Claude (Cowork mode, Opus 4.7).
+**Resumen ejecutivo:** Expansión del sistema de Apariencia con 12 nuevos temas curados, picker integrado de 45+ fuentes Google con preview en vivo, y un panel completo de Accesibilidad universal (alto contraste, motion, daltonismo, tamaño táctil, foco).
+
+### Hecho
+- **Biblioteca curada de temas** (`src/lib/themes/curated-presets.ts`): 12 presets coordinados con identidad visual completa (tipografía, colores, glass, fondo, botones, animaciones). Categorizados en 7 moods: cyberdélico, solarpunk, minimal, brutalist, futurista, orgánico, luxury.
+  - Synthwave Horizon, Tokyo Midnight (cyberdélico)
+  - Solarpunk Aurora (solarpunk)
+  - Verdant Earth, Terracotta Warm (orgánico)
+  - Bauhaus Modular (brutalist)
+  - Monaco Noir, Iridescent Pearl (luxury)
+  - Origami Paper, Lavender Mist (minimal)
+  - Aurora Borealis, Quantum Hex (futurista)
+- **Galería de temas curados** (`curated-themes-gallery.tsx`): grid con cards visuales (gradiente de swatches, icono, badge de mood, indicador activo), filtros por mood, aplicación con un clic + setTheme.
+- **Catálogo de Google Fonts** (`src/lib/themes/google-fonts.ts`): 45+ fuentes en 5 categorías (sans, serif, display, mono, handwriting), helpers para construir URLs de Google Fonts CSS2 y la cadena fontFamily.
+- **Picker de Google Fonts** (`google-fonts-picker.tsx`): preview en vivo con `<link>` dinámico, texto de preview editable, slider de escala global de fuentes, filtros por categoría, búsqueda por nombre/tags. Instala como customFont en el AppearanceContext existente.
+- **Panel de Accesibilidad** (`accessibility-settings.tsx`):
+  - Alto contraste (filter + text color override)
+  - Reduce motion (auto / always / never con detección de prefers-reduced-motion)
+  - Pausar animaciones (más agresivo, incluye canvas)
+  - Escala de texto (0.9× a 1.5×)
+  - Tamaño táctil mínimo (estándar 24, grande 44, enorme 60)
+  - Simulación de daltonismo (protanopia/deuteranopia/tritanopia/achromatopsia con SVG color matrices)
+  - Anillo de foco (intensidad 0–3)
+  - Subrayar enlaces
+  - Cursor grande/enorme (SVG inline)
+  - CSS global auto-inyectado, persistencia en localStorage separado.
+- **AppearanceEditor expandido** de 4 a 6 tabs: Galería · **Tipografía** (nuevo) · Lienzo · Interfaz · Fondo · **Accesibilidad** (nuevo). La pestaña Galería ahora muestra primero los 12 temas curados, luego la galería existente.
+
+### Decisiones tomadas
+- **No tocar el AppearanceContext gigante** (970 líneas) salvo lo imprescindible. Los nuevos presets son `DeepPartial<AppearanceConfig>` aplicados con `updateConfig()` — patrón ya existente. Compatible 100% con save/load/export/import ya construidos.
+- **Accesibilidad fuera del AppearanceContext** porque su lógica es ortogonal: persistencia separada (`starseed.a11y.settings`), aplicación via clases en `<html>`. Esto evita acoplar accesibilidad a temas.
+- **Estilos de a11y auto-inyectados al montar el panel**, evitando tocar `globals.css`. Permite que el panel sea self-contained y se pueda copiar/desactivar sin migraciones.
+- **Daltonismo via SVG `<filter>` con `feColorMatrix`** estándar (matrices clínicas), inyectado al `<body>`. Más performante y preciso que filtros CSS custom.
+
+### Pendiente / Próximos pasos
+1. Si TypeScript se queja por `distortWidth` en algunos presets (existe en theme-utils.ts pero no en la interfaz `AppearanceConfig.liquidGlass`), añadirlo al tipo en `appearance-context.tsx`.
+2. Test de los 12 presets aplicándolos uno a uno en navegador para verificar coherencia visual.
+3. Permitir guardar uno de los presets curados como "tema personal" con un nombre custom (botón "Guardar como tema").
+4. Color picker avanzado para que el usuario pueda overridir los colores base de cualquier tema curado.
+5. Considerar separar `presetsByMood()` en una página dedicada `/themes` con preview detallado por tema.
+6. i18n del catálogo de moods y descripciones (actualmente solo español).
+
+### Notas / aprendizajes
+- El AppearanceContext del proyecto ya cubre prácticamente todo lo que un sistema de personalización avanzado necesitaría (responsive, mobile, trinity, display VR/AR/spatial). La calidad técnica del trabajo anterior es alta.
+- La estrategia ganadora es: añadir capas de UX (galería curada, picker visual, panel a11y) sobre el contexto existente, no reescribir.
+- Google Fonts via CSS2 + `display=swap` es perfecto para preview en vivo sin tocar el bundle. El usuario puede explorar 45 fuentes sin recompilar.
+- `feColorMatrix` para daltonismo es genial: tres matrices estándar cubren los tipos más comunes, y `grayscale(1)` cubre acromatopsia.
+

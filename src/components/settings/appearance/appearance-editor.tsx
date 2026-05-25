@@ -5,8 +5,11 @@ import Link from "next/link";
 import { ThemeGallery } from "./theme-gallery";
 import { LayoutSettings } from "./layout-settings";
 import { BackgroundSettings } from "./background-settings";
+import { CuratedThemesGallery } from "./curated-themes-gallery";
+import { GoogleFontsPicker } from "./google-fonts-picker";
+import { AccessibilitySettings } from "./accessibility-settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Palette, Paintbrush, Monitor, Sparkles, ExternalLink } from "lucide-react";
+import { Palette, Paintbrush, Monitor, Sparkles, ExternalLink, Type, Accessibility } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppearance } from "@/context/appearance-context";
 
@@ -98,32 +101,56 @@ export function AppearanceEditor() {
                 <TabsList className="flex flex-wrap w-full sm:w-auto justify-center mx-auto h-auto bg-foreground/[0.03] border border-border/50 rounded-xl p-1 gap-1">
                     <TabsTrigger
                         value="gallery"
-                        className="flex-1 sm:flex-none px-6 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
+                        className="flex-1 sm:flex-none px-4 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
                     >
                         <Palette className="w-4 h-4" /> Galería
                     </TabsTrigger>
                     <TabsTrigger
+                        value="typography"
+                        className="flex-1 sm:flex-none px-4 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
+                    >
+                        <Type className="w-4 h-4" /> Tipografía
+                    </TabsTrigger>
+                    <TabsTrigger
                         value="canvas"
-                        className="flex-1 sm:flex-none px-6 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
+                        className="flex-1 sm:flex-none px-4 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
                     >
                         <Paintbrush className="w-4 h-4" /> Lienzo
                     </TabsTrigger>
                     <TabsTrigger
                         value="interface"
-                        className="flex-1 sm:flex-none px-6 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
+                        className="flex-1 sm:flex-none px-4 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
                     >
                         <Monitor className="w-4 h-4" /> Interfaz
                     </TabsTrigger>
                     <TabsTrigger
                         value="background"
-                        className="flex-1 sm:flex-none px-6 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
+                        className="flex-1 sm:flex-none px-4 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
                     >
                         <Sparkles className="w-4 h-4" /> Fondo
                     </TabsTrigger>
+                    <TabsTrigger
+                        value="a11y"
+                        className="flex-1 sm:flex-none px-4 gap-2 rounded-lg data-[state=active]:bg-foreground/[0.08] data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground"
+                    >
+                        <Accessibility className="w-4 h-4" /> Accesibilidad
+                    </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="gallery" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <TabsContent value="gallery" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8">
+                    {/* Nueva galería curada de 12+ temas */}
+                    <div>
+                        <h3 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider mb-3 flex items-center gap-2">
+                            <Sparkles className="w-3.5 h-3.5 text-violet-500" /> Temas curados
+                        </h3>
+                        <CuratedThemesGallery />
+                    </div>
+                    {/* Galería original (presets base + comunidad + import/export) */}
                     <ThemeGallery />
+                </TabsContent>
+
+                <TabsContent value="typography" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <GoogleFontsPicker />
                 </TabsContent>
 
                 <TabsContent value="canvas" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -136,6 +163,10 @@ export function AppearanceEditor() {
 
                 <TabsContent value="background" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <BackgroundSettings />
+                </TabsContent>
+
+                <TabsContent value="a11y" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <AccessibilitySettings />
                 </TabsContent>
             </Tabs>
         </div>

@@ -66,4 +66,4 @@ queue/
 *.tsbuildinfo
 
 # Optional: VSCode settings (uncomment if you want to ignore)
-# .vscode/
+# .vscode/dev.command
