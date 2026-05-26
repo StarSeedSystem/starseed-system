@@ -138,11 +138,16 @@ export function AppearanceEditor() {
                 </TabsList>
 
                 <TabsContent value="gallery" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8">
-                    {/* Nueva galería curada de 12+ temas */}
+                    {/* Estilos: aplican un AppearanceConfig completo coordinado */}
                     <div>
-                        <h3 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider mb-3 flex items-center gap-2">
-                            <Sparkles className="w-3.5 h-3.5 text-violet-500" /> Temas curados
-                        </h3>
+                        <div className="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
+                            <h3 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-2">
+                                <Sparkles className="w-3.5 h-3.5 text-violet-500" /> Estilos
+                            </h3>
+                            <p className="text-[11px] text-muted-foreground max-w-md text-right">
+                                Cada estilo adapta widgets, perfiles, páginas, mensajes, posts, menús, botones y fondos al lenguaje coherente que elijas.
+                            </p>
+                        </div>
                         <CuratedThemesGallery />
                     </div>
                     {/* Galería original (presets base + comunidad + import/export) */}

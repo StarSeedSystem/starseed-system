@@ -343,38 +343,45 @@ export const themePresets: Record<string, DeepPartial<AppearanceConfig>> = {
     },
 
     // ─────────────────────────────────────────────────────────────────
-    //  CRISTAL — Hiper-Cristal Cuántico
-    //  Maximum translucency. Prismatic refractions, chromatic aberration.
-    //  Like gazing through a high-dimensional gem. Sky + fuchsia prismatic.
+    //  CRISTAL — Hiper-Cristal Cuántico (REALISTA)
+    //  Cristal de verdad: refracción prismática, aberración cromática,
+    //  borde irisado, reflejos especulares y noise sutil (microralladuras).
+    //  Como mirar a través de una gema multidimensional pulida a mano.
     // ─────────────────────────────────────────────────────────────────
     glass: {
         styling: {
-            radius: 1.0,
-            glassIntensity: 38,
-            opacity: 0.5,
+            radius: 1.25,                  // bordes redondeados como vidrio fundido
+            glassIntensity: 42,            // mucho blur → profundidad real
+            opacity: 0.42,                 // baja opacidad → vidrio fino
             borderWidth: 1,
-            refraction: 0.75,
-            chromaticAberration: 4,
-            glassNoise: 0.08,
-            frostOpacity: 0.15,
-            glowIntensity: 0.6,
+            refraction: 0.85,              // refracción alta → efecto prisma
+            chromaticAberration: 5,        // aberración cromática visible (irisado)
+            glassNoise: 0.12,              // microralladuras del cristal real
+            frostOpacity: 0.20,            // halo helado sutil
+            glowIntensity: 0.7,            // brillo del borde como vidrio iluminado
             crystalPreset: 'holographic',
         },
         background: {
             type: 'gradient',
-            value: 'linear-gradient(135deg, #020618 0%, #0a1628 35%, #080420 65%, #060220 100%)',
+            value: 'radial-gradient(ellipse 90% 80% at 30% 20%, #0e1d3a 0%, #050b1f 50%, #020410 100%)',
             blur: 0,
             animation: 'none',
             overlayOpacity: 0,
             overlayColor: 'black',
             filter: { enabled: false, type: 'none', settings: {} },
-            environment: { enabled: true, type: 'orbs', intensity: 0.8 },
+            environment: { enabled: true, type: 'orbs', intensity: 0.85 },
         },
         liquidGlass: {
             enabled: true,
             applyToUI: true,
             cornerRadius: 24,
-            distortWidth: 0.45,
+            distortWidth: 0.55,            // distorsión real al fondo
+            // aberration y displacement máximos para efecto vidrio
+            aberrationIntensity: 2.5,
+            displacementScale: 22,
+            saturation: 1.4,
+            elasticity: 0.35,
+            mode: 'prominent',             // shader prominente, no plano
         },
         layout: {
             menuPosition: 'bottom',
@@ -397,7 +404,7 @@ export const themePresets: Record<string, DeepPartial<AppearanceConfig>> = {
         iconography: { style: 'stroke', strokeWidth: 1.25, scale: 1, animation: 'none' },
         secondary: {
             scrollbars: 'glow',
-            selectionColor: '#38bdf833',
+            selectionColor: '#38bdf855',
             selectionMode: 'text',
             cursor: 'glow',
         },

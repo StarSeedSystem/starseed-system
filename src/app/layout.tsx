@@ -19,6 +19,7 @@ import { ControlPanelProvider } from "@/context/control-panel-context";
 import { SidebarProvider } from "@/context/sidebar-context";
 import { BoardProvider } from "@/context/board-context";
 import { UserProvider } from "@/context/user-context";
+import { NotificationsProvider } from "@/context/notifications-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
@@ -81,26 +82,28 @@ export default function RootLayout({
           <AppearanceProvider>
             <BoardProvider>
               <UserProvider>
-                <SidebarProvider>
-                  <ControlPanelProvider>
-                    <PerimeterProvider>
-                      <LiquidGlass />
-                      <WebGLBackground />
-                      <SplineDefaultBackground />
-                      <CrystalFilters />
-                      <GlobalEnvironment />
-                      {children}
-                      <ZenithCurtain />
-                      <SideCurtains />
+                <NotificationsProvider>
+                  <SidebarProvider>
+                    <ControlPanelProvider>
+                      <PerimeterProvider>
+                        <LiquidGlass />
+                        <WebGLBackground />
+                        <SplineDefaultBackground />
+                        <CrystalFilters />
+                        <GlobalEnvironment />
+                        {children}
+                        <ZenithCurtain />
+                        <SideCurtains />
 
-                      <OmniDock />
-                      <PinnedWidgetOverlay />
-                      <PerimeterInterface />
-                      <Toaster />
-                      <Sonner />
-                    </PerimeterProvider>
-                  </ControlPanelProvider>
-                </SidebarProvider>
+                        <OmniDock />
+                        <PinnedWidgetOverlay />
+                        <PerimeterInterface />
+                        <Toaster />
+                        <Sonner />
+                      </PerimeterProvider>
+                    </ControlPanelProvider>
+                  </SidebarProvider>
+                </NotificationsProvider>
               </UserProvider>
             </BoardProvider>
           </AppearanceProvider>
