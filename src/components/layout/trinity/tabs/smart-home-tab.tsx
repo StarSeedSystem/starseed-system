@@ -50,17 +50,17 @@ export function SmartHomeTab() {
                 <SceneCard label="Sleep" color="indigo" />
             </div>
 
-            <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
+            <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between gap-3 overflow-hidden">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400 shrink-0">
                         <Wifi className="w-5 h-5 animate-pulse" />
                     </div>
-                    <div>
-                        <div className="text-sm font-medium">Network Status</div>
-                        <div className="text-xs text-emerald-400">Optimal • 850 Mbps</div>
+                    <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">Network Status</div>
+                        <div className="text-xs text-emerald-400 truncate">Optimal · 850 Mbps</div>
                     </div>
                 </div>
-                <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]" />
+                <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981] shrink-0" />
             </div>
         </div>
     );
@@ -79,22 +79,22 @@ function DeviceCard({ label, icon: Icon, isActive, status, color, value }: any) 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className={cn(
-                "group relative h-32 rounded-2xl border bg-black/40 backdrop-blur-md p-4 flex flex-col justify-between transition-all duration-300",
+                "group relative h-28 rounded-2xl border bg-black/40 backdrop-blur-md p-2 flex flex-col items-center justify-center gap-2 transition-all duration-300 overflow-hidden",
                 isActive ? "border-white/10" : "border-white/5 opacity-70 hover:opacity-100",
                 isActive && colorMap[color]
             )}
         >
-            <div className="flex justify-between items-start w-full">
-                <div className={cn("p-2 rounded-full bg-white/5 transition-colors", isActive ? "text-white" : "text-muted-foreground")}>
-                    <Icon className="w-5 h-5" />
+            <div className="flex items-center justify-center relative w-full">
+                <div className={cn("p-2 rounded-full bg-white/5 transition-colors shrink-0", isActive ? "text-white" : "text-muted-foreground")}>
+                    <Icon className="w-4 h-4" />
                 </div>
-                {isActive && <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px] animate-pulse bg-current")} />}
+                {isActive && <div className={cn("absolute right-2 top-0 w-1.5 h-1.5 rounded-full shadow-[0_0_8px] animate-pulse bg-current shrink-0")} />}
             </div>
 
-            <div className="text-left z-10">
-                <div className="text-xs text-muted-foreground font-medium mb-0.5">{label}</div>
-                <div className="text-sm font-bold flex items-center justify-between w-full">
-                    <span>{value || status}</span>
+            <div className="text-center z-10 w-full px-2 flex flex-col items-center justify-center min-w-0">
+                <div className="text-[10px] md:text-[11px] text-muted-foreground font-medium mb-0.5 truncate w-full">{label}</div>
+                <div className="text-xs md:text-sm font-bold truncate w-full text-white">
+                    {value || status}
                 </div>
             </div>
 
@@ -117,11 +117,11 @@ function SceneCard({ label, color }: any) {
         <motion.button
             whileTap={{ scale: 0.95 }}
             className={cn(
-                "h-12 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-xs font-medium transition-all duration-300",
+                "h-12 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-xs font-medium transition-all duration-300 px-2 min-w-0 w-full text-white",
                 colorMap[color]
             )}
         >
-            {label}
+            <span className="w-full text-center truncate">{label}</span>
         </motion.button>
     )
 }

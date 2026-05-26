@@ -50,13 +50,24 @@ export function usePinnedWidgets() {
     const pinWidget = useCallback((widget: Omit<PinnedWidget, 'position'>) => {
         setPinnedWidgets(prev => {
             if (prev.find(w => w.id === widget.id)) return prev;
+
+            const wWidth = 400;
+            const wHeight = 320;
+            let targetX = 60 + prev.length * 30;
+            let targetY = 60 + prev.length * 30;
+
+            if (typeof window !== 'undefined') {
+                targetX = Math.max(20, Math.min(window.innerWidth - wWidth - 20, targetX));
+                targetY = Math.max(20, Math.min(window.innerHeight - wHeight - 20, targetY));
+            }
+
             const newWidgets = [...prev, {
                 ...widget,
                 position: {
-                    x: 60 + prev.length * 30,
-                    y: 60 + prev.length * 30,
-                    width: 400,
-                    height: 320,
+                    x: targetX,
+                    y: targetY,
+                    width: wWidth,
+                    height: wHeight,
                 }
             }];
             savePinnedWidgets(newWidgets);
@@ -119,9 +130,11 @@ function FloatingWidget({
             if (!dragRef.current.isDragging) return;
             const dx = ev.clientX - dragRef.current.startX;
             const dy = ev.clientY - dragRef.current.startY;
+            const currentW = widget.isMinimized ? 240 : width;
+            const currentH = widget.isMinimized ? 48 : height;
             onUpdatePosition({
-                x: Math.max(0, Math.min(window.innerWidth - 100, dragRef.current.origX + dx)),
-                y: Math.max(0, Math.min(window.innerHeight - 40, dragRef.current.origY + dy)),
+                x: Math.max(0, Math.min(window.innerWidth - currentW, dragRef.current.origX + dx)),
+                y: Math.max(0, Math.min(window.innerHeight - currentH, dragRef.current.origY + dy)),
             });
         };
         const handleUp = () => {
@@ -131,7 +144,7 @@ function FloatingWidget({
         };
         window.addEventListener('mousemove', handleMove);
         window.addEventListener('mouseup', handleUp);
-    }, [x, y, onUpdatePosition]);
+    }, [x, y, width, height, widget.isMinimized, onUpdatePosition]);
 
     // ───── RESIZE ─────
     const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -143,9 +156,11 @@ function FloatingWidget({
             if (!resizeRef.current.isResizing) return;
             const dx = ev.clientX - resizeRef.current.startX;
             const dy = ev.clientY - resizeRef.current.startY;
+            const maxW = window.innerWidth - x;
+            const maxH = window.innerHeight - y;
             onUpdatePosition({
-                width: Math.max(200, resizeRef.current.origW + dx),
-                height: Math.max(120, resizeRef.current.origH + dy),
+                width: Math.max(200, Math.min(maxW, resizeRef.current.origW + dx)),
+                height: Math.max(120, Math.min(maxH, resizeRef.current.origH + dy)),
             });
         };
         const handleUp = () => {
@@ -155,7 +170,7 @@ function FloatingWidget({
         };
         window.addEventListener('mousemove', handleMove);
         window.addEventListener('mouseup', handleUp);
-    }, [width, height, onUpdatePosition]);
+    }, [x, y, width, height, onUpdatePosition]);
 
     return (
         <div

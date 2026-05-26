@@ -7,6 +7,7 @@ import { DashboardWidget } from "./dashboard-types";
 import { WidgetRegistry } from "./widget-registry";
 import { useToast } from "@/components/ui/use-toast";
 import { useWidth } from "@/hooks/use-width";
+import { cn } from "@/lib/utils";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -121,14 +122,52 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     }
 
     return (
-        <div ref={containerRef} className={isEditMode ? "relative border-2 border-dashed border-primary/20 rounded-xl p-4 min-h-[500px] liquid-glass-panel" : "relative min-h-[500px] liquid-glass-panel"}>
+        <div 
+            id={`grid-container-${dashboardId}`}
+            ref={containerRef} 
+            onDragOver={(e) => {
+                if (isEditMode) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                }
+            }}
+            onDrop={(e) => {
+                if (isEditMode) {
+                    e.preventDefault();
+                    try {
+                        const rawData = e.dataTransfer.getData('text/plain');
+                        if (!rawData) return;
+                        const data = JSON.parse(rawData);
+                        const { widgetId, sourceDashboardId } = data;
+                        if (sourceDashboardId === dashboardId) return;
+
+                        const event = new CustomEvent('starseed:transfer-widget', {
+                            detail: {
+                                widgetId,
+                                sourceDashboardId,
+                                targetDashboardId: dashboardId,
+                                clientX: e.clientX,
+                                clientY: e.clientY
+                            }
+                        });
+                        window.dispatchEvent(event);
+                    } catch (err) {
+                        console.error("Drop error:", err);
+                    }
+                }
+            }}
+            className={cn(
+                "relative min-h-[500px] flex-1 w-full rounded-[2rem] overflow-y-auto custom-scrollbar p-4 transition-all duration-500 ease-out backdrop-blur-sm",
+                isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-black/10 border border-white/5"
+            )}
+        >
             {mounted && width > 0 && (
                 <ResponsiveGridLayout
-                    className="layout"
+                    className="layout transition-all duration-500"
                     layouts={layouts}
                     breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
                     cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-                    rowHeight={60}
+                    rowHeight={65} // slightly taller for better visual separation
                     width={width}
                     onLayoutChange={onLayoutChange as any}
                     onDragStop={handleDragStop as any}
@@ -136,10 +175,23 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     isDraggable={isEditMode}
                     isResizable={isEditMode}
                     draggableHandle=".drag-handle"
-                    margin={[16, 16]}
+                    margin={[18, 18]} // cleaner separation
                 >
                     {widgets.map(widget => (
-                        <div key={widget.layout.i || widget.id} className="relative group h-full">
+                        <div 
+                            key={widget.layout.i || widget.id} 
+                            className="relative group h-full"
+                            draggable={isEditMode}
+                            onDragStart={(e) => {
+                                if (isEditMode) {
+                                    e.dataTransfer.setData('text/plain', JSON.stringify({ 
+                                        widgetId: widget.id, 
+                                        sourceDashboardId: dashboardId 
+                                    }));
+                                    e.dataTransfer.effectAllowed = 'move';
+                                }
+                            }}
+                        >
                             <div className={`h-full w-full overflow-hidden transition-all bg-transparent rounded-3xl ${isEditMode ? 'ring-2 ring-primary/20' : 'hover:shadow-lg'}`}>
                                 <WidgetRegistry widget={widget} />
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWeatherLocation } from '@/modules/weather/context/weather-location-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,13 @@ export function LocationSelector() {
     const [results, setResults] = useState<any[]>([]);
     const [open, setOpen] = useState(false);
     const [geoLoading, setGeoLoading] = useState(false);
+
+    // Listen for external trigger from sidebar MapPin button
+    useEffect(() => {
+        const handler = () => setOpen(true);
+        window.addEventListener('starseed:open-location', handler);
+        return () => window.removeEventListener('starseed:open-location', handler);
+    }, []);
 
     const handleSearch = async () => {
         if (!query.trim()) return;

@@ -14,6 +14,8 @@ import { ProfileHeader } from "@/components/profile/profile-header";
 import { FeedPostCard } from "@/components/profile/posts/feed-post-card";
 import { CollectionsGrid } from "@/components/profile/collections/collections-grid";
 import { EFGovernanceTabs } from "@/components/profile/governance/ef-governance-tabs";
+import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
+import { useState } from "react";
 
 function PostsFeed() {
     return (
@@ -102,6 +104,7 @@ export default function ProfilePage() {
     };
 
     const pageType = profileData.pageType;
+    const [activeTab, setActiveTab] = useState("dashboard");
 
     return (
 
@@ -109,10 +112,11 @@ export default function ProfilePage() {
             <ProfileHeader profileData={profileData} />
 
             <div className="grid lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                    <Tabs defaultValue="dashboard">
-                        <TabsList>
+                <div className={activeTab === 'agenda' ? "lg:col-span-3" : "lg:col-span-2"}>
+                    <Tabs value={activeTab} onValueChange={setActiveTab}>
+                        <TabsList className="overflow-x-auto flex-nowrap w-full justify-start md:justify-center">
                             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                            <TabsTrigger value="agenda">Agenda</TabsTrigger>
                             <TabsTrigger value="posts">Publicaciones</TabsTrigger>
                             <TabsTrigger value="connections">Conexiones</TabsTrigger>
                             <TabsTrigger value="library">Biblioteca</TabsTrigger>
@@ -130,6 +134,13 @@ export default function ProfilePage() {
                                     <ConnectionsWidget pageType={pageType} />
                                 </div>
                             </div>
+                        </TabsContent>
+
+                        <TabsContent value="agenda" className="mt-6 animate-in fade-in-50 duration-500">
+                            <UnifiedCalendar 
+                                title={`Agenda de ${profileData.name}`} 
+                                subtitle="Eventos y actividades compartidas por este perfil." 
+                            />
                         </TabsContent>
 
                         <TabsContent value="posts" className="mt-6">
@@ -153,17 +164,19 @@ export default function ProfilePage() {
                         </TabsContent>
                     </Tabs>
                 </div>
-                <div className="lg:col-span-1">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="font-headline">Discusión Abierta</CardTitle>
-                            <CardDescription>Un espacio para conversaciones generales en este perfil.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <CommentSystem comments={defaultComments} />
-                        </CardContent>
-                    </Card>
-                </div>
+                {activeTab !== 'agenda' && (
+                    <div className="lg:col-span-1">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="font-headline">Discusión Abierta</CardTitle>
+                                <CardDescription>Un espacio para conversaciones generales en este perfil.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <CommentSystem comments={defaultComments} />
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
             </div>
         </div>
 

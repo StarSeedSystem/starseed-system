@@ -34,7 +34,7 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const Card = React.forwardRef<HTMLDivElement, CardProps>(
-  ({ className, children, liquid, splineDepth = 30, interactive = true, crystalTheme = 'none', crystalIntensity = 0.5, ...props }, ref) => {
+  ({ className, children, liquid, splineDepth = 12, interactive = true, crystalTheme = 'none', crystalIntensity = 0.5, ...props }, ref) => {
     const { config } = useAppearance();
     const isCrystal = config.themeStore.activeMode === 'crystal';
     const isPrimary = config.themeStore.activeMode === 'primary';
@@ -51,10 +51,10 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     const mouseYSpring = useSpring(y, { stiffness: 150, damping: 20 });
 
     // Map mouse to 3D rotation — reduced on mobile for stability
-    const [maxTilt, setMaxTilt] = React.useState(7);
+    const [maxTilt, setMaxTilt] = React.useState(4);
     React.useEffect(() => {
       if (typeof window !== 'undefined') {
-        setMaxTilt(window.innerWidth < 768 ? 3 : 7);
+        setMaxTilt(window.innerWidth < 768 ? 1.5 : 4);
       }
     }, []);
 
@@ -121,27 +121,31 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     );
 
     const cardContent = (
-      <motion.div
+      <div
         ref={ref as any}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
-        animate={floatingControls}
+        className={cn("w-full h-full relative group/crystal-card", cardClasses)}
+        data-component={useCrystalEffects ? "crystal-card" : "card"}
         style={{
-          rotateX: (useCrystalEffects && interactive) ? rotateX : 0,
-          rotateY: (useCrystalEffects && interactive) ? rotateY : 0,
-          transformStyle: "preserve-3d",
           // Data-driven CSS custom properties
           ['--crystal-intensity' as any]: crystalIntensity,
           ['--crystal-breathe-duration' as any]: `${breathDuration}s`,
           ['--crystal-glow-strength' as any]: glowStrength,
         }}
-        className={cn("w-full h-full relative group/crystal-card", cardClasses)}
-        data-component={useCrystalEffects ? "crystal-card" : "card"}
         {...props}
       >
-        {/* CRYSTAL BACKGROUND LAYERS — CSS-only, no WebGL */}
+        {/* CRYSTAL BACKGROUND LAYERS — 3D Animated */}
         {useCrystalEffects && (
-          <>
+          <motion.div 
+            className="absolute inset-0 pointer-events-none rounded-[inherit]"
+            animate={floatingControls}
+            style={{
+              rotateX: (useCrystalEffects && interactive) ? rotateX : 0,
+              rotateY: (useCrystalEffects && interactive) ? rotateY : 0,
+              transformStyle: "preserve-3d",
+            }}
+          >
             {/* Layer 1: Animated gradient background (the "liquid crystal" base) */}
             <div className="crystal-bg-layer absolute inset-0 z-0 rounded-2xl" />
 
@@ -174,17 +178,25 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
 
             {/* Layer 6: Inner light caustics (the shifting light patterns inside crystals) */}
             <div className="crystal-caustics pointer-events-none absolute inset-0 z-[5] rounded-2xl" />
-          </>
+          </motion.div>
         )}
 
-        {/* Content wrapper — z-50 guarantees text is ABOVE every visual layer */}
-        <div
+        {/* Content wrapper — Kept 2D flat to prevent cursor projection mismatch and click distortion */}
+        <motion.div
           className={cn("relative z-50 w-full h-full", useCrystalEffects && "liquid-crystal-text")}
-          style={useCrystalEffects ? { transform: `translateZ(${splineDepth}px)`, transformStyle: "preserve-3d" } : {}}
+          animate={floatingControls}
+          style={{
+            // Keep interactive elements flat in screen-space for 100% natural, direct, and pixel-precise click detection.
+            // The 3D depth and tilt are still beautifully rendered behind the text via the visual background layers.
+            rotateX: 0,
+            rotateY: 0,
+            z: 0,
+            transformStyle: "flat",
+          }}
         >
           {children}
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
     );
 
     if (liquid) {
@@ -214,7 +226,7 @@ const CardHeader = React.forwardRef<
   <div
     ref={ref}
     className={cn("flex flex-col space-y-1.5 p-6 relative z-20", className)}
-    style={{ transform: "translateZ(10px)" }}
+    style={{ transform: "none" }}
     {...props}
   />
 ))
@@ -254,7 +266,7 @@ const CardContent = React.forwardRef<
   <div
     ref={ref}
     className={cn("p-6 pt-0 relative z-10", className)}
-    style={{ transform: "translateZ(15px)", transformStyle: "preserve-3d" }}
+    style={{ transform: "none", transformStyle: "flat" }}
     {...props}
   />
 ))
@@ -267,7 +279,7 @@ const CardFooter = React.forwardRef<
   <div
     ref={ref}
     className={cn("flex items-center p-6 pt-0 relative z-20", className)}
-    style={{ transform: "translateZ(20px)" }}
+    style={{ transform: "none" }}
     {...props}
   />
 ))

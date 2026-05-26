@@ -85,19 +85,19 @@ function NeonToggle({ active, onClick, icon: Icon, label, color = "cyan", status
             whileTap={{ scale: 0.95 }}
             onClick={onClick}
             className={cn(
-                "relative h-20 rounded-2xl border flex flex-col justify-between p-4 transition-all duration-300 overflow-hidden group",
+                "relative h-20 rounded-2xl border flex flex-col items-center justify-center gap-1.5 p-2 transition-all duration-300 overflow-hidden group",
                 active
                     ? `${activeClass} shadow-[0_0_20px_-5px]`
                     : "bg-white/5 border-white/5 text-muted-foreground hover:bg-white/10"
             )}
         >
-            <div className="flex justify-between items-start w-full">
+            <div className="flex items-center justify-center relative w-full">
                 <Icon className={cn("w-6 h-6", active && "animate-pulse")} />
-                <div className={cn("w-2 h-2 rounded-full", active ? "bg-current shadow-[0_0_8px] shadow-current" : "bg-white/10")} />
+                {active && <div className="absolute right-2 top-0 w-2 h-2 rounded-full bg-current shadow-[0_0_8px] shadow-current" />}
             </div>
-            <div className="text-left">
-                <div className="font-semibold text-sm">{label}</div>
-                <div className="text-[10px] opacity-70">{status}</div>
+            <div className="text-center w-full px-2 flex flex-col items-center justify-center min-w-0">
+                <div className="font-semibold text-xs md:text-sm truncate w-full">{label}</div>
+                <div className="text-[9px] md:text-[10px] opacity-70 truncate w-full">{status}</div>
             </div>
 
             {/* Background Gradient */}

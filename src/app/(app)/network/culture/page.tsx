@@ -10,7 +10,8 @@ import Link from "next/link";
 import { culturalPosts } from "@/lib/data";
 import { CommentSystem } from '@/components/comment-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EventCalendarView, MapPlaceholder } from './components';
+import { MapPlaceholder } from './components';
+import { UnifiedCalendar } from '@/components/calendar/unified-calendar';
 
 function CulturalPostCard({ post }: { post: typeof culturalPosts[0] }) {
   const [showComments, setShowComments] = useState(false);
@@ -100,13 +101,18 @@ export default function CulturePage() {
         </TabsContent>
 
         <TabsContent value="calendar" className="animate-in fade-in-50 duration-500">
-          <div className="flex flex-col gap-4">
-            <div>
-              <h2 className="text-2xl font-bold font-headline">Agenda Unificada</h2>
-              <p className="text-muted-foreground">Todos los eventos culturales y políticos en un solo lugar.</p>
-            </div>
-            <EventCalendarView />
-          </div>
+          {/*
+            Mismo calendario que se renderiza en el Hub (UnifiedCalendar).
+            La fuente de datos vive en CalendarProvider, por lo que cualquier
+            cambio aquí o desde /hub se refleja instantáneamente en la otra
+            superficie. Las capas filtrables (cultura, política, educación,
+            bienestar, recordatorios, alarmas, logs del sistema…) y la
+            integración con el Exocórtex (Contexto IA) son las mismas.
+          */}
+          <UnifiedCalendar
+            title="Agenda Unificada"
+            subtitle="Todos los eventos culturales, políticos, educativos y personales en un solo lugar. Filtra capas y abre cualquier día para gestionar sus entradas."
+          />
         </TabsContent>
       </Tabs>
     </div>

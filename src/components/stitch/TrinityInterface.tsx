@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
     Brain,
     Search,
@@ -69,9 +70,9 @@ export default function TrinityInterface() {
                         <span className="text-[10px] text-white/30 font-mono">⌘+K</span>
                     </div>
                     <div className="flex gap-2">
-                        <button className="p-2 rounded-full hover:bg-white/10 text-white/60 transition-colors">
+                        <Link href="/notifications" className="p-2 rounded-full hover:bg-white/10 text-white/60 transition-colors" title="Ver Notificaciones">
                             <Bell className="w-5 h-5" />
-                        </button>
+                        </Link>
                     </div>
                 </div>
             </header>

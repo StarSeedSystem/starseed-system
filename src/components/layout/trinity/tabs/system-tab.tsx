@@ -56,7 +56,7 @@ export function SystemTab() {
                     <div className={cn("p-2 rounded-full bg-white/5 group-hover:bg-white/10 transition-colors", menuItem.color)}>
                         <menuItem.icon className="w-5 h-5" />
                     </div>
-                    <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                    <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors w-full truncate px-2 text-center">
                         {menuItem.label}
                     </span>
                 </motion.button>

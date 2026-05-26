@@ -76,8 +76,14 @@ export function SideCurtains() {
                     animate={{ x: 0, y: "-50%", opacity: 1, scale: 1 }}
                     exit={{ x: "-100%", y: "-50%", opacity: 0, scale: 0.95 }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
-                    style={{ top: "50%" }} // Force vertical position
-                    className="fixed left-4 h-auto max-h-[90vh] w-[350px] md:w-[500px] z-[90] pointer-events-auto rounded-[2rem] overflow-hidden shadow-2xl border border-emerald-500/30 flex flex-col"
+                    style={{ top: "50%" }}
+                    className={cn(
+                        "fixed z-[90] pointer-events-auto overflow-hidden shadow-2xl border border-emerald-500/30 flex flex-col",
+                        // Mobile: fullscreen | Desktop: side panel
+                        "inset-0 !top-0 !transform-none rounded-none",
+                        "md:inset-auto md:left-4 md:!top-[50%] md:!-translate-y-1/2 md:h-auto md:max-h-[90vh] md:w-[350px] md:rounded-[2rem]",
+                        "lg:w-[500px]"
+                    )}
                 >
                     {/* Glass/Color Background - Contained */}
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
@@ -236,14 +242,13 @@ export function SideCurtains() {
                     animate={{ x: 0, y: "-50%", opacity: 1 }}
                     exit={{ x: "100%", y: "-50%", opacity: 0 }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
-                    style={{ top: "50%" }} // Force vertical position like Left Panel
+                    style={{ top: "50%" }}
                     className={cn(
-                        "fixed right-4 z-[90] flex items-center justify-center pointer-events-none",
-                        activeBoardId ? "w-full sm:w-[90vw] lg:w-[85vw] h-[90vh] bg-black/80 backdrop-blur-xl border border-amber-500/30 rounded-3xl" : "w-auto h-auto"
+                        "fixed right-0 md:right-4 z-[90] flex items-center justify-center",
+                        activeBoardId ? "w-full sm:w-[90vw] lg:w-[85vw] h-[90vh] bg-black/80 backdrop-blur-xl border border-amber-500/30 rounded-3xl pointer-events-auto" : "w-auto h-auto pointer-events-none"
                     )}
                 >
-                    {/* Glass/Color Background - Neutral for Control Center */}
-                    {/* Only show background if it's the Board Viewer, otherwise pure floating */}
+                    {/* Only show background if it's the Board Viewer */}
                     {!activeBoardId && (
                         <div className="absolute inset-0 bg-transparent" />
                     )}
@@ -265,8 +270,7 @@ export function SideCurtains() {
                             </div>
                         ) : (
                             <>
-                                {/* New Trinity Control Center Integration */}
-                                {/* Floating Button Container - Pointer Events Auto */}
+                                {/* Control Center — handles its own sizing & fullscreen on mobile */}
                                 <div className="pointer-events-auto">
                                     <ControlCenter />
                                 </div>
