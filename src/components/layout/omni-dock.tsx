@@ -1,24 +1,31 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePerimeter } from "@/context/perimeter-context";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-    Home,
-    User,
-    MessageSquare,
-    Bell,
-    Users,
-    Book, // Personal Library
-    Library, // Online Library
-    Network, // Nodes
-    Settings,
-    Plus,
+    Home, User, MessageSquare, Bell, Users, Book, Library, Network, Settings,
+    Plus, BrainCircuit, Brain, Sparkles, Wrench, Zap, Eye, Cpu, Server,
+    Database, CalendarDays, Pencil, Check, RotateCcw, X, ArrowLeft, ArrowRight,
 } from "lucide-react";
 
 import { useAppearance } from "@/context/appearance-context";
+import {
+    loadDockConfig,
+    saveDockConfig,
+    resetDockConfig,
+    DOCK_PRESETS,
+    type DockItemConfig,
+    type DockIconKey,
+} from "./dock-config";
+
+const ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?: string }>> = {
+    Home, User, MessageSquare, Bell, Users, Book, Library, Network, Settings,
+    BrainCircuit, Brain, Sparkles, Wrench, Zap, Eye, Cpu, Server, Database,
+    CalendarDays, Plus,
+};
 
 export function OmniDock() {
     const { activeEdge } = usePerimeter();
@@ -28,24 +35,42 @@ export function OmniDock() {
     const { dockBehavior = "anchor-only" } = config?.trinity || {};
 
     let isVisible = false;
-    if (dockBehavior === "always-visible") {
-        isVisible = true;
-    } else {
-        isVisible = activeEdge === "anchor";
-    }
+    if (dockBehavior === "always-visible") isVisible = true;
+    else isVisible = activeEdge === "anchor";
 
-    // Dock Items Configuration - Increased icon sizes
-    const dockItems = [
-        { id: "dashboard", label: "Dashboard", icon: <Home className="w-6 h-6 sm:w-7 sm:h-7" />, path: "/dashboard", color: "cyan" },
-        { id: "profile", label: "Perfil", icon: <User className="w-6 h-6 sm:w-7 sm:h-7" />, path: "/profile/starseeduser", color: "neutral" },
-        { id: "messages", label: "Mensajes", icon: <MessageSquare className="w-6 h-6 sm:w-7 sm:h-7" />, path: "/messages", color: "crimson" },
-        { id: "notifications", label: "Notificaciones", icon: <Bell className="w-6 h-6 sm:w-7 sm:h-7" />, path: "/notifications", color: "amber" },
-        { id: "hub", label: "Hub", icon: <Users className="w-6 h-6 sm:w-7 sm:h-7" />, path: "/hub", color: "emerald" },
-        { id: "mylib", label: "Mi Biblioteca", icon: <Book className="w-6 h-6 sm:w-7 sm:h-7" />, path: "/library?view=personal", color: "cyan" },
-        { id: "netlib", label: "Librería Global", icon: <Library className="w-6 h-6 sm:w-7 sm:h-7" />, path: "/library?view=global", color: "cyan" },
-        { id: "nodes", label: "Nodos", icon: <Network className="w-6 h-6 sm:w-7 sm:h-7" />, path: "/network", color: "crimson" },
-        { id: "settings", label: "Ajustes", icon: <Settings className="w-6 h-6 sm:w-7 sm:h-7" />, path: "/settings", color: "neutral" },
-    ];
+    const [items, setItems] = useState<DockItemConfig[]>(DOCK_PRESETS);
+    const [editMode, setEditMode] = useState(false);
+
+    useEffect(() => { setItems(loadDockConfig()); }, []);
+
+    const persist = (next: DockItemConfig[]) => {
+        setItems(next);
+        saveDockConfig(next);
+    };
+
+    const toggleEnabled = (id: string) => {
+        persist(items.map((it) => (it.id === id ? { ...it, enabled: !it.enabled } : it)));
+    };
+
+    const move = (id: string, direction: -1 | 1) => {
+        const idx = items.findIndex((it) => it.id === id);
+        if (idx < 0) return;
+        const newIdx = idx + direction;
+        if (newIdx < 0 || newIdx >= items.length) return;
+        const next = [...items];
+        const [el] = next.splice(idx, 1);
+        next.splice(newIdx, 0, el);
+        persist(next);
+    };
+
+    const reset = () => {
+        if (confirm('¿Restablecer el dock a su configuración por defecto?')) {
+            resetDockConfig();
+            setItems(DOCK_PRESETS);
+        }
+    };
+
+    const visibleItems = useMemo(() => items.filter((it) => it.enabled), [items]);
 
     return (
         <AnimatePresence>
@@ -55,8 +80,20 @@ export function OmniDock() {
                     animate={{ y: "0%", opacity: 1 }}
                     exit={{ y: "100%", opacity: 0 }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="fixed bottom-0 left-0 right-0 z-[70] flex justify-center pb-6 sm:pb-8 pointer-events-none"
+                    className="fixed bottom-0 left-0 right-0 z-[70] flex flex-col items-center pb-6 sm:pb-8 pointer-events-none"
                 >
+                    {editMode && (
+                        <div className="pointer-events-auto mb-3 w-full max-w-3xl px-4">
+                            <DockEditor
+                                items={items}
+                                onToggle={toggleEnabled}
+                                onMove={move}
+                                onReset={reset}
+                                onClose={() => setEditMode(false)}
+                            />
+                        </div>
+                    )}
+
                     <div className="
                         pointer-events-auto
                         flex items-end gap-2 sm:gap-4 p-4 sm:p-5
@@ -64,27 +101,28 @@ export function OmniDock() {
                         border border-foreground/10
                         rounded-[--radius-full]
                         shadow-[0_10px_40px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)]
-                        mb-2 sm:mb-4
+                        mb-2 sm:mb-4 max-w-[96vw] overflow-visible
                     ">
-                        {dockItems.map((item) => (
-                            <DockItem
-                                key={item.id}
-                                icon={item.icon}
-                                label={item.label}
-                                color={item.color as any}
-                                onClick={() => router.push(item.path)}
-                            />
-                        ))}
+                        {visibleItems.map((item) => {
+                            const Icon = ICON_MAP[item.iconKey] ?? Home;
+                            return (
+                                <DockItem
+                                    key={item.id}
+                                    icon={<Icon className="w-6 h-6 sm:w-7 sm:h-7" />}
+                                    label={item.label}
+                                    color={item.color}
+                                    onClick={() => router.push(item.path)}
+                                />
+                            );
+                        })}
 
-                        {/* Divider */}
-                        <div className="w-px h-12 sm:h-14 bg-foreground/10 mx-2 self-center rounded-full" />
+                        <div className="w-px h-12 sm:h-14 bg-foreground/10 mx-2 self-center rounded-full" aria-hidden />
 
-                        {/* Add/Customize Button */}
                         <DockItem
-                            icon={<Plus className="w-6 h-6 sm:w-7 sm:h-7" />}
-                            label="Personalizar"
+                            icon={<Pencil className="w-6 h-6 sm:w-7 sm:h-7" />}
+                            label={editMode ? "Cerrar editor" : "Personalizar dock"}
                             color="neutral"
-                            onClick={() => console.log("Open customization modal")}
+                            onClick={() => setEditMode((v) => !v)}
                         />
                     </div>
                 </motion.div>
@@ -93,29 +131,36 @@ export function OmniDock() {
     );
 }
 
-function DockItem({ icon, label, onClick, color = "neutral" }: { icon: React.ReactNode, label: string, onClick: () => void, color?: "neutral" | "cyan" | "crimson" | "amber" | "emerald" }) {
-    // Theme-agnostic color variables applied with semantic foreground values
+function DockItem({ icon, label, onClick, color = "neutral" }: {
+    icon: React.ReactNode;
+    label: string;
+    onClick: () => void;
+    color?: "neutral" | "cyan" | "crimson" | "amber" | "emerald" | "purple";
+}) {
     const colorStyles = {
         neutral: "hover:bg-foreground/10 text-foreground/80 hover:text-foreground",
         cyan: "text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.3)]",
         crimson: "text-red-600 dark:text-red-400 hover:bg-red-500/20 hover:shadow-[0_0_15px_rgba(248,113,113,0.3)]",
         amber: "text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 hover:shadow-[0_0_15px_rgba(251,191,36,0.3)]",
         emerald: "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 hover:shadow-[0_0_15px_rgba(52,211,153,0.3)]",
+        purple: "text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]",
     };
 
     return (
         <div className="group relative flex flex-col items-center gap-2">
-            {/* Tooltip Label (Above) */}
             <span className="
-                absolute -top-12 scale-0 opacity-0 
+                absolute bottom-full mb-3 left-1/2 -translate-x-1/2
+                scale-0 opacity-0
                 group-hover:scale-100 group-hover:opacity-100
-                transition-all duration-300
+                transition-all duration-300 origin-bottom
                 bg-foreground text-background text-xs sm:text-sm font-medium px-3 py-1.5 rounded-full
-                border border-background/20 whitespace-nowrap drop-shadow-md z-50
+                border border-background/20 whitespace-nowrap drop-shadow-md z-[100]
+                pointer-events-none
+                after:content-[''] after:absolute after:top-full after:left-1/2 after:-translate-x-1/2
+                after:border-4 after:border-transparent after:border-t-foreground
             ">
                 {label}
             </span>
-
             <button
                 onClick={onClick}
                 className={cn(
@@ -126,9 +171,66 @@ function DockItem({ icon, label, onClick, color = "neutral" }: { icon: React.Rea
             >
                 {icon}
             </button>
-
-            {/* Reflection/Glow Base Indicator */}
             <div className="w-1.5 h-1.5 rounded-full bg-foreground/20 group-hover:bg-foreground/80 transition-colors" />
+        </div>
+    );
+}
+
+function DockEditor({
+    items, onToggle, onMove, onReset, onClose,
+}: {
+    items: DockItemConfig[];
+    onToggle: (id: string) => void;
+    onMove: (id: string, direction: -1 | 1) => void;
+    onReset: () => void;
+    onClose: () => void;
+}) {
+    return (
+        <div className="bg-card/60 backdrop-blur-2xl border border-foreground/15 rounded-3xl p-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs uppercase tracking-wider font-bold text-foreground/80">
+                    Personalizar dock
+                </h4>
+                <div className="flex gap-1.5">
+                    <button onClick={onReset} className="text-[10px] flex items-center gap-1 px-2 py-1 rounded-full border border-foreground/10 hover:bg-foreground/5">
+                        <RotateCcw className="w-3 h-3" /> Restablecer
+                    </button>
+                    <button onClick={onClose} className="text-[10px] flex items-center gap-1 px-2 py-1 rounded-full border border-foreground/10 hover:bg-foreground/5">
+                        <Check className="w-3 h-3" /> Listo
+                    </button>
+                </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground mb-3">
+                Activa o desactiva los iconos y reordénalos. Los items "Hermes" (Agente, Cerebro, Skills, Tools, Sentidos, MCPs) son opciones predeterminadas que puedes mostrar u ocultar.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-1.5 max-h-72 overflow-y-auto">
+                {items.map((it) => {
+                    const Icon = ICON_MAP[it.iconKey] ?? Home;
+                    return (
+                        <div
+                            key={it.id}
+                            className={cn(
+                                'flex items-center gap-2 px-2 py-1.5 rounded-lg border text-xs',
+                                it.enabled
+                                    ? 'border-foreground/15 bg-foreground/[0.03]'
+                                    : 'border-foreground/5 bg-foreground/[0.01] opacity-60'
+                            )}
+                        >
+                            <Icon className="w-4 h-4 shrink-0" />
+                            <span className="flex-1 truncate font-medium">{it.label}</span>
+                            <button onClick={() => onMove(it.id, -1)} className="p-1 hover:bg-foreground/10 rounded">
+                                <ArrowLeft className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => onMove(it.id, 1)} className="p-1 hover:bg-foreground/10 rounded">
+                                <ArrowRight className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => onToggle(it.id)} className="p-1 hover:bg-foreground/10 rounded">
+                                {it.enabled ? <Check className="w-3 h-3 text-emerald-400" /> : <X className="w-3 h-3 text-muted-foreground" />}
+                            </button>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }

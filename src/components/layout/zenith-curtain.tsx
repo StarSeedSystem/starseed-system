@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { UniversalEditor } from "@/components/layout/universal-editor";
 import { Switch } from "@/components/ui/switch";
+import { useAppearance } from "@/context/appearance-context";
 
 type Domain = 'ALL' | 'POLITICS' | 'EDUCATION' | 'CULTURE' | 'SYSTEM';
 
@@ -110,6 +111,8 @@ export function ZenithCurtain() {
     const [activeDomain, setActiveDomain] = useState<Domain>('ALL');
     const [editorOpen, setEditorOpen] = useState(false);
     const { isFullscreen, toggle: toggleFullscreen, isSupported: fsSupported } = useFullscreen();
+    const { config: appearanceConfig, updateSection: updateAppearanceSection } = useAppearance();
+    const aiAssistantVisible = appearanceConfig.assistant?.visible ?? true;
 
     // AI Senses & Connections state
     const [showSensesPanel, setShowSensesPanel] = useState(false);
@@ -216,6 +219,26 @@ export function ZenithCurtain() {
                                                 </span>
                                             </Button>
                                         )}
+
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => updateAppearanceSection('assistant', { visible: !aiAssistantVisible })}
+                                            className={cn(
+                                                "gap-2 rounded-full px-4 transition-all",
+                                                aiAssistantVisible
+                                                    ? "border-purple-400/60 text-purple-200 bg-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.3)]"
+                                                    : "border-white/20 text-white/40 hover:bg-white/5 hover:text-white/60"
+                                            )}
+                                            title={aiAssistantVisible ? "Ocultar asistente flotante" : "Mostrar asistente flotante"}
+                                        >
+                                            <Bot className="w-3.5 h-3.5" />
+                                            <span className="hidden sm:inline text-xs uppercase tracking-wider">Asistente</span>
+                                            <span className={cn(
+                                                "w-2 h-2 rounded-full transition-colors",
+                                                aiAssistantVisible ? "bg-purple-400 shadow-[0_0_6px_#a855f7]" : "bg-white/20"
+                                            )} />
+                                        </Button>
 
                                         <Button
                                             variant="outline"

@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/lib/sincrometro/**/*.ts",
+    "src/components/calendar/**/*.tsx",
+    "src/components/hermes/**/*.tsx",
+    "src/components/network/living-graph.tsx",
+    "src/components/network/integrated-living-graph.tsx",
+    "src/components/network/memory-admin-dialog.tsx",
+    "src/components/stories/**/*.tsx",
+    "src/components/layout/dock-config.ts",
+    "src/components/layout/omni-dock.tsx",
+    "src/contexts/calendar-context.tsx",
+    "src/contexts/stories-context.tsx",
+    "src/hermes-integration/openhuman-bridge.ts",
+    "src/hermes-integration/system-context.ts",
+    "src/hermes-integration/living-graph-store.ts",
+    "src/hermes-integration/memory-admin-store.ts",
+    "src/hermes-integration/skill-stack.ts",
+    "src/hermes-integration/batch-processing.ts",
+    "src/hermes-integration/connection-priority.ts",
+    "src/hermes-integration/server-registry.ts",
+    "src/hermes-integration/content-store.ts",
+    "src/app/(app)/network/graph/page.tsx",
+    "src/app/(app)/network/layout.tsx",
+    "src/app/onboarding/page.tsx"
+  ]
+}

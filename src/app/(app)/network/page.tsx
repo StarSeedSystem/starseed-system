@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { HolographicGraph } from "@/components/network/holographic-graph";
+import Link from "next/link";
 import { RichPostCard } from "@/components/network/feed/rich-post-card";
 import { networkService, Post } from "@/services/network-simulation-service";
 import { TiltCard } from "@/components/ui/tilt-card";
 import { Button } from "@/components/ui/button";
-import { Send, Image as ImageIcon, Link as LinkIcon } from "lucide-react";
+import { Send, Image as ImageIcon, Link as LinkIcon, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 export default function NetworkPage() {
@@ -47,19 +47,27 @@ export default function NetworkPage() {
 
   return (
     <div className="w-full px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] space-y-[clamp(1.5rem,3vw,3rem)] animate-in fade-in duration-500 pb-24">
-      {/* Header Section */}
-      <div className="space-y-[clamp(0.25rem,0.5vw,0.5rem)] relative z-10 w-full flex flex-col items-center text-center mt-4">
-        <h1 className="page-title font-headline text-transparent bg-clip-text bg-gradient-to-b from-foreground to-foreground/60 filter drop-shadow-[0_0_20px_rgba(var(--foreground-rgb),0.2)]">
-          StarSeed <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">Network</span>
-        </h1>
-        <p className="text-[clamp(0.9rem,1.2vw,1.2rem)] text-muted-foreground max-w-3xl text-balance">
-          Connect with the living ontology. Share concepts, visualize data, and replicate knowledge.
-        </p>
-      </div>
-
-      {/* Hero Graph */}
+      {/* Acceso al Cerebro (visualización geométrica unificada) */}
       <section className="relative z-0">
-        <HolographicGraph />
+        <Link
+          href="/network/graph"
+          className="block group rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-500/15 via-fuchsia-500/5 to-cyan-500/10 hover:border-purple-400/40 p-5 transition-all duration-300 shadow-lg backdrop-blur"
+        >
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-2xl bg-purple-500/15 ring-1 ring-inset ring-purple-400/40">
+              <Sparkles className="w-6 h-6 text-purple-300" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-bold">Cerebro</h2>
+              <p className="text-xs text-muted-foreground">
+                Visualización geométrica única de la memoria unificada, agentes,
+                sentidos, skills, tools, MCPs y proveedores. Crea conexiones nuevas
+                entre cualquier nodo del sistema.
+              </p>
+            </div>
+            <Send className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+          </div>
+        </Link>
       </section>
 
       {/* Feed Section */}

@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { studyGroups, politicalParties, userBadges } from "@/lib/data";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { useCalendar, LAYER_META, CalendarLayer, CalendarVisibility } from "@/contexts/calendar-context";
+import { StoriesStrip } from "@/components/stories/stories-strip";
 
 // ── TYPES & MOCK DATA FOR CONTRIBUTIONS ──
 interface Volunteer {
@@ -573,6 +574,16 @@ export default function HubPage() {
                     </Card>
                 </div>
             )}
+
+            {/* ── HISTORIAS TEMPORALES (Strip estética arriba de las publicaciones) ── */}
+            <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-purple-500/[0.04] via-transparent to-cyan-500/[0.04] backdrop-blur p-3 -mt-1">
+                <StoriesStrip
+                    ownerKind="hub"
+                    ownerId="hub-conexiones"
+                    ownerLabel="Hub"
+                    variant="hub"
+                />
+            </div>
 
             {/* ── HEADER CON TÍTULO Y BÚSQUEDA ── */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-[clamp(1rem,2vw,2rem)] w-full text-center md:text-left">

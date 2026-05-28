@@ -2,11 +2,15 @@
 'use client';
 
 /**
- * UnifiedCalendar — calendario maestro del SOSD.
+ * UnifiedCalendar / Sincrómetro Unificado — instrumento maestro del SOSD.
  *
  * Misma fuente de datos que la pestaña "Agenda" de /network/culture y el Hub.
  * Soporta capas filtrables (eventos, recordatorios, alarmas, logs del sistema)
  * y al hacer click en un día se abre DayDetailDialog para gestionar entradas.
+ *
+ * Soporta tres modos de visualización (convencional / astrológico / lunar)
+ * que comparten el MISMO dataset — los eventos creados en un modo son
+ * inmediatamente visibles en los otros, igual que las alarmas y recordatorios.
  *
  * Diseño: panel "Crystal Liquid Glass" coherente con MASTER.md.
  */
@@ -38,6 +42,12 @@ import {
   type CalendarLayer,
 } from '@/contexts/calendar-context';
 import { DayDetailDialog } from './day-detail-dialog';
+import { SincrometroModeSwitcher } from './sincrometro-mode-switcher';
+import { SincrometroAstrological } from './sincrometro-astrological';
+import { SincrometroLunar } from './sincrometro-lunar';
+import { ExternalCalendarConnectors } from './external-calendar-connectors';
+import { getZodiacForISO, getLunarPhaseForISO } from '@/lib/sincrometro';
+import { Link as LinkIcon } from 'lucide-react';
 
 const WEEK_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const MONTH_LABELS = [
@@ -82,11 +92,18 @@ function buildMonthGrid(year: number, monthIndex: number): Date[] {
 
 export function UnifiedCalendar({
   showAgenda = true,
-  title = 'Calendario Unificado',
-  subtitle = 'Eventos, recordatorios, alarmas y logs del sistema en una sola superficie.',
+  title = 'Sincrómetro Unificado',
+  subtitle = 'Eventos, recordatorios, alarmas y logs del sistema en una sola superficie. Misma data, tres modos de leer el tiempo: convencional, astrológico y lunar.',
   className,
 }: UnifiedCalendarProps) {
-  const { items, visibleLayers, toggleLayer, setAllLayers, aiContextSnapshot } = useCalendar();
+  const {
+    items,
+    visibleLayers,
+    toggleLayer,
+    setAllLayers,
+    aiContextSnapshot,
+    sincrometroMode,
+  } = useCalendar();
 
   const now = new Date();
   const [cursor, setCursor] = useState<{ year: number; month: number }>({
@@ -95,6 +112,7 @@ export function UnifiedCalendar({
   });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [layersOpen, setLayersOpen] = useState(false);
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
 
   const grid = useMemo(() => buildMonthGrid(cursor.year, cursor.month), [cursor]);
   const todayISO = toISODate(now);
@@ -147,11 +165,15 @@ export function UnifiedCalendar({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <SincrometroModeSwitcher />
           <Button size="sm" variant="outline" className="btn-pill border-white/15" onClick={askAi} title="Pedir al Exocórtex">
             <Sparkles className="w-4 h-4 mr-1.5 text-cyan-300" /> Contexto IA
           </Button>
           <Button size="sm" variant="outline" className="btn-pill border-white/15" onClick={() => setLayersOpen((v) => !v)}>
             <LayersIcon className="w-4 h-4 mr-1.5" /> Capas
+          </Button>
+          <Button size="sm" variant="outline" className="btn-pill border-white/15" onClick={() => setConnectorsOpen((v) => !v)}>
+            <LinkIcon className="w-4 h-4 mr-1.5" /> Conectores
           </Button>
           <Button
             size="sm"
@@ -163,6 +185,13 @@ export function UnifiedCalendar({
           </Button>
         </div>
       </div>
+
+      {/* Pista contextual del modo activo: signo zodiacal / fase lunar */}
+      {sincrometroMode !== 'gregoriano' && (
+        <SincrometroContextHint todayISO={todayISO} mode={sincrometroMode} />
+      )}
+
+      {connectorsOpen && <ExternalCalendarConnectors />}
 
       {/* Filtro de capas */}
       {layersOpen && (
@@ -207,8 +236,23 @@ export function UnifiedCalendar({
       )}
 
       <div className={cn('grid gap-4', showAgenda ? 'lg:grid-cols-4 xl:grid-cols-5' : 'grid-cols-1')}>
-        {/* Rejilla del mes */}
+        {/* Vista principal — depende del modo */}
         <div className={cn(showAgenda && 'lg:col-span-3 xl:col-span-4')}>
+          {sincrometroMode === 'astrologico' && (
+            <SincrometroAstrological
+              year={cursor.year}
+              todayISO={todayISO}
+              onSelectDate={setSelectedDate}
+            />
+          )}
+          {sincrometroMode === 'lunar' && (
+            <SincrometroLunar
+              referenceISO={`${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}-15`}
+              todayISO={todayISO}
+              onSelectDate={setSelectedDate}
+            />
+          )}
+          {sincrometroMode === 'gregoriano' && (
           <Card className="liquid-glass-panel border-white/10 overflow-hidden h-full">
             <CardContent className="p-3 md:p-5">
             <div className="flex items-center justify-between mb-4">
@@ -319,6 +363,7 @@ export function UnifiedCalendar({
             </div>
           </CardContent>
         </Card>
+          )}
         </div>
 
         {/* Panel lateral — Agenda combinada */}
@@ -397,4 +442,51 @@ export function UnifiedCalendar({
       )}
     </div>
   );
+}
+
+// ── Pista contextual cuando el modo activo no es el convencional ─────────
+function SincrometroContextHint({
+  todayISO,
+  mode,
+}: {
+  todayISO: string;
+  mode: 'gregoriano' | 'astrologico' | 'lunar';
+}) {
+  if (mode === 'astrologico') {
+    const sign = getZodiacForISO(todayISO);
+    return (
+      <div
+        className="flex items-center gap-3 rounded-2xl border bg-white/[0.03] px-4 py-2 text-xs"
+        style={{ borderColor: `#${sign.color}55` }}
+      >
+        <span className="text-2xl" style={{ color: `#${sign.color}` }} aria-hidden>{sign.glyph}</span>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold" style={{ color: `#${sign.color}` }}>
+            Sol en {sign.label}
+          </p>
+          <p className="text-muted-foreground">
+            Elemento {sign.element} · Los eventos se agrupan por signo zodiacal del año visible.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  if (mode === 'lunar') {
+    const phase = getLunarPhaseForISO(todayISO);
+    return (
+      <div
+        className="flex items-center gap-3 rounded-2xl border bg-white/[0.03] px-4 py-2 text-xs"
+        style={{ borderColor: `#${phase.color}55` }}
+      >
+        <span className="text-2xl" aria-hidden>{phase.glyph}</span>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold">{phase.label}</p>
+          <p className="text-muted-foreground">
+            Los eventos se agrupan por fase del ciclo lunar sinódico (~29.53 días).
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return null;
 }

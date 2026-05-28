@@ -195,7 +195,39 @@ export function TrinityFloatingInterface() {
                                 {/* RIGHT WING (Context & Exploration) */}
                                 <AnimatePresence mode="popLayout">
                                     {isExpanded && [
-                                        // No ControlCenter here anymore
+                                        <FloatingButton
+                                            key="agent"
+                                            onClick={() => router.push("/agent")}
+                                            icon={<Bot className="w-6 h-6" />}
+                                            label="Agente IA"
+                                            color="cyan"
+                                            delay={0.1}
+                                            size="normal"
+                                            scale={iconScale}
+                                            showLabel={showLabels}
+                                        />,
+                                        <FloatingButton
+                                            key="ai-setup"
+                                            onClick={() => router.push("/ai-setup")}
+                                            icon={<Sparkles className="w-6 h-6" />}
+                                            label="Ecosistema IA"
+                                            color="cyan"
+                                            delay={0.12}
+                                            size="normal"
+                                            scale={iconScale}
+                                            showLabel={showLabels}
+                                        />,
+                                        <FloatingButton
+                                            key="graph"
+                                            onClick={() => router.push("/network/graph")}
+                                            icon={<Network className="w-6 h-6" />}
+                                            label="Gráfica Viva"
+                                            color="cyan"
+                                            delay={0.14}
+                                            size="normal"
+                                            scale={iconScale}
+                                            showLabel={showLabels}
+                                        />,
                                     ]}
                                 </AnimatePresence>
                             </div>

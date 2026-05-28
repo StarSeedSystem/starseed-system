@@ -13,6 +13,7 @@ import {
     User,
     Compass,
     Globe,
+    Sparkles,
 } from "lucide-react";
 import { Logo } from "../logo";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,7 @@ export function NavigationBar({ position = "top" }: { position?: "top" | "bottom
             <div className="flex items-center gap-0.5 flex-shrink-0">
                 <NavItem href="/publish" icon={PenSquare} labelOnly title="Publicar" />
                 <NavItem href="/messages" icon={MessageSquare} labelOnly title="Mensajes" />
+                <NavItem href="/ai-setup" icon={Sparkles} labelOnly title="Ecosistema IA" />
                 <NavItem href="/settings" icon={Settings} labelOnly title="Ajustes" />
                 <NavItem href="/profile/starseeduser" icon={User} labelOnly title="Perfil" />
             </div>

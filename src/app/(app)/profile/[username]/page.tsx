@@ -15,6 +15,7 @@ import { FeedPostCard } from "@/components/profile/posts/feed-post-card";
 import { CollectionsGrid } from "@/components/profile/collections/collections-grid";
 import { EFGovernanceTabs } from "@/components/profile/governance/ef-governance-tabs";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
+import { StoriesStrip } from "@/components/stories/stories-strip";
 import { useState } from "react";
 
 function PostsFeed() {
@@ -110,6 +111,16 @@ export default function ProfilePage() {
 
         <div className="flex flex-col gap-6">
             <ProfileHeader profileData={profileData} />
+
+            {/* ── HISTORIAS TEMPORALES (estética, deslizable, encima de las publicaciones) ── */}
+            <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-purple-500/[0.04] via-transparent to-cyan-500/[0.04] backdrop-blur p-3">
+                <StoriesStrip
+                    ownerKind={profileData.pageType === 'personal' ? 'profile' : 'page'}
+                    ownerId={(typeof window !== 'undefined' ? (window.location.pathname.split('/').pop() ?? 'me') : 'me')}
+                    ownerLabel={profileData.name ?? 'Perfil'}
+                    variant={profileData.pageType === 'personal' ? 'profile' : 'page'}
+                />
+            </div>
 
             <div className="grid lg:grid-cols-3 gap-6">
                 <div className={activeTab === 'agenda' ? "lg:col-span-3" : "lg:col-span-2"}>

@@ -8,7 +8,7 @@ import {
     Plus, Settings, LayoutGrid, Star, ArrowLeft, ArrowRight, Trash2, Search, 
     Sparkles, Maximize2, Minimize2, User, Cpu, Shield, Globe, Database, 
     Sliders, RefreshCw, Hammer, Compass, HardDrive, Lock, Zap, Wifi, Play, HelpCircle,
-    Palette, X, MapPin, ChevronLeft, ChevronRight
+    Palette, X, MapPin, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye, EyeOff, ArrowUp, ArrowDown, Settings2
 } from "lucide-react";
 import { GridArea } from "./grid-area";
 import { useToast } from "@/components/ui/use-toast";
@@ -57,6 +57,20 @@ const PROFILES: UserProfile[] = [
     { id: "prof-2", type: "ARTISTIC", displayName: "Aether Wave", handle: "aetherwave", avatarUrl: "https://placehold.co/80x80/10b981/ffffff?text=AW", bio: "Musa generativa del multiverso. Shaders de cristal.", reputation: 720 },
     { id: "prof-3", type: "ANONYMOUS", displayName: "Agent 404", handle: "agent404", avatarUrl: "https://placehold.co/80x80/DC143C/ffffff?text=404", bio: "Nodo soberano en modo fantasma.", reputation: 350 }
 ];
+
+const BUTTON_LABELS: Record<string, string> = {
+    profiles: "Selector de Perfiles",
+    memory: "Memoria Local",
+    ai: "Servicio de IA Exocórtex",
+    connections: "Conexiones",
+    themes: "Temas Rápidos",
+    servers: "Internet / VPN",
+    location: "Selector de Ubicación",
+    forge: "Forjar Widget",
+    edit: "Modo Edición",
+    fullscreen: "Pantalla Completa",
+    settings: "Ajustes de Menú"
+};
 
 // ── LocalStorage Helpers ─────────────────────────────────────────
 function loadDashboards(): Dashboard[] {
@@ -144,6 +158,33 @@ export function DashboardLayout() {
     // --- Side Toolbar / Panel State ---
     const [activeToolbarTab, setActiveToolbarTab] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    // --- Customizable Sidebar State ---
+    const DEFAULT_BUTTON_ORDER = useMemo(() => [
+        "profiles", "memory", "ai", "connections", "themes", "servers", 
+        "divider", "location", "forge", "edit", "fullscreen", "settings"
+    ], []);
+
+    const [sidebarConfig, setSidebarConfig] = useState<{
+        position: 'left' | 'right' | 'top' | 'bottom';
+        theme: 'liquid-crystal' | 'cyber-neon' | 'aurora-minimal';
+        buttonOrder: string[];
+        hiddenButtons: string[];
+    }>({
+        position: 'left',
+        theme: 'liquid-crystal',
+        buttonOrder: [
+            "profiles", "memory", "ai", "connections", "themes", "servers", 
+            "divider", "location", "forge", "edit", "fullscreen", "settings"
+        ],
+        hiddenButtons: []
+    });
+
+    const saveSidebarConfig = useCallback((newConfig: typeof sidebarConfig) => {
+        setSidebarConfig(newConfig);
+        localStorage.setItem('starseed_sidebar_config_v1', JSON.stringify(newConfig));
+    }, []);
+
     const [activeProfile, setActiveProfile] = useState<UserProfile>(PROFILES[0]);
     
     // Cognitive memory context integration
@@ -197,6 +238,25 @@ export function DashboardLayout() {
         const storedServers = localStorage.getItem(LS_SERVERS);
         if (storedServers) {
             try { setSelectedServers(JSON.parse(storedServers)); } catch {}
+        }
+
+        // Load sidebar config
+        try {
+            const raw = localStorage.getItem('starseed_sidebar_config_v1');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                setSidebarConfig({
+                    position: parsed.position || 'left',
+                    theme: parsed.theme || 'liquid-crystal',
+                    buttonOrder: parsed.buttonOrder || [
+                        "profiles", "memory", "ai", "connections", "themes", "servers", 
+                        "divider", "location", "forge", "edit", "fullscreen", "settings"
+                    ],
+                    hiddenButtons: parsed.hiddenButtons || []
+                });
+            }
+        } catch (e) {
+            console.error("Error loading sidebar config:", e);
         }
     }, []);
 
@@ -581,6 +641,261 @@ export function DashboardLayout() {
         }
     };
 
+    // --- Customizable Sidebar Computed Properties ---
+    const isVertical = useMemo(() => sidebarConfig.position === 'left' || sidebarConfig.position === 'right', [sidebarConfig.position]);
+
+    const mainPaddingClass = useMemo(() => {
+        if (isFullscreen) return "gap-0 p-0";
+        if (!isSidebarOpen) {
+            // When menu is closed, keep a small margin to make sure workspace elements aren't overlapping the floating toggle button.
+            switch (sidebarConfig.position) {
+                case 'left': return "gap-6 pl-16 pr-6 py-6";
+                case 'right': return "gap-6 pr-16 pl-6 py-6";
+                case 'top': return "gap-6 pt-16 pb-6 px-6";
+                case 'bottom': return "gap-6 pb-16 pt-6 px-6";
+                default: return "gap-6 pl-16 pr-6 py-6";
+            }
+        }
+        
+        switch (sidebarConfig.position) {
+            case 'left': return "gap-6 pl-20 md:pl-24 pr-6 py-6";
+            case 'right': return "gap-6 pr-20 md:pr-24 pl-6 py-6";
+            case 'top': return "gap-6 pt-20 md:pt-24 pb-6 px-6";
+            case 'bottom': return "gap-6 pb-20 md:pb-24 pt-6 px-6";
+            default: return "gap-6 pl-20 md:pl-24 pr-6 py-6";
+        }
+    }, [isFullscreen, isSidebarOpen, sidebarConfig.position]);
+
+    const fixedContainerClass = useMemo(() => {
+        switch (sidebarConfig.position) {
+            case 'right':
+                return "fixed right-4 top-1/2 -translate-y-1/2 z-[80] flex flex-row-reverse items-center pointer-events-none gap-3";
+            case 'top':
+                return "fixed top-4 left-1/2 -translate-x-1/2 z-[80] flex flex-col items-center pointer-events-none gap-3";
+            case 'bottom':
+                return "fixed bottom-4 left-1/2 -translate-x-1/2 z-[80] flex flex-col-reverse items-center pointer-events-none gap-3";
+            case 'left':
+            default:
+                return "fixed left-4 top-1/2 -translate-y-1/2 z-[80] flex flex-row items-center pointer-events-none gap-3";
+        }
+    }, [sidebarConfig.position]);
+
+    const barThemeClass = useMemo(() => {
+        const layoutCls = isVertical
+            ? "flex-col w-14 h-auto p-3 rounded-3xl"
+            : "flex-row h-14 w-auto p-3 rounded-3xl";
+
+        switch (sidebarConfig.theme) {
+            case 'cyber-neon':
+                return cn(
+                    "pointer-events-auto flex items-center gap-2 bg-slate-950/95 border border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.25)] backdrop-blur-xl shrink-0 transition-all duration-300",
+                    layoutCls
+                );
+            case 'aurora-minimal':
+                return cn(
+                    "pointer-events-auto flex items-center gap-2 bg-gradient-to-br from-purple-950/20 to-emerald-950/20 border border-white/5 shadow-lg backdrop-blur-2xl shrink-0 transition-all duration-300",
+                    layoutCls
+                );
+            case 'liquid-crystal':
+            default:
+                return cn(
+                    "pointer-events-auto flex items-center gap-2 bg-black/40 border border-white/10 shadow-xl backdrop-blur-2xl shrink-0 transition-all duration-300",
+                    layoutCls
+                );
+        }
+    }, [isVertical, sidebarConfig.theme]);
+
+    const toggleButtonThemeClass = useMemo(() => {
+        const base = "w-10 h-10 rounded-full border backdrop-blur-md transition-all shadow-lg hover:shadow-[0_0_15px_rgba(6,182,212,0.4)] pointer-events-auto shrink-0 z-50 flex items-center justify-center cursor-pointer";
+        
+        switch (sidebarConfig.theme) {
+            case 'cyber-neon':
+                return cn(
+                    base,
+                    "bg-slate-950/95 border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/20 hover:text-white hover:border-cyan-400"
+                );
+            case 'aurora-minimal':
+                return cn(
+                    base,
+                    "bg-black/30 border-white/5 text-emerald-400 hover:bg-emerald-500/20 hover:text-white hover:border-emerald-400/50"
+                );
+            case 'liquid-crystal':
+            default:
+                return cn(
+                    base,
+                    "bg-black/60 border-white/10 text-cyan-400 hover:bg-cyan-500/20 hover:text-white hover:border-white/20"
+                );
+        }
+    }, [sidebarConfig.theme]);
+
+    const toggleIcon = useMemo(() => {
+        if (isSidebarOpen) {
+            if (sidebarConfig.position === 'left') return <ChevronLeft className="w-5 h-5" />;
+            if (sidebarConfig.position === 'right') return <ChevronRight className="w-5 h-5" />;
+            if (sidebarConfig.position === 'top') return <ChevronUp className="w-5 h-5" />;
+            return <ChevronDown className="w-5 h-5" />;
+        } else {
+            if (sidebarConfig.position === 'left') return <ChevronRight className="w-5 h-5" />;
+            if (sidebarConfig.position === 'right') return <ChevronLeft className="w-5 h-5" />;
+            if (sidebarConfig.position === 'top') return <ChevronDown className="w-5 h-5" />;
+            return <ChevronUp className="w-5 h-5" />;
+        }
+    }, [isSidebarOpen, sidebarConfig.position]);
+
+    const motionInitial = useMemo(() => {
+        if (sidebarConfig.position === 'left') return { opacity: 0, x: -50, y: 0, scale: 0.9 };
+        if (sidebarConfig.position === 'right') return { opacity: 0, x: 50, y: 0, scale: 0.9 };
+        if (sidebarConfig.position === 'top') return { opacity: 0, x: 0, y: -50, scale: 0.9 };
+        return { opacity: 0, x: 0, y: 50, scale: 0.9 };
+    }, [sidebarConfig.position]);
+
+    const flyoutInitial = useMemo(() => {
+        if (sidebarConfig.position === 'left') return { opacity: 0, x: -30, y: 0, scale: 0.95 };
+        if (sidebarConfig.position === 'right') return { opacity: 0, x: 30, y: 0, scale: 0.95 };
+        if (sidebarConfig.position === 'top') return { opacity: 0, x: 0, y: -30, scale: 0.95 };
+        return { opacity: 0, x: 0, y: 30, scale: 0.95 };
+    }, [sidebarConfig.position]);
+
+    const renderSidebarButton = useCallback((buttonId: string) => {
+        if (sidebarConfig.hiddenButtons.includes(buttonId)) return null;
+
+        switch (buttonId) {
+            case "profiles":
+                return (
+                    <SidebarIconButton 
+                        key="profiles"
+                        icon={<User className="w-5 h-5" />} 
+                        label="Perfiles" 
+                        color="cyan"
+                        active={activeToolbarTab === "profiles"}
+                        onClick={() => setActiveToolbarTab(activeToolbarTab === "profiles" ? null : "profiles")}
+                    />
+                );
+            case "memory":
+                return (
+                    <SidebarIconButton 
+                        key="memory"
+                        icon={<HardDrive className="w-5 h-5" />} 
+                        label="Memoria local" 
+                        color="emerald"
+                        active={activeToolbarTab === "memory"}
+                        onClick={() => setActiveToolbarTab(activeToolbarTab === "memory" ? null : "memory")}
+                    />
+                );
+            case "ai":
+                return (
+                    <SidebarIconButton 
+                        key="ai"
+                        icon={<Cpu className="w-5 h-5" />} 
+                        label="Servicio de IA" 
+                        color="cyan"
+                        active={activeToolbarTab === "ai"}
+                        onClick={() => setActiveToolbarTab(activeToolbarTab === "ai" ? null : "ai")}
+                    />
+                );
+            case "connections":
+                return (
+                    <SidebarIconButton 
+                        key="connections"
+                        icon={<Wifi className="w-5 h-5" />} 
+                        label="Conexiones" 
+                        color="purple"
+                        active={activeToolbarTab === "connections"}
+                        onClick={() => setActiveToolbarTab(activeToolbarTab === "connections" ? null : "connections")}
+                    />
+                );
+            case "themes":
+                return (
+                    <SidebarIconButton 
+                        key="themes"
+                        icon={<Palette className="w-5 h-5" />} 
+                        label="Temas rápidos" 
+                        color="amber"
+                        active={activeToolbarTab === "themes"}
+                        onClick={() => setActiveToolbarTab(activeToolbarTab === "themes" ? null : "themes")}
+                    />
+                );
+            case "servers":
+                return (
+                    <SidebarIconButton 
+                        key="servers"
+                        icon={<Globe className="w-5 h-5" />} 
+                        label="Internet / VPN" 
+                        color="crimson"
+                        active={activeToolbarTab === "servers"}
+                        onClick={() => setActiveToolbarTab(activeToolbarTab === "servers" ? null : "servers")}
+                    />
+                );
+            case "divider":
+                return (
+                    <div 
+                        key="divider"
+                        className={cn(
+                            isVertical ? "w-8 h-px my-1" : "h-8 w-px mx-1", 
+                            "bg-white/10 rounded-full shrink-0"
+                        )} 
+                    />
+                );
+            case "location":
+                return (
+                    <SidebarIconButton 
+                        key="location"
+                        icon={<MapPin className="w-5 h-5" />} 
+                        label="Ubicación" 
+                        color="cyan" 
+                        onClick={() => {
+                            const event = new CustomEvent('starseed:open-location');
+                            window.dispatchEvent(event);
+                        }}
+                    />
+                );
+            case "forge":
+                return (
+                    <SidebarIconButton 
+                        key="forge"
+                        icon={<Hammer className="w-5 h-5 text-indigo-300" />} 
+                        label="Forjar Widget" 
+                        color="neutral" 
+                        onClick={() => setIsForgeOpen(true)} 
+                    />
+                );
+            case "edit":
+                return (
+                    <SidebarIconButton 
+                        key="edit"
+                        icon={<LayoutGrid className="w-5 h-5" />} 
+                        label={isEditMode ? "Terminar" : "Editar"} 
+                        color={isEditMode ? "emerald" : "neutral"} 
+                        active={isEditMode}
+                        onClick={() => setIsEditMode(!isEditMode)} 
+                    />
+                );
+            case "fullscreen":
+                return (
+                    <SidebarIconButton 
+                        key="fullscreen"
+                        icon={isFullscreen ? <Minimize2 className="w-5 h-5 text-amber-400" /> : <Maximize2 className="w-5 h-5" />} 
+                        label={isFullscreen ? "Salir Pantalla Completa" : "Pantalla Completa"} 
+                        color="neutral" 
+                        onClick={() => setIsFullscreen(!isFullscreen)} 
+                    />
+                );
+            case "settings":
+                return (
+                    <SidebarIconButton 
+                        key="settings"
+                        icon={<Settings className="w-5 h-5 text-slate-300" />} 
+                        label="Ajustes Menú" 
+                        color="cyan" 
+                        active={activeToolbarTab === "settings"}
+                        onClick={() => setActiveToolbarTab(activeToolbarTab === "settings" ? null : "settings")} 
+                    />
+                );
+            default:
+                return null;
+        }
+    }, [activeToolbarTab, isEditMode, isFullscreen, isVertical, sidebarConfig.hiddenButtons, sidebarConfig.position, sidebarConfig.theme]);
+
     // Loading State
     if (loading) {
         return (
@@ -594,102 +909,23 @@ export function DashboardLayout() {
         <WeatherLocationProvider>
             <div className={cn(
                 "relative flex flex-row w-full select-none min-h-screen transition-all duration-500",
-                isFullscreen ? "gap-0 p-0" : "gap-6 pl-16 md:pl-20"
+                mainPaddingClass
             )}>
                 
                 {/* ── CIBERDELIC SIDE BAR TOOLBAR (Left side, absolute / sticky float) ── */}
-                <div className="fixed left-4 top-1/2 -translate-y-1/2 z-[80] flex flex-row items-center pointer-events-none gap-3">
+                <div className={fixedContainerClass}>
                     
                     {/* Collapsed / Icons Bar */}
                     <AnimatePresence>
                         {isSidebarOpen && (
                             <motion.div
-                                initial={{ opacity: 0, x: -50, scale: 0.9 }}
-                                animate={{ opacity: 1, x: 0, scale: 1 }}
-                                exit={{ opacity: 0, x: -50, scale: 0.9 }}
+                                initial={motionInitial}
+                                animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+                                exit={motionInitial}
                                 transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                                className="pointer-events-auto flex flex-col items-center gap-2 p-3 bg-black/40 border border-white/10 rounded-3xl backdrop-blur-2xl shadow-xl w-14 shrink-0"
+                                className={barThemeClass}
                             >
-                                {/* Profile selector icon */}
-                                <SidebarIconButton 
-                                    icon={<User className="w-5 h-5" />} 
-                                    label="Perfiles" 
-                                    color="cyan"
-                                    active={activeToolbarTab === "profiles"}
-                                    onClick={() => setActiveToolbarTab(activeToolbarTab === "profiles" ? null : "profiles")}
-                                />
-                                {/* Cognitive local memory */}
-                                <SidebarIconButton 
-                                    icon={<HardDrive className="w-5 h-5" />} 
-                                    label="Memoria local" 
-                                    color="emerald"
-                                    active={activeToolbarTab === "memory"}
-                                    onClick={() => setActiveToolbarTab(activeToolbarTab === "memory" ? null : "memory")}
-                                />
-                                {/* AI / Exocortex service config */}
-                                <SidebarIconButton 
-                                    icon={<Cpu className="w-5 h-5" />} 
-                                    label="Servicio de IA" 
-                                    color="cyan"
-                                    active={activeToolbarTab === "ai"}
-                                    onClick={() => setActiveToolbarTab(activeToolbarTab === "ai" ? null : "ai")}
-                                />
-                                {/* Active Service Toggles */}
-                                <SidebarIconButton 
-                                    icon={<Wifi className="w-5 h-5" />} 
-                                    label="Conexiones" 
-                                    color="purple"
-                                    active={activeToolbarTab === "connections"}
-                                    onClick={() => setActiveToolbarTab(activeToolbarTab === "connections" ? null : "connections")}
-                                />
-                                {/* Quick Theme Picker */}
-                                <SidebarIconButton 
-                                    icon={<Palette className="w-5 h-5" />} 
-                                    label="Temas rápidos" 
-                                    color="amber"
-                                    active={activeToolbarTab === "themes"}
-                                    onClick={() => setActiveToolbarTab(activeToolbarTab === "themes" ? null : "themes")}
-                                />
-                                {/* Internet servers, Tor, VPN */}
-                                <SidebarIconButton 
-                                    icon={<Globe className="w-5 h-5" />} 
-                                    label="Internet / VPN" 
-                                    color="crimson"
-                                    active={activeToolbarTab === "servers"}
-                                    onClick={() => setActiveToolbarTab(activeToolbarTab === "servers" ? null : "servers")}
-                                />
-
-                                {/* Divider */}
-                                <div className="w-8 h-px bg-white/10 my-1 rounded-full" />
-
-                                {/* Standard Controls direct access in sidebar */}
-                                <SidebarIconButton 
-                                    icon={<MapPin className="w-5 h-5" />} 
-                                    label="Ubicación" 
-                                    color="cyan" 
-                                    onClick={() => {
-                                        const event = new CustomEvent('starseed:open-location');
-                                        window.dispatchEvent(event);
-                                    }}
-                                />
-                                <SidebarIconButton 
-                                    icon={<Hammer className="w-5 h-5 text-indigo-300" />} 
-                                    label="Forjar Widget" 
-                                    color="neutral" 
-                                    onClick={() => setIsForgeOpen(true)} 
-                                />
-                                <SidebarIconButton 
-                                    icon={<LayoutGrid className="w-5 h-5" />} 
-                                    label={isEditMode ? "Terminar" : "Editar"} 
-                                    color={isEditMode ? "emerald" : "neutral"} 
-                                    onClick={() => setIsEditMode(!isEditMode)} 
-                                />
-                                <SidebarIconButton 
-                                    icon={isFullscreen ? <Minimize2 className="w-5 h-5 text-amber-400" /> : <Maximize2 className="w-5 h-5" />} 
-                                    label={isFullscreen ? "Salir Pantalla Completa" : "Pantalla Completa"} 
-                                    color="neutral" 
-                                    onClick={() => setIsFullscreen(!isFullscreen)} 
-                                />
+                                {sidebarConfig.buttonOrder.map(buttonId => renderSidebarButton(buttonId))}
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -708,17 +944,10 @@ export function DashboardLayout() {
                                     setActiveToolbarTab(null);
                                 }
                             }}
-                            className={cn(
-                                "w-10 h-10 rounded-full bg-black/60 border border-white/10 backdrop-blur-md text-cyan-400 hover:bg-cyan-500/20 hover:text-white transition-all shadow-lg hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]",
-                                !isSidebarOpen && "animate-pulse"
-                            )}
+                            className={toggleButtonThemeClass}
                             title={isSidebarOpen ? "Ocultar menú lateral" : "Mostrar menú lateral"}
                         >
-                            {isSidebarOpen ? (
-                                <ChevronLeft className="w-5 h-5 text-cyan-300" />
-                            ) : (
-                                <ChevronRight className="w-5 h-5 text-cyan-300" />
-                            )}
+                            {toggleIcon}
                         </Button>
                     </motion.div>
 
@@ -726,9 +955,9 @@ export function DashboardLayout() {
                     <AnimatePresence>
                         {isSidebarOpen && activeToolbarTab && (
                             <motion.div
-                                initial={{ opacity: 0, x: -30, scale: 0.95 }}
-                                animate={{ opacity: 1, x: 0, scale: 1 }}
-                                exit={{ opacity: 0, x: -30, scale: 0.95 }}
+                                initial={flyoutInitial}
+                                animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+                                exit={flyoutInitial}
                                 transition={{ type: "spring", stiffness: 350, damping: 25 }}
                                 className="pointer-events-auto w-[280px] sm:w-[320px] bg-black/80 backdrop-blur-3xl border border-white/10 p-5 rounded-[2rem] shadow-2xl flex flex-col gap-4 text-white overflow-hidden relative"
                             >
@@ -741,7 +970,8 @@ export function DashboardLayout() {
                                             activeToolbarTab === "ai" ? "Motor Exocórtex AI" :
                                             activeToolbarTab === "connections" ? "Conexiones Activas" :
                                             activeToolbarTab === "themes" ? "Temas Curados" :
-                                            "Seguridad y Sincronización"}
+                                            activeToolbarTab === "servers" ? "Seguridad y Sincronización" :
+                                            "Ajustes de Barra Lateral"}
                                     </h4>
                                     <button onClick={() => setActiveToolbarTab(null)} className="p-1 hover:bg-white/5 rounded-full text-white/40 hover:text-white transition-all">
                                         <X className="w-4 h-4" />
@@ -981,7 +1211,7 @@ export function DashboardLayout() {
                                                 </div>
                                             </div>
 
-                                            {/* Liquidation / Sync merging button */}
+                                            {/* Sync sync button */}
                                             <div className="space-y-2 pt-2">
                                                 <Button 
                                                     disabled={isSyncing}
@@ -1013,6 +1243,150 @@ export function DashboardLayout() {
                                                     </div>
                                                 )}
                                             </div>
+                                        </div>
+                                    )}
+
+                                    {/* Settings Tab Content */}
+                                    {activeToolbarTab === "settings" && (
+                                        <div className="space-y-4">
+                                            {/* POSITION SELECTOR */}
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Posición del Menú</Label>
+                                                <div className="grid grid-cols-2 gap-1.5">
+                                                    {(['left', 'right', 'top', 'bottom'] as const).map((pos) => (
+                                                        <button
+                                                            key={pos}
+                                                            onClick={() => saveSidebarConfig({ ...sidebarConfig, position: pos })}
+                                                            className={cn(
+                                                                "py-1.5 px-3 rounded-xl border text-[10px] uppercase font-mono transition-all text-center",
+                                                                sidebarConfig.position === pos
+                                                                    ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]"
+                                                                    : "border-white/5 bg-white/[0.02] text-white/50 hover:bg-white/5 hover:text-white"
+                                                            )}
+                                                        >
+                                                            {pos === 'left' ? 'Izquierda' : pos === 'right' ? 'Derecha' : pos === 'top' ? 'Arriba' : 'Abajo'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* THEME SELECTOR */}
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Diseño Estético</Label>
+                                                <div className="space-y-1.5">
+                                                    {[
+                                                        { id: 'liquid-crystal', name: 'Cristal Líquido', desc: 'Vidrio translúcido ciberdélico' },
+                                                        { id: 'cyber-neon', name: 'Ciber Neón', desc: 'Líneas neón cian brillantes' },
+                                                        { id: 'aurora-minimal', name: 'Aurora Sutil', desc: 'Suaves degradados cósmicos' }
+                                                    ].map((t) => (
+                                                        <button
+                                                            key={t.id}
+                                                            onClick={() => saveSidebarConfig({ ...sidebarConfig, theme: t.id as any })}
+                                                            className={cn(
+                                                                "w-full p-2 rounded-xl border transition-all text-left flex flex-col gap-0.5",
+                                                                sidebarConfig.theme === t.id
+                                                                    ? "border-cyan-500/50 bg-cyan-500/10 shadow-[0_0_10px_rgba(6,182,212,0.15)]"
+                                                                    : "border-white/5 bg-white/[0.02] hover:bg-white/5"
+                                                            )}
+                                                        >
+                                                            <span className={cn("text-[10px] font-semibold", sidebarConfig.theme === t.id ? "text-cyan-300" : "text-white/80")}>
+                                                                {t.name}
+                                                            </span>
+                                                            <span className="text-[8px] text-white/40">{t.desc}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* BUTTONS ORDER AND VISIBILITY */}
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Acomodo de Opciones</Label>
+                                                <div className="space-y-1 bg-black/40 border border-white/5 p-2 rounded-2xl max-h-[180px] overflow-y-auto pr-1 scrollbar-thin">
+                                                    {sidebarConfig.buttonOrder.map((buttonId, idx) => {
+                                                        if (buttonId === 'divider') return null;
+                                                        const label = BUTTON_LABELS[buttonId] || buttonId;
+                                                        const isHidden = sidebarConfig.hiddenButtons.includes(buttonId);
+
+                                                        const handleMoveUp = (e: React.MouseEvent) => {
+                                                            e.stopPropagation();
+                                                            if (idx === 0) return;
+                                                            const newOrder = [...sidebarConfig.buttonOrder];
+                                                            const temp = newOrder[idx];
+                                                            newOrder[idx] = newOrder[idx - 1];
+                                                            newOrder[idx - 1] = temp;
+                                                            saveSidebarConfig({ ...sidebarConfig, buttonOrder: newOrder });
+                                                        };
+
+                                                        const handleMoveDown = (e: React.MouseEvent) => {
+                                                            e.stopPropagation();
+                                                            if (idx === sidebarConfig.buttonOrder.length - 1) return;
+                                                            const newOrder = [...sidebarConfig.buttonOrder];
+                                                            const temp = newOrder[idx];
+                                                            newOrder[idx] = newOrder[idx + 1];
+                                                            newOrder[idx + 1] = temp;
+                                                            saveSidebarConfig({ ...sidebarConfig, buttonOrder: newOrder });
+                                                        };
+
+                                                        const handleToggleVisibility = (e: React.MouseEvent) => {
+                                                            e.stopPropagation();
+                                                            const newHidden = isHidden
+                                                                ? sidebarConfig.hiddenButtons.filter(b => b !== buttonId)
+                                                                : [...sidebarConfig.hiddenButtons, buttonId];
+                                                            saveSidebarConfig({ ...sidebarConfig, hiddenButtons: newHidden });
+                                                        };
+
+                                                        return (
+                                                            <div 
+                                                                key={buttonId}
+                                                                className="flex items-center justify-between p-1.5 rounded-xl border border-white/5 bg-white/[0.01] text-[9px] hover:bg-white/5"
+                                                            >
+                                                                <span className="truncate max-w-[130px] font-medium text-white/80">{label}</span>
+                                                                <div className="flex items-center gap-1 shrink-0">
+                                                                    <button
+                                                                        onClick={handleMoveUp}
+                                                                        disabled={idx === 0}
+                                                                        className="p-1 hover:bg-white/10 rounded disabled:opacity-20 text-white/60 hover:text-white"
+                                                                    >
+                                                                        <ArrowUp className="w-2.5 h-2.5" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={handleMoveDown}
+                                                                        disabled={idx === sidebarConfig.buttonOrder.length - 1}
+                                                                        className="p-1 hover:bg-white/10 rounded disabled:opacity-20 text-white/60 hover:text-white"
+                                                                    >
+                                                                        <ArrowDown className="w-2.5 h-2.5" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={handleToggleVisibility}
+                                                                        className="p-1 hover:bg-white/10 rounded text-cyan-400 hover:text-cyan-300"
+                                                                    >
+                                                                        {isHidden ? <EyeOff className="w-2.5 h-2.5 text-white/30" /> : <Eye className="w-2.5 h-2.5 text-cyan-400" />}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
+                                            {/* RESET BUTTON */}
+                                            <Button
+                                                onClick={() => {
+                                                    const resetConfig = {
+                                                        position: 'left' as const,
+                                                        theme: 'liquid-crystal' as const,
+                                                        buttonOrder: DEFAULT_BUTTON_ORDER,
+                                                        hiddenButtons: []
+                                                    };
+                                                    saveSidebarConfig(resetConfig);
+                                                    toast({ title: "Configuración Restablecida", description: "El menú ha vuelto a su diseño y acomodo predeterminados." });
+                                                }}
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-full text-[10px] h-8 rounded-xl border-white/10 hover:bg-white/5 text-white/70"
+                                            >
+                                                Restablecer Predeterminados
+                                            </Button>
                                         </div>
                                     )}
                                 </div>

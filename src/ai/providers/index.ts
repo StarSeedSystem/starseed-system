@@ -7,6 +7,8 @@ import { ollamaProvider } from "./ollama";
 import { openaiProvider } from "./openai";
 import { anthropicProvider } from "./anthropic";
 import { googleProvider } from "./google";
+import { deepseekProvider } from "./deepseek";
+import { groqProvider } from "./groq";
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
   ollama: ollamaProvider,
@@ -15,11 +17,15 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
   "openai-compatible": openaiProvider,
   anthropic: anthropicProvider,
   google: googleProvider,
+  deepseek: deepseekProvider,
+  groq: groqProvider,
 };
 
 /** Ordered for the picker UI: privacy-first first. */
 export const PROVIDER_ORDER: ProviderId[] = [
   "ollama",
+  "deepseek",
+  "groq",
   "openai",
   "anthropic",
   "google",

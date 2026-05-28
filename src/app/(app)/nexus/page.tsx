@@ -34,6 +34,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { QuickOptionsGrid } from "@/components/hermes/quick-options-grid";
 
 // --- Types ---
 type Workspace = {
@@ -363,14 +364,24 @@ export default function NexusPage() {
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center opacity-50">
-                        <BrainCircuit className="w-16 h-16 text-cyan-500/30 mb-6" />
+                    <div className="flex-1 flex flex-col items-center justify-center text-center opacity-90 p-6 overflow-y-auto">
+                        <BrainCircuit className="w-12 h-12 text-cyan-500/40 mb-3" />
                         <h2 className="text-2xl font-light font-headline uppercase tracking-widest text-cyan-100">Portal Nexus</h2>
-                        <p className="max-w-md text-cyan-200/50 mt-2">Selecciona un espacio de trabajo o crea uno nuevo para comenzar a interactuar con la red.</p>
-                        <Button className="mt-8 bg-cyan-500 hover:bg-cyan-400 text-black">
+                        <p className="max-w-md text-cyan-200/50 mt-2 mb-6">
+                            Selecciona un espacio de trabajo, crea uno nuevo o accede a cualquier sección del SOSD desde el catálogo unificado.
+                        </p>
+                        <Button className="mb-6 bg-cyan-500 hover:bg-cyan-400 text-black">
                             <Plus className="w-4 h-4 mr-2" />
                             Nuevo Espacio
                         </Button>
+                        <div className="w-full max-w-3xl mx-auto text-left">
+                            <QuickOptionsGrid
+                                title="Catálogo Nexus"
+                                description="Mismo catálogo de accesos rápidos que tu dock. Edita para añadir/quitar atajos desde aquí — los cambios se sincronizan en todas las superficies."
+                                columns={4}
+                                editable
+                            />
+                        </div>
                     </div>
                 )}
             </div>

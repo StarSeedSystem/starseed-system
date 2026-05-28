@@ -2,7 +2,11 @@
 'use client';
 
 /**
- * Calendario Unificado — Fuente única de verdad temporal del SOSD.
+ * Sincrómetro Unificado — Fuente única de verdad temporal del SOSD.
+ *
+ * (Antes "Calendario Unificado". Renombrado a Sincrómetro para reflejar que
+ * el sistema mide la simultaneidad entre varios ciclos a la vez —
+ * gregoriano, astrológico y lunar — sobre los mismos datos.)
  *
  * Esta store comparte la información entre /hub y /network/culture y cualquier
  * otra superficie que necesite los datos temporales del usuario. Mantiene
@@ -12,9 +16,15 @@
  *   - systemLogs → Hitos del sistema (votaciones, despliegues, hitos IA…).
  *
  * Cada ítem tiene una `layer` que permite filtrar visualmente desde el
- * calendario, y un campo `visibility` que decide si está conectado a la Red
+ * sincrómetro, y un campo `visibility` que decide si está conectado a la Red
  * (público) o pertenece sólo al usuario (privado). El "Exocórtex" (IA personal)
  * accede al snapshot completo para razonar con contexto temporal.
+ *
+ * IMPORTANTE — Invariante de sincronización:
+ * Todos los eventos, recordatorios y alarmas se guardan SIEMPRE en `date`
+ * ISO (YYYY-MM-DD). El `SincrometroMode` activo solo determina cómo se VEN
+ * — nunca cómo se almacenan. Por eso un evento creado en modo lunar es
+ * visible idéntico en modo gregoriano y astrológico, y viceversa.
  */
 
 import {
@@ -27,6 +37,7 @@ import {
   type ReactNode,
 } from 'react';
 import { communityEvents } from '@/lib/data';
+import type { SincrometroMode } from '@/lib/sincrometro';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 export type CalendarLayer =
@@ -124,6 +135,9 @@ export interface CalendarContextValue {
   /** Marca un aviso como ya disparado en esta sesión (evita re-disparo). */
   markAlertFired: (itemId: string, reminderId: string) => void;
   isAlertFired: (itemId: string, reminderId: string) => boolean;
+  /** Modo de sincrómetro activo (vista temporal). NO afecta el almacenamiento. */
+  sincrometroMode: SincrometroMode;
+  setSincrometroMode: (mode: SincrometroMode) => void;
 }
 
 // ── Metadatos de capa (color, etiqueta, descripción) ────────────────────────
@@ -298,14 +312,37 @@ const seedItems: CalendarItem[] = [
 // ── Contexto ────────────────────────────────────────────────────────────────
 const CalendarContext = createContext<CalendarContextValue | null>(null);
 
+const SINCROMETRO_MODE_KEY = 'starseed.sincrometro.mode.v1';
+
+function loadInitialMode(): SincrometroMode {
+  if (typeof window === 'undefined') return 'gregoriano';
+  try {
+    const stored = window.localStorage.getItem(SINCROMETRO_MODE_KEY);
+    if (stored === 'gregoriano' || stored === 'astrologico' || stored === 'lunar') {
+      return stored;
+    }
+  } catch {
+    /* ignore: SSR or storage disabled */
+  }
+  return 'gregoriano';
+}
+
 export function CalendarProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CalendarItem[]>(seedItems);
   const [visibleLayers, setVisibleLayers] = useState<Record<CalendarLayer, boolean>>(
     ALL_LAYERS.reduce((acc, l) => ({ ...acc, [l]: true }), {} as Record<CalendarLayer, boolean>)
   );
   const [activeAlert, setActiveAlert] = useState<ActiveAlert | null>(null);
+  const [sincrometroMode, setSincrometroModeState] = useState<SincrometroMode>(loadInitialMode);
   // Set de "itemId::reminderId" ya disparados (no se persiste — sólo sesión).
   const firedAlertsRef = useRef<Set<string>>(new Set());
+
+  const setSincrometroMode = useCallback((mode: SincrometroMode) => {
+    setSincrometroModeState(mode);
+    if (typeof window !== 'undefined') {
+      try { window.localStorage.setItem(SINCROMETRO_MODE_KEY, mode); } catch { /* noop */ }
+    }
+  }, []);
 
   const toggleLayer = useCallback((layer: CalendarLayer) => {
     setVisibleLayers((prev) => ({ ...prev, [layer]: !prev[layer] }));
@@ -459,6 +496,8 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       snoozeAlert,
       markAlertFired,
       isAlertFired,
+      sincrometroMode,
+      setSincrometroMode,
     }),
     [
       items,
@@ -478,6 +517,8 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       snoozeAlert,
       markAlertFired,
       isAlertFired,
+      sincrometroMode,
+      setSincrometroMode,
     ]
   );
 
@@ -491,6 +532,19 @@ export function useCalendar(): CalendarContextValue {
   }
   return ctx;
 }
+
+// ── Alias semánticos de Sincrómetro ──────────────────────────────────────
+// La store es la misma; estos nombres permiten que el código nuevo lea como
+// "sincrómetro" mientras los consumidores anteriores siguen funcionando.
+
+/** Alias canónico moderno del provider; idéntico a `CalendarProvider`. */
+export const SincrometroProvider = CalendarProvider;
+/** Hook canónico moderno; idéntico a `useCalendar`. */
+export const useSincrometro = useCalendar;
+export type SincrometroItem = CalendarItem;
+export type SincrometroLayer = CalendarLayer;
+export type SincrometroVisibility = CalendarVisibility;
+export type SincrometroContextValue = CalendarContextValue;
 
 // ── Helpers de fecha (sin libs) ─────────────────────────────────────────────
 export function toISODate(d: Date): string {

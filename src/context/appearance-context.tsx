@@ -247,6 +247,9 @@ export interface AppearanceConfig {
             config: Partial<AppearanceConfig>;
         }>;
     };
+    assistant: {
+        visible: boolean;
+    };
 }
 
 const defaultConfig: AppearanceConfig = {
@@ -472,6 +475,9 @@ const defaultConfig: AppearanceConfig = {
     themeStore: {
         activeMode: "primary",
         savedThemes: [],
+    },
+    assistant: {
+        visible: true,
     },
 };
 
