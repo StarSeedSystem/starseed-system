@@ -228,7 +228,9 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 }
             }}
             className={cn(
-                "relative min-h-[500px] flex-1 w-full rounded-[2rem] overflow-y-auto custom-scrollbar p-4 transition-all duration-500 ease-out backdrop-blur-sm",
+                // padding fluido (clamp) + holgura inferior para dock/FAB y safe-area:
+                // legible y usable de 320px a ultrawide, en táctil y escritorio.
+                "relative min-h-[500px] flex-1 w-full rounded-[clamp(1rem,2vw,2rem)] overflow-y-auto custom-scrollbar p-[clamp(0.5rem,1.5vw,1rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-500 ease-out backdrop-blur-sm",
                 isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-black/10 border border-white/5"
             )}
             {...containerTouchProps}

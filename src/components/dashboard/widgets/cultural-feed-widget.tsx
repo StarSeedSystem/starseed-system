@@ -23,6 +23,7 @@ export function CulturalFeedWidget() {
             subtitle="Obras · eventos · manifiestos"
             icon={Palette}
             accent="#ec4899"
+            connections={[{ label: "Cultura", href: "/network/culture", color: "#C9A8FF" }, { label: "Publicar", href: "/publish", color: "#FFBF00" }, { label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" }]}
             live
             actions={
                 <Link href="/network/culture" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">

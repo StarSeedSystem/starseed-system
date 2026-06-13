@@ -14,7 +14,7 @@ export function EconomicOverviewWidget() {
     const { data, loading } = useWidgetData("common.metrics", { refreshMs: 3500 });
 
     return (
-        <WidgetShell title="Pulso Económico" subtitle="Matriz de recursos" icon={Wallet} accent="#10b981" live>
+        <WidgetShell title="Pulso Económico" subtitle="Matriz de recursos" icon={Wallet} accent="#10b981" connections={[{ label: "Fundación", href: "https://starseed-nexus.vercel.app/#fundacion", color: "#FF8A5C" }, { label: "Comunidades", href: "/hub", color: "#9FE870" }]} live>
             {(size) => {
                 if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
                 const micro = size.tier === "micro" || size.vTier === "micro";

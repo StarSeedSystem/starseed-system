@@ -51,6 +51,7 @@ export function MyPagesWidget() {
             subtitle="Perfiles · comunidades · proyectos"
             icon={LayoutGrid}
             accent={ACCENT}
+            connections={[{ label: "Perfil", href: "/profile", color: "#7FB8FF" }, { label: "Comunidades", href: "/hub", color: "#9FE870" }, { label: "Publicar", href: "/publish", color: "#FFBF00" }]}
             actions={
                 <>
                     <Link href="/hub" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">

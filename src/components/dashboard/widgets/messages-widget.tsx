@@ -23,6 +23,7 @@ export function MessagesWidget() {
             subtitle="Mensajes y juntas"
             icon={MessageSquare}
             accent="#0ea5e9"
+            connections={[{ label: "Comunidades", href: "/hub", color: "#9FE870" }, { label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" }, { label: "Perfil", href: "/profile", color: "#7FB8FF" }]}
             live
             actions={
                 <Link href="/network" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">

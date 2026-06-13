@@ -23,6 +23,11 @@ export function NexusQuickAccessWidget() {
             subtitle="Tu Exocórtex"
             icon={BrainCircuit}
             accent="#6366f1"
+            connections={[
+                { label: "Ecosistema IA", href: "/ai-setup", color: "#22d3ee" },
+                { label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" },
+                { label: "Biblioteca", href: "/library", color: "#FFBF00" },
+            ]}
             live
             actions={
                 <Link href="/agent" className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/25 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/20 transition-colors cursor-pointer">

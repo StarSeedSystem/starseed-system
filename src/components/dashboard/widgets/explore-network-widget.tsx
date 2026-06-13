@@ -45,6 +45,7 @@ export function ExploreNetworkWidget() {
             subtitle="Entidades en tendencia"
             icon={Telescope}
             accent={ACCENT}
+            connections={[{ label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" }, { label: "Comunidades", href: "/hub", color: "#9FE870" }, { label: "Explorer", href: "/explorer", color: "#22d3ee" }]}
             live
             actions={
                 <Link href="/explorer" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">

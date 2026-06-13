@@ -23,6 +23,7 @@ export function LearningPathWidget() {
             subtitle="Mentoría humano · IA"
             icon={GraduationCap}
             accent="#a855f7"
+            connections={[{ label: "Educación", href: "/network/education", color: "#7FB8FF" }, { label: "Biblioteca", href: "/library", color: "#FFBF00" }, { label: "Agente IA", href: "/agent", color: "#22d3ee" }]}
             actions={
                 <Link href="/network/education" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
                     Aprender <ChevronRight className="size-3" />

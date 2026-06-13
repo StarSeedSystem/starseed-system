@@ -74,6 +74,11 @@ export function PoliticalSummaryWidget() {
             subtitle="Propuestas y votación"
             icon={Landmark}
             accent={ACCENT}
+            connections={[
+                { label: "Comunidades", href: "/hub", color: "#9FE870" },
+                { label: "Cultura", href: "/network/culture", color: "#C9A8FF" },
+                { label: "Educación", href: "/network/education", color: "#7FB8FF" },
+            ]}
             live
             actions={
                 <Link href="/network/politics" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
