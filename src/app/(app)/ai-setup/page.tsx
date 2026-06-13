@@ -1,5 +1,8 @@
 'use client';
 
+// Evita el bailout de prerender estatico por useSearchParams (build de Vercel).
+export const dynamic = "force-dynamic";
+
 import { AiDetectionWizard } from '@/hermes-integration/06-ai-detection-wizard';
 import { hermes } from '@/hermes-integration';
 import { useEffect, useState } from 'react';

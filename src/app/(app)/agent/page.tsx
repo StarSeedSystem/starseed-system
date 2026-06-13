@@ -1,5 +1,8 @@
 "use client";
 
+// Evita el bailout de prerender estatico por useSearchParams (build de Vercel).
+export const dynamic = "force-dynamic";
+
 import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
