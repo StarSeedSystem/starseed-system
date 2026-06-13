@@ -14,7 +14,7 @@
 - **Propietario / Visionario:** Alex Bordón Garrigós (alexbordongarrigos@gmail.com)
 - **Organización GitHub esperada:** `StarSeedSystem`
 - **Repositorio esperado:** `StarSeedSystem/starseed-system`
-- **URL de despliegue prevista:** `https://starseed-nexus.vercel.app`
+- **URL de despliegue (oficial):** `https://starseed-os.vercel.app` — este repositorio ES "StarSeed OS". El portal de marca del ecosistema es **StarSeed Nexus** (`https://starseed-nexus.vercel.app`, repo `alexbordongarrigos/Starseed-Cafe`); comparten cuenta soberana (Supabase `dzkjapinnewkxzjltadv`). Ver `architecture/integracion-portal-starseed-os.md`.
 
 ---
 

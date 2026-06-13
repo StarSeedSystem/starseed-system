@@ -8,7 +8,7 @@ import {
     Heart, Palette, Network, Book, Rocket, Calendar, Plus,
     BrainCircuit, CloudLightning, CloudRain, Wind, ThermometerSun,
     Tornado, Globe, MoonStar, Sparkles, Radio, Calculator, ListChecks,
-    MessageSquare, BellRing, Zap, Search, Star, ChevronRight,
+    MessageSquare, BellRing, Zap, Search, Star, ChevronRight, Wallet,
     type LucideIcon
 } from "lucide-react";
 import { useState, useMemo } from "react";
@@ -105,6 +105,13 @@ const AVAILABLE_WIDGETS: WidgetDefinition[] = [
         icon: <Zap className="h-5 w-5 text-emerald-400" />,
         primaryCategory: 'economia', secondaryCategories: [],
         tags: ['seeds', 'karma', 'finanzas', 'recursos'], isPopular: true,
+    },
+    {
+        type: 'CARTERA_STARSEED', title: 'Cartera StarSeed',
+        description: 'Semillas, granos y bolsa beta de la cuenta soberana unificada.',
+        icon: <Wallet className="h-5 w-5 text-lime-400" />,
+        primaryCategory: 'economia', secondaryCategories: ['perfil'],
+        tags: ['cartera', 'semillas', 'granos', 'bolsa', 'mercado', 'wallet'],
     },
     {
         type: 'CALCULATOR', title: 'Calculadora Cuántica',

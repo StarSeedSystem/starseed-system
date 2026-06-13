@@ -15,6 +15,7 @@ import { MentalCoherenceWidget } from "@/components/dashboard/widgets/mental-coh
 import { ActiveProjectsWidget } from "@/components/dashboard/widgets/active-projects-widget";
 import { CollabProjectsWidget } from "@/components/dashboard/widgets/collab-projects-widget";
 import { EconomicOverviewWidget } from "@/components/dashboard/widgets/economic-overview-widget";
+import { CarteraStarseedWidget } from "@/components/dashboard/widgets/cartera-starseed";
 
 import { WeatherBasicWidget } from "@/modules/weather/components/widgets/terrestrial/weather-basic-widget";
 import { WeatherBasicFluidWidget } from "@/modules/weather/components/widgets/terrestrial/weather-basic-fluid";
@@ -43,10 +44,59 @@ import { RelevantPostsWidget } from "@/components/dashboard/widgets/relevant-pos
 import { MessagesWidget } from "@/components/dashboard/widgets/messages-widget";
 import { NotificationsWidget } from "@/components/dashboard/widgets/notifications-widget";
 import { AiGeneratedWidget } from "@/components/dashboard/widgets/ai-generated-widget";
+import { LearningPathWidget } from "@/components/dashboard/widgets/learning-path-widget";
+import { SocialRadarWidget } from "@/components/dashboard/widgets/social-radar-widget";
+import { LiveDataWidget } from "@/components/dashboard/widgets/live-data-widget";
+import {
+    CivicAlchemyWidget,
+    VitalFlowAuditWidget,
+    SocialResonanceWidget,
+    GiftAgoraWidget,
+    CommonsMatrixWidget,
+    FoodOracleWidget,
+    RegenTracerWidget,
+} from "@/components/dashboard/widgets/gen3";
 
-// We can extract other widgets later
-import { Activity, Calendar, Heart, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+// Cuarta generación — cobertura final del catálogo
+import {
+    ElderCouncilWidget,
+    RestorativeCourtWidget,
+    BarterMarketWidget,
+    EnergyGridWidget,
+    MentorMatchWidget,
+    UniversalLibraryWidget,
+    MultiverseHubWidget,
+    CreativeStudioWidget,
+    OraclePredictWidget,
+    IdentityVaultWidget,
+    EnergyMapWidget,
+} from "@/components/dashboard/widgets/gen4";
+
+// Quinta generación — cobertura ampliada del catálogo
+import { FlowDirectorWidget } from "@/components/dashboard/widgets/gen5/flow-director-widget";
+import { ProjectSwarmWidget } from "@/components/dashboard/widgets/gen5/project-swarm-widget";
+import { AbundanceRadarWidget } from "@/components/dashboard/widgets/gen5/abundance-radar-widget";
+import { TransitFlowWidget } from "@/components/dashboard/widgets/gen5/transit-flow-widget";
+import { CryptoShieldWidget } from "@/components/dashboard/widgets/gen5/crypto-shield-widget";
+import { HabitatCoreWidget } from "@/components/dashboard/widgets/gen5/habitat-core-widget";
+import { SerendipityLensWidget } from "@/components/dashboard/widgets/gen5/serendipity-lens-widget";
+import { IdeaForgeWidget } from "@/components/dashboard/widgets/gen5/idea-forge-widget";
+import { MeritGalleryWidget } from "@/components/dashboard/widgets/gen5/merit-gallery-widget";
+import { SocietyPulseWidget } from "@/components/dashboard/widgets/gen5/society-pulse-widget";
+
+// Segunda generación — widgets adaptativos (kit + capa de datos en vivo)
+import {
+    AgoraCausalWidget,
+    LiquidDelegationWidget,
+    OikosMetabolismWidget,
+    SkillTreeWidget,
+    AstrauraCortexWidget,
+    SovereignNodeWidget,
+    AkashicCodexWidget,
+    NatalChartWidget,
+    MeshRadarWidget,
+    ImmersionPortalWidget,
+} from "@/components/dashboard/widgets/gen2";
 
 interface WidgetProps {
     widget: DashboardWidget;
@@ -77,6 +127,8 @@ export function WidgetRegistry({ widget }: WidgetProps) {
             return <CollabProjectsWidget />;
         case 'ECONOMIC_OVERVIEW':
             return <EconomicOverviewWidget />;
+        case 'CARTERA_STARSEED':
+            return <CarteraStarseedWidget />;
         case 'ACTIVE_PROJECTS':
             return <ActiveProjectsWidget />;
         case 'WELLNESS':
@@ -135,8 +187,97 @@ export function WidgetRegistry({ widget }: WidgetProps) {
             return <MessagesWidget />;
         case 'NOTIFICATIONS':
             return <NotificationsWidget />;
+        case 'LIVE_DATA':
+            return <LiveDataWidget />;
         case 'AI_GENERATED':
             return <AiGeneratedWidget widget={widget} />;
+
+        // ── Segunda generación: widgets adaptativos ──
+        case 'AGORA_CAUSAL':
+            return <AgoraCausalWidget />;
+        case 'LIQUID_DELEGATION':
+            return <LiquidDelegationWidget />;
+        case 'OIKOS_METABOLISM':
+            return <OikosMetabolismWidget />;
+        case 'SKILL_TREE':
+            return <SkillTreeWidget />;
+        case 'ASTRAURA_CORTEX':
+            return <AstrauraCortexWidget />;
+        case 'SOVEREIGN_NODE':
+            return <SovereignNodeWidget />;
+        case 'AKASHIC_CODEX':
+            return <AkashicCodexWidget />;
+        case 'NATAL_CHART':
+            return <NatalChartWidget />;
+        case 'MESH_RADAR':
+            return <MeshRadarWidget />;
+        case 'IMMERSION_PORTAL':
+            return <ImmersionPortalWidget />;
+
+        // ── Tercera generación: oleada Política/Ontocracia ──
+        case 'CIVIC_ALCHEMY':
+            return <CivicAlchemyWidget />;
+        case 'VITAL_FLOW_AUDIT':
+            return <VitalFlowAuditWidget />;
+        case 'SOCIAL_RESONANCE':
+            return <SocialResonanceWidget />;
+
+        // ── Oleada Economía/Ecología ──
+        case 'GIFT_AGORA':
+            return <GiftAgoraWidget />;
+        case 'COMMONS_MATRIX':
+            return <CommonsMatrixWidget />;
+        case 'FOOD_ORACLE':
+            return <FoodOracleWidget />;
+        case 'REGEN_TRACER':
+            return <RegenTracerWidget />;
+
+        // ── Cuarta generación: cobertura final del catálogo ──
+        case 'ELDER_COUNCIL':
+            return <ElderCouncilWidget />;
+        case 'RESTORATIVE_COURT':
+            return <RestorativeCourtWidget />;
+        case 'BARTER_MARKET':
+            return <BarterMarketWidget />;
+        case 'ENERGY_GRID':
+            return <EnergyGridWidget />;
+        case 'MENTOR_MATCH':
+            return <MentorMatchWidget />;
+        case 'UNIVERSAL_LIBRARY':
+            return <UniversalLibraryWidget />;
+        case 'MULTIVERSE_HUB':
+            return <MultiverseHubWidget />;
+        case 'CREATIVE_STUDIO':
+            return <CreativeStudioWidget />;
+        case 'ORACLE_PREDICT':
+            return <OraclePredictWidget />;
+        case 'IDENTITY_VAULT':
+            return <IdentityVaultWidget />;
+        case 'ENERGY_MAP':
+            return <EnergyMapWidget />;
+
+        // ── Quinta generación: cobertura ampliada del catálogo ──
+        case 'FLOW_DIRECTOR':
+            return <FlowDirectorWidget />;
+        case 'PROJECT_SWARM':
+            return <ProjectSwarmWidget />;
+        case 'ABUNDANCE_RADAR':
+            return <AbundanceRadarWidget />;
+        case 'TRANSIT_FLOW':
+            return <TransitFlowWidget />;
+        case 'CRYPTO_SHIELD':
+            return <CryptoShieldWidget />;
+        case 'HABITAT_CORE':
+            return <HabitatCoreWidget />;
+        case 'SERENDIPITY_LENS':
+            return <SerendipityLensWidget />;
+        case 'IDEA_FORGE':
+            return <IdeaForgeWidget />;
+        case 'MERIT_GALLERY':
+            return <MeritGalleryWidget />;
+        case 'SOCIETY_PULSE':
+            return <SocietyPulseWidget />;
+
         default:
             return (
                 <div className="flex h-full items-center justify-center p-4">
@@ -144,80 +285,4 @@ export function WidgetRegistry({ widget }: WidgetProps) {
                 </div>
             );
     }
-}
-
-function LearningPathWidget() {
-    return (
-        <div className="flex h-full flex-col p-6 relative overflow-hidden bg-card/60 backdrop-blur-sm">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Activity className="h-24 w-24 text-purple-500" />
-            </div>
-            <div className="flex items-center justify-between mb-6 relative z-10">
-                <h3 className="text-lg font-headline font-semibold flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-purple-500" />
-                    Ruta de Aprendizaje
-                </h3>
-            </div>
-
-            <div className="flex-1 flex flex-col justify-center relative z-10 space-y-6">
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                        <span className="font-medium">Intro a la Ontocracia</span>
-                        <span className="text-purple-500 font-bold">75%</span>
-                    </div>
-                    <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-purple-500 w-[75%]" />
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                        <span className="font-medium">Jardinería Urbana</span>
-                        <span className="text-purple-500 font-bold">30%</span>
-                    </div>
-                    <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-purple-500 w-[30%]" />
-                    </div>
-                </div>
-
-                <Button className="w-full mt-4" size="sm" variant="secondary">
-                    Continuar Aprendiendo <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-            </div>
-        </div>
-    );
-}
-
-function SocialRadarWidget() {
-    return (
-        <div className="flex h-full flex-col p-6 bg-gradient-to-br from-pink-500/5 to-background backdrop-blur-sm">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-headline font-semibold flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-pink-500" />
-                    Radar Social
-                </h3>
-            </div>
-            <div className="space-y-3">
-                <div className="flex gap-4 items-start p-3 rounded-lg bg-card border shadow-sm hover:shadow-md transition-all">
-                    <div className="flex flex-col items-center justify-center bg-pink-100 dark:bg-pink-900/30 text-pink-600 rounded-lg h-12 w-12 shrink-0">
-                        <span className="text-xs font-bold uppercase">ENE</span>
-                        <span className="text-lg font-bold">28</span>
-                    </div>
-                    <div>
-                        <h4 className="font-semibold text-sm">Asamblea Vecinal</h4>
-                        <p className="text-xs text-muted-foreground mb-1">16:00 • Parque Central</p>
-                        <div className="flex -space-x-2">
-                            {[1, 2, 3].map(i => (
-                                <div key={i} className="h-5 w-5 rounded-full border-2 border-background bg-muted" />
-                            ))}
-                            <span className="text-[10px] pl-3 flex items-center text-muted-foreground">+5</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="text-center mt-2">
-                    <Button variant="link" size="sm" className="text-pink-500">Ver Calendario Completo</Button>
-                </div>
-            </div>
-        </div>
-    );
 }

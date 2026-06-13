@@ -43,10 +43,28 @@ export function BackgroundSettings() {
         updateSection("background", { type: 'image', value: e.target.value });
     };
 
+    // Fondos psicodélicos de colores líquidos, fluidos e interactivos.
+    const liquidPresets = [
+        { id: "liquid-aurora", label: "Aurora Líquida", desc: "Cintas verde-cian que respiran", grad: "from-emerald-400 via-cyan-400 to-violet-500" },
+        { id: "liquid-plasma", label: "Plasma Psicodélico", desc: "Magenta y cian en fusión fluida", grad: "from-pink-500 via-violet-500 to-cyan-400" },
+        { id: "liquid-lava", label: "Lava Solar", desc: "Naranjas y rojos en movimiento", grad: "from-amber-400 via-red-500 to-pink-500" },
+        { id: "liquid-oceanic", label: "Marea Profunda", desc: "Azules abisales y turquesa", grad: "from-sky-500 via-blue-600 to-teal-400" },
+        { id: "liquid-iris", label: "Iris Cuántica", desc: "Espectro completo iridiscente", grad: "from-violet-500 via-pink-400 to-lime-400" },
+    ];
+
+    // Tema Materia Viva — oro + cristal + geometría sagrada (rediseño Nexus/Café).
+    // SOP: architecture/integracion-portal-starseed-os.md → "Tema Materia Viva (v1)"
+    const materiaPresets = [
+        { id: "materia-oro-vivo", label: "Oro Vivo", desc: "Ámbar y oro sobre verde profundo", grad: "linear-gradient(135deg, #0d130e 0%, #2a2410 55%, #e9c46a 100%)", dot: "#e9c46a" },
+        { id: "materia-cristal-liquido", label: "Cristal Líquido", desc: "Cian y lavanda cristalinos", grad: "linear-gradient(135deg, #0d130e 0%, #14222a 55%, #7fd8e8 100%)", dot: "#9aa7ff" },
+        { id: "materia-bosque-dorado", label: "Bosque Dorado", desc: "Lima y musgo con destellos de oro", grad: "linear-gradient(135deg, #0d130e 0%, #1c2a10 55%, #a8c66c 100%)", dot: "#d9ed92" },
+    ] as const;
+    const materiaIntensity = config.background.intensity ?? 0.7;
+
     return (
         <div className="space-y-6">
             <Tabs defaultValue="solid" className="w-full">
-                <TabsList className="grid w-full grid-cols-5 mb-6">
+                <TabsList className="grid w-full grid-cols-7 mb-6">
                     <TabsTrigger value="solid" className="gap-2"><PaintBucket className="h-4 w-4" /> Sólido</TabsTrigger>
                     <TabsTrigger value="gradient" className="flex-1">Gradiente</TabsTrigger>
                     <TabsTrigger value="image" className="flex-1">Imagen</TabsTrigger>
@@ -58,7 +76,111 @@ export function BackgroundSettings() {
                         <Activity className="w-3.5 h-3.5" />
                         Fondos Dinámicos
                     </TabsTrigger>
+                    <TabsTrigger value="liquid" className="flex-1 flex gap-2 items-center justify-center">
+                        <Droplets className="w-3.5 h-3.5" />
+                        Líquidos
+                    </TabsTrigger>
+                    <TabsTrigger value="materia" className="flex-1 flex gap-2 items-center justify-center">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Materia Viva ✦
+                    </TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="liquid">
+                    <Card>
+                        <CardHeader>
+                            <h3 className="text-lg font-medium mb-1">Fondos Psicodélicos Líquidos</h3>
+                            <p className="text-sm text-muted-foreground mb-2">
+                                Colores líquidos, fluidos e interactivos que respiran y reaccionan al cursor.
+                            </p>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {liquidPresets.map((preset) => (
+                                    <button
+                                        key={preset.id}
+                                        onClick={() => updateSection("background", { type: preset.id as any })}
+                                        className={cn(
+                                            "group relative overflow-hidden h-24 p-4 rounded-2xl border-2 text-left transition-all hover:scale-[1.02] active:scale-95",
+                                            (config.background.type as any) === preset.id ? "border-primary ring-2 ring-primary/30" : "border-muted hover:border-border"
+                                        )}
+                                    >
+                                        <div className={cn("absolute inset-0 opacity-50 group-hover:opacity-70 bg-gradient-to-br transition-opacity animate-gradient-x", preset.grad)} />
+                                        <div className="absolute inset-0 bg-black/30" />
+                                        <div className="relative">
+                                            <div className="font-semibold text-white drop-shadow">{preset.label}</div>
+                                            <div className="text-[11px] text-white/80 drop-shadow">{preset.desc}</div>
+                                        </div>
+                                        {(config.background.type as any) === preset.id && (
+                                            <Check className="absolute top-2 right-2 w-4 h-4 text-white drop-shadow" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="materia">
+                    <Card>
+                        <CardHeader>
+                            <h3 className="text-lg font-medium mb-1">Materia Viva ✦</h3>
+                            <p className="text-sm text-muted-foreground mb-2">
+                                Oro, cristal y geometría sagrada del rediseño Nexus/Café. Canvas 2D ligero:
+                                Flor de la Vida en rotación lenta, partículas ascendentes y brillo que sigue al cursor.
+                            </p>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <style>{`
+                                @keyframes ssMateriaFloat {
+                                    0% { transform: translateY(12px) scale(0.8); opacity: 0; }
+                                    25% { opacity: 1; }
+                                    75% { opacity: 0.85; }
+                                    100% { transform: translateY(-44px) scale(1.05); opacity: 0; }
+                                }
+                            `}</style>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {materiaPresets.map((preset) => (
+                                    <button
+                                        key={preset.id}
+                                        onClick={() => updateSection("background", { type: preset.id })}
+                                        className={cn(
+                                            "group relative overflow-hidden h-24 p-4 rounded-2xl border-2 text-left transition-all hover:scale-[1.02] active:scale-95",
+                                            config.background.type === preset.id ? "border-primary ring-2 ring-primary/30" : "border-muted hover:border-border"
+                                        )}
+                                    >
+                                        {/* Mini previsualización CSS animada: gradiente dorado + puntos flotantes */}
+                                        <div className="absolute inset-0 opacity-70 group-hover:opacity-90 transition-opacity" style={{ background: preset.grad }} />
+                                        <div className="absolute inset-0 bg-black/25" />
+                                        <span className="absolute rounded-full" style={{ width: 5, height: 5, left: "68%", bottom: 8, background: preset.dot, boxShadow: `0 0 8px ${preset.dot}`, animation: "ssMateriaFloat 3.2s ease-in-out infinite" }} />
+                                        <span className="absolute rounded-full" style={{ width: 4, height: 4, left: "82%", bottom: 6, background: preset.dot, boxShadow: `0 0 6px ${preset.dot}`, animation: "ssMateriaFloat 4.1s ease-in-out 1.1s infinite" }} />
+                                        <span className="absolute rounded-full" style={{ width: 3, height: 3, left: "56%", bottom: 10, background: "#e9c46a", boxShadow: "0 0 6px #e9c46a", animation: "ssMateriaFloat 3.7s ease-in-out 2s infinite" }} />
+                                        <div className="relative">
+                                            <div className="font-semibold text-white drop-shadow">{preset.label}</div>
+                                            <div className="text-[11px] text-white/80 drop-shadow">{preset.desc}</div>
+                                        </div>
+                                        {config.background.type === preset.id && (
+                                            <Check className="absolute top-2 right-2 w-4 h-4 text-white drop-shadow" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="space-y-3 pt-4 border-t">
+                                <div className="flex justify-between">
+                                    <Label>Intensidad</Label>
+                                    <span className="text-xs text-muted-foreground">{Math.round(materiaIntensity * 100)}</span>
+                                </div>
+                                <Slider
+                                    min={0} max={100} step={1}
+                                    value={[Math.round(materiaIntensity * 100)]}
+                                    onValueChange={([val]) => updateSection("background", { intensity: val / 100 })}
+                                />
+                                <p className="text-xs text-muted-foreground">Escala la cantidad de partículas y el brillo del patrón sagrado.</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
 
                 <TabsContent value="webgl">
                     <Card>

@@ -9,10 +9,13 @@ import { cn } from "@/lib/utils";
 import { LiquidGlass } from "@/components/ui/liquid-glass";
 import { WebGLBackground } from "@/components/ui/backgrounds/webgl-background";
 import { SplineDefaultBackground } from "@/components/ui/backgrounds/spline-default-background";
+import { LiquidPsychedelicBackground } from "@/components/ui/backgrounds/liquid-psychedelic-background";
+import { MateriaVivaBackgroundHost } from "@/components/backgrounds/materia-viva-background";
 import { CrystalFilters } from "@/components/ui/effects/CrystalFilters";
 import { GlobalEnvironment } from "@/components/ui/global-environment";
 import { PerimeterProvider } from "@/context/perimeter-context";
 import { PerimeterInterface } from "@/components/layout/perimeter-interface";
+import { TrinityEdgeAccess } from "@/components/layout/trinity-edge-access";
 import { ZenithCurtain } from "@/components/layout/zenith-curtain";
 import { SideCurtains } from "@/components/layout/side-curtains";
 import { ControlPanelProvider } from "@/context/control-panel-context";
@@ -52,7 +55,15 @@ const fontCode = Source_Code_Pro({
 
 export const metadata: Metadata = {
   title: "StarSeed System",
-  description: "Operating System for Global Regeneration",
+  description: "Sistema operativo social para la regeneración global",
+  icons: {
+    icon: [
+      { url: "/starseed-symbol.png", type: "image/png" },
+      { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
+    ],
+    shortcut: "/starseed-symbol.png",
+    apple: "/starseed-symbol.png",
+  },
 };
 
 export default function RootLayout({
@@ -89,6 +100,8 @@ export default function RootLayout({
                         <LiquidGlass />
                         <WebGLBackground />
                         <SplineDefaultBackground />
+                        <LiquidPsychedelicBackground />
+                        <MateriaVivaBackgroundHost />
                         <CrystalFilters />
                         <GlobalEnvironment />
                         {children}
@@ -98,6 +111,10 @@ export default function RootLayout({
                         <OmniDock />
                         <PinnedWidgetOverlay />
                         <PerimeterInterface />
+                        {/* Trinity Móvil · Bloque 4 — asas de borde + deslizar desde
+                            cada orilla para abrir los menús cardinales en táctil.
+                            Decide por sí mismo si renderizarse (auto/on/off). */}
+                        <TrinityEdgeAccess />
                         <Toaster />
                         <Sonner />
                       </PerimeterProvider>

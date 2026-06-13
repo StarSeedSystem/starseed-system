@@ -18,6 +18,16 @@ export interface WidgetOntology {
     htmlCode: string;
 }
 
+/** Payload emitido al añadir un widget forjado al dashboard. */
+export interface ForgeWidgetResult {
+    customHtml: string;
+    ontology: { title: string; description: string; themeColor: string };
+    widgetConfig: WidgetConfig;
+    forgePrompt: string;
+    selectedLayout: string;
+    selectedImage?: string;
+}
+
 export interface VisualVariation {
     title: string;
     description: string;

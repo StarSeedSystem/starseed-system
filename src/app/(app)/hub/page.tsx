@@ -588,7 +588,8 @@ export default function HubPage() {
             {/* ── HEADER CON TÍTULO Y BÚSQUEDA ── */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-[clamp(1rem,2vw,2rem)] w-full text-center md:text-left">
                 <div className="flex-1 flex flex-col md:items-start items-center">
-                    <h1 className="page-title font-headline text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400 drop-shadow-[0_0_15px_rgba(168,85,247,0.3)] w-full">
+                    {/* Degradado tokenizado: respira con el tema activo (Aurora, Café…) */}
+                    <h1 className="page-title font-headline text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary drop-shadow-[0_0_15px_hsl(var(--primary-hsl)/0.3)] w-full">
                         Hub de Conexiones
                     </h1>
                     <p className="text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground mt-2 max-w-2xl text-balance">

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { useAppearance } from "@/context/appearance-context";
+import { TrinityFab } from "./trinity-fab";
 import {
     loadDockConfig,
     saveDockConfig,
@@ -73,6 +74,11 @@ export function OmniDock() {
     const visibleItems = useMemo(() => items.filter((it) => it.enabled), [items]);
 
     return (
+        <>
+        {/* Trinity Móvil · Bloque 2 — FAB de acceso a los 4 menús cardinales.
+            Se monta aquí (mismo árbol que el dock, layout raíz) para existir en
+            todas las páginas. Él mismo decide si renderizarse (auto/on/off). */}
+        <TrinityFab />
         <AnimatePresence>
             {isVisible && (
                 <motion.div
@@ -80,7 +86,7 @@ export function OmniDock() {
                     animate={{ y: "0%", opacity: 1 }}
                     exit={{ y: "100%", opacity: 0 }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="fixed bottom-0 left-0 right-0 z-[70] flex flex-col items-center pb-6 sm:pb-8 pointer-events-none"
+                    className="fixed bottom-0 left-0 right-0 z-[70] flex flex-col items-center pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-8 pointer-events-none"
                 >
                     {editMode && (
                         <div className="pointer-events-auto mb-3 w-full max-w-3xl px-4">
@@ -94,40 +100,50 @@ export function OmniDock() {
                         </div>
                     )}
 
+                    {/*
+                        Píldora del dock: el borde/cristal queda intacto; dentro, un strip
+                        (.omni-dock-strip, ver globals.css) que en <1024px hace scroll-x con
+                        scroll-snap + máscara de degradado en los bordes para que el dock
+                        completo sea usable en 320–1023px sin perder ningún item. En <lg
+                        los items van compactos (48px, ≥44px táctil); en ≥lg, diseño original.
+                    */}
                     <div className="
                         pointer-events-auto
-                        flex items-end gap-2 sm:gap-4 p-4 sm:p-5
                         bg-card/40 dark:bg-black/40 backdrop-blur-2xl
                         border border-foreground/10
                         rounded-[--radius-full]
                         shadow-[0_10px_40px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)]
-                        mb-2 sm:mb-4 max-w-[96vw] overflow-visible
+                        mb-2 sm:mb-4 max-w-[calc(100vw-0.75rem)] lg:max-w-[96vw]
+                        p-2 lg:p-5
                     ">
-                        {visibleItems.map((item) => {
-                            const Icon = ICON_MAP[item.iconKey] ?? Home;
-                            return (
-                                <DockItem
-                                    key={item.id}
-                                    icon={<Icon className="w-6 h-6 sm:w-7 sm:h-7" />}
-                                    label={item.label}
-                                    color={item.color}
-                                    onClick={() => router.push(item.path)}
-                                />
-                            );
-                        })}
+                        <div className="omni-dock-strip flex items-end gap-1.5 lg:gap-4">
+                            {visibleItems.map((item) => {
+                                const Icon = ICON_MAP[item.iconKey] ?? Home;
+                                return (
+                                    <DockItem
+                                        key={item.id}
+                                        icon={<Icon className="w-5 h-5 lg:w-7 lg:h-7" />}
+                                        label={item.label}
+                                        color={item.color}
+                                        onClick={() => router.push(item.path)}
+                                    />
+                                );
+                            })}
 
-                        <div className="w-px h-12 sm:h-14 bg-foreground/10 mx-2 self-center rounded-full" aria-hidden />
+                            <div className="w-px h-10 lg:h-14 bg-foreground/10 mx-1 lg:mx-2 self-center rounded-full shrink-0" aria-hidden />
 
-                        <DockItem
-                            icon={<Pencil className="w-6 h-6 sm:w-7 sm:h-7" />}
-                            label={editMode ? "Cerrar editor" : "Personalizar dock"}
-                            color="neutral"
-                            onClick={() => setEditMode((v) => !v)}
-                        />
+                            <DockItem
+                                icon={<Pencil className="w-5 h-5 lg:w-7 lg:h-7" />}
+                                label={editMode ? "Cerrar editor" : "Personalizar dock"}
+                                color="neutral"
+                                onClick={() => setEditMode((v) => !v)}
+                            />
+                        </div>
                     </div>
                 </motion.div>
             )}
         </AnimatePresence>
+        </>
     );
 }
 
@@ -147,7 +163,7 @@ function DockItem({ icon, label, onClick, color = "neutral" }: {
     };
 
     return (
-        <div className="group relative flex flex-col items-center gap-2">
+        <div className="group relative flex flex-col items-center gap-1.5 lg:gap-2 shrink-0 snap-center">
             <span className="
                 absolute bottom-full mb-3 left-1/2 -translate-x-1/2
                 scale-0 opacity-0
@@ -164,7 +180,7 @@ function DockItem({ icon, label, onClick, color = "neutral" }: {
             <button
                 onClick={onClick}
                 className={cn(
-                    "relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-[--radius-full] transition-all duration-300 active:scale-95 group-hover:scale-110",
+                    "relative flex items-center justify-center w-12 h-12 lg:w-16 lg:h-16 rounded-[--radius-full] transition-all duration-300 active:scale-95 group-hover:scale-110",
                     "before:absolute before:inset-0 before:rounded-[--radius-full] before:border before:border-transparent hover:before:border-foreground/20",
                     colorStyles[color]
                 )}

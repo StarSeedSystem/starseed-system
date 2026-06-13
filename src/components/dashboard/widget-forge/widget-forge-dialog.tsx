@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Sparkles, Layers, Eye, Cpu, Settings2, Code, Zap, Globe, Shield, RefreshCw, X, Sliders, PlayCircle, Grid3X3, ArrowUpRight, ChevronLeft, Save, Maximize2, Move, AlertTriangle, Download } from 'lucide-react';
+import { Sparkles, Layers, Eye, Cpu, Settings2, Code, Zap, Globe, Shield, RefreshCw, X, Sliders, PlayCircle, Grid3X3, ArrowUpRight, ChevronLeft, Save, Maximize2, Move, AlertTriangle, Download, CircleDashed, Loader2, Wand2 } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
     ForgeStep,
@@ -18,9 +19,9 @@ import {
     DEFAULT_WIDGET_CONFIG,
     DEFAULT_STRUCTURE_CONFIG,
     FORGE_LAYOUTS,
-    ForgeMetaTab
+    ForgeMetaTab,
+    ForgeWidgetResult
 } from './widget-forge-types';
-import { DashboardWidget } from '../dashboard-types';
 
 const LAYOUT_ICONS: Record<string, React.ElementType> = {
     'CircleDashed': Sparkles,
@@ -34,8 +35,8 @@ const LAYOUT_ICONS: Record<string, React.ElementType> = {
 interface WidgetForgeDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onWidgetCreated: (widgetData: Partial<DashboardWidget>) => void;
-    initialData?: Partial<DashboardWidget> | null;
+    onWidgetCreated: (widgetData: ForgeWidgetResult) => void;
+    initialData?: Partial<ForgeWidgetResult> | null;
 }
 
 export function WidgetForgeDialog({
@@ -58,7 +59,14 @@ export function WidgetForgeDialog({
 
     // Phase 3 State
     const [ontology, setOntology] = useState<WidgetOntology | null>(
-        initialData ? { ...initialData.ontology, htmlCode: initialData.customHtml } : null
+        initialData && initialData.ontology
+            ? {
+                title: initialData.ontology.title,
+                description: initialData.ontology.description,
+                themeColor: initialData.ontology.themeColor,
+                htmlCode: initialData.customHtml ?? '',
+            }
+            : null
     );
     const [activeTab, setActiveTab] = useState<ForgeMetaTab>('aspecto');
     const [config, setConfig] = useState<WidgetConfig>(initialData?.widgetConfig || { ...DEFAULT_WIDGET_CONFIG });

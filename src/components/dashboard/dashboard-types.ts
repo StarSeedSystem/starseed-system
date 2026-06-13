@@ -32,7 +32,51 @@ export type WidgetType =
     | 'MESSAGES'
     | 'NOTIFICATIONS'
     | 'ECONOMIC_OVERVIEW'
+    | 'CARTERA_STARSEED'      // Economía — Cartera StarSeed (cuenta soberana unificada: semillas + granos + bolsa)
     | 'ACTIVE_PROJECTS'
+    // ── Segunda generación: widgets adaptativos (kit + capa de datos) ──
+    | 'AGORA_CAUSAL'          // Política — propuestas / votación causal
+    | 'LIQUID_DELEGATION'     // Política — voto delegado líquido
+    | 'OIKOS_METABOLISM'      // Economía/Ecología — metabolismo del hogar
+    | 'SKILL_TREE'            // Educación — árbol de habilidades
+    | 'ASTRAURA_CORTEX'       // IA — exocórtex Astraura
+    | 'SOVEREIGN_NODE'        // Sistema — nodo soberano
+    | 'AKASHIC_CODEX'         // Archivos — códice akáshico
+    | 'NATAL_CHART'           // Astrología — sincronía vital
+    | 'MESH_RADAR'            // Red — radar mesh
+    | 'IMMERSION_PORTAL'      // Entretenimiento — portales inmersivos
+    // ── Tercera generación: oleada Política/Ontocracia ──
+    | 'CIVIC_ALCHEMY'         // Política — transmutador de quejas a iniciativas
+    | 'VITAL_FLOW_AUDIT'      // Política — auditoría de flujo vital (transparencia)
+    | 'SOCIAL_RESONANCE'      // Política — termómetro de resonancia social
+    // ── Oleada Economía/Ecología ──
+    | 'GIFT_AGORA'            // Economía — Ágora del Don (distribución libre)
+    | 'COMMONS_MATRIX'        // Economía — Matriz de Patrimonio Común
+    | 'FOOD_ORACLE'           // Ecología — Oráculo de Soberanía Alimentaria
+    | 'REGEN_TRACER'          // Ecología — Trazador de Ciclo Vital / Huella Regenerativa
+    // ── Cuarta generación: cobertura final del catálogo ──
+    | 'ELDER_COUNCIL'         // Ontocracia — Consejo de Sabios (meritocracia del entendimiento)
+    | 'RESTORATIVE_COURT'     // Ontocracia — Tribunal Restaurativo (Círculos de Paz)
+    | 'BARTER_MARKET'         // Economía — Mercado de Trueque
+    | 'ENERGY_GRID'           // Economía — Energía Comunal (microred)
+    | 'MENTOR_MATCH'          // Educación — Mentoría Híbrida (humano + IA)
+    | 'UNIVERSAL_LIBRARY'     // Educación — Biblioteca Universal
+    | 'MULTIVERSE_HUB'        // Cultura — Multiverso (mundos inmersivos)
+    | 'CREATIVE_STUDIO'       // Cultura — Estudio Creativo
+    | 'ORACLE_PREDICT'        // IA — Oráculo Predictivo
+    | 'IDENTITY_VAULT'        // Sistema — Bóveda de Identidad Soberana
+    | 'ENERGY_MAP'            // Astrología/Bienestar — Mapa de Energía
+    // ── Quinta generación: cobertura ampliada del catálogo ──
+    | 'FLOW_DIRECTOR'         // Productividad — Director de Flujo Vital (energía circadiana)
+    | 'PROJECT_SWARM'         // Productividad — Enjambre de Propósitos
+    | 'ABUNDANCE_RADAR'       // Ubicación — Radar de Nodos de Abundancia
+    | 'TRANSIT_FLOW'          // Ubicación — Topología de Tránsito Orgánico
+    | 'CRYPTO_SHIELD'         // Privacidad — Escudo Ontológico (membrana criptográfica)
+    | 'HABITAT_CORE'          // Dispositivos — Núcleo de Simbiosis Habitacional
+    | 'SERENDIPITY_LENS'      // Descubrimientos — Lente de Serendipia
+    | 'IDEA_FORGE'            // Creatividad — Incubadora de Quimeras
+    | 'MERIT_GALLERY'         // Perfil — Cristalería de Mérito y Abundancia
+    | 'SOCIETY_PULSE'         // Sociedad — Monitor de Cohesión Macro-Social
     | 'AI_GENERATED';         // 🔮 La Fragua de Interfaces — Custom AI-forged widgets
 
 export interface Dashboard {

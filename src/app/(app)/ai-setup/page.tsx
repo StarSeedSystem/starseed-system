@@ -7,9 +7,10 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Sparkles, Database, Zap, Wrench, Bot, Eye, Server, Search } from 'lucide-react';
+import { Sparkles, Database, Zap, Wrench, Bot, Eye, Server, Search, ShieldCheck } from 'lucide-react';
 import { SensesPanel } from '@/components/hermes/senses-panel';
 import { McpPanel } from '@/components/hermes/mcp-panel';
+import { AiPermissionsPanel } from '@/components/ai/ai-permissions-panel';
 
 export default function AiSetupPage() {
   const params = useSearchParams();
@@ -17,6 +18,7 @@ export default function AiSetupPage() {
   const initialTab =
     tabParam === 'senses' ? 'senses' :
     tabParam === 'mcp' ? 'mcp' :
+    tabParam === 'permissions' ? 'permissions' :
     'discover';
 
   const [activeTab, setActiveTab] = useState<string>(initialTab);
@@ -82,6 +84,9 @@ export default function AiSetupPage() {
           <TabsTrigger value="mcp" className="gap-2">
             <Server className="w-4 h-4" /> MCPs
           </TabsTrigger>
+          <TabsTrigger value="permissions" className="gap-2">
+            <ShieldCheck className="w-4 h-4" /> Permisos
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="discover" className="space-y-4">
@@ -94,6 +99,16 @@ export default function AiSetupPage() {
 
         <TabsContent value="mcp" className="space-y-4">
           <McpPanel />
+        </TabsContent>
+
+        <TabsContent value="permissions" className="space-y-4 @container">
+          <div>
+            <h2 className="text-lg font-black tracking-tight">Permisos y accesos de la IA</h2>
+            <p className="text-sm text-muted-foreground/70 mt-1">
+              Controla qué pueden leer y modificar el Asistente y el Nexo. Por defecto tienen acceso completo a tu propio entorno; los fundamentos del sistema y los datos de la red están protegidos por la Constitución StarSeed.
+            </p>
+          </div>
+          <AiPermissionsPanel defaultActor="assistant" />
         </TabsContent>
       </Tabs>
     </div>

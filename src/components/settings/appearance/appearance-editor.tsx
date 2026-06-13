@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { ThemeGallery } from "./theme-gallery";
+import { OsThemeSelector } from "./os-theme-selector";
 import { LayoutSettings } from "./layout-settings";
 import { BackgroundSettings } from "./background-settings";
 import { CuratedThemesGallery } from "./curated-themes-gallery";
@@ -138,6 +139,8 @@ export function AppearanceEditor() {
                 </TabsList>
 
                 <TabsContent value="gallery" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8">
+                    {/* Tema del sistema: identidad global vía data-os-theme (Café, etc.) */}
+                    <OsThemeSelector />
                     {/* Estilos: aplican un AppearanceConfig completo coordinado */}
                     <div>
                         <div className="flex items-baseline justify-between gap-2 mb-3 flex-wrap">

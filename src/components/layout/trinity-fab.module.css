@@ -1,0 +1,174 @@
+/*
+ * TrinityFab — acceso flotante a los 4 nodos cardinales (Zenith/Horizon/Logic/Anchor)
+ * sin gestos de borde. Estética Crystal Liquid Glass + anillo cónico cardinal.
+ * SOP: architecture/integracion-portal-starseed-os.md · "Trinity Móvil · Bloque 2".
+ */
+
+.root {
+    position: fixed;
+    z-index: 85; /* sobre el dock (70), bajo las cortinas (90+) */
+    width: 56px;
+    height: 56px;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 360ms cubic-bezier(0.3, 1.35, 0.45, 1);
+}
+
+.rootDragging {
+    transition: none;
+}
+
+/* ── Núcleo: anillo cónico con los 4 colores cardinales ─────────── */
+.core {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    /* !important: en globals.css existe `button { border-radius: var(--radius) !important }`
+       (forma orgánica global); el FAB debe ser una gema circular perfecta. */
+    border-radius: 9999px !important;
+    padding: 0;
+    border: none;
+    cursor: pointer;
+    /* N azul · E ámbar · S carmesí · O lima (desde 315° cada cuadrante queda centrado en su punto cardinal) */
+    background: conic-gradient(
+        from 315deg,
+        #007fff 0deg 82deg,
+        #ffbf00 98deg 172deg,
+        #dc143c 188deg 262deg,
+        #39ff14 278deg 352deg,
+        #007fff 360deg
+    );
+    box-shadow:
+        0 10px 30px rgba(0, 0, 0, 0.45),
+        0 0 18px rgba(0, 127, 255, 0.18),
+        0 0 18px rgba(220, 20, 60, 0.12);
+    transition: transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 300ms ease, filter 300ms ease;
+}
+
+.core:active {
+    transform: scale(0.94);
+}
+
+/* vidrio interior */
+.coreGlass {
+    position: absolute;
+    inset: 2.5px;
+    border-radius: 9999px;
+    background:
+        radial-gradient(120% 90% at 30% 18%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.04) 42%, transparent 60%),
+        rgba(8, 12, 18, 0.62);
+    backdrop-filter: blur(14px) saturate(1.5);
+    -webkit-backdrop-filter: blur(14px) saturate(1.5);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    display: grid;
+    place-items: center;
+    transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* sigil central: 4 gemas en cruz */
+.sigil {
+    width: 22px;
+    height: 22px;
+    display: block;
+    transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease;
+}
+
+.open .sigil {
+    transform: rotate(45deg) scale(0.86);
+    opacity: 0.85;
+}
+
+.open .core {
+    box-shadow:
+        0 14px 38px rgba(0, 0, 0, 0.55),
+        0 0 26px rgba(0, 127, 255, 0.3),
+        0 0 26px rgba(255, 191, 0, 0.22),
+        0 0 26px rgba(57, 255, 20, 0.18),
+        0 0 26px rgba(220, 20, 60, 0.22);
+}
+
+/* ── Pétalos-gema en cruz ───────────────────────────────────────── */
+.petal {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 46px;
+    height: 46px;
+    margin: -23px 0 0 -23px;
+    border-radius: 9999px !important;
+    border: 1px solid color-mix(in srgb, var(--pc) 55%, transparent);
+    color: var(--pc);
+    background:
+        radial-gradient(120% 95% at 30% 18%, rgba(255, 255, 255, 0.2), transparent 55%),
+        color-mix(in srgb, var(--pc) 16%, rgba(8, 12, 18, 0.66));
+    backdrop-filter: blur(12px) saturate(1.4);
+    -webkit-backdrop-filter: blur(12px) saturate(1.4);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(0, 0) scale(0.35);
+    transition:
+        transform 340ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        opacity 180ms ease,
+        box-shadow 300ms ease;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.open .petal {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(var(--tx), var(--ty)) scale(1);
+    box-shadow:
+        0 10px 24px rgba(0, 0, 0, 0.45),
+        0 0 16px color-mix(in srgb, var(--pc) 40%, transparent);
+}
+
+.open .petalN { transition-delay: 0ms; }
+.open .petalE { transition-delay: 45ms; }
+.open .petalS { transition-delay: 90ms; }
+.open .petalW { transition-delay: 135ms; }
+
+.petalN { --tx: 0px;   --ty: -66px; }
+.petalE { --tx: 66px;  --ty: 0px; }
+.petalS { --tx: 0px;   --ty: 66px; }
+.petalW { --tx: -66px; --ty: 0px; }
+
+.petal:active {
+    transform: translate(var(--tx), var(--ty)) scale(0.9);
+}
+
+/* pétalo cuyo menú está abierto ahora mismo */
+.petalActive {
+    border-color: color-mix(in srgb, var(--pc) 85%, white 10%);
+    background:
+        radial-gradient(120% 95% at 30% 18%, rgba(255, 255, 255, 0.28), transparent 55%),
+        color-mix(in srgb, var(--pc) 30%, rgba(8, 12, 18, 0.6));
+    box-shadow:
+        0 10px 24px rgba(0, 0, 0, 0.45),
+        0 0 22px color-mix(in srgb, var(--pc) 65%, transparent) !important;
+}
+
+/* ── Scrim invisible para cerrar tocando fuera ──────────────────── */
+.scrim {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .root,
+    .core,
+    .coreGlass,
+    .sigil,
+    .petal {
+        transition: none;
+    }
+}

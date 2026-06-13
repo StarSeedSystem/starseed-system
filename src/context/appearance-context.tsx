@@ -9,6 +9,15 @@ export interface CustomFont {
     family: string;
 }
 
+/**
+ * Tema de identidad global del OS — se refleja como atributo
+ * `data-os-theme` en <html> para que globals.css recubra TODAS las
+ * variables del design system (colores, radios, sombras, fuentes).
+ * "default" = sin atributo (comportamiento histórico intacto).
+ * SOP: architecture/integracion-portal-starseed-os.md → "Tema StarSeed Café".
+ */
+export type OsThemeId = "default" | "cafe";
+
 export type DeepPartial<T> = {
     [P in keyof T]?: T[P] extends Array<infer U>
     ? Array<DeepPartial<U>>
@@ -51,12 +60,16 @@ export interface AppearanceConfig {
         crystalPreset?: "none" | "clear" | "frosted" | "holographic" | "obsidian" | "quantic" | "organic-frosted";
     };
     background: {
-        type: "solid" | "gradient" | "image" | "video" | "webgl";
+        type: "solid" | "gradient" | "image" | "video" | "webgl"
+            | "liquid-aurora" | "liquid-plasma" | "liquid-lava" | "liquid-oceanic" | "liquid-iris"
+            | "materia-oro-vivo" | "materia-cristal-liquido" | "materia-bosque-dorado";
         value: string; // url or css value
         blur: number; // background blur
         animation: "none" | "pan" | "zoom" | "pulse" | "scroll";
         overlayOpacity: number; // 0 to 1
         overlayColor: "black" | "white";
+        // Materia Viva (opcional para que configs antiguas sigan siendo válidas)
+        intensity?: number; // 0..1 — escala partículas/alpha de los fondos "materia-*"
         // WebGL specific
         webglVariant?: "nebula" | "grid" | "waves" | "hex" | "liquid";
         webglZoom?: number;
@@ -192,6 +205,42 @@ export interface AppearanceConfig {
             iconScale: number;
             animationSpeed: "slow" | "normal" | "fast";
         };
+        /**
+         * Interacción táctil del dashboard (Trinity Móvil · Bloque 1).
+         * Opcional → las configs guardadas siguen siendo válidas (deepMerge
+         * rellena con los valores por defecto). SOP: integracion-portal-starseed-os.md.
+         */
+        touch?: {
+            /** ms de pulsación mantenida para armar el arrastre de un widget en táctil. */
+            holdMs: number;
+            /** vibración háptica al armar (si el dispositivo la soporta). */
+            haptics: boolean;
+        };
+        /**
+         * Trinity Edge Access (Bloque 4): apertura de los 4 menús cardinales
+         * en táctil mediante asas de borde no intrusivas + deslizamiento desde
+         * cada orilla. Todo opcional y configurable; nada sustituye a los
+         * sensores de borde (ratón) ni al TrinityFab.
+         */
+        edgeAccess?: {
+            /** habilita asas + gestos de borde (auto = solo en puntero grueso/≤1024px). */
+            mode: "auto" | "on" | "off";
+            /** asa visible y deslizamiento por borde, individualmente. */
+            edges: {
+                zenith: { handle: boolean; swipe: boolean };
+                horizon: { handle: boolean; swipe: boolean };
+                logic: { handle: boolean; swipe: boolean };
+                anchor: { handle: boolean; swipe: boolean };
+            };
+            /** longitud del asa como % del lado (10–60). */
+            handleLength: number;
+            /** grosor del asa en px (3–12). */
+            handleThickness: number;
+            /** opacidad en reposo (0–1): "no intrusivo". */
+            handleOpacity: number;
+            /** px que el dedo debe recorrer desde el borde para abrir (16–120). */
+            swipeThreshold: number;
+        };
     };
     display: {
         mode: "standard" | "vr" | "ar" | "spatial";
@@ -240,6 +289,8 @@ export interface AppearanceConfig {
     themeStore: {
         activeMode: "custom" | "crystal" | "liquid" | "solid-crystal" | "primary" | "spline-default";
         activeTemplateId?: string;
+        /** Tema de identidad del sistema (opcional → configs antiguas válidas) */
+        osTheme?: OsThemeId;
         savedThemes: Array<{
             id: string;
             name: string;
@@ -294,12 +345,17 @@ const defaultConfig: AppearanceConfig = {
         crystalPreset: "none",
     },
     background: {
-        type: "webgl",
+        // Materia Viva por defecto (lenguaje visual del ecosistema Nexus/Café).
+        // Cambio aditivo: configs guardadas en localStorage se mergean encima
+        // y conservan su type; solo usuarios sin config guardada ven este default.
+        // SOP: architecture/integracion-portal-starseed-os.md → Materia Viva v1.1
+        type: "materia-oro-vivo",
         value: "",
         blur: 0,
         animation: "none",
         overlayOpacity: 0.1, // Reduced overlay opacity so Spline looks vivid
         overlayColor: "black",
+        intensity: 0.7, // Materia Viva: densidad de partículas/alfa por defecto
         webglVariant: "liquid",
         webglSpeed: 0.5,
         webglZoom: 1.0,
@@ -427,6 +483,29 @@ const defaultConfig: AppearanceConfig = {
             iconScale: 1,
             animationSpeed: "normal",
         },
+        // Pulsación mantenida de 3 s antes de armar el arrastre en táctil:
+        // así el scroll del dashboard es el gesto natural y los widgets no se
+        // mueven por accidente. Configurable en Ajustes → Trinity.
+        touch: {
+            holdMs: 3000,
+            haptics: true,
+        },
+        // Acceso por bordes en táctil: asas no intrusivas + deslizar desde la
+        // orilla. Por defecto "auto" (solo táctil/≤1024px) con las 4 orillas
+        // activas. Los sensores de ratón y el FAB siguen intactos.
+        edgeAccess: {
+            mode: "auto",
+            edges: {
+                zenith: { handle: true, swipe: true },
+                horizon: { handle: true, swipe: true },
+                logic: { handle: true, swipe: true },
+                anchor: { handle: true, swipe: true },
+            },
+            handleLength: 28,
+            handleThickness: 5,
+            handleOpacity: 0.22,
+            swipeThreshold: 56,
+        },
     },
     display: {
         mode: "standard",
@@ -474,6 +553,7 @@ const defaultConfig: AppearanceConfig = {
     },
     themeStore: {
         activeMode: "primary",
+        osTheme: "default",
         savedThemes: [],
     },
     assistant: {
@@ -752,6 +832,10 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
 
             // Trinity Animation Type
             root.style.setProperty("--trinity-entry", anims.trinityEntry);
+
+            // Token de duración global — los tokens de movimiento de globals.css
+            // (--ease-organic/glide/...) lo consumen con fallback de 220ms.
+            root.style.setProperty("--dur-base", `${anims.transitionDuration ?? 220}ms`);
         }
 
         // --- Text Diffusion (New) ---
@@ -804,6 +888,29 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             document.body.classList.add('webgl-active');
         } else {
             document.body.classList.remove('webgl-active');
+        }
+
+        // Materia Viva: data-attribute en <body> para que globals.css aplique
+        // acentos coherentes (dorado/lima/cian) en dashboards y widgets.
+        // Ej.: type "materia-oro-vivo" → <body data-materia="oro-vivo">.
+        // SOP: architecture/integracion-portal-starseed-os.md → Materia Viva v1.1
+        const bgType = String(background.type ?? '');
+        if (bgType.startsWith('materia-')) {
+            document.body.dataset.materia = bgType.slice('materia-'.length);
+        } else {
+            delete document.body.dataset.materia;
+        }
+
+        // Tema de identidad del OS: data-os-theme en <html>.
+        // globals.css recubre TODO el design system bajo
+        // html[data-os-theme="cafe"] (variantes clara y oscura).
+        // "default" → sin atributo: cero efecto sobre los temas existentes.
+        // SOP: architecture/integracion-portal-starseed-os.md → "Tema StarSeed Café".
+        const osTheme = currentConfig.themeStore?.osTheme ?? "default";
+        if (osTheme !== "default") {
+            root.dataset.osTheme = osTheme;
+        } else {
+            delete root.dataset.osTheme;
         }
 
         // Secondary Styles

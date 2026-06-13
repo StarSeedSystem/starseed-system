@@ -1,127 +1,175 @@
 'use client';
 
-import { Button } from "@/components/ui/button";
-import { Book, Plus, ExternalLink } from "lucide-react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { motion } from "framer-motion";
+import { LayoutGrid, Plus, Users, Crown, Shield, Folder, User, ChevronRight, type LucideIcon } from "lucide-react";
+import { WidgetShell, MiniList, ProgressBar, Chip, ProgressRing } from "../kit";
+import { useWidgetData } from "@/lib/widget-data";
+import type { PageRef } from "@/lib/widget-data";
+
+// ════════════════════════════════════════════════════════════════
+// MyPagesWidget — perfiles, comunidades y entidades del usuario.
+// Datos en vivo "social.pages". Filtro local por kind, actividad
+// visual, microinteracciones. Adaptativo + theme-aware.
+// ════════════════════════════════════════════════════════════════
+
+const ACCENT = "#38bdf8";
+
+const ROLE_META: Record<PageRef["role"], { icon: LucideIcon; label: string; color: string }> = {
+    fundador:  { icon: Crown,  label: "Fundador",  color: "#f59e0b" },
+    moderador: { icon: Shield, label: "Moderador", color: "#a855f7" },
+    miembro:   { icon: Users,  label: "Miembro",   color: "#38bdf8" },
+};
+
+const KIND_META: Record<PageRef["kind"], { icon: LucideIcon; label: string }> = {
+    perfil:    { icon: User,       label: "Perfil"    },
+    comunidad: { icon: Users,      label: "Comunidad" },
+    proyecto:  { icon: Folder,     label: "Proyecto"  },
+    entidad:   { icon: LayoutGrid, label: "Entidad"   },
+};
+
+const KIND_FILTERS: Array<PageRef["kind"] | "todas"> = ["todas", "comunidad", "proyecto", "perfil", "entidad"];
 
 export function MyPagesWidget() {
-    const [pages, setPages] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const supabase = createClient();
+    const { data, loading } = useWidgetData("social.pages", { refreshMs: 12000 });
+    const [filter, setFilter] = useState<PageRef["kind"] | "todas">("todas");
 
-    useEffect(() => {
-        async function fetchPages() {
-            try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return;
+    const pages = useMemo(() => {
+        const list = data ?? [];
+        return filter === "todas" ? list : list.filter(p => p.kind === filter);
+    }, [data, filter]);
 
-                // First get the profile id
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('user_id', user.id)
-                    .single();
-
-                if (profile) {
-                    // Fetch pages where this profile is a member
-                    // Note: This assumes a many-to-many relation or that pages array exists on profile
-                    // But schema says Page has members: Profile[]. This usually implies a join table or JSONB.
-                    // For V1 simple schema, let's assume we fetch pages created by this user or just all public pages for demo if join table missing.
-                    // Checking gemini.md schema: "members": "Profile[]" 
-                    // This likely suggests a `page_members` join table in a real SQL implementation, 
-                    // OR it's a JSONB column. 
-                    // Given "StarSeed Network V2" setup, let's try to query the 'pages' table directly.
-                    // If we want "My Pages", we usually mean pages I created or follow.
-                    // Let's query ALL pages for now to ensure data visibility, limited to 5.
-
-                    const { data, error } = await supabase
-                        .from('pages')
-                        .select('id, title, type, handle, avatar_url')
-                        .limit(5);
-
-                    if (data) {
-                        setPages(data);
-                    }
-                    if (error) {
-                        console.error('Error fetching pages:', error);
-                    }
-                }
-            } catch (error) {
-                console.error("Error in fetchPages:", error);
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchPages();
-    }, []);
+    const mostActive = useMemo(() => {
+        if (!data?.length) return null;
+        return [...data].sort((a, b) => b.activity - a.activity)[0];
+    }, [data]);
 
     return (
-        <div className="@container w-full h-full bg-card/10 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-4 @sm:p-6 border border-border/40 shadow-2xl text-foreground font-display group">
-            {/* Background Effects */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] bg-[conic-gradient(at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-accent/10 opacity-30 pointer-events-none group-hover:rotate-12 transition-transform duration-1000"></div>
+        <WidgetShell
+            title="Mis Páginas"
+            subtitle="Perfiles · comunidades · proyectos"
+            icon={LayoutGrid}
+            accent={ACCENT}
+            actions={
+                <>
+                    <Link href="/hub" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
+                        Hub <ChevronRight className="size-3" />
+                    </Link>
+                    <Link href="/pages/new" className="inline-flex items-center gap-1 rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-sky-300 hover:bg-sky-500/20 transition-colors cursor-pointer">
+                        <Plus className="size-3" /> Nueva
+                    </Link>
+                </>
+            }
+        >
+            {(size) => {
+                if (loading && !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
 
-            <div className="flex items-center justify-between pb-6 shrink-0 z-10 relative">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-primary/10 shadow-sm border border-primary/20">
-                        <Book className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <h3 className="font-black text-xs @sm:text-sm tracking-[0.2em] uppercase">My Modules</h3>
-                        <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">Personal Nodes</p>
-                    </div>
-                </div>
-                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-muted/10 hover:bg-primary/20 hover:text-primary transition-all border border-border/10">
-                    <Plus className="h-4 w-4" />
-                </Button>
-            </div>
+                const micro = size.tier === "micro" || size.vTier === "micro";
 
-            <ScrollArea className="flex-1 w-full z-10 relative pr-2">
-                <div className="space-y-3">
-                    {loading ? (
-                        [1, 2, 3].map(i => (
-                            <div key={i} className="flex items-center gap-4 p-3 rounded-2xl bg-muted/5 border border-border/10 animate-pulse">
-                                <div className="h-10 w-10 rounded-xl bg-muted" />
-                                <div className="space-y-2 flex-1">
-                                    <div className="h-3 w-32 bg-muted rounded" />
-                                    <div className="h-2 w-20 bg-muted/50 rounded" />
-                                </div>
+                // ── Micro: conteo + página más activa ──────────────
+                if (micro) {
+                    return (
+                        <div className="h-full flex items-center gap-3 px-1">
+                            <ProgressRing value={mostActive?.activity ?? 0} size={52} stroke={5} color={ACCENT}
+                                label={String(data?.length ?? 0)} sublabel="págs." />
+                            <div className="min-w-0 flex-1">
+                                {mostActive ? (
+                                    <>
+                                        <p className="text-[11px] font-black truncate" style={{ color: mostActive.accent ?? ACCENT }}>{mostActive.name}</p>
+                                        <p className="text-[9px] uppercase tracking-wide text-muted-foreground/60">{KIND_META[mostActive.kind]?.label}</p>
+                                    </>
+                                ) : (
+                                    <p className="text-[10px] text-muted-foreground/50 italic">Sin páginas</p>
+                                )}
                             </div>
-                        ))
-                    ) : pages.length > 0 ? (
-                        pages.map(page => (
-                            <div key={page.id} className="group flex items-center justify-between p-3 rounded-2xl bg-muted/5 border border-border/10 hover:bg-muted/10 hover:border-primary/30 transition-all cursor-pointer shadow-sm">
-                                <div className="flex items-center gap-4 overflow-hidden">
-                                    <Avatar className="h-10 w-10 rounded-xl border border-border/20 shadow-sm">
-                                        <AvatarImage src={page.avatar_url} />
-                                        <AvatarFallback className="rounded-xl bg-secondary text-xs font-black">{page.title?.[0] || '?'}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="min-w-0">
-                                        <p className="font-black text-sm truncate text-foreground/90 group-hover:text-primary transition-colors tracking-tight">{page.title}</p>
-                                        <p className="text-[10px] text-muted-foreground/60 capitalize font-bold tracking-[0.1em]">{page.type?.toLowerCase()}</p>
-                                    </div>
-                                </div>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg opacity-0 group-hover:opacity-100 bg-primary/10 text-primary hover:bg-primary/20 transition-all">
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                </Button>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="min-h-[200px] flex flex-col items-center justify-center text-center p-8 bg-muted/5 rounded-3xl border border-dashed border-border/20">
-                            <div className="p-4 rounded-full bg-muted/10 mb-4 opacity-50">
-                                <Book className="h-10 w-10 text-muted-foreground" />
-                            </div>
-                            <p className="text-xs font-bold text-muted-foreground/80 tracking-widest uppercase mb-4">No active nodes</p>
-                            <Link href="/pages/new">
-                                <Button variant="outline" size="sm" className="rounded-full px-6 border-primary/30 text-primary hover:bg-primary/5 text-[10px] font-black uppercase tracking-widest">Generate Node</Button>
-                            </Link>
                         </div>
-                    )}
-                </div>
-            </ScrollArea>
-        </div>
+                    );
+                }
+
+                const max = size.vTier === "expanded" ? 6 : size.vTier === "compact" ? 3 : 4;
+                const showFilter = size.tier !== "compact";
+
+                return (
+                    <div className="flex flex-col gap-2 pt-1 h-full">
+
+                        {/* Filtro por kind */}
+                        {showFilter && (
+                            <div className="shrink-0 flex items-center gap-1 flex-wrap">
+                                {KIND_FILTERS.slice(0, 4).map(k => (
+                                    <button key={k} onClick={() => setFilter(k)}
+                                        className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${filter === k ? "bg-sky-500/15 border-sky-400/40 text-sky-300" : "border-border/40 text-muted-foreground/60 hover:text-foreground"}`}>
+                                        {k === "todas" ? "Todas" : KIND_META[k as PageRef["kind"]]?.label}
+                                    </button>
+                                ))}
+                                <span className="ml-auto text-[9px] text-muted-foreground/50 font-bold tabular-nums">{pages.length} págs.</span>
+                            </div>
+                        )}
+
+                        {/* Lista de páginas */}
+                        <div className="flex-1 min-h-0">
+                            <MiniList
+                                items={pages}
+                                max={max}
+                                empty="Sin páginas en esta categoría"
+                                render={(pg) => {
+                                    const role = ROLE_META[pg.role];
+                                    const kind = KIND_META[pg.kind];
+                                    const KindIcon = kind.icon;
+                                    const RoleIcon = role.icon;
+                                    const activityPct = Math.round(pg.activity * 100);
+                                    return (
+                                        <motion.div
+                                            whileHover={{ scale: 1.01 }}
+                                            className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-sky-400/25 transition-colors cursor-pointer"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {/* Avatar */}
+                                                <div className="shrink-0 relative grid place-items-center size-8 rounded-xl text-white font-black text-xs border"
+                                                    style={{ background: `linear-gradient(135deg, ${pg.accent}, color-mix(in srgb, ${pg.accent} 50%, #000))`, borderColor: `${pg.accent}44` }}>
+                                                    {pg.name.charAt(0)}
+                                                    {/* actividad pulsante si > 70% */}
+                                                    {pg.activity > 0.7 && (
+                                                        <motion.span
+                                                            animate={{ opacity: [0.5, 1, 0.5] }}
+                                                            transition={{ duration: 2, repeat: Infinity }}
+                                                            className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 border border-background"
+                                                        />
+                                                    )}
+                                                </div>
+
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[11px] @sm:text-xs font-bold truncate">{pg.name}</span>
+                                                        <Chip color={pg.accent ?? ACCENT}>{kind.label}</Chip>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <span className="inline-flex items-center gap-0.5 text-[9px]" style={{ color: role.color }}>
+                                                            <RoleIcon className="size-2.5" />{role.label}
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-0.5 text-[9px] text-muted-foreground/60">
+                                                            <Users className="size-2.5" />{pg.members.toLocaleString()}
+                                                        </span>
+                                                        <span className="ml-auto inline-flex items-center gap-0.5 text-[9px] font-black" style={{ color: pg.accent ?? ACCENT }}>
+                                                            <KindIcon className="size-2.5" />{activityPct}%
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {size.vTier !== "compact" && (
+                                                <div className="mt-1.5">
+                                                    <ProgressBar value={pg.activity} color={pg.accent ?? ACCENT} height={3} />
+                                                </div>
+                                            )}
+                                        </motion.div>
+                                    );
+                                }}
+                            />
+                        </div>
+                    </div>
+                );
+            }}
+        </WidgetShell>
     );
 }

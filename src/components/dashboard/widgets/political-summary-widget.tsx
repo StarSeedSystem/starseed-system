@@ -1,205 +1,214 @@
 'use client';
 
-import { Rocket, TrendingUp, BarChart3, AlertCircle, ChevronRight, Vote, Users, Gavel, Zap } from "lucide-react";
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { createClient } from "@/utils/supabase/client";
-import { cn } from "@/lib/utils";
+import { useState, useMemo } from "react";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { Vote, Landmark, ChevronRight, ThumbsUp, ThumbsDown, Clock, Scale } from "lucide-react";
+import { WidgetShell, MiniList, Chip, ProgressBar, ProgressRing, timeUntil } from "../kit";
+import { useWidgetData } from "@/lib/widget-data";
+import type { LawProposal } from "@/lib/widget-data";
+
+// ════════════════════════════════════════════════════════════════
+// PoliticalSummaryWidget — resumen de gobernanza directa.
+// Datos en vivo "politics.proposals". Lista por urgencia, Chip por
+// stage, barra support/threshold, deadline, voto local.
+// Adaptativo + theme-aware. Accent "#FFBF00". Link a /network/politics.
+// ════════════════════════════════════════════════════════════════
+
+const ACCENT = "#FFBF00";
+
+const STAGE_META: Record<LawProposal["stage"], { color: string; label: string }> = {
+    borrador:   { color: "#94a3b8", label: "Borrador"  },
+    firmas:     { color: "#38bdf8", label: "Firmas"    },
+    debate:     { color: "#a855f7", label: "Debate"    },
+    votacion:   { color: "#FFBF00", label: "Votación"  },
+    ratificada: { color: "#10b981", label: "Ratificada"},
+};
+
+const SCOPE_LABEL: Record<LawProposal["scope"], string> = {
+    vecinal:      "Vecinal",
+    municipal:    "Municipal",
+    biorregional: "Biorregional",
+    global:       "Global",
+};
+
+type VoteState = "favor" | "contra" | null;
 
 export function PoliticalSummaryWidget() {
-    const [proposalCount, setProposalCount] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'stats' | 'proposals'>('stats');
-    const supabase = createClient();
+    const { data, loading } = useWidgetData("politics.proposals", { refreshMs: 6000 });
+    // Local vote overrides (optimistic UI on top of youVoted from server)
+    const [localVotes, setLocalVotes] = useState<Record<string, VoteState>>({});
 
-    useEffect(() => {
-        async function fetchStats() {
-            try {
-                const { count } = await supabase
-                    .from('posts')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('type', 'PROPOSAL');
+    const proposals = data ?? [];
 
-                if (count !== null) {
-                    setProposalCount(count);
-                } else {
-                    setProposalCount(12); // Fallback for aesthetic display if no db conn
-                }
-            } catch (err) {
-                console.error("Error fetching political stats:", err);
-                setProposalCount(12);
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchStats();
-    }, []);
+    const stats = useMemo(() => {
+        const inVoting  = proposals.filter(p => p.stage === "votacion").length;
+        const ratified  = proposals.filter(p => p.stage === "ratificada").length;
+        const youVoted  = proposals.filter(p => {
+            const lv = localVotes[p.id];
+            return lv !== undefined ? lv !== null : p.youVoted != null;
+        }).length;
+        const avgRatio = proposals.length
+            ? proposals.reduce((a, p) => a + Math.min(1, p.support / p.threshold), 0) / proposals.length
+            : 0;
+        return { inVoting, ratified, youVoted, avgRatio };
+    }, [proposals, localVotes]);
 
-    const proposals = [
-        { id: '1', title: 'Universal Bio-Data Access', status: 'Voting', support: 82 },
-        { id: '2', title: 'Orbital Energy Tax Rev.', status: 'Review', support: 45 },
-    ];
+    // Most urgent: votacion first, then by deadline
+    const sorted = useMemo(() => [...proposals].sort((a, b) => {
+        const stageOrder = { votacion: 0, debate: 1, firmas: 2, borrador: 3, ratificada: 4 };
+        const sd = (stageOrder[a.stage] ?? 5) - (stageOrder[b.stage] ?? 5);
+        if (sd !== 0) return sd;
+        return a.deadlineTs - b.deadlineTs;
+    }), [proposals]);
+
+    const topUrgent = sorted[0];
+
+    function castVote(id: string, v: VoteState) {
+        setLocalVotes(prev => ({ ...prev, [id]: prev[id] === v ? null : v }));
+    }
 
     return (
-        <div className="@container w-full h-full bg-card/10 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-3 @sm:p-5 border border-border/40 shadow-2xl text-foreground font-display group/widget">
-            {/* Background Narrative Glows */}
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/20 rounded-full blur-[60px] pointer-events-none group-hover/widget:bg-primary/30 transition-colors duration-700"></div>
-            <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-accent/10 rounded-full blur-[50px] pointer-events-none"></div>
+        <WidgetShell
+            title="Gobernanza Directa"
+            subtitle="Propuestas y votación"
+            icon={Landmark}
+            accent={ACCENT}
+            live
+            actions={
+                <Link href="/network/politics" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
+                    Ágora <ChevronRight className="size-3" />
+                </Link>
+            }
+        >
+            {(size) => {
+                if (loading && !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
 
-            {/* Header: Ontocratic Identifier */}
-            <header className="flex items-center justify-between pb-3 border-b border-white/5 shrink-0 z-10 relative">
-                <div className="flex items-center gap-3">
-                    <motion.div
-                        whileHover={{ rotate: 15, scale: 1.1 }}
-                        className="h-10 w-10 rounded-xl bg-gradient-to-tr from-primary via-primary/80 to-accent/50 flex items-center justify-center shadow-[0_0_20px_rgba(var(--primary-hsl),0.3)] border border-white/20"
-                    >
-                        <Gavel size={20} className="text-primary-foreground drop-shadow-md" />
-                    </motion.div>
-                    <div className="space-y-0 text-left">
-                        <div className="flex items-center gap-1.5">
-                            <h2 className="text-xs font-black text-foreground tracking-[0.15em] uppercase leading-none">Ontocracy</h2>
-                            <span className="w-1 h-1 bg-primary rounded-full animate-pulse" />
+                const micro = size.tier === "micro" || size.vTier === "micro";
+
+                // ── Micro: propuesta más urgente + barra ──────────
+                if (micro) {
+                    if (!topUrgent) return <div className="h-full grid place-items-center text-xs text-muted-foreground/50 italic">Sin propuestas</div>;
+                    const ratio = Math.min(1, topUrgent.support / topUrgent.threshold);
+                    return (
+                        <div className="h-full flex items-center gap-3 px-1">
+                            <ProgressRing value={ratio} size={52} stroke={5} color={STAGE_META[topUrgent.stage].color}
+                                label={`${Math.round(ratio * 100)}%`} sublabel="apoyo" />
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[11px] font-black line-clamp-2 leading-tight">{topUrgent.title}</p>
+                                <p className="text-[9px] uppercase tracking-wide font-bold mt-0.5" style={{ color: STAGE_META[topUrgent.stage].color }}>
+                                    {STAGE_META[topUrgent.stage].label} · {timeUntil(topUrgent.deadlineTs)}
+                                </p>
+                            </div>
                         </div>
-                        <h1 className="text-[10px] uppercase tracking-[0.2em] text-primary/70 font-bold whitespace-nowrap">Governance Core</h1>
-                    </div>
-                </div>
+                    );
+                }
 
-                <div className="flex flex-col items-end gap-1 capitalize">
-                    <motion.span
-                        animate={{ opacity: [0.5, 1, 0.5] }}
-                        transition={{ repeat: Infinity, duration: 2 }}
-                        className="flex items-center gap-1.5 text-[8px] font-black font-mono text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-0.5 rounded-full"
-                    >
-                        SYNCED
-                    </motion.span>
-                </div>
-            </header>
+                const maxItems = size.vTier === "expanded" ? 4 : size.vTier === "compact" ? 2 : 3;
+                const showStats = size.vTier !== "compact";
 
-            {/* Main Content Area */}
-            <div className="flex-1 mt-4 z-10 relative flex flex-col gap-4">
-                {/* Visual Dashboard Tabs */}
-                <div className="flex gap-2 p-1 bg-black/20 rounded-lg self-start">
-                    <button
-                        onClick={() => setActiveTab('stats')}
-                        className={cn(
-                            "px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-md transition-all",
-                            activeTab === 'stats' ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
-                        )}
-                    >
-                        Metrics
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('proposals')}
-                        className={cn(
-                            "px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-md transition-all",
-                            activeTab === 'proposals' ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
-                        )}
-                    >
-                        Proposals
-                    </button>
-                </div>
+                return (
+                    <div className="flex flex-col gap-2.5 pt-1 h-full">
 
-                <AnimatePresence mode="wait">
-                    {activeTab === 'stats' ? (
-                        <motion.div
-                            key="stats"
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 10 }}
-                            className="grid grid-cols-2 gap-3"
-                        >
-                            <div className="p-3 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center text-center relative overflow-hidden group/stat">
-                                <Users className="absolute top-2 right-2 w-3 h-3 text-primary/40" />
-                                <span className="text-[8px] uppercase tracking-tighter text-muted-foreground font-black mb-1">Reputation Avg.</span>
-                                <motion.span
-                                    initial={{ scale: 0.8 }}
-                                    animate={{ scale: 1 }}
-                                    className="text-3xl font-black font-mono tracking-tighter text-foreground"
-                                >
-                                    84.2
-                                </motion.span>
-                                <div className="mt-2 w-full h-1 bg-muted/20 rounded-full overflow-hidden">
-                                    <motion.div
-                                        initial={{ width: 0 }}
-                                        animate={{ width: "84%" }}
-                                        className="h-full bg-primary"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="p-3 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center text-center relative overflow-hidden group/stat">
-                                <Vote className="absolute top-2 right-2 w-3 h-3 text-accent/40" />
-                                <span className="text-[8px] uppercase tracking-tighter text-muted-foreground font-black mb-1">Total Proposals</span>
-                                <motion.span
-                                    initial={{ scale: 0.8 }}
-                                    animate={{ scale: 1 }}
-                                    className="text-3xl font-black font-mono tracking-tighter text-foreground"
-                                >
-                                    {loading ? "..." : proposalCount}
-                                </motion.span>
-                                <div className="mt-2 flex gap-1">
-                                    <span className="text-[7px] font-black bg-accent/20 text-accent px-1.5 py-0.5 rounded uppercase">3 URGENT</span>
-                                </div>
-                            </div>
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key="proposals"
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 10 }}
-                            className="flex flex-col gap-2"
-                        >
-                            {proposals.map(p => (
-                                <div key={p.id} className="p-2 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between hover:bg-white/10 transition-colors">
-                                    <div className="flex flex-col min-w-0">
-                                        <span className="text-[10px] font-bold truncate pr-2">{p.title}</span>
-                                        <span className="text-[8px] text-primary font-black uppercase tracking-widest">{p.status}</span>
+                        {/* Métricas resumen */}
+                        {showStats && (
+                            <div className="shrink-0 grid grid-cols-3 gap-1.5">
+                                {[
+                                    { label: "En votación", value: stats.inVoting, color: ACCENT, icon: Vote },
+                                    { label: "Ratificadas", value: stats.ratified, color: "#10b981", icon: Scale },
+                                    { label: "Tu voz",      value: stats.youVoted, color: "#38bdf8", icon: ThumbsUp },
+                                ].map(({ label, value, color, icon: Icon }) => (
+                                    <div key={label} className="rounded-xl border border-border/40 bg-white/[0.02] px-2 py-1.5 flex flex-col items-center gap-0.5">
+                                        <Icon className="size-3.5" style={{ color }} />
+                                        <span className="text-base font-black tabular-nums" style={{ color }}>{value}</span>
+                                        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/60 text-center leading-tight">{label}</span>
                                     </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        <div className="text-[9px] font-mono font-bold">{p.support}%</div>
-                                        <div className="w-8 h-1.5 bg-muted/20 rounded-full overflow-hidden">
-                                            <div className="h-full bg-primary" style={{ width: `${p.support}%` }} />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
+                                ))}
+                            </div>
+                        )}
 
-            {/* Footer: Timeline & Call to Action */}
-            <footer className="mt-4 pt-4 border-t border-white/5 z-10 relative">
-                <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                        <Zap size={10} className="text-primary fill-primary animate-pulse" />
-                        <span className="text-muted-foreground text-[8px] uppercase tracking-widest font-black">Next Assembly Cycle</span>
+                        {/* Barra de consenso global */}
+                        {showStats && (
+                            <div className="shrink-0">
+                                <ProgressBar value={stats.avgRatio} label="Consenso medio" showPct color={ACCENT} height={5} />
+                            </div>
+                        )}
+
+                        {/* Lista de propuestas */}
+                        <div className="flex-1 min-h-0">
+                            <MiniList
+                                items={sorted}
+                                max={maxItems}
+                                empty="Sin propuestas activas"
+                                render={(p) => {
+                                    const stageInfo = STAGE_META[p.stage];
+                                    const ratio = Math.min(1, p.support / p.threshold);
+                                    const effectiveVote = localVotes[p.id] !== undefined ? localVotes[p.id] : (p.youVoted ?? null);
+                                    const canVote = p.stage === "votacion" || p.stage === "debate";
+                                    return (
+                                        <motion.div
+                                            whileHover={{ scale: 1.005 }}
+                                            className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-amber-500/20 transition-colors"
+                                        >
+                                            {/* Fila 1: título + chip stage */}
+                                            <div className="flex items-start gap-2">
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-[11px] @sm:text-xs font-bold line-clamp-2 leading-snug">{p.title}</p>
+                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                        <Chip color={stageInfo.color}>{stageInfo.label}</Chip>
+                                                        <span className="text-[9px] text-muted-foreground/60 font-semibold">{SCOPE_LABEL[p.scope]}</span>
+                                                    </div>
+                                                </div>
+                                                {/* Deadline */}
+                                                <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-muted-foreground/60">
+                                                    <Clock className="size-2.5" />{timeUntil(p.deadlineTs)}
+                                                </span>
+                                            </div>
+
+                                            {/* Barra support/threshold */}
+                                            <div className="mt-1.5">
+                                                <ProgressBar value={ratio} color={stageInfo.color} height={4} />
+                                                <div className="flex items-center justify-between mt-0.5">
+                                                    <span className="text-[8px] text-muted-foreground/50 font-bold">
+                                                        {p.support.toLocaleString()} / {p.threshold.toLocaleString()}
+                                                    </span>
+                                                    <span className="text-[8px] font-black tabular-nums" style={{ color: stageInfo.color }}>
+                                                        {Math.round(ratio * 100)}%
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Botones de voto (si aplica) */}
+                                            {canVote && (
+                                                <div className="mt-1.5 flex items-center gap-1.5">
+                                                    <button
+                                                        onClick={() => castVote(p.id, "favor")}
+                                                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${effectiveVote === "favor" ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" : "border-border/40 text-muted-foreground/60 hover:border-emerald-500/30 hover:text-emerald-400"}`}
+                                                    >
+                                                        <ThumbsUp className="size-2.5" /> A favor
+                                                    </button>
+                                                    <button
+                                                        onClick={() => castVote(p.id, "contra")}
+                                                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${effectiveVote === "contra" ? "bg-rose-500/20 border-rose-500/40 text-rose-300" : "border-border/40 text-muted-foreground/60 hover:border-rose-500/30 hover:text-rose-400"}`}
+                                                    >
+                                                        <ThumbsDown className="size-2.5" /> En contra
+                                                    </button>
+                                                    {effectiveVote && (
+                                                        <span className="ml-auto text-[8px] font-bold uppercase tracking-wide"
+                                                            style={{ color: effectiveVote === "favor" ? "#10b981" : "#f43f5e" }}>
+                                                            Votado
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </motion.div>
+                                    );
+                                }}
+                            />
+                        </div>
                     </div>
-                    <span className="font-mono text-foreground text-[10px] font-black">24h 12m</span>
-                </div>
-
-                {/* Breathing Status Bar */}
-                <div className="w-full h-3 bg-muted/20 rounded-full overflow-hidden border border-white/5 relative shadow-inner">
-                    <motion.div
-                        animate={{
-                            boxShadow: ["0 0 5px rgba(var(--primary-hsl), 0.2)", "0 0 15px rgba(var(--primary-hsl), 0.6)", "0 0 5px rgba(var(--primary-hsl), 0.2)"]
-                        }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                        className="h-full bg-gradient-to-r from-primary via-primary/80 to-accent rounded-full"
-                        style={{ width: "65%" }}
-                    />
-                </div>
-
-                <div className="flex gap-2 mt-4">
-                    <button className="flex-1 h-9 rounded-lg bg-primary text-primary-foreground hover:brightness-110 shadow-lg shadow-primary/20 transition-all text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
-                        Cast Vote
-                    </button>
-                    <button className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors">
-                        <ChevronRight size={16} />
-                    </button>
-                </div>
-            </footer>
-        </div>
+                );
+            }}
+        </WidgetShell>
     );
 }

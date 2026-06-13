@@ -27,8 +27,6 @@ export const MagnetometerWidget: React.FC<MagnetometerWidgetProps> = ({ data, lo
         return Math.atan2(yComp, xComp) * (180 / Math.PI);
     }, [xComp, yComp]);
 
-    const gicRisk = Math.abs(currentKp >= 5 ? 'High' : 'Nominal'); // This is a placeholder logic
-
     return (
         <Card className="@container relative overflow-hidden w-full h-full min-h-[400px] bg-[#020508] border border-white/10 group rounded-[2.5rem] shadow-2xl transition-all duration-700 hover:border-emerald-500/30">
 

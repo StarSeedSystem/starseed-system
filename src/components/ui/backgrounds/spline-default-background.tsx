@@ -16,7 +16,7 @@ export function SplineDefaultBackground() {
     // The user said "este sera el fondo predeterminado que debes tambien incorporar" 
     // Let's rely on config.background.type to allow toggling, but default to 'spline'
     // Or just always render it behind everything, but controlled by opacity.
-    const isSplineActive = config.background.type === 'spline' || config.background.type === 'webgl';
+    const isSplineActive = (config.background.type as string) === 'spline' || config.background.type === 'webgl';
 
     if (!mounted) return null;
 

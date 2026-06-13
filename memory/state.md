@@ -476,3 +476,378 @@
 - Mantener todos los archivos OpenHuman dentro de `hermes-integration/` mantiene la cohesión semántica: Hermes es el "mensajero" entre la mente del usuario y el mundo digital; OpenHuman es su biblioteca de memoria. Son una sola arquitectura.
 
 
+---
+
+## 2026-05-28 — Colocación de widgets gen2 en dashboards + UI de sección + fix Fragua
+
+**Sesión por:** Claude (Cowork mode, Opus).
+**Resumen ejecutivo:** Se colocaron los 10 widgets de 2ª generación en sus dashboards predeterminados ordenados por relevancia, se poblaron y activaron 6 categorías de dashboard antes vacías, se rediseñó el encabezado de la sección Dashboards (dinámico y centrado con contexto vivo) y se dejó compilable la Fragua de Interfaces (creador de widgets con IA, flujo 3 fases + edición).
+
+### Hecho
+- **`dashboard-defaults.ts`** — bloque gen2 al inicio de `WIDGET_CATEGORY_MAP` (AGORA_CAUSAL, LIQUID_DELEGATION, OIKOS_METABOLISM, SKILL_TREE, ASTRAURA_CORTEX, SOVEREIGN_NODE, AKASHIC_CODEX, NATAL_CHART, MESH_RADAR, IMMERSION_PORTAL). Plantillas predeterminadas reordenadas por relevancia respetando los `minW/minH` del manifest:
+  - Política: AGORA_CAUSAL · POLITICAL_SUMMARY · LIQUID_DELEGATION · RELEVANT_POSTS.
+  - Educación: SKILL_TREE · LEARNING_PATH · ACTIVE_PROJECTS.
+  - Cultura: CULTURAL_FEED · IMMERSION_PORTAL · RELEVANT_POSTS.
+  - Economía: OIKOS_METABOLISM · ECONOMIC_OVERVIEW · CALCULATOR · ACTIVE_PROJECTS.
+  - Sistema: SOVEREIGN_NODE · MESH_RADAR · SYSTEM_STATUS · LIVE_DATA · NOTIFICATIONS.
+  - IA: ASTRAURA_CORTEX · NEXUS_QUICK_ACCESS · MESSAGES.
+  - Parlamento: AGORA_CAUSAL · LIQUID_DELEGATION · POLITICAL_SUMMARY · RELEVANT_POSTS.
+  - Red: MESH_RADAR · EXPLORE_NETWORK · LIVE_DATA · MY_PAGES.
+  - `FUTURE_DASHBOARD_TEMPLATES` poblado: astrología, archivos, entretenimiento, ayudantía, ciberdelia, descubrimientos.
+- **`widget-categories.ts`** — `hasWidgets: true` en astrología, archivos, entretenimiento, ayudantía, ciberdelia, descubrimientos.
+- **`dashboard-layout.tsx`** — encabezado dinámico y centrado: pill eyebrow (icono+nombre de categoría, punto pulsante, "{n} paneles · {n} widgets"), `<motion.h1>` con AnimatePresence keyed por dashboard activo y gradiente violet→cyan→fuchsia, descripción de categoría, fila centrada de `HeaderAction` (Forjar Widget · Crear Dashboard · Editar/Terminar · Pantalla completa). Nuevo componente `HeaderAction` con tonos neutral/cyan/emerald/indigo.
+- **Fragua de Interfaces** — `ForgeWidgetResult` añadido en `widget-forge-types.ts`; `widget-forge-dialog.tsx` corregido (imports `CircleDashed/Loader2/Wand2/Input`, props retipadas a `ForgeWidgetResult`, init de `ontology` null-safe). El flujo 3 fases + edición ya estaba implementado: se preservó, no se reescribió.
+- **`messages-widget.tsx`** — 3 props framer-motion `shadow:` → `boxShadow:` (clave válida).
+
+### Decisiones tomadas
+- **Preservar la Fragua existente** en lugar de reescribirla: ya implementaba las 3 fases (visuales + código + metamorfosis/edición IA). Solo faltaba que compilara.
+- **Orden por relevancia para usuario promedio**: el widget más representativo de cada categoría va primero/arriba-izquierda, con feeds anchos al pie. Tamaños iniciales respetan `minW/minH` del manifest para evitar overflow desde el arranque.
+- **Tolerar los 8 errores de tipo preexistentes** (grid-area `isDraggable`, workspace-renderer null, space-weather flare/magnetometer): documentados desde 2026-05-25, Next.js los ignora en build. Fuera del alcance de esta ola.
+
+### Pendiente / Próximos pasos
+1. Regenerar/actualizar los widgets gen1 restantes al patrón adaptativo (WidgetShell + kit + `useWidgetData`) para adaptabilidad total a cualquier dimensión y tema.
+2. Resolver de forma segura los errores de tipo preexistentes en una ola de refactor dedicada.
+3. Verificar visualmente en navegador la composición predeterminada de cada dashboard y el nuevo encabezado.
+
+### Notas / aprendizajes
+- Type-check con scope (`tsconfig.scope.json` temporal) es la vía para validar un subconjunto sin exceder el timeout del sandbox en el `tsc` de proyecto completo.
+- En framer-motion la clave de sombra animable es `boxShadow`, no `shadow`.
+
+---
+
+## 2026-05-28 — Ola de migración gen1→adaptativo (completada)
+
+Se migraron los widgets gen1 restantes al patrón adaptativo (WidgetShell + kit + `useWidgetData`), cerrando la regeneración total solicitada.
+
+### Widgets migrados en esta ola
+- **`active-projects-widget.tsx`** → `productivity.projects` (7s). "Génesis Activa", icono Rocket. ProgressRing/ProgressBar según tier, hitos en expanded.
+- **`collab-projects-widget.tsx`** → `productivity.projects` (8s). "Hub Colaborativo". StatTiles Sincronía/Colaboradores + MiniList con Chip de estado.
+- **`system-status-widget.tsx`** → `system.node` (2.5s). "Nodo Soberano". ProgressRing en micro; StatTiles CPU/RAM/Temp/Pares; "Procomún donado" (invariante Tríada); threads en expanded.
+- **`notifications-widget.tsx`** → `common.notifications` (10s). "Alertas". KIND_META por tipo, franja de no-leído.
+- **`messages-widget.tsx`** → `social.threads` (6s). "Enlace Neural". Avatar+punto online, badge de no-leídos.
+- **`live-data-widget.tsx`** → `common.metrics` (3s). "Telemetría de Red". Grid de StatTiles + Sparkline del líder.
+- **`learning-path-widget.tsx`** (nuevo archivo) → `education.paths` (15s). "Ruta de Aprendizaje", MENTOR_ICON humano/ia/híbrido.
+- **`social-radar-widget.tsx`** (nuevo archivo) → `social.events` (20s). "Radar Social", badge de fecha + Chip por tipo de evento.
+- **`mental-coherence-widget.tsx`** → `wellness.coherence` (4s). "Coherencia". ProgressRing + StatTiles Foco/Calma/Energía + Sparkline de historial.
+- **`nexus-quick-access-widget.tsx`** → `ai.astraura` (5s). "Nexus IA". Atención + carga cognitiva + sugerencias + trabajos en segundo plano (reemplazado useRouter por next/link).
+- **`calculator-widget.tsx`** — ahora **funcional** (aritmética real con `evaluate` validado por regex; sin fuente de datos, "Cálculo local" por invariante de soberanía). Display y teclado adaptativos.
+- **`theme-selector-widget.tsx`** — envuelto en WidgetShell ("Vibrancy"), grid de 6 temas (next-themes) size-aware: 3-col icon-only en micro/compact, 2-col con etiqueta en regular+. Nunca desborda.
+- **`theme-manager-widget.tsx`** — envuelto en WidgetShell ("Archivo de Temas"), conserva drag-reorder/aplicar/eliminar; MiniList con `max` por vTier; estado vacío adaptativo.
+- **`ai-generated-widget.tsx`** — revisado, ya adaptativo (renderiza HTML IA con fallback de estado vacío). Sin reescritura.
+
+### Correcciones de tipos preexistentes (resueltas, ya no toleradas)
+- **`space-weather-flare-widget.tsx`** — el fallback de `latestFlare` usaba `time` mientras el dato real usa `timestamp`; unificado a `timestamp` y formateado a HH:MM UTC en la bandeja de telemetría.
+- **`space-weather-magnetometer-widget.tsx`** — eliminada la línea rota e inusada `gicRisk = Math.abs(currentKp …)` (`currentKp` indefinido, `Math.abs` sobre string).
+
+### Verificación
+- Type-check con scope sobre los 13 widgets migrados + registry + los 2 weather corregidos: **EXIT 0, 0 errores**.
+
+### Estado
+Regeneración de widgets **completa**: todos los widgets del dashboard siguen ahora el patrón adaptativo (cualquier dimensión, cualquier tema, datos en vivo vía capa mock tipada intercambiable por APIs reales con `registerAdapter`).
+
+---
+
+## 2026-05-29 — Tercera generación (gen3): cobertura del documento de widgets
+
+Objetivo: implementar los ~90 widgets del documento "Opciones de Widgets en Dashboards predeterminados", en oleadas por relevancia para el ciudadano medio. Carpeta nueva: `src/components/dashboard/widgets/gen3/`.
+
+### Wave 1 — Política/Ontocracia ✅
+- **CIVIC_ALCHEMY** (Alquimia Cívica) → `politics.initiatives`. Transmutador funcional queja→iniciativa (textarea + selector de ámbito + botón Transmutar que redacta localmente; botón Firmar). Leyes relacionadas, progreso de firmas.
+- **VITAL_FLOW_AUDIT** (Auditoría de Flujo Vital) → `politics.treasury`. Total, barras por sector, zoom macro→micro por filtro de sector, gasto por asignación, botón Flag (revisión comunitaria), votaciones de presupuesto.
+- **SOCIAL_RESONANCE** (Resonancia Social) → `politics.resonance`. Heatmap semántico por emoción, modo "Burbuja Rota" (postura contraria), filtro por palabra clave, enlaces al debate.
+
+### Wave 2 — Economía/Ecología ✅
+- **GIFT_AGORA** (Ágora del Don) → `oikos.gifts`. Bienes/servicios libres, filtro de proximidad, botón Tomar/Sumarme.
+- **COMMONS_MATRIX** (Patrimonio Común) → `oikos.commons`. Medios de producción compartidos, estado/cola, Reserva por Propósito.
+- **FOOD_ORACLE** (Soberanía Alimentaria) → `oikos.food`. Cosecha, reservas, madurez de cultivos, invernaderos, predicción 7d, perfil dietético.
+- **REGEN_TRACER** (Huella Regenerativa) → `oikos.regen`. CO₂/árboles/compost/agua, anillo de circularidad, metas, escáner AR de verdad material.
+
+### Plumbing por oleada (patrón repetible)
+1. Contratos en `lib/widget-data/types.ts` + claves en `WidgetDataMap`.
+2. Adaptadores mock en `lib/widget-data/adapters.ts` (vivos, deterministas) + registro en `defaultRegistry`.
+3. Literales en `dashboard-types.ts` (`WidgetType`).
+4. Entradas en `widget-manifest.ts` (minW/minH, categoría, relevancia, data).
+5. Componentes adaptativos en `widgets/gen3/` + barrel `gen3/index.ts`.
+6. Casos en `widget-registry.tsx`.
+7. Type-check con scope → 0 errores por oleada (Wave 1 y Wave 2 verificadas).
+
+### Pendiente
+- Waves 3–7: Productividad (5), Utilidades+IA (7), Perfil+Hub (8), Educación/Cultura/Arte (resto), Especializados (Ubicación, AR/VR, Astronomía/Astrología, Descubrimientos, Creatividad, Privacidad, Conectividad, Dispositivos, Archivos, Sistema, Entretenimiento, Sociedad).
+- Recomponer dashboards predeterminados por relevancia con los nuevos widgets.
+- Nota: el dev server (`npm run dev`, puerto 9002) debe ejecutarse en la máquina del usuario; el sandbox Linux no puede servir a su localhost ni cargar el binario SWC de macOS.
+
+
+
+---
+
+## 2026-05-29 — Cuarta generación (gen4): cierre del catálogo + rename "Social"→"Dashboards"
+
+**Sesión por:** Claude (Cowork mode, Opus).
+**Resumen ejecutivo:** Se implementaron 11 widgets adaptativos nuevos (gen4) cubriendo los dashboards del documento "Opciones de Widgets en Dashboards predeterminados" que faltaban, todos con el patrón WidgetShell + kit + useWidgetData (datos en vivo mock, intercambiables por APIs reales con registerAdapter). Se colocaron en sus dashboards predeterminados por relevancia sin tocar los widgets previos, y el dashboard por defecto pasó de llamarse "Social" a "Dashboards".
+
+### Widgets gen4 (carpeta `widgets/gen4/`)
+- **ELDER_COUNCIL** (Consejo de Sabios) → `politics.council`. Meritocracia del entendimiento: ranking por reputación, insignias verificables, voces delegadas, filtro "solo en línea". → dashboard Política.
+- **RESTORATIVE_COURT** (Tribunal Restaurativo) → `politics.justice`. Círculos de Paz, justicia restaurativa nunca punitiva. Etapas, progreso, próximo círculo. → Política.
+- **BARTER_MARKET** (Mercado de Trueque) → `oikos.barter`. Ofrece↔busca, filtro por categoría, match por afinidad, botón Proponer. → Economía.
+- **ENERGY_GRID** (Energía Comunal) → `oikos.energy`. Microred: gen/consumo, batería, kW al procomún, fuentes, CO₂, sparkline. → Economía.
+- **MENTOR_MATCH** (Mentoría Híbrida) → `education.mentors`. Humano/IA/híbrido, rating, afinidad, disponibilidad. → Educación.
+- **UNIVERSAL_LIBRARY** (Biblioteca Universal) → `education.library`. Continúa aprendizaje + destacados + colecciones + búsqueda. Acceso abierto. → Educación.
+- **MULTIVERSE_HUB** (Multiverso) → `culture.multiverse`. Mundos VR/AR/2D/espacial, presencia viva, en directo. → Cultura.
+- **CREATIVE_STUDIO** (Estudio Creativo) → `culture.studio`. Proyectos por medio, herramientas del Lienzo, inspiración del día. → Cultura.
+- **ORACLE_PREDICT** (Oráculo Predictivo) → `ai.oracle`. Escenarios probabilísticos del Exocórtex con confianza, horizonte y factores. → IA.
+- **IDENTITY_VAULT** (Bóveda de Identidad) → `system.identity`. Dualidad Cuenta/Perfil, verificación ZK, accesos a datos revocables, score de soberanía. → Sistema.
+- **ENERGY_MAP** (Mapa de Energía) → `astro.energy`. Coherencia, centros energéticos, biorritmo, influencias cósmicas. → Astrología.
+
+### Plomería (mismo patrón repetible de gen2/gen3)
+1. 11 interfaces + claves en `lib/widget-data/types.ts` (`WidgetDataMap`).
+2. Adaptadores mock deterministas en `lib/widget-data/gen4-adapters.ts`, auto-registrados (side-effect importado desde `index.ts`). No se tocó `adapters.ts`.
+3. 11 literales en `dashboard-types.ts` (`WidgetType`).
+4. Entradas en `widget-manifest.ts` (minW/minH, categoría, relevancia, data).
+5. 11 entradas en `WIDGET_CATEGORY_MAP` (dashboard-defaults.ts) → aparecen automáticamente en el selector de widgets (dashboard-layout lee este mapa).
+6. Componentes en `widgets/gen4/` + barrel `gen4/index.ts`.
+7. Casos en `widget-registry.tsx`.
+
+### Colocación en dashboards predeterminados (sin borrar nada previo)
+- Política: + ELDER_COUNCIL, RESTORATIVE_COURT (segunda fila).
+- Educación: + UNIVERSAL_LIBRARY, MENTOR_MATCH.
+- Cultura: + MULTIVERSE_HUB, CREATIVE_STUDIO.
+- Economía: + ENERGY_GRID, BARTER_MARKET.
+- IA: + ORACLE_PREDICT.
+- Sistema: + IDENTITY_VAULT.
+- Astrología (FUTURE templates): + ENERGY_MAP.
+
+### Rename
+- Plantilla por defecto (categoryId 'social'): `name: 'Social'` → `name: 'Dashboards'`. Es el título que se muestra al abrir el dashboard por defecto.
+
+### Verificación
+- Type-check con scope (tsconfig.gen4.json temporal) sobre los 11 widgets + capa de datos + registry + manifest + defaults: **0 errores**. Config temporal eliminada.
+
+### Pendiente
+- Conectar adaptadores reales (Supabase/REST/oráculos) por `registerAdapter` cuando existan las fuentes.
+- Widgets del documento aún no cubiertos como piezas dedicadas (algunos ya equivalen a widgets previos): Bienvenida/Estado, Lanzador de Creación Rápida, Galería de Arte, Reproductor de Medios, Seguimiento de Hábitos, Pausa Consciente, Actividad Física (wearables), Accesos Directos de Config. Candidatos a una gen5.
+
+---
+
+## 2026-05-29 — Quinta generación (gen5): 10 widgets nuevos + 5 dashboards + estado vacío con biblioteca + IA omnipresente
+
+**Sesión por:** Claude (Cowork mode, Opus) + 5 subagentes en paralelo (sonnet), uno por par de widgets.
+**Resumen ejecutivo:** Se añadieron 10 widgets adaptativos (gen5) cubriendo las categorías del documento que faltaban (Productividad avanzada, Ubicación, Privacidad, Dispositivos, Descubrimientos, Creatividad, Perfil, Sociedad), con 5 categorías/dashboards nuevos. El estado vacío de cualquier dashboard ahora ofrece un botón real "Añadir Widget" que abre la biblioteca. El asistente flotante de IA (AiOverlay/Astraura) ya estaba montado en el layout y aparece en toda sección con posición configurable. Sin borrar nada previo (gen1–gen4).
+
+### Widgets gen5 (carpeta `widgets/gen5/`, creados por subagentes en paralelo)
+- **FLOW_DIRECTOR** (Director de Flujo Vital) → `productivity.flow`. Energía circadiana (ProgressRing+Sparkline 24h), sugerencia de tarea óptima, ventanas del día, toggle "Modo Fortaleza". → Productividad.
+- **PROJECT_SWARM** (Enjambre de Propósitos) → `productivity.swarm`. Constelación viva de proyectos, brillo por urgencia×impacto, filtro por estado, "Soltar al enjambre". → Productividad.
+- **ABUNDANCE_RADAR** (Radar de Abundancia) → `location.resources`. RadialNodeGraph de recursos libres cercanos, filtro por tipo, ETA/Reservar. → Ubicación.
+- **TRANSIT_FLOW** (Tránsito Orgánico) → `location.transit`. Movilidad compartida, ETA, ocupación, CO₂ ahorrado, Solicitar. → Ubicación.
+- **CRYPTO_SHIELD** (Escudo Ontológico) → `privacy.shield`. Niveles de fricción criptográfica, rastreadores bloqueados, flujos de datos con toggle Permitir/Bloquear, "Amnistía de datos". → Privacidad.
+- **HABITAT_CORE** (Simbiosis Habitacional) → `devices.habitat`. Domótica: clima/luz/aire por habitación, modo circadiano, robots con batería, sincronía energética. → Dispositivos.
+- **SERENDIPITY_LENS** (Lente de Serendipia) → `discovery.serendipity`. Slider "Nivel de Extrañeza", hallazgos por tipo, "Sorpréndeme". → Descubrimientos.
+- **IDEA_FORGE** (Incubadora de Quimeras) → `creativity.ideas`. Colisión de conceptos (a✕b + puente), botón "Colisionar", guardar chispas, disciplinas. → Creatividad.
+- **MERIT_GALLERY** (Cristalería de Mérito) → `profile.merit`. Firma de confianza (ProgressRing), huella regenerativa, insignias por tier, top-skills. → Perfil.
+- **SOCIETY_PULSE** (Pulso del Organismo) → `society.cohesion`. Índice de Armonía Global, abundancia/bienestar/participación, cohesión por biorregión, detección de fracturas. → Sociedad.
+
+### Categorías/dashboards nuevos (widget-categories.ts + dashboard-defaults.ts)
+- Añadidas 5 categorías: **privacidad, dispositivos, creatividad, perfil, sociedad** (con icono/color/tags, hasWidgets).
+- 5 plantillas predeterminadas nuevas (Privacidad, Dispositivos, Creatividad, Perfil, Sociedad) ordenadas por relevancia.
+- Reforzadas plantillas existentes: Productividad (FLOW_DIRECTOR + PROJECT_SWARM), Ubicación (ABUNDANCE_RADAR + TRANSIT_FLOW), Descubrimientos (SERENDIPITY_LENS).
+
+### Infra de UX
+- **Estado vacío** (`grid-area.tsx`): rediseñado con halo animado + botón real `AddWidgetDialog` (abre la biblioteca de widgets). `GridArea` ahora recibe `onAddWidget`/`onForgeOpen`, cableados desde `dashboard-workspace-renderer.tsx`.
+- **Asistente IA omnipresente**: confirmado `AiOverlay` montado en `app/(app)/layout.tsx` (voz+texto, posición configurable, navega/actúa). No se duplicó.
+
+### Plomería (mismo patrón gen4)
+1. 10 grupos de interfaces + claves en `types.ts` (`WidgetDataMap`).
+2. Adaptadores mock deterministas auto-registrados en `gen5-adapters.ts` (side-effect desde `index.ts`). `defaultRegistry` ya es `Partial<AdapterRegistry>` (gen4), así que gen5 encaja sin tocar `adapters.ts`.
+3. 10 literales en `dashboard-types.ts`.
+4. Entradas en `widget-manifest.ts` (minW/minH, categoría, relevancia, data).
+5. 10 entradas en `WIDGET_CATEGORY_MAP` + 5 categorías nuevas → aparecen solas en el selector.
+6. Componentes en `widgets/gen5/` (10 archivos).
+7. Casos + imports en `widget-registry.tsx` (los 10 cableados).
+
+### Verificación
+- Type-check con scope (tsconfig.gen5.json temporal) sobre los 10 widgets + capa de datos + registry + manifest + defaults + grid-area + renderer: **0 errores**. Temporal eliminado.
+
+### Pendiente / próximos pasos
+- Conectar adaptadores reales por `registerAdapter` (Supabase/REST/oráculos/puente de dispositivos) cuando existan fuentes del usuario.
+- Mejora estética profunda iterativa de widgets gen1 (microinteracciones/animaciones) si se desea otra ola dedicada.
+- Sincronización biblioteca online + compartir widgets entre usuarios (edición compartida/bloqueada, réplica de archivos de la red) — diseño pendiente respetando que los archivos/datos de la red NO son alterables salvo permiso.
+
+---
+
+## 2026-05-29 — Acomodo final gen4/gen5 en dashboards + migración rename "Social"→"Dashboards"
+
+**Sesión por:** Claude (Cowork mode, Opus).
+**Resumen ejecutivo:** Se confirmó/cerró el acomodo de los 21 widgets gen4+gen5 en sus 27 dashboards predeterminados, se añadió migración de localStorage para que usuarios existentes vean el dashboard por defecto como "Dashboards" (antes "Social"), y se verificó consistencia total (47 tipos usados ↔ manifest/registry/WidgetType) + type-check 0 errores.
+
+### Hecho
+- **Rename robusto**: además de `name: 'Dashboards'` en la plantilla por defecto (categoryId 'social'), se añadió en `dashboard-layout.tsx` una migración al cargar: si un dashboard persistido tiene `category==='social' && name==='Social'`, se renombra a 'Dashboards' y se re-persiste. Cubre instalaciones previas sin tocar tableros personalizados.
+- **Acomodo verificado por dashboard** (widgets por relevancia, sin solapes):
+  - Dashboards(social) 5 · Política 6 · Educación 5 · Cultura 5 · Economía 6 · Clima 9 · Productividad 6 · Ubicación 4 · Utilidades 3 · Arte 1 · Astronomía 7 · Sistema 6 · Personalización 2 · IA 5 · Parlamento 4 · Red 4 · Explorador 3 · Astrología 4 · Archivos 2 · Entretenimiento 2 · Ayudantía 3 · Ciberdelia 3 · Descubrimientos 4 · Privacidad 3 · Dispositivos 3 · Creatividad 3 · Perfil 3 · Sociedad 3.
+- **Verificación de consistencia** (script): 47 WidgetType usados en plantillas → 0 faltantes en manifest, 0 faltantes en registry case, 0 faltantes en declaración WidgetType.
+- **Type-check** scope completo (widget-data + dashboard core + gen4 + gen5): **0 errores**.
+- **Estado vacío** con botón real a la biblioteca y **AiOverlay omnipresente** ya integrados (sesión previa gen5).
+
+### Pendiente / próximos pasos (olas dedicadas)
+- Rediseño estético profundo iterativo de widgets gen1 antiguos (microinteracciones/animaciones por widget).
+- Sincronización con biblioteca online + compartir/replicar widgets entre usuarios (edición compartida/bloqueada), respetando que datos/archivos de la red NO se alteran salvo permiso.
+- Panel de permisos de IA en la página de IA (acceso complejo al sistema, desplegar agentes/subagentes) — por defecto las IAs de chat del usuario pueden editar su propio entorno.
+
+### Adenda (misma fecha) — fixes de cierre
+- **Migración rename en runtime**: `dashboard-layout.tsx` ahora, al cargar dashboards persistidos, renombra `category==='social' && name==='Social'` → 'Dashboards' y re-persiste (cubre usuarios ya inicializados; no toca tableros personalizados). El título grande del header lee `activeDashboard?.name ?? "Dashboards"`.
+- **Bug real corregido**: `LIVE_DATA` no tenía case en `widget-registry.tsx` (renderizaba "Widget desconocido" en Sistema y Red). Añadido import `LiveDataWidget` + case.
+- **Verificación de cobertura**: 47 WidgetType colocados en las 28 plantillas → 0 sin case en registry. Type-check scope (data + dashboard core + gen4 + gen5 + app-shell) → 0 errores nuevos (2 preexistentes ajenos: tipado RGL en grid-area:205 y activeId en renderer:174, ignorados por Next en build).
+
+### Adenda 2 — re-siembra versionada de dashboards predeterminados
+- **Problema**: instalaciones con `LS_INITIALIZED` ya puesto nunca volvían a sembrar, así que los nuevos acomodos gen4/gen5 no aparecían en localhost del usuario.
+- **Solución**: `LS_DEFAULTS_VERSION` + `DEFAULTS_VERSION='gen5-2026-05-29'`. Al montar, si la versión guardada ≠ actual, `reseedDefaultDashboards()` regenera TODOS los tableros predeterminados con el acomodo nuevo y **preserva los tableros propios** del usuario (categorías no predeterminadas + sus widgets), resetea `LS_ORDER` y guarda la versión. Subir `DEFAULTS_VERSION` en el futuro re-siembra automáticamente.
+- Type-check del archivo: 0 errores nuevos.
+
+---
+
+## 2026-05-30 — Re-siembra de defaults + Olas 1·2·3 (gen1 redux, permisos IA, compartir/sincronizar)
+
+**Sesión por:** Claude (Cowork mode, Opus) + 1 subagente (gen1).
+**Resumen ejecutivo:** Resuelto que los nuevos acomodos no aparecían en localhost (bandera de init), mejorados los widgets gen1 más básicos, y construidas dos capacidades nuevas: panel de permisos de IA y sistema de compartir/sincronizar widgets con la biblioteca.
+
+### Re-siembra versionada de dashboards (fix del usuario)
+- `LS_DEFAULTS_VERSION` + `DEFAULTS_VERSION='gen5-2026-05-29'` en `dashboard-layout.tsx`. Al montar, si la versión guardada ≠ actual y ya había tableros, `reseedDefaultDashboards()` regenera TODOS los predeterminados con el acomodo nuevo y PRESERVA los tableros propios del usuario (categorías no predeterminadas + sus widgets), resetea `LS_ORDER` y guarda versión. Subir la constante re-siembra en el futuro. (Recargar la página aplica el cambio.)
+- Migración de rename "Social"→"Dashboards" también en runtime.
+
+### Ola 1 — gen1 redux
+- Auditoría: casi todos los widgets raíz ya usaban el kit (sesiones previas). Solo eran básicos 3.
+- Reescritos (subagente) con kit adaptativo + datos en vivo, microinteracciones y diseño único:
+  - `explore-network-widget.tsx` → `social.entities` (entidades trending, momentum, unirse).
+  - `my-pages-widget.tsx` → `social.pages` (rol, actividad, filtro por kind).
+  - `political-summary-widget.tsx` → `politics.proposals` (etapas, votar a favor/contra, deadline).
+- Type-check 0 errores.
+
+### Ola 2 — Permisos y accesos de IA
+- `src/ai/client/ai-permissions.ts`: modelo soberano. Por DEFECTO acceso completo al PROPIO entorno (read/edit widgets·dashboards·layout·appearance·code·memory, manage agents·providers, navigate, net.read). `net.write` OFF por la Constitución (datos de la red/otros inmutables salvo permiso). API: load/save/canPerform/setScope/setComplexAccess/setMaxAgents/reset, por actor (`assistant`|`nexus`), persistente + evento de cambios.
+- `src/ai/client/use-ai-permissions.ts`: hook reactivo.
+- `src/components/ai/ai-permissions-panel.tsx`: panel con selector actor, toggle maestro de "acceso complejo", scopes por grupos (lectura/entorno/inteligencia/red), slider de agentes máximos, reset. `net.write` marcado con candado.
+- Integrado como pestaña **"Permisos"** en `/ai-setup` (deep-link `?tab=permissions`). Type-check 0 errores.
+
+### Ola 3 — Compartir / sincronizar widgets (biblioteca)
+- `src/lib/widget-sync/index.ts`: source-agnostic (transport intercambiable por Supabase/IPFS/ActivityPub con `registerSyncTransport`). API: `shareWidget` (publica a biblioteca), `replicateEntity` (réplica = REFERENCIA al origen, nunca lo altera; Lienzo Universal), `syncReplica`, `openCollabSession`/`canEditEntity`/`closeCollabSession` (edición compartida o bloqueada con lock). Invariante: contenido de red `networkLocked` → inmutable salvo permiso.
+- UI: botón **🔗 Compartir** en los controles de edición de cada widget (`grid-area.tsx`), copia un enlace `starseed://widget/<id>` y publica a la biblioteca. Type-check 0 errores nuevos.
+
+### Verificación final
+- Type-check de scope amplio (widget-data + widget-sync + IA + dashboard core + gen4 + gen5 + gen1 redux + app-shell): **0 errores nuevos**. Persisten 2 preexistentes ajenos (RGL en grid-area, activeId string|null en renderer), ignorados por Next en build.
+
+### Pendiente / siguientes mejoras opcionales
+- UI de biblioteca para explorar/replicar widgets compartidos por otros (lista + botón Replicar) — el store ya lo soporta.
+- Conectar `registerSyncTransport` a Supabase/federación real.
+- Cablear `canPerform()` de permisos dentro del overlay/agente para gatear acciones reales (hoy el modelo y el panel están listos; el overlay es grande y frágil — integrar con cuidado en una pasada dedicada).
+
+### Adenda 3 — fixes finales + botón de restablecer
+- **Bug del subagente corregido**: los 3 widgets gen1 (explore-network, my-pages, political-summary) importaban `../../kit` (ruta de gen5) → corregido a `../kit`. 0 errores.
+- **Botón "Restablecer dashboards"** en la barra del dashboard → `handleResetLayout()` llama a `reseedDefaultDashboards()` con confirmación; regenera los predeterminados con el acomodo nuevo conservando los tableros propios. Da una vía manual además de la re-siembra automática por versión.
+- Verificación final del núcleo (data + sync + IA + dashboards + gen1/gen4/gen5 + app-shell): 0 errores nuevos.
+
+### Adenda 6 — verificado en dev server + fondos líquidos + favicon servido
+- Dev server (puerto 9002) sano: /login HTTP 200, /dashboard 307→login (auth middleware Supabase). Sin errores de compilación tras los cambios.
+- IMPORTANTE para el usuario: /dashboard redirige a /login si no hay sesión; los widgets sólo se ven autenticado. Tras iniciar sesión, recargar aplica la re-siembra (DEFAULTS_VERSION='gen5-2026-05-30b').
+- Favicon e íconos servidos OK (public/starseed-symbol.png, src/app/icon.png 512, apple-icon.png 180, favicon-48.png) desde Documents/simbolos/simbolo_starseed.png. Metadata `icons` en app/layout.tsx.
+- Fondos psicodélicos líquidos: nuevo `LiquidPsychedelicBackground` (5 presets: Aurora Líquida, Plasma Psicodélico, Lava Solar, Marea Profunda, Iris Cuántica) — blobs SVG con gradientes animados, hue-rotate y parallax al cursor; montado en app/layout. Añadidos a "Temas Rápidos → Fondo de Pantalla" con preview animado; applyBackground setea config.background.type al id del preset. 0 errores de tipo.
+
+### Adenda 7 — picker de fondos líquidos en Apariencia
+- Los presets líquidos NO van en la barra del dashboard (ahí "Diseño Estético" sólo estiliza la barra). El picker real de fondo es `src/components/settings/appearance/background-settings.tsx`.
+- Añadida sección "Fondos Psicodélicos Líquidos" con los 5 presets (Aurora Líquida, Plasma Psicodélico, Lava Solar, Marea Profunda, Iris Cuántica), preview con gradiente animado; al pulsar setea `config.background.type` al id → activa `LiquidPsychedelicBackground` (montado en app/layout). 0 errores de tipo.
+- Ubicación para el usuario: Ajustes → Apariencia → Fondo → "Fondos Psicodélicos Líquidos".
+- NOTA: el dev server (localhost:9002) estaba caído (HTTP 000) al cerrar la sesión; debe ejecutarse `npm run dev` en la máquina del usuario para ver y verificar los cambios.
+
+### Adenda 8 — tipado de fondos líquidos + pestaña "Líquidos"
+- Corregida línea duplicada `type:` en `appearance-context.tsx` (interface background) y extendida la unión con los 5 ids líquidos → ya no requiere `as any`.
+- `background-settings.tsx`: añadida pestaña "Líquidos" (Droplets) con grid de 5 presets, preview con gradiente animado + check del activo; setea `config.background.type` al id. 0 errores.
+- Resumen verificado de la sesión: DEFAULTS_VERSION bump ✓, sidebar auto-hide con título ✓, cabecera limpia ✓, fullscreen 100dvh ✓, favicon/íconos StarSeed ✓, LiquidPsychedelicBackground montado ✓, pestaña Líquidos ✓.
+
+### Adenda 9 — BUG CRÍTICO encontrado: header.tsx roto (causa real del dashboard en blanco)
+- `src/components/layout/header.tsx` estaba CORRUPTO: sin `export function AppHeader()`, sin importar `useState`, con 10 líneas `const [mounted2, setMounted] = useState(false)` duplicadas a nivel de módulo. Compila-crash de TODA la sección `(app)` al renderizar el AppHeader → por eso, tras iniciar sesión, el dashboard salía en blanco / sin widgets. (No se notaba en /login porque vive en el root layout, y /dashboard redirige a /login por middleware antes de render cuando no hay sesión.)
+- Reconstruido limpio: AppHeader con el símbolo StarSeed (`/starseed-symbol.png`) como marca + ColorThemeSwitcher. 0 errores.
+- Verificado: ningún otro archivo tiene esa corrupción (scan de líneas duplicadas consecutivas en todo src = limpio). Type-check de la ruta de render completa de /dashboard (layout (app) + header + app-shell + dashboard-layout + grid-area + floating-assistant) = 0 errores.
+- **Marca StarSeed integrada**: símbolo real en login (80px con halo animado) y cabecera global (24px con hover). Dev server /login HTTP 200.
+
+### Adenda 10 — marca StarSeed propagada + ortografía verificada
+- `src/components/logo.tsx`: reemplazado icono Orbit por `/starseed-symbol.png` (28px, halo) → se propaga a login + AuthForm + cualquier consumidor de <Logo/>.
+- header.tsx restaurado correctamente (búsqueda + NotificationCenter + UserNav intactos) con el símbolo StarSeed como marca a la izquierda.
+- Ortografía: barrido de texto JSX visible — sin errores reales (Conexiones, Notificaciones, Personalización, Configuraciones, etc. ya correctos con tilde). Se normalizaron "..." → "…" en placeholders del header.
+- Type-check ruta de render completa /dashboard + logo + login: 0 errores nuevos.
+
+### Adenda 11 — BUG RAÍZ de "otros dashboards vacíos" + sidebar fullscreen + más corrupción
+- **CAUSA REAL encontrada**: `widgetsMap` en dashboard-layout se construía con `widgets.filter(w => w.dashboard_id===d.id)`, pero `widgets` (estado) sólo contiene los del dashboard ACTIVO → todas las demás pestañas recibían []. Por eso sólo la principal mostraba widgets. FIX: `widgetsMap` ahora usa `loadAllWidgets()` para los no-activos y el estado en vivo para el activo. Todas las pestañas aparecen acomodadas por defecto.
+- **Más corrupción reparada** (mismo patrón que header.tsx): efecto `setTimeout(setIsFullscreen,2500)` duplicado, y atributo `title=...` repetido 6× en el botón toggle del sidebar. Limpiados.
+- **Sidebar en pantalla completa**: nuevo efecto `if (isFullscreen) setIsSidebarOpen(false)` → al auto-entrar a fullscreen (2.5s) el menú de ajustes se esconde y queda sólo el botón de expansión, dejando los widgets a pantalla completa. (Ya se ocultaba también con el scroll del título.)
+- Verificado: 7/7 fixes presentes, type-check dashboard-layout 0 errores, sin duplicados consecutivos.
+- **No pude levantar el dev server ni abrir el navegador yo mismo**: Terminal está en tier "click" (no puedo teclear) y Chrome en tier "read" (no puedo clicar); la extensión Claude-in-Chrome está desconectada. El usuario debe ejecutar `npm run dev` (puerto 9002). Tras el fix de header.tsx (que crasheaba el render) + widgetsMap, los dashboards deben cargar con sus widgets al recargar e iniciar sesión.
+
+### Adenda 12 — Cuenta unificada con el Portal StarSeed OS (2026-06-10)
+- Creado `architecture/integracion-portal-starseed-os.md` (SOP primero, regla dorada) y `.env.local` con el proyecto Supabase COMPARTIDO `dzkjapinnewkxzjltadv` (el del Café/Portal) + `GOOGLE_GENAI_API_KEY` → una sola cuenta soberana en todo el ecosistema y Genkit operativo.
+- El Portal StarSeed OS (repo Starseed-Cafe, carpeta "StarSeed Café/app") es ahora la página principal: 6 áreas (incluye Audiomorphic), Astraura (Exocórtex global con el corpus del Drive), cartera Semillas/Granos con bolsa simulada (tablas nuevas `grain_types` y `seed_market`, lectura pública), cuenta OTP compartida (storageKey `starseed.auth`).
+- Sistema de enlaces: starseed-os.vercel.app (portal) · /cafe/ · starseed-nexus.vercel.app (este SOSD).
+- Razón: petición del visionario de interconectar todas las áreas y cuentas bajo una identidad y mejorar el diseño global del ecosistema.
+
+### Adenda 13 — Intercambio de nombres (2026-06-10, tarde)
+- DECISIÓN del visionario: el portal de marca pasa a llamarse **StarSeed Nexus** (starseed-nexus.vercel.app) y ESTE repo/aplicación es **StarSeed OS** (conserva starseed-os.vercel.app, que ya servía esta app). starseed.config.json: systemName "StarSeed OS", deployment.url starseed-os.vercel.app. SOP de integración actualizado.
+
+### Adenda 14 — Tema Materia Viva (2026-06-11)
+- **Qué:** nueva familia de fondos "Materia Viva" (oro + cristal + geometría sagrada del rediseño Nexus/Café) en canvas 2D ligero, sin three.js. 3 ids nuevos en `config.background.type`: `materia-oro-vivo` (ámbar/oro), `materia-cristal-liquido` (cian/lavanda), `materia-bosque-dorado` (lima/musgo). Flor de la Vida (19 círculos) en rotación lenta, ~90 partículas ascendentes y brillo especular que sigue al cursor; pausa en pestaña oculta, DPR-aware, `prefers-reduced-motion` → fotograma estático.
+- **Dónde:** SOP primero en `architecture/integracion-portal-starseed-os.md` ("Tema Materia Viva (v1)"); componente nuevo `src/components/backgrounds/materia-viva-background.tsx` (`MateriaVivaBackground` con props `variant`+`intensity` + host `MateriaVivaBackgroundHost` que se auto-activa con `type.startsWith("materia-")`); host montado en `src/app/layout.tsx`; unión de tipos + campo opcional `background.intensity` (0..1) en `src/context/appearance-context.tsx`; pestaña "Materia Viva ✦" con 3 tarjetas (preview CSS animada) y deslizador Intensidad (0–100) en `src/components/settings/appearance/background-settings.tsx` (TabsList pasa de grid-cols-5 a grid-cols-7 para acomodar las 7 pestañas).
+- **Por qué:** personalización de la red con los nuevos estilos visuales del rediseño Nexus/Café — opciones configurables (variante + intensidad) publicadas como personalización elegible por cada usuario (código abierto, §6). Cambios 100% aditivos: ninguna función existente tocada ni eliminada; `intensity` opcional → configs guardadas siguen siendo válidas.
+
+### Adenda 15 — Widget Cartera StarSeed (2026-06-11)
+- **SOP primero (regla dorada):** nueva sección "Widget Cartera StarSeed (v1)" en `architecture/integracion-portal-starseed-os.md` con fuentes de datos, estados e invariantes.
+- **Nuevo widget** `src/components/dashboard/widgets/cartera-starseed.tsx` (`CarteraStarseedWidget`, 'use client'): tarjeta "Cartera StarSeed 🌱" sobre `WidgetShell` del kit. Consume la **cuenta soberana unificada** (Supabase compartido `dzkjapinnewkxzjltadv`) vía el cliente browser existente `@/utils/supabase/client`:
+  - Público siempre: `grain_types` + últimas ~60 filas de `seed_market` → sparkline SVG inline de `seed_eur` (stroke `#9FE870`, degradado sutil) con último valor y delta 7d %.
+  - Con sesión (RLS `auth.uid()`): fila de `wallets` (Semillas en contador grande verde + granos por tipo como pills emoji + g con color del tipo) y últimos 6 movimientos de `economy_ledger` (kind + name + ±semillas + hace cuánto).
+  - Estados: skeleton de carga, error con botón Reintentar, sin sesión → mercado público + CTA "Iniciar sesión" (`/login`), micro-tier adaptativo. Pie fijo: "Bolsa y cartera en modo beta simulada". Solo lectura; sin dependencias nuevas.
+- **Registro** (siguiendo el patrón de los widgets existentes, todo aditivo, nada eliminado): tipo `CARTERA_STARSEED` en `dashboard-types.ts`; case + import en `widget-registry.tsx`; manifiesto en `widget-manifest.ts` (label "Cartera StarSeed", categoría economia, w3×h5 como Pulso Económico); mapeo de categorías en `dashboard-defaults.ts` (economia + perfil); tarjeta en la Biblioteca de Widgets (`add-widget-dialog.tsx`) con icono `Wallet` de lucide-react. NO se añadió a las plantillas de tableros predeterminados: el usuario lo añade cuando quiera. Nota: el sistema identifica widgets por `WidgetType` en MAYÚSCULAS, por eso el id interno es `CARTERA_STARSEED` (el archivo sí es `cartera-starseed.tsx`).
+- Verificación: `npx tsc --noEmit` sin errores en los archivos tocados (cartera-starseed, dashboard-types, widget-registry, widget-manifest, dashboard-defaults, add-widget-dialog).
+- No se tocaron `src/components/settings/appearance/`, `src/components/backgrounds/` ni el contexto de apariencia (en manos de otro agente en paralelo).
+
+### Adenda 16 — OmniDock responsive + Materia Viva integrada por defecto (2026-06-11)
+- **SOP primero (regla dorada):** secciones nuevas en `architecture/integracion-portal-starseed-os.md`: "Tema Materia Viva → v1.1" y "OmniDock responsive (fix 2026-06-11)".
+- **Fix del dock Trinity (Anchor) en pantallas chicas** — el usuario reportó que "el menú de abajo no sale completo en pantallas chicas". Causa: 11 botones × 56–64px + gaps + padding ≈ 745–897px de contenido con `overflow-visible` → cortado en cualquier viewport <1024px. Cambios en `src/components/layout/omni-dock.tsx` (NINGUNA función eliminada):
+  - La píldora conserva borde/cristal; dentro un strip `.omni-dock-strip` (CSS en `globals.css`) que en `<1024px` hace scroll-x con `scroll-snap` (snap-center), scrollbar oculta, máscara de degradado en ambos bordes (pista de "hay más") y `overscroll-behavior-x: contain`. En `≥1024px` (lg) overflow visible y tamaños 64px como siempre (tooltips intactos).
+  - Items `shrink-0`, talla compacta 48px en `<lg` (≥44px táctil), gaps/padding reducidos, `safe-area-inset-bottom` en el wrapper. El breakpoint es **lg y no sm** porque a 768px el contenido (897px) también desbordaba — verificado empíricamente con Playwright.
+- **Materia Viva integrada en dashboards** (`src/context/appearance-context.tsx`, `src/app/globals.css`, `src/app/(main)/layout.tsx`):
+  - Default `background.type: "materia-oro-vivo"` (+ `intensity: 0.7`) para usuarios SIN config guardada; las configs en localStorage se mergean encima y no se tocan (verificado: con config webgl guardada todo vuelve al estado anterior).
+  - `applyStyles` pone `data-materia="<variante>"` en `<body>` cuando el type empieza por `materia-` (y lo borra si no). `globals.css`: bloque `body[data-materia…]` con `--materia-accent` y override de `--primary-hsl`/`--ring-hsl` por variante (dorado #E9C46A / cian #7FD8E8 / lima #9FE870), borde global cálido en dark (44 28% 24%, mismo L/S que Nebula), y borde+glow `color-mix` en `.card-glass`/`.liquid-glass-panel`. Sin data-materia: cero efecto (temas existentes intactos).
+  - Shell del grupo `(main)` con clases estables `os-main-shell`/`os-main-scroll`: bajo data-materia su `bg-background` opaco pasa a transparente para que el canvas respire tras los widgets.
+- **Página QA interna** `/qa-dock` (`src/app/(main)/qa-dock/page.tsx`): renderiza el mismo `DashboardLayout` que `/dashboard` sin exigir sesión (el signup del auditor vía REST exige confirmación de email, así que no se creó sesión); marcada "QA interno" y devuelve `notFound()` en producción. `src/app/(main)/__qa-dock/page.tsx` quedó como stub privado (carpetas `_` no rutean en App Router y el entorno no permite borrar archivos del mount).
+- **Verificación empírica** (dev server + Playwright headless, capturas en outputs/shots/): `os-dock-360.png` (píldora 6→354 dentro de 360, strip 603/330 con scroll+máscara), `os-dock-390.png` (6→384, bottom 816<844), `os-dock-768.png` (los 12 items completos sin scroll, 603=603), `os-dashboard-materia-390.png` y `os-dashboard-materia-1280.png` (widgets sobre el canvas materia, shell transparente rgba(0,0,0,0), `--primary-hsl` = 42 74% 66%, data-materia="oro-vivo"). Test de regresión con `background.type: "webgl"`: data-materia null, shell opaco de nuevo, primary 276 85% 55% original.
+- `npx tsc --noEmit`: **0 errores en los archivos tocados**; quedan 153 errores PREEXISTENTES en archivos no relacionados (drift `distortWidth`/`liquidGlass` en settings antiguos, `src/types/supabase.ts` generado, carpetas demo `theme-antigravity-flux/`, `integraciones-de-codigo/`…). El proyecto ya compila con `ignoreBuildErrors: true` en `next.config`; no se tocaron por riesgo de romper funciones ajenas al encargo.
+- Nota de entorno: el sandbox linux/arm64 necesitó `@next/swc-linux-arm64-gnu` (instalado en /tmp y symlinkeado en node_modules) para arrancar `next dev`.
+
+### Adenda 17 — Trinity Móvil: drag táctil con pulsación mantenida + TrinityFab + menús en pantallas chicas (2026-06-11)
+- **SOP primero (regla dorada):** sección nueva "Trinity Móvil (v1)" en `architecture/integracion-portal-starseed-os.md` con los 3 bloques, causa raíz, soluciones y verificación empírica completa.
+- **Bloque 1 — widgets táctiles (`grid-area.tsx` + `use-touch-drag-arming.ts` + `grid-area-touch.module.css`, archivos nuevos los dos últimos):**
+  - **Causa raíz descubierta en runtime (fibers):** react-grid-layout **2.2.2 NO cablea `draggableHandle`** hasta el item — `DraggableCore.props.handle = ""` aunque GridLayout reciba ".drag-handle" → en modo edición CUALQUIER punto del widget arrastraba, y en táctil react-draggable hace `preventDefault()` del touchstart → scroll muerto + widgets moviéndose (el bug reportado).
+  - **Solución:** puerta en fase de captura sobre el contenedor del grid que oculta los `touchstart` a DraggableCore (el scroll del navegador queda libre); pulsación mantenida 320 ms sin mover >10 px → arma el widget (vibración 10 ms + elevación scale 1.03 + glow dorado #D4AF37 vía CSS Module), `flushSync` retira el handle y un `TouchEvent` sintético con el Touch vivo entrega el gesto a RGL **sin levantar el dedo**; un `touchmove {passive:false}` global bloquea el scroll solo mientras dura el drag; al soltar, `onDragStop` desarma y el widget asienta con `cubic-bezier(.34,1.56,.64,1)`. Handles ✋/resize exentos (flujo inmediato de siempre); `draggable` HTML5 (transferencia entre paneles) solo con ratón — en táctil era otro secuestrador del gesto. **Ratón/escritorio bit a bit igual** (la puerta solo escucha eventos touch; verificado con Playwright a 1280).
+  - Métricas (CDP touch, 390×844, modo edición): swipe → scrollTop 0→32 con transform intacto `translate(18px,18px)`; hold 450 ms → `armed=true` + `react-draggable-dragging=true`, drag en el mismo gesto hasta `translate(148px,128px)` sin scroll, asentamiento al soltar.
+- **Bloque 2 — TrinityFab (`layout/trinity-fab.tsx` + `.module.css` nuevos, montado como hermano del dock dentro de `omni-dock.tsx`):** botón flotante cristal líquido 56 px con anillo cónico cardinal (N #007FFF · E #FFBF00 · S #DC143C · O #39FF14) y sigil de 4 gemas; al tocar despliega 4 pétalos-gema en cruz que abren cada menú con el MISMO `usePerimeter().setActiveEdge` de los sensores (cero lógica duplicada, toggle incluido). Draggable con anclaje al borde más cercano (pos persistida `os.trinity.fab.pos`); al abrirse pegado a un borde se desplaza ~64 px al centro para que ningún pétalo caiga fuera. Visibilidad `os.trinity.fab` = auto/on/off (auto = coarse o ≤1024 px; a 1280 fino NO se renderiza — verificado 0 nodos). Nota: `globals.css` fuerza `button{border-radius:var(--radius)!important}` → el módulo usa `9999px !important`. Panel nuevo de Ajustes `settings/trinity/trinity-fab-settings.tsx` + pestaña "Trinity" en `/settings` (sin tocar `appearance/**`): selector Auto/Visible/Oculto con estado en vivo (verificado: Oculto desmonta el FAB al instante).
+- **Bloque 3 — menús Trinity en pantallas chicas (`side-curtains.tsx`, `trinity/control-center.tsx`):**
+  - **Logic estaba ROTO en móvil:** el wrapper framer-motion con `y:"-50%"` residual era containing block del `fixed inset-0` del ControlCenter → quedaba confinado a una franja de ~2 px fuera de pantalla (a 320: root l=320 r=322, 86 elementos derramados hasta x=577). Fix: el wrapper anima solo `x`, centrado vertical sin transform (inset-0 móvil / top-0 bottom-0 + my-auto md), y el ControlCenter rellena a su padre (`w-full h-full` móvil) conservando exactamente sus tamaños md/lg.
+  - Auditoría final (320/360/390/768, rects vs viewport ignorando scrollers horizontales legítimos): **0 desbordes** en Anchor/Logic/Horizon en todos los anchos, `scrollWidth==viewport` siempre; en Zenith solo el div decorativo de rayos `w-[600px]` clipado por `overflow-hidden` (sin efecto visual).
+- **Verificación:** `npx tsc --noEmit --incremental` = **153 errores, idéntico al baseline (0 nuevos, ninguno en archivos nuevos)**; el TS2322 de grid-area es preexistente (tipos de RGL v2 sin `isDraggable` en `Responsive`). Capturas en `outputs/shots/`: `os2-touch-scroll.png`, `os2-touch-armed.png`, `os2-fab-cerrado-390.png`, `os2-fab-abierto-390.png`, `os2-fab-zenith-390.png`, `os2-fab-logic-390.png`, `os2-settings-trinity-390.png`, `os2-{zenith,horizon,logic,anchor}-390.png`, `os2-logic-320.png` (peor caso arreglado) y set `os2-*-320.png`.
+- **No tocado (límite de propiedad):** `globals.css`, `appearance-context`, `app/layout.tsx`, `settings/appearance/**`, `dashboard/widgets/**`. Ninguna función eliminada (drag ratón, ✋, resize, HTML5 DnD entre paneles, sensores de borde y atajos siguen intactos).
+
+### Adenda 18 — Tema "StarSeed Café" para todo el OS + pulido global (2026-06-11)
+- **SOP primero (regla dorada):** sección nueva "Tema StarSeed Café (data-os-theme, v1)" en `architecture/integracion-portal-starseed-os.md` (mecanismo de 3 capas, paletas exactas, tokens de movimiento, invariantes).
+- **Sistema de temas descubierto:** (1) next-themes con `attribute="class"` (atmósferas `light/dark/grey/natural/glass/custom` como clases en `<html>` con bloques HSL en `globals.css`); (2) `AppearanceConfig` en `localStorage appearance-config-v2` con `applyStyles()` inyectando vars (glass, radius, fuentes, `data-materia` en body); (3) presets curados (`curated-presets.ts`) que aplican DeepPartial del config. El tema Café se montó como **capa nueva ortogonal**: `themeStore.osTheme?: "default" | "cafe"` (unión aditiva, export `OsThemeId`) → `applyStyles()` pone `data-os-theme="cafe"` en `<html>` → `globals.css` recubre TODAS las vars del design system.
+- **Tema café (valores clave):** OSCURO (.dark/.natural/.glass): fondo `130 19% 6%` (#0d130e verde-negro), card `120 16% 9%`, primario oro `42 74% 66%` (#E9C46A), acento lima `97 72% 67%`, secundario terracota, borde oro `44 30% 26%`, body radial #16210f→#070b08. CLARO: fondo pergamino `43 76% 95%` (#fdf7ea), tinta café `27 42% 16%` (#3B2818), primario terracota `15 53% 47%` (#C05C3B), secundario ámbar `37 92% 50%`, acento musgo `104 49% 30%`, borde oro suave `40 42% 72%`, body radial #fdf7ea→#e8dabc. Tipos: titulares **Fraunces** (`--font-headline` en body bajo café), labels **Space Mono** (`--font-code`); radios 14–26px; cristal cálido (liquid-glass-ui/panel/card-glass con verde-oliva + borde oro 35% en dark, crema+oro en claro); botones primary "oro fundido" (degradado vertical + inset highlight); glow hover dorado en dark; scrollbar tintada. Regla extra: bajo café claro, `body[data-materia]` re-afirma terracota (el oro de materia no contrasta sobre crema); en café oscuro coinciden (oro).
+- **Tokens de movimiento** en `:root`: `--ease-organic/.22,1,.36,1`, `--ease-glide/.16,1,.3,1`, `--ease-elastic`, `--ease-soft` + `--dur-fast/base/slow` (150/220/300ms); `--dur-base` ahora sincronizada con `animations.transitionDuration` desde `applyStyles`. La regla global de transiciones pasó a `var(--dur-base) var(--ease-glide)` (mismos fallbacks). Bajo café, interactivos usan `--ease-organic` y los Radix open/close `--ease-glide`.
+- **Selector:** `src/components/settings/appearance/os-theme-selector.tsx` (nuevo) — "Tema del sistema" con 2 tarjetas (Aurora StarSeed default / StarSeed Café) con mini-preview doble dark+light (ventanita: titular serif, tarjeta, botón primario, chip acento), `aria-pressed`, check activo; montado arriba de la pestaña Galería en `appearance-editor.tsx`. Persistencia: el mismo `updateSection("themeStore",…)` de siempre.
+- **Pulido de widgets (sistémico vía kit, API intacta):** `globals.css` define por fin `.custom-scrollbar` (WidgetShell la usaba y NO existía → scrollbars finas en TODOS los widgets) + clase nueva `os-widget-shell` (hover border-primary, `focus-within` con anillo, `font-variant-numeric: tabular-nums` heredado en todo widget, sombra cálida bajo café). `widget-shell.tsx`: clase añadida + título `font-headline`. `primitives.tsx`: `MiniList` con empty state real (icono Lucide `Inbox` configurable `emptyIcon` + mensaje — cascada a ~15 widgets legacy que ya pasaban `empty=`), `StatTile` con hover visible, `Chip` con `whitespace-nowrap` (los badges partían palabras a 390px: "COLECTIV O").
+- **Fix transversal real:** `--primary-rgb` se usaba en 5 archivos (`rgba(var(--primary-rgb),…)` en network, hub, culture, glass-card, design-canvas) pero **no estaba definida en ningún sitio** → esas sombras se descartaban en silencio. Definida ahora por tema (:root 160,43,238 · .dark 205,119,248 · .grey 10,167,235 · .natural 58,223,118 · .glass 51,187,255 · café claro 192,92,59 · café oscuro 233,196,106 · y las 3 variantes materia).
+- **Páginas:** hub h1 des-hardcodeado (`from-cyan-400 to-purple-400` → `from-primary to-secondary` + sombra `hsl(var(--primary-hsl)/…)`); explorer h1 `from-white` (ilegible en temas claros) → `from-foreground`; agent: SelectTriggers `bg-black/50 border-white/10` → `bg-card/60 border-border/50` + `max-w-[46vw]` (móvil); network `_components/navigation.tsx`: tabs con `whitespace-nowrap shrink-0` + `overflow-x-auto scrollbar-hide` (a 390px partían palabras: "Panoram a"). Resto de secciones heredan vía vars (verificado en captura).
+- **Verificación:** `npx tsc --noEmit --incremental` = **153 errores, idéntico al baseline (0 nuevos)**, ninguno en archivos tocados. Playwright (dev server 9002, capturas en `outputs/shots/`): `os3-tema-cafe-dashboard-1280.png` y `-390.png` (café oscuro: widgets verde-negro+oro, serif, sin overflow), `os3-tema-cafe-light-390.png` (tarjetas pergamino + terracota; nota: el canvas Materia sigue siendo oscuro detrás — comportamiento previo de materia en temas claros), `os3-settings-selector-390.png` (selector con tarjeta Café activa, aria-pressed true), `os3-network-390.png` (café + tabs scrollables, scrollWidth 390=390). Prueba DOM en vivo: alternando el atributo, `--primary-hsl` 280 90% 72% ↔ **42 74% 66%**, `--background-hsl` 258 45% 5% ↔ **130 19% 6%**, body gradient Nebula ↔ verde-negro, `--font-headline` Space Grotesk ↔ **Fraunces**.
+- **No tocado (límite de propiedad):** `src/components/layout/**`, dashboard layout/grid drag, TrinityFab. Nada eliminado en ningún archivo; cambios aditivos.
+
+### Adenda 19 — Trinity Móvil v2: pulsación 3s configurable + acceso por bordes + sync de cuenta (2026-06-13)
+- **Petición de Alex:** (a) integrar el nuevo diseño como tema en Ajustes — ya estaba (tema "StarSeed Café" + Materia Viva, Adendas 14/18; confirmado, no se rehace); (b) en táctil los widgets deben moverse solo tras mantener pulsado **3 s**; (c) los menús Trinity deben abrirse con **botón lateral largo no intrusivo configurable en cada borde** y **deslizando desde cada orilla**, todo ajustable; (d) mejorar integración con cuentas/perfiles compartidos. SOP primero: nuevas secciones "Trinity Móvil · Bloque 4" y "Sincronización de preferencias" en `integracion-portal-starseed-os.md`.
+- **Config aditiva** (`context/appearance-context.tsx`): `trinity.touch{holdMs:3000, haptics:true}` y `trinity.edgeAccess{mode:auto, edges{4×{handle,swipe}}, handleLength:28%, handleThickness:5px, handleOpacity:0.22, swipeThreshold:56px}`, ambos opcionales → deepMerge mantiene válidas las configs guardadas.
+- **Pulsación configurable:** `use-touch-drag-arming.ts` ahora `useTouchDragArming(enabled,{holdMs,haptics})` con refs vivas; `grid-area.tsx` lee `config.trinity.touch` (import `useAppearance` añadido). Default 3000 ms; ajustable 300–4000. Resto del Bloque 1 intacto.
+- **Acceso por bordes (NUEVO):** `components/layout/trinity-edge-access.tsx` + `.module.css`, montado en `app/layout.tsx` bajo `PerimeterProvider`. Asas-píldora por orilla (color cardinal, opacidad baja en reposo, tap = toggle) + deslizar desde los 24px del borde superado `swipeThreshold` (con guarda anti-scroll-paralelo y destello de confirmación). Mismo `setActiveEdge` que sensores/FAB; solo eventos touch; `mode auto` = coarse/≤1024px. z-index 84.
+- **Ajustes ampliados:** `components/settings/trinity/trinity-edge-settings.tsx` añadido a la pestaña Trinity de `/settings` (junto al panel del FAB): slider pulsación + háptica, modo global, asa/deslizar por orilla, longitud/grosor/opacidad/sensibilidad. Usa `updateConfig` (deepMerge anidado).
+- **Sync de cuenta StarSeed (NUEVO):** `lib/settings-sync.ts` (push/pull de `SYNCED_KEYS` a Supabase `user_settings`, opt-in, tolerante a falta de sesión/tabla) + panel `components/settings/account/account-sync-panel.tsx` en Ajustes → Perfil. Migración SQL documentada en el SOP (tabla + RLS por usuario). localStorage sigue siendo fuente de verdad offline.
+- **OmniDock pantallas chicas:** ya resuelto por el strip `.omni-dock-strip` (scroll-snap + máscara + safe-area, Adenda 16); ahora abrir Anchor en táctil es trivial vía asa/deslizar inferior + FAB. Sin cambios extra.
+- **⚠️ Verificación PENDIENTE:** el sandbox Linux no arrancó (disco lleno en el Mac) → no se pudo correr `tsc`/dev/Playwright esta sesión. Revisado por lectura (tipos, imports, providers, deepMerge). Ejecutar `npx tsc --noEmit` y `npm run dev` antes de desplegar. Nada eliminado; todo aditivo y desactivable.

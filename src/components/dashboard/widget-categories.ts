@@ -3,6 +3,7 @@ import {
     ListChecks, MapPin, Wrench, Brush, Telescope, Sparkles,
     Cpu, SlidersHorizontal, FolderOpen, Gamepad2, BrainCircuit,
     HelpCircle, Landmark, Network, Eye, Lightbulb, Compass,
+    ShieldCheck, Home, Wand2, UserCircle, Globe,
     type LucideIcon
 } from "lucide-react";
 
@@ -40,7 +41,12 @@ export type WidgetCategory =
     | 'red'
     | 'ciberdelia'
     | 'descubrimientos'
-    | 'explorador';
+    | 'explorador'
+    | 'privacidad'
+    | 'dispositivos'
+    | 'creatividad'
+    | 'perfil'
+    | 'sociedad';
 
 // ── Master Category Registry ─────────────────────────────────────
 export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
@@ -150,7 +156,7 @@ export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
         color: 'rose-400',
         description: 'Cartas natales, tránsitos y ciclos cósmicos.',
         tags: ['zodíaco', 'carta natal', 'tránsitos', 'signos', 'horóscopo'],
-        hasWidgets: false,
+        hasWidgets: true,
     },
     {
         id: 'sistema',
@@ -177,7 +183,7 @@ export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
         color: 'yellow-600',
         description: 'Gestor de archivos, carpetas y almacenamiento.',
         tags: ['archivos', 'carpetas', 'almacenamiento', 'nube', 'ipfs'],
-        hasWidgets: false,
+        hasWidgets: true,
     },
     {
         id: 'entretenimiento',
@@ -186,7 +192,7 @@ export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
         color: 'lime-500',
         description: 'Media, juegos y contenido de entretenimiento.',
         tags: ['juegos', 'media', 'video', 'streaming', 'música'],
-        hasWidgets: false,
+        hasWidgets: true,
     },
     {
         id: 'ia',
@@ -204,7 +210,7 @@ export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
         color: 'green-500',
         description: 'Tutoriales, soporte y guías del sistema.',
         tags: ['ayuda', 'tutorial', 'soporte', 'guía', 'faq'],
-        hasWidgets: false,
+        hasWidgets: true,
     },
     {
         id: 'parlamento',
@@ -231,7 +237,7 @@ export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
         color: 'purple-400',
         description: 'Visualizaciones psicodélicas y experiencias inmersivas.',
         tags: ['psicodelia', 'visual', 'inmersivo', 'fractal', 'conciencia'],
-        hasWidgets: false,
+        hasWidgets: true,
     },
     {
         id: 'descubrimientos',
@@ -240,7 +246,7 @@ export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
         color: 'yellow-500',
         description: 'Noticias científicas, hallazgos y exploración.',
         tags: ['ciencia', 'descubrimiento', 'innovación', 'investigación'],
-        hasWidgets: false,
+        hasWidgets: true,
     },
     {
         id: 'explorador',
@@ -249,6 +255,51 @@ export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
         color: 'orange-400',
         description: 'Navegar y descubrir contenido en la red.',
         tags: ['explorar', 'buscar', 'descubrir', 'navegar', 'contenido'],
+        hasWidgets: true,
+    },
+    {
+        id: 'privacidad',
+        name: 'Privacidad',
+        icon: ShieldCheck,
+        color: 'violet-400',
+        description: 'Membrana criptográfica, soberanía y control de datos.',
+        tags: ['privacidad', 'criptografía', 'soberanía', 'zk', 'seguridad', 'datos'],
+        hasWidgets: true,
+    },
+    {
+        id: 'dispositivos',
+        name: 'Dispositivos',
+        icon: Home,
+        color: 'amber-400',
+        description: 'Hábitat inteligente, domótica y robótica del Oikos.',
+        tags: ['domótica', 'hogar', 'robots', 'iot', 'dispositivos', 'hábitat'],
+        hasWidgets: true,
+    },
+    {
+        id: 'creatividad',
+        name: 'Creatividad',
+        icon: Wand2,
+        color: 'pink-400',
+        description: 'Ideación cruzada, lluvia de ideas y motores de invención.',
+        tags: ['ideas', 'creatividad', 'invención', 'brainstorming', 'ideación'],
+        hasWidgets: true,
+    },
+    {
+        id: 'perfil',
+        name: 'Perfil',
+        icon: UserCircle,
+        color: 'cyan-400',
+        description: 'Espejo ontológico: mérito, identidad y legado visible.',
+        tags: ['perfil', 'mérito', 'identidad', 'reputación', 'legado', 'avatar'],
+        hasWidgets: true,
+    },
+    {
+        id: 'sociedad',
+        name: 'Sociedad',
+        icon: Globe,
+        color: 'emerald-400',
+        description: 'El pulso del macro-organismo: cohesión y armonía global.',
+        tags: ['sociedad', 'cohesión', 'armonía', 'biorregiones', 'comunidad'],
         hasWidgets: true,
     },
 ];

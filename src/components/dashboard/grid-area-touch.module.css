@@ -1,0 +1,30 @@
+/*
+ * Trinity Móvil · Bloque 1 — elevación líquida del widget armado por
+ * pulsación mantenida (ver SOP architecture/integracion-portal-starseed-os.md).
+ * Se aplica al DIV INTERIOR del item (no al .react-grid-item, cuyo transform
+ * pertenece a react-grid-layout). CSS Module para no tocar globals.css.
+ */
+
+.touchLift {
+    /* asentamiento al soltar: spring con rebote suave */
+    transition:
+        transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 420ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        filter 360ms ease;
+    will-change: transform;
+}
+
+.touchLiftArmed {
+    /* elevación al armar: pop líquido + glow dorado (Logic/Burnished #D4AF37) */
+    transform: scale(1.03);
+    filter: saturate(1.12) brightness(1.06);
+    box-shadow:
+        0 22px 48px -12px rgba(0, 0, 0, 0.55),
+        0 0 0 1.5px rgba(212, 175, 55, 0.65),
+        0 0 26px 4px rgba(212, 175, 55, 0.38),
+        0 0 64px 12px rgba(212, 175, 55, 0.16);
+    transition:
+        transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1.35),
+        box-shadow 300ms ease,
+        filter 300ms ease;
+}

@@ -12,6 +12,43 @@ export interface WidgetCategoryMapping {
 }
 
 export const WIDGET_CATEGORY_MAP: WidgetCategoryMapping[] = [
+    // ── Segunda generación (gen2) ──
+    { type: 'AGORA_CAUSAL', primaryCategory: 'politica', secondaryCategories: ['parlamento', 'social'], tags: ['ágora', 'propuestas', 'votación', 'causal', 'deliberación', 'ontocracia'], isPopular: true },
+    { type: 'LIQUID_DELEGATION', primaryCategory: 'politica', secondaryCategories: ['parlamento'], tags: ['delegación', 'voto líquido', 'representación', 'confianza', 'ontocracia'] },
+    { type: 'OIKOS_METABOLISM', primaryCategory: 'economia', secondaryCategories: ['sistema', 'clima'], tags: ['oikos', 'metabolismo', 'energía', 'flujo', 'recursos', 'excedente'], isPopular: true },
+    { type: 'SKILL_TREE', primaryCategory: 'educacion', secondaryCategories: ['productividad'], tags: ['árbol', 'habilidades', 'progreso', 'misiones', 'maestría'], isPopular: true },
+    { type: 'ASTRAURA_CORTEX', primaryCategory: 'ia', secondaryCategories: ['productividad', 'sistema'], tags: ['astraura', 'córtex', 'exocortex', 'cognición', 'agente', 'sugerencias'], isPopular: true },
+    { type: 'SOVEREIGN_NODE', primaryCategory: 'sistema', secondaryCategories: ['red'], tags: ['nodo', 'soberano', 'cpu', 'ram', 'hardware', 'salud'] },
+    { type: 'AKASHIC_CODEX', primaryCategory: 'archivos', secondaryCategories: ['red', 'sistema'], tags: ['códice', 'akáshico', 'archivos', 'entidades', 'ipfs', 'redundancia'], isPopular: true },
+    { type: 'NATAL_CHART', primaryCategory: 'astrologia', secondaryCategories: ['astronomia'], tags: ['carta natal', 'tránsitos', 'sincronía', 'zodíaco', 'coherencia'], isPopular: true },
+    { type: 'MESH_RADAR', primaryCategory: 'red', secondaryCategories: ['sistema'], tags: ['mesh', 'radar', 'topología', 'nodos', 'malla', 'conectividad'] },
+    { type: 'IMMERSION_PORTAL', primaryCategory: 'entretenimiento', secondaryCategories: ['cultura', 'ciberdelia'], tags: ['portal', 'inmersión', 'multiverso', 'vr', 'ar', 'mundos'], isPopular: true },
+
+    // ── Cuarta generación (gen4) ──
+    { type: 'ELDER_COUNCIL', primaryCategory: 'politica', secondaryCategories: ['parlamento', 'social'], tags: ['consejo', 'sabios', 'meritocracia', 'insignias', 'ontocracia', 'delegación'], isPopular: true },
+    { type: 'RESTORATIVE_COURT', primaryCategory: 'politica', secondaryCategories: ['social'], tags: ['justicia', 'restaurativa', 'mediación', 'círculos de paz', 'conflicto'] },
+    { type: 'BARTER_MARKET', primaryCategory: 'economia', secondaryCategories: ['social', 'ubicacion'], tags: ['trueque', 'mercado', 'intercambio', 'don', 'oikos'], isPopular: true },
+    { type: 'ENERGY_GRID', primaryCategory: 'economia', secondaryCategories: ['sistema', 'clima'], tags: ['energía', 'microred', 'solar', 'procomún', 'oikos'], isPopular: true },
+    { type: 'MENTOR_MATCH', primaryCategory: 'educacion', secondaryCategories: ['social', 'ia'], tags: ['mentoría', 'tutor', 'híbrido', 'aprendizaje', 'maestría'] },
+    { type: 'UNIVERSAL_LIBRARY', primaryCategory: 'educacion', secondaryCategories: ['archivos', 'cultura'], tags: ['biblioteca', 'conocimiento', 'cursos', 'procomún', 'lienzo universal'], isPopular: true },
+    { type: 'MULTIVERSE_HUB', primaryCategory: 'cultura', secondaryCategories: ['entretenimiento', 'ciberdelia'], tags: ['multiverso', 'vr', 'ar', 'mundos', 'inmersión'], isPopular: true },
+    { type: 'CREATIVE_STUDIO', primaryCategory: 'cultura', secondaryCategories: ['arte'], tags: ['estudio', 'creación', 'arte', 'música', 'colaboración'] },
+    { type: 'ORACLE_PREDICT', primaryCategory: 'ia', secondaryCategories: ['descubrimientos', 'productividad'], tags: ['oráculo', 'predicción', 'escenarios', 'exocortex', 'probabilidad'], isPopular: true },
+    { type: 'IDENTITY_VAULT', primaryCategory: 'sistema', secondaryCategories: ['personalizacion'], tags: ['identidad', 'soberanía', 'privacidad', 'criptografía', 'zk', 'perfiles'] },
+    { type: 'ENERGY_MAP', primaryCategory: 'astrologia', secondaryCategories: ['ayudantia', 'astronomia'], tags: ['energía', 'chakras', 'biorritmo', 'coherencia', 'cósmico'] },
+
+    // ── Quinta generación (gen5) ──
+    { type: 'FLOW_DIRECTOR', primaryCategory: 'productividad', secondaryCategories: ['ayudantia', 'ia'], tags: ['flujo', 'energía', 'circadiano', 'enfoque', 'productividad', 'télico'], isPopular: true },
+    { type: 'PROJECT_SWARM', primaryCategory: 'productividad', secondaryCategories: ['social'], tags: ['proyectos', 'enjambre', 'kanban', 'tareas', 'nodos', 'impacto'], isPopular: true },
+    { type: 'ABUNDANCE_RADAR', primaryCategory: 'ubicacion', secondaryCategories: ['economia', 'social'], tags: ['recursos', 'abundancia', 'mapa', 'proximidad', 'oikos', 'libre'], isPopular: true },
+    { type: 'TRANSIT_FLOW', primaryCategory: 'ubicacion', secondaryCategories: ['sistema'], tags: ['tránsito', 'movilidad', 'vehículos', 'drones', 'transporte'] },
+    { type: 'CRYPTO_SHIELD', primaryCategory: 'privacidad', secondaryCategories: ['sistema', 'red'], tags: ['privacidad', 'criptografía', 'rastreadores', 'cebolla', 'soberanía'], isPopular: true },
+    { type: 'HABITAT_CORE', primaryCategory: 'dispositivos', secondaryCategories: ['clima', 'sistema'], tags: ['domótica', 'hogar', 'clima', 'robots', 'circadiano', 'hábitat'], isPopular: true },
+    { type: 'SERENDIPITY_LENS', primaryCategory: 'descubrimientos', secondaryCategories: ['cultura', 'explorador'], tags: ['serendipia', 'descubrir', 'inesperado', 'sincronía', 'asombro'], isPopular: true },
+    { type: 'IDEA_FORGE', primaryCategory: 'creatividad', secondaryCategories: ['ia', 'educacion'], tags: ['ideas', 'quimeras', 'colisión', 'creatividad', 'invención', 'brainstorming'] },
+    { type: 'MERIT_GALLERY', primaryCategory: 'perfil', secondaryCategories: ['economia', 'educacion'], tags: ['mérito', 'huella', 'insignias', 'reputación', 'legado', 'confianza'], isPopular: true },
+    { type: 'SOCIETY_PULSE', primaryCategory: 'sociedad', secondaryCategories: ['economia', 'clima'], tags: ['sociedad', 'cohesión', 'armonía', 'biorregiones', 'pulso'] },
+
     // ── Social ──
     { type: 'EXPLORE_NETWORK', primaryCategory: 'social', secondaryCategories: ['red', 'explorador'], tags: ['comunidad', 'explorar', 'red'], isPopular: true },
     { type: 'MY_PAGES', primaryCategory: 'social', secondaryCategories: ['red', 'explorador'], tags: ['páginas', 'comunidades', 'entidades'] },
@@ -31,6 +68,7 @@ export const WIDGET_CATEGORY_MAP: WidgetCategoryMapping[] = [
 
     // ── Economy ──
     { type: 'ECONOMIC_OVERVIEW', primaryCategory: 'economia', secondaryCategories: [], tags: ['seeds', 'karma', 'finanzas', 'recursos'], isPopular: true },
+    { type: 'CARTERA_STARSEED', primaryCategory: 'economia', secondaryCategories: ['perfil'], tags: ['cartera', 'semillas', 'granos', 'bolsa', 'mercado', 'wallet'] },
     { type: 'CALCULATOR', primaryCategory: 'utilidades', secondaryCategories: ['economia'], tags: ['calculadora', 'matemáticas', 'herramienta'] },
 
     // ── Productivity ──
@@ -102,10 +140,10 @@ export interface DefaultDashboardTemplate {
 }
 
 export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
-    // ─── 1. Social (DEFAULT) ─────────────────────────────────
+    // ─── 1. Dashboards / Inicio (DEFAULT) ────────────────────
     {
         categoryId: 'social',
-        name: 'Social',
+        name: 'Dashboards',
         isDefault: true,
         widgets: [
             { type: 'EXPLORE_NETWORK', w: 7, h: 4, x: 0, y: 0 },
@@ -120,9 +158,12 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'politica',
         name: 'Política',
         widgets: [
-            { type: 'POLITICAL_SUMMARY', w: 8, h: 4, x: 0, y: 0 },
-            { type: 'NOTIFICATIONS', w: 4, h: 4, x: 8, y: 0 },
-            { type: 'RELEVANT_POSTS', w: 12, h: 3, x: 0, y: 4 },
+            { type: 'AGORA_CAUSAL', w: 5, h: 5, x: 0, y: 0 },
+            { type: 'POLITICAL_SUMMARY', w: 4, h: 5, x: 5, y: 0 },
+            { type: 'LIQUID_DELEGATION', w: 3, h: 5, x: 9, y: 0 },
+            { type: 'ELDER_COUNCIL', w: 4, h: 4, x: 0, y: 5 },
+            { type: 'RESTORATIVE_COURT', w: 4, h: 5, x: 4, y: 5 },
+            { type: 'RELEVANT_POSTS', w: 4, h: 5, x: 8, y: 5 },
         ],
     },
     // ─── 3. Educación ────────────────────────────────────────
@@ -130,8 +171,11 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'educacion',
         name: 'Educación',
         widgets: [
-            { type: 'LEARNING_PATH', w: 8, h: 4, x: 0, y: 0 },
-            { type: 'ACTIVE_PROJECTS', w: 4, h: 4, x: 8, y: 0 },
+            { type: 'SKILL_TREE', w: 5, h: 5, x: 0, y: 0 },
+            { type: 'LEARNING_PATH', w: 4, h: 5, x: 5, y: 0 },
+            { type: 'ACTIVE_PROJECTS', w: 3, h: 5, x: 9, y: 0 },
+            { type: 'UNIVERSAL_LIBRARY', w: 5, h: 5, x: 0, y: 5 },
+            { type: 'MENTOR_MATCH', w: 4, h: 4, x: 5, y: 5 },
         ],
     },
     // ─── 4. Cultura ──────────────────────────────────────────
@@ -140,7 +184,10 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         name: 'Cultura',
         widgets: [
             { type: 'CULTURAL_FEED', w: 8, h: 5, x: 0, y: 0 },
-            { type: 'RELEVANT_POSTS', w: 4, h: 5, x: 8, y: 0 },
+            { type: 'IMMERSION_PORTAL', w: 4, h: 5, x: 8, y: 0 },
+            { type: 'MULTIVERSE_HUB', w: 4, h: 5, x: 0, y: 5 },
+            { type: 'CREATIVE_STUDIO', w: 4, h: 4, x: 4, y: 5 },
+            { type: 'RELEVANT_POSTS', w: 4, h: 5, x: 8, y: 5 },
         ],
     },
     // ─── 5. Economía ─────────────────────────────────────────
@@ -148,9 +195,12 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'economia',
         name: 'Economía',
         widgets: [
-            { type: 'ECONOMIC_OVERVIEW', w: 8, h: 4, x: 0, y: 0 },
-            { type: 'CALCULATOR', w: 4, h: 4, x: 8, y: 0 },
-            { type: 'ACTIVE_PROJECTS', w: 12, h: 3, x: 0, y: 4 },
+            { type: 'OIKOS_METABOLISM', w: 5, h: 5, x: 0, y: 0 },
+            { type: 'ECONOMIC_OVERVIEW', w: 4, h: 5, x: 5, y: 0 },
+            { type: 'CALCULATOR', w: 3, h: 5, x: 9, y: 0 },
+            { type: 'ENERGY_GRID', w: 4, h: 4, x: 0, y: 5 },
+            { type: 'BARTER_MARKET', w: 4, h: 4, x: 4, y: 5 },
+            { type: 'ACTIVE_PROJECTS', w: 4, h: 4, x: 8, y: 5 },
         ],
     },
     // ─── 6. Clima ────────────────────────────────────────────
@@ -174,10 +224,12 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'productividad',
         name: 'Productividad',
         widgets: [
-            { type: 'COLLAB_PROJECTS', w: 8, h: 4, x: 0, y: 0 },
-            { type: 'CALCULATOR', w: 4, h: 4, x: 8, y: 0 },
-            { type: 'ACTIVE_PROJECTS', w: 6, h: 3, x: 0, y: 4 },
-            { type: 'RECENT_ACTIVITY', w: 6, h: 3, x: 6, y: 4 },
+            { type: 'FLOW_DIRECTOR', w: 4, h: 5, x: 0, y: 0 },
+            { type: 'PROJECT_SWARM', w: 4, h: 5, x: 4, y: 0 },
+            { type: 'COLLAB_PROJECTS', w: 4, h: 5, x: 8, y: 0 },
+            { type: 'ACTIVE_PROJECTS', w: 4, h: 4, x: 0, y: 5 },
+            { type: 'RECENT_ACTIVITY', w: 4, h: 4, x: 4, y: 5 },
+            { type: 'CALCULATOR', w: 4, h: 4, x: 8, y: 5 },
         ],
     },
     // ─── 8. Ubicación ────────────────────────────────────────
@@ -185,8 +237,10 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'ubicacion',
         name: 'Ubicación',
         widgets: [
-            { type: 'WEATHER_BASIC', w: 6, h: 4, x: 0, y: 0 },
-            { type: 'WEATHER_AIR_QUALITY', w: 6, h: 4, x: 6, y: 0 },
+            { type: 'ABUNDANCE_RADAR', w: 6, h: 4, x: 0, y: 0 },
+            { type: 'TRANSIT_FLOW', w: 6, h: 4, x: 6, y: 0 },
+            { type: 'WEATHER_BASIC', w: 6, h: 4, x: 0, y: 4 },
+            { type: 'WEATHER_AIR_QUALITY', w: 6, h: 4, x: 6, y: 4 },
         ],
     },
     // ─── 9. Utilidades ───────────────────────────────────────
@@ -226,9 +280,12 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'sistema',
         name: 'Sistema',
         widgets: [
-            { type: 'SYSTEM_STATUS', w: 12, h: 4, x: 0, y: 0 },
-            { type: 'LIVE_DATA', w: 8, h: 3, x: 0, y: 4 },
-            { type: 'NOTIFICATIONS', w: 4, h: 3, x: 8, y: 4 },
+            { type: 'SOVEREIGN_NODE', w: 4, h: 4, x: 0, y: 0 },
+            { type: 'MESH_RADAR', w: 4, h: 4, x: 4, y: 0 },
+            { type: 'SYSTEM_STATUS', w: 4, h: 4, x: 8, y: 0 },
+            { type: 'IDENTITY_VAULT', w: 4, h: 4, x: 0, y: 4 },
+            { type: 'LIVE_DATA', w: 4, h: 4, x: 4, y: 4 },
+            { type: 'NOTIFICATIONS', w: 4, h: 4, x: 8, y: 4 },
         ],
     },
     // ─── 13. Personalización ─────────────────────────────────
@@ -245,8 +302,10 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'ia',
         name: 'IA',
         widgets: [
-            { type: 'NEXUS_QUICK_ACCESS', w: 8, h: 5, x: 0, y: 0 },
-            { type: 'MESSAGES', w: 4, h: 5, x: 8, y: 0 },
+            { type: 'ASTRAURA_CORTEX', w: 5, h: 5, x: 0, y: 0 },
+            { type: 'NEXUS_QUICK_ACCESS', w: 4, h: 5, x: 5, y: 0 },
+            { type: 'MESSAGES', w: 3, h: 5, x: 9, y: 0 },
+            { type: 'ORACLE_PREDICT', w: 5, h: 4, x: 0, y: 5 },
         ],
     },
     // ─── 15. Parlamento ──────────────────────────────────────
@@ -254,8 +313,10 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'parlamento',
         name: 'Parlamento',
         widgets: [
-            { type: 'POLITICAL_SUMMARY', w: 12, h: 4, x: 0, y: 0 },
-            { type: 'RELEVANT_POSTS', w: 12, h: 3, x: 0, y: 4 },
+            { type: 'AGORA_CAUSAL', w: 5, h: 5, x: 0, y: 0 },
+            { type: 'LIQUID_DELEGATION', w: 3, h: 5, x: 5, y: 0 },
+            { type: 'POLITICAL_SUMMARY', w: 4, h: 5, x: 8, y: 0 },
+            { type: 'RELEVANT_POSTS', w: 12, h: 3, x: 0, y: 5 },
         ],
     },
     // ─── 16. Red ─────────────────────────────────────────────
@@ -263,8 +324,9 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'red',
         name: 'Red',
         widgets: [
-            { type: 'EXPLORE_NETWORK', w: 8, h: 4, x: 0, y: 0 },
-            { type: 'LIVE_DATA', w: 4, h: 4, x: 8, y: 0 },
+            { type: 'MESH_RADAR', w: 5, h: 4, x: 0, y: 0 },
+            { type: 'EXPLORE_NETWORK', w: 4, h: 4, x: 5, y: 0 },
+            { type: 'LIVE_DATA', w: 3, h: 4, x: 9, y: 0 },
             { type: 'MY_PAGES', w: 12, h: 3, x: 0, y: 4 },
         ],
     },
@@ -280,14 +342,118 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
     },
 ];
 
-// Templates for categories that don't have widgets yet (shown in create dialog)
+// Categorías recién habilitadas por la 2.ª generación de widgets.
 export const FUTURE_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
-    { categoryId: 'astrologia', name: 'Astrología', widgets: [] },
-    { categoryId: 'archivos', name: 'Archivos', widgets: [] },
-    { categoryId: 'entretenimiento', name: 'Entretenimiento', widgets: [] },
-    { categoryId: 'ayudantia', name: 'Ayudantía', widgets: [] },
-    { categoryId: 'ciberdelia', name: 'Ciberdelia', widgets: [] },
-    { categoryId: 'descubrimientos', name: 'Descubrimientos', widgets: [] },
+    // ─── Astrología ──────────────────────────────────────────
+    {
+        categoryId: 'astrologia',
+        name: 'Astrología',
+        widgets: [
+            { type: 'NATAL_CHART', w: 5, h: 5, x: 0, y: 0 },
+            { type: 'WEATHER_ASTRONOMY', w: 4, h: 5, x: 5, y: 0 },
+            { type: 'WEATHER_HOLISTIC', w: 3, h: 5, x: 9, y: 0 },
+            { type: 'ENERGY_MAP', w: 5, h: 4, x: 0, y: 5 },
+        ],
+    },
+    // ─── Archivos ────────────────────────────────────────────
+    {
+        categoryId: 'archivos',
+        name: 'Archivos',
+        widgets: [
+            { type: 'AKASHIC_CODEX', w: 8, h: 6, x: 0, y: 0 },
+            { type: 'SYSTEM_STATUS', w: 4, h: 6, x: 8, y: 0 },
+        ],
+    },
+    // ─── Entretenimiento ─────────────────────────────────────
+    {
+        categoryId: 'entretenimiento',
+        name: 'Entretenimiento',
+        widgets: [
+            { type: 'IMMERSION_PORTAL', w: 8, h: 5, x: 0, y: 0 },
+            { type: 'CULTURAL_FEED', w: 4, h: 5, x: 8, y: 0 },
+        ],
+    },
+    // ─── Ayudantía ───────────────────────────────────────────
+    {
+        categoryId: 'ayudantia',
+        name: 'Ayudantía',
+        widgets: [
+            { type: 'WELLNESS', w: 5, h: 4, x: 0, y: 0 },
+            { type: 'CALCULATOR', w: 3, h: 4, x: 5, y: 0 },
+            { type: 'NOTIFICATIONS', w: 4, h: 4, x: 8, y: 0 },
+        ],
+    },
+    // ─── Ciberdelia ──────────────────────────────────────────
+    {
+        categoryId: 'ciberdelia',
+        name: 'Ciberdelia',
+        widgets: [
+            { type: 'IMMERSION_PORTAL', w: 5, h: 4, x: 0, y: 0 },
+            { type: 'THEME_MANAGER', w: 4, h: 4, x: 5, y: 0 },
+            { type: 'THEME_SELECTOR', w: 3, h: 4, x: 9, y: 0 },
+        ],
+    },
+    // ─── Descubrimientos ─────────────────────────────────────
+    {
+        categoryId: 'descubrimientos',
+        name: 'Descubrimientos',
+        widgets: [
+            { type: 'SERENDIPITY_LENS', w: 5, h: 4, x: 0, y: 0 },
+            { type: 'EXPLORE_NETWORK', w: 4, h: 4, x: 5, y: 0 },
+            { type: 'RECENT_ACTIVITY', w: 3, h: 4, x: 9, y: 0 },
+            { type: 'SOCIAL_RADAR', w: 12, h: 3, x: 0, y: 4 },
+        ],
+    },
+    // ─── Privacidad ──────────────────────────────────────────
+    {
+        categoryId: 'privacidad',
+        name: 'Privacidad',
+        widgets: [
+            { type: 'CRYPTO_SHIELD', w: 5, h: 4, x: 0, y: 0 },
+            { type: 'IDENTITY_VAULT', w: 4, h: 4, x: 5, y: 0 },
+            { type: 'SYSTEM_STATUS', w: 3, h: 4, x: 9, y: 0 },
+        ],
+    },
+    // ─── Dispositivos ────────────────────────────────────────
+    {
+        categoryId: 'dispositivos',
+        name: 'Dispositivos',
+        widgets: [
+            { type: 'HABITAT_CORE', w: 5, h: 5, x: 0, y: 0 },
+            { type: 'ENERGY_GRID', w: 4, h: 5, x: 5, y: 0 },
+            { type: 'SYSTEM_STATUS', w: 3, h: 5, x: 9, y: 0 },
+        ],
+    },
+    // ─── Creatividad ─────────────────────────────────────────
+    {
+        categoryId: 'creatividad',
+        name: 'Creatividad',
+        widgets: [
+            { type: 'IDEA_FORGE', w: 5, h: 5, x: 0, y: 0 },
+            { type: 'CREATIVE_STUDIO', w: 4, h: 5, x: 5, y: 0 },
+            { type: 'CULTURAL_FEED', w: 3, h: 5, x: 9, y: 0 },
+        ],
+    },
+    // ─── Perfil ──────────────────────────────────────────────
+    {
+        categoryId: 'perfil',
+        name: 'Perfil',
+        widgets: [
+            { type: 'MERIT_GALLERY', w: 5, h: 5, x: 0, y: 0 },
+            { type: 'IDENTITY_VAULT', w: 4, h: 5, x: 5, y: 0 },
+            { type: 'LEARNING_PATH', w: 3, h: 5, x: 9, y: 0 },
+        ],
+    },
+    // ─── Sociedad ────────────────────────────────────────────
+    {
+        categoryId: 'sociedad',
+        name: 'Sociedad',
+        widgets: [
+            { type: 'SOCIETY_PULSE', w: 5, h: 4, x: 0, y: 0 },
+            { type: 'ELDER_COUNCIL', w: 4, h: 4, x: 5, y: 0 },
+            { type: 'RESTORATIVE_COURT', w: 3, h: 5, x: 9, y: 0 },
+        ],
+    },
 ];
 
 // All templates combined (for the create-dashboard dialog)

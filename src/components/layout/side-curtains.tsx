@@ -236,16 +236,25 @@ export function SideCurtains() {
             )}
 
             {/* Logic (Right) - System / Amber - NOW INTEGRATED CONTROL PANEL */}
+            {/*
+                Nota (Trinity Móvil · Bloque 3): el wrapper anima SOLO en `x`.
+                El antiguo `y: "-50%"` dejaba un transform residual que convertía
+                este div en containing block de los `position: fixed` interiores
+                (el ControlCenter móvil quedaba confinado a una franja de ~2px
+                fuera de pantalla en <768px). El centrado vertical ahora es por
+                top-0/bottom-0 + flex / my-auto, sin transform.
+            */}
             {activeEdge === "logic" && (
                 <motion.div
-                    initial={{ x: "100%", y: "-50%", opacity: 0 }}
-                    animate={{ x: 0, y: "-50%", opacity: 1 }}
-                    exit={{ x: "100%", y: "-50%", opacity: 0 }}
+                    initial={{ x: "110%", opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: "110%", opacity: 0 }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
-                    style={{ top: "50%" }}
                     className={cn(
-                        "fixed right-0 md:right-4 z-[90] flex items-center justify-center",
-                        activeBoardId ? "w-full sm:w-[90vw] lg:w-[85vw] h-[90vh] bg-black/80 backdrop-blur-xl border border-amber-500/30 rounded-3xl pointer-events-auto" : "w-auto h-auto pointer-events-none"
+                        "fixed z-[90] flex items-center justify-center",
+                        activeBoardId
+                            ? "top-0 bottom-0 right-0 md:right-4 my-auto h-[100dvh] md:h-[90vh] w-full sm:w-[90vw] lg:w-[85vw] bg-black/80 backdrop-blur-xl border border-amber-500/30 rounded-none md:rounded-3xl pointer-events-auto"
+                            : "inset-0 md:inset-auto md:top-0 md:bottom-0 md:right-4 md:w-auto pointer-events-none"
                     )}
                 >
                     {/* Only show background if it's the Board Viewer */}
@@ -270,8 +279,9 @@ export function SideCurtains() {
                             </div>
                         ) : (
                             <>
-                                {/* Control Center — handles its own sizing & fullscreen on mobile */}
-                                <div className="pointer-events-auto">
+                                {/* Control Center — móvil: rellena el wrapper fullscreen; md+: tamaño propio centrado.
+                                    pointer-events-none aquí: solo el panel (que trae pointer-events-auto) captura clics. */}
+                                <div className="pointer-events-none w-full h-full flex items-center justify-center">
                                     <ControlCenter />
                                 </div>
                             </>

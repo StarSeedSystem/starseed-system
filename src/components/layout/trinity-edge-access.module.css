@@ -1,0 +1,76 @@
+/*
+ * TrinityEdgeAccess — asas de borde no intrusivas + zonas de deslizamiento
+ * para abrir los 4 menús cardinales en táctil. Estética Crystal Liquid Glass.
+ * SOP: architecture/integracion-portal-starseed-os.md · "Trinity Móvil · Bloque 4".
+ */
+
+.handle {
+    position: fixed;
+    z-index: 84; /* bajo el FAB (85) y las cortinas (90+), sobre el dock (70) */
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    appearance: none;
+    display: grid;
+    place-items: center;
+}
+
+/* Píldora visible del asa: fina, redondeada, con tinte cardinal tenue. */
+.pill {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 9999px;
+    background: linear-gradient(180deg, var(--pc, #fff), color-mix(in srgb, var(--pc, #fff) 70%, transparent));
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--pc, #fff) 35%, transparent),
+        0 0 12px color-mix(in srgb, var(--pc, #fff) 45%, transparent);
+    opacity: var(--rest-opacity, 0.22);
+    transition: opacity 280ms ease, transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Realce al pasar el dedo/cursor o cuando su menú está abierto. */
+.handle:hover .pill,
+.handle:focus-visible .pill,
+.handleActive .pill {
+    opacity: 0.95;
+    transform: scale(1.04);
+}
+
+.handle:active .pill {
+    opacity: 1;
+    transform: scale(0.97);
+}
+
+.handle:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--pc, #fff) 70%, transparent);
+    outline-offset: 4px;
+}
+
+/* Rastro fugaz que confirma el deslizamiento desde un borde. */
+.swipeGhost {
+    position: fixed;
+    z-index: 83;
+    pointer-events: none;
+    border-radius: 9999px;
+    background: radial-gradient(circle, var(--pc, #fff), transparent 70%);
+    opacity: 0;
+    animation: edgeGhost 520ms ease-out forwards;
+}
+
+@keyframes edgeGhost {
+    0% { opacity: 0.55; transform: scale(0.4); }
+    100% { opacity: 0; transform: scale(1.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pill, .handle:hover .pill, .handle:focus-visible .pill, .handleActive .pill, .handle:active .pill {
+        transition: opacity 120ms linear;
+        transform: none;
+    }
+    .swipeGhost { animation: none; display: none; }
+}

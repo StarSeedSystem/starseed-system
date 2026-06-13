@@ -7,7 +7,7 @@ Este archivo contiene los pasos y la configuración para el despliegue automáti
 He seleccionado el siguiente nombre sugerido para el enlace, ya que se acerca más a "Starseed System" y está disponible en Vercel (que es gratuito para proyectos frontend y Next.js):
 
 - **Nombre del Proyecto:** `starseed-nexus` o `starseed-system-app`
-- **Enlace Final de Producción (una vez desplegado):** `https://starseed-nexus.vercel.app` (o el nombre que elijamos en el paso 1).
+- **Enlace Final de Producción (una vez desplegado):** `https://starseed-os.vercel.app` (o el nombre que elijamos en el paso 1).
 
 ## ⚡ Cómo Activar el Despliegue Automático (1 Clic)
 

@@ -105,7 +105,8 @@ export default function ExplorerPage() {
                             Red Global
                         </Badge>
                     </div>
-                    <h1 className="page-title font-headline text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40 filter drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                    {/* Tokenizado: from-white era ilegible en temas claros (blanco sobre crema) */}
+                    <h1 className="page-title font-headline text-transparent bg-clip-text bg-gradient-to-b from-foreground to-foreground/40 filter drop-shadow-[0_0_20px_hsl(var(--primary-hsl)/0.25)]">
                         Explorador Universal
                     </h1>
                     <p className="page-subtitle text-muted-foreground mx-auto">

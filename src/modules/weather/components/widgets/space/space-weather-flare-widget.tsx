@@ -14,7 +14,7 @@ interface FlareWidgetProps {
 
 export const XRayFlareWidget: React.FC<FlareWidgetProps> = ({ data, loading }) => {
     const latestFlare = useMemo(() => {
-        if (!data?.xRayFlux || data.xRayFlux.length === 0) return { classLabel: "A1.0", flux: 1e-8, time: "00:00" };
+        if (!data?.xRayFlux || data.xRayFlux.length === 0) return { classLabel: "A1.0", flux: 1e-8, timestamp: "00:00" };
         return data.xRayFlux[data.xRayFlux.length - 1];
     }, [data]);
 
@@ -146,7 +146,7 @@ export const XRayFlareWidget: React.FC<FlareWidgetProps> = ({ data, loading }) =
                 <div className="grid grid-cols-3 gap-2 mt-4">
                     {[
                         { label: 'Total Flux', val: latestFlare.flux.toExponential(2), unit: 'W/m²', icon: Zap, color: 'text-yellow-400' },
-                        { label: 'Last Peak', val: latestFlare.time, unit: 'UTC', icon: Timer, color: 'text-blue-400' },
+                        { label: 'Last Peak', val: /^\d{2}:\d{2}/.test(latestFlare.timestamp) ? latestFlare.timestamp : new Date(latestFlare.timestamp).toISOString().slice(11, 16), unit: 'UTC', icon: Timer, color: 'text-blue-400' },
                         { label: 'Delta', val: '+0.12', unit: 'log', icon: TrendingUp, color: 'text-emerald-400' }
                     ].map((m, i) => (
                         <div key={i} className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 flex flex-col items-center justify-center transition-all hover:bg-white/[0.08] hover:border-white/10 group/item">

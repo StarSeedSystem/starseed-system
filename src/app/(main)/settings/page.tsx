@@ -4,9 +4,12 @@ import React from "react";
 import { AppearanceEditor } from "@/components/settings/appearance/appearance-editor";
 import { AiProvidersPanel } from "@/components/settings/ai/ai-providers-panel";
 import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
+import { TrinityFabSettings } from "@/components/settings/trinity/trinity-fab-settings";
+import { TrinityEdgeSettings } from "@/components/settings/trinity/trinity-edge-settings";
+import { AccountSyncPanel } from "@/components/settings/account/account-sync-panel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Palette, User, Shield, Sparkles, ShieldCheck } from "lucide-react";
+import { Palette, User, Shield, Sparkles, ShieldCheck, Compass } from "lucide-react";
 
 export default function SettingsPage() {
     return (
@@ -23,9 +26,12 @@ export default function SettingsPage() {
                 <div className="backdrop-blur-xl bg-background/30 border rounded-xl overflow-hidden shadow-2xl">
                     <Tabs defaultValue="appearance" className="w-full">
                         <div className="border-b bg-muted/20 p-4">
-                            <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 max-w-3xl mx-auto gap-1">
+                            <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 max-w-3xl mx-auto gap-1">
                                 <TabsTrigger value="appearance" className="gap-2 data-[state=active]:bg-background/50">
                                     <Palette className="h-4 w-4" /> <span className="hidden sm:inline">Diseño</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="trinity" className="gap-2 data-[state=active]:bg-background/50">
+                                    <Compass className="h-4 w-4" /> <span className="hidden sm:inline">Trinity</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-background/50">
                                     <Sparkles className="h-4 w-4" /> <span className="hidden sm:inline">IA & Modelos</span>
@@ -47,6 +53,11 @@ export default function SettingsPage() {
                                 <AppearanceEditor />
                             </TabsContent>
 
+                            <TabsContent value="trinity" className="m-0 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TrinityFabSettings />
+                                <TrinityEdgeSettings />
+                            </TabsContent>
+
                             <TabsContent value="ai" className="m-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <AiProvidersPanel />
                             </TabsContent>
@@ -55,7 +66,7 @@ export default function SettingsPage() {
                                 <PrivacyPanel />
                             </TabsContent>
 
-                            <TabsContent value="profile" className="m-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <TabsContent value="profile" className="m-0 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2">
@@ -122,6 +133,8 @@ export default function SettingsPage() {
                                         </div>
                                     </CardContent>
                                 </Card>
+
+                                <AccountSyncPanel />
                             </TabsContent>
 
                             <TabsContent value="security" className="m-0 animate-in fade-in slide-in-from-bottom-4 duration-500">

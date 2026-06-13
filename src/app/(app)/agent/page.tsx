@@ -374,7 +374,7 @@ export default function AgentPage() {
                   value={activeProviderId ?? configs[0]?.id}
                   onValueChange={(v) => setProvider(v as ProviderId)}
                 >
-                  <SelectTrigger className="w-[200px] bg-black/50 backdrop-blur border-white/10">
+                  <SelectTrigger className="w-[200px] max-w-[46vw] bg-card/60 backdrop-blur border-border/50">
                     <SelectValue placeholder="Proveedor" />
                   </SelectTrigger>
                   <SelectContent>
@@ -387,7 +387,7 @@ export default function AgentPage() {
                 </Select>
               )}
               <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
-                <SelectTrigger className="w-[180px] bg-black/50 backdrop-blur border-white/10">
+                <SelectTrigger className="w-[180px] max-w-[42vw] bg-card/60 backdrop-blur border-border/50">
                   <SelectValue placeholder="Agente" />
                 </SelectTrigger>
                 <SelectContent>

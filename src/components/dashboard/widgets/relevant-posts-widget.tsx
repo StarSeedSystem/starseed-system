@@ -1,132 +1,66 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Layers, Zap, Hexagon, Feather, ChevronRight, Heart, MessageSquare, Clock } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import Link from "next/link";
+import { Layers, Heart, MessageSquare, Repeat2, ChevronRight } from "lucide-react";
+import { WidgetShell, MiniList, Chip, timeAgo } from "../kit";
+import { useWidgetData } from "@/lib/widget-data";
 
-interface Post {
-    id: string;
-    type: 'nexus' | 'ontocracy' | 'culture';
-    tag: string;
-    title: string;
-    author: string;
-    time: string;
-    likes: number;
-    comments: number;
-}
-
-const posts: Post[] = [
-    { id: '1', type: 'nexus', tag: 'Update', title: 'Nueva versión del motor cuántico v4.2', author: 'Nexus Core', time: '2h', likes: 124, comments: 12 },
-    { id: '2', type: 'ontocracy', tag: 'Proposal', title: 'Ajuste de parámetros éticos en la red', author: 'Consejo Alpha', time: '5h', likes: 89, comments: 45 },
-    { id: '3', type: 'culture', tag: 'Art', title: 'Exhibición: Sueños del Silicio Transparente', author: 'Lyra', time: '12h', likes: 256, comments: 34 },
-];
+// ════════════════════════════════════════════════════════════════
+// RelevantPostsWidget — publicaciones más resonantes para ti.
+// Datos en vivo "social.posts". Adaptativo + theme-aware.
+// ════════════════════════════════════════════════════════════════
+const SCOPE_COLOR: Record<string, string> = {
+    vecinal: "#10b981", biorregional: "#38bdf8", global: "#a855f7",
+};
 
 export function RelevantPostsWidget() {
-    const [activeTab, setActiveTab] = useState<'all' | 'ontocracy' | 'nexus'>('all');
-
-    const tabs = [
-        { id: 'all', label: 'Global', icon: Layers },
-        { id: 'ontocracy', label: 'Ontocracy', icon: Hexagon },
-        { id: 'nexus', label: 'Nexus', icon: Zap },
-    ] as const;
+    const { data, loading } = useWidgetData("social.posts", { refreshMs: 8000 });
 
     return (
-        <div className="@container w-full h-full bg-card/10 backdrop-blur-3xl rounded-xl relative overflow-hidden flex flex-col p-3 border border-border/40 shadow-2xl text-foreground font-display group/widget">
-            {/* Header */}
-            <header className="flex items-center justify-between pb-2 mb-2 border-b border-white/5 shrink-0 z-10 relative">
-                <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg border border-white/10">
-                        <Feather size={14} className="text-primary-foreground" />
-                    </div>
-                    <div className="space-y-0 text-left">
-                        <h2 className="text-[8px] uppercase tracking-[0.25em] text-primary/70 font-black leading-tight">Insight Stream</h2>
-                        <h1 className="text-xs font-black text-foreground tracking-widest uppercase leading-none">Relevant Posts</h1>
-                    </div>
-                </div>
-                <button className="text-[8px] font-black text-primary uppercase tracking-[0.2em] flex items-center gap-1 hover:gap-2 transition-all">
-                    View Network <ChevronRight size={10} />
-                </button>
-            </header>
+        <WidgetShell
+            title="Publicaciones Relevantes"
+            subtitle="Lo que más resuena contigo"
+            icon={Layers}
+            accent="#a855f7"
+            live
+            actions={
+                <Link href="/network" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
+                    Red <ChevronRight className="size-3" />
+                </Link>
+            }
+        >
+            {(size) => {
+                if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
+                const micro = size.tier === "micro" || size.vTier === "micro";
+                const sorted = [...data].sort((a, b) => b.resonance - a.resonance);
+                const max = micro ? 2 : size.vTier === "expanded" ? 4 : 3;
 
-            {/* Tabs */}
-            <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/5 mb-3 relative z-10">
-                {tabs.map(tab => {
-                    const isActive = activeTab === tab.id;
-                    const Icon = tab.icon;
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={cn(
-                                "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[9px] uppercase tracking-widest font-black rounded-lg transition-all relative",
-                                isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                            )}
-                        >
-                            {isActive && (
-                                <motion.div
-                                    layoutId="activeTabPost"
-                                    className="absolute inset-0 bg-primary rounded-lg shadow-lg shadow-primary/20"
-                                />
-                            )}
-                            <Icon size={10} className="relative z-10" />
-                            <span className="relative z-10">{tab.label}</span>
-                        </button>
-                    )
-                })}
-            </div>
-
-            {/* Posts List */}
-            <div className="flex-1 overflow-y-auto pr-1 space-y-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                <AnimatePresence mode="popLayout">
-                    {posts.filter(p => activeTab === 'all' || p.type === activeTab).map((post, idx) => (
-                        <motion.div
-                            key={post.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ delay: idx * 0.1 }}
-                            whileHover={{ y: -2 }}
-                            className="group/card bg-white/5 hover:bg-white/10 border border-white/5 hover:border-primary/30 rounded-xl p-3 transition-all cursor-pointer relative overflow-hidden"
-                        >
-                            <div className="flex justify-between items-start mb-2">
-                                <span className={cn(
-                                    "text-[7px] uppercase tracking-[0.2em] px-2 py-0.5 rounded-full border font-black",
-                                    post.type === 'nexus' ? "text-primary border-primary/20 bg-primary/10" :
-                                        post.type === 'ontocracy' ? "text-amber-500 border-amber-500/20 bg-amber-500/10" :
-                                            "text-accent border-accent/20 bg-accent/10"
-                                )}>
-                                    {post.tag}
-                                </span>
-                                <div className="flex items-center gap-1 text-[7px] text-muted-foreground/40 font-black uppercase">
-                                    <Clock size={8} />
-                                    {post.time}
-                                </div>
-                            </div>
-
-                            <h3 className="text-[11px] font-black text-foreground group-hover/card:text-primary transition-colors leading-snug mb-2 uppercase tracking-tight line-clamp-2 italic">
-                                "{post.title}"
-                            </h3>
-
-                            <div className="flex items-center justify-between">
-                                <span className="text-[8px] font-bold text-muted-foreground/60 uppercase tracking-widest">
-                                    @{post.author.replace(' ', '_')}
-                                </span>
-                                <div className="flex items-center gap-3">
-                                    <div className="flex items-center gap-1 text-[8px] font-black text-muted-foreground/40">
-                                        <Heart size={8} className="group-hover/card:text-red-500 transition-colors" />
-                                        {post.likes}
+                return (
+                    <div className="pt-1 h-full">
+                        <MiniList
+                            items={sorted}
+                            max={max}
+                            render={(p) => (
+                                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-primary/30 transition-colors">
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                        <span className="text-[11px] font-bold truncate">@{p.handle}</span>
+                                        {!micro && <Chip color={SCOPE_COLOR[p.scope] ?? "#a855f7"}>{p.scope}</Chip>}
                                     </div>
-                                    <div className="flex items-center gap-1 text-[8px] font-black text-muted-foreground/40">
-                                        <MessageSquare size={8} className="group-hover/card:text-primary transition-colors" />
-                                        {post.comments}
-                                    </div>
+                                    <p className="text-[11px] @sm:text-xs text-foreground/90 leading-snug line-clamp-2">{p.content}</p>
+                                    {!micro && (
+                                        <div className="mt-1.5 flex items-center gap-3 text-[10px] text-muted-foreground/70">
+                                            <span className="inline-flex items-center gap-1"><Heart className="size-3" /> {p.boosts}</span>
+                                            <span className="inline-flex items-center gap-1"><MessageSquare className="size-3" /> {p.comments}</span>
+                                            <span className="inline-flex items-center gap-1"><Repeat2 className="size-3" /> {Math.round(p.resonance * 100)}%</span>
+                                            <span className="ml-auto">{timeAgo(p.ts)}</span>
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        </motion.div>
-                    ))}
-                </AnimatePresence>
-            </div>
-        </div>
+                            )}
+                        />
+                    </div>
+                );
+            }}
+        </WidgetShell>
     );
 }

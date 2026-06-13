@@ -1,4 +1,7 @@
 @import url('https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap');
+/* Tema StarSeed Café: serif Fraunces (titulares) + Space Mono (etiquetas).
+   Solo se usan bajo html[data-os-theme="cafe"]; fallback Georgia/monospace. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Space+Mono:wght@400;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -53,6 +56,10 @@
     --ring-hsl: 276 85% 55%;
     --ring: hsl(var(--ring-hsl));
 
+    /* RGB del primario — varios componentes usan rgba(var(--primary-rgb),…)
+       para sombras/glows; antes no existía y esos estilos se descartaban. */
+    --primary-rgb: 160, 43, 238;
+
     /* ---- ORGANIC BORDER RADIUS SCALE ---- */
     --radius: 1.25rem;
     --radius-sm: 0.875rem;
@@ -95,6 +102,17 @@
     --glass-shadow-ambient: 0 0 40px rgba(130, 80, 200, 0.04);
     --perspective-depth: 2000px;
     --card-tilt-intensity: 15;
+
+    /* ---- MOTION TOKENS — "Respiración Digital" (lenguaje Café/Nexus) ----
+       Curvas orgánicas compartidas por hovers/aperturas/modales.
+       --dur-base la sincroniza appearance-context con animations.transitionDuration. */
+    --ease-organic: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-glide: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-soft: cubic-bezier(0.4, 0.1, 0.2, 1);
+    --dur-fast: 150ms;
+    --dur-base: 220ms;
+    --dur-slow: 300ms;
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -148,6 +166,7 @@
     --input: hsl(var(--input-hsl));
     --ring-hsl: 280 90% 72%;
     --ring: hsl(var(--ring-hsl));
+    --primary-rgb: 205, 119, 248;
 
     --chart-1: 280;
     --chart-2: 190;
@@ -205,6 +224,7 @@
     --input: hsl(var(--input-hsl));
     --ring-hsl: 198 92% 48%;
     --ring: hsl(var(--ring-hsl));
+    --primary-rgb: 10, 167, 235;
 
     /* Titanium shadow — precise, no blur excess */
     --glass-shadow-layer-1: 0 2px 4px -1px rgba(30, 58, 80, 0.12);
@@ -256,6 +276,7 @@
     --input: hsl(var(--input-hsl));
     --ring-hsl: 142 72% 55%;
     --ring: hsl(var(--ring-hsl));
+    --primary-rgb: 58, 223, 118;
 
     /* Biopunk organic luminescence */
     --glass-shadow-layer-1: 0 4px 16px -4px rgba(74, 222, 128, 0.12);
@@ -315,6 +336,7 @@
     --input: hsl(var(--input-hsl));
     --ring-hsl: 200 100% 60%;
     --ring: hsl(var(--ring-hsl));
+    --primary-rgb: 51, 187, 255;
 
     /* Prismatic crystal refractive shadows */
     --glass-shadow-layer-1: 0 4px 20px -4px rgba(56, 189, 248, 0.20);
@@ -1770,7 +1792,8 @@ textarea,
 [role="menuitem"],
 [data-component="card"],
 [data-component="button"] {
-  transition: all 0.25s cubic-bezier(0.23, 1, 0.32, 1);
+  /* Tokenizado (mismos valores por defecto que antes): ver MOTION TOKENS en :root */
+  transition: all var(--dur-base, 250ms) var(--ease-glide, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 /* ============================================================
@@ -2229,4 +2252,401 @@ textarea:focus {
 
 .animate-forge-pulse {
   animation: forge-pulse 3s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   OMNIDOCK RESPONSIVE — Trinity Anchor en pantallas chicas
+   SOP: architecture/integracion-portal-starseed-os.md
+   → "OmniDock responsive (fix 2026-06-11)".
+   La píldora exterior conserva borde/cristal; este strip interior
+   hace scroll-x con snap en <640px para que los 11+ items sean
+   alcanzables COMPLETOS en 320–480px sin quitar ninguno.
+   ═══════════════════════════════════════════════════════════ */
+.omni-dock-strip {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* IE/Edge legacy */
+}
+
+.omni-dock-strip::-webkit-scrollbar {
+  display: none;                  /* WebKit */
+}
+
+@media (max-width: 1023px) {
+  .omni-dock-strip {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    /* Pista visual: degradado en ambos bordes indica que hay más items */
+    mask-image: linear-gradient(to right, transparent 0px, #000 18px, #000 calc(100% - 18px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0px, #000 18px, #000 calc(100% - 18px), transparent 100%);
+  }
+}
+
+@media (min-width: 1024px) {
+  .omni-dock-strip {
+    overflow: visible;            /* desktop: tooltips y hover-scale intactos */
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MATERIA VIVA — acentos de interfaz (data-materia)
+   applyStyles() (appearance-context) pone data-materia="<variante>"
+   en <body> cuando background.type empieza por "materia-".
+   SOP: architecture/integracion-portal-starseed-os.md
+   → "Tema Materia Viva (v1)" / v1.1.
+   Sin data-materia este bloque NO tiene efecto: los temas
+   existentes quedan exactamente igual.
+   ═══════════════════════════════════════════════════════════ */
+body[data-materia] {
+  /* oro-vivo (default de la familia): dorado #E9C46A */
+  --materia-accent: #E9C46A;
+  --materia-accent-rgb: 233, 196, 106;
+  --primary-hsl: 42 74% 66%;
+  --primary-foreground-hsl: 42 92% 8%;
+  --ring-hsl: 42 74% 66%;
+  --primary-rgb: 233, 196, 106;
+}
+
+body[data-materia="cristal-liquido"] {
+  /* cian cristal #7FD8E8 */
+  --materia-accent: #7FD8E8;
+  --materia-accent-rgb: 127, 216, 232;
+  --primary-hsl: 189 70% 70%;
+  --primary-foreground-hsl: 196 100% 8%;
+  --ring-hsl: 189 70% 70%;
+  --primary-rgb: 127, 216, 232;
+}
+
+body[data-materia="bosque-dorado"] {
+  /* lima #9FE870 */
+  --materia-accent: #9FE870;
+  --materia-accent-rgb: 159, 232, 112;
+  --primary-hsl: 97 72% 67%;
+  --primary-foreground-hsl: 97 100% 7%;
+  --ring-hsl: 97 72% 67%;
+  --primary-rgb: 159, 232, 112;
+}
+
+/* Borde global cálido en modo oscuro — mismo L/S que el borde
+   Nebula (265 30% 22%), solo gira el matiz hacia el oro */
+.dark body[data-materia] {
+  --border-hsl: 44 28% 24%;
+}
+
+/* Tarjetas y paneles de cristal: borde + glow del acento, sutiles */
+body[data-materia] .card-glass,
+body[data-materia] .liquid-glass-panel {
+  border-color: color-mix(in srgb, var(--materia-accent) 26%, transparent);
+  box-shadow:
+    0 10px 32px -14px color-mix(in srgb, var(--materia-accent) 30%, transparent),
+    inset 0 1px 0 0 color-mix(in srgb, var(--materia-accent) 12%, transparent);
+}
+
+/* Shell del dashboard (grupo (main)): translúcido SOLO bajo materia
+   para que el canvas global Materia Viva respire tras los widgets */
+body[data-materia] .os-main-shell,
+body[data-materia] .os-main-scroll {
+  background: transparent;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PULIDO DE WIDGETS — capa de calidad transversal
+   SOP: architecture/integracion-portal-starseed-os.md
+   → "Tema StarSeed Café" / "Pulido de widgets (kit)".
+   .custom-scrollbar la usaba WidgetShell desde siempre pero NO
+   existía en CSS — se define por fin (scrollbar fina y discreta).
+   .os-widget-shell: clase estable añadida por WidgetShell para
+   estados hover/focus visibles y números tabulares en métricas.
+   ═══════════════════════════════════════════════════════════ */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground-hsl) / 0.25) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground-hsl) / 0.22);
+  border-radius: 99px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground-hsl) / 0.4);
+}
+
+.os-widget-shell {
+  /* Cifras alineadas en columnas en TODOS los widgets (hereda) */
+  font-variant-numeric: tabular-nums;
+  transition:
+    border-color var(--dur-base, 220ms) var(--ease-glide, ease),
+    box-shadow var(--dur-slow, 300ms) var(--ease-glide, ease),
+    transform var(--dur-base, 220ms) var(--ease-glide, ease);
+}
+
+.os-widget-shell:hover {
+  border-color: hsl(var(--primary-hsl) / 0.30);
+}
+
+/* Foco con teclado visible al navegar dentro de un widget */
+.os-widget-shell:focus-within {
+  border-color: hsl(var(--ring-hsl) / 0.45);
+  box-shadow: 0 0 0 2px hsl(var(--ring-hsl) / 0.14), var(--glass-shadow-layer-2, 0 12px 20px -4px rgba(0, 0, 0, 0.08));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TEMA "STARSEED CAFÉ" — identidad completa del OS (opt-in)
+   ─────────────────────────────────────────────────────────────
+   applyStyles() (appearance-context) pone data-os-theme="cafe"
+   en <html> cuando themeStore.osTheme === "cafe". Sin atributo,
+   NADA de este bloque aplica: los temas existentes quedan
+   byte a byte igual. Referencia canónica de color/movimiento:
+   StarSeed Café/app/assets/css/tokens.css + cafe/cafe.css.
+   SOP: architecture/integracion-portal-starseed-os.md
+   → "Tema StarSeed Café (data-os-theme, v1)".
+
+   Variante CLARA (base) — pergamino crema + tinta café:
+     fondo #fdf7ea→#e8dabc · tinta #3B2818 · primario terracota
+     #C05C3B · secundario ámbar #F6A21E · acento musgo #3f7a2a
+   Variante OSCURA (.dark/.natural/.glass) — verde-negro + oro:
+     fondo #0d130e/#16210f · tinta crema #eef3e6 · primario oro
+     #E9C46A · acento lima #9FE870 · bordes oro ~35%
+   ═══════════════════════════════════════════════════════════ */
+
+/* ---- CAFÉ CLARO (variante base) ---- */
+html[data-os-theme="cafe"] {
+  --background-hsl: 43 76% 95%;
+  --foreground-hsl: 27 42% 16%;
+
+  --card-hsl: 44 78% 97%;
+  --card-foreground-hsl: 27 42% 16%;
+
+  --popover-hsl: 44 78% 97%;
+  --popover-foreground-hsl: 27 42% 16%;
+
+  --primary-hsl: 15 53% 47%;
+  --primary-foreground-hsl: 43 80% 96%;
+
+  --secondary-hsl: 37 92% 50%;
+  --secondary-foreground-hsl: 30 60% 10%;
+
+  --muted-hsl: 41 50% 88%;
+  --muted-foreground-hsl: 33 20% 33%;
+
+  --accent-hsl: 104 49% 30%;
+  --accent-foreground-hsl: 43 80% 96%;
+
+  --destructive-hsl: 7 55% 42%;
+  --destructive-foreground-hsl: 43 80% 96%;
+
+  --border-hsl: 40 42% 72%;
+  --input-hsl: 42 48% 88%;
+  --ring-hsl: 15 53% 47%;
+  --primary-rgb: 192, 92, 59;
+
+  --chart-1: 15;
+  --chart-2: 37;
+  --chart-3: 104;
+  --chart-4: 172;
+  --chart-5: 263;
+
+  /* Esquinas Café: 14–26px */
+  --radius: 1.125rem;
+  --radius-sm: 0.875rem;
+  --radius-lg: 1.375rem;
+  --radius-xl: 1.625rem;
+  --radius-2xl: 2rem;
+
+  /* Cristal cálido */
+  --glass-rgb: 253, 247, 234;
+  --glass-shadow-layer-1: 0 4px 10px -2px rgba(59, 40, 24, 0.08);
+  --glass-shadow-layer-2: 0 12px 24px -6px rgba(59, 40, 24, 0.07);
+  --glass-shadow-layer-3: 0 24px 44px -12px rgba(192, 92, 59, 0.07);
+  --glass-shadow-ambient: 0 0 36px rgba(233, 196, 106, 0.10);
+}
+
+/* ---- CAFÉ OSCURO (atmósferas oscuras: dark / natural / glass) ---- */
+html[data-os-theme="cafe"]:is(.dark, .natural, .glass) {
+  --background-hsl: 130 19% 6%;
+  --foreground-hsl: 83 30% 92%;
+
+  --card-hsl: 120 16% 9%;
+  --card-foreground-hsl: 83 30% 92%;
+
+  --popover-hsl: 126 18% 7%;
+  --popover-foreground-hsl: 83 30% 92%;
+
+  --primary-hsl: 42 74% 66%;
+  --primary-foreground-hsl: 120 30% 7%;
+
+  --secondary-hsl: 15 53% 55%;
+  --secondary-foreground-hsl: 43 80% 96%;
+
+  --muted-hsl: 120 12% 13%;
+  --muted-foreground-hsl: 91 13% 68%;
+
+  --accent-hsl: 97 72% 67%;
+  --accent-foreground-hsl: 100 35% 7%;
+
+  --destructive-hsl: 7 55% 48%;
+  --destructive-foreground-hsl: 43 80% 96%;
+
+  --border-hsl: 44 30% 26%;
+  --input-hsl: 120 12% 12%;
+  --ring-hsl: 42 74% 66%;
+  --primary-rgb: 233, 196, 106;
+
+  --chart-1: 42;
+  --chart-2: 15;
+  --chart-3: 97;
+  --chart-4: 172;
+  --chart-5: 263;
+
+  --glass-rgb: 28, 40, 28;
+  --glass-shadow-layer-1: 0 4px 16px -4px rgba(233, 196, 106, 0.12);
+  --glass-shadow-layer-2: 0 16px 32px -8px rgba(159, 232, 112, 0.06);
+  --glass-shadow-layer-3: 0 32px 64px -16px rgba(233, 196, 106, 0.05);
+  --glass-shadow-ambient: 0 0 50px rgba(233, 196, 106, 0.07);
+}
+
+/* ---- Fondo de página (pergamino / verde-negro) ---- */
+html[data-os-theme="cafe"] body {
+  background: radial-gradient(1100px 760px at 78% -8%, #fdf7ea 0%, #f6eed8 48%, #e8dabc 100%) fixed;
+  background-attachment: fixed;
+
+  /* Tipografía Café: titulares serif + etiquetas mono.
+     Se redefine en <body> porque next/font declara las vars ahí. */
+  --font-headline: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-code: 'Space Mono', ui-monospace, 'SFMono-Regular', monospace;
+}
+
+html[data-os-theme="cafe"]:is(.dark, .natural, .glass) body {
+  background: radial-gradient(1100px 760px at 78% -8%, #16210f 0%, #0d130e 58%, #070b08 100%) fixed;
+  background-attachment: fixed;
+}
+
+/* Titulares en serif Fraunces — el tema "respira" en todas las páginas */
+html[data-os-theme="cafe"] :is(h1, h2, h3),
+html[data-os-theme="cafe"] .page-title {
+  font-family: var(--font-headline);
+  letter-spacing: -0.015em;
+}
+
+/* Etiquetas técnicas (uppercase tracking) en Space Mono, como el Café */
+html[data-os-theme="cafe"] .section-label {
+  font-family: var(--font-code);
+}
+
+/* Bajo café claro, materia viva no debe imponer su primario dorado
+   (poco contraste sobre crema): re-afirmamos terracota.
+   En café oscuro coinciden (oro 42 74% 66%) y no hace falta nada. */
+html[data-os-theme="cafe"]:not(.dark):not(.natural):not(.glass) body[data-materia] {
+  --primary-hsl: 15 53% 47%;
+  --primary-foreground-hsl: 43 80% 96%;
+  --ring-hsl: 15 53% 47%;
+  --primary-rgb: 192, 92, 59;
+}
+
+/* ---- Cristal cálido: paneles y tarjetas ---- */
+/* Claro: vence a los overrides violetas con !important existentes */
+html[data-os-theme="cafe"]:not(.dark):not(.natural):not(.glass) .card-glass,
+html[data-os-theme="cafe"]:not(.dark):not(.natural):not(.glass) .glass-card {
+  background: rgba(253, 250, 240, 0.88) !important;
+  border-color: rgba(202, 164, 95, 0.38) !important;
+  box-shadow:
+    0 2px 12px rgba(59, 40, 24, 0.07),
+    0 10px 28px rgba(59, 40, 24, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+}
+
+html[data-os-theme="cafe"]:not(.dark):not(.natural):not(.glass) .liquid-glass-panel {
+  background: rgba(253, 248, 236, 0.84) !important;
+  border-color: rgba(192, 92, 59, 0.18) !important;
+  box-shadow: 0 1px 12px rgba(59, 40, 24, 0.07) !important;
+}
+
+/* Oscuro: nav/paneles verde-negro con borde oro al 35% */
+html[data-os-theme="cafe"]:is(.dark, .natural, .glass) .liquid-glass-panel {
+  background: rgba(13, 19, 14, 0.74) !important;
+  border-color: rgba(233, 196, 106, 0.22) !important;
+  box-shadow: 0 1px 16px rgba(0, 0, 0, 0.35) !important;
+}
+
+html[data-os-theme="cafe"]:is(.dark, .natural, .glass) .liquid-glass-ui {
+  background: linear-gradient(135deg,
+      rgba(30, 38, 28, var(--glass-opacity, 0.65)) 0%,
+      rgba(20, 26, 19, calc(var(--glass-opacity, 0.65) * 0.6)) 100%);
+  border-top-color: rgba(233, 196, 106, 0.28);
+  border-left-color: rgba(233, 196, 106, 0.18);
+  border-right-color: rgba(233, 196, 106, 0.10);
+  border-bottom-color: rgba(233, 196, 106, 0.10);
+}
+
+html[data-os-theme="cafe"]:is(.dark, .natural, .glass) .glass-card,
+html[data-os-theme="cafe"]:is(.dark, .natural, .glass) .card-glass {
+  border-color: rgba(233, 196, 106, 0.26);
+  box-shadow:
+    0 14px 40px -16px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(233, 196, 106, 0.10);
+}
+
+/* Glow de hover dorado (sustituye al violeta de Nebula bajo café) */
+html[data-os-theme="cafe"]:is(.dark, .natural, .glass) button:not([disabled]):hover,
+html[data-os-theme="cafe"]:is(.dark, .natural, .glass) [role="button"]:not([disabled]):hover {
+  box-shadow: 0 0 18px rgba(233, 196, 106, 0.16);
+}
+
+/* ---- Botones "oro fundido" (primary) ---- */
+html[data-os-theme="cafe"] button.bg-primary,
+html[data-os-theme="cafe"] .shadcn-button.bg-primary,
+html[data-os-theme="cafe"] [role="button"].bg-primary {
+  background-image: linear-gradient(180deg,
+      hsl(var(--primary-hsl) / 0.92) 0%,
+      hsl(var(--primary-hsl)) 55%,
+      color-mix(in srgb, hsl(var(--primary-hsl)) 84%, #5e3a10) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 10px 26px -10px hsl(var(--primary-hsl) / 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+/* ---- Transiciones líquidas bajo café ---- */
+html[data-os-theme="cafe"] :is(button, a, input, select, textarea,
+  [role="button"], [role="tab"], [role="menuitem"],
+  [data-component="card"], [data-component="button"],
+  .card-glass, .glass-card, .explore-card, .theme-preset-card, .os-widget-shell) {
+  transition-timing-function: var(--ease-organic);
+  transition-duration: var(--dur-base, 220ms);
+}
+
+html[data-os-theme="cafe"] :is([role="dialog"], [role="menu"], [role="listbox"],
+  [data-radix-popper-content-wrapper]>*, .dropdown-content, .popover-content) {
+  animation-timing-function: var(--ease-glide);
+}
+
+/* Elevación orgánica en tarjetas interactivas */
+html[data-os-theme="cafe"] .explore-card:hover {
+  transition-timing-function: var(--ease-elastic);
+}
+
+/* Widgets bajo café oscuro: sombra profunda cálida del Café */
+html[data-os-theme="cafe"]:is(.dark, .natural, .glass) .os-widget-shell {
+  box-shadow: 0 18px 48px -20px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(233, 196, 106, 0.08);
+}
+
+/* Scrollbar global con tinte del tema (hereda de vars ya tokenizadas) */
+html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary-hsl) / 0.30);
+}
+
+html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary-hsl) / 0.50);
 }

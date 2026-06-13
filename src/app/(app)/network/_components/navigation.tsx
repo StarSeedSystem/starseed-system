@@ -19,13 +19,14 @@ export function NetworkNavigation() {
 
     return (
         <div className="border-b">
-            <nav className="flex gap-4" aria-label="Network navigation">
+            {/* overflow-x + nowrap: en ≤480px las etiquetas partían palabras ("Panoram a") */}
+            <nav className="flex gap-4 overflow-x-auto scrollbar-hide" aria-label="Network navigation">
                 {navItems.map((item) => (
                     <Link
                         key={item.href}
                         href={item.href}
                         className={cn(
-                            'pb-3 px-1 text-sm font-medium transition-colors',
+                            'pb-3 px-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0',
                             pathname === item.href
                                 ? 'border-b-2 border-primary text-primary'
                                 : 'border-b-2 border-transparent text-muted-foreground hover:text-foreground'

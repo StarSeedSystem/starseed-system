@@ -37,6 +37,11 @@ const LS_DASHBOARDS = 'starseed_dashboards';
 const LS_WIDGETS = 'starseed_widgets';
 const LS_ORDER = 'dashboard_order';
 const LS_INITIALIZED = 'starseed_dashboards_initialized';
+// Versión del catálogo de dashboards predeterminados. Súbela cada vez que cambie
+// el acomodo/los widgets por defecto para que las instalaciones existentes
+// re-siembren los tableros predeterminados (preservando los tableros propios).
+const LS_DEFAULTS_VERSION = 'starseed_defaults_version';
+const DEFAULTS_VERSION = 'gen5-2026-05-30b';
 const LS_ACTIVE_PROFILE = 'starseed_active_profile_v1';
 const LS_AI_PROVIDER = 'starseed_ai_provider_v1';
 const LS_SERVERS = 'starseed_internet_servers_v1';
@@ -140,6 +145,35 @@ function generateDefaultDashboards(): { dashboards: Dashboard[], widgetMap: Reco
     }
 
     return { dashboards, widgetMap };
+}
+
+// Re-siembra los dashboards predeterminados con el acomodo más reciente,
+// preservando los tableros que el usuario creó (categorías no predeterminadas).
+// Devuelve la lista combinada y persiste dashboards + widgets + versión.
+function reseedDefaultDashboards(): { dashboards: Dashboard[], widgetMap: Record<string, DashboardWidget[]> } {
+    const defaultCategoryIds = new Set(DEFAULT_DASHBOARD_TEMPLATES.map(t => t.categoryId));
+    const stored = loadDashboards();
+    const storedWidgets = loadAllWidgets();
+
+    // Tableros 100% personalizados del usuario (categoría no predeterminada): se conservan.
+    const customDashboards = stored.filter(d => !d.category || !defaultCategoryIds.has(d.category as any));
+    const preservedWidgetMap: Record<string, DashboardWidget[]> = {};
+    for (const d of customDashboards) {
+        if (storedWidgets[d.id]) preservedWidgetMap[d.id] = storedWidgets[d.id];
+    }
+
+    // Regenera todos los predeterminados frescos (nuevo acomodo gen4/gen5).
+    const { dashboards: freshDefaults, widgetMap: freshWidgets } = generateDefaultDashboards();
+
+    const merged = [...freshDefaults, ...customDashboards];
+    const mergedWidgets = { ...freshWidgets, ...preservedWidgetMap };
+
+    saveDashboards(merged);
+    saveAllWidgets(mergedWidgets);
+    // Reinicia el orden para que el nuevo conjunto se ordene por defecto.
+    try { localStorage.removeItem(LS_ORDER); } catch {}
+    localStorage.setItem(LS_DEFAULTS_VERSION, DEFAULTS_VERSION);
+    return { dashboards: merged, widgetMap: mergedWidgets };
 }
 
 export function DashboardLayout() {
@@ -269,6 +303,7 @@ export function DashboardLayout() {
             saveDashboards(defaults);
             saveAllWidgets(widgetMap);
             localStorage.setItem(LS_INITIALIZED, 'true');
+            localStorage.setItem(LS_DEFAULTS_VERSION, DEFAULTS_VERSION);
 
             const sorted = sortDashboards(defaults);
             setDashboards(sorted);
@@ -277,6 +312,21 @@ export function DashboardLayout() {
                 setWidgets(widgetMap[sorted[0].id] || []);
             }
         } else {
+            // Re-siembra versionada: si cambió el catálogo de defaults, regenera los
+            // tableros predeterminados con el nuevo acomodo (conservando los propios).
+            const storedVersion = localStorage.getItem(LS_DEFAULTS_VERSION);
+            if (storedVersion !== DEFAULTS_VERSION && loadDashboards().length > 0) {
+                const { dashboards: merged, widgetMap } = reseedDefaultDashboards();
+                const sorted = sortDashboards(merged);
+                setDashboards(sorted);
+                if (sorted.length > 0) {
+                    setActiveDashboardId(sorted[0].id);
+                    setWidgets(widgetMap[sorted[0].id] || []);
+                }
+                setLoading(false);
+                return;
+            }
+
             const stored = loadDashboards();
             if (stored.length > 0) {
                 const sorted = sortDashboards(stored);
@@ -306,6 +356,12 @@ export function DashboardLayout() {
         }, 2500);
         return () => clearTimeout(timer);
     }, []);
+
+    // Al entrar en pantalla completa, oculta la barra lateral de ajustes
+    // (se conserva el botón de expansión para volver a mostrarla).
+    useEffect(() => {
+        if (isFullscreen) setIsSidebarOpen(false);
+    }, [isFullscreen]);
 
     // ── Listen for forge open or fullscreen events ─────────────
     useEffect(() => {
@@ -406,7 +462,10 @@ export function DashboardLayout() {
     useEffect(() => {
         const handleScroll = () => {
             const scrollY = window.scrollY;
-            setIsTitleVisible(scrollY < 60);
+            const show = scrollY < 60;
+            setIsTitleVisible(show);
+            // La barra lateral de ajustes se oculta/auto-revela junto con el título.
+            setIsSidebarOpen(show);
         };
         window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
@@ -436,6 +495,20 @@ export function DashboardLayout() {
 
     const saveOrder = (newDashboards: Dashboard[]) => {
         localStorage.setItem(LS_ORDER, JSON.stringify(newDashboards.map(d => d.id)));
+    };
+
+    // Restablece los dashboards predeterminados al acomodo más reciente,
+    // conservando los tableros propios del usuario. Vía manual de re-siembra.
+    const handleResetLayout = () => {
+        if (typeof window !== "undefined" && !window.confirm("¿Restablecer los tableros predeterminados al acomodo más reciente? Tus tableros personalizados se conservan.")) return;
+        const { dashboards: merged, widgetMap } = reseedDefaultDashboards();
+        const sorted = sortDashboards(merged);
+        setDashboards(sorted);
+        if (sorted.length > 0) {
+            setActiveDashboardId(sorted[0].id);
+            setWidgets(widgetMap[sorted[0].id] || []);
+        }
+        toast({ title: "Tableros restablecidos", description: "Se aplicó el acomodo predeterminado más reciente." });
     };
 
     // Add Widget
@@ -640,6 +713,17 @@ export function DashboardLayout() {
             toast({ title: `Tema Aplicado`, description: `Sistema cargado con preset "${preset.name}"` });
         }
     };
+
+    // --- Header (dynamic title) derived data ---
+    const activeDashboard = useMemo(
+        () => dashboards.find(d => d.id === activeDashboardId) ?? dashboards[0],
+        [dashboards, activeDashboardId]
+    );
+    const activeCategory = useMemo(
+        () => activeDashboard ? getCategoryById(activeDashboard.category as any) : undefined,
+        [activeDashboard]
+    );
+    const totalWidgets = widgets.length;
 
     // --- Customizable Sidebar Computed Properties ---
     const isVertical = useMemo(() => sidebarConfig.position === 'left' || sidebarConfig.position === 'right', [sidebarConfig.position]);
@@ -1409,13 +1493,50 @@ export function DashboardLayout() {
                                 animate={{ opacity: 1, height: "auto" }}
                                 exit={{ opacity: 0, height: 0, overflow: "hidden", marginBottom: 0 }}
                                 transition={{ type: "spring", stiffness: 260, damping: 28 }}
-                                className="flex flex-col items-center gap-3 flex-shrink-0 overflow-hidden"
+                                className="flex flex-col items-center gap-4 flex-shrink-0 overflow-hidden"
                             >
-                                <div className="text-center mt-2">
-                                    <h1 className="text-4xl md:text-5xl font-bold font-headline text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-cyan-400 to-fuchsia-400 animate-gradient-x">
-                                        Dashboards
-                                    </h1>
-                                    <p className="text-[10px] font-mono text-white/25 uppercase tracking-[0.3em] mt-1">OS StarSeed // Panel de Control</p>
+                                <div className="flex flex-col items-center text-center mt-2">
+                                    {/* Eyebrow — categoría activa dinámica */}
+                                    <AnimatePresence mode="wait">
+                                        <motion.div
+                                            key={activeCategory?.id ?? "all"}
+                                            initial={{ opacity: 0, y: -6 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: 6 }}
+                                            transition={{ duration: 0.25 }}
+                                            className="flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/[0.03] backdrop-blur-md mb-3"
+                                        >
+                                            {activeCategory?.icon && (
+                                                <activeCategory.icon className="w-3.5 h-3.5 text-cyan-300" />
+                                            )}
+                                            <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-white/50">
+                                                {activeCategory?.name ?? "Panel de Control"}
+                                            </span>
+                                            <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                                            <span className="text-[10px] font-mono text-white/40">
+                                                {dashboards.length} paneles · {totalWidgets} widgets
+                                            </span>
+                                        </motion.div>
+                                    </AnimatePresence>
+
+                                    {/* Título dinámico — nombre del dashboard activo */}
+                                    <AnimatePresence mode="wait">
+                                        <motion.h1
+                                            key={activeDashboard?.id ?? "dashboards"}
+                                            initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
+                                            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                                            exit={{ opacity: 0, y: -10, filter: "blur(6px)" }}
+                                            transition={{ type: "spring", stiffness: 280, damping: 26 }}
+                                            className="text-4xl md:text-5xl font-bold font-headline text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-cyan-400 to-fuchsia-400 animate-gradient-x"
+                                        >
+                                            {activeDashboard?.name ?? "Dashboards"}
+                                        </motion.h1>
+                                    </AnimatePresence>
+
+                                    {/* Texto y botones bajo el título eliminados por petición:
+                                        la cabecera queda limpia (solo el título). Las acciones
+                                        (editar, pantalla completa, forjar, restablecer) viven en
+                                        la barra lateral de ajustes. */}
                                 </div>
                             </motion.div>
                         )}
@@ -1423,20 +1544,34 @@ export function DashboardLayout() {
 
 
 
-                    {/* Workspace Window Manager — stretches to fill screen bottom */}
+                    {/* Workspace Window Manager — se ajusta automáticamente al límite de
+                        cada pantalla. En pantalla completa usa la altura dinámica del
+                        viewport (100dvh) para que el área inferior llegue exactamente al
+                        borde; fuera de ella deja espacio para la cabecera. */}
                     <div className={cn(
-                        "flex-1 flex flex-col transition-all duration-500 pb-0",
-                        isFullscreen ? "min-h-screen" : "min-h-[calc(100vh-40px)] flex-grow"
+                        "flex flex-col transition-all duration-500 pb-0",
+                        isFullscreen
+                            ? "h-[100dvh] min-h-[100dvh]"
+                            : "flex-1 flex-grow min-h-[calc(100dvh-40px)]"
                     )}>
                         <WorkspaceProvider initialDashboards={dashboards.map(d => d.id)}>
                             <DashboardWorkspaceRenderer
                                 dashboards={dashboards}
                                 isEditMode={isEditMode}
                                 setWidgets={setWidgets}
-                                widgetsMap={dashboards.reduce((acc, d) => {
-                                    acc[d.id] = widgets.filter(w => w.dashboard_id === d.id);
-                                    return acc;
-                                }, {} as any)}
+                                widgetsMap={(() => {
+                                    // Cada dashboard muestra SUS widgets: los del activo vienen del
+                                    // estado en vivo; los demás se leen de almacenamiento para que
+                                    // todas las pestañas aparezcan ya acomodadas por defecto.
+                                    const all = loadAllWidgets();
+                                    const map: Record<string, DashboardWidget[]> = {};
+                                    for (const d of dashboards) {
+                                        map[d.id] = (activeDashboardId && d.id === activeDashboardId)
+                                            ? widgets
+                                            : (all[d.id] || []);
+                                    }
+                                    return map;
+                                })()}
                                 onPinWidget={(widget) => {
                                     const htmlCode = widget.widget_type === 'AI_GENERATED'
                                         ? widget.settings?.customHtml || '<div style="padding:20px;color:white;">Widget</div>'
@@ -1547,6 +1682,38 @@ export function DashboardLayout() {
                 </div>
             </div>
         </WeatherLocationProvider>
+    );
+}
+
+// --- Header quick-action pill button ---
+interface HeaderActionProps {
+    icon: React.ReactNode;
+    label: string;
+    tone: "neutral" | "cyan" | "emerald" | "indigo";
+    active?: boolean;
+    onClick: () => void;
+}
+
+function HeaderAction({ icon, label, tone, active, onClick }: HeaderActionProps) {
+    const tones = {
+        neutral: "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10 hover:text-white",
+        cyan: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:shadow-[0_0_18px_rgba(34,211,238,0.3)]",
+        emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 hover:shadow-[0_0_18px_rgba(16,185,129,0.3)]",
+        indigo: "border-indigo-500/30 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20 hover:shadow-[0_0_18px_rgba(99,102,241,0.35)]",
+    } as const;
+
+    return (
+        <button
+            onClick={onClick}
+            className={cn(
+                "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border backdrop-blur-md text-xs font-medium transition-all duration-200 cursor-pointer active:scale-95",
+                tones[tone],
+                active && "ring-1 ring-emerald-400/40 scale-[1.03]"
+            )}
+        >
+            {icon}
+            {label}
+        </button>
     );
 }
 

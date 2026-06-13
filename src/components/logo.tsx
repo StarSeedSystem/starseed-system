@@ -1,18 +1,18 @@
-import Image from "next/image";
+import { cn } from "@/lib/utils";
+import NextImage from "next/image";
 
-export function Logo() {
-  return (
-    <div className="flex items-center gap-2 font-headline text-lg font-semibold tracking-tighter">
-      <div className="relative flex h-8 w-8 items-center justify-center rounded-lg">
-        <Image
-          src="/logo.png"
-          alt="StarSeed Logo"
-          fill
-          sizes="32px"
-          className="object-contain"
-        />
-      </div>
-      StarSeed Network
-    </div>
-  );
+export function Logo({ className }: { className?: string }) {
+    return (
+        <div className={cn("flex items-center gap-2", className)}>
+            <NextImage
+                src="/starseed-symbol.png"
+                alt="StarSeed"
+                width={28}
+                height={28}
+                priority
+                className="h-7 w-7 object-contain drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]"
+            />
+            <span className="text-xl font-bold font-headline tracking-tighter">StarSeed</span>
+        </div>
+    );
 }

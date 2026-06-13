@@ -29,9 +29,11 @@ export function ControlCenter() {
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
             className={cn(
                 "bg-black/80 backdrop-blur-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col pointer-events-auto relative ring-1 ring-white/5",
-                // Mobile: fullscreen | Desktop: wide floating panel
-                "fixed inset-0 z-[100] rounded-none",
-                "md:static md:inset-auto md:z-auto md:w-[420px] md:h-[600px] md:rounded-[2rem]",
+                // Móvil: rellena el contenedor fullscreen del SideCurtains (antes era
+                // `fixed inset-0`, que caía en la trampa del containing block del
+                // transform padre y quedaba fuera de pantalla — ver SOP Bloque 3).
+                "w-full h-full rounded-none",
+                "md:w-[420px] md:h-[600px] md:rounded-[2rem]",
                 "lg:w-[460px] lg:h-[640px]"
             )}
         >

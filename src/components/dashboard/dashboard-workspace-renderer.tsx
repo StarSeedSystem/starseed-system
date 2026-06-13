@@ -190,8 +190,10 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
                     }}
                     isEditMode={isEditMode}
                     onPinWidget={onPinWidget}
+                    onAddWidget={onAddWidget}
+                    onForgeOpen={onForgeOpen}
                 />
-                
+
                 {isEditMode && (
                     <div className="flex justify-center mt-6 pb-12 opacity-50 hover:opacity-100 transition-opacity">
                         <AddWidgetDialog
