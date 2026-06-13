@@ -37,6 +37,21 @@ export interface WidgetShellProps {
     bodyClassName?: string;
     /** hide header entirely (full-bleed widgets like graphs) */
     bare?: boolean;
+    /**
+     * Conexiones del ecosistema (inteligencia interconectada): chips compactos
+     * que enlazan el widget con áreas o widgets hermanos. Opcional → si no se
+     * pasa, el footer no cambia. Cada chip puede navegar (href interno) o
+     * disparar una acción (onClick).
+     */
+    connections?: Array<{
+        label: string;
+        href?: string;
+        onClick?: () => void;
+        color?: string;
+        icon?: LucideIcon;
+    }>;
+    /** Sigilo StarSeed tenue en la esquina (marca de identidad). Default: true. */
+    sigil?: boolean;
 }
 
 function bgClass(style: string, opacity: number): string {
@@ -88,7 +103,7 @@ function innerGlowClass(style: string): string {
 
 export function WidgetShell({
     title, subtitle, icon: Icon, accent, live, actions, footer, children,
-    className, bodyClassName, bare = false,
+    className, bodyClassName, bare = false, connections, sigil = true,
 }: WidgetShellProps) {
     const { config } = useAppearance();
     const w = config.widgets;
@@ -100,6 +115,28 @@ export function WidgetShell({
 
     const resolvedChildren = typeof children === "function" ? children(size) : children;
     const resolvedFooter = typeof footer === "function" ? footer(size) : footer;
+
+    // Chips de conexión (interconexión del ecosistema). Solo en tamaños no-micro.
+    const connChips = connections && connections.length && size.tier !== "micro" ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-muted-foreground/60 mr-0.5">✦ Conecta</span>
+            {connections.map((c, i) => {
+                const Ic = c.icon;
+                const cc = c.color ?? accentColor;
+                const inner = (
+                    <>
+                        {Ic && <Ic className="size-3 shrink-0" />}
+                        <span className="truncate max-w-[10rem]">{c.label}</span>
+                    </>
+                );
+                const cls = "group inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-all cursor-pointer hover:-translate-y-px";
+                const style = { color: cc, borderColor: `color-mix(in srgb, ${cc} 40%, transparent)`, background: `color-mix(in srgb, ${cc} 12%, transparent)` } as React.CSSProperties;
+                return c.href
+                    ? <a key={i} href={c.href} className={cls} style={style} title={`Ir a ${c.label}`}>{inner}</a>
+                    : <button key={i} type="button" onClick={c.onClick} className={cls} style={style} title={c.label}>{inner}</button>;
+            })}
+        </div>
+    ) : null;
 
     return (
         <div
@@ -118,6 +155,24 @@ export function WidgetShell({
         >
             {w.noiseTexture && (
                 <div className="pointer-events-none absolute inset-0 opacity-[0.035] mix-blend-overlay [background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.85%22 numOctaves=%222%22/></filter><rect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/></svg>')]" />
+            )}
+
+            {/* Hairline de acento StarSeed en el borde superior (identidad por widget). */}
+            <span
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 top-0 h-[2px] z-20 opacity-80"
+                style={{ background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)` }}
+            />
+
+            {/* Sigilo StarSeed tenue (4 gemas cardinales en cruz) como marca de fondo. */}
+            {sigil && size.tier !== "micro" && (
+                <svg aria-hidden viewBox="0 0 24 24" className="pointer-events-none absolute -right-3 -bottom-3 z-0 size-24 opacity-[0.06]">
+                    <circle cx="12" cy="4.6" r="2.6" fill="currentColor" />
+                    <circle cx="19.4" cy="12" r="2.6" fill="currentColor" />
+                    <circle cx="12" cy="19.4" r="2.6" fill="currentColor" />
+                    <circle cx="4.6" cy="12" r="2.6" fill="currentColor" />
+                    <circle cx="12" cy="12" r="1.4" fill="currentColor" />
+                </svg>
             )}
 
             {!bare && (
@@ -184,9 +239,10 @@ export function WidgetShell({
                 {resolvedChildren}
             </div>
 
-            {resolvedFooter && (
-                <footer className="shrink-0 z-10 px-3 pb-3 pt-1 @sm:px-4 border-t border-border/30">
+            {(resolvedFooter || connChips) && (
+                <footer className="shrink-0 z-10 px-3 pb-3 pt-1.5 @sm:px-4 border-t border-border/30 space-y-1.5">
                     {resolvedFooter}
+                    {connChips}
                 </footer>
             )}
         </div>

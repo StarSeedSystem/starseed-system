@@ -235,6 +235,11 @@ export function CarteraStarseedWidget() {
             subtitle="Cuenta soberana unificada"
             icon={Wallet}
             accent={ACCENT}
+            connections={[
+                { label: "Fundación", href: "https://starseed-nexus.vercel.app/#fundacion", color: "#FF8A5C" },
+                { label: "Café", href: "https://starseed-nexus.vercel.app/cafe/", color: "#FFC247" },
+                { label: "Mercado de Semillas", href: "https://starseed-nexus.vercel.app/#fundacion", color: "#9FE870" },
+            ]}
             actions={
                 <button
                     onClick={() => void load()}

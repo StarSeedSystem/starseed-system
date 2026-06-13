@@ -2393,7 +2393,13 @@ body[data-materia] .os-main-scroll {
 }
 
 .os-widget-shell:hover {
-  border-color: hsl(var(--primary-hsl) / 0.30);
+  border-color: hsl(var(--primary-hsl) / 0.34);
+  /* Glow de acento suave (sin transform: no interfiere con el arrastre del grid) */
+  box-shadow: 0 0 0 1px hsl(var(--primary-hsl) / 0.10), 0 14px 36px -18px hsl(var(--primary-hsl) / 0.30);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .os-widget-shell { transition: none; }
 }
 
 /* Foco con teclado visible al navegar dentro de un widget */
