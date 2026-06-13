@@ -4,6 +4,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -125,7 +126,7 @@ const initialWorkflows: WorkflowItem[] = [
 
 type ChatTurn = { role: "user" | "agent"; content: string; timestamp: string; pending?: boolean };
 
-export default function AgentPage() {
+function AgentPageInner() {
   const params = useSearchParams();
   const tabParam = params?.get('tab');
   const initialTab =
@@ -775,5 +776,13 @@ export default function AgentPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function AgentPage() {
+  return (
+    <Suspense fallback={null}>
+      <AgentPageInner />
+    </Suspense>
   );
 }

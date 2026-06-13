@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 import { AiDetectionWizard } from '@/hermes-integration/06-ai-detection-wizard';
 import { hermes } from '@/hermes-integration';
 import { useEffect, useState } from 'react';
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +16,7 @@ import { SensesPanel } from '@/components/hermes/senses-panel';
 import { McpPanel } from '@/components/hermes/mcp-panel';
 import { AiPermissionsPanel } from '@/components/ai/ai-permissions-panel';
 
-export default function AiSetupPage() {
+function AiSetupPageInner() {
   const params = useSearchParams();
   const tabParam = params?.get('tab');
   const initialTab =
@@ -115,5 +116,13 @@ export default function AiSetupPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function AiSetupPage() {
+  return (
+    <Suspense fallback={null}>
+      <AiSetupPageInner />
+    </Suspense>
   );
 }
