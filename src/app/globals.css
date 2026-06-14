@@ -2691,3 +2691,18 @@ html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb:hover {
 @media (prefers-reduced-motion: reduce) {
   .os-widget-shell::after { animation: none; opacity: 0.22; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   SCROLL TÁCTIL SOBRE WIDGETS — garantía a nivel de librería
+   react-grid-layout/react-draggable adjuntan el arrastre al elemento
+   .react-grid-item. Forzamos que el navegador RESERVE el desplazamiento
+   vertical en ese elemento (pan-y) para que deslizar sobre un widget SIEMPRE
+   haga scroll y nunca lo mueva por accidente. Solo mientras hay un arrastre
+   real en curso (react-draggable añade .react-draggable-dragging tras armar
+   con la pulsación de 3 s) se libera a touch-action:none para permitir mover.
+   !important para vencer cualquier estilo inline/util que ponga none.
+   ═══════════════════════════════════════════════════════════ */
+.react-grid-item { touch-action: pan-y !important; }
+.react-grid-item.react-draggable-dragging { touch-action: none !important; }
+/* El handle de redimensionar sí necesita gesto libre inmediato */
+.react-grid-item > .react-resizable-handle { touch-action: none !important; }
