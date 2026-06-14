@@ -12,7 +12,19 @@ export function MentalCoherenceWidget() {
     const { data, loading } = useWidgetData("wellness.coherence", { refreshMs: 4000 });
 
     return (
-        <WidgetShell title="Coherencia" subtitle="Enlace Exocórtex" icon={Brain} accent="#8b5cf6" live>
+        <WidgetShell
+            title="Coherencia"
+            subtitle="Enlace Exocórtex"
+            icon={Brain}
+            accent="#8b5cf6"
+            live
+            expandHref="/agent"
+            connections={[
+                { label: "Exocórtex", href: "/agent", color: "#8b5cf6", icon: Sparkles },
+                { label: "Aprendizaje", href: "/network/education", color: "#38bdf8", icon: Target },
+                { label: "Perfil", href: "/profile", color: "#10b981", icon: Wind },
+            ]}
+        >
             {(size) => {
                 if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
                 const micro = size.tier === "micro" || size.vTier === "micro";

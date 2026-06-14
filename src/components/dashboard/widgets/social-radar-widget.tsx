@@ -28,11 +28,17 @@ export function SocialRadarWidget() {
             subtitle="Eventos próximos"
             icon={CalendarDays}
             accent="#ec4899"
+            expandHref="/network/culture"
             actions={
                 <Link href="/network/culture" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
                     Calendario <ChevronRight className="size-3" />
                 </Link>
             }
+            connections={[
+                { label: "Cultura", href: "/network/culture", color: "#ec4899", icon: Palette },
+                { label: "Asambleas", href: "/network/politics", color: "#f59e0b", icon: Landmark },
+                { label: "Hub", href: "/hub", color: "#10b981", icon: Users },
+            ]}
         >
             {(size) => {
                 if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;

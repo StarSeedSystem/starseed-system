@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Calculator, Equal, Delete } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -32,27 +32,61 @@ function evaluate(expr: string): string {
     }
 }
 
+const KEY_MAP: Record<string, string> = {
+    "/": "÷", "*": "×", "-": "−", "+": "+", ".": ".", "%": "%",
+    Enter: "=", "=": "=", Backspace: "⌫", Escape: "C", c: "C", C: "C",
+};
+
 export function CalculatorWidget() {
     const [expr, setExpr] = useState("");
     const [display, setDisplay] = useState("0");
+    const [prev, setPrev] = useState("");
 
     const press = useCallback((label: string) => {
-        if (label === "C") { setExpr(""); setDisplay("0"); return; }
+        if (label === "C") { setExpr(""); setDisplay("0"); setPrev(""); return; }
         if (label === "⌫") { setExpr(e => e.slice(0, -1)); setDisplay(d => (d.length <= 1 ? "0" : d.slice(0, -1))); return; }
-        if (label === "=") { const r = evaluate(expr || display); setDisplay(r); setExpr(r === "Error" ? "" : r); return; }
+        if (label === "=") {
+            const src = expr || display;
+            const r = evaluate(src);
+            setPrev(r === "Error" ? "" : `${src} =`);
+            setDisplay(r);
+            setExpr(r === "Error" ? "" : r);
+            return;
+        }
         setExpr(e => (e === "0" ? label : e + label));
         setDisplay(d => (d === "0" || d === "Error" ? label : (d.length < 16 ? d + label : d)));
     }, [expr, display]);
 
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            const k = e.key;
+            const mapped = /^[0-9]$/.test(k) ? k : KEY_MAP[k];
+            if (!mapped) return;
+            e.preventDefault();
+            press(mapped);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [press]);
+
     return (
-        <WidgetShell title="Calculadora" subtitle="Cálculo local" icon={Calculator} accent="#6366f1">
+        <WidgetShell
+            title="Calculadora"
+            subtitle="Cálculo local · soberano"
+            icon={Calculator}
+            accent="#6366f1"
+            connections={[{ label: "Cartera", href: "/profile", color: "#6366f1" }, { label: "Explorer", href: "/explorer", color: "#22d3ee" }]}
+        >
             {(size) => {
                 const micro = size.tier === "micro" || size.vTier === "micro";
                 return (
                     <div className="flex flex-col gap-2 pt-1 h-full">
-                        <div className="shrink-0 rounded-xl border border-border/40 bg-black/20 px-3 py-2 flex flex-col items-end justify-center overflow-hidden" style={{ height: micro ? 40 : 56 }}>
-                            <span className="w-full truncate text-right font-mono font-black tabular-nums tracking-tight text-foreground"
-                                style={{ fontSize: display.length > 10 ? "1.1rem" : micro ? "1.25rem" : "1.75rem" }}>
+                        <div className="shrink-0 rounded-xl border border-border/40 bg-black/20 px-3 py-2 flex flex-col items-end justify-center overflow-hidden" style={{ height: micro ? 40 : 60 }}>
+                            {!micro && prev && (
+                                <span className="w-full truncate text-right font-mono text-[10px] text-muted-foreground/50 tabular-nums">{prev}</span>
+                            )}
+                            <span className="w-full truncate text-right font-mono font-black tabular-nums tracking-tight"
+                                style={{ fontSize: display.length > 10 ? "1.1rem" : micro ? "1.25rem" : "1.75rem", color: display === "Error" ? "#f43f5e" : "hsl(var(--foreground))" }}>
                                 {display}
                             </span>
                         </div>

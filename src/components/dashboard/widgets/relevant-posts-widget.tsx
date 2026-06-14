@@ -23,6 +23,8 @@ export function RelevantPostsWidget() {
             icon={Layers}
             accent="#a855f7"
             live
+            connections={[{ label: "Red", href: "/network", color: "#a855f7" }, { label: "Cultura", href: "/network/culture", color: "#38bdf8" }, { label: "Publicar", href: "/publish", color: "#10b981" }]}
+            expandHref="/network"
             actions={
                 <Link href="/network" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
                     Red <ChevronRight className="size-3" />
@@ -40,19 +42,27 @@ export function RelevantPostsWidget() {
                         <MiniList
                             items={sorted}
                             max={max}
+                            empty="Sin publicaciones"
                             render={(p) => (
-                                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-primary/30 transition-colors">
-                                    <div className="flex items-center justify-between gap-2 mb-1">
-                                        <span className="text-[11px] font-bold truncate">@{p.handle}</span>
-                                        {!micro && <Chip color={SCOPE_COLOR[p.scope] ?? "#a855f7"}>{p.scope}</Chip>}
+                                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-primary/30 hover:bg-white/[0.04] transition-colors cursor-pointer">
+                                    <div className="flex items-center justify-between gap-2 mb-1 min-w-0">
+                                        <span className="text-[11px] font-bold truncate min-w-0">@{p.handle}</span>
+                                        {!micro && <span className="shrink-0"><Chip color={SCOPE_COLOR[p.scope] ?? "#a855f7"}>{p.scope}</Chip></span>}
                                     </div>
                                     <p className="text-[11px] @sm:text-xs text-foreground/90 leading-snug line-clamp-2">{p.content}</p>
+                                    {!micro && size.vTier === "expanded" && p.tags?.length > 0 && (
+                                        <div className="mt-1.5 flex flex-wrap items-center gap-1 min-w-0">
+                                            {p.tags.slice(0, 3).map((t) => (
+                                                <span key={t} className="text-[9px] font-bold text-muted-foreground/60 truncate max-w-[8rem]">#{t}</span>
+                                            ))}
+                                        </div>
+                                    )}
                                     {!micro && (
-                                        <div className="mt-1.5 flex items-center gap-3 text-[10px] text-muted-foreground/70">
-                                            <span className="inline-flex items-center gap-1"><Heart className="size-3" /> {p.boosts}</span>
-                                            <span className="inline-flex items-center gap-1"><MessageSquare className="size-3" /> {p.comments}</span>
-                                            <span className="inline-flex items-center gap-1"><Repeat2 className="size-3" /> {Math.round(p.resonance * 100)}%</span>
-                                            <span className="ml-auto">{timeAgo(p.ts)}</span>
+                                        <div className="mt-1.5 flex items-center gap-3 text-[10px] text-muted-foreground/70 min-w-0">
+                                            <span className="inline-flex items-center gap-1 shrink-0"><Heart className="size-3" /> {p.boosts}</span>
+                                            <span className="inline-flex items-center gap-1 shrink-0"><MessageSquare className="size-3" /> {p.comments}</span>
+                                            <span className="inline-flex items-center gap-1 shrink-0" style={{ color: SCOPE_COLOR[p.scope] ?? "#a855f7" }}><Repeat2 className="size-3" /> {Math.round(p.resonance * 100)}%</span>
+                                            <span className="ml-auto shrink-0">{timeAgo(p.ts)}</span>
                                         </div>
                                     )}
                                 </div>

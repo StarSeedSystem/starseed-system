@@ -24,11 +24,17 @@ export function ActiveProjectsWidget() {
             icon={Rocket}
             accent="#6366f1"
             live
+            expandHref="/hub"
             actions={
                 <Link href="/hub" className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/25 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/20 transition-colors cursor-pointer">
                     <Plus className="size-3" /> Nuevo
                 </Link>
             }
+            connections={[
+                { label: "Hub", href: "/hub", color: "#6366f1", icon: Users },
+                { label: "Publicar", href: "/publish", color: "#ec4899", icon: Rocket },
+                { label: "Biblioteca", href: "/library", color: "#10b981", icon: ChevronRight },
+            ]}
         >
             {(size) => {
                 if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;

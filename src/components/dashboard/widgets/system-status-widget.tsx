@@ -13,7 +13,19 @@ export function SystemStatusWidget() {
     const { data, loading } = useWidgetData("system.node", { refreshMs: 2500 });
 
     return (
-        <WidgetShell title="Nodo Soberano" subtitle="Telemetría del núcleo" icon={Activity} accent="#38bdf8" live>
+        <WidgetShell
+            title="Nodo Soberano"
+            subtitle="Telemetría del núcleo"
+            icon={Activity}
+            accent="#38bdf8"
+            live
+            expandHref="/explorer"
+            connections={[
+                { label: "Mesh", href: "/network/graph", color: "#10b981", icon: Network },
+                { label: "Identidad", href: "/profile", color: "#a855f7", icon: HeartHandshake },
+                { label: "Explorer", href: "/explorer", color: "#38bdf8", icon: GitBranch },
+            ]}
+        >
             {(size) => {
                 if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
                 const micro = size.tier === "micro" || size.vTier === "micro";
@@ -27,13 +39,15 @@ export function SystemStatusWidget() {
                 }
 
                 const tempColor = data.temperature > 45 ? "#f43f5e" : data.temperature > 38 ? "#f59e0b" : "#10b981";
+                const cpuColor = data.cpu > 0.85 ? "#f43f5e" : data.cpu > 0.6 ? "#f59e0b" : "#38bdf8";
+                const ramColor = data.memory > 0.85 ? "#f43f5e" : data.memory > 0.6 ? "#f59e0b" : "#a855f7";
                 const cols = size.tier === "expanded" ? "grid-cols-4" : size.tier === "regular" ? "grid-cols-2" : "grid-cols-2";
 
                 return (
                     <div className="flex flex-col gap-2 pt-1 h-full">
                         <div className={`grid ${cols} gap-2 shrink-0`}>
-                            <StatTile label="CPU" value={`${Math.round(data.cpu * 100)}%`} accent="#38bdf8" icon={Cpu} compact />
-                            <StatTile label="RAM" value={`${Math.round(data.memory * 100)}%`} accent="#a855f7" icon={MemoryStick} compact />
+                            <StatTile label="CPU" value={`${Math.round(data.cpu * 100)}%`} accent={cpuColor} icon={Cpu} compact />
+                            <StatTile label="RAM" value={`${Math.round(data.memory * 100)}%`} accent={ramColor} icon={MemoryStick} compact />
                             {size.tier !== "compact" && (
                                 <>
                                     <StatTile label="Temp" value={`${data.temperature.toFixed(1)}°`} accent={tempColor} icon={Thermometer} compact />

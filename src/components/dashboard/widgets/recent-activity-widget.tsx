@@ -22,7 +22,19 @@ export function RecentActivityWidget() {
     const { data, loading } = useWidgetData("common.activity", { refreshMs: 9000 });
 
     return (
-        <WidgetShell title="Actividad Reciente" subtitle="Tu registro acásico" icon={History} accent="#38bdf8" live>
+        <WidgetShell
+            title="Actividad Reciente"
+            subtitle="Tu registro acásico"
+            icon={History}
+            accent="#38bdf8"
+            live
+            expandHref="/profile"
+            connections={[
+                { label: "Perfil", href: "/profile", color: "#38bdf8", icon: History },
+                { label: "Red", href: "/network", color: "#10b981", icon: Users },
+                { label: "Gobernanza", href: "/network/politics", color: "#f59e0b", icon: Vote },
+            ]}
+        >
             {(size) => {
                 if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
                 const micro = size.tier === "micro" || size.vTier === "micro";
