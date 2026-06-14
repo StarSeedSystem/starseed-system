@@ -62,6 +62,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
         containerTouchProps,
         notifyDragStart,
         notifyDragStop,
+        armManually,
     } = useTouchDragArming(isEditMode, {
         holdMs: config?.trinity?.touch?.holdMs,
         haptics: config?.trinity?.touch?.haptics,
@@ -254,16 +255,14 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     // Los controles interactivos NUNCA inician arrastre: garantiza que
                     // cada botón/enlace/campo del widget reciba su click normal.
                     draggableCancel={'button, a, input, textarea, select, label, [role="button"], [role="slider"], [contenteditable="true"], .rgl-cancel'}
-                    // Anti-arrastre táctil A PRUEBA DE FALLOS: el arrastre SIEMPRE se
-                    // limita a `.drag-handle` (nunca al cuerpo). Tocar una zona vacía
-                    // del widget NO lo mueve — solo hace scroll. Para mover/redimensionar
-                    // con el dedo, se mantiene pulsado 3 s sobre la zona vacía: eso ARMA
-                    // el widget y renderiza un `.drag-handle` que cubre todo (ver abajo),
-                    // permitiendo arrastrarlo. Con ratón, la ✋ (un .drag-handle pequeño)
-                    // permite arrastrar al instante. No depende de detección de puntero.
-                    isDraggable={isEditMode}
+                    // ⚠️ react-grid-layout v2.2.2 IGNORA draggableHandle/draggableCancel
+                    // (bug conocido, ver memory/state.md Adenda 17): el widget entero es
+                    // la zona de arrastre. Por eso el arrastre SOLO se habilita cuando el
+                    // widget está ARMADO (botón "Mover" o pulsación de 3 s). Sin armar,
+                    // isDraggable=false → los botones reciben sus clicks y el dedo hace
+                    // scroll. Al soltar, notifyDragStop desarma. Funciona en ratón y táctil.
+                    isDraggable={isEditMode && armedId !== null}
                     isResizable={isEditMode}
-                    draggableHandle=".drag-handle"
                     margin={[18, 18]} // cleaner separation
                 >
                     {widgets.map(widget => (
@@ -300,19 +299,34 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                             )}>
                                 <WidgetRegistry widget={widget} />
 
-                                {/* Al ARMAR con la pulsación de 3 s, todo el widget se
-                                    convierte en zona de arrastre (.drag-handle de cubierta
-                                    total). Antes de armar, el cuerpo NUNCA arrastra → el
-                                    dedo solo hace scroll. */}
+                                {/* Indicador de "armado" (no intercepta el arrastre). */}
                                 {isEditMode && armedId === (widget.layout.i || widget.id) && (
-                                    <div className="drag-handle absolute inset-0 z-40 cursor-grabbing rounded-3xl" aria-hidden />
+                                    <div className="pointer-events-none absolute inset-0 z-30 rounded-3xl ring-2 ring-primary/70 shadow-[0_0_24px_-4px_hsl(var(--primary)/0.6)]" aria-hidden>
+                                        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary text-primary-foreground shadow">
+                                            ✦ Moviendo — arrastra y suelta
+                                        </span>
+                                    </div>
                                 )}
 
                                 {isEditMode && (
                                     <>
-                                        <div className="drag-handle absolute top-2 right-[8rem] bg-background/80 hover:bg-background border rounded p-1 cursor-grab active:cursor-grabbing z-50 transition-colors">
-                                            ✋
-                                        </div>
+                                        {/* Botón MOVER: arma el widget (ratón y táctil). Mientras está
+                                            armado, todo el widget se puede arrastrar; al soltar se desarma.
+                                            En táctil también se arma manteniendo pulsado 3 s sobre el cuerpo. */}
+                                        <button
+                                            type="button"
+                                            onPointerDown={(e) => { e.stopPropagation(); }}
+                                            onClick={(e) => { e.stopPropagation(); armManually(widget.layout.i || widget.id); }}
+                                            title={armedId === (widget.layout.i || widget.id) ? "Listo para mover — arrástralo (toca de nuevo para soltar)" : "Mover widget"}
+                                            className={cn(
+                                                "absolute top-2 right-[8rem] border rounded p-1 z-50 transition-colors cursor-pointer text-sm leading-none",
+                                                armedId === (widget.layout.i || widget.id)
+                                                    ? "bg-primary text-primary-foreground border-primary"
+                                                    : "bg-background/80 hover:bg-background"
+                                            )}
+                                        >
+                                            ✥
+                                        </button>
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();

@@ -994,7 +994,7 @@ export function DashboardLayout() {
         <WeatherLocationProvider>
             {/* Sello de versión (confirmar caché). Esquina inf-izq, no estorba al FAB. */}
             <div data-build="STARSEED_BUILD_BADGE" className="fixed bottom-1 left-1 z-[95] pointer-events-none select-none text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/45 text-white/55 backdrop-blur-sm">
-                build · 2026-06-14 · táctil-handle v3
+                build · 2026-06-14 · táctil-armar v4
             </div>
             <div className={cn(
                 "relative flex flex-row w-full select-none min-h-screen transition-all duration-500",

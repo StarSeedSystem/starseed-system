@@ -62,6 +62,8 @@ export interface TouchDragArming {
     notifyDragStart: () => void;
     /** avisar desde onDragStop de react-grid-layout (desarma y asienta) */
     notifyDragStop: () => void;
+    /** armar/desarmar manualmente un widget (botón "mover", ratón o táctil) */
+    armManually: (key: string | null) => void;
 }
 
 export interface TouchDragOptions {
@@ -251,6 +253,23 @@ export function useTouchDragArming(enabled: boolean, options: TouchDragOptions =
         disarm();
     }, [disarm]);
 
+    /**
+     * Armado MANUAL (botón "mover", funciona con ratón y táctil). Marca el widget
+     * como arrastrable; si no se inicia un arrastre en ~8 s, se desarma solo.
+     * Pasar null/el mismo key alterna el estado (toggle).
+     */
+    const armManually = useCallback((key: string | null) => {
+        if (fallbackTimerRef.current) { clearTimeout(fallbackTimerRef.current); fallbackTimerRef.current = null; }
+        if (!key || armedRef.current === key) {
+            disarm();
+            return;
+        }
+        armedRef.current = key;
+        setArmedId(key);
+        if (hapticsRef.current) { try { (navigator as any).vibrate?.(10); } catch { /* opcional */ } }
+        fallbackTimerRef.current = setTimeout(() => disarm(), 8000);
+    }, [disarm]);
+
     return {
         armedId,
         isCoarsePointer,
@@ -262,5 +281,6 @@ export function useTouchDragArming(enabled: boolean, options: TouchDragOptions =
         },
         notifyDragStart,
         notifyDragStop,
+        armManually,
     };
 }
