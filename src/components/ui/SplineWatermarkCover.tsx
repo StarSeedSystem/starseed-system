@@ -45,23 +45,27 @@ function purge(root: ParentNode) {
         try { root.querySelectorAll(sel).forEach(hide); } catch { /* selector no soportado */ }
     });
 
-    // 2) CUALQUIER elemento (no solo <a>) cuyo texto sea exactamente "Built with
-    //    Spline". El runtime lo inyecta a veces como <div>/<span>, por eso el
-    //    intento anterior (solo <a>) no lo alcanzaba. Tomamos el contenedor
-    //    ajustado (el nodo cuyo texto recortado ES la frase) y lo retiramos junto
-    //    a su envoltorio inmediato si éste solo contiene el logo.
+    // 2) CUALQUIER elemento (no solo <a>) cuyo texto incluya "built with spline".
+    //    El runtime lo inyecta como <a>/<div>/<span> con un SVG + texto, por eso
+    //    el intento anterior (solo <a> exacto) no lo alcanzaba. Buscamos el nodo
+    //    pequeño que contiene la frase y subimos hasta el contenedor de la píldora
+    //    (pocos hijos) para retirarla entera.
     try {
-        root.querySelectorAll("a,div,span,button,p").forEach((el) => {
+        root.querySelectorAll("a,div,span,button,p,small").forEach((el) => {
             const t = (el.textContent || "").trim().toLowerCase();
-            if (t === "built with spline" || t === "built with spline.") {
-                // Si el padre es un wrapper pequeño dedicado al logo, retíralo entero.
-                const parent = el.parentElement;
-                if (parent && (parent.children.length <= 2) && (parent.textContent || "").trim().toLowerCase().startsWith("built with spline")) {
-                    hide(parent);
-                } else {
-                    hide(el);
-                }
+            if (!t.includes("built with spline")) return;
+            // Sube al ancestro "píldora": el último ancestro cuyo texto sigue siendo
+            // solo el watermark (pocos hijos) → así retiramos el fondo redondeado.
+            let target: HTMLElement = el as HTMLElement;
+            for (let i = 0; i < 4; i++) {
+                const p = target.parentElement;
+                if (!p) break;
+                const pt = (p.textContent || "").trim().toLowerCase();
+                if (pt.includes("built with spline") && pt.length < 40 && p.childElementCount <= 3) {
+                    target = p;
+                } else break;
             }
+            hide(target);
         });
     } catch { /* noop */ }
 }
