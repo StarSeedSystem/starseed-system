@@ -20,35 +20,47 @@
 
 import React, { useEffect, useState } from "react";
 
+function hide(el: Element | null) {
+    if (!el) return;
+    const h = el as HTMLElement;
+    try {
+        h.style.setProperty("display", "none", "important");
+        h.style.setProperty("opacity", "0", "important");
+        h.style.setProperty("visibility", "hidden", "important");
+        h.style.setProperty("pointer-events", "none", "important");
+    } catch { /* noop */ }
+    try { h.parentNode?.removeChild(h); } catch { /* noop */ }
+}
+
 function purge(root: ParentNode) {
+    // 1) Selectores directos del watermark del runtime de Spline.
     const sels = [
         'a[href*="spline.design"]',
         'a[href*="spline"]',
         '[aria-label*="Spline" i]',
         '[class*="spline-watermark" i]',
         '#spline-watermark',
-        '#logo',
     ];
     sels.forEach((sel) => {
-        try {
-            root.querySelectorAll(sel).forEach((el) => {
-                const h = el as HTMLElement;
-                // No tocar el logo de la propia app (StarSeed) por si casa con #logo.
-                const txt = (h.textContent || "").toLowerCase();
-                const href = (h.getAttribute("href") || "").toLowerCase();
-                if (sel === "#logo" && !href.includes("spline") && !txt.includes("spline")) return;
-                h.style.setProperty("display", "none", "important");
-                h.style.setProperty("opacity", "0", "important");
-                try { h.parentNode?.removeChild(h); } catch { /* noop */ }
-            });
-        } catch { /* selector no soportado */ }
+        try { root.querySelectorAll(sel).forEach(hide); } catch { /* selector no soportado */ }
     });
-    // Respaldo por texto.
+
+    // 2) CUALQUIER elemento (no solo <a>) cuyo texto sea exactamente "Built with
+    //    Spline". El runtime lo inyecta a veces como <div>/<span>, por eso el
+    //    intento anterior (solo <a>) no lo alcanzaba. Tomamos el contenedor
+    //    ajustado (el nodo cuyo texto recortado ES la frase) y lo retiramos junto
+    //    a su envoltorio inmediato si éste solo contiene el logo.
     try {
-        root.querySelectorAll("a").forEach((a) => {
-            if ((a.textContent || "").toLowerCase().includes("built with spline")) {
-                (a as HTMLElement).style.setProperty("display", "none", "important");
-                try { a.parentNode?.removeChild(a); } catch { /* noop */ }
+        root.querySelectorAll("a,div,span,button,p").forEach((el) => {
+            const t = (el.textContent || "").trim().toLowerCase();
+            if (t === "built with spline" || t === "built with spline.") {
+                // Si el padre es un wrapper pequeño dedicado al logo, retíralo entero.
+                const parent = el.parentElement;
+                if (parent && (parent.children.length <= 2) && (parent.textContent || "").trim().toLowerCase().startsWith("built with spline")) {
+                    hide(parent);
+                } else {
+                    hide(el);
+                }
             }
         });
     } catch { /* noop */ }
@@ -79,21 +91,9 @@ export function SplineWatermarkCover() {
         return () => { obs.disconnect(); clearInterval(iv); };
     }, []);
 
-    if (!mounted) return null;
-
-    return (
-        <div
-            aria-hidden
-            className="fixed bottom-0 right-0 z-[2147483647] pointer-events-none select-none"
-            style={{
-                width: 240,
-                height: 78,
-                // Sólido al 100% en la esquina (donde vive el logo) y degradado solo
-                // en el borde interior para fundir con el fondo. z-index máximo posible
-                // para garantizar que queda por encima de cualquier capa.
-                background:
-                    "radial-gradient(150% 150% at 100% 100%, hsl(var(--background)) 0%, hsl(var(--background)) 55%, hsl(var(--background)/0.9) 70%, transparent 88%)",
-            }}
-        />
-    );
+    // Sin capa visual: el logo "Built with Spline" es un nodo de TEXTO del DOM
+    // (confirmado), así que el eliminador de arriba lo retira limpiamente. No
+    // pintamos ningún tapón para no dejar un recuadro oscuro permanente.
+    void mounted;
+    return null;
 }
