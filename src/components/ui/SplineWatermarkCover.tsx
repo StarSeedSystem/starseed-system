@@ -20,6 +20,20 @@
 
 import React, { useEffect, useState } from "react";
 
+// Parche a NIVEL DE MÓDULO (se ejecuta al importar, antes de que monte Spline):
+// fuerza que cualquier shadow root se cree en modo "open". El runtime de Spline
+// aloja su watermark dentro de un shadow DOM CERRADO que querySelectorAll no
+// puede atravesar; abriéndolo, el purgado de abajo sí lo alcanza.
+if (typeof window !== "undefined" && !(window as any).__ssAttachShadowOpen) {
+    try {
+        (window as any).__ssAttachShadowOpen = true;
+        const orig = Element.prototype.attachShadow;
+        Element.prototype.attachShadow = function (init: ShadowRootInit) {
+            return orig.call(this, { ...init, mode: "open" });
+        };
+    } catch { /* noop */ }
+}
+
 function hide(el: Element | null) {
     if (!el) return;
     const h = el as HTMLElement;
@@ -95,9 +109,28 @@ export function SplineWatermarkCover() {
         return () => { obs.disconnect(); clearInterval(iv); };
     }, []);
 
-    // Sin capa visual: el logo "Built with Spline" es un nodo de TEXTO del DOM
-    // (confirmado), así que el eliminador de arriba lo retira limpiamente. No
-    // pintamos ningún tapón para no dejar un recuadro oscuro permanente.
-    void mounted;
-    return null;
+    if (!mounted) return null;
+
+    // Capa de respaldo GARANTIZADA: un cubre-esquina con desenfoque (no un bloque
+    // sólido). Si el purgado del DOM no alcanzara el watermark (p.ej. dibujado en
+    // canvas o shadow DOM cerrado no abierto a tiempo), este desenfoque difumina
+    // la esquina inferior derecha y vuelve ilegible el logo, fundiéndose con los
+    // colores del fondo en vez de dejar un recuadro duro. pointer-events:none.
+    return (
+        <div
+            aria-hidden
+            className="fixed bottom-0 right-0 pointer-events-none select-none"
+            style={{
+                width: 196,
+                height: 56,
+                zIndex: 2147483647,
+                backdropFilter: "blur(16px) saturate(1.05)",
+                WebkitBackdropFilter: "blur(16px) saturate(1.05)",
+                background: "rgba(0,0,0,0.04)",
+                borderTopLeftRadius: 24,
+                maskImage: "radial-gradient(150% 150% at 100% 100%, #000 60%, transparent 92%)",
+                WebkitMaskImage: "radial-gradient(150% 150% at 100% 100%, #000 60%, transparent 92%)",
+            }}
+        />
+    );
 }
