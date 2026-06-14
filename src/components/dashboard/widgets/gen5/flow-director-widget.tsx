@@ -9,15 +9,19 @@
 // Datos "productivity.flow". Adaptativo a todos los tamaños.
 // ════════════════════════════════════════════════════════════════
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import {
     Activity, ChevronRight, Shield, ShieldOff,
-    Zap, Palette, Brain, Users, Moon, type LucideIcon,
+    Zap, Palette, Brain, Users, Moon, Target, Coffee, MessageCircle,
+    type LucideIcon,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
-    WidgetShell, ProgressRing, Sparkline, MiniList, Chip,
+    AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot,
+} from "recharts";
+import {
+    WidgetShell, ProgressRing, MiniList, Chip,
 } from "../../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { FlowState, FlowTaskKind, FlowPhase } from "@/lib/widget-data";
@@ -45,11 +49,37 @@ const PHASE_META: Record<FlowPhase, { label: string; color: string }> = {
 const BASE_ACCENT = "#8b5cf6";
 const FORTRESS_ACCENT = "#dc2626";
 
+// ── modos de intención (reordenan sugerencias) ───────────────────
+type FlowMode = "enfoque" | "descanso" | "social";
+const MODE_META: Record<FlowMode, { label: string; icon: LucideIcon; color: string; kinds: FlowTaskKind[] }> = {
+    enfoque:  { label: "Enfoque",  icon: Target,        color: "#8b5cf6", kinds: ["analitica", "creativa", "fisica", "social", "descanso"] },
+    descanso: { label: "Descanso", icon: Coffee,        color: "#a78bfa", kinds: ["descanso", "fisica", "creativa", "social", "analitica"] },
+    social:   { label: "Social",   icon: MessageCircle, color: "#34d399", kinds: ["social", "creativa", "fisica", "analitica", "descanso"] },
+};
+const MODE_ORDER: FlowMode[] = ["enfoque", "descanso", "social"];
+
+// ── bloques de enfoque sugeridos por modo ────────────────────────
+const FOCUS_BLOCKS: Record<FlowMode, { label: string; minutes: number }[]> = {
+    enfoque:  [{ label: "Deep work", minutes: 90 }, { label: "Sprint analítico", minutes: 50 }, { label: "Pausa activa", minutes: 10 }],
+    descanso: [{ label: "Micro-siesta", minutes: 20 }, { label: "Paseo consciente", minutes: 25 }, { label: "Respiración", minutes: 8 }],
+    social:   [{ label: "Co-creación", minutes: 60 }, { label: "Encuentro abierto", minutes: 40 }, { label: "Mentoría", minutes: 30 }],
+};
+
 export function FlowDirectorWidget() {
     const { data, loading } = useWidgetData("productivity.flow", { refreshMs: 8000 });
     const [fortressMode, setFortressMode] = useState(false);
+    const [mode, setMode] = useState<FlowMode>("enfoque");
 
-    const accent = fortressMode ? FORTRESS_ACCENT : BASE_ACCENT;
+    const modeMeta = MODE_META[mode];
+    const accent = fortressMode ? FORTRESS_ACCENT : modeMeta.color;
+
+    // Curva circadiana enriquecida para recharts (hora + valor 0..100)
+    const curve = useMemo(() => {
+        const c = (data as FlowState | undefined)?.circadian ?? [];
+        return c.map((p) => ({ hour: p.t, energy: Math.round(p.v * 100) }));
+    }, [data]);
+    const nowHour = new Date().getHours();
+    const nowPoint = curve.find((p) => p.hour === nowHour) ?? null;
 
     return (
         <WidgetShell
@@ -75,9 +105,18 @@ export function FlowDirectorWidget() {
                 const expanded = size.vTier === "expanded";
 
                 const phaseMeta = PHASE_META[d.phase];
-                const suggMeta = KIND_META[d.suggestion.taskType];
+                // El modo activo reordena la sugerencia y las ventanas del día
+                const modeKinds = modeMeta.kinds;
+                const rankOf = (k: FlowTaskKind) => {
+                    const i = modeKinds.indexOf(k);
+                    return i === -1 ? 99 : i;
+                };
+                const suggKind = modeKinds[0] ?? d.suggestion.taskType;
+                const suggMeta = KIND_META[suggKind];
                 const SuggIcon = suggMeta.icon;
+                const orderedPeaks = [...d.peaks].sort((a, b) => rankOf(a.kind) - rankOf(b.kind) || a.startHour - b.startHour);
                 const peakMax = expanded ? 5 : compact ? 2 : 3;
+                const blocks = FOCUS_BLOCKS[mode];
 
                 // ── MICRO: solo anillo de energía ────────────────
                 if (micro) {
@@ -126,7 +165,9 @@ export function FlowDirectorWidget() {
                                     </div>
                                     {!compact && (
                                         <p className="text-[9px] text-muted-foreground/70 leading-snug line-clamp-2">
-                                            {d.suggestion.reason}
+                                            {suggKind === d.suggestion.taskType
+                                                ? d.suggestion.reason
+                                                : `En modo ${modeMeta.label.toLowerCase()}: prioriza energía ${suggMeta.label.toLowerCase()}.`}
                                         </p>
                                     )}
                                 </div>
@@ -150,19 +191,108 @@ export function FlowDirectorWidget() {
                             </div>
                         </div>
 
-                        {/* Curva circadiana */}
+                        {/* Selector de modo de intención */}
+                        <div className="shrink-0 grid grid-cols-3 gap-1">
+                            {MODE_ORDER.map((m) => {
+                                const mm = MODE_META[m];
+                                const MIcon = mm.icon;
+                                const active = mode === m;
+                                return (
+                                    <motion.button
+                                        key={m}
+                                        whileTap={{ scale: 0.96 }}
+                                        onClick={() => setMode(m)}
+                                        className={cn(
+                                            "inline-flex items-center justify-center gap-1 rounded-lg border px-1.5 py-1 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                                            !active && "border-border/40 bg-white/[0.02] text-muted-foreground/55 hover:text-foreground"
+                                        )}
+                                        style={active ? {
+                                            background: `color-mix(in srgb, ${mm.color} 16%, transparent)`,
+                                            borderColor: `color-mix(in srgb, ${mm.color} 40%, transparent)`,
+                                            color: mm.color,
+                                        } : undefined}
+                                    >
+                                        <MIcon className="size-3 shrink-0" />
+                                        <span className="truncate">{mm.label}</span>
+                                    </motion.button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Curva de energía circadiana (recharts) con la hora actual marcada */}
+                        {!compact && curve.length > 0 && (
+                            <div className="shrink-0">
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                                        Energía circadiana
+                                    </span>
+                                    <span className="text-[9px] font-bold tabular-nums" style={{ color: accent }}>
+                                        {nowHour}:00 · {Math.round(d.energyNow * 100)}%
+                                    </span>
+                                </div>
+                                <div style={{ height: expanded ? 80 : 56 }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={curve} margin={{ top: 4, right: 2, left: 2, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="flowCurve" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor={accent} stopOpacity={0.45} />
+                                                    <stop offset="100%" stopColor={accent} stopOpacity={0.02} />
+                                                </linearGradient>
+                                            </defs>
+                                            <XAxis
+                                                dataKey="hour"
+                                                tick={{ fontSize: 8, fill: "currentColor", opacity: 0.4 }}
+                                                ticks={[0, 6, 12, 18, 23]}
+                                                tickFormatter={(h) => `${h}h`}
+                                                axisLine={false}
+                                                tickLine={false}
+                                            />
+                                            <YAxis hide domain={[0, 100]} />
+                                            <Tooltip
+                                                cursor={{ stroke: accent, strokeOpacity: 0.3 }}
+                                                contentStyle={{
+                                                    background: "hsl(var(--popover))",
+                                                    border: "1px solid hsl(var(--border))",
+                                                    borderRadius: 10,
+                                                    fontSize: 10,
+                                                    padding: "4px 8px",
+                                                }}
+                                                labelFormatter={(h) => `${h}:00 h`}
+                                                formatter={(v: number) => [`${v}%`, "Energía"]}
+                                            />
+                                            <ReferenceLine x={nowHour} stroke={accent} strokeOpacity={0.55} strokeDasharray="3 3" />
+                                            <Area type="monotone" dataKey="energy" stroke={accent} strokeWidth={2} fill="url(#flowCurve)" />
+                                            {nowPoint && (
+                                                <ReferenceDot x={nowPoint.hour} y={nowPoint.energy} r={3.5} fill={accent} stroke="hsl(var(--background))" strokeWidth={1.5} />
+                                            )}
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Bloques de enfoque sugeridos por modo */}
                         {!compact && (
                             <div className="shrink-0">
                                 <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1 block">
-                                    Mareas del día
+                                    Bloques sugeridos
                                 </span>
-                                <Sparkline
-                                    data={d.circadian}
-                                    color={accent}
-                                    height={expanded ? 52 : 36}
-                                    fill
-                                    strokeWidth={2}
-                                />
+                                <div className="flex flex-wrap gap-1">
+                                    {blocks.map((b) => (
+                                        <span
+                                            key={b.label}
+                                            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold"
+                                            style={{
+                                                background: `color-mix(in srgb, ${modeMeta.color} 9%, transparent)`,
+                                                borderColor: `color-mix(in srgb, ${modeMeta.color} 24%, transparent)`,
+                                                color: modeMeta.color,
+                                            }}
+                                        >
+                                            {b.label}
+                                            <span className="tabular-nums text-muted-foreground/55">{b.minutes}m</span>
+                                        </span>
+                                    ))}
+                                </div>
                             </div>
                         )}
 
@@ -172,7 +302,7 @@ export function FlowDirectorWidget() {
                                 Ventanas
                             </span>
                             <MiniList
-                                items={d.peaks}
+                                items={orderedPeaks}
                                 max={peakMax}
                                 empty="Sin ventanas configuradas"
                                 render={(peak) => {

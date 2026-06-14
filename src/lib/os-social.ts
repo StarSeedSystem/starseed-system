@@ -539,6 +539,222 @@ export async function createPost(input: CreatePostInput): Promise<MutationResult
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LIKES y COMENTARIOS de publicaciones (os_post_likes / os_post_comments)
+//
+// Tablas (con RLS):
+//   · os_post_likes(user_id, post_id, created_at) PK(user_id, post_id)
+//       SELECT público; INSERT/DELETE solo donde user_id = auth.uid().
+//   · os_post_comments(id, post_id, author_id, author_name, body, created_at)
+//       SELECT público; INSERT donde author_id = auth.uid(); DELETE propio.
+//
+// os_posts.id es uuid: las publicaciones de EJEMPLO (fallback-*) no tienen id real,
+// así que estas funciones no deben usarse con ellas (la UI degrada a estado local).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Comentario normalizado (snake_case → camelCase) listo para la UI. */
+export interface OsComment {
+    id: string;
+    postId: string;
+    authorId?: string;
+    authorName: string;
+    body: string;
+    createdAt: string;
+}
+
+interface CommentRow {
+    id: string;
+    post_id?: string | null;
+    author_id?: string | null;
+    author_name?: string | null;
+    body?: string | null;
+    created_at?: string | null;
+}
+
+function normalizeComment(row: CommentRow): OsComment {
+    return {
+        id: row.id,
+        postId: row.post_id || "",
+        authorId: row.author_id || undefined,
+        authorName: row.author_name || "Ciudadano StarSeed",
+        body: row.body || "",
+        createdAt: row.created_at || new Date().toISOString(),
+    };
+}
+
+/** Conteo de likes por post + si el usuario actual ya dio like a cada uno. */
+export interface LikesInfo {
+    /** post_id → número total de likes. */
+    counts: Record<string, number>;
+    /** post_id → true si el usuario actual le dio like. */
+    likedByMe: Record<string, boolean>;
+}
+
+/**
+ * Obtiene los likes de un conjunto de publicaciones: el conteo total de cada una
+ * y, si hay sesión, cuáles ha marcado el usuario actual. Lectura pública (RLS).
+ * SSR-safe: úsese desde efectos/handlers del cliente.
+ */
+export async function fetchLikes(postIds: string[]): Promise<LikesInfo> {
+    const counts: Record<string, number> = {};
+    const likedByMe: Record<string, boolean> = {};
+    const ids = Array.from(new Set(postIds.filter(Boolean)));
+    if (ids.length === 0) return { counts, likedByMe };
+
+    const supabase = createClient();
+    try {
+        // Conteo total: traemos solo post_id y contamos en cliente (lista acotada).
+        const { data: allRows } = await supabase
+            .from("os_post_likes")
+            .select("post_id")
+            .in("post_id", ids);
+        for (const row of (allRows as { post_id: string }[]) || []) {
+            counts[row.post_id] = (counts[row.post_id] || 0) + 1;
+        }
+
+        // Likes del usuario actual (si hay sesión).
+        const uid = await getCurrentUserId();
+        if (uid) {
+            const { data: mineRows } = await supabase
+                .from("os_post_likes")
+                .select("post_id")
+                .eq("user_id", uid)
+                .in("post_id", ids);
+            for (const row of (mineRows as { post_id: string }[]) || []) {
+                likedByMe[row.post_id] = true;
+            }
+        }
+    } catch {
+        /* sin datos: devolvemos lo acumulado (posiblemente vacío) */
+    }
+    return { counts, likedByMe };
+}
+
+/** Resultado de alternar un like: incluye el estado y conteo resultantes. */
+export interface LikeToggleResult {
+    ok: boolean;
+    needsAuth?: boolean;
+    /** true si tras la operación el usuario tiene like activo. */
+    active: boolean;
+    /** Conteo total tras la operación. */
+    count: number;
+    error?: string;
+}
+
+/**
+ * Alterna el like del usuario actual sobre una publicación. Si ya existe, lo borra;
+ * si no, lo inserta. Devuelve el estado y conteo resultantes. Exige sesión.
+ */
+export async function toggleLike(postId: string): Promise<LikeToggleResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true, active: false, count: 0 };
+    const supabase = createClient();
+    try {
+        // ¿Ya existe el like?
+        const { data: existing } = await supabase
+            .from("os_post_likes")
+            .select("post_id")
+            .eq("user_id", uid)
+            .eq("post_id", postId)
+            .maybeSingle();
+
+        if (existing) {
+            const { error } = await supabase
+                .from("os_post_likes")
+                .delete()
+                .eq("user_id", uid)
+                .eq("post_id", postId);
+            if (error) throw error;
+        } else {
+            const { error } = await supabase
+                .from("os_post_likes")
+                .insert({ user_id: uid, post_id: postId });
+            if (error) throw error;
+        }
+
+        const active = !existing;
+        // Reconteo exacto tras la mutación.
+        const { count } = await supabase
+            .from("os_post_likes")
+            .select("post_id", { count: "exact", head: true })
+            .eq("post_id", postId);
+        return { ok: true, active, count: count ?? 0 };
+    } catch (e: any) {
+        return { ok: false, active: false, count: 0, error: e?.message || "error" };
+    }
+}
+
+/** Lista los comentarios de una publicación (orden cronológico ascendente). */
+export async function fetchComments(postId: string): Promise<OsComment[]> {
+    if (!postId) return [];
+    const supabase = createClient();
+    const { data, error } = await supabase
+        .from("os_post_comments")
+        .select("*")
+        .eq("post_id", postId)
+        .order("created_at", { ascending: true });
+    if (error) throw error;
+    return ((data as CommentRow[]) || []).map(normalizeComment);
+}
+
+/** Resultado de crear un comentario: incluye el comentario insertado si tuvo éxito. */
+export interface AddCommentResult {
+    ok: boolean;
+    needsAuth?: boolean;
+    comment?: OsComment;
+    error?: string;
+}
+
+/**
+ * Añade un comentario a una publicación. Fija author_id = usuario actual (RLS).
+ * Exige sesión; si no la hay devuelve `{ needsAuth: true }`.
+ */
+export async function addComment(
+    postId: string,
+    body: string,
+    authorName?: string,
+): Promise<AddCommentResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+    const text = body.trim();
+    if (!text) return { ok: false, error: "El comentario está vacío." };
+    const supabase = createClient();
+    try {
+        const { data, error } = await supabase
+            .from("os_post_comments")
+            .insert({
+                post_id: postId,
+                author_id: uid,
+                author_name: authorName || "Ciudadano StarSeed",
+                body: text,
+            })
+            .select("*")
+            .single();
+        if (error) throw error;
+        return { ok: true, comment: normalizeComment(data as CommentRow) };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "error" };
+    }
+}
+
+/** Borra un comentario propio (RLS valida author_id = auth.uid()). */
+export async function deleteComment(id: string): Promise<MutationResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+    const supabase = createClient();
+    try {
+        const { error } = await supabase
+            .from("os_post_comments")
+            .delete()
+            .eq("id", id)
+            .eq("author_id", uid);
+        if (error) throw error;
+        return { ok: true, active: false };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "error" };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CREAR / EDITAR / BORRAR entidades (páginas, grupos, eventos)
 //
 // RLS exige owner_id = auth.uid() para INSERT y propiedad para UPDATE/DELETE.

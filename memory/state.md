@@ -1036,3 +1036,19 @@ edición/creación desde la UI; profundizar más áreas (educación/cultura/pol�
 
 **Pendiente:** propagar selector de proveedor al resto de widgets; más áreas (sistema/red/
 IA/parlamento); subida de imágenes (avatar/portada) a Supabase Storage para entidades.
+
+---
+## Adenda 26 — 2026-06-14 · Subida de imágenes a Storage + áreas sistema/red/IA/parlamento (v17)
+
+- **Supabase Storage:** bucket `os-media` (público; insert/update/delete autenticados,
+  select público). `uploadEntityMedia(file, 'avatar'|'cover')` en os-social.ts; el
+  entity-editor-dialog ahora sube avatar/portada con vista previa + opción URL manual,
+  guardando la URL pública en os_pages/os_groups/os_events.
+- **Áreas profundizadas (commit 260959b):** sovereign-node (métricas en vivo CPU/RAM/red
+  con recharts + toggles de servicios + uptime), mesh-radar (topología SVG + detalle de
+  nodo + filtro + conectividad), astraura-cortex (sugerencias con confianza + aceptar/
+  descartar + escenario), liquid-delegation (delegar/revocar + poder de voto + buscador).
+- .gitignore: ignora .tscout.txt/.persist-test.txt (leftovers de agentes). Build READY. Badge v17.
+
+**Pendiente:** propagar selector de proveedor al resto de widgets; áreas restantes
+(productividad/descubrimientos/ayudantía); comentarios/likes reales en posts (Supabase).

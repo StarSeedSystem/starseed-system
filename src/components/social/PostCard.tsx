@@ -1,12 +1,13 @@
 // src/components/social/PostCard.tsx
 "use client";
 
-import React, { useState } from "react";
-import Image from "next/image";
+import React, { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
     ThumbsUp,
     MessageCircle,
@@ -17,13 +18,27 @@ import {
     Link2,
     Music,
     Check,
+    Send,
+    Lock,
+    Trash2,
+    Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/utils/supabase/client";
+import { useLikes, useComments } from "@/hooks/use-os-entities";
 import {
     type NormalizedPost,
     formatCount,
     formatRelativeTime,
 } from "@/lib/social-posts";
+
+const GOLD = "#E9C46A";
+
+/** ¿El id parece un uuid de os_posts real (no un fallback/sample)? */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isRealPostId(id: string): boolean {
+    return UUID_RE.test(id);
+}
 
 /**
  * Tarjeta de publicación reutilizable con PREVIEW ADAPTABLE según el tipo de
@@ -33,21 +48,101 @@ import {
  * con contador, comentar (toggle UI), compartir (copiar enlace).
  */
 export function PostCard({ post }: { post: NormalizedPost }) {
+    const real = isRealPostId(post.id);
+    return real ? <RealPostCard post={post} /> : <SamplePostCard post={post} />;
+}
+
+/**
+ * Tarjeta para publicaciones REALES (os_posts): likes y comentarios persistidos
+ * en Supabase vía useLikes / useComments. Degradación elegante a /login sin sesión.
+ */
+function RealPostCard({ post }: { post: NormalizedPost }) {
+    const { count, liked, needsAuth: likeNeedsAuth, toggle } = useLikes(post.id, post.likes);
+    const comments = useComments(post.id, true);
+    const [showComments, setShowComments] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const accent = post.accent;
+
+    const commentCount = comments.loading ? post.commentsCount : comments.comments.length;
+
+    const handleShare = makeShareHandler(post, setCopied);
+
+    return (
+        <PostCardShell
+            post={post}
+            accent={accent}
+            likeCount={count}
+            liked={liked}
+            onToggleLike={toggle}
+            likeNeedsAuth={likeNeedsAuth}
+            commentCount={commentCount}
+            showComments={showComments}
+            onToggleComments={() => setShowComments((v) => !v)}
+            copied={copied}
+            onShare={handleShare}
+            commentsPanel={
+                showComments ? (
+                    <CommentThread accent={accent} comments={comments} />
+                ) : null
+            }
+        />
+    );
+}
+
+/**
+ * Tarjeta para publicaciones de EJEMPLO (fallback-*): like local (no persiste) y
+ * comentarios deshabilitados con invitación a iniciar sesión. Nunca rompe.
+ */
+function SamplePostCard({ post }: { post: NormalizedPost }) {
     const [liked, setLiked] = useState(false);
     const [likeCount, setLikeCount] = useState(post.likes);
     const [showComments, setShowComments] = useState(false);
     const [copied, setCopied] = useState(false);
-
     const accent = post.accent;
 
-    const toggleLike = () => {
+    const toggleLike = async () => {
         setLiked((prev) => {
             setLikeCount((c) => c + (prev ? -1 : 1));
             return !prev;
         });
     };
 
-    const handleShare = async () => {
+    const handleShare = makeShareHandler(post, setCopied);
+
+    return (
+        <PostCardShell
+            post={post}
+            accent={accent}
+            likeCount={likeCount}
+            liked={liked}
+            onToggleLike={toggleLike}
+            likeNeedsAuth={false}
+            commentCount={post.commentsCount}
+            showComments={showComments}
+            onToggleComments={() => setShowComments((v) => !v)}
+            copied={copied}
+            onShare={handleShare}
+            commentsPanel={
+                showComments ? (
+                    <div className="mt-3 w-full rounded-xl border border-border/50 bg-muted/30 p-3 text-sm text-muted-foreground">
+                        Esta es una publicación de ejemplo.{" "}
+                        <Link href="/login" className="underline cursor-pointer" style={{ color: GOLD }}>
+                            Inicia sesión
+                        </Link>{" "}
+                        para comentar en la red real.
+                    </div>
+                ) : null
+            }
+        />
+    );
+}
+
+/** Construye un handler de compartir (navigator.share con fallback a copiar). */
+function makeShareHandler(
+    post: NormalizedPost,
+    setCopied: React.Dispatch<React.SetStateAction<boolean>>,
+) {
+    return async () => {
         const url =
             typeof window !== "undefined"
                 ? `${window.location.origin}${window.location.pathname}#post-${post.id}`
@@ -62,6 +157,48 @@ export function PostCard({ post }: { post: NormalizedPost }) {
             setTimeout(() => setCopied(false), 1800);
         } catch {
             /* el usuario canceló el diálogo de compartir */
+        }
+    };
+}
+
+/** Props presentacionales compartidas por las dos variantes de tarjeta. */
+interface PostCardShellProps {
+    post: NormalizedPost;
+    accent?: string;
+    likeCount: number;
+    liked: boolean;
+    onToggleLike: () => void | Promise<void>;
+    likeNeedsAuth: boolean;
+    commentCount: number;
+    showComments: boolean;
+    onToggleComments: () => void;
+    copied: boolean;
+    onShare: () => void | Promise<void>;
+    commentsPanel: React.ReactNode;
+}
+
+/** Estructura visual común de la tarjeta (cabecera, cuerpo, acciones, panel). */
+function PostCardShell({
+    post,
+    accent,
+    likeCount,
+    liked,
+    onToggleLike,
+    likeNeedsAuth,
+    commentCount,
+    showComments,
+    onToggleComments,
+    copied,
+    onShare,
+    commentsPanel,
+}: PostCardShellProps) {
+    const [likeHint, setLikeHint] = useState(false);
+
+    const handleLike = async () => {
+        await onToggleLike();
+        if (likeNeedsAuth) {
+            setLikeHint(true);
+            setTimeout(() => setLikeHint(false), 4000);
         }
     };
 
@@ -132,9 +269,10 @@ export function PostCard({ post }: { post: NormalizedPost }) {
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={toggleLike}
+                            onClick={handleLike}
+                            aria-pressed={liked}
                             className={cn(
-                                "flex items-center gap-2 hover:bg-primary/10 hover:text-primary",
+                                "flex items-center gap-2 hover:bg-primary/10 hover:text-primary cursor-pointer",
                                 liked && "text-primary",
                             )}
                         >
@@ -144,18 +282,22 @@ export function PostCard({ post }: { post: NormalizedPost }) {
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setShowComments((v) => !v)}
-                            className="flex items-center gap-2 hover:bg-primary/10 hover:text-primary"
+                            onClick={onToggleComments}
+                            aria-expanded={showComments}
+                            className={cn(
+                                "flex items-center gap-2 hover:bg-primary/10 hover:text-primary cursor-pointer",
+                                showComments && "text-primary",
+                            )}
                         >
                             <MessageCircle className="w-4 h-4" />
-                            <span className="tabular-nums">{formatCount(post.commentsCount)}</span>
+                            <span className="tabular-nums">{formatCount(commentCount)}</span>
                         </Button>
                     </div>
                     <Button
                         variant="ghost"
                         size="sm"
-                        onClick={handleShare}
-                        className="flex items-center gap-2 shrink-0"
+                        onClick={onShare}
+                        className="flex items-center gap-2 shrink-0 cursor-pointer"
                     >
                         {copied ? (
                             <>
@@ -171,13 +313,166 @@ export function PostCard({ post }: { post: NormalizedPost }) {
                     </Button>
                 </div>
 
-                {showComments && (
-                    <div className="mt-3 w-full rounded-xl border border-border/50 bg-muted/30 p-3 text-sm text-muted-foreground">
-                        Los comentarios en tiempo real estarán disponibles próximamente.
-                    </div>
+                {likeHint && likeNeedsAuth && (
+                    <span className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <Lock className="h-3 w-3" />
+                        <Link href="/login" className="underline cursor-pointer" style={{ color: GOLD }}>
+                            Inicia sesión para reaccionar
+                        </Link>
+                    </span>
                 )}
+
+                {commentsPanel}
             </CardFooter>
         </Card>
+    );
+}
+
+/** Hilo de comentarios reales: lista + composer, conectado a useComments. */
+function CommentThread({
+    accent,
+    comments,
+}: {
+    accent?: string;
+    comments: ReturnType<typeof useComments>;
+}) {
+    const [body, setBody] = useState("");
+    const [sending, setSending] = useState(false);
+    const [authHint, setAuthHint] = useState(false);
+    const [myUid, setMyUid] = useState<string | null>(null);
+    const [myName, setMyName] = useState<string>("Ciudadano StarSeed");
+    const mounted = useRef(true);
+
+    useEffect(() => {
+        mounted.current = true;
+        (async () => {
+            try {
+                const supabase = createClient();
+                const { data } = await supabase.auth.getSession();
+                const user = data.session?.user;
+                if (!mounted.current) return;
+                setMyUid(user?.id ?? null);
+                const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
+                const name =
+                    (typeof meta.full_name === "string" && meta.full_name) ||
+                    (typeof meta.name === "string" && meta.name) ||
+                    (typeof meta.display_name === "string" && meta.display_name) ||
+                    (user?.email ? user.email.split("@")[0] : "") ||
+                    "Ciudadano StarSeed";
+                setMyName(name);
+            } catch {
+                /* sin sesión */
+            }
+        })();
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
+
+    const handleSend = async () => {
+        const text = body.trim();
+        if (!text || sending) return;
+        setSending(true);
+        const res = await comments.add(text, myName);
+        setSending(false);
+        if (res.needsAuth) {
+            setAuthHint(true);
+        } else if (res.ok) {
+            setBody("");
+            setAuthHint(false);
+        }
+    };
+
+    return (
+        <div className="mt-3 w-full space-y-3 rounded-xl border border-border/50 bg-muted/20 p-3">
+            {/* Lista */}
+            {comments.loading ? (
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando comentarios…
+                </p>
+            ) : comments.comments.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                    Aún no hay comentarios. Sé el primero en responder.
+                </p>
+            ) : (
+                <ul className="space-y-3">
+                    {comments.comments.map((c) => (
+                        <li key={c.id} className="flex items-start gap-2.5 min-w-0">
+                            <Avatar className="h-7 w-7 shrink-0">
+                                <AvatarFallback
+                                    className="text-[10px] font-bold"
+                                    style={accent ? { background: `${accent}22`, color: accent } : undefined}
+                                >
+                                    {c.authorName.slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1 rounded-lg bg-background/60 px-3 py-2">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="truncate text-xs font-semibold">{c.authorName}</p>
+                                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                                        {formatRelativeTime(c.createdAt)}
+                                    </span>
+                                </div>
+                                <p className="whitespace-pre-wrap break-words text-sm text-foreground/90">
+                                    {c.body}
+                                </p>
+                            </div>
+                            {myUid && c.authorId === myUid && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => comments.remove(c.id)}
+                                    className="h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500 cursor-pointer"
+                                    aria-label="Eliminar comentario"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
+
+            {/* Composer */}
+            <div className="flex items-end gap-2">
+                <Textarea
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                            e.preventDefault();
+                            handleSend();
+                        }
+                    }}
+                    placeholder={
+                        comments.needsAuth
+                            ? "Inicia sesión para comentar…"
+                            : "Escribe un comentario…"
+                    }
+                    className="min-h-[40px] resize-none border-border/50 bg-transparent text-sm"
+                />
+                <Button
+                    type="button"
+                    size="icon"
+                    onClick={handleSend}
+                    disabled={sending || !body.trim()}
+                    className="shrink-0 cursor-pointer"
+                    style={accent ? { background: accent, color: "#0b0b12" } : undefined}
+                    aria-label="Enviar comentario"
+                >
+                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+            </div>
+            {(authHint || comments.needsAuth) && (
+                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <Lock className="h-3 w-3" />
+                    <Link href="/login" className="underline cursor-pointer" style={{ color: GOLD }}>
+                        Inicia sesión para comentar
+                    </Link>
+                </span>
+            )}
+        </div>
     );
 }
 

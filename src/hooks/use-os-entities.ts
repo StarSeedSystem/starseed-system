@@ -51,6 +51,12 @@ import {
     deleteEntity,
     isEntityOwner,
     fetchMyEntities,
+    fetchLikes,
+    toggleLike,
+    fetchComments,
+    addComment,
+    deleteComment,
+    type OsComment,
     type OsPage,
     type OsGroup,
     type OsEvent,
@@ -665,4 +671,191 @@ export function useEntityMutations(): EntityMutations {
         updateEvent: useCallback((slug, input) => updateEvent(slug, input), []),
         deleteEntity: useCallback((type, slug) => deleteEntity(type, slug), []),
     };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIKES y COMENTARIOS de una publicación (os_post_likes / os_post_comments)
+//
+// Pensados para usarse por-tarjeta en el feed. Sólo deben recibir IDs reales de
+// `os_posts` (uuid). Para publicaciones de ejemplo, la UI degrada a estado local
+// y no debe montar estos hooks (o pasarles un id inválido), porque las escrituras
+// fallarían en RLS / clave foránea.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface LikeState {
+    count: number;
+    liked: boolean;
+    loading: boolean;
+    needsAuth: boolean;
+    /** Alterna el like. Devuelve needsAuth si no hay sesión. */
+    toggle: () => Promise<void>;
+}
+
+/**
+ * Likes reales de una publicación. Carga el conteo y si el usuario actual le dio
+ * like; `toggle` persiste en Supabase con actualización optimista y reconciliación.
+ */
+export function useLikes(postId: string, initialCount = 0): LikeState {
+    const [count, setCount] = useState(initialCount);
+    const [liked, setLiked] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [needsAuth, setNeedsAuth] = useState(false);
+    const mounted = useRef(true);
+
+    useEffect(() => {
+        mounted.current = true;
+        setLoading(true);
+        (async () => {
+            const uid = await getCurrentUserId();
+            if (!mounted.current) return;
+            setNeedsAuth(!uid);
+            try {
+                const info = await fetchLikes([postId]);
+                if (!mounted.current) return;
+                setCount(info.counts[postId] ?? 0);
+                setLiked(Boolean(info.likedByMe[postId]));
+            } catch {
+                /* deja el conteo inicial */
+            } finally {
+                if (mounted.current) setLoading(false);
+            }
+        })();
+        return () => {
+            mounted.current = false;
+        };
+    }, [postId]);
+
+    const toggle = useCallback(async () => {
+        // Optimista.
+        const prevLiked = liked;
+        const prevCount = count;
+        setLiked(!prevLiked);
+        setCount((c) => c + (prevLiked ? -1 : 1));
+
+        const res = await toggleLike(postId);
+        if (!mounted.current) return;
+        if (res.needsAuth) {
+            setNeedsAuth(true);
+            setLiked(prevLiked);
+            setCount(prevCount);
+            return;
+        }
+        if (res.ok) {
+            setNeedsAuth(false);
+            setLiked(res.active);
+            setCount(res.count);
+        } else {
+            // Revertir si falló.
+            setLiked(prevLiked);
+            setCount(prevCount);
+        }
+    }, [postId, liked, count]);
+
+    return { count, liked, loading, needsAuth, toggle };
+}
+
+interface CommentsState {
+    comments: OsComment[];
+    loading: boolean;
+    needsAuth: boolean;
+    /** Publica un comentario. Devuelve needsAuth si no hay sesión. */
+    add: (body: string, authorName?: string) => Promise<MutationResult>;
+    /** Borra un comentario propio. */
+    remove: (id: string) => Promise<MutationResult>;
+    refetch: () => void;
+}
+
+/**
+ * Comentarios reales de una publicación con carga, alta y baja persistidas.
+ * Realtime opcional: re-carga el hilo ante cambios en os_post_comments del post.
+ */
+export function useComments(postId: string, realtime = false): CommentsState {
+    const [comments, setComments] = useState<OsComment[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [needsAuth, setNeedsAuth] = useState(false);
+    const mounted = useRef(true);
+
+    const load = useCallback(async () => {
+        try {
+            const rows = await fetchComments(postId);
+            if (mounted.current) setComments(rows);
+        } catch {
+            if (mounted.current) setComments([]);
+        } finally {
+            if (mounted.current) setLoading(false);
+        }
+    }, [postId]);
+
+    useEffect(() => {
+        mounted.current = true;
+        setLoading(true);
+        load();
+        getCurrentUserId().then((uid) => {
+            if (mounted.current) setNeedsAuth(!uid);
+        });
+
+        let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
+        if (realtime && postId) {
+            try {
+                const supabase = createClient();
+                channel = supabase
+                    .channel(`os-comments-${postId}`)
+                    .on(
+                        "postgres_changes",
+                        {
+                            event: "*",
+                            schema: "public",
+                            table: "os_post_comments",
+                            filter: `post_id=eq.${postId}`,
+                        },
+                        () => load(),
+                    )
+                    .subscribe();
+            } catch {
+                /* realtime no disponible */
+            }
+        }
+
+        return () => {
+            mounted.current = false;
+            if (channel) {
+                try {
+                    createClient().removeChannel(channel);
+                } catch {
+                    /* noop */
+                }
+            }
+        };
+    }, [load, postId, realtime]);
+
+    const add = useCallback(
+        async (body: string, authorName?: string): Promise<MutationResult> => {
+            const res = await addComment(postId, body, authorName);
+            if (res.needsAuth) {
+                setNeedsAuth(true);
+                return { ok: false, needsAuth: true };
+            }
+            if (res.ok && res.comment) {
+                setNeedsAuth(false);
+                // Inserción optimista (realtime también lo cubriría sin duplicar
+                // gracias al filtro por id en el merge).
+                setComments((prev) =>
+                    prev.some((c) => c.id === res.comment!.id) ? prev : [...prev, res.comment!],
+                );
+                return { ok: true, active: true };
+            }
+            return { ok: false, error: res.error };
+        },
+        [postId],
+    );
+
+    const remove = useCallback(async (id: string): Promise<MutationResult> => {
+        const res = await deleteComment(id);
+        if (res.ok) {
+            setComments((prev) => prev.filter((c) => c.id !== id));
+        }
+        return res;
+    }, []);
+
+    return { comments, loading, needsAuth, add, remove, refetch: load };
 }
