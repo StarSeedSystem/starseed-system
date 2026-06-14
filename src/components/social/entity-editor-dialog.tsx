@@ -42,7 +42,8 @@ import {
 } from "@/components/ui/select";
 import { useEntityMutations } from "@/hooks/use-os-entities";
 import type { OsPage, OsGroup, OsEvent } from "@/lib/os-social";
-import { Lock, Loader2 } from "lucide-react";
+import { uploadEntityMedia } from "@/lib/os-social";
+import { Lock, Loader2, Upload, X, ImageIcon } from "lucide-react";
 
 // ── Tipos del editor ──
 
@@ -130,6 +131,190 @@ function parseTags(raw: string): string[] {
         .filter(Boolean);
 }
 
+/** Límite de tamaño para subidas de imagen (~5 MB). */
+const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Control reutilizable de subida de imagen (avatar o portada).
+ *
+ * Permite: (1) elegir un archivo (image/*) que se sube a Storage vía
+ * uploadEntityMedia mostrando spinner / error / éxito y una vista previa, o
+ * (2) pegar una URL manual como alternativa. La URL resultante se eleva al
+ * formulario padre vía onChange (se persiste luego en create/update).
+ */
+function MediaUploadField({
+    kind,
+    value,
+    onChange,
+    accent,
+    onNeedsAuth,
+}: {
+    kind: "avatar" | "cover";
+    value: string;
+    onChange: (url: string) => void;
+    accent: string;
+    onNeedsAuth: () => void;
+}) {
+    const inputId = `entity-${kind}-file`;
+    const fileRef = React.useRef<HTMLInputElement | null>(null);
+    const [uploading, setUploading] = React.useState(false);
+    const [uploadError, setUploadError] = React.useState<string | null>(null);
+    const [justUploaded, setJustUploaded] = React.useState(false);
+
+    const isCover = kind === "cover";
+    const label = isCover ? "Portada" : "Avatar";
+
+    const handleFile = async (file: File | undefined | null) => {
+        setUploadError(null);
+        setJustUploaded(false);
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+            setUploadError("El archivo debe ser una imagen.");
+            return;
+        }
+        if (file.size > MAX_MEDIA_BYTES) {
+            setUploadError("La imagen supera el límite de 5 MB.");
+            return;
+        }
+
+        setUploading(true);
+        try {
+            const res = await uploadEntityMedia(file, kind);
+            if (res.needsAuth) {
+                onNeedsAuth();
+                setUploadError("Inicia sesión para subir imágenes.");
+                return;
+            }
+            if (!res.ok || !res.url) {
+                setUploadError(res.error || "No se pudo subir la imagen.");
+                return;
+            }
+            onChange(res.url);
+            setJustUploaded(true);
+        } catch (e: any) {
+            setUploadError(e?.message || "Error al subir la imagen.");
+        } finally {
+            setUploading(false);
+            // Permite re-elegir el mismo archivo si fuese necesario.
+            if (fileRef.current) fileRef.current.value = "";
+        }
+    };
+
+    return (
+        <div className="flex flex-col gap-1.5">
+            <Label htmlFor={inputId}>{label}</Label>
+
+            {/* Vista previa */}
+            {value ? (
+                isCover ? (
+                    <div className="relative overflow-hidden rounded-lg border border-input">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={value}
+                            alt="Vista previa de portada"
+                            className="h-28 w-full object-cover"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onChange("");
+                                setJustUploaded(false);
+                            }}
+                            className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white cursor-pointer hover:bg-black/80 transition-colors"
+                            aria-label="Quitar portada"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={value}
+                            alt="Vista previa de avatar"
+                            className="h-14 w-14 rounded-full border border-input object-cover"
+                            style={{ boxShadow: `0 0 0 2px ${accent}33` }}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onChange("");
+                                setJustUploaded(false);
+                            }}
+                            className="inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                            Quitar
+                        </button>
+                    </div>
+                )
+            ) : (
+                <div
+                    className={
+                        isCover
+                            ? "flex h-28 w-full items-center justify-center rounded-lg border border-dashed border-input text-muted-foreground"
+                            : "flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-input text-muted-foreground"
+                    }
+                    aria-hidden
+                >
+                    <ImageIcon className={isCover ? "h-6 w-6" : "h-5 w-5"} />
+                </div>
+            )}
+
+            {/* Botón de subida + input file oculto */}
+            <div className="flex items-center gap-2">
+                <input
+                    ref={fileRef}
+                    id={inputId}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFile(e.target.files?.[0])}
+                    disabled={uploading}
+                />
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading}
+                    className="gap-2 cursor-pointer"
+                >
+                    {uploading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                        <Upload className="h-3.5 w-3.5" />
+                    )}
+                    {uploading ? "Subiendo…" : value ? "Cambiar imagen" : "Subir imagen"}
+                </Button>
+                {justUploaded && !uploading && (
+                    <span className="text-xs text-emerald-400">Imagen subida ✓</span>
+                )}
+            </div>
+
+            {/* Alternativa: URL manual */}
+            <Input
+                value={value}
+                onChange={(e) => {
+                    onChange(e.target.value);
+                    setJustUploaded(false);
+                    setUploadError(null);
+                }}
+                placeholder="…o pega una URL de imagen"
+                autoComplete="off"
+                className="text-xs"
+            />
+
+            {uploadError && (
+                <p className="text-xs text-red-400" role="alert">
+                    {uploadError}
+                </p>
+            )}
+        </div>
+    );
+}
+
 export function EntityEditorDialog({
     open,
     onOpenChange,
@@ -156,6 +341,9 @@ export function EntityEditorDialog({
     const [description, setDescription] = React.useState("");
     const [tags, setTags] = React.useState("");
     const [accent, setAccent] = React.useState(DEFAULT_ACCENT);
+    // Medios (subidos a Storage o URL manual):
+    const [avatarUrl, setAvatarUrl] = React.useState("");
+    const [coverUrl, setCoverUrl] = React.useState("");
     // Solo eventos:
     const [startsAt, setStartsAt] = React.useState("");
     const [location, setLocation] = React.useState("");
@@ -181,6 +369,8 @@ export function EntityEditorDialog({
                 setDescription(e.description);
                 setTags(e.tags.join(", "));
                 setAccent(DEFAULT_ACCENT);
+                setAvatarUrl("");
+                setCoverUrl(e.coverUrl || "");
                 setStartsAt(isoToLocalInput(e.startsAt));
                 setLocation(e.location);
                 setOrganizerSlug(e.organizerSlug);
@@ -191,6 +381,8 @@ export function EntityEditorDialog({
                 setDescription(d.description);
                 setTags(d.tags.join(", "));
                 setAccent(d.accent || DEFAULT_ACCENT);
+                setAvatarUrl(d.avatarUrl || "");
+                setCoverUrl(d.coverUrl || "");
                 setStartsAt("");
                 setLocation("");
                 setOrganizerSlug("");
@@ -209,6 +401,8 @@ export function EntityEditorDialog({
             setDescription("");
             setTags("");
             setAccent(DEFAULT_ACCENT);
+            setAvatarUrl("");
+            setCoverUrl("");
             setStartsAt("");
             setLocation("");
             setOrganizerSlug("");
@@ -239,6 +433,8 @@ export function EntityEditorDialog({
 
         setSaving(true);
         const tagList = parseTags(tags);
+        const avatarVal = avatarUrl.trim() || undefined;
+        const coverVal = coverUrl.trim() || undefined;
         let res;
 
         try {
@@ -251,6 +447,8 @@ export function EntityEditorDialog({
                         description: description.trim(),
                         tags: tagList,
                         accent,
+                        avatarUrl: avatarUrl.trim(),
+                        coverUrl: coverUrl.trim(),
                     });
                 } else if (entity.type === "group") {
                     res = await mutations.updateGroup(entity.data.slug, {
@@ -259,6 +457,8 @@ export function EntityEditorDialog({
                         description: description.trim(),
                         tags: tagList,
                         accent,
+                        avatarUrl: avatarUrl.trim(),
+                        coverUrl: coverUrl.trim(),
                     });
                 } else {
                     res = await mutations.updateEvent(entity.data.slug, {
@@ -269,6 +469,7 @@ export function EntityEditorDialog({
                         startsAt: localInputToIso(startsAt),
                         location: location.trim(),
                         organizerSlug: organizerSlug.trim(),
+                        coverUrl: coverUrl.trim(),
                     });
                 }
             } else {
@@ -280,6 +481,8 @@ export function EntityEditorDialog({
                         description: description.trim(),
                         tags: tagList,
                         accent,
+                        avatarUrl: avatarVal,
+                        coverUrl: coverVal,
                     });
                 } else if (type === "group") {
                     res = await mutations.createGroup({
@@ -288,6 +491,8 @@ export function EntityEditorDialog({
                         description: description.trim(),
                         tags: tagList,
                         accent,
+                        avatarUrl: avatarVal,
+                        coverUrl: coverVal,
                     });
                 } else {
                     res = await mutations.createEvent({
@@ -298,6 +503,7 @@ export function EntityEditorDialog({
                         startsAt: localInputToIso(startsAt),
                         location: location.trim(),
                         organizerSlug: organizerSlug.trim(),
+                        coverUrl: coverVal,
                     });
                 }
             }
@@ -420,6 +626,24 @@ export function EntityEditorDialog({
                             className="min-h-[88px] resize-none"
                         />
                     </div>
+
+                    {/* Imágenes: avatar (no eventos) + portada (todos) */}
+                    {type !== "event" && (
+                        <MediaUploadField
+                            kind="avatar"
+                            value={avatarUrl}
+                            onChange={setAvatarUrl}
+                            accent={accent}
+                            onNeedsAuth={() => setNeedsAuth(true)}
+                        />
+                    )}
+                    <MediaUploadField
+                        kind="cover"
+                        value={coverUrl}
+                        onChange={setCoverUrl}
+                        accent={accent}
+                        onNeedsAuth={() => setNeedsAuth(true)}
+                    />
 
                     {/* Campos específicos de EVENTO */}
                     {type === "event" && (

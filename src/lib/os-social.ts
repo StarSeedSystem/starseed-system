@@ -707,6 +707,73 @@ export async function createEvent(input: CreateEventInput): Promise<EntityMutati
     return { ok: false, error: "No se pudo generar un slug único." };
 }
 
+// ── Subida de medios a Supabase Storage (bucket público `os-media`) ──
+
+/** Resultado uniforme de una subida de medios. */
+export interface UploadMediaResult {
+    ok: boolean;
+    url?: string;
+    needsAuth?: boolean;
+    error?: string;
+}
+
+/** Bucket público de Storage donde se guardan avatares y portadas. */
+const OS_MEDIA_BUCKET = "os-media";
+
+/** Sanitiza el nombre de archivo a algo URL-safe para usar como ruta en Storage. */
+function sanitizeFileName(name: string): string {
+    const dot = name.lastIndexOf(".");
+    const base = dot > 0 ? name.slice(0, dot) : name;
+    const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+    const safeBase =
+        base
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[̀-ͯ]/g, "")
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+            .slice(0, 60) || "media";
+    const safeExt = ext.replace(/[^a-z0-9]/g, "").slice(0, 8);
+    return safeExt ? `${safeBase}.${safeExt}` : safeBase;
+}
+
+/**
+ * Sube un archivo de imagen (avatar o portada) al bucket público `os-media` y
+ * devuelve su URL pública. Exige sesión (RLS de Storage permite INSERT/UPDATE a
+ * usuarios autenticados). La ruta queda namespaced por usuario:
+ *   `${userId}/${kind}-${timestamp}-${nombreSanitizado}`
+ * SSR-safe: usa el cliente de navegador (createClient) en los handlers del cliente.
+ */
+export async function uploadEntityMedia(
+    file: File,
+    kind: "avatar" | "cover",
+): Promise<UploadMediaResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+
+    const supabase = createClient();
+    const safeName = sanitizeFileName(file.name || `${kind}.png`);
+    const path = `${uid}/${kind}-${Date.now()}-${safeName}`;
+
+    try {
+        const { error } = await supabase.storage
+            .from(OS_MEDIA_BUCKET)
+            .upload(path, file, {
+                upsert: true,
+                cacheControl: "3600",
+                contentType: file.type || undefined,
+            });
+        if (error) throw error;
+
+        const { data } = supabase.storage.from(OS_MEDIA_BUCKET).getPublicUrl(path);
+        const url = data?.publicUrl;
+        if (!url) return { ok: false, error: "No se pudo obtener la URL pública." };
+        return { ok: true, url };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "Error al subir el archivo." };
+    }
+}
+
 // ── Updates (solo dueño; RLS valida owner_id = auth.uid()) ──
 
 export type UpdatePageInput = Partial<CreatePageInput>;

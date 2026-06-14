@@ -67,3 +67,6 @@ queue/
 
 # Optional: VSCode settings (uncomment if you want to ignore)
 # .vscode/dev.command
+
+.tscout.txt
+.persist-test.txt

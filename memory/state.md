@@ -1019,3 +1019,20 @@ funciones avanzadas por widget, persistencia social en Supabase.
 
 **Pendiente:** propagar selector de proveedor al resto de widgets; más entidades os_* y
 edición/creación desde la UI; profundizar más áreas (educación/cultura/política).
+
+---
+## Adenda 25 — 2026-06-14 · Crear/editar entidades desde UI + áreas política/educación/cultura (v16)
+
+- **Crear/editar entidades (commit 4b542aa):** entity-editor-dialog.tsx (crear/editar
+  página/grupo/evento) + create/update/delete + isEntityOwner + fetchMyEntities en
+  os-social.ts (owner_id=auth.uid(), slug auto con reintento ante choque unique);
+  hooks useEntityOwner/useMyEntities/useEntityMutations. Botón "+ Nueva" en Mis Páginas
+  abre el diálogo; botón "Editar" (solo dueño) en páginas de detalle.
+- **Áreas profundizadas:** agora-causal (filtro estado + votar + detalle), political-summary
+  (recharts participación/fases + filtro), skill-tree (desbloqueo por requisito + panel XP
+  radial), universal-library (búsqueda/filtro tipo + añadir a ruta), cultural-feed (filtro
+  + me gusta/guardar + ampliada), multiverse-hub (filtro modo + entrar/guardar + ampliada).
+  Build Vercel READY. Badge v16.
+
+**Pendiente:** propagar selector de proveedor al resto de widgets; más áreas (sistema/red/
+IA/parlamento); subida de imágenes (avatar/portada) a Supabase Storage para entidades.
