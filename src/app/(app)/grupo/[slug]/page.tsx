@@ -13,7 +13,9 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { PostCard } from "@/components/social/PostCard";
 import { ShareButton } from "@/components/social/SocialActions";
 import { MemberAvatars } from "@/components/social/MemberAvatars";
-import { useOsEntity, useOsPosts, useMembership } from "@/hooks/use-os-entities";
+import { useOsEntity, useOsPosts, useMembership, useEntityOwner } from "@/hooks/use-os-entities";
+import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
+import type { OsGroup } from "@/lib/os-social";
 import {
     UsersRound,
     Info,
@@ -22,6 +24,7 @@ import {
     Check,
     Send,
     Lock,
+    Pencil,
 } from "lucide-react";
 
 const GOLD = "#E9C46A";
@@ -187,7 +190,9 @@ export default function GrupoPage() {
     const slug = Array.isArray(params?.slug) ? params.slug[0] : (params?.slug ?? "");
     const slugStr = String(slug);
 
-    const { data: group, loading, usingFallback } = useOsEntity(slugStr, "group");
+    const { data: group, loading, usingFallback, refetch } = useOsEntity(slugStr, "group");
+    const { isOwner } = useEntityOwner("group", group?.slug ?? "");
+    const [editOpen, setEditOpen] = useState(false);
 
     if (loading) {
         return (
@@ -205,6 +210,15 @@ export default function GrupoPage() {
 
     return (
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+            {isOwner && !usingFallback && (
+                <EntityEditorDialog
+                    open={editOpen}
+                    onOpenChange={setEditOpen}
+                    mode="edit"
+                    entity={{ type: "group", data: group as OsGroup }}
+                    onSaved={() => refetch()}
+                />
+            )}
             {usingFallback && (
                 <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
                     <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -276,6 +290,18 @@ export default function GrupoPage() {
                                 count={group.memberCount}
                                 isAssembly={isAssembly}
                             />
+                            {isOwner && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setEditOpen(true)}
+                                    className="gap-2 cursor-pointer"
+                                    style={{ borderColor: `${accent}55`, color: accent }}
+                                >
+                                    <Pencil className="h-4 w-4" />
+                                    Editar
+                                </Button>
+                            )}
                             <ShareButton title={group.name} accent={accent} />
                         </div>
                     </div>

@@ -537,3 +537,331 @@ export async function createPost(input: CreatePostInput): Promise<MutationResult
         return { ok: false, error: e?.message || "error" };
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CREAR / EDITAR / BORRAR entidades (páginas, grupos, eventos)
+//
+// RLS exige owner_id = auth.uid() para INSERT y propiedad para UPDATE/DELETE.
+// Todas estas funciones fijan owner_id al usuario actual, generan slug desde el
+// nombre/título (slugify + sufijo corto si choca con el unique) y devuelven un
+// resultado uniforme `{ ok, slug?, needsAuth?, error? }`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Resultado de una mutación de entidad: incluye el `slug` definitivo si tuvo éxito. */
+export interface EntityMutationResult {
+    ok: boolean;
+    slug?: string;
+    needsAuth?: boolean;
+    error?: string;
+}
+
+/** Sufijo aleatorio corto y URL-safe para desambiguar slugs. */
+function shortSuffix(): string {
+    return Math.random().toString(36).slice(2, 6);
+}
+
+/** Genera un slug base desde un texto; si queda vacío, usa un fallback estable. */
+function buildSlug(text: string, fallback = "entidad"): string {
+    return slugify(text) || `${fallback}-${shortSuffix()}`;
+}
+
+/**
+ * ¿El error de Supabase corresponde a violación del índice único (slug duplicado)?
+ * Postgres devuelve el código `23505` para unique_violation.
+ */
+function isUniqueViolation(error: any): boolean {
+    if (!error) return false;
+    const code = error.code || error?.details?.code;
+    const msg = (error.message || "").toLowerCase();
+    return code === "23505" || msg.includes("duplicate key") || msg.includes("unique");
+}
+
+const SLUG_RETRIES = 5;
+
+/** Inputs para crear (slug se autogenera; owner_id se inyecta). */
+export interface CreatePageInput {
+    name: string;
+    kind?: OsPage["kind"];
+    description?: string;
+    tags?: string[];
+    accent?: string;
+    avatarUrl?: string;
+    coverUrl?: string;
+}
+
+export interface CreateGroupInput {
+    name: string;
+    kind?: OsGroup["kind"];
+    description?: string;
+    tags?: string[];
+    accent?: string;
+    avatarUrl?: string;
+    coverUrl?: string;
+}
+
+export interface CreateEventInput {
+    title: string;
+    kind?: string;
+    description?: string;
+    startsAt?: string | null;
+    location?: string;
+    organizerSlug?: string;
+    tags?: string[];
+    coverUrl?: string;
+}
+
+/** Crea una página fijando owner_id = usuario actual; reintenta si el slug choca. */
+export async function createPage(input: CreatePageInput): Promise<EntityMutationResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+    const supabase = createClient();
+    let slug = buildSlug(input.name, "pagina");
+    for (let attempt = 0; attempt < SLUG_RETRIES; attempt++) {
+        const { data, error } = await supabase
+            .from("os_pages")
+            .insert({
+                slug,
+                name: input.name,
+                kind: input.kind || "pagina",
+                description: input.description ?? "",
+                tags: input.tags ?? [],
+                accent: input.accent || DEFAULT_ACCENT,
+                avatar_url: input.avatarUrl ?? null,
+                cover_url: input.coverUrl ?? null,
+                owner_id: uid,
+            })
+            .select("slug")
+            .single();
+        if (!error) return { ok: true, slug: (data as { slug: string })?.slug ?? slug };
+        if (isUniqueViolation(error)) {
+            slug = `${buildSlug(input.name, "pagina")}-${shortSuffix()}`;
+            continue;
+        }
+        return { ok: false, error: error.message || "error" };
+    }
+    return { ok: false, error: "No se pudo generar un slug único." };
+}
+
+/** Crea un grupo fijando owner_id = usuario actual; reintenta si el slug choca. */
+export async function createGroup(input: CreateGroupInput): Promise<EntityMutationResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+    const supabase = createClient();
+    let slug = buildSlug(input.name, "grupo");
+    for (let attempt = 0; attempt < SLUG_RETRIES; attempt++) {
+        const { data, error } = await supabase
+            .from("os_groups")
+            .insert({
+                slug,
+                name: input.name,
+                kind: input.kind || "colectivo",
+                description: input.description ?? "",
+                tags: input.tags ?? [],
+                accent: input.accent || DEFAULT_ACCENT,
+                avatar_url: input.avatarUrl ?? null,
+                cover_url: input.coverUrl ?? null,
+                owner_id: uid,
+            })
+            .select("slug")
+            .single();
+        if (!error) return { ok: true, slug: (data as { slug: string })?.slug ?? slug };
+        if (isUniqueViolation(error)) {
+            slug = `${buildSlug(input.name, "grupo")}-${shortSuffix()}`;
+            continue;
+        }
+        return { ok: false, error: error.message || "error" };
+    }
+    return { ok: false, error: "No se pudo generar un slug único." };
+}
+
+/** Crea un evento fijando owner_id = usuario actual; reintenta si el slug choca. */
+export async function createEvent(input: CreateEventInput): Promise<EntityMutationResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+    const supabase = createClient();
+    let slug = buildSlug(input.title, "evento");
+    for (let attempt = 0; attempt < SLUG_RETRIES; attempt++) {
+        const { data, error } = await supabase
+            .from("os_events")
+            .insert({
+                slug,
+                title: input.title,
+                kind: input.kind || "encuentro",
+                description: input.description ?? "",
+                starts_at: input.startsAt ?? null,
+                location: input.location ?? "",
+                organizer_slug: input.organizerSlug ?? "",
+                tags: input.tags ?? [],
+                cover_url: input.coverUrl ?? null,
+                owner_id: uid,
+            })
+            .select("slug")
+            .single();
+        if (!error) return { ok: true, slug: (data as { slug: string })?.slug ?? slug };
+        if (isUniqueViolation(error)) {
+            slug = `${buildSlug(input.title, "evento")}-${shortSuffix()}`;
+            continue;
+        }
+        return { ok: false, error: error.message || "error" };
+    }
+    return { ok: false, error: "No se pudo generar un slug único." };
+}
+
+// ── Updates (solo dueño; RLS valida owner_id = auth.uid()) ──
+
+export type UpdatePageInput = Partial<CreatePageInput>;
+export type UpdateGroupInput = Partial<CreateGroupInput>;
+export type UpdateEventInput = Partial<CreateEventInput>;
+
+export async function updatePage(
+    slug: string,
+    input: UpdatePageInput,
+): Promise<EntityMutationResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+    const supabase = createClient();
+    const patch: Record<string, unknown> = {};
+    if (input.name !== undefined) patch.name = input.name;
+    if (input.kind !== undefined) patch.kind = input.kind;
+    if (input.description !== undefined) patch.description = input.description;
+    if (input.tags !== undefined) patch.tags = input.tags;
+    if (input.accent !== undefined) patch.accent = input.accent;
+    if (input.avatarUrl !== undefined) patch.avatar_url = input.avatarUrl || null;
+    if (input.coverUrl !== undefined) patch.cover_url = input.coverUrl || null;
+    try {
+        const { error } = await supabase
+            .from("os_pages")
+            .update(patch)
+            .eq("slug", slug)
+            .eq("owner_id", uid);
+        if (error) throw error;
+        return { ok: true, slug };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "error" };
+    }
+}
+
+export async function updateGroup(
+    slug: string,
+    input: UpdateGroupInput,
+): Promise<EntityMutationResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+    const supabase = createClient();
+    const patch: Record<string, unknown> = {};
+    if (input.name !== undefined) patch.name = input.name;
+    if (input.kind !== undefined) patch.kind = input.kind;
+    if (input.description !== undefined) patch.description = input.description;
+    if (input.tags !== undefined) patch.tags = input.tags;
+    if (input.accent !== undefined) patch.accent = input.accent;
+    if (input.avatarUrl !== undefined) patch.avatar_url = input.avatarUrl || null;
+    if (input.coverUrl !== undefined) patch.cover_url = input.coverUrl || null;
+    try {
+        const { error } = await supabase
+            .from("os_groups")
+            .update(patch)
+            .eq("slug", slug)
+            .eq("owner_id", uid);
+        if (error) throw error;
+        return { ok: true, slug };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "error" };
+    }
+}
+
+export async function updateEvent(
+    slug: string,
+    input: UpdateEventInput,
+): Promise<EntityMutationResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+    const supabase = createClient();
+    const patch: Record<string, unknown> = {};
+    if (input.title !== undefined) patch.title = input.title;
+    if (input.kind !== undefined) patch.kind = input.kind;
+    if (input.description !== undefined) patch.description = input.description;
+    if (input.startsAt !== undefined) patch.starts_at = input.startsAt || null;
+    if (input.location !== undefined) patch.location = input.location;
+    if (input.organizerSlug !== undefined) patch.organizer_slug = input.organizerSlug;
+    if (input.tags !== undefined) patch.tags = input.tags;
+    if (input.coverUrl !== undefined) patch.cover_url = input.coverUrl || null;
+    try {
+        const { error } = await supabase
+            .from("os_events")
+            .update(patch)
+            .eq("slug", slug)
+            .eq("owner_id", uid);
+        if (error) throw error;
+        return { ok: true, slug };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "error" };
+    }
+}
+
+/** Borra una entidad por tipo + slug (solo dueño; RLS valida owner_id). */
+export async function deleteEntity(
+    type: "page" | "group" | "event",
+    slug: string,
+): Promise<EntityMutationResult> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, needsAuth: true };
+    const supabase = createClient();
+    const table = type === "page" ? "os_pages" : type === "group" ? "os_groups" : "os_events";
+    try {
+        const { error } = await supabase
+            .from(table)
+            .delete()
+            .eq("slug", slug)
+            .eq("owner_id", uid);
+        if (error) throw error;
+        return { ok: true, slug };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "error" };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROPIEDAD: ¿es el usuario actual dueño de una entidad? (lee owner_id)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Devuelve true si el usuario actual es owner_id de la entidad (false si anónimo). */
+export async function isEntityOwner(
+    type: "page" | "group" | "event",
+    slug: string,
+): Promise<boolean> {
+    const uid = await getCurrentUserId();
+    if (!uid) return false;
+    const supabase = createClient();
+    const table = type === "page" ? "os_pages" : type === "group" ? "os_groups" : "os_events";
+    try {
+        const { data } = await supabase
+            .from(table)
+            .select("owner_id")
+            .eq("slug", slug)
+            .maybeSingle();
+        return (data as { owner_id?: string } | null)?.owner_id === uid;
+    } catch {
+        return false;
+    }
+}
+
+/** Lista las entidades (páginas, grupos, eventos) propiedad del usuario actual. */
+export async function fetchMyEntities(): Promise<{
+    pages: OsPage[];
+    groups: OsGroup[];
+    events: OsEvent[];
+}> {
+    const uid = await getCurrentUserId();
+    if (!uid) return { pages: [], groups: [], events: [] };
+    const supabase = createClient();
+    const [pagesRes, groupsRes, eventsRes] = await Promise.all([
+        supabase.from("os_pages").select("*").eq("owner_id", uid),
+        supabase.from("os_groups").select("*").eq("owner_id", uid),
+        supabase.from("os_events").select("*").eq("owner_id", uid),
+    ]);
+    return {
+        pages: ((pagesRes.data as PageRow[]) || []).map(normalizePage),
+        groups: ((groupsRes.data as GroupRow[]) || []).map(normalizeGroup),
+        events: ((eventsRes.data as EventRow[]) || []).map(normalizeEvent),
+    };
+}

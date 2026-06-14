@@ -997,3 +997,25 @@ funciones avanzadas por widget, y entidades sociales con persistencia real en Su
 
 **Pendiente:** propagar el selector de proveedor al resto de widgets, profundizar
 funciones avanzadas por widget, persistencia social en Supabase.
+
+---
+## Adenda 24 — 2026-06-14 · Persistencia social en Supabase + funciones avanzadas de widgets (v15)
+
+- **Supabase (dzkjapinnewkxzjltadv):** creadas tablas os_pages, os_groups, os_events,
+  os_posts, os_follows, os_memberships, os_event_attendance con RLS (lectura pública;
+  escritura por usuario autenticado en sus filas). Sembradas entidades canónicas que
+  coinciden con los slugs de los widgets.
+- **Frontend (commit d9e0b85):**
+  - NUEVO src/lib/os-social.ts (capa de acceso tipada + fallback a sample-entities) y
+    src/hooks/use-os-entities.ts (useOsPages/Groups/Events/Entity/Posts, useFollow,
+    useMembership, useAttendance; realtime de os_posts; needsAuth para invitar a login).
+  - Páginas de detalle (pagina/grupo/evento [slug]) y widgets sociales (explore-network,
+    my-pages, social-radar) leen de Supabase con fallback; follow/join/attend/publicar
+    persisten si hay sesión.
+  - Funciones avanzadas: economic-overview (recharts, selector 7d/30d, deltas, desglose),
+    oikos-metabolism (conmutador de recurso, mini-sankey SVG, tendencia), messages (buscador,
+    hilos, marcar leído), notifications (filtros por tipo, leer/descartar, prioridad).
+  - Build Vercel READY. Badge v15.
+
+**Pendiente:** propagar selector de proveedor al resto de widgets; más entidades os_* y
+edición/creación desde la UI; profundizar más áreas (educación/cultura/política).

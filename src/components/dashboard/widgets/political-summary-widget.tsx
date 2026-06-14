@@ -3,10 +3,14 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Vote, Landmark, ChevronRight, ThumbsUp, ThumbsDown, Clock, Scale } from "lucide-react";
+import { Vote, Landmark, ChevronRight, ThumbsUp, ThumbsDown, Clock, Scale, Filter } from "lucide-react";
 import { WidgetShell, MiniList, Chip, ProgressBar, ProgressRing, timeUntil } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { LawProposal } from "@/lib/widget-data";
+import {
+    ResponsiveContainer, AreaChart, Area, XAxis, Tooltip,
+    BarChart, Bar, Cell,
+} from "recharts";
 
 // ════════════════════════════════════════════════════════════════
 // PoliticalSummaryWidget — resumen de gobernanza directa.
@@ -33,11 +37,31 @@ const SCOPE_LABEL: Record<LawProposal["scope"], string> = {
 };
 
 type VoteState = "favor" | "contra" | null;
+type StageFilter = "todas" | LawProposal["stage"];
+
+const FILTERS: { id: StageFilter; label: string }[] = [
+    { id: "todas", label: "Todas" },
+    { id: "votacion", label: "Votación" },
+    { id: "debate", label: "Debate" },
+    { id: "firmas", label: "Firmas" },
+    { id: "ratificada", label: "Aprobadas" },
+];
+
+// Serie determinista de participación (12 ciclos) derivada del id de propuesta.
+function participationSeries(seed: string): { label: string; v: number }[] {
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    return Array.from({ length: 12 }, (_, i) => {
+        const s = Math.sin((i / 12) * Math.PI * 2 + (h % 100) / 100 * 6.28);
+        return { label: `C${i + 1}`, v: Math.round(48 + (s + 1) / 2 * 44) };
+    });
+}
 
 export function PoliticalSummaryWidget() {
     const { data, loading } = useWidgetData("politics.proposals", { refreshMs: 6000 });
     // Local vote overrides (optimistic UI on top of youVoted from server)
     const [localVotes, setLocalVotes] = useState<Record<string, VoteState>>({});
+    const [filter, setFilter] = useState<StageFilter>("todas");
 
     const proposals = data ?? [];
 
@@ -54,13 +78,29 @@ export function PoliticalSummaryWidget() {
         return { inVoting, ratified, youVoted, avgRatio };
     }, [proposals, localVotes]);
 
-    // Most urgent: votacion first, then by deadline
-    const sorted = useMemo(() => [...proposals].sort((a, b) => {
-        const stageOrder = { votacion: 0, debate: 1, firmas: 2, borrador: 3, ratificada: 4 };
-        const sd = (stageOrder[a.stage] ?? 5) - (stageOrder[b.stage] ?? 5);
-        if (sd !== 0) return sd;
-        return a.deadlineTs - b.deadlineTs;
-    }), [proposals]);
+    // Distribución por fase (para BarChart) + serie de participación (AreaChart).
+    const stageDist = useMemo(() => {
+        const order: LawProposal["stage"][] = ["firmas", "debate", "votacion", "ratificada"];
+        return order.map((st) => ({
+            stage: st,
+            label: STAGE_META[st].label,
+            value: proposals.filter((p) => p.stage === st).length,
+            color: STAGE_META[st].color,
+        }));
+    }, [proposals]);
+
+    const partSeries = useMemo(() => participationSeries(proposals[0]?.id ?? "seed"), [proposals]);
+
+    // Most urgent: votacion first, then by deadline (con filtro por fase)
+    const sorted = useMemo(() => {
+        const base = filter === "todas" ? proposals : proposals.filter((p) => p.stage === filter);
+        return [...base].sort((a, b) => {
+            const stageOrder = { votacion: 0, debate: 1, firmas: 2, borrador: 3, ratificada: 4 };
+            const sd = (stageOrder[a.stage] ?? 5) - (stageOrder[b.stage] ?? 5);
+            if (sd !== 0) return sd;
+            return a.deadlineTs - b.deadlineTs;
+        });
+    }, [proposals, filter]);
 
     const topUrgent = sorted[0];
 
@@ -136,6 +176,62 @@ export function PoliticalSummaryWidget() {
                         {showStats && (
                             <div className="shrink-0">
                                 <ProgressBar value={stats.avgRatio} label="Consenso medio" showPct color={ACCENT} height={5} />
+                            </div>
+                        )}
+
+                        {/* Mini-gráficas de gobernanza (recharts) — solo si hay alto */}
+                        {size.vTier === "expanded" && (
+                            <div className="shrink-0 grid grid-cols-2 gap-2">
+                                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-2 pt-1.5 pb-1">
+                                    <p className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-0.5">Participación cívica</p>
+                                    <div className="h-12">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={partSeries} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+                                                <defs>
+                                                    <linearGradient id="ps-part" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="0%" stopColor={ACCENT} stopOpacity={0.5} />
+                                                        <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <XAxis dataKey="label" hide />
+                                                <Tooltip cursor={false} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 10, padding: "2px 6px" }}
+                                                    labelStyle={{ display: "none" }} formatter={(v: number) => [`${v}%`, "Participa"]} />
+                                                <Area type="monotone" dataKey="v" stroke={ACCENT} strokeWidth={2} fill="url(#ps-part)" />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-2 pt-1.5 pb-1">
+                                    <p className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-0.5">Propuestas por fase</p>
+                                    <div className="h-12">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={stageDist} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+                                                <XAxis dataKey="label" hide />
+                                                <Tooltip cursor={{ fill: "hsl(var(--muted)/0.2)" }} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 10, padding: "2px 6px" }}
+                                                    labelStyle={{ fontWeight: 700 }} formatter={(v: number) => [v, "propuestas"]} />
+                                                <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+                                                    {stageDist.map((d) => <Cell key={d.stage} fill={d.color} />)}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Filtro por fase legislativa */}
+                        {size.tier !== "compact" && (
+                            <div className="shrink-0 flex items-center gap-1 overflow-x-auto custom-scrollbar pb-0.5">
+                                <Filter className="size-3 shrink-0 text-muted-foreground/50" />
+                                {FILTERS.map((f) => {
+                                    const c = f.id === "todas" ? proposals.length : proposals.filter((p) => p.stage === f.id).length;
+                                    return (
+                                        <button key={f.id} onClick={() => setFilter(f.id)}
+                                            className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer ${filter === f.id ? "bg-amber-500/20 border-amber-500/45 text-amber-300" : "border-border/40 text-muted-foreground/60 hover:border-amber-500/30"}`}>
+                                            {f.label}{c > 0 && <span className="opacity-60"> {c}</span>}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         )}
 

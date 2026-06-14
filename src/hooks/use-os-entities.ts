@@ -42,12 +42,28 @@ import {
     setAttendance,
     createPost,
     getCurrentUserId,
+    createPage,
+    createGroup,
+    createEvent,
+    updatePage,
+    updateGroup,
+    updateEvent,
+    deleteEntity,
+    isEntityOwner,
+    fetchMyEntities,
     type OsPage,
     type OsGroup,
     type OsEvent,
     type OsPost,
     type OsEntityType,
     type MutationResult,
+    type EntityMutationResult,
+    type CreatePageInput,
+    type CreateGroupInput,
+    type CreateEventInput,
+    type UpdatePageInput,
+    type UpdateGroupInput,
+    type UpdateEventInput,
 } from "@/lib/os-social";
 import {
     detectMedia,
@@ -520,4 +536,133 @@ export function useAttendance(eventSlug: string, defaultStatus = "asiste"): Atte
     );
 
     return { status, active: status !== null, loading, needsAuth, toggle };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROPIEDAD + MUTACIONES (crear / editar / borrar entidades)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface OwnerState {
+    isOwner: boolean;
+    loading: boolean;
+    /** Re-evalúa la propiedad (útil tras login o tras crear la entidad). */
+    refresh: () => void;
+}
+
+/** ¿Es el usuario actual dueño (owner_id) de la entidad (type, slug)? */
+export function useEntityOwner(
+    type: "page" | "group" | "event",
+    slug: string,
+): OwnerState {
+    const [isOwner, setIsOwner] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const mounted = useRef(true);
+
+    const check = useCallback(async () => {
+        if (!slug) {
+            setIsOwner(false);
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        const owner = await isEntityOwner(type, slug);
+        if (mounted.current) {
+            setIsOwner(owner);
+            setLoading(false);
+        }
+    }, [type, slug]);
+
+    useEffect(() => {
+        mounted.current = true;
+        check();
+        return () => {
+            mounted.current = false;
+        };
+    }, [check]);
+
+    return { isOwner, loading, refresh: check };
+}
+
+interface MyEntitiesState {
+    pages: OsPage[];
+    groups: OsGroup[];
+    events: OsEvent[];
+    loading: boolean;
+    needsAuth: boolean;
+    refetch: () => void;
+}
+
+/** Lista las entidades (páginas/grupos/eventos) propiedad del usuario actual. */
+export function useMyEntities(): MyEntitiesState {
+    const [pages, setPages] = useState<OsPage[]>([]);
+    const [groups, setGroups] = useState<OsGroup[]>([]);
+    const [events, setEvents] = useState<OsEvent[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [needsAuth, setNeedsAuth] = useState(false);
+    const mounted = useRef(true);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        const uid = await getCurrentUserId();
+        if (!mounted.current) return;
+        if (!uid) {
+            setNeedsAuth(true);
+            setPages([]);
+            setGroups([]);
+            setEvents([]);
+            setLoading(false);
+            return;
+        }
+        setNeedsAuth(false);
+        try {
+            const res = await fetchMyEntities();
+            if (!mounted.current) return;
+            setPages(res.pages);
+            setGroups(res.groups);
+            setEvents(res.events);
+        } catch {
+            /* deja listas vacías */
+        } finally {
+            if (mounted.current) setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        mounted.current = true;
+        load();
+        return () => {
+            mounted.current = false;
+        };
+    }, [load]);
+
+    return { pages, groups, events, loading, needsAuth, refetch: load };
+}
+
+interface EntityMutations {
+    createPage: (input: CreatePageInput) => Promise<EntityMutationResult>;
+    createGroup: (input: CreateGroupInput) => Promise<EntityMutationResult>;
+    createEvent: (input: CreateEventInput) => Promise<EntityMutationResult>;
+    updatePage: (slug: string, input: UpdatePageInput) => Promise<EntityMutationResult>;
+    updateGroup: (slug: string, input: UpdateGroupInput) => Promise<EntityMutationResult>;
+    updateEvent: (slug: string, input: UpdateEventInput) => Promise<EntityMutationResult>;
+    deleteEntity: (
+        type: "page" | "group" | "event",
+        slug: string,
+    ) => Promise<EntityMutationResult>;
+}
+
+/**
+ * Expone las mutaciones de entidades envueltas en `useCallback` para usarlas
+ * cómodamente desde formularios/diálogos sin reimportar la capa de acceso.
+ */
+export function useEntityMutations(): EntityMutations {
+    return {
+        createPage: useCallback((input) => createPage(input), []),
+        createGroup: useCallback((input) => createGroup(input), []),
+        createEvent: useCallback((input) => createEvent(input), []),
+        updatePage: useCallback((slug, input) => updatePage(slug, input), []),
+        updateGroup: useCallback((slug, input) => updateGroup(slug, input), []),
+        updateEvent: useCallback((slug, input) => updateEvent(slug, input), []),
+        deleteEntity: useCallback((type, slug) => deleteEntity(type, slug), []),
+    };
 }

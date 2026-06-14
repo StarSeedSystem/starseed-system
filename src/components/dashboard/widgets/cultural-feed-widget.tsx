@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Palette, ChevronRight, Sparkles } from "lucide-react";
+import { Palette, ChevronRight, Sparkles, Heart, Bookmark, ChevronLeft, Filter } from "lucide-react";
 import { WidgetShell, MiniList, Chip, ProgressBar, timeAgo } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { FeedItem } from "@/lib/widget-data";
 import { createClient } from "@/utils/supabase/client";
+import { cn } from "@/lib/utils";
 
 // ════════════════════════════════════════════════════════════════
 // CulturalFeedWidget — corriente cultural de la red (obras, eventos,
@@ -92,6 +93,15 @@ export function CulturalFeedWidget() {
     const hasReal = realData !== null;
     const data = realData ?? mockData;
 
+    // ── Interacción local (me gusta / guardar) + filtro + vista ampliada ──
+    const [likes, setLikes] = useState<Record<string, boolean>>({});
+    const [saves, setSaves] = useState<Record<string, boolean>>({});
+    const [kindFilter, setKindFilter] = useState<string | null>(null);
+    const [openId, setOpenId] = useState<string | null>(null);
+
+    const kinds = useMemo(() => Array.from(new Set((data ?? []).map((i) => i.kind))), [data]);
+    const openItem = openId ? (data ?? []).find((i) => i.id === openId) ?? null : null;
+
     return (
         <WidgetShell
             title="Corriente Cultural"
@@ -117,34 +127,115 @@ export function CulturalFeedWidget() {
             {(size) => {
                 if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
                 const micro = size.tier === "micro" || size.vTier === "micro";
-                const sorted = [...data].sort((a, b) => b.resonance - a.resonance);
+
+                // ── Vista ampliada de una obra ──
+                if (openItem && !micro) {
+                    const c = KIND_COLOR[openItem.kind] ?? "#ec4899";
+                    const liked = !!likes[openItem.id];
+                    const saved = !!saves[openItem.id];
+                    return (
+                        <div className="flex flex-col gap-2.5 pt-1 h-full">
+                            <button onClick={() => setOpenId(null)}
+                                className="self-start inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer">
+                                <ChevronLeft className="size-3" /> Volver
+                            </button>
+                            <Chip color={c}>{openItem.kind}</Chip>
+                            <h4 className="text-sm @sm:text-base font-black leading-tight">{openItem.title}</h4>
+                            <p className="text-[11px] text-muted-foreground/80">{openItem.author} · {timeAgo(openItem.ts)}</p>
+                            <div className="rounded-2xl border border-border/40 bg-white/[0.03] p-3">
+                                <div className="flex items-center justify-between text-[10px] font-bold mb-1.5">
+                                    <span className="text-muted-foreground/70">Resonancia colectiva</span>
+                                    <span className="inline-flex items-center gap-1 text-pink-400"><Sparkles className="size-3" />{Math.round(openItem.resonance * 100)}%</span>
+                                </div>
+                                <ProgressBar value={openItem.resonance} color={c} height={6} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mt-auto">
+                                <button onClick={() => setLikes((p) => ({ ...p, [openItem.id]: !p[openItem.id] }))}
+                                    className={cn("flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-black uppercase tracking-wider border transition-colors cursor-pointer",
+                                        liked ? "bg-pink-500/25 border-pink-500/50 text-pink-300" : "bg-white/5 border-border/40 hover:border-pink-500/40 text-muted-foreground")}>
+                                    <Heart className={cn("size-4", liked && "fill-current")} /> Me gusta
+                                </button>
+                                <button onClick={() => setSaves((p) => ({ ...p, [openItem.id]: !p[openItem.id] }))}
+                                    className={cn("flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-black uppercase tracking-wider border transition-colors cursor-pointer",
+                                        saved ? "bg-amber-500/25 border-amber-500/50 text-amber-300" : "bg-white/5 border-border/40 hover:border-amber-500/40 text-muted-foreground")}>
+                                    <Bookmark className={cn("size-4", saved && "fill-current")} /> Guardar
+                                </button>
+                            </div>
+                        </div>
+                    );
+                }
+
+                const base = kindFilter ? data.filter((i) => i.kind === kindFilter) : data;
+                const sorted = [...base].sort((a, b) => b.resonance - a.resonance);
                 const max = micro ? 2 : size.vTier === "expanded" ? 5 : 3;
 
                 return (
-                    <div className="pt-1 h-full">
-                        <MiniList
-                            items={sorted}
-                            max={max}
-                            render={(item) => (
-                                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-pink-500/30 transition-colors">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <span className="text-[11px] @sm:text-xs font-bold leading-snug line-clamp-2">{item.title}</span>
-                                        {!micro && <Chip color={KIND_COLOR[item.kind] ?? "#ec4899"}>{item.kind}</Chip>}
-                                    </div>
-                                    {!micro && (
-                                        <div className="mt-1.5 flex items-center justify-between gap-2">
-                                            <span className="text-[10px] text-muted-foreground/70 truncate">{item.author} · {timeAgo(item.ts)}</span>
-                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-pink-400 shrink-0">
-                                                <Sparkles className="size-3" /> {Math.round(item.resonance * 100)}%
-                                            </span>
+                    <div className="pt-1 h-full flex flex-col gap-2">
+                        {!micro && kinds.length > 1 && (
+                            <div className="shrink-0 flex items-center gap-1 overflow-x-auto custom-scrollbar pb-0.5">
+                                <Filter className="size-3 shrink-0 text-muted-foreground/50" />
+                                <button onClick={() => setKindFilter(null)}
+                                    className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer",
+                                        !kindFilter ? "bg-pink-500/20 border-pink-500/45 text-pink-300" : "border-border/40 text-muted-foreground/60 hover:border-pink-500/30")}>
+                                    Todo
+                                </button>
+                                {kinds.map((k) => (
+                                    <button key={k} onClick={() => setKindFilter(kindFilter === k ? null : k)}
+                                        className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer",
+                                            kindFilter === k ? "bg-pink-500/20 border-pink-500/45 text-pink-300" : "border-border/40 text-muted-foreground/60 hover:border-pink-500/30")}
+                                        style={kindFilter === k ? undefined : { color: KIND_COLOR[k] ?? undefined }}>
+                                        {k}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <div className="flex-1 min-h-0">
+                            <MiniList
+                                items={sorted}
+                                max={max}
+                                empty="Sin obras en este filtro"
+                                render={(item) => {
+                                    const c = KIND_COLOR[item.kind] ?? "#ec4899";
+                                    const liked = !!likes[item.id];
+                                    const saved = !!saves[item.id];
+                                    return (
+                                        <div className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-pink-500/30 transition-colors">
+                                            <button onClick={() => !micro && setOpenId(item.id)} className={cn("w-full text-left", !micro && "cursor-pointer")}>
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <span className="text-[11px] @sm:text-xs font-bold leading-snug line-clamp-2">{item.title}</span>
+                                                    {!micro && <Chip color={c}>{item.kind}</Chip>}
+                                                </div>
+                                                {!micro && (
+                                                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                                                        <span className="text-[10px] text-muted-foreground/70 truncate">{item.author} · {timeAgo(item.ts)}</span>
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-pink-400 shrink-0">
+                                                            <Sparkles className="size-3" /> {Math.round(item.resonance * 100)}%
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </button>
+                                            {!micro && (
+                                                <div className="mt-1.5 flex items-center gap-1.5">
+                                                    <button onClick={() => setLikes((p) => ({ ...p, [item.id]: !p[item.id] }))} title="Me gusta"
+                                                        className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold transition-colors cursor-pointer",
+                                                            liked ? "bg-pink-500/20 border-pink-500/40 text-pink-300" : "border-border/40 text-muted-foreground/60 hover:border-pink-500/30")}>
+                                                        <Heart className={cn("size-2.5", liked && "fill-current")} /> {liked ? "Te gusta" : "Gusta"}
+                                                    </button>
+                                                    <button onClick={() => setSaves((p) => ({ ...p, [item.id]: !p[item.id] }))} title="Guardar"
+                                                        className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold transition-colors cursor-pointer",
+                                                            saved ? "bg-amber-500/20 border-amber-500/40 text-amber-300" : "border-border/40 text-muted-foreground/60 hover:border-amber-500/30")}>
+                                                        <Bookmark className={cn("size-2.5", saved && "fill-current")} /> {saved ? "Guardada" : "Guardar"}
+                                                    </button>
+                                                </div>
+                                            )}
+                                            {size.vTier === "expanded" && (
+                                                <div className="mt-1.5"><ProgressBar value={item.resonance} color={c} height={4} /></div>
+                                            )}
                                         </div>
-                                    )}
-                                    {size.vTier === "expanded" && (
-                                        <div className="mt-1.5"><ProgressBar value={item.resonance} color={KIND_COLOR[item.kind] ?? "#ec4899"} height={4} /></div>
-                                    )}
-                                </div>
-                            )}
-                        />
+                                    );
+                                }}
+                            />
+                        </div>
                     </div>
                 );
             }}

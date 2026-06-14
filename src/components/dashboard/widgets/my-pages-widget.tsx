@@ -10,6 +10,7 @@ import type { PageRef } from "@/lib/widget-data";
 import { widgetEntityHref, slugify } from "@/lib/entity-links";
 import { useOsPages, useOsGroups } from "@/hooks/use-os-entities";
 import type { OsPage, OsGroup } from "@/lib/os-social";
+import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 
 /** Ruta de detalle para una página del usuario según su tipo. */
 function pageRefHref(pg: PageRef): string {
@@ -72,9 +73,10 @@ function osGroupToRef(g: OsGroup): PageRef {
 
 export function MyPagesWidget() {
     const { data: mockData, loading: mockLoading } = useWidgetData("social.pages", { refreshMs: 12000 });
-    const { data: pages, loading: pagesLoading } = useOsPages();
-    const { data: groups, loading: groupsLoading } = useOsGroups();
+    const { data: pages, loading: pagesLoading, refetch: refetchPages } = useOsPages();
+    const { data: groups, loading: groupsLoading, refetch: refetchGroups } = useOsGroups();
     const [filter, setFilter] = useState<PageRef["kind"] | "todas">("todas");
+    const [createOpen, setCreateOpen] = useState(false);
 
     const loading = (pagesLoading || groupsLoading) && (mockLoading && !mockData);
 
@@ -99,6 +101,18 @@ export function MyPagesWidget() {
     }, [data]);
 
     return (
+        <>
+        <EntityEditorDialog
+            open={createOpen}
+            onOpenChange={setCreateOpen}
+            mode="create"
+            defaultType="page"
+            navigateOnCreate={false}
+            onSaved={() => {
+                refetchPages();
+                refetchGroups();
+            }}
+        />
         <WidgetShell
             title="Mis Páginas"
             subtitle="Perfiles · comunidades · proyectos"
@@ -110,9 +124,9 @@ export function MyPagesWidget() {
                     <Link href="/hub" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
                         Hub <ChevronRight className="size-3" />
                     </Link>
-                    <Link href="/pages/new" className="inline-flex items-center gap-1 rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-sky-300 hover:bg-sky-500/20 transition-colors cursor-pointer">
+                    <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-1 rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-sky-300 hover:bg-sky-500/20 transition-colors cursor-pointer">
                         <Plus className="size-3" /> Nueva
-                    </Link>
+                    </button>
                 </>
             }
         >
@@ -227,5 +241,6 @@ export function MyPagesWidget() {
                 );
             }}
         </WidgetShell>
+        </>
     );
 }

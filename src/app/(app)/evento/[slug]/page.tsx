@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ShareButton } from "@/components/social/SocialActions";
-import { useOsEntity, useAttendance } from "@/hooks/use-os-entities";
+import { useOsEntity, useAttendance, useEntityOwner } from "@/hooks/use-os-entities";
+import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
+import type { OsEvent } from "@/lib/os-social";
 import {
     CalendarDays,
     Clock,
@@ -23,6 +25,7 @@ import {
     Star,
     Check,
     Lock,
+    Pencil,
 } from "lucide-react";
 
 const GOLD = "#E9C46A";
@@ -116,9 +119,11 @@ export default function EventoPage() {
     const slug = Array.isArray(params?.slug) ? params.slug[0] : (params?.slug ?? "");
     const slugStr = String(slug);
 
-    const { data: event, loading, usingFallback } = useOsEntity(slugStr, "event");
+    const { data: event, loading, usingFallback, refetch } = useOsEntity(slugStr, "event");
     // Página organizadora real (para enlazar y obtener nombre/portada).
     const { data: organizer } = useOsEntity(event?.organizerSlug ?? "", "page");
+    const { isOwner } = useEntityOwner("event", event?.slug ?? "");
+    const [editOpen, setEditOpen] = useState(false);
 
     if (loading) {
         return (
@@ -137,6 +142,15 @@ export default function EventoPage() {
 
     return (
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+            {isOwner && !usingFallback && (
+                <EntityEditorDialog
+                    open={editOpen}
+                    onOpenChange={setEditOpen}
+                    mode="edit"
+                    entity={{ type: "event", data: event as OsEvent }}
+                    onSaved={() => refetch()}
+                />
+            )}
             {usingFallback && (
                 <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
                     <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -159,6 +173,20 @@ export default function EventoPage() {
                         />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/40 to-transparent" />
+                    {isOwner && (
+                        <div className="absolute right-4 top-4 z-10">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setEditOpen(true)}
+                                className="gap-2 cursor-pointer bg-background/60 backdrop-blur"
+                                style={{ borderColor: `${accent}55`, color: accent }}
+                            >
+                                <Pencil className="h-4 w-4" />
+                                Editar
+                            </Button>
+                        </div>
+                    )}
                     <div className="absolute bottom-4 left-4 right-4">
                         <Badge
                             className="mb-2 border-0 capitalize text-white"
