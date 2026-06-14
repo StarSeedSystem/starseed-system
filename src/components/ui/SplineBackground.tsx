@@ -27,6 +27,31 @@ export const SplineBackground = forwardRef<Application | null, SplineBackgroundP
             onLoad(splineApp);
         }
 
+        // ── ELIMINAR el logo "Built with Spline" EN LA FUENTE ──────────────
+        // El runtime de Spline NO dibuja el logo como nodo del DOM: lo pinta en
+        // el <canvas> como un pase de post-proceso WebGL (`pipeline.logoOverlayPass`,
+        // método `pipeline.setWatermark`). Por eso ocultar el DOM nunca funcionó.
+        // Accedemos al pipeline del renderer de la Application y desactivamos ese
+        // pase. Reintentos + intervalo por si el runtime lo reactiva al cargar la
+        // textura del logo o al redimensionar.
+        const app = splineApp as any;
+        const disableWatermark = () => {
+            try {
+                const pipeline =
+                    app?._renderer?.pipeline ??
+                    app?.renderer?.pipeline ??
+                    app?._scene?._renderer?.pipeline;
+                if (!pipeline) return;
+                if (typeof pipeline.setWatermark === "function") pipeline.setWatermark(null);
+                if (pipeline.logoOverlayPass) pipeline.logoOverlayPass.enabled = false;
+                if (typeof pipeline.updateRenderToScreen === "function") pipeline.updateRenderToScreen();
+            } catch { /* noop */ }
+        };
+        disableWatermark();
+        [60, 200, 500, 1000, 2000, 4000].forEach(ms => setTimeout(disableWatermark, ms));
+        let wmTicks = 0;
+        const wmIv = window.setInterval(() => { disableWatermark(); if (++wmTicks > 40) clearInterval(wmIv); }, 750);
+
         // Eliminar el logo "Built with Spline" inyectado por el runtime. El runtime
         // lo re-inyecta, así que observamos PERMANENTEMENTE + intervalo de respaldo
         // y cubrimos varios patrones (enlace a spline, aria-label, texto "Built with").
