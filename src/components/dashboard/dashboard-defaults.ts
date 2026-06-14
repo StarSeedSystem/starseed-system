@@ -195,12 +195,13 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'economia',
         name: 'Economía',
         widgets: [
-            { type: 'OIKOS_METABOLISM', w: 5, h: 5, x: 0, y: 0 },
+            { type: 'CARTERA_STARSEED', w: 5, h: 7, x: 0, y: 0 },
             { type: 'ECONOMIC_OVERVIEW', w: 4, h: 5, x: 5, y: 0 },
             { type: 'CALCULATOR', w: 3, h: 5, x: 9, y: 0 },
-            { type: 'ENERGY_GRID', w: 4, h: 4, x: 0, y: 5 },
-            { type: 'BARTER_MARKET', w: 4, h: 4, x: 4, y: 5 },
-            { type: 'ACTIVE_PROJECTS', w: 4, h: 4, x: 8, y: 5 },
+            { type: 'OIKOS_METABOLISM', w: 5, h: 5, x: 5, y: 5 },
+            { type: 'ENERGY_GRID', w: 3, h: 4, x: 0, y: 7 },
+            { type: 'BARTER_MARKET', w: 4, h: 4, x: 3, y: 7 },
+            { type: 'ACTIVE_PROJECTS', w: 4, h: 4, x: 7, y: 9 },
         ],
     },
     // ─── 6. Clima ────────────────────────────────────────────
