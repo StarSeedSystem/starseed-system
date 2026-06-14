@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Wallet, Coins, Info, ArrowLeftRight, Sprout } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { WidgetShell, StatTile, Sparkline, Chip } from "../kit";
@@ -14,6 +14,8 @@ import type { SeriesPoint } from "@/lib/widget-data";
 // y el catálogo de granos (grain_types) del proyecto Supabase
 // compartido — igual que CarteraStarseedWidget — para mostrar el
 // precio de la Semilla en € con su variación a 7 días y un sparkline.
+// TIEMPO REAL: suscripción realtime (postgres_changes) a `seed_market`
+// y `grain_types` para refrescar el precio y el conteo en vivo.
 // Si no hay sesión/datos/red, degrada con elegancia a las métricas
 // simuladas (common.metrics). Theme-aware vía WidgetShell + kit.
 // ════════════════════════════════════════════════════════════════
@@ -45,31 +47,38 @@ export function EconomicOverviewWidget() {
     const [market, setMarket] = useState<number[]>([]);
     const [grainsCount, setGrainsCount] = useState<number | null>(null);
 
+    const reload = useCallback(async () => {
+        try {
+            const [marketRes, grainsRes] = await Promise.all([
+                supabase.from("seed_market").select("day, seed_eur").order("day", { ascending: false }).limit(60),
+                supabase.from("grain_types").select("id", { count: "exact", head: true }),
+            ]);
+            if (!marketRes.error && marketRes.data) {
+                const pts = (marketRes.data as SeedMarketRow[])
+                    .slice().reverse()
+                    .map(r => Number(r.seed_eur))
+                    .filter(v => Number.isFinite(v));
+                setMarket(pts);
+            }
+            if (!grainsRes.error && typeof grainsRes.count === "number") {
+                setGrainsCount(grainsRes.count);
+            }
+        } catch {
+            // Sin red/sesión → fallback silencioso a métricas simuladas.
+        }
+    }, [supabase]);
+
     useEffect(() => {
         let alive = true;
-        (async () => {
-            try {
-                const [marketRes, grainsRes] = await Promise.all([
-                    supabase.from("seed_market").select("day, seed_eur").order("day", { ascending: false }).limit(60),
-                    supabase.from("grain_types").select("id", { count: "exact", head: true }),
-                ]);
-                if (!alive) return;
-                if (!marketRes.error && marketRes.data) {
-                    const pts = (marketRes.data as SeedMarketRow[])
-                        .slice().reverse()
-                        .map(r => Number(r.seed_eur))
-                        .filter(v => Number.isFinite(v));
-                    setMarket(pts);
-                }
-                if (!grainsRes.error && typeof grainsRes.count === "number") {
-                    setGrainsCount(grainsRes.count);
-                }
-            } catch {
-                // Sin red/sesión → fallback silencioso a métricas simuladas.
-            }
-        })();
-        return () => { alive = false; };
-    }, [supabase]);
+        void (async () => { if (alive) await reload(); })();
+        // TIEMPO REAL: cambios en la bolsa o el catálogo de granos → refresco.
+        const ch = supabase
+            .channel("w-economic-overview")
+            .on("postgres_changes", { event: "*", schema: "public", table: "seed_market" }, () => { void reload(); })
+            .on("postgres_changes", { event: "*", schema: "public", table: "grain_types" }, () => { void reload(); })
+            .subscribe();
+        return () => { alive = false; supabase.removeChannel(ch); };
+    }, [supabase, reload]);
 
     // ¿Tenemos serie real de mercado para construir el bloque principal?
     const hasMarket = market.length >= 2;

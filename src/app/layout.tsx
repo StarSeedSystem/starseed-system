@@ -24,6 +24,7 @@ import { SidebarProvider } from "@/context/sidebar-context";
 import { BoardProvider } from "@/context/board-context";
 import { UserProvider } from "@/context/user-context";
 import { NotificationsProvider } from "@/context/notifications-context";
+import { AccountProvider } from "@/context/account-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
@@ -92,6 +93,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AppearanceProvider>
+            <AccountProvider>
             <BoardProvider>
               <UserProvider>
                 <NotificationsProvider>
@@ -125,6 +127,7 @@ export default function RootLayout({
                 </NotificationsProvider>
               </UserProvider>
             </BoardProvider>
+            </AccountProvider>
           </AppearanceProvider>
         </ThemeProvider>
       </body>

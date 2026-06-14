@@ -182,6 +182,13 @@ export function WidgetShell({
                 className
             )}
         >
+            {/* Profundidad + refracción de cristal líquido (overlays propios para no
+                competir con el box-shadow temático/hover del shell ni con su ::before
+                (innerGlow) / ::after (sheen). Additivo, z-0, no captura punteros; el
+                contenido (header/body/footer) va en z-10, siempre por encima. */}
+            <span aria-hidden className="glass-depth pointer-events-none absolute inset-0 z-0 rounded-[inherit]" />
+            <span aria-hidden className="glass-refraction pointer-events-none absolute inset-0 z-0 rounded-[inherit]" />
+
             {w.noiseTexture && (
                 <div className="pointer-events-none absolute inset-0 opacity-[0.035] mix-blend-overlay [background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.85%22 numOctaves=%222%22/></filter><rect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/></svg>')]" />
             )}

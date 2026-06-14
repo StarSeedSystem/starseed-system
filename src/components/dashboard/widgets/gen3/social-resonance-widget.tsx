@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
     Thermometer, Search, Eye, EyeOff, TrendingUp, TrendingDown, Minus,
     Users, ChevronRight, type LucideIcon, Sparkle, Flame, Zap, HelpCircle, Handshake,
 } from "lucide-react";
+import { createClient } from "@/utils/supabase/client";
 import { WidgetShell, MiniList, Chip } from "../../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { CivicEmotion } from "@/lib/widget-data";
@@ -15,7 +16,12 @@ import { cn } from "@/lib/utils";
 // SocialResonanceWidget — Termómetro de Resonancia Social.
 // Heatmap semántico de los temas más debatidos por emoción. Modo
 // "Burbuja Rota" muestra el argumento contrario para mitigar el sesgo.
-// Datos "politics.resonance". Filtro por palabra clave.
+// ----------------------------------------------------------------
+// Datos REALES (cuando hay): agrega las últimas filas de `cafe_posts`
+// del proyecto Supabase compartido por `kind`/`branch` → conteos de
+// participación + calor por recencia. Suscripción realtime a
+// `cafe_posts` (postgres_changes) para refrescar en vivo. Sin
+// red/datos → degrada con elegancia a "politics.resonance" simulado.
 // ════════════════════════════════════════════════════════════════
 const EMOTION_META: Record<CivicEmotion, { label: string; color: string; icon: LucideIcon }> = {
     esperanza: { label: "Esperanza", color: "#10b981", icon: Sparkle },
@@ -24,24 +30,157 @@ const EMOTION_META: Record<CivicEmotion, { label: string; color: string; icon: L
     curiosidad: { label: "Curiosidad", color: "#38bdf8", icon: HelpCircle },
     consenso: { label: "Consenso", color: "#a855f7", icon: Handshake },
 };
+const EMOTION_KEYS: CivicEmotion[] = ["esperanza", "indignacion", "urgencia", "curiosidad", "consenso"];
+
 const TrendIcon = ({ t }: { t: "up" | "down" | "flat" }) =>
     t === "up" ? <TrendingUp className="size-3 text-emerald-400" /> : t === "down" ? <TrendingDown className="size-3 text-rose-400" /> : <Minus className="size-3 text-muted-foreground/50" />;
 
+// ── Forma de tema (compatible con el render simulado y el real) ──
+interface ResonanceTopic {
+    id: string;
+    label: string;
+    emotion: CivicEmotion;
+    heat: number;        // 0..1
+    participants: number;
+    trend: "up" | "down" | "flat";
+    threadHref: string;
+    opposingView: string;
+}
+
+// Fila pública de cafe_posts (sólo lo que necesitamos).
+interface CafePostRow {
+    id: string;
+    kind: string | null;
+    branch: string | null;
+    title: string | null;
+    status: string | null;
+    created_at: string | null;
+}
+
+const INT_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
+
+// Asigna una emoción estable a partir del kind/etiqueta del tema.
+function emotionForKind(kind: string): CivicEmotion {
+    const k = kind.toLowerCase();
+    if (k.includes("propuesta") || k.includes("proposal")) return "consenso";
+    if (k.includes("alert") || k.includes("urg")) return "urgencia";
+    if (k.includes("pregunta") || k.includes("duda") || k.includes("?")) return "curiosidad";
+    if (k.includes("queja") || k.includes("issue")) return "indignacion";
+    // hash determinista → reparto estable entre las 5 emociones
+    let h = 0;
+    for (let i = 0; i < kind.length; i++) h = (h * 31 + kind.charCodeAt(i)) >>> 0;
+    return EMOTION_KEYS[h % EMOTION_KEYS.length];
+}
+
+const LABELS_ES: Record<string, string> = {
+    elixir: "Elixires", recipe: "Recetas", proposal: "Propuestas",
+    propuesta: "Propuestas", post: "Publicaciones", review: "Reseñas",
+};
+function labelForKind(kind: string): string {
+    return LABELS_ES[kind.toLowerCase()] ?? (kind.charAt(0).toUpperCase() + kind.slice(1));
+}
+
+/** Agrega posts → temas (uno por kind/branch), calor por recencia. */
+function buildTopics(rows: CafePostRow[]): ResonanceTopic[] {
+    if (rows.length === 0) return [];
+    const now = Date.now();
+    const groups = new Map<string, { count: number; recent: number; titles: string[] }>();
+    for (const r of rows) {
+        const key = (r.branch?.trim() || r.kind?.trim() || "general").toLowerCase();
+        const g = groups.get(key) ?? { count: 0, recent: 0, titles: [] };
+        g.count += 1;
+        const ts = r.created_at ? new Date(r.created_at).getTime() : now;
+        // recencia 0..1 con vida media de ~3 días
+        g.recent = Math.max(g.recent, Math.exp(-(now - ts) / (1000 * 60 * 60 * 72)));
+        if (r.title) g.titles.push(r.title);
+        groups.set(key, g);
+    }
+    const maxCount = Math.max(...[...groups.values()].map(g => g.count), 1);
+    return [...groups.entries()]
+        .map(([key, g]) => {
+            const heat = Math.min(1, 0.25 + (g.count / maxCount) * 0.55 + g.recent * 0.2);
+            return {
+                id: key,
+                label: labelForKind(key),
+                emotion: emotionForKind(key),
+                heat,
+                participants: g.count,
+                trend: (g.recent > 0.55 ? "up" : g.recent < 0.15 ? "down" : "flat") as "up" | "down" | "flat",
+                threadHref: "/network/politics",
+                opposingView: g.titles[0]
+                    ? `Un tema reciente: "${g.titles[0]}". ¿Y si el marco fuese el contrario?`
+                    : "Considera la perspectiva opuesta antes de posicionarte.",
+            };
+        })
+        .sort((a, b) => b.heat - a.heat);
+}
+
 export function SocialResonanceWidget() {
-    const { data, loading } = useWidgetData("politics.resonance", { refreshMs: 8000 });
+    const supabase = useMemo(() => createClient(), []);
+    const { data: sim, loading: simLoading } = useWidgetData("politics.resonance", { refreshMs: 8000 });
+
     const [query, setQuery] = useState("");
     const [broken, setBroken] = useState(false);
 
+    // Datos reales (opcional): temas derivados de cafe_posts + total.
+    const [realTopics, setRealTopics] = useState<ResonanceTopic[] | null>(null);
+    const [totalPosts, setTotalPosts] = useState<number | null>(null);
+
+    const reload = useCallback(async () => {
+        try {
+            const [postsRes, countRes] = await Promise.all([
+                supabase.from("cafe_posts")
+                    .select("id, kind, branch, title, status, created_at")
+                    .order("created_at", { ascending: false }).limit(120),
+                supabase.from("cafe_posts").select("id", { count: "exact", head: true }),
+            ]);
+            if (!postsRes.error && postsRes.data && postsRes.data.length > 0) {
+                setRealTopics(buildTopics(postsRes.data as CafePostRow[]));
+            } else {
+                setRealTopics([]);
+            }
+            if (!countRes.error && typeof countRes.count === "number") setTotalPosts(countRes.count);
+        } catch {
+            setRealTopics([]); // fallback silencioso al modo simulado
+        }
+    }, [supabase]);
+
+    useEffect(() => {
+        let alive = true;
+        void (async () => { if (alive) await reload(); })();
+        // Realtime: cualquier cambio en cafe_posts → recarga la resonancia.
+        const ch = supabase
+            .channel("w-social-resonance")
+            .on("postgres_changes", { event: "*", schema: "public", table: "cafe_posts" }, () => { void reload(); })
+            .subscribe();
+        return () => { alive = false; supabase.removeChannel(ch); };
+    }, [supabase, reload]);
+
+    // ¿Tenemos datos reales utilizables?
+    const hasReal = realTopics !== null && realTopics.length > 0;
+    const loading = hasReal ? false : (simLoading || !sim);
+
+    // Emoción dominante: la del tema más caliente (real) o la simulada.
+    const dominant: CivicEmotion = hasReal
+        ? realTopics![0].emotion
+        : (sim?.dominantEmotion ?? "curiosidad");
+
+    const windowLabel = hasReal
+        ? (totalPosts !== null ? `${INT_ES.format(totalPosts)} señales · en vivo` : "Señales en vivo")
+        : (sim?.window ?? "Pulso del debate");
+
     const topics = useMemo(() => {
-        if (!data) return [];
+        const base: ResonanceTopic[] = hasReal
+            ? realTopics!
+            : (sim?.topics as ResonanceTopic[] | undefined) ?? [];
         const q = query.trim().toLowerCase();
-        return q ? data.topics.filter((t) => t.label.toLowerCase().includes(q)) : data.topics;
-    }, [data, query]);
+        return q ? base.filter((t) => t.label.toLowerCase().includes(q)) : base;
+    }, [hasReal, realTopics, sim, query]);
 
     return (
         <WidgetShell
             title="Resonancia Social"
-            subtitle={data ? data.window : "Pulso del debate"}
+            subtitle={windowLabel}
             icon={Thermometer}
             accent="#f43f5e"
             live
@@ -50,13 +189,18 @@ export function SocialResonanceWidget() {
                     Ágora <ChevronRight className="size-3" />
                 </Link>
             }
+            footer={
+                <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-muted-foreground/50 text-center">
+                    {hasReal ? "Resonancia del Café · datos en vivo" : "Pulso del debate · modo simulado"}
+                </p>
+            }
         >
             {(size) => {
-                if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
+                if (loading) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
                 const micro = size.tier === "micro" || size.vTier === "micro";
                 const compact = size.vTier === "compact";
                 const maxList = size.vTier === "expanded" ? 5 : compact ? 2 : 4;
-                const dom = EMOTION_META[data.dominantEmotion];
+                const dom = EMOTION_META[dominant];
 
                 return (
                     <div className="flex flex-col gap-2 pt-1 h-full">

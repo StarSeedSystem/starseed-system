@@ -2693,6 +2693,97 @@ html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb:hover {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   CRISTAL LÍQUIDO — UTILIDADES REUTILIZABLES (opt-in)
+   ─────────────────────────────────────────────────────────────
+   Clases additivas que cualquier superficie puede adoptar para
+   ganar profundidad, refracción y reflejo realistas SIN cambiar el
+   look por defecto. Pensadas para combinarse (p.ej. en WidgetShell).
+   Todo en transform/opacity/background-position → barato en GPU.
+   Respetan los 3 temas vía hsl(var(--primary-hsl)) y vars existentes
+   y degradan con prefers-reduced-motion: reduce.
+   ═══════════════════════════════════════════════════════════ */
+
+/* .glass-depth — capas de sombra interna + externa para dar grosor
+   óptico al cristal (como vidrio real con espesor y luz cenital). */
+.glass-depth {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.18),
+    inset 0 0 24px -12px hsl(var(--primary-hsl) / 0.16),
+    var(--glass-shadow-layer-2, 0 12px 20px -4px rgba(0, 0, 0, 0.08)),
+    var(--glass-shadow-layer-3, 0 24px 40px -8px rgba(0, 0, 0, 0.05));
+}
+
+/* .glass-refraction — borde con gradiente cónico tenue (refracción de
+   luz en el canto del cristal) + highlight superior. Usa ::before sin
+   tocar el ::before/::after que ya emplea .os-widget-shell. */
+.glass-refraction {
+  position: relative;
+}
+.glass-refraction::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  z-index: 2;
+  background: conic-gradient(
+    from 210deg at 50% 50%,
+    rgba(255, 255, 255, 0.22),
+    hsl(var(--primary-hsl) / 0.10) 25%,
+    rgba(255, 255, 255, 0.04) 50%,
+    hsl(var(--primary-hsl) / 0.14) 72%,
+    rgba(255, 255, 255, 0.20)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.7;
+}
+
+/* .glass-sheen-slow — reflejo especular que deriva muy lentamente por
+   la superficie. mix-blend screen → solo aclara, nunca ensucia. */
+.glass-sheen-slow {
+  position: relative;
+}
+.glass-sheen-slow > .glass-sheen-slow__layer,
+.glass-sheen-slow::after {
+  pointer-events: none;
+}
+.glass-sheen-slow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 1;
+  background: linear-gradient(
+    100deg,
+    transparent 42%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.02) 56%,
+    transparent 66%
+  );
+  background-size: 260% 260%;
+  mix-blend-mode: screen;
+  opacity: 0.5;
+  animation: glassSheenSlow 22s ease-in-out infinite;
+}
+@keyframes glassSheenSlow {
+  0%   { background-position: 0% 0%; }
+  50%  { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass-sheen-slow::after { animation: none; opacity: 0.2; }
+}
+
+/* ═══════════════════════════════════════════════════════════
    SCROLL TÁCTIL SOBRE WIDGETS — garantía a nivel de librería
    react-grid-layout/react-draggable adjuntan el arrastre al elemento
    .react-grid-item. Forzamos que el navegador RESERVE el desplazamiento
