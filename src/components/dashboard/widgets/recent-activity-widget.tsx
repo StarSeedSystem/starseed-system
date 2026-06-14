@@ -1,13 +1,21 @@
 'use client';
 
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { History, FileEdit, Vote, Users, CheckCircle2, GitBranch, Boxes, type LucideIcon } from "lucide-react";
+import { createClient } from "@/utils/supabase/client";
 import { WidgetShell, MiniList, timeAgo } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { ActivityEvent } from "@/lib/widget-data";
 
 // ════════════════════════════════════════════════════════════════
-// RecentActivityWidget — registro acásico reciente del usuario.
-// Datos en vivo "common.activity". Adaptativo + theme-aware.
+// RecentActivityWidget — registro acásico reciente de la comunidad.
+// ----------------------------------------------------------------
+// Datos REALES (cuando hay): construye los eventos a partir de las
+// últimas creaciones de la comunidad (`cafe_posts`) y la apertura de
+// locales (`cafe_locals`) del proyecto Supabase compartido, mapeando
+// cada fila a un evento del registro acásico. Realtime: suscripción a
+// `cafe_posts` y `cafe_locals` (postgres_changes). Sin red/datos →
+// degrada con elegancia a "common.activity" simulado.
 // ════════════════════════════════════════════════════════════════
 const KIND_META: Record<ActivityEvent["kind"], { icon: LucideIcon; color: string }> = {
     vote: { icon: Vote, color: "#f59e0b" },
@@ -18,13 +26,109 @@ const KIND_META: Record<ActivityEvent["kind"], { icon: LucideIcon; color: string
     resource: { icon: Boxes, color: "#22d3ee" },
 };
 
+interface CafePostRow {
+    id: string;
+    kind: string | null;
+    branch: string | null;
+    title: string | null;
+    author_name: string | null;
+    created_at: string | null;
+}
+interface CafeLocalRow {
+    zone: string;
+    name: string | null;
+    created_at: string | null;
+}
+
+// Mapea el tipo de creación a un kind del registro acásico.
+function kindForPost(k: string | null): ActivityEvent["kind"] {
+    const s = (k ?? "").toLowerCase();
+    if (s.includes("propuesta") || s.includes("proposal") || s.includes("voto") || s.includes("vote")) return "vote";
+    if (s.includes("mision") || s.includes("misión") || s.includes("mission") || s.includes("reto")) return "mission";
+    return "post";
+}
+function actionForKind(k: string | null): string {
+    const s = (k ?? "").toLowerCase();
+    if (s.includes("elixir")) return "destiló el elixir";
+    if (s.includes("recipe") || s.includes("receta")) return "compartió la receta";
+    if (s.includes("propuesta") || s.includes("proposal")) return "propuso";
+    if (s.includes("review") || s.includes("reseña")) return "reseñó";
+    return "publicó";
+}
+
+// Construye eventos reales a partir de posts + aperturas de locales.
+function buildEvents(posts: CafePostRow[], locals: CafeLocalRow[]): ActivityEvent[] {
+    const events: ActivityEvent[] = [];
+
+    for (const p of posts) {
+        events.push({
+            id: `post-${p.id}`,
+            actor: p.author_name?.trim() || "Comunidad",
+            action: actionForKind(p.kind),
+            target: p.title?.trim() || (p.branch?.trim() ? `en ${p.branch.trim()}` : "una creación"),
+            kind: kindForPost(p.kind),
+            ts: p.created_at ? new Date(p.created_at).getTime() : Date.now(),
+        });
+    }
+    for (const l of locals) {
+        if (!l.created_at) continue;
+        events.push({
+            id: `local-${l.zone}`,
+            actor: l.name?.trim() || "Nuevo local",
+            action: "abrió en",
+            target: l.zone,
+            kind: "join",
+            ts: new Date(l.created_at).getTime(),
+        });
+    }
+    return events.sort((a, b) => b.ts - a.ts);
+}
+
 export function RecentActivityWidget() {
-    const { data, loading } = useWidgetData("common.activity", { refreshMs: 9000 });
+    const supabase = useMemo(() => createClient(), []);
+    const { data: sim, loading: simLoading } = useWidgetData("common.activity", { refreshMs: 9000 });
+
+    const [real, setReal] = useState<ActivityEvent[] | null>(null);
+
+    const reload = useCallback(async () => {
+        try {
+            const [postsRes, localsRes] = await Promise.all([
+                supabase.from("cafe_posts")
+                    .select("id, kind, branch, title, author_name, created_at")
+                    .order("created_at", { ascending: false }).limit(20),
+                supabase.from("cafe_locals")
+                    .select("zone, name, created_at")
+                    .order("created_at", { ascending: false }).limit(6),
+            ]);
+            const posts = (!postsRes.error && postsRes.data ? postsRes.data : []) as CafePostRow[];
+            const locals = (!localsRes.error && localsRes.data ? localsRes.data : []) as CafeLocalRow[];
+            const events = buildEvents(posts, locals);
+            setReal(events.length ? events : []);
+        } catch {
+            setReal([]); // fallback silencioso a modo simulado
+        }
+    }, [supabase]);
+
+    useEffect(() => {
+        let alive = true;
+        void (async () => { if (alive) await reload(); })();
+        // Realtime: nuevas creaciones / locales refrescan el registro.
+        const ch = supabase
+            .channel("w-recent-activity")
+            .on("postgres_changes", { event: "*", schema: "public", table: "cafe_posts" }, () => { void reload(); })
+            .on("postgres_changes", { event: "*", schema: "public", table: "cafe_locals" }, () => { void reload(); })
+            .subscribe();
+        return () => { alive = false; supabase.removeChannel(ch); };
+    }, [supabase, reload]);
+
+    const hasReal = real !== null && real.length > 0;
+    const data = hasReal ? real! : sim;
+    const loading = hasReal ? false : (simLoading || !sim);
 
     return (
         <WidgetShell
             title="Actividad Reciente"
-            subtitle="Tu registro acásico"
+            subtitle={hasReal ? "Registro acásico · en vivo" : "Tu registro acásico"}
             icon={History}
             accent="#38bdf8"
             live
@@ -34,6 +138,11 @@ export function RecentActivityWidget() {
                 { label: "Red", href: "/network", color: "#10b981", icon: Users },
                 { label: "Gobernanza", href: "/network/politics", color: "#f59e0b", icon: Vote },
             ]}
+            footer={
+                <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-muted-foreground/50 text-center">
+                    {hasReal ? "Pulso del Café · datos en vivo" : "Registro acásico · modo simulado"}
+                </p>
+            }
         >
             {(size) => {
                 if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
@@ -45,6 +154,7 @@ export function RecentActivityWidget() {
                         <MiniList
                             items={data}
                             max={max}
+                            empty="Sin actividad reciente"
                             render={(a) => {
                                 const meta = KIND_META[a.kind];
                                 const Icon = meta.icon;

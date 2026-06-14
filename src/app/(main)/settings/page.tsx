@@ -2,8 +2,6 @@
 
 import React from "react";
 import { AppearanceEditor } from "@/components/settings/appearance/appearance-editor";
-import { WidgetsDesignSettings } from "@/components/settings/appearance/widgets-design-settings";
-import { BackgroundSettings } from "@/components/settings/appearance/background-settings";
 import { AiProvidersPanel } from "@/components/settings/ai/ai-providers-panel";
 import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { TrinityFabSettings } from "@/components/settings/trinity/trinity-fab-settings";
@@ -12,6 +10,32 @@ import { AccountSyncPanel } from "@/components/settings/account/account-sync-pan
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Palette, User, Shield, Sparkles, ShieldCheck, Compass } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+/* Encabezado de propósito reutilizable para cada pestaña de Configuración. */
+function TabIntro({
+    icon: Icon,
+    title,
+    description,
+    className,
+}: {
+    icon: React.ComponentType<{ className?: string }>;
+    title: string;
+    description: string;
+    className?: string;
+}) {
+    return (
+        <div className={cn("flex items-start gap-3 mb-1", className)}>
+            <span className="grid place-items-center w-9 h-9 rounded-xl shrink-0 bg-primary/10 border border-primary/20 text-primary">
+                <Icon className="w-[18px] h-[18px]" />
+            </span>
+            <div className="min-w-0">
+                <h2 className="text-base font-semibold leading-tight">{title}</h2>
+                <p className="text-[13px] text-muted-foreground leading-snug">{description}</p>
+            </div>
+        </div>
+    );
+}
 
 export default function SettingsPage() {
     return (
@@ -51,26 +75,49 @@ export default function SettingsPage() {
                         </div>
 
                         <div className="p-6 bg-gradient-to-br from-background/50 to-background/10 min-h-[50vh]">
-                            <TabsContent value="appearance" className="m-0 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <TabsContent value="appearance" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={Palette}
+                                    title="Diseño y apariencia"
+                                    description="Personaliza temas, tipografía, interfaz, fondo y accesibilidad. Todo se guarda al instante y es reversible."
+                                />
                                 <AppearanceEditor />
-                                <WidgetsDesignSettings />
-                                <BackgroundSettings />
                             </TabsContent>
 
-                            <TabsContent value="trinity" className="m-0 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <TabsContent value="trinity" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={Compass}
+                                    title="Navegación Trinity"
+                                    description="Configura el acceso a los 4 nodos cardinales: botón flotante en móvil y gestos desde los bordes de la pantalla."
+                                />
                                 <TrinityFabSettings />
                                 <TrinityEdgeSettings />
                             </TabsContent>
 
-                            <TabsContent value="ai" className="m-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <TabsContent value="ai" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={Sparkles}
+                                    title="IA y modelos"
+                                    description="Gestiona los proveedores de tu Exocórtex. Las claves se cifran y viven solo en tu navegador."
+                                />
                                 <AiProvidersPanel />
                             </TabsContent>
 
-                            <TabsContent value="privacy" className="m-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <TabsContent value="privacy" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={ShieldCheck}
+                                    title="Privacidad"
+                                    description="Controla qué datos compartes y cómo aparece tu actividad en el grafo público."
+                                />
                                 <PrivacyPanel />
                             </TabsContent>
 
-                            <TabsContent value="profile" className="m-0 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <TabsContent value="profile" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={User}
+                                    title="Perfil e identidad"
+                                    description="Tu identidad soberana, credenciales verificables y la sincronización con tu cuenta StarSeed."
+                                />
                                 <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2">
@@ -141,7 +188,12 @@ export default function SettingsPage() {
                                 <AccountSyncPanel />
                             </TabsContent>
 
-                            <TabsContent value="security" className="m-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <TabsContent value="security" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={Shield}
+                                    title="Seguridad y soberanía"
+                                    description="Gestiona tus llaves criptográficas, el respaldo biométrico y la fragmentación segura de tus datos (MPC)."
+                                />
                                 <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2">

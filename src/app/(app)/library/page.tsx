@@ -40,6 +40,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { StarSeedKnowledgePanel } from "@/components/library/StarSeedKnowledgePanel";
 
 // --- Types ---
 
@@ -388,6 +389,14 @@ function LibraryContent() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* StarSeed · Nexus & Drive — carpetas con enlaces y visor embebido.
+          Solo en la Librería Global y en la raíz (no estorba la navegación). */}
+      {mode === 'GLOBAL' && currentFolderId === null && !searchQuery && (
+        <div className="w-full mt-2">
+          <StarSeedKnowledgePanel />
         </div>
       )}
     </div>

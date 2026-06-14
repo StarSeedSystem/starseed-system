@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Palette, ChevronRight, Sparkles } from "lucide-react";
 import { WidgetShell, MiniList, Chip, ProgressBar, timeAgo } from "../kit";
@@ -10,9 +10,10 @@ import { createClient } from "@/utils/supabase/client";
 
 // ════════════════════════════════════════════════════════════════
 // CulturalFeedWidget — corriente cultural de la red (obras, eventos,
-// manifiestos). Intenta leer creaciones reales de la comunidad
-// (cafe_posts del proyecto unificado) como corriente cultural viva;
-// si no hay datos o falla, cae con elegancia a "common.feed" simulado.
+// manifiestos). Lee creaciones reales de la comunidad (`cafe_posts`
+// del proyecto unificado) como corriente cultural viva, con conteo
+// total. Realtime: suscripción a `cafe_posts` (postgres_changes). Si
+// no hay datos o falla, cae con elegancia a "common.feed" simulado.
 // Adaptativo + theme-aware.
 // ════════════════════════════════════════════════════════════════
 const KIND_COLOR: Record<string, string> = {
@@ -52,45 +53,65 @@ function mapCafeFeed(rows: CafePostRow[]): FeedItem[] {
     }));
 }
 
+const INT_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
+
 export function CulturalFeedWidget() {
     const { data: mockData, loading } = useWidgetData("common.feed", { refreshMs: 7000 });
     const supabase = useMemo(() => createClient(), []);
     const [realData, setRealData] = useState<FeedItem[] | null>(null);
+    const [total, setTotal] = useState<number | null>(null);
+
+    const reload = useCallback(async () => {
+        try {
+            const [rowsRes, countRes] = await Promise.all([
+                supabase.from("cafe_posts")
+                    .select("id, kind, branch, title, body, author_name, created_at")
+                    .order("created_at", { ascending: false }).limit(12),
+                supabase.from("cafe_posts").select("id", { count: "exact", head: true }),
+            ]);
+            if (rowsRes.error) throw rowsRes.error;
+            const mapped = mapCafeFeed((rowsRes.data ?? []) as CafePostRow[]);
+            setRealData(mapped.length ? mapped : null);
+            if (!countRes.error && typeof countRes.count === "number") setTotal(countRes.count);
+        } catch {
+            setRealData(null); // fallback elegante a simulado
+        }
+    }, [supabase]);
 
     useEffect(() => {
         let active = true;
-        (async () => {
-            try {
-                const { data: rows, error } = await supabase
-                    .from("cafe_posts")
-                    .select("id, kind, branch, title, body, author_name, created_at")
-                    .order("created_at", { ascending: false })
-                    .limit(12);
-                if (error) throw error;
-                if (!active) return;
-                const mapped = mapCafeFeed((rows ?? []) as CafePostRow[]);
-                setRealData(mapped.length ? mapped : null);
-            } catch {
-                if (active) setRealData(null); // fallback elegante a simulado
-            }
-        })();
-        return () => { active = false; };
-    }, [supabase]);
+        void (async () => { if (active) await reload(); })();
+        // Realtime: nuevas obras / creaciones refrescan la corriente.
+        const ch = supabase
+            .channel("w-cultural-feed")
+            .on("postgres_changes", { event: "*", schema: "public", table: "cafe_posts" }, () => { void reload(); })
+            .subscribe();
+        return () => { active = false; supabase.removeChannel(ch); };
+    }, [supabase, reload]);
 
+    const hasReal = realData !== null;
     const data = realData ?? mockData;
 
     return (
         <WidgetShell
             title="Corriente Cultural"
-            subtitle="Obras · eventos · manifiestos"
+            subtitle={hasReal
+                ? (total !== null ? `${INT_ES.format(total)} obras · en vivo` : "Creaciones · en vivo")
+                : "Obras · eventos · manifiestos"}
             icon={Palette}
             accent="#ec4899"
+            expandHref="/network/culture"
             connections={[{ label: "Cultura", href: "/network/culture", color: "#C9A8FF" }, { label: "Publicar", href: "/publish", color: "#FFBF00" }, { label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" }]}
             live
             actions={
                 <Link href="/network/culture" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
                     Ver <ChevronRight className="size-3" />
                 </Link>
+            }
+            footer={
+                <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-muted-foreground/50 text-center">
+                    {hasReal ? "Corriente del Café · datos en vivo" : "Corriente cultural · modo simulado"}
+                </p>
             }
         >
             {(size) => {

@@ -60,7 +60,7 @@ export interface AppearanceConfig {
         crystalPreset?: "none" | "clear" | "frosted" | "holographic" | "obsidian" | "quantic" | "organic-frosted";
     };
     background: {
-        type: "solid" | "gradient" | "image" | "video" | "webgl"
+        type: "solid" | "gradient" | "image" | "video" | "webgl" | "spline"
             | "liquid-aurora" | "liquid-plasma" | "liquid-lava" | "liquid-oceanic" | "liquid-iris"
             | "materia-oro-vivo" | "materia-cristal-liquido" | "materia-bosque-dorado"
             | "living"; // fondo animado vivo (canvas, variantes creativas, siempre activo)
@@ -368,12 +368,11 @@ const defaultConfig: AppearanceConfig = {
         crystalPreset: "none",
     },
     background: {
-        // Fondo predeterminado: colores fluidos líquidos (LiquidPsychedelic) para
-        // TODAS las áreas y tamaños de dispositivo. Cada usuario lo personaliza luego
-        // en su cuenta (Ajustes → Apariencia → Fondo). Cambio aditivo: configs
-        // guardadas en localStorage conservan su type; solo usuarios sin config previa
-        // ven este default. SOP: integracion-portal-starseed-os.md.
-        type: "liquid-aurora",
+        // Fondo predeterminado: la escena Spline de colores líquidos/fluidos (la que
+        // gustó), para TODAS las áreas y tamaños. Lento, psicodélico, orgánico.
+        // Cada usuario lo personaliza luego en su cuenta (Ajustes → Apariencia → Fondo).
+        // Cambio aditivo: configs guardadas conservan su type. SOP: integracion-portal.
+        type: "spline",
         value: "",
         blur: 0,
         animation: "none",
@@ -381,12 +380,12 @@ const defaultConfig: AppearanceConfig = {
         overlayColor: "black",
         intensity: 0.7, // Materia Viva: densidad de partículas/alfa por defecto
         webglVariant: "liquid",
-        webglSpeed: 0.5,
+        webglSpeed: 0.22,
         webglZoom: 1.0,
         liquidColors: ["#F15A22", "#0A0E27", "#F15A22", "#0A0E27", "#F15A22", "#0A0E27"],
         living: {
             variant: "aurora",
-            speed: 0.8,
+            speed: 0.4, // lento, fluido, orgánico (psicodélico tranquilo)
             intensity: 0.7,
             colors: [], // vacío → usa los acentos del tema activo
             autoCycleSec: 0,

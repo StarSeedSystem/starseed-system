@@ -9,6 +9,7 @@ import { BackgroundSettings } from "./background-settings";
 import { CuratedThemesGallery } from "./curated-themes-gallery";
 import { GoogleFontsPicker } from "./google-fonts-picker";
 import { AccessibilitySettings } from "./accessibility-settings";
+import { WidgetsDesignSettings } from "./widgets-design-settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Palette, Paintbrush, Monitor, Sparkles, ExternalLink, Type, Accessibility, Check, Undo2, RotateCcw, Eye } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -306,8 +307,11 @@ export function AppearanceEditor() {
                     <LienzoCanvasTab />
                 </TabsContent>
 
-                <TabsContent value="interface" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <TabsContent value="interface" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4">
+                    {/* Disposición general de la interfaz */}
                     <LayoutSettings />
+                    {/* Estilo de los widgets del dashboard (adaptado al tema vs. identidad propia) */}
+                    <WidgetsDesignSettings />
                 </TabsContent>
 
                 <TabsContent value="background" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">

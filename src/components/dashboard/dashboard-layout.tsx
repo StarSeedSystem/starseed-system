@@ -186,7 +186,8 @@ export function DashboardLayout() {
     const [templateSearch, setTemplateSearch] = useState('');
 
     // --- Overhaul and Fullscreen State ---
-    const [isFullscreen, setIsFullscreen] = useState(false);
+    // Auto-pantalla completa al entrar: el OS abre en modo inmersivo desde el inicio.
+    const [isFullscreen, setIsFullscreen] = useState(true);
     const [isTitleVisible, setIsTitleVisible] = useState(true);
 
     // --- Side Toolbar / Panel State ---

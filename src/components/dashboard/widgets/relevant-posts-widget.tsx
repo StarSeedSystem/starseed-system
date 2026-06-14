@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Layers, Heart, MessageSquare, Repeat2, ChevronRight } from "lucide-react";
 import { WidgetShell, MiniList, Chip, timeAgo } from "../kit";
@@ -10,9 +10,10 @@ import { createClient } from "@/utils/supabase/client";
 
 // ════════════════════════════════════════════════════════════════
 // RelevantPostsWidget — publicaciones más resonantes para ti.
-// Intenta leer publicaciones reales de la comunidad (cafe_posts del
-// proyecto Supabase unificado dzkjapinnewkxzjltadv); si no hay datos
-// o falla, cae con elegancia a la corriente simulada "social.posts".
+// Lee publicaciones reales de la comunidad (`cafe_posts` del proyecto
+// Supabase unificado dzkjapinnewkxzjltadv) con conteo total. Realtime:
+// suscripción a `cafe_posts` (postgres_changes). Si no hay datos o
+// falla, cae con elegancia a la corriente simulada "social.posts".
 // Adaptativo + theme-aware.
 // ════════════════════════════════════════════════════════════════
 const SCOPE_COLOR: Record<string, string> = {
@@ -64,37 +65,51 @@ function mapCafePosts(rows: CafePostRow[]): Post[] {
     });
 }
 
+const INT_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
+
 export function RelevantPostsWidget() {
     const { data: mockData, loading } = useWidgetData("social.posts", { refreshMs: 8000 });
     const supabase = useMemo(() => createClient(), []);
     const [realData, setRealData] = useState<Post[] | null>(null);
+    const [total, setTotal] = useState<number | null>(null);
+
+    const reload = useCallback(async () => {
+        try {
+            const [rowsRes, countRes] = await Promise.all([
+                supabase.from("cafe_posts")
+                    .select("id, kind, branch, title, body, author_name, created_at")
+                    .order("created_at", { ascending: false }).limit(12),
+                supabase.from("cafe_posts").select("id", { count: "exact", head: true }),
+            ]);
+            if (rowsRes.error) throw rowsRes.error;
+            const mapped = mapCafePosts((rowsRes.data ?? []) as CafePostRow[]);
+            setRealData(mapped.length ? mapped : null);
+            if (!countRes.error && typeof countRes.count === "number") setTotal(countRes.count);
+        } catch {
+            setRealData(null); // fallback elegante a simulado
+        }
+    }, [supabase]);
 
     useEffect(() => {
         let active = true;
-        (async () => {
-            try {
-                const { data: rows, error } = await supabase
-                    .from("cafe_posts")
-                    .select("id, kind, branch, title, body, author_name, created_at")
-                    .order("created_at", { ascending: false })
-                    .limit(12);
-                if (error) throw error;
-                if (!active) return;
-                const mapped = mapCafePosts((rows ?? []) as CafePostRow[]);
-                setRealData(mapped.length ? mapped : null);
-            } catch {
-                if (active) setRealData(null); // fallback elegante a simulado
-            }
-        })();
-        return () => { active = false; };
-    }, [supabase]);
+        void (async () => { if (active) await reload(); })();
+        // Realtime: nuevas publicaciones refrescan la corriente.
+        const ch = supabase
+            .channel("w-relevant-posts")
+            .on("postgres_changes", { event: "*", schema: "public", table: "cafe_posts" }, () => { void reload(); })
+            .subscribe();
+        return () => { active = false; supabase.removeChannel(ch); };
+    }, [supabase, reload]);
 
+    const hasReal = realData !== null;
     const data = realData ?? mockData;
 
     return (
         <WidgetShell
             title="Publicaciones Relevantes"
-            subtitle="Lo que más resuena contigo"
+            subtitle={hasReal
+                ? (total !== null ? `${INT_ES.format(total)} publicaciones · en vivo` : "Comunidad · en vivo")
+                : "Lo que más resuena contigo"}
             icon={Layers}
             accent="#a855f7"
             live
@@ -104,6 +119,11 @@ export function RelevantPostsWidget() {
                 <Link href="/network" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
                     Red <ChevronRight className="size-3" />
                 </Link>
+            }
+            footer={
+                <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-muted-foreground/50 text-center">
+                    {hasReal ? "Publicaciones del Café · datos en vivo" : "Corriente social · modo simulado"}
+                </p>
             }
         >
             {(size) => {
