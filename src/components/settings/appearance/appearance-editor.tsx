@@ -10,9 +10,115 @@ import { CuratedThemesGallery } from "./curated-themes-gallery";
 import { GoogleFontsPicker } from "./google-fonts-picker";
 import { AccessibilitySettings } from "./accessibility-settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Palette, Paintbrush, Monitor, Sparkles, ExternalLink, Type, Accessibility } from "lucide-react";
+import { Palette, Paintbrush, Monitor, Sparkles, ExternalLink, Type, Accessibility, Check, Undo2, RotateCcw, Eye } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppearance } from "@/context/appearance-context";
+import { SettingExampleModal } from "@/components/settings/setting-example-modal";
+
+/* ─── Vista previa en vivo: componentes que reflejan el config actual ─── */
+function LivePreview() {
+    const { config } = useAppearance();
+    const radius = `${config.styling?.radius ?? 0.5}rem`;
+    const fontScale = config.typography?.scale ?? 1;
+    const fontFamily = config.typography?.fontFamily ?? "Inter";
+
+    return (
+        <div className="space-y-4" style={{ fontSize: `calc(1rem * ${fontScale})` }}>
+            {/* Tipografía */}
+            <div>
+                <p className="font-semibold text-foreground/90" style={{ fontFamily }}>
+                    Título de ejemplo
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed" style={{ fontFamily }}>
+                    Párrafo de muestra con la fuente «{fontFamily}» y tu escala tipográfica actual.
+                </p>
+            </div>
+
+            {/* Tarjeta cristal */}
+            <div
+                className="border border-border/60 bg-card/40 backdrop-blur-md p-3"
+                style={{ borderRadius: radius, backdropFilter: `blur(${config.styling?.glassIntensity ?? 16}px)` }}
+            >
+                <p className="text-xs font-semibold text-foreground/80">Tarjeta de muestra</p>
+                <p className="text-[11px] text-muted-foreground">Refleja radio, cristal y opacidad activos.</p>
+            </div>
+
+            {/* Botones */}
+            <div className="flex flex-wrap gap-2 items-center">
+                <button
+                    type="button"
+                    className="px-3 py-1.5 text-xs font-medium text-white bg-[hsl(var(--primary))] hover:opacity-90 transition-opacity cursor-pointer"
+                    style={{ borderRadius: `${config.buttons?.radius ?? 0.5}rem` }}
+                >
+                    Primario
+                </button>
+                <button
+                    type="button"
+                    className="px-3 py-1.5 text-xs font-medium border border-border/60 bg-card/40 hover:bg-card/70 transition-colors cursor-pointer"
+                    style={{ borderRadius: `${config.buttons?.radius ?? 0.5}rem` }}
+                >
+                    Secundario
+                </button>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20">
+                    Etiqueta
+                </span>
+            </div>
+        </div>
+    );
+}
+
+/* ─── Barra superior: autoguardado, deshacer y restablecer ─── */
+function AppearanceToolbar() {
+    const { undo, canUndo, resetConfig } = useAppearance();
+
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 bg-card/30 backdrop-blur-md px-3 py-2">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-500/90">
+                <Check className="w-3.5 h-3.5" />
+                Guardado automáticamente
+            </span>
+            <div className="flex items-center gap-2">
+                <SettingExampleModal
+                    title="Vista previa global"
+                    description="Así se ven tus elementos clave con la configuración actual. Cualquier cambio se refleja al instante."
+                    points={[
+                        "Tipografía: fuente y escala aplicadas a títulos y textos.",
+                        "Tarjetas: radio, intensidad de cristal y opacidad.",
+                        "Botones y etiquetas: radio y color de acento (primary).",
+                    ]}
+                    trigger={
+                        <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-border/60 bg-card/40 text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer"
+                        >
+                            <Eye className="w-3.5 h-3.5" /> Ver ejemplo
+                        </button>
+                    }
+                >
+                    <LivePreview />
+                </SettingExampleModal>
+                <button
+                    type="button"
+                    onClick={undo}
+                    disabled={!canUndo}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-border/60 bg-card/40 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                    <Undo2 className="w-3.5 h-3.5" /> Deshacer
+                </button>
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (typeof window !== "undefined" && !window.confirm("¿Restablecer toda la apariencia a los valores por defecto?")) return;
+                        resetConfig();
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-destructive/40 bg-destructive/5 text-destructive/90 hover:bg-destructive/10 transition-colors cursor-pointer"
+                >
+                    <RotateCcw className="w-3.5 h-3.5" /> Restablecer
+                </button>
+            </div>
+        </div>
+    );
+}
 
 /* ─── Lienzo de Diseño tab ─── */
 function LienzoCanvasTab() {
@@ -97,6 +203,9 @@ function LienzoCanvasTab() {
 export function AppearanceEditor() {
     return (
         <div className="space-y-6">
+            {/* Barra superior: autoguardado · deshacer · restablecer · ejemplo */}
+            <AppearanceToolbar />
+
             {/* Tabs */}
             <Tabs defaultValue="gallery" className="w-full">
                 <TabsList className="flex flex-wrap w-full sm:w-auto justify-center mx-auto h-auto bg-foreground/[0.03] border border-border/50 rounded-xl p-1 gap-1">
@@ -146,6 +255,17 @@ export function AppearanceEditor() {
                         <div className="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
                             <h3 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-2">
                                 <Sparkles className="w-3.5 h-3.5 text-violet-500" /> Estilos
+                                <SettingExampleModal
+                                    title="Estilos coordinados"
+                                    description="Cada estilo aplica un conjunto coordinado de ajustes (cristal, radios, botones, fondos) para dar un lenguaje visual coherente a todo el sistema."
+                                    points={[
+                                        "Afecta a widgets, perfiles, páginas, mensajes, posts y menús.",
+                                        "Ajusta a la vez botones, tarjetas, fondos y tipografía.",
+                                        "Puedes deshacer el cambio desde la barra superior.",
+                                    ]}
+                                >
+                                    <LivePreview />
+                                </SettingExampleModal>
                             </h3>
                             <p className="text-[11px] text-muted-foreground max-w-md text-right">
                                 Cada estilo adapta widgets, perfiles, páginas, mensajes, posts, menús, botones y fondos al lenguaje coherente que elijas.
@@ -157,7 +277,28 @@ export function AppearanceEditor() {
                     <ThemeGallery />
                 </TabsContent>
 
-                <TabsContent value="typography" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <TabsContent value="typography" className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-3">
+                    <div className="flex items-center justify-end">
+                        <SettingExampleModal
+                            title="Tipografía"
+                            description="Controla la fuente y la escala de tamaño base de todo el sistema operativo social."
+                            points={[
+                                "La fuente se aplica a títulos, párrafos, botones y menús.",
+                                "La escala multiplica el tamaño base de forma proporcional.",
+                                "Los cambios se guardan al instante y son reversibles.",
+                            ]}
+                            trigger={
+                                <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-border/60 bg-card/40 text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer"
+                                >
+                                    <Eye className="w-3.5 h-3.5" /> Ver ejemplo
+                                </button>
+                            }
+                        >
+                            <LivePreview />
+                        </SettingExampleModal>
+                    </div>
                     <GoogleFontsPicker />
                 </TabsContent>
 

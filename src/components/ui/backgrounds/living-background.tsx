@@ -18,9 +18,30 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useAppearance } from "@/context/appearance-context";
 
-type Variant = "aurora" | "nebula" | "starfield" | "mycelium" | "plasma" | "prisma" | "ocean";
+type Variant =
+    | "aurora"
+    | "nebula"
+    | "starfield"
+    | "mycelium"
+    | "plasma"
+    | "prisma"
+    | "ocean"
+    | "ribbons"
+    | "petals"
+    | "grid-pulse";
 
-const VARIANTS: Variant[] = ["aurora", "nebula", "starfield", "mycelium", "plasma", "prisma", "ocean"];
+const VARIANTS: Variant[] = [
+    "aurora",
+    "nebula",
+    "starfield",
+    "mycelium",
+    "plasma",
+    "prisma",
+    "ocean",
+    "ribbons",
+    "petals",
+    "grid-pulse",
+];
 
 function readThemeColors(): string[] {
     if (typeof window === "undefined") return ["#E9C46A", "#9FE870", "#7FB8FF", "#C9A8FF"];
@@ -70,6 +91,7 @@ export function LivingBackground() {
         let w = 0, h = 0, dpr = 1;
         const stars: Array<{ x: number; y: number; z: number; r: number }> = [];
         const nodes: Array<{ x: number; y: number; vx: number; vy: number }> = [];
+        const petals: Array<{ x: number; y: number; vy: number; sway: number; phase: number; size: number; ci: number }> = [];
 
         const resize = () => {
             dpr = Math.min(window.devicePixelRatio || 1, 1.5);
@@ -84,6 +106,9 @@ export function LivingBackground() {
             nodes.length = 0;
             const nc = Math.min(48, Math.floor((w * h) / 26000));
             for (let i = 0; i < nc; i++) nodes.push({ x: Math.random() * w, y: Math.random() * h, vx: (Math.random() - 0.5) * 0.25, vy: (Math.random() - 0.5) * 0.25 });
+            petals.length = 0;
+            const pc = Math.min(60, Math.floor((w * h) / 22000));
+            for (let i = 0; i < pc; i++) petals.push({ x: Math.random() * w, y: Math.random() * h, vy: 0.2 + Math.random() * 0.6, sway: 8 + Math.random() * 22, phase: Math.random() * Math.PI * 2, size: 3 + Math.random() * 5, ci: Math.floor(Math.random() * 6) });
         };
         resize();
         const ro = new ResizeObserver(resize);
@@ -183,6 +208,73 @@ export function LivingBackground() {
                     ctx.globalAlpha = 0.18 * (0.5 + intensity);
                     ctx.beginPath(); ctx.moveTo(cx, cy);
                     ctx.arc(cx, cy, Math.max(w, h), a0, a1); ctx.closePath(); ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+                return;
+            }
+
+            if (variant === "ribbons") {
+                // Cintas sinusoidales horizontales que ondulan y se desplazan.
+                ctx.globalCompositeOperation = "screen";
+                const bands = Math.min(cols.length * 2, 8);
+                for (let b = 0; b < bands; b++) {
+                    const col = cols[b % cols.length];
+                    const yBase = h * ((b + 0.5) / bands);
+                    const amp = (28 + b * 6) * (0.5 + intensity);
+                    const ph = b * 0.9;
+                    ctx.beginPath();
+                    ctx.moveTo(0, yBase);
+                    for (let x = 0; x <= w; x += 10) {
+                        const y = yBase + Math.sin(x * 0.006 + time * (0.8 + b * 0.12) + ph) * amp + Math.sin(x * 0.015 - time * 0.6) * (amp * 0.35);
+                        ctx.lineTo(x, y);
+                    }
+                    ctx.lineWidth = 3 + intensity * 4;
+                    ctx.strokeStyle = col;
+                    ctx.globalAlpha = 0.22 * (0.5 + intensity);
+                    ctx.stroke();
+                }
+                ctx.globalCompositeOperation = "source-over";
+                ctx.globalAlpha = 1;
+                return;
+            }
+
+            if (variant === "petals") {
+                // Pétalos / partículas que caen con vaivén lateral.
+                for (const p of petals) {
+                    p.y += p.vy * speed;
+                    p.phase += 0.02 * speed;
+                    const x = p.x + Math.sin(p.phase) * p.sway;
+                    if (p.y > h + 12) { p.y = -12; p.x = Math.random() * w; }
+                    ctx.save();
+                    ctx.translate(x, p.y);
+                    ctx.rotate(p.phase);
+                    ctx.fillStyle = cols[p.ci % cols.length];
+                    ctx.globalAlpha = (0.35 + p.size / 16) * (0.5 + intensity);
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, p.size, p.size * 0.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+                ctx.globalAlpha = 1;
+                return;
+            }
+
+            if (variant === "grid-pulse") {
+                // Rejilla de puntos que late en ondas radiales desde el centro.
+                const cx = w / 2, cy = h / 2;
+                const step = 34;
+                for (let gx = step / 2; gx < w; gx += step) {
+                    for (let gy = step / 2; gy < h; gy += step) {
+                        const d = Math.hypot(gx - cx, gy - cy);
+                        const pulse = 0.5 + 0.5 * Math.sin(time * 2 - d * 0.02);
+                        const r = (1 + pulse * 3) * (0.5 + intensity);
+                        const ci = Math.floor(d / step) % cols.length;
+                        ctx.fillStyle = cols[ci];
+                        ctx.globalAlpha = (0.15 + pulse * 0.5) * (0.5 + intensity);
+                        ctx.beginPath();
+                        ctx.arc(gx, gy, r, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
                 }
                 ctx.globalAlpha = 1;
                 return;

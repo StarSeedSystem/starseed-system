@@ -2704,14 +2704,23 @@ html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb:hover {
    ═══════════════════════════════════════════════════════════ */
 
 /* .glass-depth — capas de sombra interna + externa para dar grosor
-   óptico al cristal (como vidrio real con espesor y luz cenital). */
+   óptico al cristal (como vidrio real con espesor y luz cenital).
+   Doble capa de canto: highlight superior claro (luz cenital) + sombra
+   interna inferior (peso del vidrio), más una sombra externa difusa en
+   dos planos para separar la superficie del fondo animado. */
 .glass-depth {
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
-    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.18),
-    inset 0 0 24px -12px hsl(var(--primary-hsl) / 0.16),
-    var(--glass-shadow-layer-2, 0 12px 20px -4px rgba(0, 0, 0, 0.08)),
-    var(--glass-shadow-layer-3, 0 24px 40px -8px rgba(0, 0, 0, 0.05));
+    /* highlight superior — borde iluminado por luz cenital */
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.20),
+    inset 0 2px 3px -2px rgba(255, 255, 255, 0.12),
+    /* sombra interna inferior — grosor / peso del cristal */
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.22),
+    inset 0 -10px 18px -16px rgba(0, 0, 0, 0.28),
+    /* halo interno tintado por el primario del tema */
+    inset 0 0 26px -12px hsl(var(--primary-hsl) / 0.18),
+    /* proyección externa en dos planos para flotar sobre el fondo */
+    var(--glass-shadow-layer-2, 0 12px 22px -6px rgba(0, 0, 0, 0.10)),
+    var(--glass-shadow-layer-3, 0 26px 44px -10px rgba(0, 0, 0, 0.06));
 }
 
 /* .glass-refraction — borde con gradiente cónico tenue (refracción de
@@ -2744,7 +2753,45 @@ html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb:hover {
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
   mask-composite: exclude;
-  opacity: 0.7;
+  opacity: 0.72;
+}
+
+/* .glass-edge — canto iluminado tipo menisco: el borde donde el cristal
+   "se curva" capta luz como un líquido en tensión superficial. Un hairline
+   superior muy claro + un brillo difuso en la mitad superior que cae a
+   transparente. Additivo y barato (solo un ::before con gradientes). */
+.glass-edge {
+  position: relative;
+}
+.glass-edge::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+  /* menisco superior — línea de tensión luminosa */
+  border-top: 1px solid rgba(255, 255, 255, 0.30);
+  /* derrame de luz hacia abajo, como un líquido iluminado por arriba */
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.10) 0%,
+      rgba(255, 255, 255, 0.03) 14%,
+      transparent 42%
+    );
+  /* tenue tinte del tema en el filo lateral izquierdo (refracción) */
+  box-shadow:
+    inset 1px 0 0 -0.5px hsl(var(--primary-hsl) / 0.10),
+    inset -1px 0 0 -0.5px hsl(var(--primary-hsl) / 0.08);
+  opacity: 0.85;
+  transition: opacity 220ms ease;
+}
+.glass-edge:hover::before {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass-edge::before { transition: none; }
 }
 
 /* .glass-sheen-slow — reflejo especular que deriva muy lentamente por
@@ -2764,14 +2811,15 @@ html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb:hover {
   z-index: 1;
   background: linear-gradient(
     100deg,
-    transparent 42%,
-    rgba(255, 255, 255, 0.10) 50%,
-    rgba(255, 255, 255, 0.02) 56%,
-    transparent 66%
+    transparent 40%,
+    rgba(255, 255, 255, 0.04) 47%,
+    rgba(255, 255, 255, 0.13) 50%,
+    rgba(255, 255, 255, 0.04) 53%,
+    transparent 64%
   );
   background-size: 260% 260%;
   mix-blend-mode: screen;
-  opacity: 0.5;
+  opacity: 0.55;
   animation: glassSheenSlow 22s ease-in-out infinite;
 }
 @keyframes glassSheenSlow {

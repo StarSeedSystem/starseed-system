@@ -16,9 +16,9 @@ export function GlassCard({
 }: GlassCardProps) {
 
     const intensityStyles = {
-        low: "bg-background/20 backdrop-blur-sm border-white/5",
-        medium: "bg-background/40 backdrop-blur-md border-white/10",
-        high: "bg-background/60 backdrop-blur-xl border-white/20",
+        low: "bg-background/20 backdrop-blur-md border-white/5",
+        medium: "bg-background/40 backdrop-blur-lg border-white/10",
+        high: "bg-background/60 backdrop-blur-2xl border-white/20",
     };
 
     const variantStyles = {
@@ -31,6 +31,8 @@ export function GlassCard({
         <div
             className={cn(
                 "rounded-xl border shadow-sm relative overflow-hidden group",
+                // Cristal líquido: profundidad óptica + canto iluminado (menisco)
+                "glass-depth glass-edge",
                 intensityStyles[intensity],
                 variantStyles[variant],
                 className

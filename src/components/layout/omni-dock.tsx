@@ -127,8 +127,10 @@ export function OmniDock() {
                         los items van compactos (48px, ≥44px táctil); en ≥lg, diseño original.
                     */}
                     <div className="
+                        omni-dock-pill
+                        glass-depth glass-edge glass-sheen-slow
                         pointer-events-auto
-                        bg-card/40 dark:bg-black/40 backdrop-blur-2xl
+                        bg-card/40 dark:bg-black/40 backdrop-blur-3xl
                         border border-foreground/10
                         rounded-[--radius-full]
                         shadow-[0_10px_40px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)]

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 
 export interface CustomFont {
@@ -606,6 +606,9 @@ interface AppearanceContextType {
     deleteTheme: (id: string) => void;
     exportTheme: () => void;
     importTheme: (file: File) => Promise<void>;
+    // History (editor inteligente): deshacer el último ajuste de apariencia.
+    undo: () => void;
+    canUndo: boolean;
 }
 
 const AppearanceContext = createContext<AppearanceContextType | undefined>(undefined);
@@ -613,6 +616,25 @@ const AppearanceContext = createContext<AppearanceContextType | undefined>(undef
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
     const [config, setConfig] = useState<AppearanceConfig>(defaultConfig);
     const [mounted, setMounted] = useState(false);
+
+    // ── Historial ligero (editor inteligente) ──────────────────────────────
+    // Guardamos un snapshot del config ANTERIOR en cada cambio para poder
+    // deshacer el último ajuste. Limitado a las últimas 20 entradas para no
+    // crecer sin control. No se persiste en localStorage (sesión de edición).
+    const historyRef = useRef<AppearanceConfig[]>([]);
+    const [canUndo, setCanUndo] = useState(false);
+
+    const pushHistory = (snapshot: AppearanceConfig) => {
+        historyRef.current.push(snapshot);
+        if (historyRef.current.length > 20) historyRef.current.shift();
+        setCanUndo(historyRef.current.length > 0);
+    };
+
+    const undo = () => {
+        const prevSnapshot = historyRef.current.pop();
+        setCanUndo(historyRef.current.length > 0);
+        if (prevSnapshot) setConfig(prevSnapshot);
+    };
 
     // Deep merge helper
     const deepMerge = (target: any, source: any) => {
@@ -980,17 +1002,23 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     };
 
     const updateConfig = (updates: DeepPartial<AppearanceConfig>) => {
-        setConfig((prev) => deepMerge(prev, updates));
+        setConfig((prev) => {
+            pushHistory(prev);
+            return deepMerge(prev, updates);
+        });
     };
 
     const updateSection = <K extends keyof AppearanceConfig>(section: K, data: DeepPartial<AppearanceConfig[K]>) => {
-        setConfig(prev => ({
-            ...prev,
-            [section]: {
-                ...prev[section],
-                ...data
-            }
-        }))
+        setConfig(prev => {
+            pushHistory(prev);
+            return {
+                ...prev,
+                [section]: {
+                    ...prev[section],
+                    ...data
+                }
+            };
+        });
     }
 
     const addCustomFont = (font: CustomFont) => {
@@ -1098,7 +1126,9 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             loadTheme,
             deleteTheme,
             exportTheme,
-            importTheme
+            importTheme,
+            undo,
+            canUndo
         }}>
             {children}
         </AppearanceContext.Provider>
