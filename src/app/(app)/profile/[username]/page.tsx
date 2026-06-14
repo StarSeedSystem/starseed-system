@@ -2,7 +2,7 @@
 'use client';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { feedItems, comments as defaultComments } from "@/lib/data";
+import { comments as defaultComments } from "@/lib/data";
 import { CommentSystem } from "@/components/comment-system";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -11,22 +11,12 @@ import { FeaturedBadgesWidget } from "@/components/profile/widgets/featured-badg
 import { RecentPostsWidget } from "@/components/profile/widgets/recent-posts-widget";
 import { ConnectionsWidget } from "@/components/profile/widgets/connections-widget";
 import { ProfileHeader } from "@/components/profile/profile-header";
-import { FeedPostCard } from "@/components/profile/posts/feed-post-card";
 import { CollectionsGrid } from "@/components/profile/collections/collections-grid";
 import { EFGovernanceTabs } from "@/components/profile/governance/ef-governance-tabs";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { StoriesStrip } from "@/components/stories/stories-strip";
+import { PostFeed } from "@/components/social/PostFeed";
 import { useState } from "react";
-
-function PostsFeed() {
-    return (
-        <div className="space-y-6">
-            {feedItems.map(item => (
-                <FeedPostCard key={item.id} item={item} />
-            ))}
-        </div>
-    );
-}
 
 const pageData: { [key: string]: any } = {
     'starseeduser': {
@@ -155,7 +145,11 @@ export default function ProfilePage() {
                         </TabsContent>
 
                         <TabsContent value="posts" className="mt-6">
-                            {pageType === 'ef' ? <EFGovernanceTabs /> : <PostsFeed />}
+                            {pageType === 'ef' ? (
+                                <EFGovernanceTabs />
+                            ) : (
+                                <PostFeed channelKey={`profile-${username}`} />
+                            )}
                         </TabsContent>
                         <TabsContent value="connections" className="mt-6">
                             <ConnectionsWidget pageType={pageType} />
