@@ -15,6 +15,63 @@ import { cn } from "@/lib/utils";
 
 type TabType = 'current' | 'forecast' | 'history';
 
+// ════════════════════════════════════════════════════════════════
+// Motor de escena climática — traduce código WMO + hora real en una
+// paleta y un conjunto de capas atmosféricas (cristal líquido).
+// ════════════════════════════════════════════════════════════════
+type SkyCondition = 'clear' | 'cloudy' | 'rain' | 'storm' | 'snow' | 'fog';
+type DayPhase = 'day' | 'sunset' | 'night';
+
+function conditionFromCode(code: number): SkyCondition {
+    if ([95, 96, 99].includes(code)) return 'storm';
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return 'snow';
+    if ([45, 48].includes(code)) return 'fog';
+    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'rain';
+    if ([1, 2, 3].includes(code)) return 'cloudy';
+    return 'clear';
+}
+
+function phaseFromHour(h: number): DayPhase {
+    if (h >= 6 && h < 18) return 'day';
+    if (h >= 18 && h < 20) return 'sunset';
+    if (h >= 5 && h < 6) return 'sunset';
+    return 'night';
+}
+
+interface SceneSpec {
+    gradient: string;   // tailwind from/via/to
+    accent: string;     // hex acento
+    label: string;
+    tint: string;       // rgba para halos
+}
+
+function buildScene(cond: SkyCondition, phase: DayPhase): SceneSpec {
+    const night = phase === 'night';
+    const sunset = phase === 'sunset';
+    switch (cond) {
+        case 'storm':
+            return { gradient: 'from-[#0b1120] via-[#1e1b4b] to-[#020617]', accent: '#a78bfa', label: 'Tormenta eléctrica', tint: 'rgba(167,139,250,0.18)' };
+        case 'snow':
+            return night
+                ? { gradient: 'from-[#1e293b] via-[#334155] to-[#0f172a]', accent: '#bae6fd', label: 'Nieve nocturna', tint: 'rgba(186,230,253,0.16)' }
+                : { gradient: 'from-[#cbd5e1] via-[#94a3b8] to-[#64748b]', accent: '#e0f2fe', label: 'Nieve', tint: 'rgba(224,242,254,0.22)' };
+        case 'fog':
+            return { gradient: 'from-[#475569] via-[#64748b] to-[#334155]', accent: '#cbd5e1', label: 'Niebla densa', tint: 'rgba(203,213,225,0.20)' };
+        case 'rain':
+            return night
+                ? { gradient: 'from-[#0f172a] via-[#1e293b] to-[#0c1424]', accent: '#38bdf8', label: 'Lluvia nocturna', tint: 'rgba(56,189,248,0.16)' }
+                : { gradient: 'from-[#334155] via-[#1e293b] to-[#0f172a]', accent: '#38bdf8', label: 'Lluvia', tint: 'rgba(56,189,248,0.18)' };
+        case 'cloudy':
+            return night
+                ? { gradient: 'from-[#1e293b] via-[#0f172a] to-[#020617]', accent: '#94a3b8', label: 'Nublado nocturno', tint: 'rgba(148,163,184,0.14)' }
+                : { gradient: 'from-[#64748b] via-[#475569] to-[#334155]', accent: '#cbd5e1', label: 'Nublado', tint: 'rgba(203,213,225,0.16)' };
+        default: // clear
+            if (night) return { gradient: 'from-[#020617] via-[#0f1b3d] to-[#1e1b4b]', accent: '#a5b4fc', label: 'Cielo despejado', tint: 'rgba(165,180,252,0.16)' };
+            if (sunset) return { gradient: 'from-[#f59e0b] via-[#db2777] to-[#581c87]', accent: '#fbbf24', label: 'Atardecer despejado', tint: 'rgba(251,191,36,0.20)' };
+            return { gradient: 'from-[#38bdf8] via-[#3b82f6] to-[#1d4ed8]', accent: '#fde047', label: 'Cielo despejado', tint: 'rgba(253,224,71,0.20)' };
+    }
+}
+
 export function WeatherBasicWidget() {
     const { location } = useWeatherLocation();
 
@@ -23,8 +80,9 @@ export function WeatherBasicWidget() {
     const [activeTab, setActiveTab] = useState<TabType>('current');
     const [currentTime, setCurrentTime] = useState(new Date());
 
-    // State for random elements to avoid hydration mismatch
-    const [rainDrops, setRainDrops] = useState<any[]>([]);
+    // Mounted flag para evitar mismatch de hidratación en capas aleatorias
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); }, []);
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -39,12 +97,6 @@ export function WeatherBasicWidget() {
                 if (mounted) {
                     setData(json.terrestrial);
                     setLoading(false);
-                    // Generate random rain once data is loaded on client
-                    setRainDrops([...Array(30)].map((_, i) => ({
-                        left: `${Math.random() * 100}%`,
-                        duration: 0.5 + Math.random() * 0.3,
-                        delay: Math.random() * 2
-                    })));
                 }
             })
             .catch(err => {
@@ -68,14 +120,15 @@ export function WeatherBasicWidget() {
     const temp = Math.round(cur.temperature_2m || 0);
     const windSpeed = Math.round(cur.wind_speed_10m || 0);
     const humidity = Math.round(cur.relative_humidity_2m || 0);
-    const cloudCover = cur.cloud_cover || 0;
     const weatherCode = cur.weather_code || 0;
+    // Sensación térmica aproximada (wind chill / humedad) para dato útil
+    const feelsLike = Math.round(temp - (windSpeed > 10 ? windSpeed * 0.12 : 0) + (humidity > 70 && temp > 20 ? 2 : 0));
 
-    // Determine realistic weather visual states
-    const isRaining = [51, 53, 55, 61, 63, 65, 80, 81, 82].includes(weatherCode);
-    const isCloudy = cloudCover > 50 || [2, 3].includes(weatherCode);
-    const isHot = temp > 25;
-    const isNight = currentTime.getHours() > 19 || currentTime.getHours() < 6;
+    // Escena dinámica: condición real + fase horaria real
+    const condition = conditionFromCode(weatherCode);
+    const phase = phaseFromHour(currentTime.getHours());
+    const scene = buildScene(condition, phase);
+    const isNight = phase === 'night';
 
     // Daily Forecast Math
     const daily = data.daily || {};
@@ -83,53 +136,20 @@ export function WeatherBasicWidget() {
     const forecastMin = Math.round(daily.temperature_2m_min?.[1] || 0);
     const historyMax = Math.round(daily.temperature_2m_max?.[0] || 0);
 
-    // Enhanced Dynamic Gradient System
-    const bgGradient = isRaining
-        ? 'from-[#1e293b] via-[#0f172a] to-[#1e1b4b]'
-        : isNight
-            ? 'from-[#020617] via-[#1e1b4b] to-[#312e81]'
-            : isCloudy
-                ? 'from-[#475569] via-[#334155] to-[#1e293b]'
-                : isHot
-                    ? 'from-[#f59e0b] via-[#ef4444] to-[#7f1d1d]'
-                    : 'from-[#0ea5e9] via-[#3b82f6] to-[#1e40af]';
+    const bgGradient = scene.gradient;
 
     return (
         <Card className={cn(
             "@container w-full h-full relative overflow-hidden bg-slate-950/60 backdrop-blur-[40px] border border-white/10 flex flex-col group rounded-[2.5rem] shadow-2xl transition-all duration-700 hover:border-[#06f9c8]/30",
             "p-6 @sm:p-8"
         )}>
-            {/* Liquid Crystal FX Layers */}
-            <div className={cn("absolute inset-0 bg-gradient-to-br opacity-40 transition-colors duration-1000", bgGradient)} />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.05),transparent_70%)]" />
-
-            <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-                className="absolute -top-[20%] -right-[20%] w-full h-full bg-[#06f9c8]/5 blur-[120px] rounded-full pointer-events-none"
-            />
-
-            {/* Weather Specific Particle Systems */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden overflow-hidden">
-                {isRaining && (
-                    <div className="absolute inset-0 opacity-40">
-                        {rainDrops.map((drop, i) => (
-                            <motion.div
-                                key={i}
-                                className="absolute w-[1px] h-12 bg-blue-300/40 rounded-full"
-                                style={{ left: drop.left, top: -50 }}
-                                animate={{ y: [0, 800], opacity: [0, 1, 0] }}
-                                transition={{
-                                    duration: drop.duration,
-                                    repeat: Infinity,
-                                    ease: "linear",
-                                    delay: drop.delay
-                                }}
-                            />
-                        ))}
-                    </div>
-                )}
-            </div>
+            {/* Escena climática dinámica (cristal líquido) */}
+            <div className={cn("absolute inset-0 bg-gradient-to-br opacity-60 transition-colors duration-1000", bgGradient)} />
+            {mounted && <WeatherScene condition={condition} phase={phase} accent={scene.accent} tint={scene.tint} />}
+            {/* Reflejo superior de cristal */}
+            <div className="absolute inset-x-0 top-0 h-1/2 bg-[radial-gradient(120%_80%_at_50%_-20%,rgba(255,255,255,0.16),transparent_60%)] pointer-events-none" />
+            {/* Brillo interior inferior */}
+            <div className="absolute inset-x-0 bottom-0 h-px bg-white/10 pointer-events-none" />
 
             {/* Header: Atmospheric Status HUD */}
             <div className="flex justify-between items-start z-10 w-full mb-4 shrink-0">
@@ -185,10 +205,13 @@ export function WeatherBasicWidget() {
                                     <span className="text-[9rem] @sm:text-[12rem] font-black leading-none tracking-tighter text-white drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
                                         {temp}
                                     </span>
-                                    <span className="text-4xl @sm:text-6xl font-black mt-8 text-[#06f9c8] drop-shadow-[0_0_20px_rgba(6,249,200,0.4)] ml-2">°</span>
+                                    <span className="text-4xl @sm:text-6xl font-black mt-8 ml-2 drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]" style={{ color: scene.accent }}>°</span>
                                 </motion.div>
 
-                                <div className="flex items-center gap-4 mt-2 px-6 py-2 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-md">
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] mt-2 mb-1" style={{ color: scene.accent }}>{scene.label}</span>
+                                <span className="text-[9px] font-bold text-white/50 mb-2">Sensación {feelsLike}°C</span>
+
+                                <div className="flex items-center gap-4 mt-1 px-6 py-2 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
                                     <div className="flex items-center gap-1.5">
                                         <ArrowUpRight className="w-3 h-3 text-orange-400" />
                                         <span className="text-[10px] font-black text-white/80 tabular-nums">{forecastMax}°</span>
@@ -203,10 +226,10 @@ export function WeatherBasicWidget() {
 
                             {/* Dense Metric Grid */}
                             <div className="grid grid-cols-2 @[30rem]:grid-cols-4 gap-3 w-full mt-10">
-                                <MiniStat icon={<Wind className="w-3 h-3" />} value={`${windSpeed}k`} label="Wind" color="text-sky-400" />
-                                <MiniStat icon={<Droplets className="w-3 h-3" />} value={`${humidity}%`} label="Humid" color="text-indigo-400" />
-                                <MiniStat icon={<Zap className="w-3 h-3" />} value={`${daily.uv_index_max?.[0] || 0}`} label="UV_I" color="text-yellow-400" />
-                                <MiniStat icon={<Shield className="w-3 h-3" />} value="98%" label="S_Ind" color="text-emerald-400" />
+                                <MiniStat icon={<Wind className="w-3 h-3" />} value={`${windSpeed} km/h`} label="Viento" color="text-sky-400" />
+                                <MiniStat icon={<Droplets className="w-3 h-3" />} value={`${humidity}%`} label="Humedad" color="text-indigo-400" />
+                                <MiniStat icon={<Zap className="w-3 h-3" />} value={`${daily.uv_index_max?.[0] ?? 0}`} label="UV" color="text-yellow-400" />
+                                <MiniStat icon={<ThermometerSun className="w-3 h-3" />} value={`${feelsLike}°C`} label="Sensación" color="text-emerald-400" />
                             </div>
                         </motion.div>
                     ) : activeTab === 'forecast' ? (
@@ -300,6 +323,150 @@ export function WeatherBasicWidget() {
                 className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-[#06f9c8]/20 to-transparent z-50 pointer-events-none"
             />
         </Card>
+    );
+}
+
+// ════════════════════════════════════════════════════════════════
+// WeatherScene — capas atmosféricas CSS/SVG ligeras, sin librerías.
+// Cambia por completo según condición + fase horaria. Respeta
+// prefers-reduced-motion (las animaciones se desactivan vía CSS).
+// ════════════════════════════════════════════════════════════════
+function WeatherScene({ condition, phase, accent, tint }: { condition: SkyCondition; phase: DayPhase; accent: string; tint: string }) {
+    const night = phase === 'night';
+    const sunset = phase === 'sunset';
+
+    return (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden motion-reduce:[&_*]:!animate-none" aria-hidden>
+            {/* Halo atmosférico de fondo (color de escena) */}
+            <motion.div
+                animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.8, 0.5] }}
+                transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+                className="absolute -top-[25%] -right-[15%] w-[80%] h-[80%] rounded-full blur-[100px]"
+                style={{ background: tint }}
+            />
+
+            {/* SOL — despejado de día */}
+            {condition === 'clear' && !night && (
+                <motion.div
+                    animate={{ scale: [1, 1.08, 1], opacity: [0.7, 1, 0.7] }}
+                    transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+                    className="absolute top-6 right-8 w-24 h-24 rounded-full blur-2xl"
+                    style={{ background: `radial-gradient(circle, ${accent}cc, transparent 70%)` }}
+                />
+            )}
+
+            {/* LUNA + ESTRELLAS — noche despejada */}
+            {(night && (condition === 'clear' || condition === 'cloudy')) && (
+                <>
+                    <div className="absolute top-7 right-10 w-16 h-16 rounded-full bg-slate-100/90 shadow-[0_0_40px_rgba(226,232,240,0.5),inset_-8px_-6px_0_rgba(148,163,184,0.35)]" />
+                    {[...Array(condition === 'clear' ? 28 : 12)].map((_, i) => (
+                        <motion.span
+                            key={i}
+                            className="absolute rounded-full bg-white"
+                            style={{
+                                left: `${(i * 53) % 100}%`,
+                                top: `${(i * 31) % 70}%`,
+                                width: 1 + (i % 3),
+                                height: 1 + (i % 3),
+                            }}
+                            animate={{ opacity: [0.15, 0.9, 0.15] }}
+                            transition={{ duration: 2 + (i % 4), repeat: Infinity, delay: (i % 5) * 0.4 }}
+                        />
+                    ))}
+                </>
+            )}
+
+            {/* SOL DE ATARDECER */}
+            {condition === 'clear' && sunset && (
+                <motion.div
+                    animate={{ y: [0, 6, 0], opacity: [0.8, 1, 0.8] }}
+                    transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+                    className="absolute bottom-10 right-12 w-28 h-28 rounded-full blur-xl"
+                    style={{ background: `radial-gradient(circle, ${accent}, #db277788 60%, transparent 75%)` }}
+                />
+            )}
+
+            {/* NUBES — nublado / lluvia / tormenta / nieve */}
+            {['cloudy', 'rain', 'storm', 'snow'].includes(condition) && (
+                <>
+                    {[0, 1, 2].map((i) => (
+                        <motion.div
+                            key={i}
+                            className="absolute rounded-full bg-white/15 blur-2xl"
+                            style={{ top: `${8 + i * 14}%`, width: `${50 + i * 12}%`, height: 60 + i * 16, left: '-20%' }}
+                            animate={{ x: ['0%', '140%'] }}
+                            transition={{ duration: 40 + i * 14, repeat: Infinity, ease: 'linear', delay: i * 6 }}
+                        />
+                    ))}
+                </>
+            )}
+
+            {/* LLUVIA */}
+            {(condition === 'rain' || condition === 'storm') && (
+                <div className="absolute inset-0 opacity-60">
+                    {[...Array(condition === 'storm' ? 50 : 36)].map((_, i) => (
+                        <motion.div
+                            key={i}
+                            className="absolute w-px rounded-full"
+                            style={{
+                                left: `${(i * 37) % 100}%`,
+                                height: 22 + (i % 5) * 6,
+                                background: `linear-gradient(to bottom, transparent, ${accent}99)`,
+                                top: -40,
+                            }}
+                            animate={{ y: ['0%', '780%'], opacity: [0, 1, 0] }}
+                            transition={{ duration: 0.55 + (i % 4) * 0.12, repeat: Infinity, ease: 'linear', delay: (i % 8) * 0.18 }}
+                        />
+                    ))}
+                </div>
+            )}
+
+            {/* DESTELLOS DE TORMENTA */}
+            {condition === 'storm' && (
+                <motion.div
+                    className="absolute inset-0 bg-white/30"
+                    animate={{ opacity: [0, 0, 0.5, 0, 0.25, 0] }}
+                    transition={{ duration: 6, repeat: Infinity, times: [0, 0.6, 0.63, 0.68, 0.72, 0.8], ease: 'easeOut' }}
+                />
+            )}
+
+            {/* NIEVE */}
+            {condition === 'snow' && (
+                <div className="absolute inset-0">
+                    {[...Array(34)].map((_, i) => (
+                        <motion.div
+                            key={i}
+                            className="absolute rounded-full bg-white/80"
+                            style={{ left: `${(i * 29) % 100}%`, width: 3 + (i % 3), height: 3 + (i % 3), top: -10 }}
+                            animate={{ y: ['0%', '760%'], x: [0, (i % 2 ? 16 : -16), 0], opacity: [0, 1, 0.4] }}
+                            transition={{ duration: 5 + (i % 4), repeat: Infinity, ease: 'linear', delay: (i % 7) * 0.5 }}
+                        />
+                    ))}
+                </div>
+            )}
+
+            {/* NIEBLA */}
+            {condition === 'fog' && (
+                <>
+                    {[0, 1, 2].map((i) => (
+                        <motion.div
+                            key={i}
+                            className="absolute left-0 w-[160%] h-20 bg-white/20 blur-2xl"
+                            style={{ top: `${20 + i * 22}%` }}
+                            animate={{ x: ['-30%', '10%', '-30%'] }}
+                            transition={{ duration: 18 + i * 6, repeat: Infinity, ease: 'easeInOut', delay: i * 3 }}
+                        />
+                    ))}
+                </>
+            )}
+
+            {/* Reflejo de cristal líquido recorriendo la superficie */}
+            <motion.div
+                animate={{ x: ['-120%', '220%'] }}
+                transition={{ duration: 7, repeat: Infinity, ease: 'linear', repeatDelay: 4 }}
+                className="absolute top-0 bottom-0 w-24 bg-gradient-to-r from-transparent via-white/8 to-transparent skew-x-12"
+            />
+        </div>
     );
 }
 

@@ -1,21 +1,83 @@
 'use client';
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Palette, ChevronRight, Sparkles } from "lucide-react";
 import { WidgetShell, MiniList, Chip, ProgressBar, timeAgo } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
+import type { FeedItem } from "@/lib/widget-data";
+import { createClient } from "@/utils/supabase/client";
 
 // ════════════════════════════════════════════════════════════════
 // CulturalFeedWidget — corriente cultural de la red (obras, eventos,
-// manifiestos). Datos en vivo "common.feed". Adaptativo + theme-aware.
+// manifiestos). Intenta leer creaciones reales de la comunidad
+// (cafe_posts del proyecto unificado) como corriente cultural viva;
+// si no hay datos o falla, cae con elegancia a "common.feed" simulado.
+// Adaptativo + theme-aware.
 // ════════════════════════════════════════════════════════════════
 const KIND_COLOR: Record<string, string> = {
     obra: "#ec4899", propuesta: "#f59e0b", debate: "#a855f7",
     misión: "#10b981", evento: "#38bdf8",
+    elixir: "#10b981", receta: "#f59e0b", // tipos reales del Café
 };
 
+interface CafePostRow {
+    id: string;
+    kind: string | null;
+    branch: string | null;
+    title: string | null;
+    body: string | null;
+    author_name: string | null;
+    created_at: string | null;
+}
+
+// Resonancia determinista derivada de id + recencia (0.50..0.97).
+function derivedResonance(id: string, createdAt: string | null): number {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    const base = 0.55 + (h % 1000) / 1000 * 0.4;
+    const ageDays = createdAt ? (Date.now() - new Date(createdAt).getTime()) / 86_400_000 : 30;
+    const recency = Math.max(0, 1 - ageDays / 45) * 0.1;
+    return Math.min(0.97, base + recency);
+}
+
+function mapCafeFeed(rows: CafePostRow[]): FeedItem[] {
+    return rows.map((r, i) => ({
+        id: r.id ?? `cafe-feed-${i}`,
+        title: r.title ?? "Nueva creación del Café",
+        author: [r.author_name, r.branch].filter(Boolean).join(" · ") || "Comunidad StarSeed",
+        kind: r.kind ?? "obra",
+        ts: r.created_at ? new Date(r.created_at).getTime() : Date.now() - i * 3_600_000,
+        resonance: derivedResonance(r.id ?? String(i), r.created_at),
+    }));
+}
+
 export function CulturalFeedWidget() {
-    const { data, loading } = useWidgetData("common.feed", { refreshMs: 7000 });
+    const { data: mockData, loading } = useWidgetData("common.feed", { refreshMs: 7000 });
+    const supabase = useMemo(() => createClient(), []);
+    const [realData, setRealData] = useState<FeedItem[] | null>(null);
+
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                const { data: rows, error } = await supabase
+                    .from("cafe_posts")
+                    .select("id, kind, branch, title, body, author_name, created_at")
+                    .order("created_at", { ascending: false })
+                    .limit(12);
+                if (error) throw error;
+                if (!active) return;
+                const mapped = mapCafeFeed((rows ?? []) as CafePostRow[]);
+                setRealData(mapped.length ? mapped : null);
+            } catch {
+                if (active) setRealData(null); // fallback elegante a simulado
+            }
+        })();
+        return () => { active = false; };
+    }, [supabase]);
+
+    const data = realData ?? mockData;
 
     return (
         <WidgetShell

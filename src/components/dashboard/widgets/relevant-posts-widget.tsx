@@ -1,20 +1,95 @@
 'use client';
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Layers, Heart, MessageSquare, Repeat2, ChevronRight } from "lucide-react";
 import { WidgetShell, MiniList, Chip, timeAgo } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
+import type { Post } from "@/lib/widget-data";
+import { createClient } from "@/utils/supabase/client";
 
 // ════════════════════════════════════════════════════════════════
 // RelevantPostsWidget — publicaciones más resonantes para ti.
-// Datos en vivo "social.posts". Adaptativo + theme-aware.
+// Intenta leer publicaciones reales de la comunidad (cafe_posts del
+// proyecto Supabase unificado dzkjapinnewkxzjltadv); si no hay datos
+// o falla, cae con elegancia a la corriente simulada "social.posts".
+// Adaptativo + theme-aware.
 // ════════════════════════════════════════════════════════════════
 const SCOPE_COLOR: Record<string, string> = {
     vecinal: "#10b981", biorregional: "#38bdf8", global: "#a855f7",
 };
 
+// Fila pública real de cafe_posts (creaciones/elixires de la comunidad).
+interface CafePostRow {
+    id: string;
+    kind: string | null;
+    branch: string | null;
+    title: string | null;
+    body: string | null;
+    author_name: string | null;
+    created_at: string | null;
+}
+
+// Resonancia derivada determinista (sin datos sociales reales aún):
+// recencia + variación estable por id → 0.45..0.97.
+function derivedResonance(id: string, createdAt: string | null): number {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    const base = 0.55 + (h % 1000) / 1000 * 0.4; // 0.55..0.95
+    const ageDays = createdAt ? (Date.now() - new Date(createdAt).getTime()) / 86_400_000 : 30;
+    const recency = Math.max(0, 1 - ageDays / 45) * 0.1; // hasta +0.1 para lo reciente
+    return Math.min(0.97, base + recency);
+}
+
+// Mapea filas reales a la forma Post que ya consume la UI.
+function mapCafePosts(rows: CafePostRow[]): Post[] {
+    return rows.map((r, i) => {
+        const handle = (r.author_name ?? "comunidad")
+            .toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+            .replace(/[^a-z0-9]+/g, "").slice(0, 18) || "comunidad";
+        const content = [r.title, r.body].filter(Boolean).join(" — ")
+            || r.title || "Nueva creación en el Café StarSeed.";
+        return {
+            id: r.id ?? `cafe-${i}`,
+            author: r.author_name ?? "Comunidad StarSeed",
+            handle,
+            content,
+            ts: r.created_at ? new Date(r.created_at).getTime() : Date.now() - i * 3_600_000,
+            resonance: derivedResonance(r.id ?? String(i), r.created_at),
+            comments: 0,
+            boosts: 0,
+            tags: [r.kind, r.branch].filter((t): t is string => !!t),
+            scope: "vecinal",
+        };
+    });
+}
+
 export function RelevantPostsWidget() {
-    const { data, loading } = useWidgetData("social.posts", { refreshMs: 8000 });
+    const { data: mockData, loading } = useWidgetData("social.posts", { refreshMs: 8000 });
+    const supabase = useMemo(() => createClient(), []);
+    const [realData, setRealData] = useState<Post[] | null>(null);
+
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                const { data: rows, error } = await supabase
+                    .from("cafe_posts")
+                    .select("id, kind, branch, title, body, author_name, created_at")
+                    .order("created_at", { ascending: false })
+                    .limit(12);
+                if (error) throw error;
+                if (!active) return;
+                const mapped = mapCafePosts((rows ?? []) as CafePostRow[]);
+                setRealData(mapped.length ? mapped : null);
+            } catch {
+                if (active) setRealData(null); // fallback elegante a simulado
+            }
+        })();
+        return () => { active = false; };
+    }, [supabase]);
+
+    const data = realData ?? mockData;
 
     return (
         <WidgetShell

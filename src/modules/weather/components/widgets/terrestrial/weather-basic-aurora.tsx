@@ -12,10 +12,44 @@ import {
 import Link from 'next/link';
 import { cn } from "@/lib/utils";
 
+// Motor de escena climática (condición WMO + fase horaria)
+type SkyCondition = 'clear' | 'cloudy' | 'rain' | 'storm' | 'snow' | 'fog';
+type DayPhase = 'day' | 'sunset' | 'night';
+function conditionFromCode(code: number): SkyCondition {
+    if ([95, 96, 99].includes(code)) return 'storm';
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return 'snow';
+    if ([45, 48].includes(code)) return 'fog';
+    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'rain';
+    if ([1, 2, 3].includes(code)) return 'cloudy';
+    return 'clear';
+}
+function phaseFromHour(h: number): DayPhase {
+    if (h >= 6 && h < 18) return 'day';
+    if ((h >= 18 && h < 20) || (h >= 5 && h < 6)) return 'sunset';
+    return 'night';
+}
+function auroraScene(cond: SkyCondition, phase: DayPhase) {
+    const night = phase === 'night', sunset = phase === 'sunset';
+    switch (cond) {
+        case 'storm': return { accent: '#a78bfa', label: 'Tormenta magnética', bg: 'bg-[#0a0a1a]/85', aurora: 'from-violet-700/40 via-transparent to-indigo-500/30' };
+        case 'snow': return { accent: '#bae6fd', label: 'Nieve estelar', bg: night ? 'bg-[#0a0f1e]/85' : 'bg-[#1b2536]/80', aurora: 'from-sky-300/25 via-transparent to-slate-200/20' };
+        case 'fog': return { accent: '#cbd5e1', label: 'Niebla difusa', bg: 'bg-[#1a1f2b]/85', aurora: 'from-slate-300/25 via-transparent to-slate-400/15' };
+        case 'rain': return { accent: '#38bdf8', label: 'Lluvia estelar', bg: 'bg-[#0a0f1e]/85', aurora: 'from-sky-600/30 via-transparent to-blue-500/20' };
+        case 'cloudy': return { accent: '#c4b5fd', label: 'Nubes nebulares', bg: 'bg-[#0a0a1a]/85', aurora: 'from-slate-500/25 via-transparent to-violet-500/15' };
+        default:
+            if (night) return { accent: '#a5b4fc', label: 'Cielo cósmico', bg: 'bg-[#070617]/90', aurora: 'from-violet-600/30 via-transparent to-cyan-500/20' };
+            if (sunset) return { accent: '#fbbf24', label: 'Atardecer cósmico', bg: 'bg-[#1a0f2e]/85', aurora: 'from-amber-500/30 via-pink-600/20 to-violet-700/25' };
+            return { accent: '#fde047', label: 'Cielo despejado', bg: 'bg-[#0c1530]/85', aurora: 'from-sky-400/30 via-transparent to-violet-500/20' };
+    }
+}
+
 export function WeatherBasicAuroraWidget() {
     const { location } = useWeatherLocation();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [mounted, setMounted] = useState(false);
+    const [now, setNow] = useState(new Date());
+    useEffect(() => { setMounted(true); const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t); }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -39,9 +73,11 @@ export function WeatherBasicAuroraWidget() {
     const windSpeed = cur.wind_speed_10m !== undefined ? Math.round(cur.wind_speed_10m) : '--';
     const humidity = cur.relative_humidity_2m !== undefined ? Math.round(cur.relative_humidity_2m) : '--';
     const wmo = cur.weather_code || 0;
-
-    const conditionStr = wmo === 0 ? "Clear Cosmic Skies" : wmo < 40 ? "Nebular Clouds" : wmo < 70 ? "Stellar Rain" : "Magnetic Storm";
-    const statusLabel = wmo < 40 ? "Stable" : "Active";
+    const condition = conditionFromCode(wmo);
+    const phase = phaseFromHour(now.getHours());
+    const scene = auroraScene(condition, phase);
+    const conditionStr = scene.label;
+    const statusLabel = (condition === 'storm' || condition === 'rain') ? "Active" : "Stable";
 
     // Parse next few hours for cycle
     const nextHours = [];
@@ -62,30 +98,24 @@ export function WeatherBasicAuroraWidget() {
     }
 
     return (
-        <Card className="@container w-full h-full relative overflow-hidden bg-[#0a0a1a]/80 backdrop-blur-3xl border-violet-500/20 group rounded-[2.5rem] transition-all duration-700 hover:border-violet-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+        <Card className={cn("@container w-full h-full relative overflow-hidden backdrop-blur-3xl border-violet-500/20 group rounded-[2.5rem] transition-all duration-700 hover:border-violet-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.5)]", scene.bg)}>
 
-            {/* Animated Aurora Background */}
+            {/* Aurora dinámica según escena */}
             <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
                 <motion.div
-                    animate={{
-                        opacity: [0.1, 0.3, 0.1],
-                        scale: [1, 1.2, 1],
-                        rotate: [0, 5, 0]
-                    }}
+                    animate={{ opacity: [0.15, 0.4, 0.15], scale: [1, 1.2, 1], rotate: [0, 5, 0] }}
                     transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] bg-gradient-to-br from-violet-600/30 via-transparent to-cyan-500/20 blur-[100px]"
+                    className={cn("absolute -top-1/4 -left-1/4 w-[150%] h-[150%] bg-gradient-to-br blur-[100px]", scene.aurora)}
                 />
                 <motion.div
-                    animate={{
-                        opacity: [0.1, 0.2, 0.1],
-                        x: [0, 50, 0],
-                        y: [0, -30, 0]
-                    }}
+                    animate={{ opacity: [0.1, 0.2, 0.1], x: [0, 50, 0], y: [0, -30, 0] }}
                     transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                    className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(139,92,246,0.15),transparent_70%)]"
+                    className="absolute inset-0"
+                    style={{ background: `radial-gradient(circle at 50% 0%, ${scene.accent}26, transparent 70%)` }}
                 />
-                {/* Star Field Effect */}
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10 mix-blend-screen" />
+                {mounted && <AuroraScene condition={condition} phase={phase} accent={scene.accent} />}
+                {/* Reflejo de cristal superior */}
+                <div className="absolute inset-x-0 top-0 h-1/2 bg-[radial-gradient(120%_80%_at_50%_-20%,rgba(255,255,255,0.12),transparent_60%)]" />
             </div>
 
             {/* Content Hub */}
@@ -127,11 +157,11 @@ export function WeatherBasicAuroraWidget() {
                                     <span className="text-8xl @md:text-9xl font-black font-display text-white tracking-tighter drop-shadow-[0_0_40px_rgba(139,92,246,0.4)]">
                                         {temp}
                                     </span>
-                                    <span className="text-3xl font-light text-violet-400/50">°</span>
+                                    <span className="text-3xl font-light" style={{ color: scene.accent }}>°</span>
                                 </div>
-                                <div className="flex items-center gap-3 mt-1 px-4 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 backdrop-blur-md">
-                                    <Sparkles className="w-3.5 h-3.5 text-violet-400" />
-                                    <span className="text-[11px] font-black text-violet-300 uppercase tracking-[0.3em]">
+                                <div className="flex items-center gap-3 mt-1 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                                    {phase === 'night' ? <Moon className="w-3.5 h-3.5" style={{ color: scene.accent }} /> : <Sparkles className="w-3.5 h-3.5" style={{ color: scene.accent }} />}
+                                    <span className="text-[11px] font-black uppercase tracking-[0.3em]" style={{ color: scene.accent }}>
                                         {conditionStr}
                                     </span>
                                 </div>
@@ -219,6 +249,65 @@ export function WeatherBasicAuroraWidget() {
                 className="absolute top-0 bottom-0 w-40 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 z-20 pointer-events-none"
             />
         </Card>
+    );
+}
+
+// Capas atmosféricas ligeras (sin librerías, sin texturas externas).
+function AuroraScene({ condition, phase, accent }: { condition: SkyCondition; phase: DayPhase; accent: string }) {
+    const night = phase === 'night';
+    const showStars = night || condition === 'storm';
+    return (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden motion-reduce:[&_*]:!animate-none" aria-hidden>
+            {/* Campo de estrellas generado (reemplaza textura externa) */}
+            {showStars && [...Array(40)].map((_, i) => (
+                <motion.span key={i} className="absolute rounded-full bg-white"
+                    style={{ left: `${(i * 47) % 100}%`, top: `${(i * 29) % 100}%`, width: 1 + (i % 2), height: 1 + (i % 2) }}
+                    animate={{ opacity: [0.1, 0.85, 0.1] }}
+                    transition={{ duration: 2 + (i % 5), repeat: Infinity, delay: (i % 6) * 0.35 }} />
+            ))}
+            {condition === 'clear' && !night && (
+                <motion.div animate={{ scale: [1, 1.1, 1], opacity: [0.6, 1, 0.6] }}
+                    transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+                    className="absolute top-8 right-10 w-28 h-28 rounded-full blur-2xl"
+                    style={{ background: `radial-gradient(circle, ${accent}cc, transparent 70%)` }} />
+            )}
+            {['cloudy', 'rain', 'storm', 'snow', 'fog'].includes(condition) && [0, 1, 2].map((i) => (
+                <motion.div key={i} className="absolute rounded-full bg-white/10 blur-2xl"
+                    style={{ top: `${6 + i * 12}%`, width: `${52 + i * 12}%`, height: 50 + i * 14, left: '-20%' }}
+                    animate={{ x: ['0%', '140%'] }}
+                    transition={{ duration: 44 + i * 14, repeat: Infinity, ease: 'linear', delay: i * 6 }} />
+            ))}
+            {(condition === 'rain' || condition === 'storm') && (
+                <div className="absolute inset-0 opacity-55">
+                    {[...Array(condition === 'storm' ? 40 : 28)].map((_, i) => (
+                        <motion.div key={i} className="absolute w-px rounded-full"
+                            style={{ left: `${(i * 37) % 100}%`, height: 22 + (i % 5) * 6, background: `linear-gradient(to bottom, transparent, ${accent}aa)`, top: -40 }}
+                            animate={{ y: ['0%', '780%'], opacity: [0, 1, 0] }}
+                            transition={{ duration: 0.6 + (i % 4) * 0.12, repeat: Infinity, ease: 'linear', delay: (i % 8) * 0.18 }} />
+                    ))}
+                </div>
+            )}
+            {condition === 'storm' && (
+                <motion.div className="absolute inset-0 bg-white/20"
+                    animate={{ opacity: [0, 0, 0.5, 0, 0.2, 0] }}
+                    transition={{ duration: 6, repeat: Infinity, times: [0, 0.6, 0.63, 0.68, 0.72, 0.8], ease: 'easeOut' }} />
+            )}
+            {condition === 'snow' && (
+                <div className="absolute inset-0">
+                    {[...Array(30)].map((_, i) => (
+                        <motion.div key={i} className="absolute rounded-full bg-white/80"
+                            style={{ left: `${(i * 29) % 100}%`, width: 3 + (i % 3), height: 3 + (i % 3), top: -10 }}
+                            animate={{ y: ['0%', '760%'], x: [0, (i % 2 ? 16 : -16), 0], opacity: [0, 1, 0.4] }}
+                            transition={{ duration: 5 + (i % 4), repeat: Infinity, ease: 'linear', delay: (i % 7) * 0.5 }} />
+                    ))}
+                </div>
+            )}
+            {condition === 'fog' && [0, 1, 2].map((i) => (
+                <motion.div key={i} className="absolute left-0 w-[160%] h-20 bg-white/15 blur-2xl" style={{ top: `${20 + i * 22}%` }}
+                    animate={{ x: ['-30%', '10%', '-30%'] }}
+                    transition={{ duration: 20 + i * 6, repeat: Infinity, ease: 'easeInOut', delay: i * 3 }} />
+            ))}
+        </div>
     );
 }
 

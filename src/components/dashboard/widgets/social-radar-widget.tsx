@@ -1,17 +1,23 @@
 'use client';
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CalendarDays, MapPin, Users, ChevronRight, type LucideIcon, Landmark, Hammer, Sparkles, Palette, Store } from "lucide-react";
 import { WidgetShell, MiniList, Chip, timeUntil } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { SocialEvent } from "@/lib/widget-data";
+import { createClient } from "@/utils/supabase/client";
 
 // Conteos localizados con separador de millares (es-ES).
 const NUM_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
 
 // ════════════════════════════════════════════════════════════════
 // SocialRadarWidget — eventos próximos de la red (asambleas, talleres,
-// rituales, obras, mercados). Datos "social.events". Adaptativo.
+// rituales, obras, mercados). Sobre el andamiaje de "social.events"
+// simulado, intenta anclar los eventos a LUGARES reales (locations /
+// cafe_locals del proyecto unificado) y a la actividad real por sede
+// (conteo de cafe_posts por sucursal). Si no hay datos o falla, se
+// muestran los lugares simulados originales. Adaptativo.
 // ════════════════════════════════════════════════════════════════
 const KIND_META: Record<SocialEvent["kind"], { icon: LucideIcon; color: string; label: string }> = {
     asamblea: { icon: Landmark, color: "#f59e0b", label: "Asamblea" },
@@ -22,8 +28,56 @@ const KIND_META: Record<SocialEvent["kind"], { icon: LucideIcon; color: string; 
 };
 const MONTHS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
 
+interface LocationRow { id: string; name: string | null; city: string | null }
+
 export function SocialRadarWidget() {
-    const { data, loading } = useWidgetData("social.events", { refreshMs: 20000 });
+    const { data: mockData, loading } = useWidgetData("social.events", { refreshMs: 20000 });
+    const supabase = useMemo(() => createClient(), []);
+    // Lugares reales (sedes) + actividad real por sucursal.
+    const [realPlaces, setRealPlaces] = useState<string[] | null>(null);
+    const [branchActivity, setBranchActivity] = useState<Record<string, number> | null>(null);
+
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                const [locRes, postsRes] = await Promise.all([
+                    supabase.from("locations").select("id, name, city"),
+                    supabase.from("cafe_posts").select("branch"),
+                ]);
+                if (locRes.error) throw locRes.error;
+                if (!active) return;
+                const places = ((locRes.data ?? []) as LocationRow[])
+                    .map(l => l.name || l.city)
+                    .filter((p): p is string => !!p);
+                setRealPlaces(places.length ? places : null);
+                if (!postsRes.error && postsRes.data) {
+                    const counts: Record<string, number> = {};
+                    for (const row of postsRes.data as { branch: string | null }[]) {
+                        if (row.branch) counts[row.branch] = (counts[row.branch] ?? 0) + 1;
+                    }
+                    setBranchActivity(Object.keys(counts).length ? counts : null);
+                }
+            } catch {
+                if (active) { setRealPlaces(null); setBranchActivity(null); } // fallback simulado
+            }
+        })();
+        return () => { active = false; };
+    }, [supabase]);
+
+    // Ancla los eventos simulados a lugares reales y, cuando coinciden con
+    // una sucursal real, suma la actividad real (posts) a la asistencia.
+    const data: SocialEvent[] | null = useMemo(() => {
+        if (!mockData) return mockData;
+        if (!realPlaces && !branchActivity) return mockData;
+        return mockData.map((e, i) => {
+            const place = realPlaces && realPlaces.length
+                ? realPlaces[i % realPlaces.length]
+                : e.place;
+            const realPosts = branchActivity?.[place] ?? 0;
+            return { ...e, place, attendees: e.attendees + realPosts * 12 };
+        });
+    }, [mockData, realPlaces, branchActivity]);
 
     return (
         <WidgetShell
