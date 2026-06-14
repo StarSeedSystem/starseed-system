@@ -62,7 +62,8 @@ export interface AppearanceConfig {
     background: {
         type: "solid" | "gradient" | "image" | "video" | "webgl"
             | "liquid-aurora" | "liquid-plasma" | "liquid-lava" | "liquid-oceanic" | "liquid-iris"
-            | "materia-oro-vivo" | "materia-cristal-liquido" | "materia-bosque-dorado";
+            | "materia-oro-vivo" | "materia-cristal-liquido" | "materia-bosque-dorado"
+            | "living"; // fondo animado vivo (canvas, variantes creativas, siempre activo)
         value: string; // url or css value
         blur: number; // background blur
         animation: "none" | "pan" | "zoom" | "pulse" | "scroll";
@@ -70,6 +71,19 @@ export interface AppearanceConfig {
         overlayColor: "black" | "white";
         // Materia Viva (opcional para que configs antiguas sigan siendo válidas)
         intensity?: number; // 0..1 — escala partículas/alpha de los fondos "materia-*"
+        // ── Fondo animado "living" (canvas) — opcional, configs antiguas válidas ──
+        living?: {
+            /** variante visual creativa */
+            variant: "aurora" | "nebula" | "starfield" | "mycelium" | "plasma" | "prisma" | "ocean";
+            /** velocidad 0.2–2 */
+            speed: number;
+            /** intensidad/densidad 0–1 */
+            intensity: number;
+            /** paleta (hex). Si vacío, usa los acentos del tema. */
+            colors: string[];
+            /** rotación automática de variantes cada N segundos (0 = off) */
+            autoCycleSec: number;
+        };
         // WebGL specific
         webglVariant?: "nebula" | "grid" | "waves" | "hex" | "liquid";
         webglZoom?: number;
@@ -369,6 +383,13 @@ const defaultConfig: AppearanceConfig = {
         webglSpeed: 0.5,
         webglZoom: 1.0,
         liquidColors: ["#F15A22", "#0A0E27", "#F15A22", "#0A0E27", "#F15A22", "#0A0E27"],
+        living: {
+            variant: "aurora",
+            speed: 0.8,
+            intensity: 0.7,
+            colors: [], // vacío → usa los acentos del tema activo
+            autoCycleSec: 0,
+        },
         filter: {
             enabled: false,
             type: "none",

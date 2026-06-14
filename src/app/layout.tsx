@@ -11,6 +11,7 @@ import { WebGLBackground } from "@/components/ui/backgrounds/webgl-background";
 import { SplineDefaultBackground } from "@/components/ui/backgrounds/spline-default-background";
 import { LiquidPsychedelicBackground } from "@/components/ui/backgrounds/liquid-psychedelic-background";
 import { MateriaVivaBackgroundHost } from "@/components/backgrounds/materia-viva-background";
+import { LivingBackground } from "@/components/ui/backgrounds/living-background";
 import { CrystalFilters } from "@/components/ui/effects/CrystalFilters";
 import { GlobalEnvironment } from "@/components/ui/global-environment";
 import { PerimeterProvider } from "@/context/perimeter-context";
@@ -102,6 +103,7 @@ export default function RootLayout({
                         <SplineDefaultBackground />
                         <LiquidPsychedelicBackground />
                         <MateriaVivaBackgroundHost />
+                        <LivingBackground />
                         <CrystalFilters />
                         <GlobalEnvironment />
                         {children}

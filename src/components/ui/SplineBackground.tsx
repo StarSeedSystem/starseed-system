@@ -57,6 +57,18 @@ export const SplineBackground = forwardRef<Application | null, SplineBackgroundP
                     style={{ pointerEvents: 'none' }}
                 />
             </Suspense>
+            {/* Máscara que cubre el logotipo "Built with Spline" (esquina inferior
+                derecha) por si el runtime lo reinyecta dentro de su shadow DOM y
+                la limpieza por selector no lo alcanza. Funde con el fondo. */}
+            <div
+                aria-hidden
+                className="absolute bottom-0 right-0 z-[1] pointer-events-none"
+                style={{
+                    width: 170,
+                    height: 44,
+                    background: "radial-gradient(120% 120% at 100% 100%, hsl(var(--background)) 35%, transparent 75%)",
+                }}
+            />
         </div>
     );
 });
