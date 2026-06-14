@@ -223,6 +223,90 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
         );
     }
 
+    // ── TÁCTIL: rejilla de tarjetas NORMAL (sin react-grid-layout) ──────────
+    // En cualquier pantalla táctil NO usamos react-grid-layout: posiciona en
+    // absoluto con transforms y eso rompe el scroll nativo, los taps de botones
+    // y el scroll interno de cada widget. Aquí los widgets son tarjetas en flujo
+    // normal (rejilla responsive) → deslizar = scroll, los botones funcionan, el
+    // scroll interno funciona y NADA se mueve al tocarlo. Reordenar: botones ↑/↓.
+    if (mounted && isCoarse) {
+        const ordered = [...widgets].sort((a, b) =>
+            (a.layout.y - b.layout.y) || (a.layout.x - b.layout.x)
+        );
+        const ROW = 65, GAP = 18;
+        return (
+            <div
+                id={`grid-container-${dashboardId}`}
+                ref={containerRef}
+                className={cn(
+                    "relative min-h-[300px] w-full rounded-[clamp(1rem,2vw,2rem)] p-[clamp(0.5rem,1.5vw,1rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-300",
+                    isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-transparent"
+                )}
+                style={{ touchAction: "pan-y" }}
+            >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ touchAction: "pan-y" }}>
+                    {ordered.map((widget, idx) => {
+                        const h = Math.max(widget.layout.h, 3);
+                        const cardHeight = h * ROW + (h - 1) * GAP;
+                        return (
+                            <div
+                                key={widget.layout.i || widget.id}
+                                data-widget-key={widget.layout.i || widget.id}
+                                className={cn(
+                                    "relative rounded-3xl overflow-hidden bg-transparent transition-all",
+                                    isEditMode && "ring-2 ring-primary/20"
+                                )}
+                                style={{ height: cardHeight, touchAction: "pan-y" }}
+                            >
+                                <div className="h-full w-full overflow-auto" style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" as any }}>
+                                    <WidgetRegistry widget={widget} />
+                                </div>
+
+                                {isEditMode && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "up"); }}
+                                            disabled={idx === 0}
+                                            className="absolute top-2 left-2 bg-background/80 hover:bg-background border rounded p-1 z-50 cursor-pointer transition-colors disabled:opacity-30"
+                                            title="Subir / mover antes"
+                                        >
+                                            <ChevronUp className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "down"); }}
+                                            disabled={idx === ordered.length - 1}
+                                            className="absolute top-2 left-12 bg-background/80 hover:bg-background border rounded p-1 z-50 cursor-pointer transition-colors disabled:opacity-30"
+                                            title="Bajar / mover después"
+                                        >
+                                            <ChevronDown className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handlePinWidget(widget); }}
+                                            className="absolute top-2 right-[5.5rem] bg-indigo-500/60 hover:bg-indigo-500 text-white border border-indigo-400/50 rounded p-1 cursor-pointer z-50 transition-colors"
+                                            title="Fijar en pantalla"
+                                        >📌</button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleShareWidget(widget); }}
+                                            className="absolute top-2 right-12 bg-emerald-500/60 hover:bg-emerald-500 text-white border border-emerald-400/50 rounded p-1 cursor-pointer z-50 transition-colors"
+                                            title="Compartir a la biblioteca"
+                                        >🔗</button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteWidget(widget.id); }}
+                                            className="absolute top-2 right-2 bg-destructive/80 hover:bg-destructive text-white border border-destructive rounded p-1 cursor-pointer z-50 transition-colors"
+                                            title="Eliminar Widget"
+                                        >✕</button>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div
             id={`grid-container-${dashboardId}`}

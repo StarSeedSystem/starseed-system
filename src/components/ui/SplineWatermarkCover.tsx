@@ -84,12 +84,15 @@ export function SplineWatermarkCover() {
     return (
         <div
             aria-hidden
-            className="fixed bottom-0 right-0 z-[100] pointer-events-none select-none"
+            className="fixed bottom-0 right-0 z-[2147483647] pointer-events-none select-none"
             style={{
-                width: 168,
-                height: 46,
+                width: 240,
+                height: 78,
+                // Sólido al 100% en la esquina (donde vive el logo) y degradado solo
+                // en el borde interior para fundir con el fondo. z-index máximo posible
+                // para garantizar que queda por encima de cualquier capa.
                 background:
-                    "radial-gradient(135% 135% at 100% 100%, hsl(var(--background)) 42%, hsl(var(--background)/0.85) 60%, transparent 80%)",
+                    "radial-gradient(150% 150% at 100% 100%, hsl(var(--background)) 0%, hsl(var(--background)) 55%, hsl(var(--background)/0.9) 70%, transparent 88%)",
             }}
         />
     );
