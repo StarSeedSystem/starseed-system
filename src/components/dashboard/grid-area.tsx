@@ -230,9 +230,13 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
             className={cn(
                 // padding fluido (clamp) + holgura inferior para dock/FAB y safe-area:
                 // legible y usable de 320px a ultrawide, en táctil y escritorio.
-                "relative min-h-[500px] flex-1 w-full rounded-[clamp(1rem,2vw,2rem)] overflow-y-auto custom-scrollbar p-[clamp(0.5rem,1.5vw,1rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-500 ease-out backdrop-blur-sm",
+                // overflow-visible: el scroll lo gestiona el contenedor del panel
+                // (un solo scroller → sin doble barra y el auto-hide de la barra
+                // superior funciona con la dirección del scroll real).
+                "relative min-h-[500px] flex-1 w-full rounded-[clamp(1rem,2vw,2rem)] overflow-visible p-[clamp(0.5rem,1.5vw,1rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-500 ease-out backdrop-blur-sm",
                 isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-black/10 border border-white/5"
             )}
+            style={{ touchAction: "pan-y" }}
             {...containerTouchProps}
         >
             {mounted && width > 0 && (
@@ -263,7 +267,15 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                             // HTML5 DnD (transferencia entre paneles) solo con ratón:
                             // en táctil secuestraba el gesto de scroll (drag nativo iOS).
                             draggable={isEditMode && !isCoarsePointer}
-                            style={isEditMode ? { touchAction: "pan-y", WebkitTouchCallout: "none", WebkitUserSelect: "none" } : undefined}
+                            // touch-action: pan-y SIEMPRE → el navegador reserva el
+                            // scroll vertical; el widget solo bloquea el scroll
+                            // ("none") cuando está ARMADO por la pulsación de 3 s.
+                            // Así, en táctil, deslizar para hacer scroll nunca lo arrastra.
+                            style={{
+                                touchAction: armedId === (widget.layout.i || widget.id) ? "none" : "pan-y",
+                                WebkitTouchCallout: "none",
+                                WebkitUserSelect: "none",
+                            }}
                             onDragStart={(e) => {
                                 if (isEditMode) {
                                     e.dataTransfer.setData('text/plain', JSON.stringify({

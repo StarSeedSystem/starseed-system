@@ -26,8 +26,12 @@ const DEFAULT_HOLD_MS = 3000; // pulsación mantenida por defecto (configurable 
 const SLOP_PX = 10;           // movimiento que cancela el armado (gana el scroll)
 const FALLBACK_ARMED_MS = 4000; // gracia si el navegador no soporta new TouchEvent()
 
-/** Selectores que conservan su comportamiento táctil inmediato actual. */
-const PASSTHROUGH_SELECTOR = ".drag-handle, .react-resizable-handle";
+/** Selectores que conservan su comportamiento táctil inmediato.
+ * IMPORTANTE: el `.drag-handle` NO se incluye aquí — en táctil incluso el asa
+ * de arrastre requiere la pulsación mantenida, para que deslizar sobre la
+ * cabecera de un widget haga SCROLL y no lo arrastre. Solo el handle de
+ * redimensionar conserva su gesto inmediato. */
+const PASSTHROUGH_SELECTOR = ".react-resizable-handle";
 /** Controles cuyo tap no debe armar un drag. */
 const INTERACTIVE_SELECTOR =
     'button, a, input, textarea, select, [role="button"], [role="slider"], [contenteditable="true"]';

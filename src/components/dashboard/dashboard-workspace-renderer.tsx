@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useState, useCallback } from "react";
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
 import { useWorkspace } from "./dashboard-workspace-context";
 import { WorkspaceNode, PanelNode } from "./dashboard-workspace-types";
@@ -166,19 +166,54 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
 
     const activeWidgets = widgetsMap[activeDashboard.id] || [];
 
+    // Barra superior (pestañas de ventanas de dashboard) inteligente: se oculta
+    // al hacer scroll hacia abajo y reaparece al subir o al llegar arriba. El
+    // scroll real ocurre en este contenedor interno (no en window).
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const lastYRef = useRef(0);
+    const [headerHidden, setHeaderHidden] = useState(false);
+    const onScroll = useCallback(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const y = el.scrollTop;
+        if (y < 24) setHeaderHidden(false);                       // siempre visible arriba
+        else if (y > lastYRef.current + 8) setHeaderHidden(true); // baja → ocultar
+        else if (y < lastYRef.current - 8) setHeaderHidden(false);// sube → mostrar
+        lastYRef.current = y;
+    }, []);
+
     return (
         <div className="w-full h-full flex flex-col bg-black/40 relative">
-            <DashboardPanelHeader 
-                panelId={node.id} 
-                dashboards={panelDashboards} 
-                activeId={activeDashboardId} 
-                allDashboards={dashboards}
-                isEditMode={isEditMode}
-                onCreateDashboard={onCreateDashboard}
-                onDeleteDashboard={onDeleteDashboard}
-            />
-            
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar relative p-4">
+            <div
+                className={cn(
+                    "shrink-0 overflow-hidden transition-all duration-300 ease-out",
+                    headerHidden ? "max-h-0 opacity-0 -translate-y-2 pointer-events-none" : "max-h-28 opacity-100"
+                )}
+            >
+                <DashboardPanelHeader
+                    panelId={node.id}
+                    dashboards={panelDashboards}
+                    activeId={activeDashboardId}
+                    allDashboards={dashboards}
+                    isEditMode={isEditMode}
+                    onCreateDashboard={onCreateDashboard}
+                    onDeleteDashboard={onDeleteDashboard}
+                />
+            </div>
+            {/* Zona-pista para revelar la barra cuando está oculta (hover/tap arriba) */}
+            {headerHidden && (
+                <button
+                    type="button"
+                    aria-label="Mostrar barra de dashboards"
+                    onMouseEnter={() => setHeaderHidden(false)}
+                    onClick={() => setHeaderHidden(false)}
+                    className="absolute top-0 inset-x-0 z-20 h-3 flex items-center justify-center group"
+                >
+                    <span className="h-1 w-10 rounded-full bg-foreground/20 group-hover:bg-primary/60 transition-colors" />
+                </button>
+            )}
+
+            <div ref={scrollRef} onScroll={onScroll} style={{ touchAction: "pan-y" }} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar relative p-4">
                 <GridArea
                     dashboardId={activeDashboard.id}
                     widgets={activeWidgets}
