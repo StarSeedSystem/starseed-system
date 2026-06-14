@@ -2845,3 +2845,21 @@ html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb:hover {
 .react-grid-item.react-draggable-dragging { touch-action: none !important; }
 /* El handle de redimensionar sí necesita gesto libre inmediato */
 .react-grid-item > .react-resizable-handle { touch-action: none !important; }
+
+/* ═══════════════════════════════════════════════════════════
+   OCULTAR "Built with Spline" — solo el logo/enlace de la esquina.
+   El runtime de Spline inyecta un <a href="...spline.design"> (a veces
+   dentro de un viewer). Lo ocultamos globalmente sin tocar el resto del
+   diseño del fondo. (Además SplineBackground enmascara la esquina.)
+   ═══════════════════════════════════════════════════════════ */
+a[href*="spline.design"],
+a[href*="spline.design"] *,
+[class*="spline-watermark"],
+#spline-watermark {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
