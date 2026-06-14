@@ -63,7 +63,8 @@ export interface AppearanceConfig {
         type: "solid" | "gradient" | "image" | "video" | "webgl" | "spline"
             | "liquid-aurora" | "liquid-plasma" | "liquid-lava" | "liquid-oceanic" | "liquid-iris"
             | "materia-oro-vivo" | "materia-cristal-liquido" | "materia-bosque-dorado"
-            | "living"; // fondo animado vivo (canvas, variantes creativas, siempre activo)
+            | "living" // fondo animado vivo (canvas, variantes creativas, siempre activo)
+            | "audiomorphic"; // visualizador Audiomorphic embebido a pantalla completa (iframe)
         value: string; // url or css value
         blur: number; // background blur
         animation: "none" | "pan" | "zoom" | "pulse" | "scroll";
@@ -89,6 +90,13 @@ export interface AppearanceConfig {
         webglZoom?: number;
         webglSpeed?: number;
         liquidColors?: string[]; // Array of 6 hex colors
+        // ── Fondo "audiomorphic" (visualizador embebido) — opcional, configs antiguas válidas ──
+        audiomorphic?: {
+            /** URL del visualizador Audiomorphic a embeber a pantalla completa. */
+            url: string;
+            /** opacidad del overlay sutil sobre el iframe (0–1). */
+            overlay: number;
+        };
 
         // New Filter System
         filter: {
@@ -383,6 +391,10 @@ const defaultConfig: AppearanceConfig = {
         webglSpeed: 0.22,
         webglZoom: 1.0,
         liquidColors: ["#F15A22", "#0A0E27", "#F15A22", "#0A0E27", "#F15A22", "#0A0E27"],
+        audiomorphic: {
+            url: "https://audiomorphic.vercel.app",
+            overlay: 0.15,
+        },
         living: {
             variant: "aurora",
             speed: 0.4, // lento, fluido, orgánico (psicodélico tranquilo)

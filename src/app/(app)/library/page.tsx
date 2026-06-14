@@ -41,6 +41,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StarSeedKnowledgePanel } from "@/components/library/StarSeedKnowledgePanel";
+import { DesignAssetsPanel } from "@/components/library/DesignAssetsPanel";
 
 // --- Types ---
 
@@ -397,6 +398,15 @@ function LibraryContent() {
       {mode === 'GLOBAL' && currentFolderId === null && !searchQuery && (
         <div className="w-full mt-2">
           <StarSeedKnowledgePanel />
+        </div>
+      )}
+
+      {/* Diseños · Código abierto — temas/tokens/fondos del OS integrables,
+          enlaces a fondos gratuitos y ficha "app-store" por asset.
+          Solo en la Librería Global y en la raíz. */}
+      {mode === 'GLOBAL' && currentFolderId === null && !searchQuery && (
+        <div className="w-full mt-2">
+          <DesignAssetsPanel />
         </div>
       )}
     </div>

@@ -46,6 +46,10 @@ import {
     Droplets,
     Gem,
     Layers,
+    Boxes,
+    Box,
+    AudioLines,
+    Link2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
@@ -130,6 +134,31 @@ const GRADIENT_OPTIONS: GradientOption[] = [
         value: "linear-gradient(135deg, #1a1a2e 0%, #533483 60%, #e9c46a 140%)",
         colors: ["#1a1a2e", "#533483", "#e9c46a"],
     },
+];
+
+// Variantes del fondo WebGL 3D (shader). Coinciden con config.background.webglVariant.
+type WebglVariant = "nebula" | "grid" | "waves" | "hex" | "liquid";
+
+const WEBGL_OPTIONS: Array<{
+    value: WebglVariant;
+    label: string;
+    desc: string;
+    colors: string[];
+    Icon: React.ComponentType<{ className?: string }>;
+}> = [
+    { value: "liquid", label: "Liquido 3D", desc: "Gradiente liquido fluido (Spline-like)", colors: ["#F15A22", "#0A0E27", "#7FB8FF"], Icon: Droplets },
+    { value: "nebula", label: "Nebulosa 3D", desc: "Ruido fractal cosmico animado", colors: ["#302b63", "#a855f7", "#22d3ee"], Icon: Aperture },
+    { value: "grid", label: "Rejilla 3D", desc: "Cuadricula con profundidad y warp", colors: ["#0A0E27", "#06B6D4", "#39FF14"], Icon: Grid3x3 },
+    { value: "waves", label: "Olas 3D", desc: "Superficie ondulante metalica", colors: ["#0ea5e9", "#2563eb", "#14b8a6"], Icon: Waves },
+    { value: "hex", label: "Hexagonos", desc: "Teselado hexagonal psicodelico", colors: ["#FFBF00", "#F15A22", "#DC143C"], Icon: Box },
+];
+
+// Colores solidos basicos.
+const SOLID_OPTIONS: Array<{ label: string; value: string }> = [
+    { label: "Vacio cosmico", value: "#0A0E27" },
+    { label: "Negro profundo", value: "#05060a" },
+    { label: "Carbon", value: "#101216" },
+    { label: "Indigo nocturno", value: "#0f0c29" },
 ];
 
 interface Preset {
@@ -545,6 +574,38 @@ export function BackgroundSettings() {
         updateConfig({ background: { type: "gradient", value } } as any);
     };
 
+    const pickSolid = (value: string) => {
+        updateConfig({ background: { type: "solid", value } } as any);
+    };
+
+    const pickSpline = () => {
+        updateConfig({ background: { type: "spline" } } as any);
+    };
+
+    const pickAudiomorphic = () => {
+        updateConfig({ background: { type: "audiomorphic" } } as any);
+    };
+
+    // ── WebGL 3D ──────────────────────────────────────────────────────────
+    const webglVariant = (config.background.webglVariant ?? "liquid") as WebglVariant;
+    const webglSpeed = config.background.webglSpeed ?? 0.22;
+    const webglZoom = config.background.webglZoom ?? 1.0;
+    const isWebgl = currentType === "webgl";
+
+    const pickWebgl = (variant: WebglVariant) => {
+        updateConfig({ background: { type: "webgl", webglVariant: variant } } as any);
+    };
+    const setWebglSpeed = (v: number) => updateConfig({ background: { webglSpeed: v } } as any);
+    const setWebglZoom = (v: number) => updateConfig({ background: { webglZoom: v } } as any);
+
+    // ── Audiomorphic ──────────────────────────────────────────────────────
+    const audiomorphic = config.background.audiomorphic ?? { url: "https://audiomorphic.vercel.app", overlay: 0.15 };
+    const isAudiomorphic = currentType === "audiomorphic";
+    const setAudioUrl = (url: string) => updateConfig({ background: { audiomorphic: { url } } } as any);
+    const setAudioOverlay = (overlay: number) => updateConfig({ background: { audiomorphic: { overlay } } } as any);
+
+    const isSpline = currentType === "spline";
+
     const useThemeColors = living.colors.length === 0;
 
     // Colores efectivos para el preview de las variantes living.
@@ -709,6 +770,114 @@ export function BackgroundSettings() {
                 </div>
             </div>
 
+            {/* ── Familia: Spline (escena 3D liquida por defecto) ── */}
+            <div>
+                <h4 className="text-xs font-semibold text-muted-foreground/90 mb-2 flex items-center gap-1.5">
+                    <Boxes className="w-3.5 h-3.5" /> Spline 3D (predeterminado)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <button
+                        type="button"
+                        aria-pressed={isSpline}
+                        onClick={pickSpline}
+                        className={cn(
+                            "text-left p-2.5 rounded-xl border transition-all cursor-pointer",
+                            isSpline
+                                ? "border-primary/50 bg-primary/10 ring-1 ring-primary/30"
+                                : "border-border/60 bg-card/40 hover:bg-card/70 hover:border-primary/25"
+                        )}
+                    >
+                        <FluidMiniPreview colors={["#F15A22", "#0A0E27", "#7FB8FF", "#C9A8FF"]} base="#05060a" />
+                        <div className="flex items-center gap-2 mt-2 mb-0.5">
+                            <Boxes className={cn("w-4 h-4 shrink-0", isSpline ? "text-primary" : "text-muted-foreground")} />
+                            <span className="text-sm font-semibold truncate">Liquido Spline</span>
+                            {isSpline && (
+                                <span className="ml-auto w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
+                            )}
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">Escena 3D fluida y organica (la predeterminada).</p>
+                    </button>
+                </div>
+            </div>
+
+            {/* ── Familia: WebGL 3D (shader, con variante / velocidad / zoom) ── */}
+            <div>
+                <h4 className="text-xs font-semibold text-muted-foreground/90 mb-2 flex items-center gap-1.5">
+                    <Box className="w-3.5 h-3.5" /> WebGL 3D
+                    <span className="text-muted-foreground/50 font-normal">({WEBGL_OPTIONS.length} variantes)</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {WEBGL_OPTIONS.map(({ value, label, desc, colors, Icon }) => {
+                        const active = isWebgl && webglVariant === value;
+                        return (
+                            <button
+                                key={value}
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() => pickWebgl(value)}
+                                className={cn(
+                                    "text-left p-2.5 rounded-xl border transition-all cursor-pointer",
+                                    active
+                                        ? "border-primary/50 bg-primary/10 ring-1 ring-primary/30"
+                                        : "border-border/60 bg-card/40 hover:bg-card/70 hover:border-primary/25"
+                                )}
+                            >
+                                <FluidMiniPreview colors={colors} base="#05060a" />
+                                <div className="flex items-center gap-2 mt-2 mb-0.5">
+                                    <Icon className={cn("w-4 h-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+                                    <span className="text-sm font-semibold truncate">{label}</span>
+                                    {active && (
+                                        <span className="ml-auto w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+                            </button>
+                        );
+                    })}
+                </div>
+                {/* Controles especificos WebGL: velocidad + zoom (solo afectan al fondo WebGL). */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+                    <div className="rounded-xl border border-border/60 bg-card/40 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold flex items-center gap-1.5">
+                                <Gauge className="w-3.5 h-3.5 text-primary" /> Velocidad (WebGL)
+                            </span>
+                            <span className="text-xs font-mono text-muted-foreground tabular-nums">
+                                {webglSpeed.toFixed(2)}x
+                            </span>
+                        </div>
+                        <input
+                            type="range"
+                            min={0.05}
+                            max={2}
+                            step={0.01}
+                            value={webglSpeed}
+                            onChange={(e) => setWebglSpeed(parseFloat(e.target.value))}
+                            className="w-full accent-primary cursor-pointer"
+                        />
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-card/40 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold flex items-center gap-1.5">
+                                <Maximize2 className="w-3.5 h-3.5 text-primary" /> Zoom (WebGL)
+                            </span>
+                            <span className="text-xs font-mono text-muted-foreground tabular-nums">
+                                {webglZoom.toFixed(2)}x
+                            </span>
+                        </div>
+                        <input
+                            type="range"
+                            min={0.5}
+                            max={3}
+                            step={0.05}
+                            value={webglZoom}
+                            onChange={(e) => setWebglZoom(parseFloat(e.target.value))}
+                            className="w-full accent-primary cursor-pointer"
+                        />
+                    </div>
+                </div>
+            </div>
+
             {/* ── Familia: Fluidos líquidos ── */}
             <div>
                 <h4 className="text-xs font-semibold text-muted-foreground/90 mb-2 flex items-center gap-1.5">
@@ -815,6 +984,111 @@ export function BackgroundSettings() {
                         );
                     })}
                 </div>
+            </div>
+
+            {/* ── Familia: Colores solidos ── */}
+            <div>
+                <h4 className="text-xs font-semibold text-muted-foreground/90 mb-2 flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5" /> Colores solidos
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {SOLID_OPTIONS.map(({ label, value }) => {
+                        const active = currentType === "solid" && config.background.value === value;
+                        return (
+                            <button
+                                key={value}
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() => pickSolid(value)}
+                                className={cn(
+                                    "text-left p-2.5 rounded-xl border transition-all cursor-pointer",
+                                    active
+                                        ? "border-primary/50 bg-primary/10 ring-1 ring-primary/30"
+                                        : "border-border/60 bg-card/40 hover:bg-card/70 hover:border-primary/25"
+                                )}
+                            >
+                                <div className="relative w-full h-16 rounded-lg overflow-hidden border border-border/30" style={{ background: value }} />
+                                <div className="flex items-center gap-2 mt-2 mb-0.5">
+                                    <Palette className={cn("w-4 h-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+                                    <span className="text-sm font-semibold truncate">{label}</span>
+                                    {active && (
+                                        <span className="ml-auto w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted-foreground leading-relaxed font-mono">{value}</p>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* ── Familia: Audiomorphic (visualizador embebido) ── */}
+            <div>
+                <h4 className="text-xs font-semibold text-muted-foreground/90 mb-2 flex items-center gap-1.5">
+                    <AudioLines className="w-3.5 h-3.5" /> Audiomorphic
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <button
+                        type="button"
+                        aria-pressed={isAudiomorphic}
+                        onClick={pickAudiomorphic}
+                        className={cn(
+                            "text-left p-2.5 rounded-xl border transition-all cursor-pointer",
+                            isAudiomorphic
+                                ? "border-primary/50 bg-primary/10 ring-1 ring-primary/30"
+                                : "border-border/60 bg-card/40 hover:bg-card/70 hover:border-primary/25"
+                        )}
+                    >
+                        <div className="relative w-full h-16 rounded-lg overflow-hidden border border-border/30 flex items-center justify-center" style={{ background: "linear-gradient(135deg, #1a0b2e 0%, #0a0e27 50%, #2e1065 100%)" }}>
+                            <AudioLines className="w-7 h-7 text-primary/80" />
+                        </div>
+                        <div className="flex items-center gap-2 mt-2 mb-0.5">
+                            <AudioLines className={cn("w-4 h-4 shrink-0", isAudiomorphic ? "text-primary" : "text-muted-foreground")} />
+                            <span className="text-sm font-semibold truncate">Audiomorphic</span>
+                            {isAudiomorphic && (
+                                <span className="ml-auto w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
+                            )}
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">Visualizador embebido a pantalla completa.</p>
+                    </button>
+                </div>
+                {/* Controles especificos Audiomorphic: URL + overlay. */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+                    <div className="rounded-xl border border-border/60 bg-card/40 p-3">
+                        <span className="text-xs font-semibold flex items-center gap-1.5 mb-2">
+                            <Link2 className="w-3.5 h-3.5 text-primary" /> URL del visualizador
+                        </span>
+                        <input
+                            type="url"
+                            value={audiomorphic.url}
+                            onChange={(e) => setAudioUrl(e.target.value)}
+                            placeholder="https://audiomorphic.vercel.app"
+                            className="w-full text-xs px-2.5 py-2 rounded-lg border border-border/60 bg-background/60 text-foreground focus:outline-none focus:border-primary/40"
+                        />
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-card/40 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold flex items-center gap-1.5">
+                                <Layers className="w-3.5 h-3.5 text-primary" /> Overlay
+                            </span>
+                            <span className="text-xs font-mono text-muted-foreground tabular-nums">
+                                {Math.round((audiomorphic.overlay ?? 0.15) * 100)}%
+                            </span>
+                        </div>
+                        <input
+                            type="range"
+                            min={0}
+                            max={0.8}
+                            step={0.05}
+                            value={audiomorphic.overlay ?? 0.15}
+                            onChange={(e) => setAudioOverlay(parseFloat(e.target.value))}
+                            className="w-full accent-primary cursor-pointer"
+                        />
+                    </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground/70 mt-2">
+                    Si el sitio bloquea el embebido (X-Frame-Options), el fondo podria no mostrarse; la opcion permanece disponible.
+                </p>
             </div>
 
             {/* ── Ajustes de las variantes vivas ── */}
