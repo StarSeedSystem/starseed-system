@@ -7,6 +7,7 @@ import { Compass, TrendingUp, ChevronRight, Users, Telescope, Globe } from "luci
 import { WidgetShell, MiniList, Chip, ProgressBar, ProgressRing } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { NetworkEntity } from "@/lib/widget-data";
+import { widgetEntityHref } from "@/lib/entity-links";
 
 // ════════════════════════════════════════════════════════════════
 // ExploreNetworkWidget — comunidades y entidades en tendencia.
@@ -62,7 +63,7 @@ export function ExploreNetworkWidget() {
                 if (micro) {
                     if (!top) return <div className="h-full grid place-items-center text-xs text-muted-foreground/50 italic">Sin entidades</div>;
                     return (
-                        <div className="h-full flex items-center gap-3 px-1">
+                        <Link href={widgetEntityHref(top.name, top.kind)} className="h-full flex items-center gap-3 px-1 cursor-pointer">
                             <ProgressRing value={top.momentum} size={52} stroke={5} color={top.accent ?? ACCENT}
                                 label={`${Math.round(top.momentum * 100)}%`} sublabel="mom." />
                             <div className="min-w-0 flex-1">
@@ -72,7 +73,7 @@ export function ExploreNetworkWidget() {
                                     <Users className="size-2.5 inline mr-0.5" />{top.members.toLocaleString()}
                                 </p>
                             </div>
-                        </div>
+                        </Link>
                     );
                 }
 
@@ -110,8 +111,9 @@ export function ExploreNetworkWidget() {
                                     return (
                                         <motion.div
                                             whileHover={{ scale: 1.01 }}
-                                            className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-amber-500/25 transition-colors"
+                                            className="rounded-xl border border-border/40 bg-white/[0.02] hover:border-amber-500/25 transition-colors"
                                         >
+                                          <Link href={widgetEntityHref(e.name, e.kind)} className="block px-2.5 py-2 cursor-pointer">
                                             <div className="flex items-center gap-2">
                                                 {/* Avatar inicial */}
                                                 <div className="shrink-0 grid place-items-center size-7 rounded-lg text-[11px] font-black text-white"
@@ -132,11 +134,17 @@ export function ExploreNetworkWidget() {
                                                         <TrendingUp className="size-2.5" />{Math.round(e.momentum * 100)}
                                                     </span>
                                                     <button
-                                                        onClick={() => setJoined(prev => {
-                                                            const next = new Set(prev);
-                                                            next.has(e.id) ? next.delete(e.id) : next.add(e.id);
-                                                            return next;
-                                                        })}
+                                                        type="button"
+                                                        onClick={(ev) => {
+                                                            ev.preventDefault();
+                                                            ev.stopPropagation();
+                                                            setJoined(prev => {
+                                                                const next = new Set(prev);
+                                                                next.has(e.id) ? next.delete(e.id) : next.add(e.id);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        aria-pressed={isJoined}
                                                         className={`rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-wide transition-colors cursor-pointer ${isJoined ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300" : "border-amber-500/40 text-amber-400 hover:bg-amber-500/10"}`}
                                                     >
                                                         {isJoined ? "Miembro" : "Unirse"}
@@ -150,6 +158,7 @@ export function ExploreNetworkWidget() {
                                                     <Users className="size-2.5" />{e.members.toLocaleString()}
                                                 </span>
                                             </div>
+                                          </Link>
                                         </motion.div>
                                     );
                                 }}

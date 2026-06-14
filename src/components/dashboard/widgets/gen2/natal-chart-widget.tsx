@@ -1,29 +1,37 @@
 'use client';
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, Sun, Moon, Compass, Sprout, Flower2, Leaf, Snowflake } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { WidgetShell, ProgressRing, MiniList, Chip } from "../../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import { useAppearance } from "@/context/appearance-context";
+import { useWeatherLocation } from "@/modules/weather/context/weather-location-context";
 import type { AstroTransit } from "@/lib/widget-data/types";
+import {
+    SYNODIC_MONTH,
+    KNOWN_NEW_MOON_UTC,
+    moonPhase as astroMoonPhase,
+    lunarDay as astroLunarDay,
+    sunSign,
+    planetPositions,
+    type MoonPhaseResult,
+} from "@/lib/astro";
 
 // ════════════════════════════════════════════════════════════════
 // Natal Chart Widget — astrología que se ADAPTA al momento real.
 // El diseño (paleta, glifo, disco lunar, estación) y la información
-// se recalculan a partir de `new Date()`, sin librerías externas.
-//  • Fase lunar aproximada (días desde una luna nueva conocida).
+// se calculan EN VIVO desde `new Date()` y la ubicación del usuario
+// usando la biblioteca pura `@/lib/astro` (aproximación, sin libs ext.).
+//  • Fase lunar real (% de iluminación) + día lunar 1..30.
+//  • Signo solar tropical vigente (longitud eclíptica del Sol).
+//  • Posiciones planetarias geocéntricas aproximadas y su signo.
 //  • Día planetario de la semana (Sol/Luna/Marte/…).
-//  • Signo solar vigente por rango de fechas.
 //  • Estación (hemisferio norte) → acento cromático.
 // ════════════════════════════════════════════════════════════════
 
-// ── Fase lunar ──────────────────────────────────────────────────
-// Luna nueva de referencia: 2000-01-06 18:14 UTC. Ciclo sinódico medio.
-const SYNODIC = 29.53058867;
-const KNOWN_NEW_MOON = Date.UTC(2000, 0, 6, 18, 14, 0);
-
+// Tipo de fase lunar usado por el disco SVG (compatibilidad de campos).
 interface MoonPhase {
     /** 0..1 fracción del ciclo (0 = nueva, 0.5 = llena) */
     cycle: number;
@@ -34,32 +42,23 @@ interface MoonPhase {
     waxing: boolean;
 }
 
-function moonPhase(now: Date): MoonPhase {
-    const days = (now.getTime() - KNOWN_NEW_MOON) / 86400000;
-    let cycle = (days % SYNODIC) / SYNODIC;
-    if (cycle < 0) cycle += 1;
-    // Iluminación: 0 en nueva, 1 en llena (curva cosenoidal).
-    const illum = (1 - Math.cos(cycle * 2 * Math.PI)) / 2;
-    const waxing = cycle < 0.5;
-    let name = "Luna nueva";
-    let glyph = "🌑";
-    if (cycle < 0.03 || cycle > 0.97) { name = "Luna nueva"; glyph = "🌑"; }
-    else if (cycle < 0.22) { name = "Creciente"; glyph = "🌒"; }
-    else if (cycle < 0.28) { name = "Cuarto creciente"; glyph = "🌓"; }
-    else if (cycle < 0.47) { name = "Gibosa creciente"; glyph = "🌔"; }
-    else if (cycle < 0.53) { name = "Luna llena"; glyph = "🌕"; }
-    else if (cycle < 0.72) { name = "Gibosa menguante"; glyph = "🌖"; }
-    else if (cycle < 0.78) { name = "Cuarto menguante"; glyph = "🌗"; }
-    else { name = "Menguante"; glyph = "🌘"; }
-    return { cycle, illum, name, glyph, waxing };
+/** Adapta el resultado de la biblioteca astro al shape local del disco. */
+function toLocalPhase(p: MoonPhaseResult): MoonPhase {
+    return {
+        cycle: p.fraction,
+        illum: p.illumination,
+        name: p.name,
+        glyph: p.emoji,
+        waxing: p.waxing,
+    };
 }
 
 /** Próximo evento (luna nueva o llena) más cercano y su fecha aprox. */
 function nextLunarEvent(now: Date): { label: string; date: Date } {
-    const days = (now.getTime() - KNOWN_NEW_MOON) / 86400000;
-    const pos = ((days % SYNODIC) + SYNODIC) % SYNODIC;
-    const toNew = SYNODIC - pos;                 // días hasta próxima nueva
-    const toFull = (SYNODIC / 2 - pos + SYNODIC) % SYNODIC; // hasta próxima llena
+    const days = (now.getTime() - KNOWN_NEW_MOON_UTC) / 86400000;
+    const pos = ((days % SYNODIC_MONTH) + SYNODIC_MONTH) % SYNODIC_MONTH;
+    const toNew = SYNODIC_MONTH - pos;                 // días hasta próxima nueva
+    const toFull = (SYNODIC_MONTH / 2 - pos + SYNODIC_MONTH) % SYNODIC_MONTH; // hasta próxima llena
     const newDate = new Date(now.getTime() + toNew * 86400000);
     const fullDate = new Date(now.getTime() + toFull * 86400000);
     return toFull < toNew
@@ -85,44 +84,13 @@ const PLANET_DAYS: PlanetDay[] = [
     { name: "Sábado", body: "Saturno", glyph: "♄", color: "#94a3b8", meaning: "Estructura, límite y maestría" },
 ];
 
-// ── Signo solar por rango de fechas ─────────────────────────────
-interface ZodiacSign {
-    name: string;
-    glyph: string;
-    element: string;
-    color: string;
-}
-// [mes(1-12), día] de inicio. Cada signo termina donde empieza el siguiente.
-const ZODIAC: Array<{ start: [number, number]; sign: ZodiacSign }> = [
-    { start: [3, 21], sign: { name: "Aries", glyph: "♈", element: "Fuego", color: "#f87171" } },
-    { start: [4, 20], sign: { name: "Tauro", glyph: "♉", element: "Tierra", color: "#86efac" } },
-    { start: [5, 21], sign: { name: "Géminis", glyph: "♊", element: "Aire", color: "#fcd34d" } },
-    { start: [6, 21], sign: { name: "Cáncer", glyph: "♋", element: "Agua", color: "#93c5fd" } },
-    { start: [7, 23], sign: { name: "Leo", glyph: "♌", element: "Fuego", color: "#fbbf24" } },
-    { start: [8, 23], sign: { name: "Virgo", glyph: "♍", element: "Tierra", color: "#a3e635" } },
-    { start: [9, 23], sign: { name: "Libra", glyph: "♎", element: "Aire", color: "#f9a8d4" } },
-    { start: [10, 23], sign: { name: "Escorpio", glyph: "♏", element: "Agua", color: "#fb7185" } },
-    { start: [11, 22], sign: { name: "Sagitario", glyph: "♐", element: "Fuego", color: "#c084fc" } },
-    { start: [12, 22], sign: { name: "Capricornio", glyph: "♑", element: "Tierra", color: "#94a3b8" } },
-    { start: [1, 20], sign: { name: "Acuario", glyph: "♒", element: "Aire", color: "#67e8f9" } },
-    { start: [2, 19], sign: { name: "Piscis", glyph: "♓", element: "Agua", color: "#a5b4fc" } },
-];
-
-function solarSign(now: Date): ZodiacSign {
-    const m = now.getMonth() + 1;
-    const d = now.getDate();
-    // Recorre rangos: si la fecha ≥ inicio de un signo (mismo orden de año),
-    // ese signo está vigente. Capricornio/Acuario cruzan el año.
-    const ordered = [...ZODIAC].sort((a, b) =>
-        a.start[0] - b.start[0] || a.start[1] - b.start[1]
-    );
-    let current = ordered[ordered.length - 1].sign; // por defecto Capricornio (cierre de año)
-    for (const z of ordered) {
-        const [zm, zd] = z.start;
-        if (m > zm || (m === zm && d >= zd)) current = z.sign;
-    }
-    return current;
-}
+// ── Color por elemento (para teñir el signo solar) ──────────────
+const ELEMENT_COLOR: Record<string, string> = {
+    Fuego: "#f87171",
+    Tierra: "#86efac",
+    Aire: "#fcd34d",
+    Agua: "#93c5fd",
+};
 
 // ── Estación (hemisferio norte) ─────────────────────────────────
 interface Season {
@@ -210,22 +178,53 @@ export function NatalChartWidget() {
     const { data, loading } = useWidgetData("astro.natal", { refreshMs: 12000 });
     const { config } = useAppearance();
     const animate = !!config.animations.enabled;
+    const { location } = useWeatherLocation();
 
-    // Recalculado por minuto: el momento real define todo el diseño.
+    // Reloj vivo: se recalcula cada minuto (limpia el intervalo al desmontar).
+    const [tick, setTick] = useState(() => Date.now());
+    useEffect(() => {
+        const id = setInterval(() => setTick(Date.now()), 60000);
+        return () => clearInterval(id);
+    }, []);
+
+    // Cielo real recalculado por minuto desde la fecha/hora actual.
     const sky = useMemo(() => {
         const now = new Date();
         const planet = PLANET_DAYS[now.getDay()];
-        const phase = moonPhase(now);
-        const sign = solarSign(now);
+        const phaseRaw = astroMoonPhase(now);
+        const phase = toLocalPhase(phaseRaw);
+        const solar = sunSign(now);                 // signo solar tropical real
+        const sign = {
+            name: solar.sign.name,
+            glyph: solar.sign.symbol,
+            element: solar.sign.element,
+            color: ELEMENT_COLOR[solar.sign.element] ?? "#a5b4fc",
+            degree: solar.degreeInSign,
+        };
         const seas = season(now);
         const evt = nextLunarEvent(now);
-        // Acento dominante = mezcla del día planetario (identidad principal).
-        return { now, planet, phase, sign, seas, evt };
+        const lunDay = astroLunarDay(now);          // día lunar 1..30
+        const planets = planetPositions(now);       // posiciones geocéntricas aprox.
+        return { now, planet, phase, sign, seas, evt, lunDay, planets };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [Math.floor(Date.now() / 60000)]);
+    }, [tick]);
 
     const accent = sky.planet.color;
     const eventDays = Math.max(0, Math.round((sky.evt.date.getTime() - sky.now.getTime()) / 86400000));
+
+    // Tránsitos REALES derivados de las posiciones planetarias calculadas
+    // (excluimos el Sol, ya destacado como signo solar). Reemplaza el mock.
+    const liveTransits: AstroTransit[] = sky.planets
+        .filter((p) => p.body !== "Sol")
+        .map((p) => ({
+            body: p.body,
+            sign: p.sign.name,
+            degree: Math.round(p.degreeInSign),
+            intensity: (1 - Math.cos((p.degreeInSign / 30) * 2 * Math.PI)) / 2,
+            note: `${p.sign.element} · ${p.symbol}`,
+        }));
+
+    const calcTime = sky.now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 
     return (
         <WidgetShell
@@ -273,7 +272,7 @@ export function NatalChartWidget() {
                                     <Chip color={sky.sign.color}>{sky.sign.element}</Chip>
                                 </div>
                                 <div className="mt-1 text-[11px] font-bold truncate" style={{ color: sky.seas.color }}>
-                                    {sky.phase.glyph} {sky.phase.name}
+                                    {sky.phase.glyph} {sky.phase.name} · día lunar {sky.lunDay}
                                 </div>
                                 <div className="mt-1 flex items-center gap-1.5">
                                     <div className="flex-1 h-1.5 rounded-full bg-muted/25 overflow-hidden">
@@ -327,8 +326,8 @@ export function NatalChartWidget() {
                                     sublabel="coher."
                                 />
                                 <div className="flex-1 grid grid-cols-3 gap-1.5 text-center min-w-0">
-                                    <Triad icon={Sun} label="Sol" value={data.sun} accent={accent} />
-                                    <Triad icon={Moon} label="Luna" value={data.moon} accent={accent} />
+                                    <Triad icon={Sun} label="Sol" value={sky.sign.name} accent={accent} />
+                                    <Triad icon={Moon} label="Luna" value={sky.planets[1].sign.name} accent={accent} />
                                     <Triad icon={Compass} label="Asc" value={data.ascendant} accent={accent} />
                                 </div>
                             </div>
@@ -345,12 +344,18 @@ export function NatalChartWidget() {
                             </span>
                         </div>
 
-                        {/* Tránsitos (lista de la cuenta) — solo con altura suficiente. */}
+                        {/* Sello de cálculo en vivo: hora local + ubicación del usuario. */}
+                        <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/55 min-w-0">
+                            <span className="inline-block size-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" aria-hidden />
+                            <span className="truncate">calculado en vivo · {calcTime} · {location.name}</span>
+                        </div>
+
+                        {/* Tránsitos REALES (posiciones planetarias calculadas en vivo). */}
                         {!micro && size.vTier === "expanded" && (
                             <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
                                 <MiniList
-                                    items={data.transits}
-                                    max={3}
+                                    items={liveTransits}
+                                    max={6}
                                     render={(t: AstroTransit) => (
                                         <div className="rounded-xl border border-border/40 bg-white/[0.03] p-2 min-w-0">
                                             <div className="flex items-center justify-between gap-2 min-w-0">

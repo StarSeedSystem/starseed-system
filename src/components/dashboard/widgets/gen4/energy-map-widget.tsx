@@ -1,20 +1,66 @@
 'use client';
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Sparkles, ChevronRight, Activity, Brain, HeartPulse } from "lucide-react";
 import { WidgetShell, ProgressRing, ProgressBar, Sparkline } from "../../kit";
 import { useWidgetData } from "@/lib/widget-data";
+import { useWeatherLocation } from "@/modules/weather/context/weather-location-context";
+import { biorhythm, vitalCoherence, planetPositions, moonPhase } from "@/lib/astro";
 
 // ════════════════════════════════════════════════════════════════
 // EnergyMapWidget — Mapa de Energía (Bienestar + Astrología).
 // Coherencia global, centros energéticos, biorritmo (físico/emocional/
-// intelectual) e influencias cósmicas del día. Datos "astro.energy".
-// Adaptativo. Invariante: tecnología para expandir la consciencia.
+// intelectual) e influencias cósmicas del día.
+//  • Coherencia y biorritmos: CALCULADOS EN VIVO y DETERMINISTAS
+//    (ciclos clásicos 23/28/33 d + iluminación lunar), no aleatorios.
+//  • Influencia cósmica: posiciones planetarias reales (signo de cada
+//    cuerpo) desde `@/lib/astro`.
+//  • Centros energéticos e historial: del adaptador "astro.energy".
+// Invariante: tecnología para expandir la consciencia.
 // ════════════════════════════════════════════════════════════════
 function rhythmPct(v: number) { return (v + 1) / 2; }
 
+// Efecto astrológico breve por planeta para la franja de influencia cósmica.
+const PLANET_EFFECT: Record<string, string> = {
+    Luna: "Marea emocional e intuición",
+    Mercurio: "Mente ágil y comunicación",
+    Venus: "Vínculo, belleza y placer",
+    Marte: "Impulso, acción y coraje",
+    Júpiter: "Expansión y sentido",
+    Saturno: "Estructura y maestría",
+};
+
 export function EnergyMapWidget() {
     const { data, loading } = useWidgetData("astro.energy", { refreshMs: 20000 });
+    const { location } = useWeatherLocation();
+
+    // Reloj vivo: recálculo por minuto (se limpia el intervalo al desmontar).
+    const [tick, setTick] = useState(() => Date.now());
+    useEffect(() => {
+        const id = setInterval(() => setTick(Date.now()), 60000);
+        return () => clearInterval(id);
+    }, []);
+
+    // Valores reales calculados desde la fecha/hora actual.
+    const live = useMemo(() => {
+        const now = new Date();
+        const bio = biorhythm(now);                       // -1..1 cada eje
+        const coherence = vitalCoherence(now);            // 0..1 determinista
+        const planets = planetPositions(now);
+        const moon = moonPhase(now);
+        // Influencia cósmica = planetas (sin Sol) con su signo real.
+        const cosmic = planets
+            .filter((p) => p.body !== "Sol")
+            .slice(0, 4)
+            .map((p) => ({
+                body: p.body,
+                effect: `${PLANET_EFFECT[p.body] ?? "Tránsito"} · ${p.sign.name}`,
+                intensity: (1 - Math.cos((p.degreeInSign / 30) * 2 * Math.PI)) / 2,
+            }));
+        const calcTime = now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+        return { bio, coherence, cosmic, moon, calcTime };
+    }, [tick]);
 
     return (
         <WidgetShell
@@ -36,7 +82,7 @@ export function EnergyMapWidget() {
                 if (micro) {
                     return (
                         <div className="h-full grid place-items-center">
-                            <ProgressRing value={d.overallCoherence} size={68} color="#a855f7" sublabel="coherencia" />
+                            <ProgressRing value={live.coherence} size={68} color="#a855f7" sublabel="coherencia" />
                         </div>
                     );
                 }
@@ -44,12 +90,12 @@ export function EnergyMapWidget() {
                 return (
                     <div className="flex flex-col gap-2 pt-1 h-full">
                         <div className="flex items-center gap-3 shrink-0">
-                            <ProgressRing value={d.overallCoherence} size={58} color="#a855f7" sublabel="coherencia" />
+                            <ProgressRing value={live.coherence} size={58} color="#a855f7" sublabel="coherencia" />
                             <div className="flex-1 space-y-1.5">
                                 {[
-                                    { k: "Físico", v: d.biorhythm.physical, icon: Activity, color: "#34d399" },
-                                    { k: "Emocional", v: d.biorhythm.emotional, icon: HeartPulse, color: "#f472b6" },
-                                    { k: "Intelectual", v: d.biorhythm.intellectual, icon: Brain, color: "#38bdf8" },
+                                    { k: "Físico", v: live.bio.physical, icon: Activity, color: "#34d399" },
+                                    { k: "Emocional", v: live.bio.emotional, icon: HeartPulse, color: "#f472b6" },
+                                    { k: "Intelectual", v: live.bio.intellectual, icon: Brain, color: "#38bdf8" },
                                 ].map((b) => {
                                     const BIcon = b.icon;
                                     return (
@@ -76,9 +122,9 @@ export function EnergyMapWidget() {
                             </div>
                         )}
 
-                        {size.vTier === "expanded" && d.cosmicInfluence.length > 0 && (
+                        {size.vTier === "expanded" && live.cosmic.length > 0 && (
                             <div className="shrink-0 space-y-1">
-                                {d.cosmicInfluence.map((c, i) => (
+                                {live.cosmic.map((c, i) => (
                                     <div key={i} className="flex items-center gap-2 text-[10px]">
                                         <span className="font-bold w-16 shrink-0" style={{ color: "#c084fc" }}>{c.body}</span>
                                         <span className="text-muted-foreground/70 truncate flex-1">{c.effect}</span>
@@ -90,6 +136,14 @@ export function EnergyMapWidget() {
 
                         <div className="flex-1 min-h-0 flex items-end">
                             <Sparkline data={d.history} color="#a855f7" height={size.vTier === "expanded" ? 36 : 24} />
+                        </div>
+
+                        {/* Sello de cálculo en vivo: fase lunar real + hora + ubicación. */}
+                        <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/55 shrink-0 min-w-0">
+                            <span className="inline-block size-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" aria-hidden />
+                            <span className="truncate">
+                                {live.moon.emoji} {Math.round(live.moon.illumination * 100)}% · calculado {live.calcTime} · {location.name}
+                            </span>
                         </div>
                     </div>
                 );

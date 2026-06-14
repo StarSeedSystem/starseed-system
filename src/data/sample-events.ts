@@ -21,7 +21,16 @@ export interface SampleEvent {
     id: string;
     slug: string;
     system: SystemKey;
-    kind: "asamblea" | "curso" | "taller" | "exposicion" | "concierto" | "encuentro";
+    kind:
+        | "asamblea"
+        | "curso"
+        | "taller"
+        | "exposicion"
+        | "concierto"
+        | "encuentro"
+        | "ritual"
+        | "obra"
+        | "mercado";
     title: string;
     cover: string;
     description: string;
@@ -180,6 +189,110 @@ export const sampleEvents: SampleEvent[] = [
         attendees: 980,
         accent: SYSTEM_ACCENT.cultural,
         tags: ["Sonido", "Directo", "Colaborativo"],
+    },
+
+    // ── Eventos canónicos del "Radar Social" del Dashboard ──
+    // Slugs alineados con slugify() del nombre que muestra el widget, para que
+    // cada fila del radar enlace a una página de evento real.
+    {
+        id: "evt-radar-asamblea-vecinal",
+        slug: "asamblea-vecinal",
+        system: "politico",
+        kind: "asamblea",
+        title: "Asamblea Vecinal",
+        cover: picsumCover("evt-asamblea-vecinal", 1000, 500),
+        description:
+            "Asamblea abierta de soberanía directa en el Parque Central. Presupuesto participativo, gestión de recursos comunes y votación líquida de las iniciativas del barrio. Una persona, una voz.",
+        startsAt: futureAt(2, 18),
+        endsAt: futureAt(2, 20),
+        location: "Parque Central · Ágora al aire libre",
+        online: false,
+        organizer: "Sangha Norte",
+        organizerAvatar: diceBearAvatar("Sangha Norte", "shapes"),
+        organizerPageSlug: pageSlugById("page-com-sangha-norte"),
+        attendees: 860,
+        accent: SYSTEM_ACCENT.politico,
+        tags: ["Asamblea", "Vecinal", "Votación líquida"],
+    },
+    {
+        id: "evt-radar-taller-permacultura",
+        slug: "taller-de-permacultura",
+        system: "educativo",
+        kind: "taller",
+        title: "Taller de Permacultura",
+        cover: picsumCover("evt-permacultura", 1000, 500),
+        description:
+            "Taller práctico de diseño regenerativo en el Vivero Comunal: suelos vivos, captación de agua y policultivos. Aprende a cerrar ciclos materiales hacia la soberanía alimentaria.",
+        startsAt: futureAt(4, 17),
+        endsAt: futureAt(4, 20),
+        location: "Vivero Comunal · Sangha del Faro",
+        online: false,
+        organizer: "Sangha del Faro",
+        organizerAvatar: diceBearAvatar("Sangha del Faro", "shapes"),
+        organizerPageSlug: pageSlugById("page-com-sangha-faro"),
+        attendees: 320,
+        accent: SYSTEM_ACCENT.educativo,
+        tags: ["Permacultura", "Taller", "Regenerativo"],
+    },
+    {
+        id: "evt-radar-ritual-equinoccio",
+        slug: "ritual-del-equinoccio",
+        system: "cultural",
+        kind: "ritual",
+        title: "Ritual del Equinoccio",
+        cover: picsumCover("evt-equinoccio", 1000, 500),
+        description:
+            "Encuentro ceremonial en el Domo Liminal para celebrar el equinoccio. Sonido envolvente, visuales generativos y prácticas de conexión empática para disolver las barreras del ego.",
+        startsAt: futureAt(6, 20),
+        endsAt: futureAt(6, 23),
+        location: "Domo Liminal · Multiverso + presencial",
+        online: true,
+        organizer: "Multiverso Liminal",
+        organizerAvatar: diceBearAvatar("Multiverso Liminal", "shapes"),
+        organizerPageSlug: pageSlugById("page-com-multiverso-liminal"),
+        attendees: 1480,
+        accent: SYSTEM_ACCENT.cultural,
+        tags: ["Ritual", "Equinoccio", "Ceremonia"],
+    },
+    {
+        id: "evt-radar-estreno-mareas-datos",
+        slug: "estreno-mareas-de-datos",
+        system: "cultural",
+        kind: "obra",
+        title: "Estreno: Mareas de Datos",
+        cover: picsumCover("evt-mareas-datos", 1000, 500),
+        description:
+            "Estreno de la obra audiovisual generativa Mareas de Datos en el Multiverso. Una experiencia navegable en realidad virtual, remezclable bajo el Lienzo Universal.",
+        startsAt: futureAt(8, 21),
+        endsAt: futureAt(8, 23),
+        location: "Multiverso · Galería del Multiverso",
+        online: true,
+        organizer: "Colectivo Aurora",
+        organizerAvatar: diceBearAvatar("Colectivo Aurora", "shapes"),
+        organizerPageSlug: pageSlugById("page-cul-1"),
+        attendees: 2240,
+        accent: SYSTEM_ACCENT.cultural,
+        tags: ["Estreno", "Generativo", "VR"],
+    },
+    {
+        id: "evt-radar-mercado-trueque",
+        slug: "mercado-de-trueque",
+        system: "politico",
+        kind: "mercado",
+        title: "Mercado de Trueque",
+        cover: picsumCover("evt-mercado-trueque", 1000, 500),
+        description:
+            "Mercado de don y trueque en la Plaza Oikos: bienes, saberes y tiempo sin mediación monetaria. Economía de abundancia en acción dentro de la Fase Semilla.",
+        startsAt: futureAt(10, 11),
+        endsAt: futureAt(10, 16),
+        location: "Plaza Oikos · Junta Oikos",
+        online: false,
+        organizer: "Junta Oikos",
+        organizerAvatar: diceBearAvatar("Junta Oikos", "shapes"),
+        organizerPageSlug: pageSlugById("page-pol-1"),
+        attendees: 640,
+        accent: SYSTEM_ACCENT.politico,
+        tags: ["Trueque", "Don", "Abundancia"],
     },
 ];
 

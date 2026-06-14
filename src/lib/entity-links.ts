@@ -19,6 +19,7 @@ import type {
     SampleGroup,
     SampleProfile,
 } from "@/data/sample-entities";
+import { samplePages, sampleGroups } from "@/data/sample-entities";
 
 /** Normaliza un texto a slug URL-safe (sin acentos, minúsculas, guiones). */
 export function slugify(input: string): string {
@@ -72,4 +73,53 @@ export function matchesProfile(p: SampleProfile, key: string): boolean {
         slugify(usernameFromHandle(p.handle)) === slugify(key) ||
         p.id === key
     );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Resolución por NOMBRE para entidades mostradas en los widgets del Dashboard
+// (Explorar Red / Mis Páginas / Radar Social). Estos widgets se alimentan de un
+// dataset propio (widget-data) cuyos elementos solo exponen un `name`/`title`.
+// Para que cada tarjeta enlace a una página de detalle REAL, resolvemos el
+// nombre contra `samplePages`/`sampleGroups` (por slug del nombre o por título)
+// y, si no hay coincidencia, devolvemos una ruta basada en el slug del nombre
+// (que la página de detalle resolverá con su propio fallback elegante).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Busca una página cuyo título coincida (por slug) con el nombre dado. */
+export function findPageByName(name: string): SamplePage | undefined {
+    const key = slugify(name);
+    return samplePages.find((p) => pageSlug(p) === key || slugify(p.title) === key);
+}
+
+/** Busca un grupo cuyo nombre coincida (por slug) con el nombre dado. */
+export function findGroupByName(name: string): SampleGroup | undefined {
+    const key = slugify(name);
+    return sampleGroups.find((g) => groupSlug(g) === key || slugify(g.name) === key);
+}
+
+/**
+ * Devuelve el href de detalle para una entidad de widget identificada por su
+ * `name` (y, opcionalmente, su `kind`). Estrategia:
+ *   1. Si existe una página con ese nombre  → /pagina/<slug>
+ *   2. Si existe un grupo con ese nombre     → /grupo/<slug>
+ *   3. Según el kind del widget, se enruta a /grupo (colectivos/proyectos) o a
+ *      /pagina (comunidades/sanghas/biorregiones/entidades) usando el slug del
+ *      nombre; la página de detalle aplicará su fallback si no hay dato.
+ */
+export function widgetEntityHref(name: string, kind?: string): string {
+    const slug = slugify(name) || "entidad";
+    const page = findPageByName(name);
+    if (page) return pageHref(page);
+    const group = findGroupByName(name);
+    if (group) return groupHref(group);
+
+    const k = (kind ?? "").toLowerCase();
+    const groupKinds = ["colectivo", "proyecto", "circulo", "círculo"];
+    if (groupKinds.includes(k)) return `/grupo/${slug}`;
+    return `/pagina/${slug}`;
+}
+
+/** Href de un evento de widget identificado por su título (slug del título). */
+export function widgetEventHref(title: string): string {
+    return `/evento/${slugify(title) || "evento"}`;
 }

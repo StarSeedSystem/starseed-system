@@ -7,6 +7,7 @@ import { WidgetShell, MiniList, Chip, timeUntil } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { SocialEvent } from "@/lib/widget-data";
 import { createClient } from "@/utils/supabase/client";
+import { widgetEventHref } from "@/lib/entity-links";
 
 // Conteos localizados con separador de millares (es-ES).
 const NUM_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
@@ -130,7 +131,10 @@ export function SocialRadarWidget() {
                                 const d = new Date(e.startTs);
                                 const hh = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
                                 return (
-                                    <div className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-primary/30 transition-colors cursor-pointer">
+                                    <Link
+                                        href={widgetEventHref(e.title)}
+                                        className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-primary/30 transition-colors cursor-pointer"
+                                    >
                                         <div className="shrink-0 grid place-items-center size-10 rounded-xl border text-center leading-none"
                                             style={{ color: meta.color, borderColor: `${meta.color}40`, background: `${meta.color}1a` }}>
                                             <span className="text-[8px] font-black uppercase">{MONTHS[d.getMonth()]}</span>
@@ -149,7 +153,7 @@ export function SocialRadarWidget() {
                                             )}
                                         </div>
                                         {micro && <Icon className="size-4 shrink-0" style={{ color: meta.color }} />}
-                                    </div>
+                                    </Link>
                                 );
                             }}
                         />

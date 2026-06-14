@@ -393,6 +393,62 @@ export const samplePages: SamplePage[] = [
         status: "Abierta",
         tags: ["Sonido", "Colaborativa", "Génesis"],
     },
+
+    // ── Comunidades canónicas (referenciadas por los widgets del Dashboard) ──
+    // Estas páginas existen para que cada entidad mostrada en "Explorar Red",
+    // "Mis Páginas" y "Radar Social" tenga una página de detalle real navegable.
+    {
+        id: "page-com-sangha-norte",
+        system: "politico",
+        kind: "comunidad",
+        title: "Sangha Norte",
+        cover: picsumCover("sangha-norte"),
+        description:
+            "Comunidad territorial (Sangha) del cuadrante norte. Centro social magnético en Fase Semilla: cohesión humana, presupuesto participativo y los primeros protocolos de soberanía directa a escala de barrio.",
+        members: 3640,
+        accent: "#10b981",
+        status: "Abierta",
+        tags: ["Sangha", "Fase Semilla", "Oikos"],
+    },
+    {
+        id: "page-com-sangha-faro",
+        system: "politico",
+        kind: "comunidad",
+        title: "Sangha del Faro",
+        cover: picsumCover("sangha-del-faro"),
+        description:
+            "Sangha costera centrada en energía regenerativa. Microrred solar y eólica gestionada como procomún, con excedentes enrutados a comunidades vecinas.",
+        members: 2180,
+        accent: "#f59e0b",
+        status: "Abierta",
+        tags: ["Sangha", "Energía", "Procomún"],
+    },
+    {
+        id: "page-com-biorregion-valle",
+        system: "politico",
+        kind: "comunidad",
+        title: "Biorregión del Valle",
+        cover: picsumCover("biorregion-del-valle"),
+        description:
+            "Entidad Federativa biorregional que coordina varias Sanghas en torno al agua como procomún. Gobernanza líquida del ciclo hídrico y la soberanía alimentaria.",
+        members: 8920,
+        accent: "#38bdf8",
+        status: "Abierta",
+        tags: ["Biorregión", "Agua", "Procomún"],
+    },
+    {
+        id: "page-com-multiverso-liminal",
+        system: "cultural",
+        kind: "comunidad",
+        title: "Multiverso Liminal",
+        cover: picsumCover("multiverso-liminal"),
+        description:
+            "Comunidad cultural que habita los espacios de realidad virtual de la red. Construye mundos navegables, rituales digitales y experiencias cyberdélicas compartidas.",
+        members: 5410,
+        accent: "#ec4899",
+        status: "Abierta",
+        tags: ["Multiverso", "VR", "Cultura"],
+    },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -482,6 +538,86 @@ export const sampleGroups: SampleGroup[] = [
         accent: "#39FF14",
         description:
             "Comunidad de música generativa orientada a la conexión empática y la expansión de la conciencia.",
+    },
+
+    // ── Colectivos / círculos canónicos (referenciados por los widgets) ──
+    {
+        id: "grp-com-colectivo-aurora",
+        system: "cultural",
+        kind: "colectivo",
+        name: "Colectivo Aurora",
+        cover: picsumCover("colectivo-aurora"),
+        avatar: diceBearAvatar("Colectivo Aurora", "shapes"),
+        members: 1960,
+        activity: "Arte y Multiverso · 14 obras este ciclo",
+        accent: "#ec4899",
+        description:
+            "Colectivo de arte que explora la frontera entre lo orgánico y lo sintético. Co-crea instalaciones en el Multiverso y coordina exposiciones físicas en las Sanghas.",
+    },
+    {
+        id: "grp-com-circulo-paz-sur",
+        system: "politico",
+        kind: "circulo",
+        name: "Círculo de Paz Sur",
+        cover: picsumCover("circulo-paz-sur"),
+        avatar: diceBearAvatar("Circulo de Paz Sur", "shapes"),
+        members: 540,
+        activity: "Justicia restaurativa · 7 círculos activos",
+        accent: "#10b981",
+        description:
+            "Círculo de mediación del cuadrante sur. Facilita procesos de justicia restaurativa (no punitiva): escucha, acuerdo y reparación entre las partes.",
+    },
+    {
+        id: "grp-com-nodo-cripto-zk",
+        system: "politico",
+        kind: "circulo",
+        name: "Nodo Cripto-ZK",
+        cover: picsumCover("nodo-cripto-zk"),
+        avatar: diceBearAvatar("Nodo Cripto-ZK", "shapes"),
+        members: 1280,
+        activity: "Voto anónimo verificable · 3 auditorías",
+        accent: "#a855f7",
+        description:
+            "Colectivo técnico que mantiene la infraestructura de voto anónimo verificable por conocimiento cero (ZK). Garantiza una persona, una voz sin almacenar datos biométricos brutos.",
+    },
+    {
+        id: "grp-com-colectivo-faro",
+        system: "politico",
+        kind: "colectivo",
+        name: "Colectivo Faro",
+        cover: picsumCover("colectivo-faro"),
+        avatar: diceBearAvatar("Colectivo Faro", "shapes"),
+        members: 760,
+        activity: "Mesh comunitaria · nodo LoRa levantado",
+        accent: "#ec4899",
+        description:
+            "Colectivo de infraestructura libre que despliega redes mesh comunitarias (LoRa, Wi-Fi, Li-Fi) para conectar las Sanghas sin depender de operadores centralizados.",
+    },
+    {
+        id: "grp-com-forja-widgets",
+        system: "educativo",
+        kind: "colectivo",
+        name: "Forja de Widgets",
+        cover: picsumCover("forja-de-widgets"),
+        avatar: diceBearAvatar("Forja de Widgets", "shapes"),
+        members: 412,
+        activity: "Código abierto · 28 widgets publicados",
+        accent: "#a855f7",
+        description:
+            "Proyecto open source que construye los módulos del Sistema Operativo Social. Todo el código es auditable y reutilizable bajo el Lienzo Universal.",
+    },
+    {
+        id: "grp-com-junta-oikos",
+        system: "politico",
+        kind: "asamblea",
+        name: "Junta Oikos",
+        cover: picsumCover("junta-oikos"),
+        avatar: diceBearAvatar("Junta Oikos", "shapes"),
+        members: 1540,
+        activity: "Gestión del hogar común · excedentes enrutados",
+        accent: "#f59e0b",
+        description:
+            "Entidad Federativa que coordina la gestión de los recursos comunes del Oikos: energía, agua y vivienda. Enruta los excedentes de forma transparente y revocable.",
     },
 ];
 

@@ -7,6 +7,13 @@ import { LayoutGrid, Plus, Users, Crown, Shield, Folder, User, ChevronRight, typ
 import { WidgetShell, MiniList, ProgressBar, Chip, ProgressRing } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { PageRef } from "@/lib/widget-data";
+import { widgetEntityHref, slugify } from "@/lib/entity-links";
+
+/** Ruta de detalle para una página del usuario según su tipo. */
+function pageRefHref(pg: PageRef): string {
+    if (pg.kind === "perfil") return `/profile/${slugify(pg.name) || "perfil"}`;
+    return widgetEntityHref(pg.name, pg.kind);
+}
 
 // ════════════════════════════════════════════════════════════════
 // MyPagesWidget — perfiles, comunidades y entidades del usuario.
@@ -122,8 +129,9 @@ export function MyPagesWidget() {
                                     return (
                                         <motion.div
                                             whileHover={{ scale: 1.01 }}
-                                            className="rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-sky-400/25 transition-colors cursor-pointer"
+                                            className="rounded-xl border border-border/40 bg-white/[0.02] hover:border-sky-400/25 transition-colors"
                                         >
+                                          <Link href={pageRefHref(pg)} className="block px-2.5 py-2 cursor-pointer">
                                             <div className="flex items-center gap-2">
                                                 {/* Avatar */}
                                                 <div className="shrink-0 relative grid place-items-center size-8 rounded-xl text-white font-black text-xs border"
@@ -163,6 +171,7 @@ export function MyPagesWidget() {
                                                     <ProgressBar value={pg.activity} color={pg.accent ?? ACCENT} height={3} />
                                                 </div>
                                             )}
+                                          </Link>
                                         </motion.div>
                                     );
                                 }}
