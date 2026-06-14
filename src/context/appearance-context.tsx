@@ -368,11 +368,12 @@ const defaultConfig: AppearanceConfig = {
         crystalPreset: "none",
     },
     background: {
-        // Materia Viva por defecto (lenguaje visual del ecosistema Nexus/Café).
-        // Cambio aditivo: configs guardadas en localStorage se mergean encima
-        // y conservan su type; solo usuarios sin config guardada ven este default.
-        // SOP: architecture/integracion-portal-starseed-os.md → Materia Viva v1.1
-        type: "materia-oro-vivo",
+        // Fondo predeterminado: colores fluidos líquidos (LiquidPsychedelic) para
+        // TODAS las áreas y tamaños de dispositivo. Cada usuario lo personaliza luego
+        // en su cuenta (Ajustes → Apariencia → Fondo). Cambio aditivo: configs
+        // guardadas en localStorage conservan su type; solo usuarios sin config previa
+        // ven este default. SOP: integracion-portal-starseed-os.md.
+        type: "liquid-aurora",
         value: "",
         blur: 0,
         animation: "none",

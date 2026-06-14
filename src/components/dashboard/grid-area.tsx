@@ -251,16 +251,16 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     onDragStart={notifyDragStart as any}
                     onDragStop={handleDragStop as any}
                     onResizeStop={handleDragStop as any}
-                    // CLAVE anti-arrastre táctil: en puntero grueso (táctil) RGL NO
-                    // es arrastrable hasta que el widget está ARMADO por la pulsación
-                    // de 3 s. Así, tocar y deslizar SIEMPRE hace scroll (no depende de
-                    // interceptar el evento). Con ratón, arrastrable en modo edición.
-                    isDraggable={isEditMode && (!isCoarsePointer || armedId !== null)}
+                    // Anti-arrastre táctil A PRUEBA DE FALLOS: el arrastre SIEMPRE se
+                    // limita a `.drag-handle` (nunca al cuerpo). Tocar una zona vacía
+                    // del widget NO lo mueve — solo hace scroll. Para mover/redimensionar
+                    // con el dedo, se mantiene pulsado 3 s sobre la zona vacía: eso ARMA
+                    // el widget y renderiza un `.drag-handle` que cubre todo (ver abajo),
+                    // permitiendo arrastrarlo. Con ratón, la ✋ (un .drag-handle pequeño)
+                    // permite arrastrar al instante. No depende de detección de puntero.
+                    isDraggable={isEditMode}
                     isResizable={isEditMode}
-                    // Con un widget armado por pulsación mantenida, el drag táctil
-                    // debe poder iniciarse desde cualquier punto del widget ("" =
-                    // sin handle). Con ratón (sin armado) sigue siendo la ✋.
-                    draggableHandle={armedId ? "" : ".drag-handle"}
+                    draggableHandle=".drag-handle"
                     margin={[18, 18]} // cleaner separation
                 >
                     {widgets.map(widget => (
@@ -296,6 +296,14 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                 armedId === (widget.layout.i || widget.id) && touchStyles.touchLiftArmed
                             )}>
                                 <WidgetRegistry widget={widget} />
+
+                                {/* Al ARMAR con la pulsación de 3 s, todo el widget se
+                                    convierte en zona de arrastre (.drag-handle de cubierta
+                                    total). Antes de armar, el cuerpo NUNCA arrastra → el
+                                    dedo solo hace scroll. */}
+                                {isEditMode && armedId === (widget.layout.i || widget.id) && (
+                                    <div className="drag-handle absolute inset-0 z-40 cursor-grabbing rounded-3xl" aria-hidden />
+                                )}
 
                                 {isEditMode && (
                                     <>
