@@ -251,6 +251,9 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     onDragStart={notifyDragStart as any}
                     onDragStop={handleDragStop as any}
                     onResizeStop={handleDragStop as any}
+                    // Los controles interactivos NUNCA inician arrastre: garantiza que
+                    // cada botón/enlace/campo del widget reciba su click normal.
+                    draggableCancel={'button, a, input, textarea, select, label, [role="button"], [role="slider"], [contenteditable="true"], .rgl-cancel'}
                     // Anti-arrastre táctil A PRUEBA DE FALLOS: el arrastre SIEMPRE se
                     // limita a `.drag-handle` (nunca al cuerpo). Tocar una zona vacía
                     // del widget NO lo mueve — solo hace scroll. Para mover/redimensionar

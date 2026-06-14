@@ -27,24 +27,42 @@ export const SplineBackground = forwardRef<Application | null, SplineBackgroundP
             onLoad(splineApp);
         }
 
-        // Remove "Built with Spline" DOM watermark elements injected by Spline runtime
+        // Eliminar el logo "Built with Spline" inyectado por el runtime. El runtime
+        // lo re-inyecta, así que observamos PERMANENTEMENTE + intervalo de respaldo
+        // y cubrimos varios patrones (enlace a spline, aria-label, texto "Built with").
         const killSplineWatermarks = () => {
-            const selectors = ['a[href*="spline.design"]', 'a[href*="spline"]'];
-            selectors.forEach(sel => {
-                document.querySelectorAll(sel).forEach(el => {
-                    (el as HTMLElement).style.display = 'none';
-                    el.parentNode?.removeChild(el);
-                });
+            const sels = [
+                'a[href*="spline.design"]',
+                'a[href*="spline"]',
+                '[aria-label*="Spline" i]',
+                '[class*="spline-watermark" i]',
+                '#spline-watermark',
+            ];
+            sels.forEach(sel => {
+                try {
+                    document.querySelectorAll(sel).forEach(el => {
+                        (el as HTMLElement).style.setProperty('display', 'none', 'important');
+                        (el as HTMLElement).style.setProperty('opacity', '0', 'important');
+                        try { el.parentNode?.removeChild(el); } catch { /* noop */ }
+                    });
+                } catch { /* selector no soportado */ }
             });
+            // Respaldo: cualquier <a> cuyo texto sea "Built with Spline"
+            try {
+                document.querySelectorAll('a').forEach(a => {
+                    if ((a.textContent || '').toLowerCase().includes('built with spline')) {
+                        (a as HTMLElement).style.setProperty('display', 'none', 'important');
+                        try { a.parentNode?.removeChild(a); } catch { /* noop */ }
+                    }
+                });
+            } catch { /* noop */ }
         };
-        setTimeout(killSplineWatermarks, 200);
-        setTimeout(killSplineWatermarks, 1500);
-        setTimeout(killSplineWatermarks, 4000);
-
-        // MutationObserver for late-injected watermarks
+        [100, 600, 1500, 3000, 6000].forEach(ms => setTimeout(killSplineWatermarks, ms));
         const obs = new MutationObserver(killSplineWatermarks);
         obs.observe(document.body, { childList: true, subtree: true });
-        setTimeout(() => obs.disconnect(), 15000);
+        const iv = window.setInterval(killSplineWatermarks, 2000); // respaldo permanente
+        // limpieza al desmontar
+        (window as any).__splineKill = () => { obs.disconnect(); clearInterval(iv); };
     };
 
     return (
