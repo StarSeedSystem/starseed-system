@@ -7,7 +7,9 @@ import { WidgetShell, MiniList, Chip, timeUntil } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { SocialEvent } from "@/lib/widget-data";
 import { createClient } from "@/utils/supabase/client";
-import { widgetEventHref } from "@/lib/entity-links";
+import { eventHref, slugify } from "@/lib/entity-links";
+import { useOsEvents } from "@/hooks/use-os-entities";
+import type { OsEvent } from "@/lib/os-social";
 
 // Conteos localizados con separador de millares (es-ES).
 const NUM_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
@@ -31,8 +33,34 @@ const MONTHS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "
 
 interface LocationRow { id: string; name: string | null; city: string | null }
 
+/** Evento del radar que arrastra su slug real para enlazar a /evento/<slug>. */
+type RadarEvent = SocialEvent & { slug?: string };
+
+/** Mapea el kind de OsEvent al conjunto soportado por el widget. */
+function radarKind(kind: string): SocialEvent["kind"] {
+    const k = kind.toLowerCase();
+    if (k.includes("asamblea")) return "asamblea";
+    if (k.includes("taller") || k.includes("curso")) return "taller";
+    if (k.includes("ritual")) return "ritual";
+    if (k.includes("mercado")) return "mercado";
+    return "obra"; // exposicion / concierto / obra / encuentro → obra
+}
+
+function osEventToRadar(e: OsEvent): RadarEvent {
+    return {
+        id: e.id,
+        title: e.title,
+        place: e.location || "Red StarSeed",
+        startTs: e.startsAt ? new Date(e.startsAt).getTime() : Date.now(),
+        attendees: e.attendeeCount,
+        kind: radarKind(e.kind),
+        slug: e.slug,
+    };
+}
+
 export function SocialRadarWidget() {
-    const { data: mockData, loading } = useWidgetData("social.events", { refreshMs: 20000 });
+    const { data: mockData, loading: mockLoading } = useWidgetData("social.events", { refreshMs: 20000 });
+    const { data: osEvents, loading: osLoading } = useOsEvents();
     const supabase = useMemo(() => createClient(), []);
     // Lugares reales (sedes) + actividad real por sucursal.
     const [realPlaces, setRealPlaces] = useState<string[] | null>(null);
@@ -66,9 +94,14 @@ export function SocialRadarWidget() {
         return () => { active = false; };
     }, [supabase]);
 
-    // Ancla los eventos simulados a lugares reales y, cuando coinciden con
-    // una sucursal real, suma la actividad real (posts) a la asistencia.
-    const data: SocialEvent[] | null = useMemo(() => {
+    const loading = osLoading && (mockLoading && !mockData);
+
+    // Eventos reales de Supabase (o de ejemplo vía el hook). Si no hubiera ninguno,
+    // cae a los eventos simulados anclados a lugares reales (lógica original).
+    const data: RadarEvent[] | null = useMemo(() => {
+        if (osEvents && osEvents.length > 0) {
+            return osEvents.map(osEventToRadar);
+        }
         if (!mockData) return mockData;
         if (!realPlaces && !branchActivity) return mockData;
         return mockData.map((e, i) => {
@@ -78,7 +111,7 @@ export function SocialRadarWidget() {
             const realPosts = branchActivity?.[place] ?? 0;
             return { ...e, place, attendees: e.attendees + realPosts * 12 };
         });
-    }, [mockData, realPlaces, branchActivity]);
+    }, [osEvents, mockData, realPlaces, branchActivity]);
 
     return (
         <WidgetShell
@@ -132,7 +165,7 @@ export function SocialRadarWidget() {
                                 const hh = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
                                 return (
                                     <Link
-                                        href={widgetEventHref(e.title)}
+                                        href={e.slug ? eventHref(e.slug) : eventHref(slugify(e.title) || "evento")}
                                         className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-primary/30 transition-colors cursor-pointer"
                                     >
                                         <div className="shrink-0 grid place-items-center size-10 rounded-xl border text-center leading-none"

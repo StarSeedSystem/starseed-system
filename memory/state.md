@@ -869,3 +869,131 @@ Objetivo: implementar los ~90 widgets del documento "Opciones de Widgets en Dash
 - **Figma**: 5 proyectos creados y **poblados** vía `use_figma` (funcionó pese a asiento "View"): Maestro con board "Design Tokens" (paletas 3 temas + tipografía + Trinity + cristal líquido), y portadas + demo WidgetShell en OS UI Kit, Nexus, Café, Audiomorphic. Spec: `architecture/design-system-figma.md`. Keys en memoria.
 - **Verificación**: `tsc --noEmit` = 153 (baseline, 0 nuevos) en cada paso. Deploys READY encadenados: `29024f9`→`44b3ea3`→`18835b5`→`082047f`. Auto-deploy ya reconectado (proyecto Vercel starseed-os → repo starseed-system/main).
 - **Pendiente profundo**: poblar más frames Figma (dashboard responsive, kit de estados, assets Café/Audiomorphic); reestructurar el resto de widgets (gen2–gen5) con servicios en tiempo real; override de designMode por instancia desde el panel de cada widget.
+
+---
+## Adenda 18 — 2026-06-14 · Táctil "normal" (sin arrastre en touch) + logo Spline a nivel raíz
+
+**Por qué:** tras v4, en táctil los widgets seguían moviéndose al tocarlos y los
+botones no respondían. Causa real: el sistema de "armado por pulsación"
+(`use-touch-drag-arming`) hacía `e.stopPropagation()` en fase de captura sobre
+cada `touchstart` del grid en modo edición + re-despacho sintético de TouchEvent
+→ frágil, mataba taps en dedos reales.
+
+**Cambio (commit 9a52dd2):**
+- Eliminado por completo `useTouchDragArming` del render. Nuevo modelo:
+  `isDraggable=isResizable=(isEditMode && !isCoarsePointer)`. En CUALQUIER pantalla
+  táctil el arrastre/redimensión de RGL están OFF → deslizar = scroll, los botones
+  siempre reciben su tap. En ratón, arrastre/redimensión normales en edición.
+- Reordenar en táctil: botones ↑/↓ por widget (`moveWidget` intercambia x/y con el
+  vecino en orden visual; RGL compacta vertical). Sin arrastre.
+- `grid-area-touch.module.css` ya no se usa (import retirado).
+- Logo "Built with Spline": el matalogos anterior vivía en wrapper a z -10/-40 →
+  inútil. Nuevo `SplineWatermarkCover` a nivel raíz: eliminador JS que atraviesa
+  shadow DOM (observer + intervalo) + tapón degradado fijo z-[100] esquina inf-der.
+- Badge: "táctil-normal v5".
+
+**Verificado:** build Vercel READY (compila). Falta verificación en dispositivo
+táctil real (el inspector Chrome estaba desconectado en esta sesión).
+
+---
+## Adenda 19 — 2026-06-14 · Táctil = rejilla normal (sin RGL) + cubre-logo reforzado
+
+**Diagnóstico real (confirmado por el usuario):** en v5 las flechas ↑/↓ aparecían
+(→ el JS nuevo SÍ corría), pero en NO-edición los widgets seguían moviéndose al
+tocarlos y los botones/scroll interno no funcionaban en táctil. Como en no-edición
+`isDraggable=false`, RGL no era la causa: el problema es react-grid-layout EN SÍ en
+táctil (posición absoluta + transforms rompen scroll nativo, taps y scroll interno).
+
+**Cambio (commit 0a923f2, badge v6):**
+- `grid-area.tsx`: si `mounted && isCoarse` (puntero táctil) → se RENDERIZA una rejilla
+  de tarjetas normal en flujo DOM (grid-cols-1/sm:2, cada tarjeta con altura derivada
+  de layout.h, `overflow-auto` + `touch-action:pan-y`), SIN react-grid-layout. Botones
+  de edición (↑/↓ reordenar, 📌🔗✕) superpuestos. RGL queda SOLO para ratón/escritorio.
+- Logo Spline: `SplineWatermarkCover` ampliado a 240×78, casi sólido en la esquina,
+  z-index 2147483647.
+
+**Verificado:** build Vercel READY. Pendiente confirmación del usuario en su táctil.
+
+---
+## Adenda 20 — 2026-06-14 · Logo Spline eliminado + datos reales (clima + cartera)
+
+- **v7 (commit 0ad1568):** logo "Built with Spline" eliminado buscando el TEXTO en
+  cualquier nodo DOM (no solo <a>) + shadow DOM, en `SplineWatermarkCover` (sin tapón
+  visual; el logo es texto del DOM, confirmado por captura). Scroll táctil ya OK (v6).
+- **v8 (commit c57d2ed):**
+  - `src/lib/weather-mock.ts` → `fetchWeatherData` ahora trae DATOS REALES de
+    Open-Meteo (clima, UV, calidad de aire, amanecer/atardecer) + NOAA SWPC (Kp,
+    viento solar mag+plasma, clase de rayos X), fusionados sobre el mock (degradación
+    elegante). Fase lunar calculada. Alimenta TODOS los widgets de clima/espacial.
+  - `cartera-starseed.tsx`: gráficas recharts (área bolsa 60d, dona de granos por
+    valor en semillas, valor total de cartera en €, delta 7d). Lee Supabase real.
+  - `CARTERA_STARSEED` añadida al dashboard de Economía; DEFAULTS_VERSION → gen6 para
+    re-sembrar. Badge v8.
+
+**Pendiente (próximas olas):** mapas/ubicación con datos reales, widget astrológico
+calculado, panel de proveedor de datos POR widget (selector configurable), y hacer
+funcionales con datos reales las entidades sociales (posts/grupos/páginas/perfiles/
+comunidades/eventos/archivos/apps/proyectos).
+
+---
+## Adenda 21 — 2026-06-14 · Logo Spline reforzado (v9) + astrología real + entidades sociales (v10)
+
+- **v9 (c526b75):** `SplineWatermarkCover` ahora elimina el watermark por COINCIDENCIA
+  POR INCLUSIÓN del texto "built with spline" y sube hasta el contenedor píldora
+  (no solo <a> exacto), atravesando shadow DOM. NOTA: la captura del usuario mostraba
+  badge "táctil-armar v4" → esa pestaña estaba CACHEADA en v4 (de ahí que viera el logo);
+  el fix vive en v7+. Requiere cargar build fresco.
+- **v10 (6865f25) — 2 subagentes sincronizados:**
+  - `src/lib/astro.ts` (NUEVO): cálculos puros — fase lunar/iluminación, signo solar,
+    longitudes y signos de Sol/Luna/Mercurio/Venus/Marte/Júpiter/Saturno (aprox. bajo
+    orden), día lunar, biorritmos 23/28/33, coherencia vital determinista.
+  - `natal-chart-widget` y `energy-map-widget`: ahora muestran datos astrológicos REALES
+    calculados (recalculan cada minuto), no mock/aleatorio. tsc 0 errores.
+  - Entidades sociales interconectadas: sample-entities/sample-events normalizados con
+    slugs canónicos; `explore-network-widget`, `my-pages-widget`, `social-radar-widget`
+    ahora enlazan (next/link) a /pagina|/grupo|/evento/[slug] reales y botones Unirse/
+    Seguir/Asistir funcionan. Helpers en entity-links.ts. Build Vercel READY.
+
+**Pendiente (próximas olas):** mapas/ubicación con tiles reales (Leaflet/OSM), selector
+de PROVEEDOR DE DATOS por widget (configurable), y profundizar funciones de cada widget.
+
+---
+## Adenda 22 — 2026-06-14 · Logo Spline triple-blindado (v11) + mapas reales + geocodificación (v12)
+
+- **v11 (7836641):** SplineWatermarkCover ahora (1) parchea Element.prototype.attachShadow
+  a modo "open" a nivel de módulo (antes de montar Spline) para poder atravesar el shadow
+  DOM CERRADO donde el runtime aloja el watermark; (2) mantiene el purgado agresivo;
+  (3) añade un cubre-esquina con backdrop-filter blur (no bloque sólido) como respaldo
+  garantizado que difumina cualquier resto. (Las capturas previas del usuario seguían en
+  caché v4.)
+- **v12 (c715d28) — 2 subagentes:**
+  - Widget de mapa REAL `MAP_LOCATION`: Leaflet 1.9.4 vía CDN + tiles OpenStreetMap,
+    centrado en la ubicación real del usuario, marcadores de entidades; integrado en el
+    dashboard "Ubicación". Archivos: map-widget.tsx, lib/geo.ts + registro/manifest/tipos.
+  - Geocodificación REAL en weather-location-context: búsqueda Open-Meteo (es), reverse
+    Nominatim, timezone+elevación reales; API pública del hook intacta; campos opcionales
+    country/timezone/elevation. lib/geocoding.ts.
+  - DEFAULTS_VERSION gen7 (re-siembra Ubicación con el mapa). Build Vercel READY.
+
+**Pendiente:** selector de PROVEEDOR DE DATOS por widget (configurable), profundizar
+funciones avanzadas por widget, y entidades sociales con persistencia real en Supabase.
+
+---
+## Adenda 23 — 2026-06-14 · Logo Spline ELIMINADO EN LA FUENTE (v13) + proveedor por widget (v14)
+
+- **CAUSA RAÍZ confirmada:** el watermark "Built with Spline" NO es DOM — el runtime
+  (@splinetool/runtime) lo pinta en el <canvas> como pase WebGL `pipeline.logoOverlayPass`
+  (método `pipeline.setWatermark`). Por eso ningún borrado de DOM/cover funcionaba.
+- **v13 (69724fb):** SplineBackground.handleLoad ahora accede a
+  `app._renderer.pipeline` y hace `setWatermark(null)` + `logoOverlayPass.enabled=false`
+  + `updateRenderToScreen()`, con reintentos (60–4000ms) e intervalo 750ms×40 por si el
+  runtime lo reactiva al cargar textura/resize. Quitado el cubre-esquina borroso.
+  SplineWatermarkCover → return null (solo quedan respaldos invisibles).
+- **v14 (f2b0a14):** selector de PROVEEDOR DE DATOS por widget — `src/lib/widget-data/
+  providers.ts` (DATA_PROVIDERS por dominio: weather/air/space/finance/maps/astro),
+  `widget-data-source-control.tsx` con hook `useWidgetProvider(widgetId, domain)` +
+  persistencia localStorage; integrado de ejemplo en weather-basic (open-meteo/wttr/mock).
+  Build READY.
+
+**Pendiente:** propagar el selector de proveedor al resto de widgets, profundizar
+funciones avanzadas por widget, persistencia social en Supabase.

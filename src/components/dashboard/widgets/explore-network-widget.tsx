@@ -8,6 +8,9 @@ import { WidgetShell, MiniList, Chip, ProgressBar, ProgressRing } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { NetworkEntity } from "@/lib/widget-data";
 import { widgetEntityHref } from "@/lib/entity-links";
+import { useOsPages, useOsGroups } from "@/hooks/use-os-entities";
+import { setFollow, setMembership } from "@/lib/os-social";
+import type { OsPage, OsGroup } from "@/lib/os-social";
 
 // ════════════════════════════════════════════════════════════════
 // ExploreNetworkWidget — comunidades y entidades en tendencia.
@@ -26,10 +29,55 @@ const KIND_META: Record<NetworkEntity["kind"], { label: string; emoji: string }>
 
 const KIND_KEYS: Array<NetworkEntity["kind"] | "todas"> = ["todas", "comunidad", "sangha", "colectivo", "biorregion"];
 
+/** Deriva el `kind` de widget a partir de una página/grupo OS. */
+function entityKindFromOs(name: string, tags: string[], isGroup: boolean): NetworkEntity["kind"] {
+    const hay = `${name} ${tags.join(" ")}`.toLowerCase();
+    if (/biorregi/.test(hay)) return "biorregion";
+    if (/sangha/.test(hay)) return "sangha";
+    if (isGroup || /colectiv/.test(hay)) return "colectivo";
+    return "comunidad";
+}
+
+/** Momentum sintético estable 0..1 a partir del nº de miembros (log-escala). */
+function synthMomentum(members: number): number {
+    const v = Math.log10(Math.max(10, members)) / 5; // ~0.2..1
+    return Math.min(1, Math.max(0.15, v));
+}
+
+function osToEntity(p: OsPage | OsGroup, isGroup: boolean): NetworkEntity {
+    return {
+        id: `${isGroup ? "g" : "p"}:${p.slug}`,
+        name: p.name,
+        kind: entityKindFromOs(p.name, p.tags, isGroup),
+        momentum: synthMomentum(p.memberCount),
+        members: p.memberCount,
+        focus: p.description?.slice(0, 80) || (isGroup ? "Colectivo de la Red" : "Entidad de la Red"),
+        accent: p.accent,
+    };
+}
+
 export function ExploreNetworkWidget() {
-    const { data, loading } = useWidgetData("social.entities", { refreshMs: 6000 });
+    // Datos simulados como último recurso; las entidades reales vienen de Supabase.
+    const { data: mockData, loading: mockLoading } = useWidgetData("social.entities", { refreshMs: 6000 });
+    const { data: pages, loading: pagesLoading } = useOsPages();
+    const { data: groups, loading: groupsLoading } = useOsGroups();
     const [filter, setFilter] = useState<NetworkEntity["kind"] | "todas">("todas");
     const [joined, setJoined] = useState<Set<string>>(new Set());
+
+    const loading = (pagesLoading || groupsLoading) && (mockLoading && !mockData);
+
+    // Combina páginas + grupos reales (o de ejemplo) en entidades de la red.
+    const data: NetworkEntity[] = useMemo(() => {
+        const fromPages = (pages ?? []).map((p) => osToEntity(p, false));
+        const fromGroups = (groups ?? []).map((g) => osToEntity(g, true));
+        const combined = [...fromPages, ...fromGroups];
+        if (combined.length > 0) return combined;
+        return mockData ?? [];
+    }, [pages, groups, mockData]);
+
+    // Resuelve el slug real de una entidad combinada para persistir la acción.
+    const entitySlug = (id: string) => id.replace(/^[pg]:/, "");
+    const entityIsGroup = (id: string) => id.startsWith("g:");
 
     const sorted = useMemo(() => {
         const list = data ?? [];
@@ -55,7 +103,7 @@ export function ExploreNetworkWidget() {
             }
         >
             {(size) => {
-                if (loading && !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
+                if (loading && data.length === 0) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
 
                 const micro = size.tier === "micro" || size.vTier === "micro";
 
@@ -138,10 +186,26 @@ export function ExploreNetworkWidget() {
                                                         onClick={(ev) => {
                                                             ev.preventDefault();
                                                             ev.stopPropagation();
+                                                            const willJoin = !isJoined;
+                                                            // Optimista en la UI; persiste en Supabase si hay sesión.
                                                             setJoined(prev => {
                                                                 const next = new Set(prev);
-                                                                next.has(e.id) ? next.delete(e.id) : next.add(e.id);
+                                                                willJoin ? next.add(e.id) : next.delete(e.id);
                                                                 return next;
+                                                            });
+                                                            const slug = entitySlug(e.id);
+                                                            const persist = entityIsGroup(e.id)
+                                                                ? setMembership(slug, willJoin)
+                                                                : setFollow(slug, willJoin);
+                                                            persist.then((res) => {
+                                                                // Si requería sesión o falló, revertimos el optimismo.
+                                                                if (!res.ok) {
+                                                                    setJoined(prev => {
+                                                                        const next = new Set(prev);
+                                                                        willJoin ? next.delete(e.id) : next.add(e.id);
+                                                                        return next;
+                                                                    });
+                                                                }
                                                             });
                                                         }}
                                                         aria-pressed={isJoined}

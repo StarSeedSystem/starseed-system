@@ -8,6 +8,8 @@ import { WidgetShell, MiniList, ProgressBar, Chip, ProgressRing } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { PageRef } from "@/lib/widget-data";
 import { widgetEntityHref, slugify } from "@/lib/entity-links";
+import { useOsPages, useOsGroups } from "@/hooks/use-os-entities";
+import type { OsPage, OsGroup } from "@/lib/os-social";
 
 /** Ruta de detalle para una página del usuario según su tipo. */
 function pageRefHref(pg: PageRef): string {
@@ -38,11 +40,55 @@ const KIND_META: Record<PageRef["kind"], { icon: LucideIcon; label: string }> = 
 
 const KIND_FILTERS: Array<PageRef["kind"] | "todas"> = ["todas", "comunidad", "proyecto", "perfil", "entidad"];
 
+/** Mapea una página OS al shape PageRef del widget. */
+function osPageToRef(p: OsPage): PageRef {
+    const kind: PageRef["kind"] =
+        p.kind === "comunidad" ? "comunidad"
+        : p.kind === "proyecto" ? "proyecto"
+        : p.kind === "perfil" ? "perfil"
+        : "entidad";
+    return {
+        id: `p:${p.slug}`,
+        name: p.name,
+        kind,
+        members: p.memberCount,
+        activity: Math.min(1, Math.max(0.2, Math.log10(Math.max(10, p.memberCount)) / 5)),
+        role: p.kind === "perfil" ? "fundador" : "miembro",
+        accent: p.accent,
+    };
+}
+
+function osGroupToRef(g: OsGroup): PageRef {
+    return {
+        id: `g:${g.slug}`,
+        name: g.name,
+        kind: "proyecto",
+        members: g.memberCount,
+        activity: Math.min(1, Math.max(0.2, Math.log10(Math.max(10, g.memberCount)) / 5)),
+        role: "miembro",
+        accent: g.accent,
+    };
+}
+
 export function MyPagesWidget() {
-    const { data, loading } = useWidgetData("social.pages", { refreshMs: 12000 });
+    const { data: mockData, loading: mockLoading } = useWidgetData("social.pages", { refreshMs: 12000 });
+    const { data: pages, loading: pagesLoading } = useOsPages();
+    const { data: groups, loading: groupsLoading } = useOsGroups();
     const [filter, setFilter] = useState<PageRef["kind"] | "todas">("todas");
 
-    const pages = useMemo(() => {
+    const loading = (pagesLoading || groupsLoading) && (mockLoading && !mockData);
+
+    // Páginas reales (o de ejemplo) del usuario; cae a los datos simulados si vacío.
+    const data: PageRef[] = useMemo(() => {
+        const combined = [
+            ...(pages ?? []).map(osPageToRef),
+            ...(groups ?? []).map(osGroupToRef),
+        ];
+        if (combined.length > 0) return combined;
+        return mockData ?? [];
+    }, [pages, groups, mockData]);
+
+    const filteredPages = useMemo(() => {
         const list = data ?? [];
         return filter === "todas" ? list : list.filter(p => p.kind === filter);
     }, [data, filter]);
@@ -71,7 +117,7 @@ export function MyPagesWidget() {
             }
         >
             {(size) => {
-                if (loading && !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
+                if (loading && data.length === 0) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
 
                 const micro = size.tier === "micro" || size.vTier === "micro";
 
@@ -110,14 +156,14 @@ export function MyPagesWidget() {
                                         {k === "todas" ? "Todas" : KIND_META[k as PageRef["kind"]]?.label}
                                     </button>
                                 ))}
-                                <span className="ml-auto text-[9px] text-muted-foreground/50 font-bold tabular-nums">{pages.length} págs.</span>
+                                <span className="ml-auto text-[9px] text-muted-foreground/50 font-bold tabular-nums">{filteredPages.length} págs.</span>
                             </div>
                         )}
 
                         {/* Lista de páginas */}
                         <div className="flex-1 min-h-0">
                             <MiniList
-                                items={pages}
+                                items={filteredPages}
                                 max={max}
                                 empty="Sin páginas en esta categoría"
                                 render={(pg) => {
