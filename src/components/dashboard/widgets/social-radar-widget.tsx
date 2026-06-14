@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { CalendarDays, MapPin, Users, ChevronRight, type LucideIcon, Landmark, Hammer, Sparkles, Palette, Store } from "lucide-react";
-import { WidgetShell, MiniList, Chip } from "../kit";
+import { WidgetShell, MiniList, Chip, timeUntil } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { SocialEvent } from "@/lib/widget-data";
+
+// Conteos localizados con separador de millares (es-ES).
+const NUM_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
 
 // ════════════════════════════════════════════════════════════════
 // SocialRadarWidget — eventos próximos de la red (asambleas, talleres,
@@ -39,6 +42,21 @@ export function SocialRadarWidget() {
                 { label: "Asambleas", href: "/network/politics", color: "#f59e0b", icon: Landmark },
                 { label: "Hub", href: "/hub", color: "#10b981", icon: Users },
             ]}
+            footer={
+                !loading && data && data.length ? (() => {
+                    const next = [...data].sort((a, b) => a.startTs - b.startTs)[0];
+                    const totalAttendees = data.reduce((s, e) => s + e.attendees, 0);
+                    return (
+                        <div className="flex items-center justify-between gap-2 text-[10px] font-semibold text-muted-foreground/70 min-w-0">
+                            <span className="inline-flex items-center gap-1.5 min-w-0">
+                                <span className="size-1.5 rounded-full shrink-0" style={{ background: "#ec4899" }} />
+                                <span className="truncate tabular-nums">{data.length} eventos · {NUM_ES.format(totalAttendees)} asistentes</span>
+                            </span>
+                            <span className="shrink-0 tabular-nums">próximo {timeUntil(next.startTs)}</span>
+                        </div>
+                    );
+                })() : undefined
+            }
         >
             {(size) => {
                 if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
@@ -70,9 +88,9 @@ export function SocialRadarWidget() {
                                                 {!micro && <Chip color={meta.color}>{meta.label}</Chip>}
                                             </div>
                                             {!micro && (
-                                                <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground/70">
-                                                    <span className="inline-flex items-center gap-1 truncate"><MapPin className="size-3 shrink-0" /> {hh} · {e.place}</span>
-                                                    <span className="inline-flex items-center gap-1 ml-auto shrink-0"><Users className="size-3" /> {e.attendees}</span>
+                                                <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground/70 min-w-0">
+                                                    <span className="inline-flex items-center gap-1 truncate min-w-0"><MapPin className="size-3 shrink-0" /> {hh} · {e.place}</span>
+                                                    <span className="inline-flex items-center gap-1 ml-auto shrink-0 tabular-nums" title={`${NUM_ES.format(e.attendees)} asistentes confirmados`}><Users className="size-3" /> {NUM_ES.format(e.attendees)}</span>
                                                 </div>
                                             )}
                                         </div>

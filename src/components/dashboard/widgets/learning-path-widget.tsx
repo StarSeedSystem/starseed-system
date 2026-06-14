@@ -1,7 +1,7 @@
 'use client';
 
 import Link from "next/link";
-import { GraduationCap, Bot, User, Users, ChevronRight, TrendingUp, type LucideIcon } from "lucide-react";
+import { GraduationCap, Bot, User, Users, ChevronRight, TrendingUp, PlayCircle, type LucideIcon } from "lucide-react";
 import { WidgetShell, MiniList, ProgressBar, ProgressRing } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { LearningPath } from "@/lib/widget-data";
@@ -9,10 +9,18 @@ import type { LearningPath } from "@/lib/widget-data";
 // ════════════════════════════════════════════════════════════════
 // LearningPathWidget — rutas de aprendizaje del usuario (mentoría
 // híbrida humano + IA). Datos "education.paths". Adaptativo.
+// Progreso en % entero (redondeo consistente) y próxima acción
+// concreta destacada como CTA.
 // ════════════════════════════════════════════════════════════════
 const MENTOR_ICON: Record<LearningPath["mentorKind"], LucideIcon> = {
     humano: User, ia: Bot, hibrido: Users,
 };
+const MENTOR_LABEL: Record<LearningPath["mentorKind"], string> = {
+    humano: "Mentor humano", ia: "Exocórtex IA", hibrido: "Mentoría híbrida",
+};
+// Porcentajes localizados y consistentes (es-ES, sin decimales).
+const PCT_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
+const fmtPct = (p: number) => PCT_ES.format(Math.round(p * 100));
 
 export function LearningPathWidget() {
     const { data, loading } = useWidgetData("education.paths", { refreshMs: 15000 });
@@ -42,7 +50,7 @@ export function LearningPathWidget() {
                             </span>
                             <span className="shrink-0 inline-flex items-center gap-1">
                                 <TrendingUp className="size-3" style={{ color: "#a855f7" }} />
-                                <span className="font-black tabular-nums" style={{ color: "#a855f7" }}>{Math.round(avg * 100)}%</span>
+                                <span className="font-black tabular-nums" style={{ color: "#a855f7" }}>{fmtPct(avg)}%</span>
                                 <span className="text-muted-foreground/50">medio</span>
                             </span>
                         </div>
@@ -64,7 +72,7 @@ export function LearningPathWidget() {
                             empty="Sin rutas activas"
                             render={(p) => {
                                 const MentorIcon = MENTOR_ICON[p.mentorKind];
-                                const pct = Math.round(p.progress * 100);
+                                const pct = fmtPct(p.progress);
                                 return (
                                     <div className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-primary/30 hover:bg-white/[0.04] transition-colors cursor-pointer">
                                         {!micro && <div className="shrink-0"><ProgressRing value={p.progress} size={38} stroke={4} color={p.accent} /></div>}
@@ -77,16 +85,21 @@ export function LearningPathWidget() {
                                                 <div className="mt-1"><ProgressBar value={p.progress} color={p.accent} height={3} /></div>
                                             ) : (
                                                 <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground/70 min-w-0">
-                                                    <span className="truncate min-w-0">{p.discipline}</span>
-                                                    <span className="inline-flex items-center gap-1 shrink-0">
+                                                    <span className="truncate min-w-0 capitalize">{p.discipline} · {pct}%</span>
+                                                    <span className="inline-flex items-center gap-1 shrink-0" title={MENTOR_LABEL[p.mentorKind]}>
                                                         <MentorIcon className="size-3" style={{ color: p.accent }} /> {p.mentor}
                                                     </span>
                                                 </div>
                                             )}
                                             {size.vTier === "expanded" && (
-                                                <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground/60 min-w-0">
-                                                    <ChevronRight className="size-3 shrink-0" style={{ color: p.accent }} />
-                                                    <span className="truncate min-w-0">Próx: {p.nextLesson}</span>
+                                                <div
+                                                    className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-bold min-w-0 max-w-full"
+                                                    style={{ color: p.accent, borderColor: `color-mix(in srgb, ${p.accent} 35%, transparent)`, background: `color-mix(in srgb, ${p.accent} 10%, transparent)` }}
+                                                    title={`Siguiente lección: ${p.nextLesson}`}
+                                                >
+                                                    <PlayCircle className="size-3 shrink-0" />
+                                                    <span className="uppercase tracking-wider shrink-0">Continuar</span>
+                                                    <span className="truncate min-w-0 font-semibold normal-case tracking-normal text-foreground/80">{p.nextLesson}</span>
                                                 </div>
                                             )}
                                         </div>

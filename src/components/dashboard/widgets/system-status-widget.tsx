@@ -1,16 +1,24 @@
 'use client';
 
+import { useEffect, useState } from "react";
 import { Activity, Cpu, MemoryStick, Thermometer, Network, GitBranch, HeartHandshake } from "lucide-react";
-import { WidgetShell, StatTile, ProgressRing, ProgressBar, Bars, MiniList } from "../kit";
+import { WidgetShell, StatTile, ProgressRing, ProgressBar, Bars, MiniList, timeAgo } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 
 // ════════════════════════════════════════════════════════════════
 // SystemStatusWidget — telemetría del nodo soberano del usuario.
 // Datos en vivo "system.node". Adaptativo + theme-aware.
 // La cuota contribuida refleja la invariante de procomún (Tríada).
+// Umbrales con significado: CPU/RAM verde <60 %, ámbar 60–85 %, rojo
+// >85 %; temperatura verde <38 °C, ámbar 38–45 °C, rojo >45 °C.
 // ════════════════════════════════════════════════════════════════
 export function SystemStatusWidget() {
     const { data, loading } = useWidgetData("system.node", { refreshMs: 2500 });
+
+    // Marca de tiempo real de la última lectura recibida (se refresca con cada
+    // tick del adaptador) → "actualizado hace …" honesto, no decorativo.
+    const [updatedTs, setUpdatedTs] = useState<number>(() => Date.now());
+    useEffect(() => { if (data) setUpdatedTs(Date.now()); }, [data]);
 
     return (
         <WidgetShell
@@ -25,6 +33,17 @@ export function SystemStatusWidget() {
                 { label: "Identidad", href: "/profile", color: "#a855f7", icon: HeartHandshake },
                 { label: "Explorer", href: "/explorer", color: "#38bdf8", icon: GitBranch },
             ]}
+            footer={
+                !loading && data ? (
+                    <div className="flex items-center justify-between gap-2 text-[10px] font-semibold text-muted-foreground/60 min-w-0">
+                        <span className="inline-flex items-center gap-1.5 min-w-0">
+                            <span className="size-1.5 rounded-full bg-sky-400 shrink-0 shadow-[0_0_6px_#38bdf8]" />
+                            <span className="truncate tabular-nums">{data.ipfsPeers} pares IPFS · cada 2,5 s</span>
+                        </span>
+                        <span className="shrink-0 tabular-nums">act. hace {timeAgo(updatedTs)}</span>
+                    </div>
+                ) : undefined
+            }
         >
             {(size) => {
                 if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
@@ -46,29 +65,32 @@ export function SystemStatusWidget() {
                 return (
                     <div className="flex flex-col gap-2 pt-1 h-full">
                         <div className={`grid ${cols} gap-2 shrink-0`}>
-                            <StatTile label="CPU" value={`${Math.round(data.cpu * 100)}%`} accent={cpuColor} icon={Cpu} compact />
-                            <StatTile label="RAM" value={`${Math.round(data.memory * 100)}%`} accent={ramColor} icon={MemoryStick} compact />
+                            <StatTile label="CPU" value={Math.round(data.cpu * 100)} unit="%" accent={cpuColor} icon={Cpu} compact />
+                            <StatTile label="RAM" value={Math.round(data.memory * 100)} unit="%" accent={ramColor} icon={MemoryStick} compact />
                             {size.tier !== "compact" && (
                                 <>
-                                    <StatTile label="Temp" value={`${data.temperature.toFixed(1)}°`} accent={tempColor} icon={Thermometer} compact />
-                                    <StatTile label="Pares" value={data.ipfsPeers} accent="#10b981" icon={Network} compact />
+                                    <StatTile label="Temp" value={data.temperature.toFixed(1)} unit="°C" accent={tempColor} icon={Thermometer} compact />
+                                    <StatTile label="Pares IPFS" value={data.ipfsPeers} unit="nodos" accent="#10b981" icon={Network} compact />
                                 </>
                             )}
                         </div>
 
                         {size.vTier !== "compact" && (
                             <div className="shrink-0 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2">
-                                <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
-                                    <HeartHandshake className="size-3 text-emerald-400" /> Procomún donado
+                                <div className="flex items-center justify-between gap-2 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                                    <span className="inline-flex items-center gap-1.5 min-w-0">
+                                        <HeartHandshake className="size-3 text-emerald-400 shrink-0" /> Capacidad donada al procomún
+                                    </span>
+                                    <span className="tabular-nums text-emerald-400 shrink-0">{Math.round(data.contributedShare * 100)}%</span>
                                 </div>
-                                <ProgressBar value={data.contributedShare} color="#10b981" showPct height={6} />
+                                <ProgressBar value={data.contributedShare} color="#10b981" height={6} />
                             </div>
                         )}
 
                         {size.vTier === "expanded" && data.threads.length > 0 && (
                             <div className="flex-1 min-h-0">
                                 <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
-                                    <GitBranch className="size-3" /> Hilos activos
+                                    <GitBranch className="size-3" /> Hilos activos · % de carga
                                 </div>
                                 <MiniList
                                     items={data.threads}
