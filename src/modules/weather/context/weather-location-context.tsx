@@ -1,9 +1,23 @@
+'use client';
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import {
+    searchPlaces,
+    reverseGeocode,
+    fetchTimezoneAndElevation,
+    type GeoResult,
+} from '@/lib/geocoding';
 
 export interface LocationData {
     lat: number;
     lon: number;
     name: string;
+    /** País (texto), si se conoce. Opcional para no romper consumidores existentes. */
+    country?: string;
+    /** Huso horario IANA, ej. "America/Mexico_City". Opcional. */
+    timezone?: string;
+    /** Elevación en metros sobre el nivel del mar. Opcional. */
+    elevation?: number;
 }
 
 interface WeatherLocationContextType {
@@ -14,39 +28,67 @@ interface WeatherLocationContextType {
     isSearching: boolean;
 }
 
+const STORAGE_KEY = 'starseed_weather_location';
+
 const DEFAULT_LOCATION: LocationData = {
     lat: 18.9226,
     lon: -99.2347,
-    name: 'Cuernavaca, Morelos', // Default 
+    name: 'Cuernavaca, Morelos', // Default
+    country: 'México',
+    timezone: 'America/Mexico_City',
 };
 
 const WeatherLocationContext = createContext<WeatherLocationContextType | undefined>(undefined);
+
+/** Convierte un GeoResult del módulo de geocoding al shape de LocationData. */
+function toLocationData(r: GeoResult): LocationData {
+    const loc: LocationData = { lat: r.lat, lon: r.lon, name: r.name };
+    if (r.country) loc.country = r.country;
+    if (r.timezone) loc.timezone = r.timezone;
+    if (typeof r.elevation === 'number') loc.elevation = r.elevation;
+    return loc;
+}
 
 export function WeatherLocationProvider({ children }: { children: ReactNode }) {
     const [location, setLocationState] = useState<LocationData>(DEFAULT_LOCATION);
     const [isSearching, setIsSearching] = useState(false);
 
-    // Load from localStorage on mount
+    // Load from localStorage on mount (SSR-safe: only runs in the browser)
     useEffect(() => {
-        const saved = localStorage.getItem('starseed_weather_location');
-        if (saved) {
-            try {
-                setLocationState(JSON.parse(saved));
-            } catch (e) {
-                console.error("Error parsing saved location", e);
+        if (typeof window === 'undefined') return;
+        try {
+            const saved = window.localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (
+                    parsed &&
+                    typeof parsed.lat === 'number' &&
+                    typeof parsed.lon === 'number' &&
+                    typeof parsed.name === 'string'
+                ) {
+                    setLocationState(parsed as LocationData);
+                }
             }
+        } catch (e) {
+            console.error('Error parsing saved location', e);
         }
     }, []);
 
     const setLocation = (loc: LocationData) => {
         setLocationState(loc);
-        localStorage.setItem('starseed_weather_location', JSON.stringify(loc));
+        if (typeof window !== 'undefined') {
+            try {
+                window.localStorage.setItem(STORAGE_KEY, JSON.stringify(loc));
+            } catch (e) {
+                console.error('Error saving location', e);
+            }
+        }
     };
 
     const requestGeolocation = async () => {
         return new Promise<void>((resolve, reject) => {
-            if (!navigator.geolocation) {
-                reject(new Error("La geolocalización no es compatible con tu navegador"));
+            if (typeof navigator === 'undefined' || !navigator.geolocation) {
+                reject(new Error('La geolocalización no es compatible con tu navegador'));
                 return;
             }
 
@@ -54,39 +96,46 @@ export function WeatherLocationProvider({ children }: { children: ReactNode }) {
                 async (position) => {
                     const { latitude, longitude } = position.coords;
                     try {
-                        // Reverse geocoding to get name
-                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-                        const data = await res.json();
-                        const name = data.address?.city || data.address?.town || data.address?.village || data.address?.state || "Tu ubicación";
-                        setLocation({ lat: latitude, lon: longitude, name });
+                        // Reverse geocoding (nombre) + timezone/elevation reales en paralelo.
+                        const [reverse, tzElev] = await Promise.all([
+                            reverseGeocode(latitude, longitude),
+                            fetchTimezoneAndElevation(latitude, longitude),
+                        ]);
+
+                        const base: LocationData = reverse
+                            ? toLocationData(reverse)
+                            : { lat: latitude, lon: longitude, name: 'Ubicación actual' };
+
+                        // Asegura coords exactas del GPS y añade tz/elevación si llegaron.
+                        base.lat = latitude;
+                        base.lon = longitude;
+                        if (tzElev.timezone) base.timezone = tzElev.timezone;
+                        if (typeof tzElev.elevation === 'number') base.elevation = tzElev.elevation;
+
+                        setLocation(base);
                         resolve();
                     } catch (e) {
-                        setLocation({ lat: latitude, lon: longitude, name: "Ubicación actual" });
+                        console.error('Reverse geocoding error:', e);
+                        setLocation({ lat: latitude, lon: longitude, name: 'Ubicación actual' });
                         resolve();
                     }
                 },
                 (error) => {
-                    console.error("Geolocation error:", error);
+                    console.error('Geolocation error:', error);
                     reject(error);
                 },
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
         });
     };
 
-    const searchLocation = async (query: string) => {
+    const searchLocation = async (query: string): Promise<LocationData[]> => {
         setIsSearching(true);
         try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`);
-            const data = await res.json();
-            const results = data.map((item: any) => ({
-                lat: parseFloat(item.lat),
-                lon: parseFloat(item.lon),
-                name: item.display_name.split(',').slice(0, 2).join(','), // Simple display name
-            }));
-            return results;
+            const results = await searchPlaces(query, 5);
+            return results.map(toLocationData);
         } catch (e) {
-            console.error("Search error:", e);
+            console.error('Search error:', e);
             return [];
         } finally {
             setIsSearching(false);
@@ -94,7 +143,9 @@ export function WeatherLocationProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <WeatherLocationContext.Provider value={{ location, setLocation, requestGeolocation, searchLocation, isSearching }}>
+        <WeatherLocationContext.Provider
+            value={{ location, setLocation, requestGeolocation, searchLocation, isSearching }}
+        >
             {children}
         </WeatherLocationContext.Provider>
     );

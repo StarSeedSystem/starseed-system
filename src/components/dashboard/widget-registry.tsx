@@ -84,6 +84,12 @@ import { IdeaForgeWidget } from "@/components/dashboard/widgets/gen5/idea-forge-
 import { MeritGalleryWidget } from "@/components/dashboard/widgets/gen5/merit-gallery-widget";
 import { SocietyPulseWidget } from "@/components/dashboard/widgets/gen5/society-pulse-widget";
 
+// Mapa real interactivo (OpenStreetMap + Leaflet vía CDN)
+const MapWidget = dynamic(
+    () => import("@/components/dashboard/widgets/map-widget").then(mod => mod.MapWidget),
+    { ssr: false, loading: () => <div className="w-full h-full flex items-center justify-center bg-black/50 text-white/50 animate-pulse text-xs">Cargando mapa...</div> }
+);
+
 // Segunda generación — widgets adaptativos (kit + capa de datos en vivo)
 import {
     AgoraCausalWidget,
@@ -277,6 +283,10 @@ export function WidgetRegistry({ widget }: WidgetProps) {
             return <MeritGalleryWidget />;
         case 'SOCIETY_PULSE':
             return <SocietyPulseWidget />;
+
+        // ── Mapa real interactivo (Ubicación) ──
+        case 'MAP_LOCATION':
+            return <MapWidget />;
 
         default:
             return (

@@ -75,6 +75,7 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
     PROJECT_SWARM: { label: "Enjambre de Propósitos", category: "productividad", w: 4, h: 4, minW: 3, minH: 3, data: ["productivity.swarm"], relevance: 80 },
     ABUNDANCE_RADAR: { label: "Radar de Abundancia", category: "ubicacion", w: 4, h: 4, minW: 3, minH: 3, data: ["location.resources"], relevance: 79 },
     TRANSIT_FLOW: { label: "Tránsito Orgánico", category: "ubicacion", w: 4, h: 4, minW: 3, minH: 3, data: ["location.transit"], relevance: 72 },
+    MAP_LOCATION: { label: "Mapa", category: "ubicacion", w: 5, h: 6, minW: 3, minH: 4, relevance: 90 },
     CRYPTO_SHIELD: { label: "Escudo Ontológico", category: "privacidad", w: 4, h: 4, minW: 3, minH: 3, data: ["privacy.shield"], relevance: 70 },
     HABITAT_CORE: { label: "Simbiosis Habitacional", category: "dispositivos", w: 4, h: 5, minW: 3, minH: 4, data: ["devices.habitat"], relevance: 73 },
     SERENDIPITY_LENS: { label: "Lente de Serendipia", category: "descubrimientos", w: 4, h: 4, minW: 3, minH: 3, data: ["discovery.serendipity"], relevance: 71 },

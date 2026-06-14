@@ -42,6 +42,7 @@ export const WIDGET_CATEGORY_MAP: WidgetCategoryMapping[] = [
     { type: 'PROJECT_SWARM', primaryCategory: 'productividad', secondaryCategories: ['social'], tags: ['proyectos', 'enjambre', 'kanban', 'tareas', 'nodos', 'impacto'], isPopular: true },
     { type: 'ABUNDANCE_RADAR', primaryCategory: 'ubicacion', secondaryCategories: ['economia', 'social'], tags: ['recursos', 'abundancia', 'mapa', 'proximidad', 'oikos', 'libre'], isPopular: true },
     { type: 'TRANSIT_FLOW', primaryCategory: 'ubicacion', secondaryCategories: ['sistema'], tags: ['tránsito', 'movilidad', 'vehículos', 'drones', 'transporte'] },
+    { type: 'MAP_LOCATION', primaryCategory: 'ubicacion', secondaryCategories: ['descubrimientos', 'explorador'], tags: ['mapa', 'openstreetmap', 'osm', 'ubicación', 'geolocalización', 'leaflet'], isPopular: true },
     { type: 'CRYPTO_SHIELD', primaryCategory: 'privacidad', secondaryCategories: ['sistema', 'red'], tags: ['privacidad', 'criptografía', 'rastreadores', 'cebolla', 'soberanía'], isPopular: true },
     { type: 'HABITAT_CORE', primaryCategory: 'dispositivos', secondaryCategories: ['clima', 'sistema'], tags: ['domótica', 'hogar', 'clima', 'robots', 'circadiano', 'hábitat'], isPopular: true },
     { type: 'SERENDIPITY_LENS', primaryCategory: 'descubrimientos', secondaryCategories: ['cultura', 'explorador'], tags: ['serendipia', 'descubrir', 'inesperado', 'sincronía', 'asombro'], isPopular: true },
@@ -238,10 +239,10 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'ubicacion',
         name: 'Ubicación',
         widgets: [
-            { type: 'ABUNDANCE_RADAR', w: 6, h: 4, x: 0, y: 0 },
-            { type: 'TRANSIT_FLOW', w: 6, h: 4, x: 6, y: 0 },
-            { type: 'WEATHER_BASIC', w: 6, h: 4, x: 0, y: 4 },
-            { type: 'WEATHER_AIR_QUALITY', w: 6, h: 4, x: 6, y: 4 },
+            { type: 'MAP_LOCATION', w: 7, h: 6, x: 0, y: 0 },
+            { type: 'ABUNDANCE_RADAR', w: 5, h: 6, x: 7, y: 0 },
+            { type: 'TRANSIT_FLOW', w: 6, h: 4, x: 0, y: 6 },
+            { type: 'WEATHER_BASIC', w: 6, h: 4, x: 6, y: 6 },
         ],
     },
     // ─── 9. Utilidades ───────────────────────────────────────

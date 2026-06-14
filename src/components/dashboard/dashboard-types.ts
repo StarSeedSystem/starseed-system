@@ -71,6 +71,7 @@ export type WidgetType =
     | 'PROJECT_SWARM'         // Productividad — Enjambre de Propósitos
     | 'ABUNDANCE_RADAR'       // Ubicación — Radar de Nodos de Abundancia
     | 'TRANSIT_FLOW'          // Ubicación — Topología de Tránsito Orgánico
+    | 'MAP_LOCATION'          // Ubicación — Mapa real interactivo (OpenStreetMap)
     | 'CRYPTO_SHIELD'         // Privacidad — Escudo Ontológico (membrana criptográfica)
     | 'HABITAT_CORE'          // Dispositivos — Núcleo de Simbiosis Habitacional
     | 'SERENDIPITY_LENS'      // Descubrimientos — Lente de Serendipia

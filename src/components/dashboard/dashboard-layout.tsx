@@ -41,7 +41,7 @@ const LS_INITIALIZED = 'starseed_dashboards_initialized';
 // el acomodo/los widgets por defecto para que las instalaciones existentes
 // re-siembren los tableros predeterminados (preservando los tableros propios).
 const LS_DEFAULTS_VERSION = 'starseed_defaults_version';
-const DEFAULTS_VERSION = 'gen6-2026-06-14-cartera';
+const DEFAULTS_VERSION = 'gen7-2026-06-14-mapa';
 const LS_ACTIVE_PROFILE = 'starseed_active_profile_v1';
 const LS_AI_PROVIDER = 'starseed_ai_provider_v1';
 const LS_SERVERS = 'starseed_internet_servers_v1';
@@ -994,7 +994,7 @@ export function DashboardLayout() {
         <WeatherLocationProvider>
             {/* Sello de versión (confirmar caché). Esquina inf-izq, no estorba al FAB. */}
             <div data-build="STARSEED_BUILD_BADGE" className="fixed bottom-1 left-1 z-[95] pointer-events-none select-none text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/45 text-white/55 backdrop-blur-sm">
-                build · 2026-06-14 · spline-shadow+mapas v11
+                build · 2026-06-14 · mapas+geo v12
             </div>
             <div className={cn(
                 "relative flex flex-row w-full select-none min-h-screen transition-all duration-500",
