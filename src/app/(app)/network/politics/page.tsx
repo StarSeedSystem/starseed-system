@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 
 
 import { ExecutiveProjectsBoard, JudicialCaseList } from "./components";
+import { SystemShowcase } from "@/components/showcase/SystemShowcase";
 
 export default function PoliticsPage() {
     return (
@@ -57,6 +58,8 @@ export default function PoliticsPage() {
                         <JudicialCaseList />
                     </TabsContent>
                 </Tabs>
+
+                <SystemShowcase system="politico" />
             </div>
 
             <DialogContent className="sm:max-w-[425px]">

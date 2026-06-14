@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useState } from "react";
 import { CommentSystem } from "@/components/comment-system";
+import { SystemShowcase } from "@/components/showcase/SystemShowcase";
 
 
 function CourseCard({ course, className }: { course: (typeof courses)[0], className?: string }) {
@@ -204,6 +205,7 @@ function ThemeNetworkView() {
 
 export default function EducationPage() {
   return (
+    <>
     <Tabs defaultValue="network" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="network">Red de Categorías</TabsTrigger>
@@ -242,5 +244,8 @@ export default function EducationPage() {
             </div>
         </TabsContent>
     </Tabs>
+
+    <SystemShowcase system="educativo" />
+    </>
   );
 }

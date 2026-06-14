@@ -12,6 +12,7 @@ import { CommentSystem } from '@/components/comment-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MapPlaceholder } from './components';
 import { UnifiedCalendar } from '@/components/calendar/unified-calendar';
+import { SystemShowcase } from '@/components/showcase/SystemShowcase';
 
 function CulturalPostCard({ post }: { post: typeof culturalPosts[0] }) {
   const [showComments, setShowComments] = useState(false);
@@ -115,6 +116,8 @@ export default function CulturePage() {
           />
         </TabsContent>
       </Tabs>
+
+      <SystemShowcase system="cultural" />
     </div>
   );
 }
