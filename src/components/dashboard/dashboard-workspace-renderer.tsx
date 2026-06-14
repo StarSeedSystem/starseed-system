@@ -35,7 +35,7 @@ export function DashboardWorkspaceRenderer(props: WorkspaceRendererProps) {
     const { state } = useWorkspace();
 
     return (
-        <div className="w-full h-full flex flex-col flex-1 min-h-0 bg-black/20 rounded-3xl border border-white/5 overflow-hidden">
+        <div className="w-full h-full flex flex-col flex-1 min-h-0 bg-transparent rounded-3xl border border-white/5 overflow-hidden">
             <NodeRenderer node={state.root} {...props} />
         </div>
     );
@@ -183,7 +183,7 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
     }, []);
 
     return (
-        <div className="w-full h-full flex flex-col bg-black/40 relative">
+        <div className="w-full h-full flex flex-col bg-transparent relative">
             <div
                 className={cn(
                     "shrink-0 overflow-hidden transition-all duration-300 ease-out",

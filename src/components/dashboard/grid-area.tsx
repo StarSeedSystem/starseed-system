@@ -234,7 +234,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 // (un solo scroller → sin doble barra y el auto-hide de la barra
                 // superior funciona con la dirección del scroll real).
                 "relative min-h-[500px] flex-1 w-full rounded-[clamp(1rem,2vw,2rem)] overflow-visible p-[clamp(0.5rem,1.5vw,1rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-500 ease-out backdrop-blur-sm",
-                isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-black/10 border border-white/5"
+                isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-transparent border border-white/5"
             )}
             style={{ touchAction: "pan-y" }}
             {...containerTouchProps}

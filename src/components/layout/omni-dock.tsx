@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePerimeter } from "@/context/perimeter-context";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,7 @@ import {
     Home, User, MessageSquare, Bell, Users, Book, Library, Network, Settings,
     Plus, BrainCircuit, Brain, Sparkles, Wrench, Zap, Eye, Cpu, Server,
     Database, CalendarDays, Pencil, Check, RotateCcw, X, ArrowLeft, ArrowRight,
+    ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 import { useAppearance } from "@/context/appearance-context";
@@ -42,7 +43,25 @@ export function OmniDock() {
     const [items, setItems] = useState<DockItemConfig[]>(DOCK_PRESETS);
     const [editMode, setEditMode] = useState(false);
 
+    // Sombras de scroll del dock: indican que hay MÁS opciones al deslizar.
+    const stripRef = useRef<HTMLDivElement | null>(null);
+    const [shadow, setShadow] = useState<{ l: boolean; r: boolean }>({ l: false, r: false });
+    const updateShadows = useCallback(() => {
+        const el = stripRef.current;
+        if (!el) return;
+        const max = el.scrollWidth - el.clientWidth;
+        setShadow({ l: el.scrollLeft > 4, r: el.scrollLeft < max - 4 });
+    }, []);
+
     useEffect(() => { setItems(loadDockConfig()); }, []);
+
+    // Recalcula las sombras al abrir el dock, cambiar items o redimensionar.
+    useEffect(() => {
+        if (!isVisible) return;
+        const id = window.setTimeout(updateShadows, 60); // tras la animación de entrada
+        window.addEventListener("resize", updateShadows);
+        return () => { window.clearTimeout(id); window.removeEventListener("resize", updateShadows); };
+    }, [isVisible, items, editMode, updateShadows]);
 
     const persist = (next: DockItemConfig[]) => {
         setItems(next);
@@ -115,8 +134,41 @@ export function OmniDock() {
                         shadow-[0_10px_40px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)]
                         mb-2 sm:mb-4 max-w-[calc(100vw-0.75rem)] lg:max-w-[96vw]
                         p-2 lg:p-5
+                        relative
                     ">
-                        <div className="omni-dock-strip flex items-end gap-1.5 lg:gap-4">
+                        {/* Sombras de scroll: aparecen del lado donde hay más opciones */}
+                        <div
+                            aria-hidden
+                            className={cn(
+                                "pointer-events-none absolute inset-y-2 left-0 w-10 rounded-l-[--radius-full] z-10 transition-opacity duration-300",
+                                "bg-gradient-to-r from-black/45 to-transparent",
+                                shadow.l ? "opacity-100" : "opacity-0"
+                            )}
+                        />
+                        <div
+                            aria-hidden
+                            className={cn(
+                                "pointer-events-none absolute inset-y-2 right-0 w-10 rounded-r-[--radius-full] z-10 transition-opacity duration-300",
+                                "bg-gradient-to-l from-black/45 to-transparent",
+                                shadow.r ? "opacity-100" : "opacity-0"
+                            )}
+                        />
+                        {/* Chevron sutil que confirma que se puede seguir desplazando */}
+                        {shadow.r && (
+                            <span aria-hidden className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 z-20 text-foreground/50 animate-pulse">
+                                <ChevronRight className="w-4 h-4" />
+                            </span>
+                        )}
+                        {shadow.l && (
+                            <span aria-hidden className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 z-20 text-foreground/50 animate-pulse">
+                                <ChevronLeft className="w-4 h-4" />
+                            </span>
+                        )}
+                        <div
+                            ref={stripRef}
+                            onScroll={updateShadows}
+                            className="omni-dock-strip flex items-end gap-1.5 lg:gap-4"
+                        >
                             {visibleItems.map((item) => {
                                 const Icon = ICON_MAP[item.iconKey] ?? Home;
                                 return (
