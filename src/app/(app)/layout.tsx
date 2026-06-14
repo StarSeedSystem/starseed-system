@@ -9,7 +9,10 @@ import { AlarmScheduler } from "@/components/calendar/alarm-scheduler";
 import { ActiveAlertModal } from "@/components/calendar/active-alert-modal";
 import { useEffect } from "react";
 import { hermes } from "@/hermes-integration";
-import { AiOverlay } from "@/components/hermes/ai-overlay";
+// AiOverlay retirado: el botón flotante del bot de IA se elimina; la función de
+// IA vive ahora en el Exocórtex del menú Trinity (Zenith). El componente se
+// conserva en el repo por si se reutiliza, pero ya no se monta globalmente.
+// import { AiOverlay } from "@/components/hermes/ai-overlay";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { config } = useAppearance();
@@ -37,8 +40,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         {/* Motor de alarmas global + modal de aviso activo */}
         <AlarmScheduler />
         <ActiveAlertModal />
-        {/* IA omnipresente — voz + texto, navega y actúa por el usuario */}
-        <AiOverlay />
+        {/* IA: ahora se accede desde el Exocórtex del menú Trinity (Zenith),
+            no desde un botón flotante. */}
       </StoriesProvider>
     </CalendarProvider>
   );

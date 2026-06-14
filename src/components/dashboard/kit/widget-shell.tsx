@@ -18,6 +18,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+import { Maximize2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
@@ -52,6 +53,10 @@ export interface WidgetShellProps {
     }>;
     /** Sigilo StarSeed tenue en la esquina (marca de identidad). Default: true. */
     sigil?: boolean;
+    /** Abrir una vista ampliada en pestaña nueva (más información/complejidad). */
+    expandHref?: string;
+    /** Abrir una vista ampliada en ventana/modal del propio OS. */
+    onExpand?: () => void;
 }
 
 function bgClass(style: string, opacity: number): string {
@@ -104,6 +109,7 @@ function innerGlowClass(style: string): string {
 export function WidgetShell({
     title, subtitle, icon: Icon, accent, live, actions, footer, children,
     className, bodyClassName, bare = false, connections, sigil = true,
+    expandHref, onExpand,
 }: WidgetShellProps) {
     const { config } = useAppearance();
     const w = config.widgets;
@@ -225,8 +231,15 @@ export function WidgetShell({
                         </span>
                     )}
 
-                    {actions && size.tier !== "micro" && (
-                        <div className="shrink-0 flex items-center gap-1">{actions}</div>
+                    {(actions || expandHref || onExpand) && size.tier !== "micro" && (
+                        <div className="shrink-0 flex items-center gap-1">
+                            {actions}
+                            {(expandHref || onExpand) && (
+                                expandHref
+                                    ? <a href={expandHref} target="_blank" rel="noopener" title="Abrir vista ampliada en una pestaña nueva" aria-label="Ampliar widget" className="grid place-items-center size-7 rounded-full text-muted-foreground/70 hover:text-foreground hover:bg-white/10 transition-colors cursor-pointer"><Maximize2 className="size-3.5" /></a>
+                                    : <button type="button" onClick={onExpand} title="Abrir vista ampliada" aria-label="Ampliar widget" className="grid place-items-center size-7 rounded-full text-muted-foreground/70 hover:text-foreground hover:bg-white/10 transition-colors cursor-pointer"><Maximize2 className="size-3.5" /></button>
+                            )}
+                        </div>
                     )}
                 </header>
             )}
