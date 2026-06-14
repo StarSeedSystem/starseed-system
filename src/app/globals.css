@@ -2656,3 +2656,38 @@ html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb {
 html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--primary-hsl) / 0.50);
 }
+/* ═══════════════════════════════════════════════════════════
+   CRISTAL LÍQUIDO REALISTA — reflejo que deriva (profundidad/movimiento)
+   Capa ::after no intrusiva en cada widget (.os-widget-shell ya usa ::before
+   para el innerGlow). Sutil, mix-blend screen, respeta reduced-motion. No
+   captura punteros. Da sensación 4D orgánica sin saturar ni romper temas.
+   ═══════════════════════════════════════════════════════════ */
+.os-widget-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    115deg,
+    transparent 32%,
+    rgba(255, 255, 255, 0.10) 46%,
+    rgba(255, 255, 255, 0.02) 54%,
+    transparent 68%
+  );
+  background-size: 240% 240%;
+  opacity: 0.42;
+  mix-blend-mode: screen;
+  animation: osGlassSheen 16s ease-in-out infinite;
+}
+.os-widget-shell:hover::after { opacity: 0.6; }
+@keyframes osGlassSheen {
+  0%   { background-position: 0% 0%; }
+  50%  { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
+}
+/* Acentúa el reflejo con el color del tema en modo "original" (data-attr opcional). */
+@media (prefers-reduced-motion: reduce) {
+  .os-widget-shell::after { animation: none; opacity: 0.22; }
+}

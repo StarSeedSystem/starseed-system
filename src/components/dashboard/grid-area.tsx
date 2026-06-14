@@ -251,7 +251,11 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     onDragStart={notifyDragStart as any}
                     onDragStop={handleDragStop as any}
                     onResizeStop={handleDragStop as any}
-                    isDraggable={isEditMode}
+                    // CLAVE anti-arrastre táctil: en puntero grueso (táctil) RGL NO
+                    // es arrastrable hasta que el widget está ARMADO por la pulsación
+                    // de 3 s. Así, tocar y deslizar SIEMPRE hace scroll (no depende de
+                    // interceptar el evento). Con ratón, arrastrable en modo edición.
+                    isDraggable={isEditMode && (!isCoarsePointer || armedId !== null)}
                     isResizable={isEditMode}
                     // Con un widget armado por pulsación mantenida, el drag táctil
                     // debe poder iniciarse desde cualquier punto del widget ("" =
