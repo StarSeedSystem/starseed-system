@@ -7,15 +7,13 @@ import { DashboardWidget, WidgetType } from "./dashboard-types";
 import { WidgetRegistry } from "./widget-registry";
 import { getSizeConstraints } from "./widget-manifest";
 import { AddWidgetDialog } from "./add-widget-dialog";
-import { Sparkles } from "lucide-react";
+import { Sparkles, ChevronUp, ChevronDown } from "lucide-react";
 import { shareWidget } from "@/lib/widget-sync";
 import { getManifest } from "./widget-manifest";
 import { useToast } from "@/components/ui/use-toast";
 import { useWidth } from "@/hooks/use-width";
 import { cn } from "@/lib/utils";
-import { useTouchDragArming } from "./use-touch-drag-arming";
 import { useAppearance } from "@/context/appearance-context";
-import touchStyles from "./grid-area-touch.module.css";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -45,28 +43,39 @@ interface GridAreaProps {
     onForgeOpen?: () => void;
 }
 
+/**
+ * Detección de puntero grueso (táctil). En táctil NUNCA habilitamos el arrastre
+ * de react-grid-layout: deslizar = scroll y los botones del widget siempre
+ * reciben su tap. El reordenamiento en táctil se hace con botones ↑/↓ explícitos.
+ * En ratón (escritorio) el arrastre y la redimensión funcionan como siempre en
+ * modo edición. Esto elimina por completo la clase de fallos del antiguo sistema
+ * de "armado por pulsación" (que interceptaba toques y mataba los botones).
+ */
+function useCoarsePointer(): boolean {
+    const [coarse, setCoarse] = useState(false);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const mq = window.matchMedia("(pointer: coarse)");
+        const update = () => setCoarse(mq.matches || "ontouchstart" in window);
+        update();
+        try { mq.addEventListener("change", update); } catch { /* Safari viejo */ }
+        return () => { try { mq.removeEventListener("change", update); } catch { } };
+    }, []);
+    return coarse;
+}
+
 export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWidget, onAddWidget, onForgeOpen }: GridAreaProps) {
     const { width, containerRef } = useWidth();
     const { toast } = useToast();
     const { config } = useAppearance();
     const [layouts, setLayouts] = useState<any>({});
     const [mounted, setMounted] = useState(false);
+    const isCoarse = useCoarsePointer();
 
-    // Trinity Móvil · Bloque 1 — en táctil el widget solo entra en modo
-    // arrastre tras pulsación mantenida (3 s por defecto, configurable en
-    // Ajustes → Trinity); deslizar = scroll. Ratón/escritorio: idéntico a antes.
-    // Ver use-touch-drag-arming.ts y SOP.
-    const {
-        armedId,
-        isCoarsePointer,
-        containerTouchProps,
-        notifyDragStart,
-        notifyDragStop,
-        armManually,
-    } = useTouchDragArming(isEditMode, {
-        holdMs: config?.trinity?.touch?.holdMs,
-        haptics: config?.trinity?.touch?.haptics,
-    });
+    // En táctil, el arrastre/redimensión de RGL se desactivan SIEMPRE. Así, en
+    // cualquier pantalla táctil, los widgets jamás se mueven al tocarlos, deslizar
+    // hace scroll y todos los botones funcionan. En ratón se permite en edición.
+    const canDragMouse = isEditMode && !isCoarse;
 
     useEffect(() => {
         setMounted(true);
@@ -99,7 +108,6 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     }, [isEditMode]);
 
     const handleDragStop = useCallback((layout: any[], oldItem: any, newItem: any) => {
-        notifyDragStop(); // desarma el modo táctil (no-op con ratón) y asienta con spring
         if (!isEditMode) return;
 
         const updatedWidgets = widgets.map(w => {
@@ -121,7 +129,29 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
 
         // Update parent state (which auto-persists to localStorage via handleSetWidgets)
         setWidgets(updatedWidgets);
-    }, [isEditMode, widgets, setWidgets, notifyDragStop]);
+    }, [isEditMode, widgets, setWidgets]);
+
+    // Reordenamiento explícito (táctil): intercambia la posición (x,y) de este
+    // widget con su vecino inmediato en el orden visual (arriba/abajo). RGL
+    // compacta verticalmente, así que el resultado es un reordenamiento limpio.
+    const moveWidget = useCallback((widgetId: string, dir: "up" | "down") => {
+        const sorted = [...widgets].sort((a, b) =>
+            (a.layout.y - b.layout.y) || (a.layout.x - b.layout.x)
+        );
+        const idx = sorted.findIndex(w => w.id === widgetId);
+        if (idx < 0) return;
+        const swapIdx = dir === "up" ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= sorted.length) return;
+
+        const a = sorted[idx];
+        const b = sorted[swapIdx];
+        const updated = widgets.map(w => {
+            if (w.id === a.id) return { ...w, layout: { ...w.layout, x: b.layout.x, y: b.layout.y } };
+            if (w.id === b.id) return { ...w, layout: { ...w.layout, x: a.layout.x, y: a.layout.y } };
+            return w;
+        });
+        setWidgets(updated);
+    }, [widgets, setWidgets]);
 
     const handleDeleteWidget = (widgetId: string) => {
         const updated = widgets.filter(w => w.id !== widgetId);
@@ -194,17 +224,17 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     }
 
     return (
-        <div 
+        <div
             id={`grid-container-${dashboardId}`}
-            ref={containerRef} 
+            ref={containerRef}
             onDragOver={(e) => {
-                if (isEditMode) {
+                if (canDragMouse) {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
                 }
             }}
             onDrop={(e) => {
-                if (isEditMode) {
+                if (canDragMouse) {
                     e.preventDefault();
                     try {
                         const rawData = e.dataTransfer.getData('text/plain');
@@ -231,14 +261,12 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
             className={cn(
                 // padding fluido (clamp) + holgura inferior para dock/FAB y safe-area:
                 // legible y usable de 320px a ultrawide, en táctil y escritorio.
-                // overflow-visible: el scroll lo gestiona el contenedor del panel
-                // (un solo scroller → sin doble barra y el auto-hide de la barra
-                // superior funciona con la dirección del scroll real).
+                // overflow-visible: el scroll lo gestiona el contenedor del panel.
                 "relative min-h-[500px] flex-1 w-full rounded-[clamp(1rem,2vw,2rem)] overflow-visible p-[clamp(0.5rem,1.5vw,1rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-500 ease-out backdrop-blur-sm",
                 isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-transparent border border-white/5"
             )}
+            // touch-action pan-y SIEMPRE: el dedo scrollea vertical; nada arrastra.
             style={{ touchAction: "pan-y" }}
-            {...containerTouchProps}
         >
             {mounted && width > 0 && (
                 <ResponsiveGridLayout
@@ -248,21 +276,16 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
                     rowHeight={65} // slightly taller for better visual separation
                     width={width}
+                    compactType="vertical"
                     onLayoutChange={onLayoutChange as any}
-                    onDragStart={notifyDragStart as any}
                     onDragStop={handleDragStop as any}
                     onResizeStop={handleDragStop as any}
-                    // Los controles interactivos NUNCA inician arrastre: garantiza que
-                    // cada botón/enlace/campo del widget reciba su click normal.
-                    draggableCancel={'button, a, input, textarea, select, label, [role="button"], [role="slider"], [contenteditable="true"], .rgl-cancel'}
-                    // ⚠️ react-grid-layout v2.2.2 IGNORA draggableHandle/draggableCancel
-                    // (bug conocido, ver memory/state.md Adenda 17): el widget entero es
-                    // la zona de arrastre. Por eso el arrastre SOLO se habilita cuando el
-                    // widget está ARMADO (botón "Mover" o pulsación de 3 s). Sin armar,
-                    // isDraggable=false → los botones reciben sus clicks y el dedo hace
-                    // scroll. Al soltar, notifyDragStop desarma. Funciona en ratón y táctil.
-                    isDraggable={isEditMode && armedId !== null}
-                    isResizable={isEditMode}
+                    // Arrastre/redimensión SOLO con ratón en modo edición. En táctil
+                    // (isCoarse) ambos quedan en false → los widgets nunca se mueven al
+                    // tocarlos, deslizar hace scroll y todo botón recibe su tap. El
+                    // reordenamiento táctil se hace con los botones ↑/↓ del widget.
+                    isDraggable={canDragMouse}
+                    isResizable={canDragMouse}
                     margin={[18, 18]} // cleaner separation
                 >
                     {widgets.map(widget => (
@@ -270,20 +293,16 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                             key={widget.layout.i || widget.id}
                             data-widget-key={widget.layout.i || widget.id}
                             className="relative group h-full"
-                            // HTML5 DnD (transferencia entre paneles) solo con ratón:
-                            // en táctil secuestraba el gesto de scroll (drag nativo iOS).
-                            draggable={isEditMode && !isCoarsePointer}
-                            // touch-action: pan-y SIEMPRE → el navegador reserva el
-                            // scroll vertical; el widget solo bloquea el scroll
-                            // ("none") cuando está ARMADO por la pulsación de 3 s.
-                            // Así, en táctil, deslizar para hacer scroll nunca lo arrastra.
+                            // HTML5 DnD (transferencia entre paneles) solo con ratón.
+                            draggable={canDragMouse}
+                            // touch-action pan-y SIEMPRE → en táctil el gesto es scroll,
+                            // jamás arrastre del widget.
                             style={{
-                                touchAction: armedId === (widget.layout.i || widget.id) ? "none" : "pan-y",
+                                touchAction: "pan-y",
                                 WebkitTouchCallout: "none",
-                                WebkitUserSelect: "none",
                             }}
                             onDragStart={(e) => {
-                                if (isEditMode) {
+                                if (canDragMouse) {
                                     e.dataTransfer.setData('text/plain', JSON.stringify({
                                         widgetId: widget.id,
                                         sourceDashboardId: dashboardId
@@ -293,40 +312,35 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                             }}
                         >
                             <div className={cn(
-                                `h-full w-full overflow-hidden transition-all bg-transparent rounded-3xl ${isEditMode ? 'ring-2 ring-primary/20' : 'hover:shadow-lg'}`,
-                                isEditMode && touchStyles.touchLift,
-                                armedId === (widget.layout.i || widget.id) && touchStyles.touchLiftArmed
+                                `h-full w-full overflow-hidden transition-all bg-transparent rounded-3xl ${isEditMode ? 'ring-2 ring-primary/20' : 'hover:shadow-lg'}`
                             )}>
                                 <WidgetRegistry widget={widget} />
 
-                                {/* Indicador de "armado" (no intercepta el arrastre). */}
-                                {isEditMode && armedId === (widget.layout.i || widget.id) && (
-                                    <div className="pointer-events-none absolute inset-0 z-30 rounded-3xl ring-2 ring-primary/70 shadow-[0_0_24px_-4px_hsl(var(--primary)/0.6)]" aria-hidden>
-                                        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary text-primary-foreground shadow">
-                                            ✦ Moviendo — arrastra y suelta
-                                        </span>
-                                    </div>
-                                )}
-
                                 {isEditMode && (
                                     <>
-                                        {/* Botón MOVER: arma el widget (ratón y táctil). Mientras está
-                                            armado, todo el widget se puede arrastrar; al soltar se desarma.
-                                            En táctil también se arma manteniendo pulsado 3 s sobre el cuerpo. */}
-                                        <button
-                                            type="button"
-                                            onPointerDown={(e) => { e.stopPropagation(); }}
-                                            onClick={(e) => { e.stopPropagation(); armManually(widget.layout.i || widget.id); }}
-                                            title={armedId === (widget.layout.i || widget.id) ? "Listo para mover — arrástralo (toca de nuevo para soltar)" : "Mover widget"}
-                                            className={cn(
-                                                "absolute top-2 right-[8rem] border rounded p-1 z-50 transition-colors cursor-pointer text-sm leading-none",
-                                                armedId === (widget.layout.i || widget.id)
-                                                    ? "bg-primary text-primary-foreground border-primary"
-                                                    : "bg-background/80 hover:bg-background"
-                                            )}
-                                        >
-                                            ✥
-                                        </button>
+                                        {/* Reordenar (táctil y ratón): mueve el widget arriba/abajo
+                                            en el orden visual sin necesidad de arrastrar. En táctil
+                                            es la vía principal de reordenamiento. */}
+                                        {isCoarse && (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "up"); }}
+                                                    className="absolute top-2 left-2 bg-background/80 hover:bg-background border rounded p-1 z-50 cursor-pointer transition-colors"
+                                                    title="Subir / mover antes"
+                                                >
+                                                    <ChevronUp className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "down"); }}
+                                                    className="absolute top-2 left-12 bg-background/80 hover:bg-background border rounded p-1 z-50 cursor-pointer transition-colors"
+                                                    title="Bajar / mover después"
+                                                >
+                                                    <ChevronDown className="w-4 h-4" />
+                                                </button>
+                                            </>
+                                        )}
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -367,4 +381,3 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
         </div>
     );
 }
-
