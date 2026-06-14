@@ -2,6 +2,7 @@
 
 import React from "react";
 import { AppearanceEditor } from "@/components/settings/appearance/appearance-editor";
+import { WidgetsDesignSettings } from "@/components/settings/appearance/widgets-design-settings";
 import { AiProvidersPanel } from "@/components/settings/ai/ai-providers-panel";
 import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { TrinityFabSettings } from "@/components/settings/trinity/trinity-fab-settings";
@@ -51,6 +52,7 @@ export default function SettingsPage() {
                         <div className="p-6 bg-gradient-to-br from-background/50 to-background/10 min-h-[50vh]">
                             <TabsContent value="appearance" className="m-0 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <AppearanceEditor />
+                                <WidgetsDesignSettings />
                             </TabsContent>
 
                             <TabsContent value="trinity" className="m-0 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">

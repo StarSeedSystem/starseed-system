@@ -57,6 +57,13 @@ export interface WidgetShellProps {
     expandHref?: string;
     /** Abrir una vista ampliada en ventana/modal del propio OS. */
     onExpand?: () => void;
+    /**
+     * Modo de diseño de ESTE widget (anula el global de config.widgets.designMode):
+     *  - "theme": hereda el estilo del tema activo.
+     *  - "original": identidad propia (cristal líquido teñido con su acento).
+     * Si no se pasa, usa el modo global.
+     */
+    designMode?: "theme" | "original";
 }
 
 function bgClass(style: string, opacity: number): string {
@@ -109,13 +116,16 @@ function innerGlowClass(style: string): string {
 export function WidgetShell({
     title, subtitle, icon: Icon, accent, live, actions, footer, children,
     className, bodyClassName, bare = false, connections, sigil = true,
-    expandHref, onExpand,
+    expandHref, onExpand, designMode,
 }: WidgetShellProps) {
     const { config } = useAppearance();
     const w = config.widgets;
     const { ref, size } = useElementSize<HTMLDivElement>();
 
     const accentColor = accent ?? "hsl(var(--primary))";
+    // Modo de diseño efectivo: prop del widget > global > "theme".
+    const effectiveMode: "theme" | "original" = designMode ?? w.designMode ?? "theme";
+    const isOriginal = effectiveMode === "original";
     const showSubtitle = !!subtitle && size.tier !== "micro" && size.vTier !== "micro";
     const compactHeader = size.tier === "micro" || size.vTier === "micro";
 
@@ -147,14 +157,27 @@ export function WidgetShell({
     return (
         <div
             ref={ref}
-            style={{ ["--w-glass" as string]: String(w.glassOpacity ?? 0.5) }}
+            style={{
+                ["--w-glass" as string]: String(w.glassOpacity ?? 0.5),
+                // Modo "original": cristal líquido teñido con el acento del widget,
+                // independiente del tema global (identidad propia por widget).
+                ...(isOriginal
+                    ? {
+                        background: `linear-gradient(160deg, color-mix(in srgb, ${accentColor} 16%, hsl(var(--card))) , color-mix(in srgb, ${accentColor} 6%, hsl(var(--card))) 60%, hsl(var(--card)))`,
+                        borderColor: `color-mix(in srgb, ${accentColor} 38%, transparent)`,
+                        boxShadow: `0 18px 44px -22px color-mix(in srgb, ${accentColor} 60%, transparent), inset 0 1px 0 rgba(255,255,255,0.10)`,
+                    }
+                    : {}),
+            }}
             className={cn(
                 // os-widget-shell: capa de calidad transversal (globals.css) —
                 // hover/focus visibles, tabular-nums heredado, sombras por tema.
                 "os-widget-shell @container relative w-full h-full flex flex-col overflow-hidden rounded-3xl text-foreground isolate",
-                bgClass(w.bgStyle, w.glassOpacity),
-                borderClass(w.borderStyle),
-                shadowClass(w.shadows),
+                // En "original" usamos estilos inline (arriba) + backdrop-blur; en
+                // "theme" heredamos las clases del tema global.
+                isOriginal ? "backdrop-blur-2xl border" : bgClass(w.bgStyle, w.glassOpacity),
+                isOriginal ? "" : borderClass(w.borderStyle),
+                isOriginal ? "" : shadowClass(w.shadows),
                 innerGlowClass(w.innerGlow),
                 className
             )}

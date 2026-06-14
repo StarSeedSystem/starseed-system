@@ -135,6 +135,15 @@ export interface AppearanceConfig {
         spacingScale: number;
     };
     widgets: {
+        /**
+         * Modo de diseño de los widgets:
+         *  - "theme": heredan el estilo/tema activo del perfil (coherencia global).
+         *  - "original": cada widget usa su identidad temática propia (cristal
+         *    líquido teñido con su color de acento), independiente del tema.
+         * Opcional → configs guardadas siguen siendo válidas (deepMerge). Se
+         * autoguarda en el dashboard (localStorage) y en el perfil (settings-sync).
+         */
+        designMode?: "theme" | "original";
         dashboardTemplate: "standard" | "analyst" | "creative" | "strategic";
         bgStyle: "glass" | "solid" | "cyber" | "mesh";
         borderStyle: "none" | "thin" | "glow" | "neon";
@@ -413,6 +422,7 @@ const defaultConfig: AppearanceConfig = {
         spacingScale: 1,
     },
     widgets: {
+        designMode: "theme",
         dashboardTemplate: "standard",
         bgStyle: "glass",
         borderStyle: "thin",
