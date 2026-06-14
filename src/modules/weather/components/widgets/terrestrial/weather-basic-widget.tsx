@@ -2,8 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useWeatherLocation } from '@/modules/weather/context/weather-location-context';
-import { fetchWeatherData } from '@/lib/weather-mock';
+import { fetchWeatherData, MOCK_WEATHER_DATA } from '@/lib/weather-mock';
 import { Card } from "@/components/ui/card";
+import {
+    useWidgetProvider,
+    WidgetDataSourceControl,
+} from '@/components/dashboard/widgets/widget-data-source-control';
 import {
     CloudRain, Wind, ThermometerSun, MapPin, Sparkles,
     Cloud, Sun, History, CalendarClock, Activity,
@@ -72,8 +76,13 @@ function buildScene(cond: SkyCondition, phase: DayPhase): SceneSpec {
     }
 }
 
-export function WeatherBasicWidget() {
+export function WeatherBasicWidget({ widgetId = 'weather-basic' }: { widgetId?: string } = {}) {
     const { location } = useWeatherLocation();
+
+    // Selector de proveedor de datos por widget (dominio 'weather').
+    // 'open-meteo' (por defecto) y 'mock' cambian los datos reales mostrados;
+    // los demás proveedores quedan preparados pero usan el flujo actual.
+    const { providerId, setProviderId } = useWidgetProvider(widgetId, 'weather');
 
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -91,6 +100,16 @@ export function WeatherBasicWidget() {
 
     useEffect(() => {
         let mounted = true;
+
+        // Proveedor 'mock': datos sintéticos locales, sin red.
+        if (providerId === 'mock') {
+            setData(MOCK_WEATHER_DATA.terrestrial);
+            setLoading(false);
+            return () => { mounted = false; };
+        }
+
+        // Proveedor por defecto ('open-meteo') y resto: flujo actual.
+        // (Otros proveedores quedan preparados; por ahora reutilizan este flujo.)
         setLoading(true);
         fetchWeatherData(location.lat, location.lon)
             .then(json => {
@@ -104,7 +123,7 @@ export function WeatherBasicWidget() {
                 if (mounted) setLoading(false);
             });
         return () => { mounted = false; };
-    }, [location.lat, location.lon]);
+    }, [location.lat, location.lon, providerId]);
 
     if (loading || !data) {
         return (
@@ -172,10 +191,18 @@ export function WeatherBasicWidget() {
                 </div>
 
                 <div className="flex flex-col items-end gap-1.5">
-                    <div className="px-3 py-1 rounded-full bg-black/40 border border-white/5 backdrop-blur-xl">
-                        <span className="text-[9px] font-black text-white/70 tracking-[0.1em] uppercase tabular-nums">
-                            {currentTime.toLocaleTimeString([], { hour12: false })}
-                        </span>
+                    <div className="flex items-center gap-2">
+                        <WidgetDataSourceControl
+                            widgetId={widgetId}
+                            domain="weather"
+                            value={providerId}
+                            onChange={setProviderId}
+                        />
+                        <div className="px-3 py-1 rounded-full bg-black/40 border border-white/5 backdrop-blur-xl">
+                            <span className="text-[9px] font-black text-white/70 tracking-[0.1em] uppercase tabular-nums">
+                                {currentTime.toLocaleTimeString([], { hour12: false })}
+                            </span>
+                        </div>
                     </div>
                     <span className="text-[6px] font-black text-white/20 uppercase tracking-[0.3em]">H_RES_SYNC</span>
                 </div>
