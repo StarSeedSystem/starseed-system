@@ -2,7 +2,8 @@
 'use client';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { comments as defaultComments } from "@/lib/data";
+import { comments as defaultComments, articles, courses } from "@/lib/data";
+import { BookOpen, FileText, ArrowUpRight } from "lucide-react";
 import { CommentSystem } from "@/components/comment-system";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -161,11 +162,37 @@ export default function ProfilePage() {
                         </TabsContent>
                         <TabsContent value="library" className="mt-6">
                             <Card>
-                                <CardHeader>
-                                    <CardTitle>Biblioteca</CardTitle>
+                                <CardHeader className="flex flex-row items-start justify-between gap-3">
+                                    <div>
+                                        <CardTitle className="font-headline">Biblioteca de {profileData.name}</CardTitle>
+                                        <CardDescription>Artículos y cursos publicados o curados por este perfil.</CardDescription>
+                                    </div>
+                                    <Link href="/library" className="shrink-0 whitespace-nowrap text-sm text-primary hover:underline cursor-pointer">Ver biblioteca →</Link>
                                 </CardHeader>
-                                <CardContent>
-                                    <p className="text-muted-foreground">La biblioteca pública de este perfil está en construcción.</p>
+                                <CardContent className="space-y-6">
+                                    <div>
+                                        <p className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground"><FileText className="h-3.5 w-3.5" /> Artículos</p>
+                                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                            {articles.slice(0, 3).map((a) => (
+                                                <Link key={a.id} href={a.href} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
+                                                    <p className="font-medium leading-snug group-hover:text-primary transition-colors">{a.title}</p>
+                                                    <p className="mt-1 text-xs text-muted-foreground">{a.author}</p>
+                                                    <div className="mt-2 flex flex-wrap gap-1">{a.tags.slice(0, 2).map((t) => <span key={t} className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">#{t}</span>)}</div>
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground"><BookOpen className="h-3.5 w-3.5" /> Cursos</p>
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            {courses.slice(0, 2).map((c) => (
+                                                <Link key={c.id} href={c.href} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
+                                                    <p className="flex items-center gap-1 font-medium leading-snug group-hover:text-primary transition-colors">{c.title} <ArrowUpRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" /></p>
+                                                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{c.description}</p>
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </CardContent>
                             </Card>
                         </TabsContent>
