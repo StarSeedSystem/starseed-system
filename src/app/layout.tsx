@@ -62,11 +62,11 @@ export const metadata: Metadata = {
   description: "Sistema operativo social para la regeneración global",
   icons: {
     icon: [
-      { url: "/starseed-symbol.png", type: "image/png" },
       { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/starseed-symbol-square.png", sizes: "512x512", type: "image/png" },
     ],
-    shortcut: "/starseed-symbol.png",
-    apple: "/starseed-symbol.png",
+    shortcut: "/favicon-48.png",
+    apple: "/apple-icon.png",
   },
 };
 

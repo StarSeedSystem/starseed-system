@@ -13,6 +13,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { PostCard } from "@/components/social/PostCard";
 import { ShareButton } from "@/components/social/SocialActions";
 import { MemberAvatars } from "@/components/social/MemberAvatars";
+import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
 import { eventHref } from "@/lib/entity-links";
 import {
     useOsEntity,
@@ -325,13 +326,22 @@ export default function PaginaPage() {
             </GlassCard>
 
             {/* ── Pestañas ── */}
-            <Tabs defaultValue="posts">
+            <Tabs defaultValue={hasToolkit(page.kind) ? "tools" : "posts"}>
                 <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto">
+                    {hasToolkit(page.kind) && (
+                        <TabsTrigger value="tools">{toolkitMeta(page.kind).toolkitTab}</TabsTrigger>
+                    )}
                     <TabsTrigger value="posts">Publicaciones</TabsTrigger>
                     <TabsTrigger value="about">Acerca de</TabsTrigger>
                     <TabsTrigger value="members">Miembros</TabsTrigger>
                     <TabsTrigger value="events">Eventos</TabsTrigger>
                 </TabsList>
+
+                {hasToolkit(page.kind) && (
+                    <TabsContent value="tools" className="mt-6">
+                        <GovernanceToolkit kind={page.kind} slug={page.slug} accent={accent} name={page.name} />
+                    </TabsContent>
+                )}
 
                 <TabsContent value="posts" className="mt-6">
                     <PageFeed slug={page.slug} accent={accent} />

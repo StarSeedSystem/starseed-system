@@ -10,6 +10,8 @@ import { BarChart, FileText, MessageSquare, Bookmark, Sparkles, PlusCircle } fro
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 import { politicalProposals, type Comment as CommentType } from "@/lib/data";
 import { CommentSystem } from "@/components/comment-system";
+import Link from "next/link";
+import { slugify } from "@/lib/entity-links";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Label } from "./ui/label";
@@ -152,7 +154,11 @@ export function PoliticalProposalCard({ proposal }: { proposal: typeof political
                     <div className="flex justify-between items-start gap-4">
                         <div>
                             <CardTitle className="font-headline text-xl">{proposal.title}</CardTitle>
-                            <CardDescription className="mt-1">Propuesta en: <span className="font-semibold text-primary">{proposal.ef}</span></CardDescription>
+                            <CardDescription className="mt-1">Propuesta en:{" "}
+                                <Link href={`/entidad/${slugify(proposal.ef)}`} className="font-semibold text-primary cursor-pointer hover:underline">
+                                    {proposal.ef}
+                                </Link>
+                            </CardDescription>
                         </div>
                         <Badge variant={proposal.urgency === "Urgente" ? "destructive" : "secondary"}>{proposal.urgency}</Badge>
                     </div>

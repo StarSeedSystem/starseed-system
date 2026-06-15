@@ -13,6 +13,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { PostCard } from "@/components/social/PostCard";
 import { ShareButton } from "@/components/social/SocialActions";
 import { MemberAvatars } from "@/components/social/MemberAvatars";
+import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
 import { useOsEntity, useOsPosts, useMembership, useEntityOwner } from "@/hooks/use-os-entities";
 import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 import type { OsGroup } from "@/lib/os-social";
@@ -309,12 +310,21 @@ export default function GrupoPage() {
             </GlassCard>
 
             {/* ── Pestañas ── */}
-            <Tabs defaultValue="feed">
+            <Tabs defaultValue="tools">
                 <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto">
+                    {hasToolkit(group.kind) && (
+                        <TabsTrigger value="tools">{toolkitMeta(group.kind).toolkitTab}</TabsTrigger>
+                    )}
                     <TabsTrigger value="feed">Feed del grupo</TabsTrigger>
                     <TabsTrigger value="about">Acerca de</TabsTrigger>
                     <TabsTrigger value="members">Miembros</TabsTrigger>
                 </TabsList>
+
+                {hasToolkit(group.kind) && (
+                    <TabsContent value="tools" className="mt-6">
+                        <GovernanceToolkit kind={group.kind} slug={group.slug} accent={accent} name={group.name} />
+                    </TabsContent>
+                )}
 
                 <TabsContent value="feed" className="mt-6">
                     <GroupFeed slug={group.slug} accent={accent} />

@@ -70,3 +70,6 @@ queue/
 
 .tscout.txt
 .persist-test.txt
+
+# temporary scoped typecheck configs
+tsc-*.tmp.json

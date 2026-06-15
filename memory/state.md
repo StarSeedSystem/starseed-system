@@ -1052,3 +1052,61 @@ IA/parlamento); subida de imágenes (avatar/portada) a Supabase Storage para ent
 
 **Pendiente:** propagar selector de proveedor al resto de widgets; áreas restantes
 (productividad/descubrimientos/ayudantía); comentarios/likes reales en posts (Supabase).
+
+---
+## Adenda 27 — 2026-06-14 · Likes/comentarios reales + áreas productividad/descubrimientos (v18)
+
+- **Supabase:** tablas os_post_likes, os_post_comments (RLS). os-social: fetchLikes/toggleLike/
+  fetchComments/addComment/deleteComment + tipo OsComment. Hooks useLikes/useComments
+  (optimista, realtime opcional). PostCard distingue post real (uuid) → like/comentarios
+  persistentes; post de ejemplo → estado local + invitación a login. Páginas pagina/grupo
+  ya renderizan posts reales → quedan conectadas.
+- **Áreas (commit 702555f):** flow-director (curva circadiana recharts + hora actual + modos),
+  project-swarm (kanban movible + progreso), serendipity-lens (filtro + explorar/guardar +
+  detalle), idea-forge (combinar semillas determinista + favoritos). Build READY. Badge v18.
+
+**Pendiente:** propagar selector de proveedor al resto de widgets; áreas restantes
+(personalización/dispositivos/entretenimiento); perfiles de usuario reales (tabla profiles).
+
+---
+## Adenda 28 — 2026-06-14 · Sistema de toolkits por tipo de página + favicon (v19)
+
+**Resumen:** Unificación del formato de las páginas de entidad y herramientas funcionales
+ricas por tipo (partido, E.F., asamblea, comunidad, grupo, evento), al nivel del hub.
+Ejemplos navegables interconectados con toda la red. Favicon StarSeed real.
+
+### Hecho
+- **Favicon:** regenerado `src/app/icon.png` (512²), `favicon.ico` (16/32/48/64) y
+  `public/{starseed-symbol-square,apple-icon}.png` centrando `public/starseed-symbol.png`
+  (el ojo-prisma del Nexus). `layout.tsx` metadata.icons apunta a las nuevas variantes.
+- **Contratos compartidos:**
+  · `src/lib/entity-kinds.ts` — registro canónico de tipos (personal/comunidad/ef/partido/
+    asamblea/grupo/evento/pagina/proyecto) con icono, acento, sistema y toolkit; +
+    `normalizeEntityKind()` tolerante (pageType de profile, kind os_*, texto de widget).
+  · `src/data/sample-governance.ts` — datos ricos DETERMINISTAS e interconectados:
+    partidos (programa/militancia/candidaturas/coaliciones/voto interno), federativeEntities
+    (cámara/presupuesto participativo/territorio/voto líquido/sub-entidades), assemblies
+    (orden del día/mociones/actas), communities (proyectos/procomún/tesorería de Semillas/
+    mentorías), groups (sesiones/tareas/recursos), eventExtras (programa/RSVP/ubicación).
+    Lookups con fallback elegante (getPartido/getFederativeEntity/getAssembly/getCommunity/
+    getGroup/getEventExtras) + aliases (party-1..3, partido-transhumanista, oikos-norte…).
+    Enlaza a /network/politics (prop-1..4), /evento/<slug>, /pagina/<slug>, /library.
+  · `src/components/social/toolkits/shared/index.tsx` — primitivas: ToolSection, StatTile/
+    StatGrid, VoteBar (con quórum), MiniVote (votación interactiva), RosterStrip, ProgressRow,
+    PersonRow, LinkCard, Timeline, Chip, EmptyHint. `icon` acepta componente o elemento.
+- **6 toolkits + dispatcher** (`src/components/social/toolkits/*Toolkit.tsx` + `index.tsx`
+  `GovernanceToolkit`/`hasToolkit`/`toolkitMeta`): construidos en paralelo por subagentes.
+  EF es el más rico (5 sub-pestañas, 506 líneas).
+- **Cableado:**
+  · profile/[username] → pestaña «Gobernanza/Partido/Comunidad/Grupo» según pageType
+    (sustituye al antiguo EFGovernanceTabs por el toolkit completo).
+  · grupo/[slug], pagina/[slug], evento/[slug] → pestaña/sección de herramientas por kind.
+  · NUEVAS rutas `partido/[slug]` y `entidad/[slug]` (shell `governance-entity-page.tsx`
+    con portada de acento + métricas + seguir/compartir + toolkit).
+  · hub: `myPages` y tarjetas de partido enlazan a rutas reales (se eliminan los `#`).
+- **Verificación:** tsc scoped LIMPIO en todos los archivos nuevos/tocados; 13 lookups de
+  datos validados en runtime (sumas de presupuesto = 100%, aliases OK, evento desconocido →
+  undefined). next.config ya tiene ignoreBuildErrors/ignoreDuringBuilds.
+
+**Pendiente:** persistir gobernanza en Supabase (hoy datos de ejemplo, patrón fallback del
+proyecto); votación interna/mociones reales; conectar `voteManagement` del hub a E.F. reales.

@@ -5,15 +5,78 @@ import { PoliticalProposalCard } from "@/components/political-proposal-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, Scale, Users } from "lucide-react";
+import { BarChart, Scale, Users, Landmark, Flag, ArrowUpRight } from "lucide-react";
 import { politicalProposals } from "@/lib/data";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-
+import Link from "next/link";
+import { listFederativeEntities, listPartidos } from "@/data/sample-governance";
 
 import { ExecutiveProjectsBoard, JudicialCaseList } from "./components";
 import { SystemShowcase } from "@/components/showcase/SystemShowcase";
+
+/** Lanzador de gobernanza: enlaza a las páginas de detalle de E.F. y partidos. */
+function GovernanceLauncher() {
+    const efs = listFederativeEntities();
+    const partidos = listPartidos();
+    return (
+        <Card className="mb-6 liquid-glass-panel">
+            <CardHeader className="pb-3">
+                <CardTitle className="font-headline text-lg">Mapa de Gobernanza</CardTitle>
+                <CardDescription>Entra a las Entidades Federativas y Partidos de la red.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+                <div>
+                    <p className="mb-2 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
+                        <Landmark className="h-3.5 w-3.5" /> Entidades Federativas
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                        {efs.map((ef) => (
+                            <Link
+                                key={ef.slug}
+                                href={`/entidad/${ef.slug}`}
+                                className="group flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 cursor-pointer transition-all hover:border-white/25"
+                            >
+                                <span className="flex items-center gap-2 text-sm font-medium">
+                                    <span className="h-2 w-2 rounded-full" style={{ background: ef.accent }} />
+                                    {ef.name}
+                                </span>
+                                <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    {ef.citizens.toLocaleString("es-ES")}
+                                    <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                                </span>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+                <div>
+                    <p className="mb-2 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
+                        <Flag className="h-3.5 w-3.5" /> Partidos Políticos
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                        {partidos.map((p) => (
+                            <Link
+                                key={p.slug}
+                                href={`/partido/${p.slug}`}
+                                className="group flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 cursor-pointer transition-all hover:border-white/25"
+                            >
+                                <span className="flex items-center gap-2 text-sm font-medium">
+                                    <span className="h-2 w-2 rounded-full" style={{ background: p.accent }} />
+                                    {p.name}
+                                </span>
+                                <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    {p.members.toLocaleString("es-ES")}
+                                    <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                                </span>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function PoliticsPage() {
     return (
@@ -58,6 +121,10 @@ export default function PoliticsPage() {
                         <JudicialCaseList />
                     </TabsContent>
                 </Tabs>
+
+                <div className="mt-8">
+                    <GovernanceLauncher />
+                </div>
 
                 <SystemShowcase system="politico" />
             </div>

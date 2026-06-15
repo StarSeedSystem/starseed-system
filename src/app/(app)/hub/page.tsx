@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { studyGroups, politicalParties, userBadges } from "@/lib/data";
+import { slugify } from "@/lib/entity-links";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { useCalendar, LAYER_META, CalendarLayer, CalendarVisibility } from "@/contexts/calendar-context";
 import { StoriesStrip } from "@/components/stories/stories-strip";
@@ -124,10 +125,11 @@ const initialGoals = [
 
 
 const myPages = [
-    { name: "E.F. del Valle Central", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png", members: 2847, href: "/profile/ef-valle-central", activity: "Alta" },
+    { name: "E.F. del Valle Central", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png", members: 2847, href: "/entidad/ef-valle-central", activity: "Alta" },
     { name: "Comunidad de Permacultura", type: "Comunidad", avatar: "https://placehold.co/40x40.png", members: 128, href: "/profile/comunidad-permacultura", activity: "Media" },
-    { name: "Partido: Coalición Verde", type: "Partido Político", avatar: "https://placehold.co/40x40.png", members: 2890, href: "#", activity: "Alta" },
-    { name: "Huerto Comunitario Norte", type: "Comunidad", avatar: "https://placehold.co/40x40.png", members: 45, href: "#", activity: "Baja" },
+    { name: "Partido: Coalición Verde", type: "Partido Político", avatar: "https://placehold.co/40x40.png", members: 2890, href: "/partido/coalicion-verde", activity: "Alta" },
+    { name: "Asamblea Local Oikos Norte", type: "Asamblea", avatar: "https://placehold.co/40x40.png", members: 312, href: "/grupo/asamblea-local-oikos-norte", activity: "Alta" },
+    { name: "Sangha Norte", type: "Comunidad", avatar: "https://placehold.co/40x40.png", members: 128, href: "/pagina/sangha-norte", activity: "Media" },
 ];
 
 const voteManagement = [
@@ -1921,7 +1923,9 @@ export default function HubPage() {
                                             {party.name[0]}
                                         </div>
                                         <div className="flex-1 min-w-0 text-center md:text-left">
-                                            <p className="font-semibold text-foreground text-lg mb-0.5">{party.name}</p>
+                                            <Link href={`/partido/${party.id}`} className="cursor-pointer">
+                                                <p className="font-semibold text-foreground text-lg mb-0.5 hover:text-primary transition-colors">{party.name}</p>
+                                            </Link>
                                             <p className="text-sm font-medium text-muted-foreground mb-2">{party.ideology}</p>
                                             <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
                                                 <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 bg-white/5 py-1 px-2.5 rounded-full border border-white/5">
@@ -1975,7 +1979,7 @@ export default function HubPage() {
                                     <div className="flex-1 min-w-0 text-center md:text-left">
                                         <p className="font-semibold text-foreground text-lg mb-1 leading-snug">{item.proposal}</p>
                                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-sm font-medium text-muted-foreground">
-                                            <span className="bg-white/5 px-2 py-0.5 rounded border border-white/5">{item.ef}</span>
+                                            <Link href={`/entidad/${slugify(item.ef)}`} className="bg-white/5 px-2 py-0.5 rounded border border-white/5 cursor-pointer hover:text-primary hover:border-primary/30 transition-colors">{item.ef}</Link>
                                             <span className="opacity-50">•</span>
                                             <span>Fecha límite: <span className="text-foreground/80">{item.deadline}</span></span>
                                         </div>

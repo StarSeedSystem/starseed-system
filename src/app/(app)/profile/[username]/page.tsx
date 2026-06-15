@@ -12,7 +12,7 @@ import { RecentPostsWidget } from "@/components/profile/widgets/recent-posts-wid
 import { ConnectionsWidget } from "@/components/profile/widgets/connections-widget";
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { CollectionsGrid } from "@/components/profile/collections/collections-grid";
-import { EFGovernanceTabs } from "@/components/profile/governance/ef-governance-tabs";
+import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { StoriesStrip } from "@/components/stories/stories-strip";
 import { PostFeed } from "@/components/social/PostFeed";
@@ -117,6 +117,9 @@ export default function ProfilePage() {
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
                         <TabsList className="overflow-x-auto flex-nowrap w-full justify-start md:justify-center">
                             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                            {hasToolkit(pageType) && (
+                                <TabsTrigger value="gobierno">{toolkitMeta(pageType).toolkitTab}</TabsTrigger>
+                            )}
                             <TabsTrigger value="agenda">Agenda</TabsTrigger>
                             <TabsTrigger value="posts">Publicaciones</TabsTrigger>
                             <TabsTrigger value="connections">Conexiones</TabsTrigger>
@@ -144,12 +147,14 @@ export default function ProfilePage() {
                             />
                         </TabsContent>
 
+                        {hasToolkit(pageType) && (
+                            <TabsContent value="gobierno" className="mt-6 animate-in fade-in-50 duration-500">
+                                <GovernanceToolkit kind={pageType} slug={username} name={profileData.name} />
+                            </TabsContent>
+                        )}
+
                         <TabsContent value="posts" className="mt-6">
-                            {pageType === 'ef' ? (
-                                <EFGovernanceTabs />
-                            ) : (
-                                <PostFeed channelKey={`profile-${username}`} />
-                            )}
+                            <PostFeed channelKey={`profile-${username}`} />
                         </TabsContent>
                         <TabsContent value="connections" className="mt-6">
                             <ConnectionsWidget pageType={pageType} />

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ShareButton } from "@/components/social/SocialActions";
+import { GovernanceToolkit } from "@/components/social/toolkits";
 import { useOsEntity, useAttendance, useEntityOwner } from "@/hooks/use-os-entities";
 import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 import type { OsEvent } from "@/lib/os-social";
@@ -312,6 +313,15 @@ export default function EventoPage() {
                     </GlassCard>
                 </aside>
             </div>
+
+            {/* ── Herramientas del evento (programa, asistencia, ubicación, red) ── */}
+            <section>
+                <h2 className="mb-4 flex items-center gap-2 font-headline text-lg font-semibold" style={{ color: accent }}>
+                    <CalendarCheck className="h-5 w-5" />
+                    Herramientas del evento
+                </h2>
+                <GovernanceToolkit kind="evento" slug={event.slug} accent={accent} name={event.title} />
+            </section>
 
             <p className="text-center text-xs text-muted-foreground">
                 <Link href="/network/culture" className="cursor-pointer hover:underline" style={{ color: GOLD }}>
