@@ -1110,3 +1110,33 @@ Ejemplos navegables interconectados con toda la red. Favicon StarSeed real.
 
 **Pendiente:** persistir gobernanza en Supabase (hoy datos de ejemplo, patrón fallback del
 proyecto); votación interna/mociones reales; conectar `voteManagement` del hub a E.F. reales.
+
+---
+## Adenda 29 — 2026-06-15 · Deploy del OS EN VIVO + automatización + páginas artículo/curso/perfil
+
+**Resumen:** Resuelto y verificado el despliegue de producción del SOSD; automatizado por repo;
+artículo y curso ahora funcionales e interconectados; pestaña Biblioteca del perfil real.
+
+### Hecho
+- **Deploy OS resuelto (clave):** la cuenta `alexbordongarrigos` NO es miembro de la org
+  `StarSeedSystem` → su token solo lee. El repo del OS requiere un token de la **cuenta-org
+  `StarSeedSystem`** (push/admin). El proyecto Vercel `starseed-os` (team `starseeds-projects`)
+  YA está conectado a `StarSeedSystem/starseed-system`: **push a main = deploy de producción
+  automático** (no hace falta token de Vercel). Verificado vía commit status `Vercel` → success.
+  Empujados y desplegados los commits `16ab528` (Adenda 28: toolkits+rutas+favicon+interconexión)
+  y `61dd6a7` (este lote). starseed-os.vercel.app sirviendo en vivo.
+- **Automatización del despliegue:** `StarSeed Café/.env` ahora tiene `GITHUB_TOKEN_OS` (token de
+  StarSeedSystem). El script `StarSeed Ecosistema/Actualizar TODO….command` empuja CADA repo con
+  su token (Café=`GITHUB_TOKEN` alexbordongarrigos · OS=`GITHUB_TOKEN_OS`) y es ejecutable; el
+  `.env` está gitignored (token no se commitea). ⚠️ Rotar/usar fine-grained recomendado.
+- **article/[id]:** autor → /profile, like y "Guardar en Biblioteca" funcionales (estado), scroll a
+  discusión, sección "Artículos relacionados" por tags. Fix typing de params.id.
+- **course/[id]:** progreso de lecciones interactivo (estado + useMemo), CTA avanza lección,
+  enlaces a /library y /network/education, "Cursos relacionados".
+- **profile (pestaña Biblioteca):** ya no es stub — grid real de artículos y cursos enlazados a
+  /article, /course y /library.
+- Nota: el resto de la red (publish 539, library 422, messages 424, notifications 664, settings
+  261, mapas/ubicación, explorer, store) ya estaba sustancialmente implementado en adendas previas.
+
+**Pendiente:** persistencia Supabase de gobernanza; enriquecer áreas existentes según prioridad del
+usuario; rotación de tokens compartidos en chat.
