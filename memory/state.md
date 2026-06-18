@@ -1140,3 +1140,26 @@ artículo y curso ahora funcionales e interconectados; pestaña Biblioteca del p
 
 **Pendiente:** persistencia Supabase de gobernanza; enriquecer áreas existentes según prioridad del
 usuario; rotación de tokens compartidos en chat.
+
+---
+## Adenda 30 — 2026-06-18 · Votación de gobernanza REAL persistida en Supabase (toda la red)
+
+**Resumen:** Los `MiniVote` de todos los toolkits ahora guardan votos reales en Supabase y muestran
+recuentos agregados de toda la red. Desplegado en vivo (commit `a93c101`).
+
+### Hecho
+- **Supabase (proyecto `dzkjapinnewkxzjltadv`):** migración `os_gov_votes` (id, ballot_type,
+  ballot_key, choice, user_id default auth.uid(), unique(ballot_key,user_id)) con RLS estilo os_*
+  (lectura pública `true`; insert/update/delete propios `user_id = auth.uid()`). RPC
+  `os_gov_tally(p_ballot_key)` → recuentos por opción (grant anon+authenticated).
+- **Hook `src/hooks/use-gov-vote.ts`:** lee tally real (RPC) + voto propio; `vote()` hace upsert
+  (onConflict ballot_key,user_id) con sesión, u optimista local + `needsAuth` sin sesión. Base
+  determinista sembrada (sin Math.random → SSR estable) para no verse vacío.
+- **`MiniVote` (shared/toolkits):** acepta `ballotKey`/`ballotType`; persiste y muestra %
+  reales; permite cambiar el voto; sin sesión muestra invitación a /login. Cableado por entidad:
+  `ef:<slug>:legislativo|presupuesto|delegacion`, `motion:<slug>#i`, `party:<slug>:internal`,
+  `comunidad:<slug>:presupuesto`, `evento:<slug>:rsvp`.
+- Deploy automático verificado (commit status Vercel → success).
+
+**Pendiente:** mismas mecánicas reales para propuestas legislativas completas (os_posts ya real);
+enriquecer mensajes/cuenta/mapas/archivos/feed y widgets según prioridad; rotar tokens del chat.

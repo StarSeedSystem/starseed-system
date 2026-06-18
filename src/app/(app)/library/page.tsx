@@ -3,8 +3,9 @@
 // Evita el bailout de prerender estatico por useSearchParams (build de Vercel).
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Input } from "@/components/ui/input";
@@ -18,18 +19,24 @@ import {
   LayoutGrid,
   List as ListIcon,
   ChevronRight,
-  ArrowUpDown,
-  Calendar,
   HardDrive,
   Globe,
   Lock,
   Cpu,
   Book,
   Lightbulb,
-  Settings2,
-  Share2,
   Plus,
-  ArrowLeft
+  ArrowLeft,
+  BookOpen,
+  GraduationCap,
+  FileText,
+  Users,
+  Star,
+  Heart,
+  ArrowUpDown,
+  SlidersHorizontal,
+  X,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -42,49 +49,44 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { StarSeedKnowledgePanel } from "@/components/library/StarSeedKnowledgePanel";
 import { DesignAssetsPanel } from "@/components/library/DesignAssetsPanel";
+import { articles, courses, files, categories } from "@/lib/data";
+import { samplePages } from "@/data/sample-entities";
 
 // --- Types ---
 
 type LibraryMode = 'GLOBAL' | 'PERSONAL';
 type ViewMode = 'GRID' | 'LIST';
 type AssetType = 'FILE' | 'FOLDER' | 'LIBRARY' | 'PROGRAM' | 'PAGE' | 'CONCEPT';
+type ResourceType = 'todos' | 'articulos' | 'cursos' | 'documentos' | 'comunidades';
+type SortMode = 'recientes' | 'valorados' | 'populares';
 
 interface AssetItem {
   id: string;
-  parentId: string | null; // null for root
+  parentId: string | null;
   name: string;
   type: AssetType;
-  subType?: string; // e.g. 'VIDEO', 'PDF'
+  subType?: string;
   size?: string;
   modified: string;
   preview?: string;
-  mode: LibraryMode; // Belongs to Global or Personal
+  mode: LibraryMode;
   aiTags: string[];
-  author?: string; // For Global items
+  author?: string;
 }
 
 // --- Mock Data ---
 
 const mockAssets: AssetItem[] = [
-  // --- GLOBAL LIBRARY (ROOT) ---
   { id: "lib1", parentId: null, name: "Ciencia & Tecnología", type: "LIBRARY", size: "128 TB", modified: "2024-03-20", mode: "GLOBAL", aiTags: ["science", "tech"] },
   { id: "lib2", parentId: null, name: "Artes & Cultura", type: "LIBRARY", size: "450 TB", modified: "2024-03-18", mode: "GLOBAL", aiTags: ["art", "culture"] },
   { id: "lib3", parentId: null, name: "Gobernanza & Leyes", type: "LIBRARY", size: "12 TB", modified: "2024-03-15", mode: "GLOBAL", aiTags: ["governance", "law"] },
-
-  // Inside "Ciencia & Tecnología"
   { id: "g_c_1", parentId: "lib1", name: "StarSeed Core v1.0", type: "PROGRAM", subType: "SYSTEM", size: "2.4 GB", modified: "2024-03-20", mode: "GLOBAL", aiTags: ["kernel", "os"], author: "Core Team" },
   { id: "g_c_2", parentId: "lib1", name: "Shaders Cuánticos", type: "FOLDER", size: "15 items", modified: "2024-03-18", mode: "GLOBAL", aiTags: ["graphics", "3d"], author: "NeoGraphics" },
-
-  // Inside "Shaders Cuánticos"
   { id: "g_c_2_1", parentId: "g_c_2", name: "LiquidMetal.shdr", type: "FILE", subType: "SHADER", size: "24 MB", modified: "2024-03-18", mode: "GLOBAL", aiTags: ["metal", "fluid"], author: "NeoGraphics" },
-
-  // --- PERSONAL LIBRARY (ROOT) ---
   { id: "p_1", parentId: null, name: "Mis Documentos", type: "FOLDER", size: "12 items", modified: "2024-03-19", mode: "PERSONAL", aiTags: ["work", "docs"] },
   { id: "p_2", parentId: null, name: "Proyecto Génesis", type: "FOLDER", size: "3 items", modified: "2024-03-19", mode: "PERSONAL", aiTags: ["top-secret"] },
   { id: "p_3", parentId: null, name: "Mi Diario Neural", type: "CONCEPT", subType: "THOUGHT", size: "12 KB", modified: "Just now", mode: "PERSONAL", aiTags: ["personal", "reflection"] },
   { id: "p_4", parentId: null, name: "Backup Consciencia", type: "FILE", subType: "ARCHIVE", size: "450 TB", modified: "2024-03-01", mode: "PERSONAL", aiTags: ["backup", "identity"] },
-
-  // Inside "Mis Documentos"
   { id: "p_1_1", parentId: "p_1", name: "Borrador Constitución.pdf", type: "FILE", subType: "PDF", size: "4 MB", modified: "2024-02-28", mode: "PERSONAL", aiTags: ["draft", "law"] },
 ];
 
@@ -93,49 +95,255 @@ interface BreadcrumbItem {
   name: string;
 }
 
+// ── Unified Resource type ──
+interface UnifiedResource {
+  id: string;
+  kind: ResourceType;
+  title: string;
+  author?: string;
+  description?: string;
+  tags: string[];
+  href: string;
+  rating?: number;
+  likes?: number;
+  members?: number;
+  modified?: string;
+  status?: string;
+}
 
+function buildUnifiedResources(): UnifiedResource[] {
+  const result: UnifiedResource[] = [];
+
+  for (const a of articles) {
+    result.push({
+      id: a.id,
+      kind: 'articulos',
+      title: a.title,
+      author: a.author,
+      description: a.excerpt,
+      tags: a.tags,
+      href: a.href,
+      rating: a.rating,
+      likes: a.likes,
+      modified: 'reciente',
+    });
+  }
+
+  for (const c of courses) {
+    result.push({
+      id: c.id,
+      kind: 'cursos',
+      title: c.title,
+      description: c.description,
+      tags: c.tags,
+      href: c.href,
+      modified: 'reciente',
+    });
+  }
+
+  for (const f of files) {
+    result.push({
+      id: String(f.id),
+      kind: 'documentos',
+      title: f.name,
+      tags: [f.type],
+      href: '#',
+      modified: f.date,
+    });
+  }
+
+  for (const p of samplePages) {
+    result.push({
+      id: p.id,
+      kind: 'comunidades',
+      title: p.title,
+      description: p.description,
+      tags: p.tags,
+      href: `/pagina/${p.id}`,
+      members: p.members,
+      status: p.status,
+      modified: 'reciente',
+    });
+  }
+
+  return result;
+}
+
+const ALL_RESOURCES = buildUnifiedResources();
+
+// ── Config per kind ──
+const KIND_CONFIG: Record<ResourceType, { label: string; color: string; icon: React.ReactNode }> = {
+  todos: { label: 'Todos', color: 'bg-white/10 text-white border-white/20', icon: <Book className="w-3 h-3" /> },
+  articulos: { label: 'Artículos', color: 'bg-blue-500/15 text-blue-300 border-blue-500/30', icon: <BookOpen className="w-3 h-3" /> },
+  cursos: { label: 'Cursos', color: 'bg-amber-500/15 text-amber-300 border-amber-500/30', icon: <GraduationCap className="w-3 h-3" /> },
+  documentos: { label: 'Documentos', color: 'bg-violet-500/15 text-violet-300 border-violet-500/30', icon: <FileText className="w-3 h-3" /> },
+  comunidades: { label: 'Comunidades', color: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', icon: <Users className="w-3 h-3" /> },
+};
+
+function KindBadge({ kind }: { kind: ResourceType }) {
+  const cfg = KIND_CONFIG[kind];
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border", cfg.color)}>
+      {cfg.icon}{cfg.label}
+    </span>
+  );
+}
+
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <span className="flex items-center gap-0.5 text-amber-400 text-xs">
+      <Star className="w-3 h-3 fill-amber-400" />
+      {rating.toFixed(1)}
+    </span>
+  );
+}
+
+function ResourceCard({ resource, view }: { resource: UnifiedResource; view: ViewMode }) {
+  if (view === 'LIST') {
+    return (
+      <Link href={resource.href} className="group flex items-center gap-4 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer">
+        <div className="shrink-0">{KIND_CONFIG[resource.kind].icon}</div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-200 group-hover:text-primary transition-colors truncate">{resource.title}</p>
+          {resource.author && <p className="text-xs text-muted-foreground">{resource.author}</p>}
+        </div>
+        <KindBadge kind={resource.kind} />
+        <div className="hidden md:flex items-center gap-3 text-xs text-muted-foreground">
+          {resource.rating !== undefined && <StarRating rating={resource.rating} />}
+          {resource.likes !== undefined && <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{resource.likes}</span>}
+          {resource.members !== undefined && <span className="flex items-center gap-0.5"><Users className="w-3 h-3" />{resource.members.toLocaleString()}</span>}
+        </div>
+        <div className="flex gap-1 flex-wrap max-w-[200px] hidden lg:flex">
+          {resource.tags.slice(0, 2).map(t => (
+            <span key={t} className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">#{t}</span>
+          ))}
+        </div>
+        <ExternalLink className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+      </Link>
+    );
+  }
+
+  return (
+    <Link href={resource.href} className="group cursor-pointer block">
+      <GlassCard
+        variant="hover"
+        className="h-full p-0 flex flex-col border-white/5 bg-gradient-to-br from-white/5 to-transparent hover:border-primary/40 hover:scale-[1.02] transition-all duration-200"
+      >
+        <div className="p-4 flex flex-col gap-3 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <KindBadge kind={resource.kind} />
+            {resource.status && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 text-muted-foreground border border-white/10 shrink-0">{resource.status}</span>
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-100 group-hover:text-primary transition-colors leading-tight line-clamp-2">{resource.title}</p>
+            {resource.author && <p className="text-[11px] text-muted-foreground mt-0.5">{resource.author}</p>}
+          </div>
+          {resource.description && (
+            <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">{resource.description}</p>
+          )}
+          <div className="flex gap-1 flex-wrap mt-auto pt-1">
+            {resource.tags.slice(0, 3).map(t => (
+              <span key={t} className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">#{t}</span>
+            ))}
+          </div>
+        </div>
+        <div className="px-4 pb-3 flex items-center justify-between border-t border-white/5 pt-2">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {resource.rating !== undefined && <StarRating rating={resource.rating} />}
+            {resource.likes !== undefined && <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{resource.likes}</span>}
+            {resource.members !== undefined && <span className="flex items-center gap-0.5"><Users className="w-3 h-3" />{resource.members.toLocaleString()}</span>}
+          </div>
+          <ExternalLink className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+      </GlassCard>
+    </Link>
+  );
+}
 
 import { Suspense } from "react";
-
-// ... existing imports
 
 function LibraryContent() {
   const searchParams = useSearchParams();
   const initialMode = searchParams.get('view') === 'personal' ? 'PERSONAL' : 'GLOBAL';
 
-  // State
+  // ── File-system state ──
   const [mode, setMode] = useState<LibraryMode>(initialMode);
-  // ... rest of state
-
-  // Update mode if URL changes
-  useEffect(() => {
-    const view = searchParams.get('view');
-    if (view === 'personal') setMode('PERSONAL');
-    else if (view === 'global') setMode('GLOBAL');
-  }, [searchParams]);
   const [viewMode, setViewMode] = useState<ViewMode>('GRID');
   const [searchQuery, setSearchQuery] = useState("");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: null, name: "Inicio" }]);
 
-  // Filter Logic
+  // ── Explorer state ──
+  const [activeKind, setActiveKind] = useState<ResourceType>('todos');
+  const [sortMode, setSortMode] = useState<SortMode>('recientes');
+  const [explorerSearch, setExplorerSearch] = useState("");
+  const [explorerViewMode, setExplorerViewMode] = useState<ViewMode>('GRID');
+
+  // Restore sort preference from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('library_sort');
+      if (saved === 'recientes' || saved === 'valorados' || saved === 'populares') {
+        setSortMode(saved as SortMode);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const view = searchParams.get('view');
+    if (view === 'personal') setMode('PERSONAL');
+    else if (view === 'global') setMode('GLOBAL');
+  }, [searchParams]);
+
+  // ── File-system filter ──
   const filteredAssets = mockAssets.filter(asset => {
     const matchesMode = asset.mode === mode;
     const matchesFolder = asset.parentId === currentFolderId;
     const matchesSearch = searchQuery
       ? asset.name.toLowerCase().includes(searchQuery.toLowerCase())
       : matchesFolder;
-
     if (searchQuery) return matchesMode && matchesSearch;
     return matchesMode && matchesFolder;
   });
 
-  // Navigation Logic
+  // ── Explorer filter + sort ──
+  const filteredResources = useMemo(() => {
+    let items = ALL_RESOURCES;
+
+    if (activeKind !== 'todos') {
+      items = items.filter(r => r.kind === activeKind);
+    }
+
+    if (explorerSearch.trim()) {
+      const q = explorerSearch.toLowerCase();
+      items = items.filter(r =>
+        r.title.toLowerCase().includes(q) ||
+        (r.author ?? '').toLowerCase().includes(q) ||
+        r.tags.some(t => t.toLowerCase().includes(q))
+      );
+    }
+
+    if (sortMode === 'valorados') {
+      items = [...items].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+    } else if (sortMode === 'populares') {
+      items = [...items].sort((a, b) => {
+        const bScore = (b.likes ?? 0) + (b.members ?? 0);
+        const aScore = (a.likes ?? 0) + (a.members ?? 0);
+        return bScore - aScore;
+      });
+    }
+
+    return items;
+  }, [activeKind, explorerSearch, sortMode]);
+
+  // ── Handlers ──
   const handleFolderClick = (folder: AssetItem) => {
     if (folder.type === 'FOLDER' || folder.type === 'LIBRARY') {
       setCurrentFolderId(folder.id);
       setBreadcrumbs([...breadcrumbs, { id: folder.id, name: folder.name }]);
-      setSearchQuery(""); // Clear search on nav
+      setSearchQuery("");
     }
   };
 
@@ -152,7 +360,13 @@ function LibraryContent() {
     setSearchQuery("");
   };
 
-  // Helpers
+  const handleSortChange = (s: SortMode) => {
+    setSortMode(s);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('library_sort', s);
+    }
+  };
+
   const getIconForType = (item: AssetItem) => {
     switch (item.type) {
       case 'LIBRARY': return <Book className="w-10 h-10 text-indigo-400" />;
@@ -163,6 +377,8 @@ function LibraryContent() {
       default: return <FileIcon className="w-10 h-10 text-cyan-200/80" />;
     }
   };
+
+  const showExplorer = mode === 'GLOBAL' && currentFolderId === null && !searchQuery;
 
   return (
     <div className="flex flex-col gap-[clamp(1.5rem,3vw,3rem)] min-h-screen pb-24 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] w-full mx-auto">
@@ -184,7 +400,7 @@ function LibraryContent() {
           <button
             onClick={() => handleModeSwitch('GLOBAL')}
             className={cn(
-              "flex items-center gap-2 px-6 py-2 rounded-full text-sm font-bold transition-all duration-300",
+              "flex items-center gap-2 px-6 py-2 rounded-full text-sm font-bold transition-all duration-300 cursor-pointer",
               mode === 'GLOBAL'
                 ? "bg-indigo-500/20 text-indigo-300 shadow-[0_0_15px_rgba(99,102,241,0.3)] border border-indigo-500/30"
                 : "text-muted-foreground hover:text-white"
@@ -195,7 +411,7 @@ function LibraryContent() {
           <button
             onClick={() => handleModeSwitch('PERSONAL')}
             className={cn(
-              "flex items-center gap-2 px-6 py-2 rounded-full text-sm font-bold transition-all duration-300",
+              "flex items-center gap-2 px-6 py-2 rounded-full text-sm font-bold transition-all duration-300 cursor-pointer",
               mode === 'PERSONAL'
                 ? "bg-emerald-500/20 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)] border border-emerald-500/30"
                 : "text-muted-foreground hover:text-white"
@@ -206,14 +422,158 @@ function LibraryContent() {
         </div>
       </div>
 
-      {/* Control Bar */}
+      {/* ══════════════════════════════════════════════════════
+          EXPLORADOR UNIFICADO — solo en Librería Global / raíz
+          ══════════════════════════════════════════════════════ */}
+      {showExplorer && (
+        <section className="flex flex-col gap-5">
+          {/* Section title */}
+          <div className="flex items-center gap-3">
+            <BookOpen className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-bold text-white">Explorador de Conocimiento</h2>
+            <span className="text-xs text-muted-foreground bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+              {filteredResources.length} recursos
+            </span>
+          </div>
+
+          {/* Controls bar */}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-background/20 backdrop-blur-xl border border-white/10 rounded-2xl px-4 py-3">
+            {/* Search */}
+            <div className="relative flex-1 min-w-0 w-full sm:w-auto group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+              <Input
+                placeholder="Buscar por título, autor o etiqueta..."
+                className="pl-10 bg-black/20 border-white/5 focus-visible:ring-indigo-500/50 w-full"
+                value={explorerSearch}
+                onChange={(e) => setExplorerSearch(e.target.value)}
+              />
+              {explorerSearch && (
+                <button
+                  onClick={() => setExplorerSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white cursor-pointer transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Sort */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/5 gap-2 cursor-pointer">
+                    <ArrowUpDown className="w-3.5 h-3.5" />
+                    <span className="capitalize">{sortMode}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-black/80 border-white/10 backdrop-blur-xl">
+                  <DropdownMenuLabel className="text-muted-foreground text-xs">Ordenar por</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-white/5" />
+                  {(['recientes', 'valorados', 'populares'] as SortMode[]).map(s => (
+                    <DropdownMenuItem
+                      key={s}
+                      onClick={() => handleSortChange(s)}
+                      className={cn("cursor-pointer capitalize", sortMode === s && "text-primary")}
+                    >
+                      {s}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* View toggle */}
+              <div className="flex bg-black/20 rounded-lg p-1 border border-white/5">
+                <button
+                  onClick={() => setExplorerViewMode('GRID')}
+                  className={cn("p-1.5 rounded transition-all cursor-pointer", explorerViewMode === 'GRID' ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white")}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setExplorerViewMode('LIST')}
+                  className={cn("p-1.5 rounded transition-all cursor-pointer", explorerViewMode === 'LIST' ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white")}
+                >
+                  <ListIcon className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter chips */}
+          <div className="flex gap-2 flex-wrap">
+            {(Object.keys(KIND_CONFIG) as ResourceType[]).map(k => (
+              <button
+                key={k}
+                onClick={() => setActiveKind(k)}
+                className={cn(
+                  "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all duration-200 cursor-pointer",
+                  activeKind === k
+                    ? KIND_CONFIG[k].color + " shadow-sm"
+                    : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10 hover:text-white"
+                )}
+              >
+                {KIND_CONFIG[k].icon}
+                {KIND_CONFIG[k].label}
+                <span className="opacity-60 text-[10px]">
+                  {k === 'todos'
+                    ? ALL_RESOURCES.length
+                    : ALL_RESOURCES.filter(r => r.kind === k).length}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Resource grid / list */}
+          {explorerViewMode === 'GRID' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredResources.map(r => (
+                <ResourceCard key={r.id} resource={r} view="GRID" />
+              ))}
+              {filteredResources.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center p-16 text-muted-foreground border border-dashed border-white/10 rounded-3xl bg-white/5">
+                  <Search className="w-10 h-10 mb-3 opacity-25" />
+                  <p className="text-sm">Sin resultados para tu búsqueda.</p>
+                  <button
+                    onClick={() => { setExplorerSearch(""); setActiveKind('todos'); }}
+                    className="mt-2 text-xs text-primary hover:underline cursor-pointer"
+                  >
+                    Limpiar filtros
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-white/10 overflow-hidden bg-black/20 backdrop-blur-md">
+              {filteredResources.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-16 text-muted-foreground">
+                  <Search className="w-10 h-10 mb-3 opacity-25" />
+                  <p className="text-sm">Sin resultados para tu búsqueda.</p>
+                </div>
+              ) : (
+                filteredResources.map(r => (
+                  <ResourceCard key={r.id} resource={r} view="LIST" />
+                ))
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ══════════════════════════════════════════════════
+          CONTROL BAR — explorador de archivos (siempre)
+          ══════════════════════════════════════════════════ */}
       <div className="flex flex-col gap-4 bg-background/20 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-xl">
+        <div className="flex items-center gap-2">
+          <HardDrive className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold text-white">
+            {mode === 'GLOBAL' ? 'Archivos de la Red' : 'Mis Archivos'}
+          </span>
+        </div>
 
         {/* Top: Path & Search */}
         <div className="flex flex-col md:flex-row justify-between gap-4">
           {/* Breadcrumbs */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground overflow-x-auto">
-            <HardDrive className="w-4 h-4 text-primary" />
             {breadcrumbs.map((crumb, index) => (
               <div key={crumb.id || 'root'} className="flex items-center gap-1 whitespace-nowrap">
                 {index > 0 && <ChevronRight className="w-3 h-3 opacity-50" />}
@@ -246,19 +606,18 @@ function LibraryContent() {
 
         {/* Bottom: Actions & View Options */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-
           {/* Left Actions */}
           <div className="flex items-center gap-2 w-full md:w-auto">
             {mode === 'GLOBAL' ? (
-              <Button className="bg-indigo-600 hover:bg-indigo-500 text-white gap-2 shadow-lg shadow-indigo-500/20">
+              <Button className="bg-indigo-600 hover:bg-indigo-500 text-white gap-2 shadow-lg shadow-indigo-500/20 cursor-pointer">
                 <Upload className="w-4 h-4" /> Subir a la Red
               </Button>
             ) : (
               <>
-                <Button className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 shadow-lg shadow-emerald-500/20">
+                <Button className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer">
                   <Plus className="w-4 h-4" /> Nuevo
                 </Button>
-                <Button variant="outline" className="border-white/10 hover:bg-white/5 gap-2">
+                <Button variant="outline" className="border-white/10 hover:bg-white/5 gap-2 cursor-pointer">
                   <Folder className="w-4 h-4" /> Nueva Carpeta
                 </Button>
               </>
@@ -267,9 +626,8 @@ function LibraryContent() {
 
           {/* Right View Options */}
           <div className="flex items-center gap-3">
-            {/* Back Button (only if deep) */}
             {breadcrumbs.length > 1 && (
-              <Button variant="ghost" size="sm" onClick={() => handleBreadcrumbClick(breadcrumbs.length - 2)} className="gap-2">
+              <Button variant="ghost" size="sm" onClick={() => handleBreadcrumbClick(breadcrumbs.length - 2)} className="gap-2 cursor-pointer">
                 <ArrowLeft className="w-4 h-4" /> Atrás
               </Button>
             )}
@@ -278,10 +636,10 @@ function LibraryContent() {
 
             {/* View Toggle */}
             <div className="flex bg-black/20 rounded-lg p-1 border border-white/5">
-              <button onClick={() => setViewMode('GRID')} className={cn("p-1.5 rounded transition-all", viewMode === 'GRID' ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white")}>
+              <button onClick={() => setViewMode('GRID')} className={cn("p-1.5 rounded transition-all cursor-pointer", viewMode === 'GRID' ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white")}>
                 <LayoutGrid className="w-4 h-4" />
               </button>
-              <button onClick={() => setViewMode('LIST')} className={cn("p-1.5 rounded transition-all", viewMode === 'LIST' ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white")}>
+              <button onClick={() => setViewMode('LIST')} className={cn("p-1.5 rounded transition-all cursor-pointer", viewMode === 'LIST' ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white")}>
                 <ListIcon className="w-4 h-4" />
               </button>
             </div>
@@ -289,7 +647,9 @@ function LibraryContent() {
         </div>
       </div>
 
-      {/* Content Grid */}
+      {/* ══════════════════════════════════════════════
+          FILE SYSTEM CONTENT GRID
+          ══════════════════════════════════════════════ */}
       {viewMode === 'GRID' ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-[clamp(1rem,2vw,2rem)] w-full">
           {filteredAssets.map(asset => (
@@ -307,10 +667,8 @@ function LibraryContent() {
                 <div className="group-hover:scale-110 transition-transform duration-500 p-6 rounded-full bg-white/5 group-hover:bg-white/10">
                   {getIconForType(asset)}
                 </div>
-
-                {/* Action Overlay */}
                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full bg-black/50 hover:bg-white hover:text-black">
+                  <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full bg-black/50 hover:bg-white hover:text-black cursor-pointer">
                     <MoreVertical className="w-3 h-3" />
                   </Button>
                 </div>
@@ -329,7 +687,6 @@ function LibraryContent() {
                     </p>
                   </div>
                 </div>
-                {/* Tags */}
                 {asset.aiTags.length > 0 && (
                   <div className="flex gap-1 mt-2 overflow-hidden">
                     {asset.aiTags.slice(0, 2).map(tag => (
@@ -341,7 +698,6 @@ function LibraryContent() {
             </GlassCard>
           ))}
 
-          {/* Empty State */}
           {filteredAssets.length === 0 && (
             <div className="col-span-full flex flex-col items-center justify-center p-20 text-muted-foreground border border-dashed border-white/10 rounded-3xl bg-white/5">
               <Folder className="w-12 h-12 mb-4 opacity-30" />
@@ -375,14 +731,14 @@ function LibraryContent() {
                     {getIconForType(asset)}
                     <span className="group-hover:text-primary transition-colors">{asset.name}</span>
                   </td>
-                  <td className="px-6 py-4 text-muted-foreground text-xs"><Badge variant="outline" className="border-white/10">{asset.type}</Badge></td>
-                  {mode === 'GLOBAL' && <td className="px-6 py-4 text-muted-foreground text-xs">{asset.author || 'Sistema'}</td>}
                   <td className="px-6 py-4 text-muted-foreground text-xs">
-                    {asset.aiTags.join(", ")}
+                    <Badge variant="outline" className="border-white/10">{asset.type}</Badge>
                   </td>
+                  {mode === 'GLOBAL' && <td className="px-6 py-4 text-muted-foreground text-xs">{asset.author || 'Sistema'}</td>}
+                  <td className="px-6 py-4 text-muted-foreground text-xs">{asset.aiTags.join(", ")}</td>
                   <td className="px-6 py-4 text-muted-foreground">{asset.modified}</td>
                   <td className="px-6 py-4 text-right">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                       <MoreVertical className="w-4 h-4" />
                     </Button>
                   </td>
@@ -393,18 +749,15 @@ function LibraryContent() {
         </div>
       )}
 
-      {/* StarSeed · Nexus & Drive — carpetas con enlaces y visor embebido.
-          Solo en la Librería Global y en la raíz (no estorba la navegación). */}
-      {mode === 'GLOBAL' && currentFolderId === null && !searchQuery && (
+      {/* StarSeed · Nexus & Drive — solo en Librería Global y raíz */}
+      {showExplorer && (
         <div className="w-full mt-2">
           <StarSeedKnowledgePanel />
         </div>
       )}
 
-      {/* Diseños · Código abierto — temas/tokens/fondos del OS integrables,
-          enlaces a fondos gratuitos y ficha "app-store" por asset.
-          Solo en la Librería Global y en la raíz. */}
-      {mode === 'GLOBAL' && currentFolderId === null && !searchQuery && (
+      {/* Diseños · Código abierto — solo en Librería Global y raíz */}
+      {showExplorer && (
         <div className="w-full mt-2">
           <DesignAssetsPanel />
         </div>
