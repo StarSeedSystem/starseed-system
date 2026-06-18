@@ -137,6 +137,10 @@ export function AsambleaToolkit({
                     <div className="mt-4">
                       <MiniVote
                         question="Emite tu voto soberano"
+                        options={motion.votes.map((v) => v.name)}
+                        baseCounts={motion.votes.map((v) => v.votes)}
+                        ballotKey={`motion:${data.slug}#${i}`}
+                        ballotType="motion"
                         accent={ac}
                       />
                     </div>

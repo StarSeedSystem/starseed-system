@@ -213,6 +213,8 @@ export function EventoToolkit({
             <MiniVote
               question="¿Asistirás a este evento?"
               options={["Voy", "Me interesa", "No puedo"]}
+              ballotKey={`evento:${slug}:rsvp`}
+              ballotType="rsvp"
               accent={ac}
             />
           </ToolSection>

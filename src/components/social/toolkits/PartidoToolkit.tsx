@@ -225,6 +225,8 @@ export function PartidoToolkit({
               question={data.internalVote.question}
               options={data.internalVote.options}
               baseCounts={data.internalVote.counts}
+              ballotKey={`party:${data.slug}:internal`}
+              ballotType="party"
               accent={ac}
             />
           </ToolSection>

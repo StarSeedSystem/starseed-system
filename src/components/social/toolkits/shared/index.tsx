@@ -7,9 +7,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
+import { useGovVote } from "@/hooks/use-gov-vote";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -18,6 +19,7 @@ import {
     ArrowUpRight,
     Check,
     ChevronRight,
+    Lock,
     type LucideIcon,
 } from "lucide-react";
 
@@ -171,27 +173,41 @@ export function VoteBar({
     );
 }
 
-// ── MiniVote: widget de votación INTERACTIVO (estado local, ontocrático) ──
+// Slug estable para derivar una papeleta de la pregunta cuando no se pasa ballotKey.
+function mvSlug(s: string): string {
+    return s
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 64);
+}
+
+// ── MiniVote: votación INTERACTIVA con persistencia REAL (Supabase os_gov_votes) ──
+// Si se pasa `ballotKey`, el voto se guarda y se agregan los recuentos reales de
+// toda la red; sin sesión, el voto es optimista local + invitación a iniciar sesión.
 export function MiniVote({
     question,
     options = ["A favor", "En contra", "Abstención"],
     baseCounts,
     accent,
     onVote,
+    ballotKey,
+    ballotType = "general",
 }: {
     question: string;
     options?: string[];
     baseCounts?: number[];
     accent?: string;
     onVote?: (option: string) => void;
+    ballotKey?: string;
+    ballotType?: string;
 }) {
-    const [choice, setChoice] = useState<string | null>(null);
-    const counts = useMemo(
-        () => options.map((_, i) => (baseCounts?.[i] ?? Math.floor(40 + Math.random() * 200))),
-        [options, baseCounts],
-    );
-    const live = options.map((o, i) => counts[i] + (choice === o ? 1 : 0));
-    const total = live.reduce((s, n) => s + n, 0) || 1;
+    const key = ballotKey ?? `mv:${mvSlug(question)}`;
+    const { tally, myChoice, total, needsAuth, vote } = useGovVote(key, { ballotType, options, baseCounts });
+    const choice = myChoice;
+    const denom = total || 1;
 
     return (
         <div className="space-y-3">
@@ -205,7 +221,7 @@ export function MiniVote({
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                                setChoice(o);
+                                vote(o);
                                 onVote?.(o);
                             }}
                             className="cursor-pointer gap-1.5"
@@ -217,11 +233,20 @@ export function MiniVote({
                 </div>
             ) : (
                 <div className="space-y-2">
-                    {options.map((o, i) => {
-                        const pct = Math.round((live[i] / total) * 100);
+                    {options.map((o) => {
+                        const pct = Math.round(((tally[o] ?? 0) / denom) * 100);
                         const mine = choice === o;
                         return (
-                            <div key={o}>
+                            <button
+                                key={o}
+                                type="button"
+                                onClick={() => {
+                                    vote(o);
+                                    onVote?.(o);
+                                }}
+                                className="block w-full cursor-pointer text-left"
+                                title="Cambiar voto"
+                            >
                                 <div className="mb-1 flex items-center justify-between text-xs">
                                     <span className={cn("flex items-center gap-1", mine && "font-semibold")}>
                                         {mine && <Check className="h-3.5 w-3.5" style={{ color: accent || GOLD }} />}
@@ -230,12 +255,21 @@ export function MiniVote({
                                     <span className="tabular-nums text-muted-foreground">{pct}%</span>
                                 </div>
                                 <Progress value={pct} indicatorClassName="transition-all" />
-                            </div>
+                            </button>
                         );
                     })}
-                    <p className="pt-1 text-[11px] text-muted-foreground">
-                        Voto registrado · {total.toLocaleString("es-ES")} participaciones · soberanía directa
-                    </p>
+                    {needsAuth ? (
+                        <p className="flex items-center gap-1 pt-1 text-[11px] text-muted-foreground">
+                            <Lock className="h-3 w-3" />
+                            <Link href="/login" className="underline cursor-pointer" style={{ color: GOLD }}>
+                                Inicia sesión para registrar tu voto en la red
+                            </Link>
+                        </p>
+                    ) : (
+                        <p className="pt-1 text-[11px] text-muted-foreground">
+                            Voto registrado · {total.toLocaleString("es-ES")} participaciones · soberanía directa
+                        </p>
+                    )}
                 </div>
             )}
         </div>

@@ -178,6 +178,8 @@ export function EntidadFederativaToolkit({
           >
             <MiniVote
               question={`¿Apruebas las prioridades legislativas de ${data.name}?`}
+              ballotKey={`ef:${data.slug}:legislativo`}
+              ballotType="proposal"
               accent={ac}
             />
           </ToolSection>
@@ -229,6 +231,8 @@ export function EntidadFederativaToolkit({
           >
             <MiniVote
               question="¿A qué área destinar el excedente de este trimestre?"
+              ballotKey={`ef:${data.slug}:presupuesto`}
+              ballotType="budget"
               options={data.budget.allocations.map((a) => a.area).slice(0, 3)}
               accent={ac}
             />
@@ -439,6 +443,8 @@ export function EntidadFederativaToolkit({
           >
             <MiniVote
               question="¿Renovar tu delegación de voto este ciclo?"
+              ballotKey={`ef:${data.slug}:delegacion`}
+              ballotType="delegation"
               options={["Mantener", "Revocar", "Reasignar"]}
               accent={ac}
             />

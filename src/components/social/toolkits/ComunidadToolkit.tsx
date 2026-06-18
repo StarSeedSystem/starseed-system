@@ -199,6 +199,8 @@ function TabTesoreria({ data, ac }: { data: CommunityData; ac: string }) {
                     question="¿Aprobar el presupuesto comunitario del próximo ciclo?"
                     options={["A favor", "En contra", "Abstención"]}
                     baseCounts={[74, 12, 9]}
+                    ballotKey={`comunidad:${data.slug}:presupuesto`}
+                    ballotType="budget"
                     accent={ac}
                 />
             </GlassCard>
