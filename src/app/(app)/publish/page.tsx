@@ -30,6 +30,8 @@ import { KnowledgeNetworkSelector } from "@/components/publish/knowledge-network
 import type { Category } from "@/lib/data";
 import { themes, categories } from "@/lib/data";
 import { useToast } from "@/hooks/use-toast";
+import { useOsPosts } from "@/hooks/use-os-entities";
+import type { OsEntityType } from "@/lib/os-social";
 import { Separator } from "@/components/ui/separator";
 import { CanvasEditor } from "@/components/canvas-editor";
 import { samplePages, sampleGroups } from "@/data/sample-entities";
@@ -402,20 +404,7 @@ function PreviewCard({ pubType, titulo, body, tags, audiencia, destinos }: Previ
 export default function PublishPage() {
     const { toast } = useToast();
 
-    // ── Legacy step-flow state (preserved) ──
-    const [selectedArea, setSelectedArea] = useState<Area | null>(null);
-    const [selectedContentType, setSelectedContentType] = useState<ContentType | null>(null);
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-    const [step, setStep] = useState(1);
-    const [showVoteConfig, setShowVoteConfig] = useState(false);
-    const [isCategorySelectorOpen, setCategorySelectorOpen] = useState(false);
-    const [isThemeSelectorOpen, setThemeSelectorOpen] = useState(false);
-    const [selectedCat, setSelectedCategories] = useState<string[]>([]);
-    const [selectedTh, setSelectedThemes] = useState<string[]>([]);
-    const [selectedDestinations, setSelectedDestinations] = useState<any[]>([]);
-    const [isEditorOpen, setEditorOpen] = useState(false);
-
-    // ── New composer state ──
+    // ── New composer state (declared early so useMemo below can reference it) ──
     const [pubType, setPubType] = useState<PubType>("publicacion");
     const [titulo, setTitulo] = useState("");
     const [body, setBody] = useState("");
@@ -430,6 +419,45 @@ export default function PublishPage() {
     const [showDestPicker, setShowDestPicker] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [published, setPublished] = useState(false);
+    const [isPublishing, setIsPublishing] = useState(false);
+
+    // ── Derive (entityType, entitySlug) from the first selected destination ──
+    // Hooks cannot be called conditionally, so we always call useOsPosts with a
+    // stable pair derived here and fall back to a placeholder when nothing is chosen.
+    const { entityType: activeEntityType, entitySlug: activeEntitySlug } = useMemo<{
+        entityType: OsEntityType;
+        entitySlug: string;
+    }>(() => {
+        const first = destinos[0];
+        if (!first) return { entityType: "page" as OsEntityType, entitySlug: "starseed" };
+        switch (first.category) {
+            case "grupo":
+                return { entityType: "group" as OsEntityType, entitySlug: first.slug };
+            case "ef":
+            case "partido":
+            case "pagina":
+                return { entityType: "page" as OsEntityType, entitySlug: first.slug };
+            case "perfil":
+            default:
+                return { entityType: "page" as OsEntityType, entitySlug: `perfil-${first.slug}` };
+        }
+    }, [destinos]);
+
+    // ── Real persistence hook (always called at top level) ──
+    const { publish: persistPost } = useOsPosts(activeEntityType, activeEntitySlug, false);
+
+    // ── Legacy step-flow state (preserved) ──
+    const [selectedArea, setSelectedArea] = useState<Area | null>(null);
+    const [selectedContentType, setSelectedContentType] = useState<ContentType | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [step, setStep] = useState(1);
+    const [showVoteConfig, setShowVoteConfig] = useState(false);
+    const [isCategorySelectorOpen, setCategorySelectorOpen] = useState(false);
+    const [isThemeSelectorOpen, setThemeSelectorOpen] = useState(false);
+    const [selectedCat, setSelectedCategories] = useState<string[]>([]);
+    const [selectedTh, setSelectedThemes] = useState<string[]>([]);
+    const [selectedDestinations, setSelectedDestinations] = useState<any[]>([]);
+    const [isEditorOpen, setEditorOpen] = useState(false);
 
     const fieldSet = pubTypeConfig[pubType].fields;
     const showTitulo = fieldSet.includes("titulo");
@@ -497,13 +525,40 @@ export default function PublishPage() {
     const goBack = () => { if (step > 1) setStep(step - 1); };
 
     // ── Publish handler ──
-    function handlePublish() {
+    async function handlePublish() {
         if (!body && !titulo) {
             toast({ title: "Contenido vacío", description: "Escribe algo antes de publicar.", variant: "destructive" });
             return;
         }
-        setPublished(true);
-        toast({ title: "¡Publicado!", description: "Tu publicación se ha enviado a la red." });
+        setIsPublishing(true);
+        try {
+            // Build the full text to persist: prepend título if present
+            const fullBody = titulo ? `${titulo}\n\n${body}` : body;
+            // If no destination is chosen, we still save (to "starseed" placeholder) but
+            // warn the user it is a profile post.
+            const res = await persistPost(fullBody);
+            if (res.needsAuth) {
+                toast({
+                    title: "Inicia sesión",
+                    description: "Necesitas una cuenta para publicar en la red.",
+                    variant: "destructive",
+                });
+                return;
+            }
+            if (res.ok) {
+                setPublished(true);
+                toast({
+                    title: "¡Publicado!",
+                    description: destinos.length > 0
+                        ? `Tu publicación se ha enviado a ${destinos.map((d) => d.name).join(", ")}.`
+                        : "Tu publicación se ha guardado en tu perfil.",
+                });
+            } else {
+                toast({ title: "Error al publicar", description: "Inténtalo de nuevo.", variant: "destructive" });
+            }
+        } finally {
+            setIsPublishing(false);
+        }
     }
 
     // ─── Step renderer (legacy) ───────────────────────────────────────────────
@@ -1127,10 +1182,10 @@ export default function PublishPage() {
                                     size="lg"
                                     className="cursor-pointer gap-2"
                                     onClick={handlePublish}
-                                    disabled={published}
+                                    disabled={published || isPublishing}
                                 >
                                     <Sparkles className="w-4 h-4" />
-                                    {published ? "Publicado" : "Publicar"}
+                                    {isPublishing ? "Publicando…" : published ? "Publicado" : "Publicar"}
                                 </Button>
                             </div>
                         </div>

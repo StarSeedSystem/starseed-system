@@ -8,7 +8,6 @@ import { Scale, School, Palette } from 'lucide-react';
 
 const navItems = [
     { href: '/network', label: 'Panorama' },
-    { href: '/network/graph', label: 'Gráfica Viva' },
     { href: '/network/politics', label: 'Política' },
     { href: '/network/education', label: 'Educación' },
     { href: '/network/culture', label: 'Cultura' },

@@ -1,0 +1,2170 @@
+{
+  "meta": {
+    "name": "StarSeed Memory Graph",
+    "version": 1,
+    "generated": "2026-06-18",
+    "maintainer": "Maggasukha <alexbordongarrigos@gmail.com>",
+    "description": "Grafo de memoria interconectada del ecosistema StarSeed. Alimenta el mapa mental 3D. El proceso Dream lo actualiza a diario.",
+    "nodeTypes": {
+      "root": "#F6A21E",
+      "area": "#E9C46A",
+      "app": "#7FD1AE",
+      "repo": "#9C6B3F",
+      "deploy": "#5BC0EB",
+      "service": "#C792EA",
+      "account": "#B388FF",
+      "database": "#4DD0E1",
+      "api": "#FF9E64",
+      "design": "#F4E8C9",
+      "doc": "#A8DADC",
+      "memory": "#FFD166",
+      "connector": "#80CBC4",
+      "agent": "#FF6B9D",
+      "concept": "#BDB2FF"
+    },
+    "edgeTypes": {
+      "part_of": "#E9C46A",
+      "depends_on": "#FF6B6B",
+      "deploys_to": "#5BC0EB",
+      "hosted_on": "#4DD0E1",
+      "uses": "#7FD1AE",
+      "documents": "#A8DADC",
+      "related": "#9C6B3F",
+      "syncs_with": "#C792EA",
+      "supersedes": "#888888",
+      "authored_by": "#B388FF",
+      "analyzes": "#FF6B9D"
+    },
+    "memoryKinds": [
+      "identity",
+      "semantic",
+      "episodic",
+      "procedural",
+      "project",
+      "reference",
+      "account",
+      "feedback"
+    ],
+    "contexts": [
+      "desarrollo",
+      "diseno",
+      "despliegue",
+      "datos",
+      "identidad",
+      "comunidad",
+      "economia",
+      "operaciones",
+      "ia",
+      "investigacion"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "starseed",
+      "label": "StarSeed",
+      "type": "root",
+      "kind": "identity",
+      "context": [
+        "identidad"
+      ],
+      "group": 0,
+      "status": "vivo",
+      "summary": "Sociedad y ecosistema tecnologico-cultural. Una semilla, muchos mundos.",
+      "links": [
+        {
+          "label": "Nexus",
+          "url": "https://starseed-nexus.vercel.app"
+        }
+      ]
+    },
+    {
+      "id": "triada",
+      "label": "La Triada (Constitucion)",
+      "type": "concept",
+      "kind": "identity",
+      "context": [
+        "identidad"
+      ],
+      "group": 0,
+      "status": "vivo",
+      "summary": "Ontocracia + Ciberdelia + Transhumanismo Comunista.",
+      "links": []
+    },
+    {
+      "id": "design-dna",
+      "label": "ADN de diseno",
+      "type": "design",
+      "kind": "identity",
+      "context": [
+        "diseno"
+      ],
+      "group": 0,
+      "status": "vivo",
+      "summary": "Solarpunk, Art Nouveau, cristal liquido, geometria sagrada.",
+      "links": []
+    },
+    {
+      "id": "materia-viva",
+      "label": "Materia Viva",
+      "type": "design",
+      "kind": "semantic",
+      "context": [
+        "diseno"
+      ],
+      "group": 0,
+      "status": "vivo",
+      "summary": "Sistema vivo: luz reactiva, enredaderas Art Nouveau, oro fundido, WebGL.",
+      "links": []
+    },
+    {
+      "id": "tokens",
+      "label": "Tokens de diseno",
+      "type": "design",
+      "kind": "reference",
+      "context": [
+        "diseno"
+      ],
+      "group": 0,
+      "status": "vivo",
+      "summary": "app/assets/css/tokens.css + Identidad Grafica/brand.json. Oro #f4e8c9->#E9C46A->#9C6B3F->#F6A21E, fondo #0d130e.",
+      "links": []
+    },
+    {
+      "id": "area-sociedad",
+      "label": "Sociedad",
+      "type": "area",
+      "kind": "semantic",
+      "context": [
+        "comunidad",
+        "identidad"
+      ],
+      "group": 1,
+      "status": "vivo",
+      "summary": "Comunidad, asambleas, gobernanza, la Triada.",
+      "links": [
+        {
+          "label": "Nexus#sociedad",
+          "url": "https://starseed-nexus.vercel.app/#sociedad"
+        }
+      ]
+    },
+    {
+      "id": "area-os",
+      "label": "StarSeed OS (SOSD)",
+      "type": "area",
+      "kind": "project",
+      "context": [
+        "comunidad",
+        "desarrollo"
+      ],
+      "group": 1,
+      "status": "vivo",
+      "summary": "Sistema Operativo Social Descentralizado (Next.js).",
+      "links": [
+        {
+          "label": "starseed-os.vercel.app",
+          "url": "https://starseed-os.vercel.app"
+        }
+      ]
+    },
+    {
+      "id": "area-cafe",
+      "label": "Cafe StarSeed",
+      "type": "area",
+      "kind": "project",
+      "context": [
+        "comunidad",
+        "operaciones",
+        "economia"
+      ],
+      "group": 1,
+      "status": "vivo",
+      "summary": "Cafeteria de elixires bio-funcionales.",
+      "links": [
+        {
+          "label": "/cafe/",
+          "url": "https://starseed-nexus.vercel.app/cafe/"
+        }
+      ]
+    },
+    {
+      "id": "area-estudio",
+      "label": "Estudio",
+      "type": "area",
+      "kind": "semantic",
+      "context": [
+        "desarrollo",
+        "ia"
+      ],
+      "group": 1,
+      "status": "vivo",
+      "summary": "Launcher de herramientas open-source + archivos de diseno + APIs.",
+      "links": [
+        {
+          "label": "Nexus#estudio",
+          "url": "https://starseed-nexus.vercel.app/#estudio"
+        }
+      ]
+    },
+    {
+      "id": "area-fundacion",
+      "label": "Fundacion",
+      "type": "area",
+      "kind": "project",
+      "context": [
+        "economia"
+      ],
+      "group": 1,
+      "status": "vivo",
+      "summary": "Cartera: granos, aportar/donar/invertir, Bolsa de la Semilla, evento Manifiesto.",
+      "links": [
+        {
+          "label": "Nexus#fundacion",
+          "url": "https://starseed-nexus.vercel.app/#fundacion"
+        }
+      ]
+    },
+    {
+      "id": "area-audiomorphic",
+      "label": "Audiomorphic VR",
+      "type": "area",
+      "kind": "project",
+      "context": [
+        "comunidad",
+        "ia"
+      ],
+      "group": 1,
+      "status": "vivo",
+      "summary": "Templo del sonido / experiencia AR-VR.",
+      "links": [
+        {
+          "label": "audiomorphic.vercel.app",
+          "url": "https://audiomorphic.vercel.app"
+        }
+      ]
+    },
+    {
+      "id": "astraura",
+      "label": "Astraura (Exocortex)",
+      "type": "agent",
+      "kind": "semantic",
+      "context": [
+        "ia"
+      ],
+      "group": 1,
+      "status": "vivo",
+      "summary": "Asistente IA del ecosistema. FAB orbe con function-calling.",
+      "links": []
+    },
+    {
+      "id": "app-nexus",
+      "label": "App Nexus + Cafe (vanilla)",
+      "type": "app",
+      "kind": "project",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 2,
+      "status": "vivo",
+      "summary": "Web sin build (HTML/CSS/JS). app/ = portal; app/cafe/ = Cafe. Local ~/Documents/StarSeed Cafe.",
+      "links": []
+    },
+    {
+      "id": "app-sosd",
+      "label": "App StarSeed OS (Next.js)",
+      "type": "app",
+      "kind": "project",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 2,
+      "status": "vivo",
+      "summary": "~/Documents/starseed-os-main. Trinity v2, toolkits de entidad, temas Materia Viva.",
+      "links": []
+    },
+    {
+      "id": "app-audiomorphic",
+      "label": "App Audiomorphic",
+      "type": "app",
+      "kind": "project",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 2,
+      "status": "vivo",
+      "summary": "App AR-VR independiente.",
+      "links": []
+    },
+    {
+      "id": "repo-cafe",
+      "label": "GH: Starseed-Cafe",
+      "type": "repo",
+      "kind": "reference",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 2,
+      "status": "activo",
+      "summary": "Portal Nexus/Cafe. Auto-deploy a Vercel en push a main.",
+      "links": [
+        {
+          "label": "repo",
+          "url": "https://github.com/alexbordongarrigos/Starseed-Cafe"
+        }
+      ]
+    },
+    {
+      "id": "repo-marca",
+      "label": "GH: starseed-os-marca",
+      "type": "repo",
+      "kind": "reference",
+      "context": [
+        "desarrollo",
+        "diseno"
+      ],
+      "group": 2,
+      "status": "activo",
+      "summary": "Assets/marca del Cafe.",
+      "links": [
+        {
+          "label": "repo",
+          "url": "https://github.com/alexbordongarrigos/starseed-os-marca"
+        }
+      ]
+    },
+    {
+      "id": "repo-system",
+      "label": "GH: StarSeedSystem/starseed-system",
+      "type": "repo",
+      "kind": "reference",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 2,
+      "status": "activo",
+      "summary": "SOSD vivo (rama main, 2505 archivos). repoId 1138672501.",
+      "links": [
+        {
+          "label": "repo",
+          "url": "https://github.com/StarSeedSystem/starseed-system"
+        }
+      ]
+    },
+    {
+      "id": "repo-os-frozen",
+      "label": "GH: StarSeedSystem/starseed-os (frozen)",
+      "type": "repo",
+      "kind": "reference",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 2,
+      "status": "congelado",
+      "summary": "Congelado mar-2026. repoId 1177685554.",
+      "links": [
+        {
+          "label": "repo",
+          "url": "https://github.com/StarSeedSystem/starseed-os"
+        }
+      ]
+    },
+    {
+      "id": "repo-audiomorphic",
+      "label": "GH: audiomorphic-ar",
+      "type": "repo",
+      "kind": "reference",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 2,
+      "status": "activo",
+      "summary": "Repo de Audiomorphic.",
+      "links": []
+    },
+    {
+      "id": "deploy-nexus",
+      "label": "Vercel: Nexus",
+      "type": "deploy",
+      "kind": "reference",
+      "context": [
+        "despliegue"
+      ],
+      "group": 3,
+      "status": "online",
+      "summary": "Portal canonico v7. prj_hqiatqxGe9uInAvlGvPRkFLZXVpo, rootDir app.",
+      "links": [
+        {
+          "label": "live",
+          "url": "https://starseed-nexus.vercel.app"
+        }
+      ]
+    },
+    {
+      "id": "deploy-os",
+      "label": "Vercel: StarSeed OS",
+      "type": "deploy",
+      "kind": "reference",
+      "context": [
+        "despliegue"
+      ],
+      "group": 3,
+      "status": "online",
+      "summary": "SOSD -> /dashboard. Auto-deploy desde starseed-system@main.",
+      "links": [
+        {
+          "label": "live",
+          "url": "https://starseed-os.vercel.app"
+        }
+      ]
+    },
+    {
+      "id": "deploy-cafe",
+      "label": "Vercel: Cafe (/cafe/)",
+      "type": "deploy",
+      "kind": "reference",
+      "context": [
+        "despliegue"
+      ],
+      "group": 3,
+      "status": "online",
+      "summary": "Servido por el proyecto del Nexus.",
+      "links": [
+        {
+          "label": "live",
+          "url": "https://starseed-nexus.vercel.app/cafe/"
+        }
+      ]
+    },
+    {
+      "id": "deploy-audiomorphic",
+      "label": "Vercel: Audiomorphic",
+      "type": "deploy",
+      "kind": "reference",
+      "context": [
+        "despliegue"
+      ],
+      "group": 3,
+      "status": "online",
+      "summary": "App real.",
+      "links": [
+        {
+          "label": "live",
+          "url": "https://audiomorphic.vercel.app"
+        }
+      ]
+    },
+    {
+      "id": "acc-vercel-personal",
+      "label": "Vercel team: alexbordongarrigos-projects",
+      "type": "account",
+      "kind": "account",
+      "context": [
+        "despliegue"
+      ],
+      "group": 4,
+      "status": "activo",
+      "summary": "team_lltrChvbjDAu04wcVTV9Woax (hobby).",
+      "links": []
+    },
+    {
+      "id": "acc-vercel-sosd",
+      "label": "Vercel team: starseeds-projects",
+      "type": "account",
+      "kind": "account",
+      "context": [
+        "despliegue"
+      ],
+      "group": 4,
+      "status": "activo",
+      "summary": "team_MThRha8UzizhAqlG7YeHCmEI. Sirve starseed-os.vercel.app.",
+      "links": []
+    },
+    {
+      "id": "acc-gh-personal",
+      "label": "GitHub: alexbordongarrigos",
+      "type": "account",
+      "kind": "account",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 4,
+      "status": "activo",
+      "summary": "Cuenta personal. Push a Starseed-Cafe / marca.",
+      "links": []
+    },
+    {
+      "id": "acc-gh-org",
+      "label": "GitHub org: StarSeedSystem",
+      "type": "account",
+      "kind": "account",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 4,
+      "status": "activo",
+      "summary": "Org dueña del SOSD. alexbordongarrigos NO es miembro -> token de la org para push.",
+      "links": []
+    },
+    {
+      "id": "acc-google",
+      "label": "Google: alexbordongarrigos@gmail.com",
+      "type": "account",
+      "kind": "account",
+      "context": [
+        "datos",
+        "ia"
+      ],
+      "group": 4,
+      "status": "activo",
+      "summary": "Drive (publico) + AI Studio (Gemini).",
+      "links": []
+    },
+    {
+      "id": "acc-figma",
+      "label": "Figma team: maggasukha",
+      "type": "account",
+      "kind": "account",
+      "context": [
+        "diseno"
+      ],
+      "group": 4,
+      "status": "activo",
+      "summary": "team::1640392072546924994 (View/starter, crear por API funciona).",
+      "links": []
+    },
+    {
+      "id": "db-supabase",
+      "label": "Supabase: dzkjapinnewkxzjltadv",
+      "type": "database",
+      "kind": "account",
+      "context": [
+        "datos",
+        "identidad",
+        "economia"
+      ],
+      "group": 5,
+      "status": "ACTIVE_HEALTHY",
+      "summary": "Backend unificado (eu-west-3, PG17). 37 tablas, RLS. StarSeed ID + Cafe/OS + economia.",
+      "links": []
+    },
+    {
+      "id": "db-table-seedmarket",
+      "label": "tabla: seed_market (180)",
+      "type": "database",
+      "kind": "semantic",
+      "context": [
+        "economia",
+        "datos"
+      ],
+      "group": 5,
+      "status": "vivo",
+      "summary": "Serie/historico de la Bolsa de la Semilla.",
+      "links": []
+    },
+    {
+      "id": "db-table-grains",
+      "label": "tabla: grain_types (6)",
+      "type": "database",
+      "kind": "semantic",
+      "context": [
+        "economia",
+        "datos"
+      ],
+      "group": 5,
+      "status": "vivo",
+      "summary": "Catalogo de tipos de grano.",
+      "links": []
+    },
+    {
+      "id": "db-table-os",
+      "label": "tablas os_* (pages5/groups6/events5/posts4)",
+      "type": "database",
+      "kind": "semantic",
+      "context": [
+        "comunidad",
+        "datos"
+      ],
+      "group": 5,
+      "status": "vivo",
+      "summary": "Contenido del SOSD.",
+      "links": []
+    },
+    {
+      "id": "db-table-cafe",
+      "label": "tablas cafe_* + ops + user_settings",
+      "type": "database",
+      "kind": "semantic",
+      "context": [
+        "operaciones",
+        "datos",
+        "identidad"
+      ],
+      "group": 5,
+      "status": "vivo",
+      "summary": "Cafe, panel del local (RPC con PIN) y preferencias sincronizadas.",
+      "links": []
+    },
+    {
+      "id": "api-gemini",
+      "label": "API: Google Gemini (Nano Banana)",
+      "type": "api",
+      "kind": "reference",
+      "context": [
+        "ia"
+      ],
+      "group": 6,
+      "status": "funcional",
+      "summary": "Google Gemini: imagenes (Nano Banana) + texto (gemini-2.5-flash) para fallback y tareas auxiliares de Hermes (vision/titulos/resumenes).",
+      "links": []
+    },
+    {
+      "id": "api-openrouter",
+      "label": "API: OpenRouter",
+      "type": "api",
+      "kind": "reference",
+      "context": [
+        "ia"
+      ],
+      "group": 6,
+      "status": "funcional",
+      "summary": "Astraura (openai/gpt-4o-mini) via /api/openrouter.",
+      "links": []
+    },
+    {
+      "id": "api-kie",
+      "label": "API: kie.ai",
+      "type": "api",
+      "kind": "reference",
+      "context": [
+        "ia"
+      ],
+      "group": 6,
+      "status": "creditos~0",
+      "summary": "Imagenes google/nano-banana via /api/kie. Recargar o BYO key.",
+      "links": []
+    },
+    {
+      "id": "api-higgsfield",
+      "label": "API: Higgsfield/Seedance",
+      "type": "api",
+      "kind": "reference",
+      "context": [
+        "ia"
+      ],
+      "group": 6,
+      "status": "intermitente",
+      "summary": "Video/imagen. OAuth/CLI. Creditos free agotados.",
+      "links": []
+    },
+    {
+      "id": "figma-maestro",
+      "label": "Figma: Maestro (tokens, 3 temas)",
+      "type": "design",
+      "kind": "reference",
+      "context": [
+        "diseno"
+      ],
+      "group": 7,
+      "status": "vacio",
+      "summary": "yC5x1jlzBBT4EZwwvFqPtl. A poblar.",
+      "links": []
+    },
+    {
+      "id": "figma-uikit",
+      "label": "Figma: OS UI Kit & Temas",
+      "type": "design",
+      "kind": "reference",
+      "context": [
+        "diseno"
+      ],
+      "group": 7,
+      "status": "vacio",
+      "summary": "G13LnkXjgqJG58nZt7Kjg4.",
+      "links": []
+    },
+    {
+      "id": "figma-nexus",
+      "label": "Figma: Nexus Portal",
+      "type": "design",
+      "kind": "reference",
+      "context": [
+        "diseno"
+      ],
+      "group": 7,
+      "status": "vacio",
+      "summary": "CH8Bes5hXZAnlN8lyzNagb.",
+      "links": []
+    },
+    {
+      "id": "figma-cafe",
+      "label": "Figma: Cafe Identidad",
+      "type": "design",
+      "kind": "reference",
+      "context": [
+        "diseno"
+      ],
+      "group": 7,
+      "status": "vacio",
+      "summary": "rySq6vYxZAHplryOBAQu1u.",
+      "links": []
+    },
+    {
+      "id": "figma-audiomorphic",
+      "label": "Figma: Audiomorphic Identidad",
+      "type": "design",
+      "kind": "reference",
+      "context": [
+        "diseno"
+      ],
+      "group": 7,
+      "status": "vacio",
+      "summary": "TA3tu8R7QJkRizlBJFoYc7.",
+      "links": []
+    },
+    {
+      "id": "drive-fundacion",
+      "label": "Drive: Fundacion Starseed",
+      "type": "service",
+      "kind": "reference",
+      "context": [
+        "datos",
+        "diseno"
+      ],
+      "group": 8,
+      "status": "publico",
+      "summary": "Raiz del corpus (22 docs + 26 assets). Servido HD via lh3.",
+      "links": [
+        {
+          "label": "carpeta",
+          "url": "https://drive.google.com/drive/folders/1oBD-sAhwNo2rgXKk95DBQbEnt4En85TL"
+        }
+      ]
+    },
+    {
+      "id": "drive-network",
+      "label": "Drive: StarSeed Network",
+      "type": "service",
+      "kind": "reference",
+      "context": [
+        "datos"
+      ],
+      "group": 8,
+      "status": "publico",
+      "summary": "Carpeta Network.",
+      "links": [
+        {
+          "label": "carpeta",
+          "url": "https://drive.google.com/drive/folders/1klIZq2ifSH8dOkzpAu7fgFZ8uIlnp3I7"
+        }
+      ]
+    },
+    {
+      "id": "drive-cafe",
+      "label": "Drive: Cafe",
+      "type": "service",
+      "kind": "reference",
+      "context": [
+        "datos"
+      ],
+      "group": 8,
+      "status": "publico",
+      "summary": "Carpeta Cafe.",
+      "links": [
+        {
+          "label": "carpeta",
+          "url": "https://drive.google.com/drive/folders/1jFul8UJFnRgjxfSshBX5BglnSajqrlIO"
+        }
+      ]
+    },
+    {
+      "id": "drive-memoria",
+      "label": "Drive: StarSeed · Memoria",
+      "type": "service",
+      "kind": "reference",
+      "context": [
+        "ia",
+        "datos"
+      ],
+      "group": 8,
+      "status": "nuevo",
+      "summary": "Carpeta dedicada a memoria/Dream (subida diaria).",
+      "links": []
+    },
+    {
+      "id": "mem-soul",
+      "label": "soul-starseed.md",
+      "type": "doc",
+      "kind": "identity",
+      "context": [
+        "identidad"
+      ],
+      "group": 9,
+      "status": "vivo",
+      "summary": "La esencia estable: 15 secciones del ecosistema.",
+      "links": []
+    },
+    {
+      "id": "mem-dream",
+      "label": "starseed-dream.md",
+      "type": "doc",
+      "kind": "project",
+      "context": [
+        "ia"
+      ],
+      "group": 9,
+      "status": "vivo",
+      "summary": "Memoria viva + protocolo Dream (este sistema).",
+      "links": []
+    },
+    {
+      "id": "mem-graph",
+      "label": "starseed-memory-graph.json",
+      "type": "doc",
+      "kind": "reference",
+      "context": [
+        "ia"
+      ],
+      "group": 9,
+      "status": "vivo",
+      "summary": "Este grafo. Render en el visor 3D.",
+      "links": []
+    },
+    {
+      "id": "mem-3d",
+      "label": "starseed-memory-3d.html",
+      "type": "doc",
+      "kind": "reference",
+      "context": [
+        "ia",
+        "diseno"
+      ],
+      "group": 9,
+      "status": "vivo",
+      "summary": "Visor 3D del mapa mental (Three.js, conexiones configurables).",
+      "links": []
+    },
+    {
+      "id": "mem-cafe-v5",
+      "label": "memoria: starseed-cafe-v5",
+      "type": "memory",
+      "kind": "project",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 9,
+      "status": "vivo",
+      "summary": "Portal OS/Nexus + Cafe (6 areas, Astraura, StarSeed ID, cartera+bolsa).",
+      "links": []
+    },
+    {
+      "id": "mem-deploy",
+      "label": "memoria: starseed-deploy",
+      "type": "memory",
+      "kind": "procedural",
+      "context": [
+        "despliegue"
+      ],
+      "group": 9,
+      "status": "vivo",
+      "summary": "Stack Vercel/GitHub/Supabase, tokens, reglas mount/git.",
+      "links": []
+    },
+    {
+      "id": "mem-folder-tech",
+      "label": "memoria: starseed-cafe-folder-tech",
+      "type": "memory",
+      "kind": "procedural",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 9,
+      "status": "vivo",
+      "summary": "NFD, mounts sin rm, servidor local, autoverificacion visual.",
+      "links": []
+    },
+    {
+      "id": "mem-trinity",
+      "label": "memoria: starseed-trinity-v2",
+      "type": "memory",
+      "kind": "project",
+      "context": [
+        "desarrollo"
+      ],
+      "group": 9,
+      "status": "vivo",
+      "summary": "Trinity movil v2 + sync de cuenta (Adenda 19).",
+      "links": []
+    },
+    {
+      "id": "mem-figma",
+      "label": "memoria: starseed-figma",
+      "type": "memory",
+      "kind": "reference",
+      "context": [
+        "diseno"
+      ],
+      "group": 9,
+      "status": "vivo",
+      "summary": "5 proyectos Figma + regla de seleccion.",
+      "links": []
+    },
+    {
+      "id": "mem-toolkits",
+      "label": "memoria: starseed-entity-toolkits",
+      "type": "memory",
+      "kind": "project",
+      "context": [
+        "desarrollo",
+        "comunidad"
+      ],
+      "group": 9,
+      "status": "vivo",
+      "summary": "Toolkits por tipo de entidad del OS (Adenda 28).",
+      "links": []
+    },
+    {
+      "id": "mcp-supabase",
+      "label": "MCP: Supabase",
+      "type": "connector",
+      "kind": "reference",
+      "context": [
+        "datos"
+      ],
+      "group": 10,
+      "status": "conectado",
+      "summary": "Gestion del backend.",
+      "links": []
+    },
+    {
+      "id": "mcp-drive",
+      "label": "MCP: Google Drive",
+      "type": "connector",
+      "kind": "reference",
+      "context": [
+        "datos"
+      ],
+      "group": 10,
+      "status": "conectado",
+      "summary": "search/read/create files.",
+      "links": []
+    },
+    {
+      "id": "mcp-figma",
+      "label": "MCP: Figma",
+      "type": "connector",
+      "kind": "reference",
+      "context": [
+        "diseno"
+      ],
+      "group": 10,
+      "status": "conectado",
+      "summary": "use_figma / generate_figma_design.",
+      "links": []
+    },
+    {
+      "id": "mcp-higgsfield",
+      "label": "MCP: Higgsfield/Seedance",
+      "type": "connector",
+      "kind": "reference",
+      "context": [
+        "ia"
+      ],
+      "group": 10,
+      "status": "conectado",
+      "summary": "generate_image/video/audio/3d.",
+      "links": []
+    },
+    {
+      "id": "mcp-chrome",
+      "label": "MCP: Claude-in-Chrome",
+      "type": "connector",
+      "kind": "reference",
+      "context": [
+        "investigacion"
+      ],
+      "group": 10,
+      "status": "conectado",
+      "summary": "Navegacion DOM.",
+      "links": []
+    },
+    {
+      "id": "mcp-computer",
+      "label": "MCP: computer-use",
+      "type": "connector",
+      "kind": "reference",
+      "context": [
+        "operaciones"
+      ],
+      "group": 10,
+      "status": "conectado",
+      "summary": "Control del Mac.",
+      "links": []
+    },
+    {
+      "id": "mcp-scheduled",
+      "label": "MCP: scheduled-tasks",
+      "type": "connector",
+      "kind": "reference",
+      "context": [
+        "ia"
+      ],
+      "group": 10,
+      "status": "conectado",
+      "summary": "Tareas programadas (Dream diario + soul semanal).",
+      "links": []
+    },
+    {
+      "id": "agent-orchestrator",
+      "label": "Ollama: orchestrator",
+      "type": "agent",
+      "kind": "procedural",
+      "context": [
+        "ia"
+      ],
+      "group": 11,
+      "status": "config",
+      "summary": "Planifica el Dream y fusiona salidas. qwen2.5:14b->llama3.1:8b.",
+      "links": []
+    },
+    {
+      "id": "agent-coder",
+      "label": "Ollama: coder",
+      "type": "agent",
+      "kind": "procedural",
+      "context": [
+        "ia",
+        "desarrollo"
+      ],
+      "group": 11,
+      "status": "config",
+      "summary": "Analiza codigo. qwen2.5-coder:7b->deepseek-coder-v2.",
+      "links": []
+    },
+    {
+      "id": "agent-designer",
+      "label": "Ollama: designer",
+      "type": "agent",
+      "kind": "procedural",
+      "context": [
+        "ia",
+        "diseno"
+      ],
+      "group": 11,
+      "status": "config",
+      "summary": "Coherencia de identidad/tokens.",
+      "links": []
+    },
+    {
+      "id": "agent-archivist",
+      "label": "Ollama: archivist",
+      "type": "agent",
+      "kind": "procedural",
+      "context": [
+        "ia"
+      ],
+      "group": 11,
+      "status": "config",
+      "summary": "Cura memoria, deduplica, mantiene el grafo.",
+      "links": []
+    },
+    {
+      "id": "agent-connector",
+      "label": "Ollama: connector",
+      "type": "agent",
+      "kind": "procedural",
+      "context": [
+        "ia"
+      ],
+      "group": 11,
+      "status": "config",
+      "summary": "Inventario y salud de cuentas/servicios.",
+      "links": []
+    },
+    {
+      "id": "agent-critic",
+      "label": "Ollama: critic",
+      "type": "agent",
+      "kind": "procedural",
+      "context": [
+        "ia"
+      ],
+      "group": 11,
+      "status": "config",
+      "summary": "Revision adversarial + imagina alternativas.",
+      "links": []
+    },
+    {
+      "id": "dream",
+      "label": "Proceso DREAM",
+      "type": "concept",
+      "kind": "procedural",
+      "context": [
+        "ia"
+      ],
+      "group": 11,
+      "status": "vivo",
+      "summary": "Pipeline diario 07:00: percibir->diferenciar->razonar->mejorar->imaginar->entregar.",
+      "links": []
+    },
+    {
+      "id": "zapier",
+      "label": "MCP: Zapier",
+      "type": "connector",
+      "kind": "reference",
+      "context": [
+        "ia",
+        "investigacion"
+      ],
+      "group": 10,
+      "status": "conectado",
+      "summary": "9000+ apps; onboarding corrido. Server MCP f99bae1f-e547-4c1a-951e-228d21d13ec3; ref usuario 02171826-5dd5-80d0-9f8a-86d36f55d353. Apps: Anthropic, Drive, Docs, Google Chat.",
+      "links": []
+    },
+    {
+      "id": "gchat",
+      "label": "Google Chat (notificaciones)",
+      "type": "service",
+      "kind": "reference",
+      "context": [
+        "ia",
+        "comunidad"
+      ],
+      "group": 8,
+      "status": "salida-ok",
+      "summary": "create_message via Zapier al espacio StarSeed Neurocortex (spaces/AAQAOF_kKVo). Recibe Dream diario y Soul semanal. Entrada (Chat->Mac) via Puente Hermes (Fase 2 Zap).",
+      "links": [
+        {
+          "label": "StarSeed Neurocortex",
+          "url": "https://chat.google.com/spaces/AAQAOF_kKVo"
+        }
+      ]
+    },
+    {
+      "id": "hermes",
+      "label": "Hermes (agente del usuario)",
+      "type": "agent",
+      "kind": "project",
+      "context": [
+        "ia"
+      ],
+      "group": 11,
+      "status": "vivo-multi-ia",
+      "summary": "Hermes Agent (Nous Research): cerebro multi-IA con politica 'usa lo mejor'. Principal Gemini + fallback Claude->Gemini; auxiliares en Gemini Flash; /model en chat. Servidor API :8642. Telegram VIVO (@starseed_neurocortex_bot). Usa skills/MCP/subagentes y generadores (Drive, Notion, Figma, Miro, Canva, NotebookLM, Nano Banana...). Lee/actualiza la memoria StarSeed y sincroniza a Drive. Config: hermes/config.starseed.yaml + starseed-context.md.",
+      "links": [
+        {
+          "label": "Docs API",
+          "url": "https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server"
+        },
+        {
+          "label": "GitHub",
+          "url": "https://github.com/NousResearch/hermes-agent"
+        }
+      ]
+    },
+    {
+      "id": "bridge",
+      "label": "Puente Hermes (Chat<->Mac)",
+      "type": "concept",
+      "kind": "procedural",
+      "context": [
+        "ia",
+        "operaciones"
+      ],
+      "group": 11,
+      "status": "fase1",
+      "summary": "Daemon Mac: vigila inbox, ejecuta Ollama/agentes/terminal/Hermes/Dream y responde por webhook de Google Chat. bridge/hermes-bridge.sh.",
+      "links": []
+    },
+    {
+      "id": "neurocortex",
+      "label": "Neurocortex (cerebro-chat)",
+      "type": "concept",
+      "kind": "project",
+      "context": [
+        "ia",
+        "operaciones"
+      ],
+      "group": 11,
+      "status": "fase1-telegram",
+      "summary": "Bot de Telegram en el Mac: responde con Ollama/agentes, Claude a pedido, Hermes, Dream; archivos del Mac/Drive; transcribe voz y procesa archivos. Fase 2: bot de Google Chat.",
+      "links": []
+    },
+    {
+      "id": "claude-api",
+      "label": "API: Anthropic Claude",
+      "type": "api",
+      "kind": "reference",
+      "context": [
+        "ia"
+      ],
+      "group": 6,
+      "status": "conectado",
+      "summary": "Claude via API (claude-sonnet-4-6). Fallback inteligente de Hermes + /claude en Neurocortex. Clave en config gitignored.",
+      "links": []
+    },
+    {
+      "id": "notion",
+      "label": "Notion",
+      "type": "service",
+      "kind": "reference",
+      "context": [
+        "operaciones",
+        "desarrollo"
+      ],
+      "group": 8,
+      "status": "disponible",
+      "summary": "Skill/MCP Notion: docs, bases de datos. Hermes lo usa cuando aporta.",
+      "links": []
+    },
+    {
+      "id": "miro",
+      "label": "Miro",
+      "type": "service",
+      "kind": "reference",
+      "context": [
+        "diseno"
+      ],
+      "group": 8,
+      "status": "disponible",
+      "summary": "Pizarras/diagramas Miro (skill/plugin). Para mapas y diagramas colaborativos.",
+      "links": []
+    },
+    {
+      "id": "canva",
+      "label": "Canva",
+      "type": "service",
+      "kind": "reference",
+      "context": [
+        "diseno"
+      ],
+      "group": 8,
+      "status": "disponible",
+      "summary": "Diseno grafico Canva (MCP). Para piezas sociales/marketing.",
+      "links": []
+    },
+    {
+      "id": "notebooklm",
+      "label": "NotebookLM",
+      "type": "service",
+      "kind": "reference",
+      "context": [
+        "investigacion",
+        "ia"
+      ],
+      "group": 8,
+      "status": "manual",
+      "summary": "Google NotebookLM: sin API publica -> uso por navegador como fuente de conocimiento.",
+      "links": [
+        {
+          "label": "NotebookLM",
+          "url": "https://notebooklm.google.com"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "starseed",
+      "target": "triada",
+      "type": "part_of",
+      "weight": 3
+    },
+    {
+      "source": "starseed",
+      "target": "design-dna",
+      "type": "part_of",
+      "weight": 2
+    },
+    {
+      "source": "design-dna",
+      "target": "materia-viva",
+      "type": "related",
+      "weight": 2
+    },
+    {
+      "source": "design-dna",
+      "target": "tokens",
+      "type": "documents",
+      "weight": 2
+    },
+    {
+      "source": "starseed",
+      "target": "area-sociedad",
+      "type": "part_of",
+      "weight": 3
+    },
+    {
+      "source": "starseed",
+      "target": "area-os",
+      "type": "part_of",
+      "weight": 3
+    },
+    {
+      "source": "starseed",
+      "target": "area-cafe",
+      "type": "part_of",
+      "weight": 3
+    },
+    {
+      "source": "starseed",
+      "target": "area-estudio",
+      "type": "part_of",
+      "weight": 3
+    },
+    {
+      "source": "starseed",
+      "target": "area-fundacion",
+      "type": "part_of",
+      "weight": 3
+    },
+    {
+      "source": "starseed",
+      "target": "area-audiomorphic",
+      "type": "part_of",
+      "weight": 3
+    },
+    {
+      "source": "starseed",
+      "target": "astraura",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "area-os",
+      "target": "app-sosd",
+      "type": "related",
+      "weight": 3
+    },
+    {
+      "source": "area-cafe",
+      "target": "app-nexus",
+      "type": "related",
+      "weight": 3
+    },
+    {
+      "source": "area-audiomorphic",
+      "target": "app-audiomorphic",
+      "type": "related",
+      "weight": 3
+    },
+    {
+      "source": "area-sociedad",
+      "target": "app-sosd",
+      "type": "related",
+      "weight": 2
+    },
+    {
+      "source": "area-estudio",
+      "target": "app-nexus",
+      "type": "part_of",
+      "weight": 2
+    },
+    {
+      "source": "area-fundacion",
+      "target": "app-nexus",
+      "type": "part_of",
+      "weight": 2
+    },
+    {
+      "source": "app-nexus",
+      "target": "repo-cafe",
+      "type": "hosted_on",
+      "weight": 3
+    },
+    {
+      "source": "app-nexus",
+      "target": "repo-marca",
+      "type": "related",
+      "weight": 1
+    },
+    {
+      "source": "app-sosd",
+      "target": "repo-system",
+      "type": "hosted_on",
+      "weight": 3
+    },
+    {
+      "source": "repo-os-frozen",
+      "target": "repo-system",
+      "type": "supersedes",
+      "weight": 1
+    },
+    {
+      "source": "app-audiomorphic",
+      "target": "repo-audiomorphic",
+      "type": "hosted_on",
+      "weight": 2
+    },
+    {
+      "source": "repo-cafe",
+      "target": "deploy-nexus",
+      "type": "deploys_to",
+      "weight": 3
+    },
+    {
+      "source": "repo-cafe",
+      "target": "deploy-cafe",
+      "type": "deploys_to",
+      "weight": 2
+    },
+    {
+      "source": "repo-system",
+      "target": "deploy-os",
+      "type": "deploys_to",
+      "weight": 3
+    },
+    {
+      "source": "repo-audiomorphic",
+      "target": "deploy-audiomorphic",
+      "type": "deploys_to",
+      "weight": 2
+    },
+    {
+      "source": "deploy-nexus",
+      "target": "acc-vercel-personal",
+      "type": "hosted_on",
+      "weight": 2
+    },
+    {
+      "source": "deploy-os",
+      "target": "acc-vercel-sosd",
+      "type": "hosted_on",
+      "weight": 2
+    },
+    {
+      "source": "deploy-audiomorphic",
+      "target": "acc-vercel-personal",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "repo-cafe",
+      "target": "acc-gh-personal",
+      "type": "hosted_on",
+      "weight": 2
+    },
+    {
+      "source": "repo-marca",
+      "target": "acc-gh-personal",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "repo-system",
+      "target": "acc-gh-org",
+      "type": "hosted_on",
+      "weight": 2
+    },
+    {
+      "source": "repo-os-frozen",
+      "target": "acc-gh-org",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "app-nexus",
+      "target": "db-supabase",
+      "type": "uses",
+      "weight": 3
+    },
+    {
+      "source": "app-sosd",
+      "target": "db-supabase",
+      "type": "uses",
+      "weight": 3
+    },
+    {
+      "source": "db-supabase",
+      "target": "acc-google",
+      "type": "related",
+      "weight": 1
+    },
+    {
+      "source": "db-supabase",
+      "target": "db-table-seedmarket",
+      "type": "part_of",
+      "weight": 2
+    },
+    {
+      "source": "db-supabase",
+      "target": "db-table-grains",
+      "type": "part_of",
+      "weight": 2
+    },
+    {
+      "source": "db-supabase",
+      "target": "db-table-os",
+      "type": "part_of",
+      "weight": 2
+    },
+    {
+      "source": "db-supabase",
+      "target": "db-table-cafe",
+      "type": "part_of",
+      "weight": 2
+    },
+    {
+      "source": "area-fundacion",
+      "target": "db-table-seedmarket",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "area-fundacion",
+      "target": "db-table-grains",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "area-os",
+      "target": "db-table-os",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "area-cafe",
+      "target": "db-table-cafe",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "astraura",
+      "target": "api-openrouter",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "app-nexus",
+      "target": "api-gemini",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "app-nexus",
+      "target": "api-kie",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "app-nexus",
+      "target": "api-higgsfield",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "api-gemini",
+      "target": "acc-google",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "figma-maestro",
+      "target": "acc-figma",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "figma-uikit",
+      "target": "acc-figma",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "figma-nexus",
+      "target": "acc-figma",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "figma-cafe",
+      "target": "acc-figma",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "figma-audiomorphic",
+      "target": "acc-figma",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "figma-uikit",
+      "target": "app-sosd",
+      "type": "documents",
+      "weight": 1
+    },
+    {
+      "source": "figma-nexus",
+      "target": "app-nexus",
+      "type": "documents",
+      "weight": 1
+    },
+    {
+      "source": "figma-cafe",
+      "target": "area-cafe",
+      "type": "documents",
+      "weight": 1
+    },
+    {
+      "source": "figma-audiomorphic",
+      "target": "area-audiomorphic",
+      "type": "documents",
+      "weight": 1
+    },
+    {
+      "source": "figma-maestro",
+      "target": "tokens",
+      "type": "documents",
+      "weight": 2
+    },
+    {
+      "source": "drive-fundacion",
+      "target": "acc-google",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "drive-network",
+      "target": "acc-google",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "drive-cafe",
+      "target": "acc-google",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "drive-memoria",
+      "target": "acc-google",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "app-nexus",
+      "target": "drive-fundacion",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "mem-soul",
+      "target": "starseed",
+      "type": "documents",
+      "weight": 3
+    },
+    {
+      "source": "mem-dream",
+      "target": "mem-soul",
+      "type": "related",
+      "weight": 3
+    },
+    {
+      "source": "mem-dream",
+      "target": "mem-graph",
+      "type": "documents",
+      "weight": 3
+    },
+    {
+      "source": "mem-graph",
+      "target": "mem-3d",
+      "type": "related",
+      "weight": 3
+    },
+    {
+      "source": "mem-dream",
+      "target": "drive-memoria",
+      "type": "syncs_with",
+      "weight": 2
+    },
+    {
+      "source": "mem-graph",
+      "target": "drive-memoria",
+      "type": "syncs_with",
+      "weight": 2
+    },
+    {
+      "source": "mem-cafe-v5",
+      "target": "app-nexus",
+      "type": "documents",
+      "weight": 2
+    },
+    {
+      "source": "mem-deploy",
+      "target": "deploy-os",
+      "type": "documents",
+      "weight": 2
+    },
+    {
+      "source": "mem-deploy",
+      "target": "deploy-nexus",
+      "type": "documents",
+      "weight": 2
+    },
+    {
+      "source": "mem-folder-tech",
+      "target": "app-nexus",
+      "type": "documents",
+      "weight": 1
+    },
+    {
+      "source": "mem-trinity",
+      "target": "app-sosd",
+      "type": "documents",
+      "weight": 2
+    },
+    {
+      "source": "mem-figma",
+      "target": "figma-maestro",
+      "type": "documents",
+      "weight": 1
+    },
+    {
+      "source": "mem-toolkits",
+      "target": "app-sosd",
+      "type": "documents",
+      "weight": 2
+    },
+    {
+      "source": "mem-cafe-v5",
+      "target": "mem-deploy",
+      "type": "related",
+      "weight": 1
+    },
+    {
+      "source": "mem-cafe-v5",
+      "target": "mem-folder-tech",
+      "type": "related",
+      "weight": 1
+    },
+    {
+      "source": "mem-trinity",
+      "target": "mem-deploy",
+      "type": "related",
+      "weight": 1
+    },
+    {
+      "source": "mem-toolkits",
+      "target": "mem-deploy",
+      "type": "related",
+      "weight": 1
+    },
+    {
+      "source": "mcp-supabase",
+      "target": "db-supabase",
+      "type": "syncs_with",
+      "weight": 2
+    },
+    {
+      "source": "mcp-drive",
+      "target": "drive-memoria",
+      "type": "syncs_with",
+      "weight": 2
+    },
+    {
+      "source": "mcp-figma",
+      "target": "acc-figma",
+      "type": "syncs_with",
+      "weight": 1
+    },
+    {
+      "source": "mcp-higgsfield",
+      "target": "api-higgsfield",
+      "type": "syncs_with",
+      "weight": 1
+    },
+    {
+      "source": "mcp-scheduled",
+      "target": "dream",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "dream",
+      "target": "agent-orchestrator",
+      "type": "uses",
+      "weight": 3
+    },
+    {
+      "source": "agent-orchestrator",
+      "target": "agent-coder",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "agent-orchestrator",
+      "target": "agent-designer",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "agent-orchestrator",
+      "target": "agent-archivist",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "agent-orchestrator",
+      "target": "agent-connector",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "agent-orchestrator",
+      "target": "agent-critic",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "agent-coder",
+      "target": "repo-system",
+      "type": "analyzes",
+      "weight": 1
+    },
+    {
+      "source": "agent-coder",
+      "target": "repo-cafe",
+      "type": "analyzes",
+      "weight": 1
+    },
+    {
+      "source": "agent-designer",
+      "target": "design-dna",
+      "type": "analyzes",
+      "weight": 1
+    },
+    {
+      "source": "agent-archivist",
+      "target": "mem-dream",
+      "type": "analyzes",
+      "weight": 2
+    },
+    {
+      "source": "agent-archivist",
+      "target": "mem-graph",
+      "type": "analyzes",
+      "weight": 2
+    },
+    {
+      "source": "agent-connector",
+      "target": "db-supabase",
+      "type": "analyzes",
+      "weight": 1
+    },
+    {
+      "source": "agent-connector",
+      "target": "acc-vercel-sosd",
+      "type": "analyzes",
+      "weight": 1
+    },
+    {
+      "source": "dream",
+      "target": "mem-dream",
+      "type": "documents",
+      "weight": 3
+    },
+    {
+      "source": "dream",
+      "target": "mem-graph",
+      "type": "documents",
+      "weight": 3
+    },
+    {
+      "source": "zapier",
+      "target": "acc-google",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "zapier",
+      "target": "drive-memoria",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "zapier",
+      "target": "gchat",
+      "type": "syncs_with",
+      "weight": 2
+    },
+    {
+      "source": "gchat",
+      "target": "acc-google",
+      "type": "hosted_on",
+      "weight": 1
+    },
+    {
+      "source": "mcp-scheduled",
+      "target": "gchat",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "dream",
+      "target": "gchat",
+      "type": "syncs_with",
+      "weight": 2
+    },
+    {
+      "source": "mem-soul",
+      "target": "gchat",
+      "type": "syncs_with",
+      "weight": 1
+    },
+    {
+      "source": "bridge",
+      "target": "gchat",
+      "type": "syncs_with",
+      "weight": 3
+    },
+    {
+      "source": "bridge",
+      "target": "agent-orchestrator",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "bridge",
+      "target": "hermes",
+      "type": "uses",
+      "weight": 3
+    },
+    {
+      "source": "bridge",
+      "target": "dream",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "bridge",
+      "target": "mcp-computer",
+      "type": "related",
+      "weight": 1
+    },
+    {
+      "source": "hermes",
+      "target": "starseed",
+      "type": "part_of",
+      "weight": 1
+    },
+    {
+      "source": "neurocortex",
+      "target": "starseed",
+      "type": "part_of",
+      "weight": 2
+    },
+    {
+      "source": "neurocortex",
+      "target": "agent-orchestrator",
+      "type": "uses",
+      "weight": 3
+    },
+    {
+      "source": "neurocortex",
+      "target": "hermes",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "neurocortex",
+      "target": "dream",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "neurocortex",
+      "target": "mcp-computer",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "neurocortex",
+      "target": "gchat",
+      "type": "related",
+      "weight": 1
+    },
+    {
+      "source": "neurocortex",
+      "target": "bridge",
+      "type": "supersedes",
+      "weight": 1
+    },
+    {
+      "source": "neurocortex",
+      "target": "drive-memoria",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "hermes",
+      "target": "mcp-computer",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "hermes",
+      "target": "drive-memoria",
+      "type": "related",
+      "weight": 1
+    },
+    {
+      "source": "hermes",
+      "target": "claude-api",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "hermes",
+      "target": "api-gemini",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "neurocortex",
+      "target": "claude-api",
+      "type": "uses",
+      "weight": 2
+    },
+    {
+      "source": "neurocortex",
+      "target": "api-gemini",
+      "type": "related",
+      "weight": 1
+    },
+    {
+      "source": "hermes",
+      "target": "mem-soul",
+      "type": "analyzes",
+      "weight": 2
+    },
+    {
+      "source": "hermes",
+      "target": "mem-dream",
+      "type": "analyzes",
+      "weight": 2
+    },
+    {
+      "source": "hermes",
+      "target": "mem-graph",
+      "type": "analyzes",
+      "weight": 2
+    },
+    {
+      "source": "hermes",
+      "target": "gchat",
+      "type": "related",
+      "weight": 1
+    },
+    {
+      "source": "hermes",
+      "target": "notion",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "hermes",
+      "target": "miro",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "hermes",
+      "target": "canva",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "hermes",
+      "target": "notebooklm",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "hermes",
+      "target": "api-openrouter",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "hermes",
+      "target": "figma-maestro",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "dream",
+      "target": "claude-api",
+      "type": "uses",
+      "weight": 1
+    },
+    {
+      "source": "dream",
+      "target": "hermes",
+      "type": "uses",
+      "weight": 2
+    }
+  ],
+  "changelog": [
+    {
+      "date": "2026-06-18",
+      "agent": "cowork",
+      "summary": "Fallback Claude->Gemini + auxiliares Gemini Flash en Hermes; politica 'usa siempre lo mejor' (skills/MCP/subagentes/generadores) en starseed-context.md; Dream diario reescrito (CAMBIOS/SUGERENCIAS/OPCIONES, sync equipo+Drive+Google Chat). +nodos notion/miro/canva/notebooklm.",
+      "changes": [
+        "fallback+aux",
+        "best-tool policy",
+        "dream task v2",
+        "graph nodes"
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "agent": "cowork",
+      "summary": "Hermes como cerebro multi-IA: Ollama->fallback Claude/Gemini + auxiliares Gemini Flash (config.starseed.yaml). Telegram nativo; Google Chat nativo requiere Workspace (@gmail no). starseed-context.md conecta Hermes a la memoria. +nodo claude-api, edges Hermes<->IAs/memoria.",
+      "changes": [
+        "add config.starseed.yaml",
+        "add starseed-context.md",
+        "update hermes node multi-ia",
+        "add claude-api node + edges"
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "agent": "cowork",
+      "summary": "Hermes identificado = Hermes Agent (Nous Research). Servidor API OpenAI-compatible (:8642) cableado a Neurocortex (mode hermes_api). Setup script + README + secrets gitignored. Clave del usuario guardada fuera de memoria; rotar.",
+      "changes": [
+        "update hermes node (real)",
+        "wire hermes_api in neurocortex",
+        "add hermes-setup.sh"
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "agent": "cowork",
+      "summary": "Neurocortex (cerebro-chat Telegram) anadido: bot Mac con Ollama/Claude/Hermes/Dream/archivos/voz. Nodo + 8 aristas.",
+      "changes": [
+        "add neurocortex node",
+        "wire edges"
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "agent": "cowork",
+      "summary": "Integracion Zapier + Google Chat + Hermes + Puente. Anadidos nodos zapier/gchat/hermes/bridge y 13 aristas. Notificaciones Dream/Soul -> Google Chat cableadas.",
+      "changes": [
+        "add zapier/gchat/hermes/bridge nodes",
+        "wire notification + bridge edges"
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "agent": "cowork",
+      "summary": "Semilla inicial del grafo de memoria (70+ nodos, 90+ aristas).",
+      "changes": [
+        "create graph",
+        "seed ecosystem nodes",
+        "wire edges",
+        "define node/edge/context taxonomies"
+      ]
+    }
+  ]
+}

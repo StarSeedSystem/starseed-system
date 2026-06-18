@@ -1163,3 +1163,27 @@ recuentos agregados de toda la red. Desplegado en vivo (commit `a93c101`).
 
 **Pendiente:** mismas mecánicas reales para propuestas legislativas completas (os_posts ya real);
 enriquecer mensajes/cuenta/mapas/archivos/feed y widgets según prioridad; rotar tokens del chat.
+
+---
+## Adenda 31 — 2026-06-18 · Mejora profesional multi-área en paralelo (commit 53d95e6, vivo)
+
+**Resumen:** 5 agentes en paralelo mejoraron 5 áreas (archivos distintos, aditivo). Desplegado.
+
+### Hecho
+- **Cuenta/Perfiles:** `settings/page.tsx` con accesos rápidos (memoria/IA/conexiones/red) + nuevo
+  `components/profile/profile-switcher.tsx` (dualidad cuenta↔perfiles, enlaces a /profile).
+- **Mensajes:** `messages/page.tsx` rediseñado — dos paneles responsive, búsqueda, filtros por
+  canal (Directo/Grupo/E.F./Comunidad), hilos con separadores, composer funcional, avatares→/profile.
+- **Publicar:** `publish/page.tsx` — compositor por tipo (post/artículo/evento/propuesta) + selector
+  de destino interconectado (samplePages/sampleGroups/E.F./partidos → /pagina,/grupo,/entidad,/partido)
+  + etiquetas + audiencia + preview en vivo. Compositor avanzado anterior conservado.
+- **Mapas:** `dashboard/widgets/map-widget.tsx` + `location-selector.tsx` — capas StarSeed
+  (Eventos/Comunidades/E.F.) con marcadores SVG y popups enlazados (/evento,/entidad,/pagina),
+  toggles con conteo, leyenda; base Leaflet intacta.
+- **Biblioteca:** `library/page.tsx` — explorador unificado (artículos/cursos/documentos/comunidades)
+  con filtros por tipo, búsqueda, orden (persistido) y grid/list; deep-links a /article,/course,/pagina.
+- Typecheck: los 7 archivos tocados limpios (errores restantes son pre-existentes en theme-utils/
+  theme-gallery/keyStorage/knowledge-network-selector, cubiertos por ignoreBuildErrors).
+
+**Pendiente:** persistencia Supabase de mensajes (no hay tabla os_messages aún); profundizar
+widgets del dashboard; rotar tokens del chat.

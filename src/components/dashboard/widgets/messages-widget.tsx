@@ -6,6 +6,8 @@ import { MessageSquare, Users, Landmark, User, ChevronRight, ChevronLeft, Search
 import { WidgetShell, MiniList, timeAgo } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { MessageThread } from "@/lib/widget-data";
+import { conversations as staticConversations } from "@/lib/data";
+import type { ConversationFull } from "@/lib/data";
 
 // ════════════════════════════════════════════════════════════════
 // MessagesWidget — enlace neural: hilos directos, grupos y juntas.
@@ -66,6 +68,45 @@ function transcriptFor(t: MessageThread): ThreadMessage[] {
     ];
 }
 
+// Converts a ConversationFull from /lib/data into the MessageThread widget shape.
+// Accent colors keyed by conversation id for determinism.
+const CONVO_ACCENTS: Record<string, string> = {
+    "convo-1": "#0ea5e9",
+    "convo-2": "#6366f1",
+    "convo-3": "#10b981",
+    "convo-4": "#DC143C",
+};
+
+function convoToThread(c: ConversationFull): MessageThread {
+    return {
+        id: c.id,
+        name: c.name,
+        lastMessage: c.lastMessage,
+        ts: Date.now() - (c.lastMessageTimestamp.includes("5m") ? 5 * 60_000
+            : c.lastMessageTimestamp.includes("1h") ? 60 * 60_000
+            : c.lastMessageTimestamp.includes("3h") ? 3 * 3600_000
+            : 8 * 3600_000),
+        unread: c.unreadCount,
+        online: c.pinned,
+        kind: c.type === "dm" ? "directo" : c.name.toLowerCase().includes("e.f.") || c.name.toLowerCase().includes("junta") ? "junta" : "grupo",
+        accent: CONVO_ACCENTS[c.id] ?? "#0ea5e9",
+    };
+}
+
+// Profile route for DM conversations (maps known names to handles).
+const NAME_TO_HANDLE: Record<string, string> = {
+    "Brenda": "brenda",
+    "Artista Anónimo": "artista-anonimo",
+    "Maya Rendón": "maya.rendon",
+    "Kael Torres": "kael.torres",
+};
+
+function profileLinkForThread(t: MessageThread): string | null {
+    if (t.kind !== "directo") return null;
+    const handle = NAME_TO_HANDLE[t.name];
+    return handle ? `/profile/${handle}` : null;
+}
+
 export function MessagesWidget() {
     const { data, loading } = useWidgetData("social.threads", { refreshMs: 6000 });
     const [query, setQuery] = useState("");
@@ -74,11 +115,16 @@ export function MessagesWidget() {
     const [readLocal, setReadLocal] = useState<Set<string>>(() => new Set());
     const [draft, setDraft] = useState("");
 
+    // Merge live widget threads with static conversations from /lib/data
     const threads = useMemo<MessageThread[]>(() => {
-        const list = (data ?? []).map((t) =>
-            readLocal.has(t.id) ? { ...t, unread: 0 } : t
+        const staticThreads = staticConversations.map(convoToThread);
+        const widgetThreads = (data ?? []).filter(t =>
+            !staticThreads.some(s => s.id === t.id)
         );
-        return [...list].sort((a, b) => (b.unread - a.unread) || (b.ts - a.ts));
+        const merged = [...staticThreads, ...widgetThreads];
+        return merged
+            .map(t => readLocal.has(t.id) ? { ...t, unread: 0 } : t)
+            .sort((a, b) => (b.unread - a.unread) || (b.ts - a.ts));
     }, [data, readLocal]);
 
     const filtered = useMemo(() => {
@@ -108,7 +154,7 @@ export function MessagesWidget() {
             subtitle="Mensajes y juntas"
             icon={MessageSquare}
             accent="#0ea5e9"
-            connections={[{ label: "Comunidades", href: "/hub", color: "#9FE870" }, { label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" }, { label: "Perfil", href: "/profile", color: "#7FB8FF" }]}
+            connections={[{ label: "Mensajes", href: "/messages", color: "#0ea5e9" }, { label: "Comunidades", href: "/hub", color: "#9FE870" }, { label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" }, { label: "Perfil", href: "/profile", color: "#7FB8FF" }]}
             live
             actions={
                 openThread ? (
@@ -117,8 +163,8 @@ export function MessagesWidget() {
                         <ChevronLeft className="size-3" /> Hilos
                     </button>
                 ) : (
-                    <Link href="/network" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
-                        Abrir <ChevronRight className="size-3" />
+                    <Link href="/messages" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
+                        Todos <ChevronRight className="size-3" />
                     </Link>
                 )
             }
@@ -202,9 +248,15 @@ export function MessagesWidget() {
                                     placeholder="Buscar conversación…"
                                     className="flex-1 min-w-0 bg-transparent text-[11px] outline-none placeholder:text-muted-foreground/40"
                                 />
-                                {totalUnread > 0 && (
-                                    <span className="shrink-0 text-[9px] font-black uppercase tracking-wider text-sky-400">{totalUnread} sin leer</span>
-                                )}
+                                {totalUnread > 0 ? (
+                                    <span className="shrink-0 grid place-items-center h-5 px-2 rounded-full text-[10px] font-black text-white" style={{ background: "#0ea5e9" }}>
+                                        {totalUnread}
+                                    </span>
+                                ) : null}
+                                <Link href="/messages" aria-label="Ver todos los mensajes"
+                                    className="shrink-0 grid place-items-center size-5 rounded-lg text-muted-foreground/60 hover:text-primary transition-colors cursor-pointer">
+                                    <ChevronRight className="size-3.5" />
+                                </Link>
                             </div>
                         )}
                         <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
@@ -214,36 +266,58 @@ export function MessagesWidget() {
                                 empty={query ? "Sin coincidencias" : "Sin mensajes"}
                                 render={(t) => {
                                     const KindIcon = KIND_ICON[t.kind];
+                                    const profileHref = profileLinkForThread(t);
                                     return (
-                                        <button
-                                            type="button"
-                                            onClick={() => open(t)}
-                                            className="w-full text-left flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-primary/30 hover:bg-white/[0.04] transition-colors cursor-pointer"
-                                        >
-                                            <span className="relative shrink-0 grid place-items-center size-8 rounded-xl border text-white font-black text-xs"
-                                                style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accent}66)`, borderColor: `${t.accent}55` }}>
-                                                {t.name.charAt(0)}
-                                                {t.online && <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-400 ring-2 ring-background" />}
-                                            </span>
-                                            <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-sky-500/30 hover:bg-white/[0.04] transition-colors">
+                                            {/* Avatar: links to profile for DMs, else opens thread */}
+                                            {profileHref ? (
+                                                <Link href={profileHref} onClick={(ev) => ev.stopPropagation()}
+                                                    className="relative shrink-0 grid place-items-center size-8 rounded-xl border text-white font-black text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                                                    style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accent}66)`, borderColor: `${t.accent}55` }}>
+                                                    {t.name.charAt(0)}
+                                                    {t.online && <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-400 ring-2 ring-background" />}
+                                                </Link>
+                                            ) : (
+                                                <span className="relative shrink-0 grid place-items-center size-8 rounded-xl border text-white font-black text-xs"
+                                                    style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accent}66)`, borderColor: `${t.accent}55` }}>
+                                                    {t.name.charAt(0)}
+                                                    {t.online && <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-400 ring-2 ring-background" />}
+                                                </span>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => open(t)}
+                                                className="min-w-0 flex-1 text-left cursor-pointer"
+                                            >
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="inline-flex items-center gap-1 text-[11px] @sm:text-xs font-bold truncate">
                                                         <KindIcon className="size-3 shrink-0 opacity-60" /> {t.name}
                                                     </span>
                                                     {!micro && <span className="text-[10px] text-muted-foreground/50 font-bold shrink-0 tabular-nums">{timeAgo(t.ts)}</span>}
                                                 </div>
-                                                {!micro && <p className={`text-[10px] leading-snug truncate ${t.unread > 0 ? "text-foreground/90 font-semibold" : "text-muted-foreground/70"}`}>{t.lastMessage}</p>}
-                                            </div>
+                                                {!micro && (
+                                                    <p className={`text-[10px] leading-snug truncate ${t.unread > 0 ? "text-foreground/90 font-semibold" : "text-muted-foreground/60"}`}>
+                                                        {t.lastMessage}
+                                                    </p>
+                                                )}
+                                            </button>
                                             {t.unread > 0 && (
                                                 <span className="shrink-0 grid place-items-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-black text-white" style={{ background: t.accent }}>
                                                     {t.unread}
                                                 </span>
                                             )}
-                                        </button>
+                                        </div>
                                     );
                                 }}
                             />
                         </div>
+                        {/* Footer: link to full messages page */}
+                        {!micro && size.vTier !== "micro" && (
+                            <Link href="/messages"
+                                className="shrink-0 flex items-center justify-center gap-1 rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-sky-400 hover:bg-sky-500/10 transition-colors cursor-pointer">
+                                <MessageSquare className="size-3" /> Abrir mensajería completa
+                            </Link>
+                        )}
                     </div>
                 );
             }}

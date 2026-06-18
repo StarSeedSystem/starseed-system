@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Compass, TrendingUp, ChevronRight, Users, Telescope, Globe } from "lucide-react";
+import { TrendingUp, ChevronRight, Users, Telescope, Globe, Landmark, Vote, BookOpen, Palette, Building2 } from "lucide-react";
 import { WidgetShell, MiniList, Chip, ProgressBar, ProgressRing } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { NetworkEntity } from "@/lib/widget-data";
@@ -11,6 +11,8 @@ import { widgetEntityHref } from "@/lib/entity-links";
 import { useOsPages, useOsGroups } from "@/hooks/use-os-entities";
 import { setFollow, setMembership } from "@/lib/os-social";
 import type { OsPage, OsGroup } from "@/lib/os-social";
+import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
+import { samplePages, sampleGroups } from "@/data/sample-entities";
 
 // ════════════════════════════════════════════════════════════════
 // ExploreNetworkWidget — comunidades y entidades en tendencia.
@@ -20,14 +22,34 @@ import type { OsPage, OsGroup } from "@/lib/os-social";
 
 const ACCENT = "#f59e0b";
 
-const KIND_META: Record<NetworkEntity["kind"], { label: string; emoji: string }> = {
-    comunidad:  { label: "Comunidad",  emoji: "🏘" },
-    sangha:     { label: "Sangha",     emoji: "🌿" },
-    colectivo:  { label: "Colectivo",  emoji: "✊" },
-    biorregion: { label: "Biorregión", emoji: "🌍" },
+const KIND_META: Record<NetworkEntity["kind"], { label: string; icon: React.ElementType }> = {
+    comunidad:  { label: "Comunidad",  icon: Users },
+    sangha:     { label: "Sangha",     icon: Globe },
+    colectivo:  { label: "Colectivo",  icon: Palette },
+    biorregion: { label: "Biorregión", icon: Landmark },
 };
 
-const KIND_KEYS: Array<NetworkEntity["kind"] | "todas"> = ["todas", "comunidad", "sangha", "colectivo", "biorregion"];
+// Extended filter tabs including governance types
+type FilterKind = NetworkEntity["kind"] | "todas" | "partido" | "entidad";
+
+const FILTER_KEYS: FilterKind[] = ["todas", "comunidad", "sangha", "colectivo", "biorregion", "partido", "entidad"];
+
+const FILTER_META: Record<FilterKind, { label: string; icon: React.ElementType }> = {
+    todas:     { label: "Todo",       icon: Globe },
+    comunidad: { label: "Comunidad",  icon: Users },
+    sangha:    { label: "Sangha",     icon: Globe },
+    colectivo: { label: "Colectivo",  icon: Palette },
+    biorregion:{ label: "Biorregión", icon: Landmark },
+    partido:   { label: "Partido",    icon: Vote },
+    entidad:   { label: "E.F.",       icon: Building2 },
+};
+
+interface RichEntity extends NetworkEntity {
+    href: string;
+    typeLabel: string;
+    typeIcon: React.ElementType;
+    filterKind: FilterKind;
+}
 
 /** Deriva el `kind` de widget a partir de una página/grupo OS. */
 function entityKindFromOs(name: string, tags: string[], isGroup: boolean): NetworkEntity["kind"] {
@@ -56,15 +78,94 @@ function osToEntity(p: OsPage | OsGroup, isGroup: boolean): NetworkEntity {
     };
 }
 
+// Build rich entities from sample governance + sample entity data (always available)
+function buildRichEntities(): RichEntity[] {
+    const result: RichEntity[] = [];
+
+    // From parties → /partido/<slug>
+    for (const p of listPartidos()) {
+        result.push({
+            id: `partido:${p.slug}`,
+            name: p.name,
+            kind: "colectivo",
+            filterKind: "partido",
+            momentum: synthMomentum(p.members),
+            members: p.members,
+            focus: p.ideology,
+            accent: p.accent,
+            href: `/partido/${p.slug}`,
+            typeLabel: "Partido",
+            typeIcon: Vote,
+        });
+    }
+
+    // From federative entities → /entidad/<slug>
+    for (const ef of listFederativeEntities()) {
+        result.push({
+            id: `ef:${ef.slug}`,
+            name: ef.name,
+            kind: "biorregion",
+            filterKind: "entidad",
+            momentum: synthMomentum(ef.citizens),
+            members: ef.citizens,
+            focus: ef.blurb.slice(0, 80),
+            accent: ef.accent,
+            href: `/entidad/${ef.slug}`,
+            typeLabel: "E.F.",
+            typeIcon: Building2,
+        });
+    }
+
+    // From samplePages (comunidades / sanghas)
+    for (const p of samplePages) {
+        const kf: FilterKind = p.kind === "comunidad" ? "comunidad" : "sangha";
+        result.push({
+            id: `page:${p.id}`,
+            name: p.title,
+            kind: p.kind === "comunidad" ? "comunidad" : "sangha",
+            filterKind: kf,
+            momentum: synthMomentum(p.members),
+            members: p.members,
+            focus: p.description.slice(0, 80),
+            accent: p.accent,
+            href: `/pagina/${p.id}`,
+            typeLabel: p.kind === "comunidad" ? "Comunidad" : "Sangha",
+            typeIcon: KIND_META[p.kind === "comunidad" ? "comunidad" : "sangha"].icon,
+        });
+    }
+
+    // From sampleGroups (colectivos / círculos)
+    for (const g of sampleGroups) {
+        result.push({
+            id: `group:${g.id}`,
+            name: g.name,
+            kind: "colectivo",
+            filterKind: "colectivo",
+            momentum: synthMomentum(g.members),
+            members: g.members,
+            focus: g.description.slice(0, 80),
+            accent: g.accent,
+            href: `/grupo/${g.id}`,
+            typeLabel: g.kind === "asamblea" ? "Asamblea" : g.kind === "colectivo" ? "Colectivo" : "Círculo",
+            typeIcon: g.kind === "asamblea" ? Landmark : g.kind === "colectivo" ? Palette : BookOpen,
+        });
+    }
+
+    return result;
+}
+
 export function ExploreNetworkWidget() {
     // Datos simulados como último recurso; las entidades reales vienen de Supabase.
     const { data: mockData, loading: mockLoading } = useWidgetData("social.entities", { refreshMs: 6000 });
     const { data: pages, loading: pagesLoading } = useOsPages();
     const { data: groups, loading: groupsLoading } = useOsGroups();
-    const [filter, setFilter] = useState<NetworkEntity["kind"] | "todas">("todas");
+    const [filter, setFilter] = useState<FilterKind>("todas");
     const [joined, setJoined] = useState<Set<string>>(new Set());
 
     const loading = (pagesLoading || groupsLoading) && (mockLoading && !mockData);
+
+    // Rich entities from governance + sample data (SSR-safe, deterministic)
+    const richEntities = useMemo(() => buildRichEntities(), []);
 
     // Combina páginas + grupos reales (o de ejemplo) en entidades de la red.
     const data: NetworkEntity[] = useMemo(() => {
@@ -79,14 +180,24 @@ export function ExploreNetworkWidget() {
     const entitySlug = (id: string) => id.replace(/^[pg]:/, "");
     const entityIsGroup = (id: string) => id.startsWith("g:");
 
+    // Use richEntities as primary; fall back to widget data entities if no OS data
+    const displayEntities = richEntities.length > 0 ? richEntities : (data ?? []).map(e => ({
+        ...e,
+        filterKind: e.kind as FilterKind,
+        href: widgetEntityHref(e.name, e.kind),
+        typeLabel: KIND_META[e.kind]?.label ?? e.kind,
+        typeIcon: KIND_META[e.kind]?.icon ?? Globe,
+    })) as RichEntity[];
+
     const sorted = useMemo(() => {
-        const list = data ?? [];
-        const filtered = filter === "todas" ? list : list.filter(e => e.kind === filter);
+        const filtered = filter === "todas"
+            ? displayEntities
+            : displayEntities.filter(e => e.filterKind === filter);
         return [...filtered].sort((a, b) => b.momentum - a.momentum);
-    }, [data, filter]);
+    }, [displayEntities, filter]);
 
     const top = sorted[0];
-    const totalMembers = (data ?? []).reduce((acc, e) => acc + e.members, 0);
+    const totalMembers = displayEntities.reduce((acc, e) => acc + e.members, 0);
 
     return (
         <WidgetShell
@@ -94,7 +205,7 @@ export function ExploreNetworkWidget() {
             subtitle="Entidades en tendencia"
             icon={Telescope}
             accent={ACCENT}
-            connections={[{ label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" }, { label: "Comunidades", href: "/hub", color: "#9FE870" }, { label: "Explorer", href: "/explorer", color: "#22d3ee" }]}
+            connections={[{ label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" }, { label: "Comunidades", href: "/hub", color: "#9FE870" }, { label: "Política", href: "/network/politics", color: "#DC143C" }, { label: "Explorer", href: "/explorer", color: "#22d3ee" }]}
             live
             actions={
                 <Link href="/explorer" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
@@ -103,20 +214,23 @@ export function ExploreNetworkWidget() {
             }
         >
             {(size) => {
-                if (loading && data.length === 0) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
+                if (loading && displayEntities.length === 0) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
 
                 const micro = size.tier === "micro" || size.vTier === "micro";
 
                 // ── Micro: top entidad + ring de momentum ──────────
                 if (micro) {
                     if (!top) return <div className="h-full grid place-items-center text-xs text-muted-foreground/50 italic">Sin entidades</div>;
+                    const TopIcon = top.typeIcon ?? Globe;
                     return (
-                        <Link href={widgetEntityHref(top.name, top.kind)} className="h-full flex items-center gap-3 px-1 cursor-pointer">
+                        <Link href={top.href} className="h-full flex items-center gap-3 px-1 cursor-pointer">
                             <ProgressRing value={top.momentum} size={52} stroke={5} color={top.accent ?? ACCENT}
                                 label={`${Math.round(top.momentum * 100)}%`} sublabel="mom." />
                             <div className="min-w-0 flex-1">
                                 <p className="text-[11px] font-black truncate" style={{ color: top.accent ?? ACCENT }}>{top.name}</p>
-                                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wide truncate">{KIND_META[top.kind]?.label}</p>
+                                <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wide truncate inline-flex items-center gap-0.5">
+                                    <TopIcon className="size-2.5" />{top.typeLabel}
+                                </p>
                                 <p className="text-[10px] font-bold text-muted-foreground/70 mt-0.5">
                                     <Users className="size-2.5 inline mr-0.5" />{top.members.toLocaleString()}
                                 </p>
@@ -127,23 +241,28 @@ export function ExploreNetworkWidget() {
 
                 const maxItems = size.vTier === "expanded" ? 5 : size.vTier === "compact" ? 3 : 4;
                 const showFilter = size.tier !== "compact" && size.vTier !== "compact";
+                // Show at most 4 filter tabs in compact layouts, all 7 in expanded
+                const filterTabsVisible = size.vTier === "expanded" ? FILTER_KEYS : FILTER_KEYS.slice(0, 4);
 
                 return (
                     <div className="flex flex-col gap-2 pt-1 h-full">
 
                         {/* Cabecera: conteo total + filtro kind */}
-                        <div className="shrink-0 flex items-center justify-between gap-2">
+                        <div className="shrink-0 flex items-center justify-between gap-2 flex-wrap">
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: ACCENT }}>
-                                <Globe className="size-3" /> {(data ?? []).length} entidades · {totalMembers.toLocaleString()} miembros
+                                <Globe className="size-3" /> {displayEntities.length} entidades · {totalMembers.toLocaleString()} miembros
                             </span>
                             {showFilter && (
-                                <div className="flex items-center gap-1">
-                                    {KIND_KEYS.slice(0, 3).map(k => (
-                                        <button key={k} onClick={() => setFilter(k)}
-                                            className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${filter === k ? "border-amber-500/40 bg-amber-500/15 text-amber-300" : "border-border/40 text-muted-foreground/60 hover:text-foreground"}`}>
-                                            {k === "todas" ? "Todo" : KIND_META[k as NetworkEntity["kind"]]?.label}
-                                        </button>
-                                    ))}
+                                <div className="flex items-center gap-1 flex-wrap">
+                                    {filterTabsVisible.map(k => {
+                                        const FIcon = FILTER_META[k].icon;
+                                        return (
+                                            <button key={k} onClick={() => setFilter(k)}
+                                                className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${filter === k ? "border-amber-500/40 bg-amber-500/15 text-amber-300" : "border-border/40 text-muted-foreground/60 hover:text-foreground hover:border-border/70"}`}>
+                                                <FIcon className="size-2.5" />{FILTER_META[k].label}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
@@ -156,12 +275,15 @@ export function ExploreNetworkWidget() {
                                 empty="Sin entidades en tendencia"
                                 render={(e) => {
                                     const isJoined = joined.has(e.id);
+                                    const EIcon = (e as RichEntity).typeIcon ?? KIND_META[e.kind]?.icon ?? Globe;
+                                    const eHref = (e as RichEntity).href ?? widgetEntityHref(e.name, e.kind);
+                                    const eLabel = (e as RichEntity).typeLabel ?? KIND_META[e.kind]?.label ?? e.kind;
                                     return (
                                         <motion.div
                                             whileHover={{ scale: 1.01 }}
-                                            className="rounded-xl border border-border/40 bg-white/[0.02] hover:border-amber-500/25 transition-colors"
+                                            className="rounded-xl border border-border/40 bg-white/[0.02] hover:border-amber-500/25 hover:bg-white/[0.04] transition-all"
                                         >
-                                          <Link href={widgetEntityHref(e.name, e.kind)} className="block px-2.5 py-2 cursor-pointer">
+                                          <Link href={eHref} className="block px-2.5 py-2 cursor-pointer">
                                             <div className="flex items-center gap-2">
                                                 {/* Avatar inicial */}
                                                 <div className="shrink-0 grid place-items-center size-7 rounded-lg text-[11px] font-black text-white"
@@ -172,7 +294,9 @@ export function ExploreNetworkWidget() {
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-1.5">
                                                         <span className="text-[11px] @sm:text-xs font-bold truncate">{e.name}</span>
-                                                        <Chip color={e.accent ?? ACCENT}>{KIND_META[e.kind]?.label ?? e.kind}</Chip>
+                                                        <Chip color={e.accent ?? ACCENT}>
+                                                            <EIcon className="size-2 inline mr-0.5" />{eLabel}
+                                                        </Chip>
                                                     </div>
                                                     <p className="text-[9px] text-muted-foreground/60 truncate leading-tight">{e.focus}</p>
                                                 </div>
@@ -187,7 +311,6 @@ export function ExploreNetworkWidget() {
                                                             ev.preventDefault();
                                                             ev.stopPropagation();
                                                             const willJoin = !isJoined;
-                                                            // Optimista en la UI; persiste en Supabase si hay sesión.
                                                             setJoined(prev => {
                                                                 const next = new Set(prev);
                                                                 willJoin ? next.add(e.id) : next.delete(e.id);
@@ -198,7 +321,6 @@ export function ExploreNetworkWidget() {
                                                                 ? setMembership(slug, willJoin)
                                                                 : setFollow(slug, willJoin);
                                                             persist.then((res) => {
-                                                                // Si requería sesión o falló, revertimos el optimismo.
                                                                 if (!res.ok) {
                                                                     setJoined(prev => {
                                                                         const next = new Set(prev);
@@ -229,12 +351,12 @@ export function ExploreNetworkWidget() {
                             />
                         </div>
 
-                        {/* Footer expandido: top entidad destacada */}
+                        {/* Footer expandido: top entidad destacada con link real */}
                         {size.vTier === "expanded" && top && (
-                            <div className="shrink-0 rounded-xl border px-2.5 py-1.5" style={{ borderColor: `color-mix(in srgb, ${top.accent} 25%, transparent)`, background: `color-mix(in srgb, ${top.accent} 5%, transparent)` }}>
+                            <Link href={top.href} className="shrink-0 rounded-xl border px-2.5 py-1.5 cursor-pointer hover:opacity-80 transition-opacity" style={{ borderColor: `color-mix(in srgb, ${top.accent} 25%, transparent)`, background: `color-mix(in srgb, ${top.accent} 5%, transparent)` }}>
                                 <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: top.accent }}>Top momentum</span>
                                 <p className="text-[11px] font-semibold leading-snug truncate">{top.name} — {top.focus}</p>
-                            </div>
+                            </Link>
                         )}
                     </div>
                 );
