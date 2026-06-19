@@ -11,6 +11,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type * as THREE from 'three';
 import { hermes } from '@/hermes-integration';
 import { HarmonicForceEngine } from '@/hermes-integration/05-force-graph-engine';
 import { LayerSelector } from './layer-selector';
@@ -87,9 +88,9 @@ export function HarmonicGraph3D() {
   // ====================================================================
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
+    if (!canvasRef.current || !containerRef.current) return;
+    const canvas: HTMLCanvasElement = canvasRef.current;
+    const container: HTMLDivElement = containerRef.current;
 
     let THREE: any = null;
     let renderer: any = null;
@@ -101,6 +102,8 @@ export function HarmonicGraph3D() {
     async function init() {
       // Dynamic import de Three.js — cero riesgos de SSR
       THREE = await import('three');
+      // Re-narrow tras el await (TS no propaga el narrowing del closure async).
+      if (!canvas || !container) return;
 
       const w = container.clientWidth;
       const h = container.clientHeight;
@@ -510,7 +513,7 @@ export function HarmonicGraph3D() {
           ].map(([emoji, l]) => (
             <button
               key={l}
-              onClick={() => setLayer(l)}
+              onClick={() => setLayer(l as MemoryLayer)}
               className={`px-2 py-1 text-[10px] bg-black/60 backdrop-blur border rounded-md transition-colors ${
                 layer === l ? 'border-primary/50 text-primary' : 'border-white/10 text-muted-foreground hover:text-foreground'
               }`}

@@ -71,7 +71,7 @@ const listItemVariants = {
 
 const statVariants = {
     hidden: { opacity: 0, scale: 0.9 },
-    visible: (i: number) => ({ opacity: 1, scale: 1, transition: { delay: i * 0.08, duration: 0.25, ease: "easeOut" } }),
+    visible: (i: number) => ({ opacity: 1, scale: 1, transition: { delay: i * 0.08, duration: 0.25, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] } }),
 };
 
 export function PoliticalSummaryWidget() {

@@ -1238,3 +1238,50 @@ El dock inferior muestra nombres, iconos rediseñados y la sección activa.
 
 **Pendiente:** persistencia privada de mensajes (os_messages RLS por participantes); endurecer tipos
 de three (null-guards) en memory-brain-3d/harmonic-graph-3d; rotar tokens del chat; borrar ExocortexBrain en desuso.
+
+---
+## Adenda 34 — 2026-06-18 · Vault de memorias .md + widgets creativos + páginas formato perfil + publicaciones ricas (commit 205717f, vivo)
+
+**Resumen:** El cerebro 3D gana un sistema de memorias .md (elegibles/editables/categorizables/
+importables/exportables/compartibles); 8 widgets elevados; páginas con pestañas tipo perfil;
+publicaciones con adjuntos variados, referencias interconectadas y sync de biblioteca. 5 agentes en paralelo.
+
+### Hecho
+- **Memory Vault** (`src/lib/memory-vault.ts` + `src/components/exocortex/memory-vault-panel.tsx`):
+  MemoryDoc en localStorage (CRUD, categorías, tags, color, activo), parseMarkdownToGraph (raíz+
+  headings+bullets+[[wiki-links]]→nodos/edges shape del cerebro), getActiveVaultGraph (merge de las
+  activas), export/import .md y JSON, encodeShare/decodeShare, hook useMemoryVault + evento
+  `starseed:memory-vault`. Integrado en `MemoryBrain3D`: botón "Memorias" (Database), panel drawer,
+  merge en vivo de memorias activas en buildGraph (capa "memoria") y rebuild por `vaultTick`.
+- **Widgets (8)** con framer-motion, micro-charts (recharts), deep-links reales y tema-adaptable:
+  political-summary, economic-overview (count-up + E.F. budgets), cultural-feed, social-radar (radar/
+  órbita + countdown), my-pages (sparklines), learning-path (anillos), recent-activity (timeline),
+  relevant-posts (avatares + resonancia).
+- **Páginas** grupo/pagina/evento: + pestañas Agenda (UnifiedCalendar), Conexiones (entidades
+  interconectadas), Biblioteca (artículos/cursos→/article,/course), Colecciones (CollectionsGrid),
+  manteniendo Herramientas/Feed/Acerca/Miembros/Eventos. Ahora se acercan al formato rico de perfil.
+- **Publicar**: adjuntos variados (imagen/vídeo/audio/documento/hoja/código/3D/app/enlace), referencias
+  interconectadas a la red (samplePages/grupos/E.F./partidos/artículos/cursos), nota de sincronización
+  con biblioteca según destino; sigue persistiendo en os_posts.
+
+**Pendiente:** os_messages (RLS por participantes); guardar conexiones nuevas creadas en el cerebro;
+persistir el vault en Supabase (hoy localStorage); rotar tokens del chat.
+
+---
+## Adenda 35 — 2026-06-18 · Endurecimiento de tipos + 6 widgets más (commit pendiente, vivo)
+
+### Hecho
+- **Tipos endurecidos (cero errores en archivos tocados):**
+  · memory-brain-3d.tsx + harmonic-graph-3d.tsx: `canvas`/`container` ahora tipados no-nulos tras el
+    guard (`const canvas: HTMLCanvasElement = canvasRef.current` después de `if(!...current) return`),
+    Vector2 real en raycaster, `import type * as THREE`, cast `MemoryLayer`. Sin cambios de runtime.
+  · framer-motion: `ease` como tupla `[number,number,number,number]` (no string) en cultural-feed,
+    political-summary, social-radar → resuelve el tipo `Variants`.
+- **6 widgets más** (notifications, system-status [gauges animados], collab-projects, ai-generated
+  [partículas], mental-coherence [anillo que respira], live-data [ticker]) con framer-motion (ease en
+  tuplas), recharts, datos reales, deep-links y tema-adaptable.
+- Verificado: typecheck LIMPIO en todos los archivos de la sesión.
+
+**Pendiente:** quedan errores de tipo PRE-EXISTENTES (anteriores a esta sesión) en theme-utils/
+theme-gallery (distortWidth), keyStorage, knowledge-network-selector, universal-editor, board-viewer,
+LiquidWaveFilter — cubiertos por ignoreBuildErrors; pase dedicado "cero errores" pendiente.

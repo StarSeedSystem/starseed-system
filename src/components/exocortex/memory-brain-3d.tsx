@@ -489,15 +489,18 @@ export function MemoryBrain3D({
   // ── Build & init Three.js ─────────────────────────────────────────────────
   useEffect(() => {
     if (!mounted) return;
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
+    if (!canvasRef.current || !containerRef.current) return;
+    // Tipos no-nulos (el guard garantiza en runtime); evita avisos de null en closures async.
+    const canvas: HTMLCanvasElement = canvasRef.current;
+    const container: HTMLDivElement = containerRef.current;
 
     let alive = true;
 
     async function init() {
       const THREE = await import("three");
       if (!alive) return;
+      // Re-narrow tras el await (TS no propaga el narrowing del closure async).
+      if (!canvas || !container) return;
 
       // Build graph data
       const g = buildGraph(layer);
@@ -792,7 +795,8 @@ export function MemoryBrain3D({
 
       function pick(e: PointerEvent) {
         const { x, y } = getMouseNDC(e);
-        T.raycaster.setFromCamera({ x, y }, T.camera);
+        const mouseVec = new THREE.Vector2(x, y);
+        T.raycaster.setFromCamera(mouseVec, T.camera);
         return T.raycaster.intersectObjects(T.nodeMeshes.filter((m: any) => m.visible));
       }
 
