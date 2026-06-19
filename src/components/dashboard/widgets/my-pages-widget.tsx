@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useId } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { LayoutGrid, Plus, Users, Crown, Shield, Folder, User, ChevronRight, type LucideIcon } from "lucide-react";
-import { WidgetShell, MiniList, ProgressBar, Chip, ProgressRing } from "../kit";
+import { LayoutGrid, Plus, Users, Crown, Shield, Folder, User, ChevronRight, Activity, type LucideIcon } from "lucide-react";
+import { WidgetShell, ProgressBar, Chip, ProgressRing } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { PageRef } from "@/lib/widget-data";
 import { widgetEntityHref, slugify } from "@/lib/entity-links";
@@ -16,6 +16,51 @@ import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 function pageRefHref(pg: PageRef): string {
     if (pg.kind === "perfil") return `/profile/${slugify(pg.name) || "perfil"}`;
     return widgetEntityHref(pg.name, pg.kind);
+}
+
+/** Mini sparkline SVG para tendencia de actividad (path simple, sin recharts). */
+function MiniSparkline({ value, color, id }: { value: number; color: string; id: string }) {
+    // Genera puntos sintéticos deterministas desde el valor de actividad actual.
+    const pts = useMemo(() => {
+        const seed = value;
+        const points = Array.from({ length: 7 }, (_, i) => {
+            const t = i / 6;
+            // Oscilación determinista alrededor del valor actual.
+            const noise = Math.sin((seed + i) * 2.3) * 0.12 + Math.cos((seed * 1.7 + i) * 1.1) * 0.08;
+            return Math.max(0.05, Math.min(0.98, seed - 0.1 + t * 0.1 + noise));
+        });
+        return points;
+    }, [value]);
+
+    const W = 48, H = 16;
+    const min = Math.min(...pts), max = Math.max(...pts);
+    const range = max - min || 0.01;
+    const svgPts = pts.map((v, i) => {
+        const x = (i / (pts.length - 1)) * W;
+        const y = H - ((v - min) / range) * H;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const d = `M${svgPts.join(" L")}`;
+    const fillD = `M${svgPts[0]} L${svgPts.join(" L")} L${W},${H} L0,${H} Z`;
+    return (
+        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="overflow-visible" aria-hidden>
+            <defs>
+                <linearGradient id={`spark-fill-${id}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+                    <stop offset="100%" stopColor={color} stopOpacity="0" />
+                </linearGradient>
+            </defs>
+            <path d={fillD} fill={`url(#spark-fill-${id})`} />
+            <motion.path
+                d={d} fill="none" stroke={color} strokeWidth={1.5}
+                strokeLinecap="round" strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 0.9, ease: "easeOut" }}
+            />
+        </svg>
+    );
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -77,6 +122,7 @@ export function MyPagesWidget() {
     const { data: groups, loading: groupsLoading, refetch: refetchGroups } = useOsGroups();
     const [filter, setFilter] = useState<PageRef["kind"] | "todas">("todas");
     const [createOpen, setCreateOpen] = useState(false);
+    const sparkId = useId();
 
     const loading = (pagesLoading || groupsLoading) && (mockLoading && !mockData);
 
@@ -157,9 +203,76 @@ export function MyPagesWidget() {
 
                 const max = size.vTier === "expanded" ? 6 : size.vTier === "compact" ? 3 : 4;
                 const showFilter = size.tier !== "compact";
+                const showSpotlight = size.vTier !== "compact" && size.vTier !== "micro" && mostActive;
 
                 return (
                     <div className="flex flex-col gap-2 pt-1 h-full">
+
+                        {/* Spotlight — página más activa */}
+                        {showSpotlight && mostActive && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.4, ease: "easeOut" }}
+                                className="shrink-0"
+                            >
+                                <Link href={pageRefHref(mostActive)} className="block cursor-pointer">
+                                    <div
+                                        className="relative rounded-2xl overflow-hidden px-3 py-2.5 border"
+                                        style={{
+                                            background: `linear-gradient(135deg, color-mix(in srgb, ${mostActive.accent ?? ACCENT} 20%, transparent), color-mix(in srgb, ${mostActive.accent ?? ACCENT} 6%, transparent))`,
+                                            borderColor: `color-mix(in srgb, ${mostActive.accent ?? ACCENT} 35%, transparent)`,
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            {/* Avatar grande con pulse ring si actividad > 0.6 */}
+                                            <div className="relative shrink-0">
+                                                <div
+                                                    className="grid place-items-center size-10 rounded-xl text-white font-black text-sm border"
+                                                    style={{
+                                                        background: `linear-gradient(135deg, ${mostActive.accent ?? ACCENT}, color-mix(in srgb, ${mostActive.accent ?? ACCENT} 50%, #000))`,
+                                                        borderColor: `${mostActive.accent ?? ACCENT}55`,
+                                                        boxShadow: `0 0 12px color-mix(in srgb, ${mostActive.accent ?? ACCENT} 40%, transparent)`,
+                                                    }}
+                                                >
+                                                    {mostActive.name.charAt(0)}
+                                                </div>
+                                                {mostActive.activity > 0.6 && (
+                                                    <motion.span
+                                                        animate={{ scale: [1, 1.6, 1], opacity: [0.6, 0, 0.6] }}
+                                                        transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut" }}
+                                                        className="absolute inset-0 rounded-xl border-2 pointer-events-none"
+                                                        style={{ borderColor: mostActive.accent ?? ACCENT }}
+                                                    />
+                                                )}
+                                            </div>
+
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5 mb-0.5">
+                                                    <span className="text-xs font-black truncate" style={{ color: mostActive.accent ?? ACCENT }}>
+                                                        {mostActive.name}
+                                                    </span>
+                                                    <Chip color={mostActive.accent ?? ACCENT}>{KIND_META[mostActive.kind]?.label}</Chip>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70">
+                                                    <span className="inline-flex items-center gap-0.5">
+                                                        <Users className="size-2.5" />{mostActive.members.toLocaleString()}
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-0.5 font-black" style={{ color: mostActive.accent ?? ACCENT }}>
+                                                        <Activity className="size-2.5" />{Math.round(mostActive.activity * 100)}%
+                                                    </span>
+                                                    <span className="ml-auto text-[9px] text-muted-foreground/50 uppercase tracking-wider font-bold">Más activa</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="shrink-0">
+                                                <MiniSparkline value={mostActive.activity} color={mostActive.accent ?? ACCENT} id={`${sparkId}-spotlight`} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Link>
+                            </motion.div>
+                        )}
 
                         {/* Filtro por kind */}
                         {showFilter && (
@@ -174,68 +287,81 @@ export function MyPagesWidget() {
                             </div>
                         )}
 
-                        {/* Lista de páginas */}
+                        {/* Lista de páginas con entrada escalonada */}
                         <div className="flex-1 min-h-0">
-                            <MiniList
-                                items={filteredPages}
-                                max={max}
-                                empty="Sin páginas en esta categoría"
-                                render={(pg) => {
+                            <div className="flex flex-col gap-1.5">
+                                {filteredPages.slice(0, max).map((pg, idx) => {
                                     const role = ROLE_META[pg.role];
                                     const kind = KIND_META[pg.kind];
                                     const KindIcon = kind.icon;
                                     const RoleIcon = role.icon;
                                     const activityPct = Math.round(pg.activity * 100);
+                                    const accentVal = pg.accent ?? ACCENT;
                                     return (
                                         <motion.div
-                                            whileHover={{ scale: 1.01 }}
-                                            className="rounded-xl border border-border/40 bg-white/[0.02] hover:border-sky-400/25 transition-colors"
+                                            key={pg.id}
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ duration: 0.3, delay: idx * 0.05, ease: "easeOut" }}
+                                            whileHover={{ scale: 1.01, y: -1 }}
+                                            className="rounded-xl border border-border/40 bg-white/[0.02] transition-shadow"
+                                            style={{ ["--hover-glow" as string]: accentVal }}
                                         >
-                                          <Link href={pageRefHref(pg)} className="block px-2.5 py-2 cursor-pointer">
-                                            <div className="flex items-center gap-2">
-                                                {/* Avatar */}
-                                                <div className="shrink-0 relative grid place-items-center size-8 rounded-xl text-white font-black text-xs border"
-                                                    style={{ background: `linear-gradient(135deg, ${pg.accent}, color-mix(in srgb, ${pg.accent} 50%, #000))`, borderColor: `${pg.accent}44` }}>
-                                                    {pg.name.charAt(0)}
-                                                    {/* actividad pulsante si > 70% */}
-                                                    {pg.activity > 0.7 && (
-                                                        <motion.span
-                                                            animate={{ opacity: [0.5, 1, 0.5] }}
-                                                            transition={{ duration: 2, repeat: Infinity }}
-                                                            className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 border border-background"
-                                                        />
-                                                    )}
+                                            <Link href={pageRefHref(pg)} className="block px-2.5 py-2 cursor-pointer">
+                                                <div className="flex items-center gap-2">
+                                                    {/* Avatar */}
+                                                    <div className="shrink-0 relative grid place-items-center size-8 rounded-xl text-white font-black text-xs border"
+                                                        style={{ background: `linear-gradient(135deg, ${accentVal}, color-mix(in srgb, ${accentVal} 50%, #000))`, borderColor: `${accentVal}44` }}>
+                                                        {pg.name.charAt(0)}
+                                                        {/* actividad pulsante si > 0.6 */}
+                                                        {pg.activity > 0.6 && (
+                                                            <motion.span
+                                                                animate={{ opacity: [0.5, 1, 0.5] }}
+                                                                transition={{ duration: 2, repeat: Infinity, delay: idx * 0.3 }}
+                                                                className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 border border-background"
+                                                            />
+                                                        )}
+                                                    </div>
+
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[11px] @sm:text-xs font-bold truncate">{pg.name}</span>
+                                                            <Chip color={accentVal}>{kind.label}</Chip>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="inline-flex items-center gap-0.5 text-[9px]" style={{ color: role.color }}>
+                                                                <RoleIcon className="size-2.5" />{role.label}
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-0.5 text-[9px] text-muted-foreground/60">
+                                                                <Users className="size-2.5" />{pg.members.toLocaleString()}
+                                                            </span>
+                                                            <span className="ml-auto inline-flex items-center gap-0.5 text-[9px] font-black" style={{ color: accentVal }}>
+                                                                <KindIcon className="size-2.5" />{activityPct}%
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Mini sparkline por ítem */}
+                                                    <div className="shrink-0 opacity-70">
+                                                        <MiniSparkline value={pg.activity} color={accentVal} id={`${sparkId}-${pg.id}`} />
+                                                    </div>
                                                 </div>
 
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-[11px] @sm:text-xs font-bold truncate">{pg.name}</span>
-                                                        <Chip color={pg.accent ?? ACCENT}>{kind.label}</Chip>
+                                                {size.vTier !== "compact" && (
+                                                    <div className="mt-1.5">
+                                                        <ProgressBar value={pg.activity} color={accentVal} height={3} />
                                                     </div>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        <span className="inline-flex items-center gap-0.5 text-[9px]" style={{ color: role.color }}>
-                                                            <RoleIcon className="size-2.5" />{role.label}
-                                                        </span>
-                                                        <span className="inline-flex items-center gap-0.5 text-[9px] text-muted-foreground/60">
-                                                            <Users className="size-2.5" />{pg.members.toLocaleString()}
-                                                        </span>
-                                                        <span className="ml-auto inline-flex items-center gap-0.5 text-[9px] font-black" style={{ color: pg.accent ?? ACCENT }}>
-                                                            <KindIcon className="size-2.5" />{activityPct}%
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {size.vTier !== "compact" && (
-                                                <div className="mt-1.5">
-                                                    <ProgressBar value={pg.activity} color={pg.accent ?? ACCENT} height={3} />
-                                                </div>
-                                            )}
-                                          </Link>
+                                                )}
+                                            </Link>
                                         </motion.div>
                                     );
-                                }}
-                            />
+                                })}
+                                {filteredPages.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center gap-2 py-4 text-center">
+                                        <span className="text-xs text-muted-foreground/60">Sin páginas en esta categoría</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 );

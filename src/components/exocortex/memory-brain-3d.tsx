@@ -28,12 +28,15 @@ import {
   RotateCw,
   Layers,
   Focus,
+  Database,
 } from "lucide-react";
 
 // ── OS data imports ──────────────────────────────────────────────────────────
 import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
 import { articles, courses } from "@/lib/data";
+import { getActiveVaultGraph } from "@/lib/memory-vault";
+import { MemoryVaultPanel } from "@/components/exocortex/memory-vault-panel";
 
 // ── AI imports ───────────────────────────────────────────────────────────────
 import { chat } from "@/ai/client/chat";
@@ -254,6 +257,19 @@ function buildGraph(layer: LayerMode): GraphData {
     });
   }
 
+  // Memorias .md seleccionadas por el usuario (vault) — capa "memoria".
+  try {
+    const vault = getActiveVaultGraph();
+    vault.nodes.forEach((vn: any) => {
+      if (!nodes.some((n) => n.id === vn.id)) nodes.push({ ...vn, _osLayer: "memoria" });
+    });
+    vault.edges.forEach((ve: any) => {
+      edges.push({ source: ve.source, target: ve.target, type: ve.type || "memoria-link", weight: ve.weight ?? 1 });
+    });
+  } catch {
+    /* SSR / sin localStorage: ignorar */
+  }
+
   // Filter by layer
   const filteredNodes =
     layer === "todo"
@@ -406,6 +422,9 @@ export function MemoryBrain3D({
   const [showSettings, setShowSettings] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  // Vault de memorias .md (selección de memorias desplegadas en el cerebro)
+  const [showVault, setShowVault] = useState(false);
+  const [vaultTick, setVaultTick] = useState(0);
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "ai"; content: string; pending?: boolean }[]>([]);
@@ -873,7 +892,7 @@ export function MemoryBrain3D({
     const cleanup = init();
     return () => { alive = false; cleanup.then((fn) => fn && fn()); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, layer]);
+  }, [mounted, layer, vaultTick]);
 
   // ── Live-update settings on change ────────────────────────────────────────
   useEffect(() => {
@@ -1159,6 +1178,13 @@ export function MemoryBrain3D({
           title="Ajustes"
         >
           <Sliders className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => setShowVault(true)}
+          className={`pointer-events-auto p-1.5 rounded-lg border transition cursor-pointer ${showVault ? "bg-purple-500/20 border-purple-500/50 text-purple-200" : "bg-black/40 border-white/10 text-purple-300/70 hover:text-purple-200"}`}
+          title="Memorias (.md) — elige cuáles se despliegan en el cerebro"
+        >
+          <Database className="w-3.5 h-3.5" />
         </button>
         {showChat && (
           <button
@@ -1531,6 +1557,13 @@ export function MemoryBrain3D({
           ))}
         </div>
       )}
+
+      {/* ── Vault de Memorias (.md) — elegir/editar/importar/exportar memorias ── */}
+      <MemoryVaultPanel
+        open={showVault}
+        onClose={() => setShowVault(false)}
+        onChange={() => setVaultTick((t) => t + 1)}
+      />
     </div>
   );
 }

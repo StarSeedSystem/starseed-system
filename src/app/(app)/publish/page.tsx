@@ -1,6 +1,6 @@
 // src/app/(app)/publish/page.tsx
 'use client'
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,8 @@ import {
     Edit, Image as ImageIcon, File as FileIcon, Type, ArrowLeft,
     Megaphone, ScrollText, CalendarPlus, Lightbulb, Globe, UserCheck,
     Building2, Users2, Flag, MapPin, Eye, EyeOff, Lock, Box,
-    ChevronDown, ChevronUp, Hash, ExternalLink,
+    ChevronDown, ChevronUp, Hash, ExternalLink, Music, Video, Code2,
+    Sheet, AppWindowIcon, Paperclip, AtSign, LibraryBig,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -28,7 +29,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { KnowledgeNetworkSelector } from "@/components/publish/knowledge-network-selector";
 import type { Category } from "@/lib/data";
-import { themes, categories } from "@/lib/data";
+import { themes, categories, courses, articles } from "@/lib/data";
 import { useToast } from "@/hooks/use-toast";
 import { useOsPosts } from "@/hooks/use-os-entities";
 import type { OsEntityType } from "@/lib/os-social";
@@ -47,6 +48,34 @@ type PubType = "publicacion" | "articulo" | "evento" | "propuesta";
 
 /** Destination category */
 type DestCategory = "perfil" | "pagina" | "grupo" | "ef" | "partido";
+
+/** Attachment types */
+type AttachmentKind =
+    | "imagen"
+    | "video"
+    | "audio"
+    | "documento"
+    | "hoja"
+    | "codigo"
+    | "objeto3d"
+    | "programa"
+    | "enlace";
+
+interface Attachment {
+    id: string;
+    kind: AttachmentKind;
+    name: string;
+    /** For file-based: a local object URL or filename; for URL: the actual URL */
+    value: string;
+}
+
+/** Network reference (post, entity, article, course …) */
+interface NetworkRef {
+    id: string;
+    kind: "pagina" | "grupo" | "ef" | "partido" | "articulo" | "curso";
+    label: string;
+    href: string;
+}
 
 interface Destination {
     id: string;
@@ -173,6 +202,89 @@ const audienciaConfig: Record<Audiencia, { icon: React.ReactNode; label: string;
         desc: "Miembros del destino",
     },
 };
+
+// ─── Attachment config ────────────────────────────────────────────────────────
+
+interface AttachmentCfg {
+    label: string;
+    icon: React.ReactNode;
+    accept?: string;
+    useUrl?: boolean; // if true, show URL input instead of file picker
+}
+
+const ATTACHMENT_CFG: Record<AttachmentKind, AttachmentCfg> = {
+    imagen:    { label: "Imagen",          icon: <ImageIcon className="w-3.5 h-3.5" />,    accept: "image/*" },
+    video:     { label: "Vídeo",           icon: <Video className="w-3.5 h-3.5" />,         accept: "video/*" },
+    audio:     { label: "Audio",           icon: <Music className="w-3.5 h-3.5" />,         accept: "audio/*" },
+    documento: { label: "Documento",       icon: <FileText className="w-3.5 h-3.5" />,      accept: ".pdf,.docx,.doc,.md,.txt,.odt" },
+    hoja:      { label: "Hoja de cálculo", icon: <Sheet className="w-3.5 h-3.5" />,         accept: ".xlsx,.xls,.csv,.ods" },
+    codigo:    { label: "Código",          icon: <Code2 className="w-3.5 h-3.5" />,         accept: ".js,.ts,.py,.rs,.go,.java,.c,.cpp,.sh,.json,.yaml,.toml,.md" },
+    objeto3d:  { label: "Objeto 3D",       icon: <Box className="w-3.5 h-3.5" />,           accept: ".glb,.gltf,.obj,.fbx" },
+    programa:  { label: "Programa/App",    icon: <AppWindowIcon className="w-3.5 h-3.5" />, accept: ".zip,.tar.gz,.appimage,.deb,.rpm,.apk,.wasm" },
+    enlace:    { label: "Enlace/URL",      icon: <LinkIcon className="w-3.5 h-3.5" />,      useUrl: true },
+};
+
+// ─── Network reference pool ───────────────────────────────────────────────────
+
+function buildNetworkRefs(): NetworkRef[] {
+    const refs: NetworkRef[] = [];
+
+    samplePages.forEach((p) => {
+        refs.push({ id: `page-${p.id}`, kind: "pagina", label: p.title, href: `/pagina/${p.id.replace("page-", "")}` });
+    });
+    sampleGroups.forEach((g) => {
+        refs.push({ id: `grp-${g.id}`, kind: "grupo", label: g.name, href: `/grupo/${g.id.replace("grp-", "")}` });
+    });
+    listFederativeEntities().forEach((ef) => {
+        refs.push({ id: `ef-${ef.slug}`, kind: "ef", label: ef.name, href: `/entidad/${ef.slug}` });
+    });
+    listPartidos().forEach((p) => {
+        refs.push({ id: `partido-${p.slug}`, kind: "partido", label: p.name, href: `/partido/${p.slug}` });
+    });
+    articles.forEach((a) => {
+        refs.push({ id: `art-${a.id}`, kind: "articulo", label: a.title, href: a.href });
+    });
+    courses.forEach((c) => {
+        refs.push({ id: `course-${c.id}`, kind: "curso", label: c.title, href: c.href });
+    });
+
+    return refs;
+}
+
+const ALL_NETWORK_REFS = buildNetworkRefs();
+
+const REF_KIND_LABELS: Record<NetworkRef["kind"], string> = {
+    pagina:   "Página",
+    grupo:    "Grupo",
+    ef:       "E.F.",
+    partido:  "Partido",
+    articulo: "Artículo",
+    curso:    "Curso",
+};
+
+const REF_KIND_ICONS: Record<NetworkRef["kind"], React.ReactNode> = {
+    pagina:   <BookOpen className="w-3 h-3" />,
+    grupo:    <Users2 className="w-3 h-3" />,
+    ef:       <Building2 className="w-3 h-3" />,
+    partido:  <Flag className="w-3 h-3" />,
+    articulo: <ScrollText className="w-3 h-3" />,
+    curso:    <School className="w-3 h-3" />,
+};
+
+// ─── Library sync logic ────────────────────────────────────────────────────────
+
+function computeLibraryTarget(destinos: Destination[]): string {
+    if (destinos.length === 0) return "Tu biblioteca personal";
+    const first = destinos[0];
+    switch (first.category) {
+        case "perfil":  return "Tu biblioteca personal";
+        case "pagina":  return `Biblioteca de "${first.name}"`;
+        case "grupo":   return `Biblioteca de "${first.name}"`;
+        case "ef":      return `Biblioteca institucional de "${first.name}"`;
+        case "partido": return `Biblioteca del partido "${first.name}"`;
+        default:        return "Tu biblioteca personal";
+    }
+}
 
 // ─── LegislativeVoteConfig (preserved) ────────────────────────────────────────
 
@@ -333,12 +445,13 @@ interface PreviewCardProps {
     tags: string[];
     audiencia: Audiencia;
     destinos: Destination[];
+    attachments: Attachment[];
+    refs: NetworkRef[];
 }
 
-function PreviewCard({ pubType, titulo, body, tags, audiencia, destinos }: PreviewCardProps) {
+function PreviewCard({ pubType, titulo, body, tags, audiencia, destinos, attachments, refs }: PreviewCardProps) {
     const cfg = pubTypeConfig[pubType];
     const now = new Date();
-    const hasContent = titulo || body;
 
     return (
         <Card className="border border-white/10 bg-card/60 backdrop-blur-sm overflow-hidden">
@@ -382,6 +495,28 @@ function PreviewCard({ pubType, titulo, body, tags, audiencia, destinos }: Previ
                         ))}
                     </div>
                 )}
+                {/* Attachments preview */}
+                {attachments.length > 0 && (
+                    <div className="pt-1 flex flex-wrap gap-1">
+                        {attachments.map((a) => (
+                            <span key={a.id} className="inline-flex items-center gap-1 text-[10px] bg-muted/60 rounded px-1.5 py-0.5 text-muted-foreground">
+                                {ATTACHMENT_CFG[a.kind].icon}
+                                <span className="max-w-[80px] truncate">{a.name}</span>
+                            </span>
+                        ))}
+                    </div>
+                )}
+                {/* References preview */}
+                {refs.length > 0 && (
+                    <div className="pt-1 flex flex-wrap gap-1">
+                        {refs.map((r) => (
+                            <span key={r.id} className="inline-flex items-center gap-1 text-[10px] bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5 text-primary/80">
+                                {REF_KIND_ICONS[r.kind]}
+                                <span className="max-w-[90px] truncate">{r.label}</span>
+                            </span>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* footer */}
@@ -420,6 +555,18 @@ export default function PublishPage() {
     const [showPreview, setShowPreview] = useState(false);
     const [published, setPublished] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+
+    // ── Attachments state ──
+    const [attachments, setAttachments] = useState<Attachment[]>([]);
+    const [activeAttachKind, setActiveAttachKind] = useState<AttachmentKind | null>(null);
+    const [attachUrlInput, setAttachUrlInput] = useState("");
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    // ── References state ──
+    const [networkRefs, setNetworkRefs] = useState<NetworkRef[]>([]);
+    const [refSearch, setRefSearch] = useState("");
+    const [showRefPicker, setShowRefPicker] = useState(false);
+    const [refKindFilter, setRefKindFilter] = useState<NetworkRef["kind"] | "todos">("todos");
 
     // ── Derive (entityType, entitySlug) from the first selected destination ──
     // Hooks cannot be called conditionally, so we always call useOsPosts with a
@@ -495,6 +642,66 @@ export default function PublishPage() {
         setDestinos(destinos.filter((x) => x.id !== id));
     }
 
+    // ── Attachment helpers ──
+    function addFileAttachment(kind: AttachmentKind, file: File) {
+        const id = `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        setAttachments((prev) => [...prev, { id, kind, name: file.name, value: file.name }]);
+    }
+    function addUrlAttachment() {
+        const url = attachUrlInput.trim();
+        if (!url) return;
+        const id = `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const name = (() => { try { return new URL(url).hostname; } catch { return url; } })();
+        setAttachments((prev) => [...prev, { id, kind: "enlace", name, value: url }]);
+        setAttachUrlInput("");
+        setActiveAttachKind(null);
+    }
+    function removeAttachment(id: string) {
+        setAttachments((prev) => prev.filter((a) => a.id !== id));
+    }
+    function handleAttachButtonClick(kind: AttachmentKind) {
+        const cfg = ATTACHMENT_CFG[kind];
+        if (cfg.useUrl) {
+            setActiveAttachKind((prev) => (prev === kind ? null : kind));
+            return;
+        }
+        setActiveAttachKind(null);
+        // Trigger hidden file input
+        if (fileInputRef.current) {
+            fileInputRef.current.accept = cfg.accept ?? "*/*";
+            fileInputRef.current.dataset.kind = kind;
+            fileInputRef.current.value = "";
+            fileInputRef.current.click();
+        }
+    }
+    function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        const kind = (e.target.dataset.kind ?? "documento") as AttachmentKind;
+        if (file) addFileAttachment(kind, file);
+    }
+
+    // ── Reference helpers ──
+    const filteredRefs = useMemo(() => {
+        return ALL_NETWORK_REFS.filter((r) => {
+            const kindOk = refKindFilter === "todos" || r.kind === refKindFilter;
+            const searchOk = !refSearch || r.label.toLowerCase().includes(refSearch.toLowerCase());
+            return kindOk && searchOk;
+        });
+    }, [refSearch, refKindFilter]);
+    function toggleRef(r: NetworkRef) {
+        if (networkRefs.find((x) => x.id === r.id)) {
+            setNetworkRefs((prev) => prev.filter((x) => x.id !== r.id));
+        } else {
+            setNetworkRefs((prev) => [...prev, r]);
+        }
+    }
+    function removeRef(id: string) {
+        setNetworkRefs((prev) => prev.filter((x) => x.id !== id));
+    }
+
+    // ── Library sync label ──
+    const libraryTarget = useMemo(() => computeLibraryTarget(destinos), [destinos]);
+
     // ── Legacy step helpers ──
     const handleSelectArea = (area: Area) => { setSelectedArea(area); setStep(2); };
     const handleSelectContentType = (type: ContentType) => { setSelectedContentType(type); setStep(3); };
@@ -533,9 +740,25 @@ export default function PublishPage() {
         setIsPublishing(true);
         try {
             // Build the full text to persist: prepend título if present
-            const fullBody = titulo ? `${titulo}\n\n${body}` : body;
-            // If no destination is chosen, we still save (to "starseed" placeholder) but
-            // warn the user it is a profile post.
+            let fullBody = titulo ? `${titulo}\n\n${body}` : body;
+
+            // Append references as markdown links
+            if (networkRefs.length > 0) {
+                fullBody += "\n\n---\n**Referencias:**\n";
+                networkRefs.forEach((r) => {
+                    fullBody += `- [${r.label}](${r.href})\n`;
+                });
+            }
+
+            // Append attachment summary
+            if (attachments.length > 0) {
+                fullBody += "\n\n**Adjuntos:**\n";
+                attachments.forEach((a) => {
+                    const kindLabel = ATTACHMENT_CFG[a.kind].label;
+                    fullBody += `- [${kindLabel}] ${a.name}${a.kind === "enlace" ? ` — ${a.value}` : ""}\n`;
+                });
+            }
+
             const res = await persistPost(fullBody);
             if (res.needsAuth) {
                 toast({
@@ -550,8 +773,8 @@ export default function PublishPage() {
                 toast({
                     title: "¡Publicado!",
                     description: destinos.length > 0
-                        ? `Tu publicación se ha enviado a ${destinos.map((d) => d.name).join(", ")}.`
-                        : "Tu publicación se ha guardado en tu perfil.",
+                        ? `Tu publicación se ha enviado a ${destinos.map((d) => d.name).join(", ")}. Adjuntos archivados en: ${libraryTarget}.`
+                        : `Tu publicación se ha guardado en tu perfil. Adjuntos archivados en: ${libraryTarget}.`,
                 });
             } else {
                 toast({ title: "Error al publicar", description: "Inténtalo de nuevo.", variant: "destructive" });
@@ -1143,32 +1366,222 @@ export default function PublishPage() {
                                 </CardContent>
                             </Card>
 
-                            {/* 6. Attach placeholders */}
+                            {/* Hidden file input — reused for all file-based attachment types */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                className="hidden"
+                                onChange={handleFileInputChange}
+                            />
+
+                            {/* 6. Rich Attachments */}
                             <Card className="border border-white/8 bg-card/50 backdrop-blur-sm">
                                 <CardHeader className="pb-2 pt-4 px-4">
                                     <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                                        <Upload className="w-3.5 h-3.5" /> Adjuntar
+                                        <Paperclip className="w-3.5 h-3.5" /> Adjuntos
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="px-4 pb-4">
-                                    <div className="flex flex-wrap gap-2">
-                                        <Button variant="outline" size="sm" className="cursor-pointer gap-2 text-xs">
-                                            <ImageIcon className="w-3.5 h-3.5" /> Imagen
-                                        </Button>
-                                        <Button variant="outline" size="sm" className="cursor-pointer gap-2 text-xs">
-                                            <FileIcon className="w-3.5 h-3.5" /> Archivo
-                                        </Button>
-                                        <Button variant="outline" size="sm" className="cursor-pointer gap-2 text-xs">
-                                            <Box className="w-3.5 h-3.5" /> Objeto 3D
-                                        </Button>
-                                        <Button variant="outline" size="sm" className="cursor-pointer gap-2 text-xs">
-                                            <LinkIcon className="w-3.5 h-3.5" /> Enlace
-                                        </Button>
+                                <CardContent className="px-4 pb-4 space-y-3">
+                                    {/* Type buttons */}
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {(Object.keys(ATTACHMENT_CFG) as AttachmentKind[]).map((kind) => {
+                                            const cfg = ATTACHMENT_CFG[kind];
+                                            return (
+                                                <button
+                                                    key={kind}
+                                                    title={`Adjuntar ${cfg.label}`}
+                                                    onClick={() => handleAttachButtonClick(kind)}
+                                                    className={cn(
+                                                        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 cursor-pointer",
+                                                        activeAttachKind === kind
+                                                            ? "border-primary/60 bg-primary/10 text-primary"
+                                                            : "border-white/10 text-muted-foreground hover:border-white/25 hover:text-foreground"
+                                                    )}
+                                                >
+                                                    {cfg.icon}{cfg.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* URL input — shown when "enlace" is active */}
+                                    {activeAttachKind === "enlace" && (
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <LinkIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                <Input
+                                                    className="pl-8 h-8 text-sm"
+                                                    placeholder="https://…"
+                                                    value={attachUrlInput}
+                                                    onChange={(e) => setAttachUrlInput(e.target.value)}
+                                                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUrlAttachment(); } }}
+                                                    autoFocus
+                                                />
+                                            </div>
+                                            <Button size="sm" variant="outline" className="cursor-pointer shrink-0 h-8" onClick={addUrlAttachment}>
+                                                <PlusCircle className="w-3.5 h-3.5" />
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    {/* Chips of added attachments */}
+                                    {attachments.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {attachments.map((a) => (
+                                                <span
+                                                    key={a.id}
+                                                    className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-white/10 px-2.5 py-1 text-xs text-foreground/80"
+                                                >
+                                                    {ATTACHMENT_CFG[a.kind].icon}
+                                                    <span
+                                                        className="max-w-[140px] truncate"
+                                                        title={a.kind === "enlace" ? a.value : a.name}
+                                                    >
+                                                        {a.name}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => removeAttachment(a.id)}
+                                                        className="ml-0.5 rounded-full hover:bg-background/50 p-0.5 cursor-pointer text-muted-foreground hover:text-foreground"
+                                                    >
+                                                        <X className="h-2.5 w-2.5" />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Library sync note */}
+                                    <div className="flex items-start gap-2 rounded-lg bg-muted/30 border border-white/8 px-3 py-2 text-xs text-muted-foreground">
+                                        <LibraryBig className="w-3.5 h-3.5 shrink-0 mt-0.5 text-primary/60" />
+                                        <span>
+                                            <span className="font-medium text-foreground/70">Sincronización con biblioteca:</span>{" "}
+                                            Los adjuntos se archivarán en <span className="text-primary/80 font-medium">{libraryTarget}</span>.
+                                            {attachments.length === 0 && " (Añade adjuntos para sincronizarlos.)"}
+                                        </span>
                                     </div>
                                 </CardContent>
                             </Card>
 
-                            {/* 7. Vote config for "propuesta" type */}
+                            {/* 7. Referencias en la red */}
+                            <Card className="border border-white/8 bg-card/50 backdrop-blur-sm">
+                                <CardHeader className="pb-2 pt-4 px-4">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                                            <AtSign className="w-3.5 h-3.5" /> Referencias en la red
+                                        </CardTitle>
+                                        <button
+                                            onClick={() => setShowRefPicker(!showRefPicker)}
+                                            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 cursor-pointer transition-colors"
+                                        >
+                                            {showRefPicker ? <><ChevronUp className="w-3.5 h-3.5" />Cerrar</> : <><ChevronDown className="w-3.5 h-3.5" />Vincular entidad</>}
+                                        </button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="px-4 pb-4 space-y-3">
+                                    {/* Selected refs as chips */}
+                                    {networkRefs.length > 0 ? (
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {networkRefs.map((r) => (
+                                                <span
+                                                    key={r.id}
+                                                    className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-1 text-xs text-primary/80"
+                                                >
+                                                    {REF_KIND_ICONS[r.kind]}
+                                                    <Link
+                                                        href={r.href}
+                                                        className="hover:underline cursor-pointer max-w-[130px] truncate"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        title={r.label}
+                                                    >
+                                                        {r.label}
+                                                    </Link>
+                                                    <button
+                                                        onClick={() => removeRef(r.id)}
+                                                        className="ml-0.5 rounded-full hover:bg-background/50 p-0.5 cursor-pointer text-primary/50 hover:text-primary"
+                                                    >
+                                                        <X className="h-2.5 w-2.5" />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : !showRefPicker && (
+                                        <p className="text-xs text-muted-foreground italic">Sin referencias vinculadas.</p>
+                                    )}
+
+                                    {/* Picker panel */}
+                                    {showRefPicker && (
+                                        <div className="space-y-2 border-t border-white/8 pt-2">
+                                            {/* Kind filter pills */}
+                                            <div className="flex flex-wrap gap-1">
+                                                {(["todos", "pagina", "grupo", "ef", "partido", "articulo", "curso"] as const).map((k) => (
+                                                    <button
+                                                        key={k}
+                                                        onClick={() => setRefKindFilter(k)}
+                                                        className={cn(
+                                                            "px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all duration-150 cursor-pointer",
+                                                            refKindFilter === k
+                                                                ? "bg-primary/20 border-primary/60 text-primary"
+                                                                : "border-white/10 text-muted-foreground hover:border-white/20"
+                                                        )}
+                                                    >
+                                                        {k === "todos" ? "Todos" : REF_KIND_LABELS[k]}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {/* Search */}
+                                            <div className="relative">
+                                                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                                                <Input
+                                                    className="pl-7 h-7 text-xs"
+                                                    placeholder="Buscar entidad, artículo o curso…"
+                                                    value={refSearch}
+                                                    onChange={(e) => setRefSearch(e.target.value)}
+                                                />
+                                            </div>
+                                            {/* List */}
+                                            <div className="max-h-44 overflow-y-auto space-y-0.5 rounded-lg border border-white/8 bg-muted/10 p-1">
+                                                {filteredRefs.length === 0 && (
+                                                    <p className="text-xs text-muted-foreground text-center py-4">Sin resultados</p>
+                                                )}
+                                                {filteredRefs.map((r) => {
+                                                    const selected = !!networkRefs.find((x) => x.id === r.id);
+                                                    return (
+                                                        <div
+                                                            key={r.id}
+                                                            onClick={() => toggleRef(r)}
+                                                            className={cn(
+                                                                "flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs cursor-pointer transition-colors duration-100",
+                                                                selected ? "bg-primary/15 text-primary" : "hover:bg-muted/40"
+                                                            )}
+                                                        >
+                                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                                <span className="text-muted-foreground shrink-0">{REF_KIND_ICONS[r.kind]}</span>
+                                                                <span className="truncate font-medium">{r.label}</span>
+                                                                <span className="text-muted-foreground shrink-0">({REF_KIND_LABELS[r.kind]})</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                                <Link
+                                                                    href={r.href}
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    className="text-muted-foreground hover:text-foreground cursor-pointer"
+                                                                    title="Ver"
+                                                                >
+                                                                    <ExternalLink className="w-3 h-3" />
+                                                                </Link>
+                                                                <Badge variant={selected ? "default" : "outline"} className="text-[10px] cursor-pointer py-0">
+                                                                    {selected ? "Vinculado" : "Vincular"}
+                                                                </Badge>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* 8. Vote config for "propuesta" type */}
                             {showVoto && <LegislativeVoteConfig />}
 
                             {/* Publish actions */}
@@ -1207,6 +1620,8 @@ export default function PublishPage() {
                                     tags={tags}
                                     audiencia={audiencia}
                                     destinos={destinos}
+                                    attachments={attachments}
+                                    refs={networkRefs}
                                 />
                             </div>
 

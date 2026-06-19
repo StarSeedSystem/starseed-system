@@ -1212,3 +1212,29 @@ visualización 3D tipo StarSeed-Memoria-3D, alimentada por el grafo real y con I
 
 **Pendiente:** persistencia privada de mensajes (os_messages con RLS por participantes, diseño cuidadoso);
 endurecer tipos de harmonic-graph-3d; rotar tokens del chat.
+
+---
+## Adenda 33 — 2026-06-18 · MemoryBrain3D (visor fiel) + Cerebro en Trinity + OmniDock (commit 8cb82ae, vivo)
+
+**Resumen:** El cerebro 3D ahora replica el visor real `starseed-memory-3d.html`, con más ajustes, datos
+OS interconectados y chat IA; disponible en AI Studio y en una pestaña del Exocórtex del menú Trinity.
+El dock inferior muestra nombres, iconos rediseñados y la sección activa.
+
+### Hecho
+- **`src/components/exocortex/memory-brain-3d.tsx`** (`MemoryBrain3D`, ~1.5k líneas): port Three.js del
+  visor StarSeed (esferas por nodeType, edges por edgeType, sprite labels, starfield, FogExp2, luces;
+  layout fuerza-dirigido + reorganizar; cámara orbital manual; raycaster hover/click; panel de detalles
+  con links/vecinos). Ajustes extra (tamaño, repulsión, opacidad, giro, etiquetas, starfield, niebla,
+  modo layout). Capa "Red OS": merge de páginas/grupos/E.F./partidos/artículos/cursos como nodos con
+  deep-links. Chat IA del Exocórtex incorporado (chat() del proveedor activo, resumen del grafo en el
+  system prompt, botones "enfocar"). SSR-safe (three por import dinámico). Props compact/showChat.
+- **AI Studio** (`/agent` → Cerebro) usa `MemoryBrain3D`. **ExocortexBrain** (turno previo) queda en
+  desuso (sin importar; se puede borrar luego).
+- **Trinity / ZenithCurtain (Exocórtex):** botón/vista "Cerebro" que muestra `MemoryBrain3D compact showChat`
+  con su chat IA, alternando con el buscador universal.
+- **OmniDock:** nombre visible bajo cada icono, contenedores de icono con gradiente+anillo por color,
+  y resaltado (anillo+glow+punto+etiqueta) de la sección activa según `usePathname`.
+- Reusa el grafo real `src/data/starseed-memory-graph.json` (82 nodos).
+
+**Pendiente:** persistencia privada de mensajes (os_messages RLS por participantes); endurecer tipos
+de three (null-guards) en memory-brain-3d/harmonic-graph-3d; rotar tokens del chat; borrar ExocortexBrain en desuso.
