@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePerimeter } from "@/context/perimeter-context";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
     Home, User, MessageSquare, Bell, Users, Book, Library, Network, Settings,
@@ -33,6 +33,14 @@ export function OmniDock() {
     const { activeEdge } = usePerimeter();
     const { config } = useAppearance();
     const router = useRouter();
+    const pathname = usePathname();
+
+    // ¿La ruta actual corresponde a este item del dock? (resalta la sección abierta)
+    const isActivePath = (p: string) => {
+        if (!p || p === "#") return false;
+        if (p === "/") return pathname === "/";
+        return pathname === p || pathname.startsWith(p + "/");
+    };
 
     const { dockBehavior = "anchor-only" } = config?.trinity || {};
 
@@ -179,6 +187,7 @@ export function OmniDock() {
                                         icon={<Icon className="w-5 h-5 lg:w-7 lg:h-7" />}
                                         label={item.label}
                                         color={item.color}
+                                        active={isActivePath(item.path)}
                                         onClick={() => router.push(item.path)}
                                     />
                                 );
@@ -201,47 +210,54 @@ export function OmniDock() {
     );
 }
 
-function DockItem({ icon, label, onClick, color = "neutral" }: {
+type DockColor = "neutral" | "cyan" | "crimson" | "amber" | "emerald" | "purple";
+
+const DOCK_PALETTE: Record<DockColor, { text: string; ring: string; glow: string; bg: string; activeBg: string }> = {
+    neutral: { text: "text-foreground/80", ring: "ring-foreground/40", glow: "shadow-[0_0_18px_rgba(255,255,255,0.18)]", bg: "from-foreground/10 to-foreground/[0.02]", activeBg: "from-foreground/20 to-foreground/5" },
+    cyan: { text: "text-cyan-300", ring: "ring-cyan-400/70", glow: "shadow-[0_0_18px_rgba(34,211,238,0.45)]", bg: "from-cyan-500/15 to-cyan-500/0", activeBg: "from-cyan-500/30 to-cyan-500/5" },
+    crimson: { text: "text-red-300", ring: "ring-red-400/70", glow: "shadow-[0_0_18px_rgba(248,113,113,0.45)]", bg: "from-red-500/15 to-red-500/0", activeBg: "from-red-500/30 to-red-500/5" },
+    amber: { text: "text-amber-300", ring: "ring-amber-400/70", glow: "shadow-[0_0_18px_rgba(251,191,36,0.45)]", bg: "from-amber-500/15 to-amber-500/0", activeBg: "from-amber-500/30 to-amber-500/5" },
+    emerald: { text: "text-emerald-300", ring: "ring-emerald-400/70", glow: "shadow-[0_0_18px_rgba(52,211,153,0.45)]", bg: "from-emerald-500/15 to-emerald-500/0", activeBg: "from-emerald-500/30 to-emerald-500/5" },
+    purple: { text: "text-purple-300", ring: "ring-purple-400/70", glow: "shadow-[0_0_18px_rgba(168,85,247,0.45)]", bg: "from-purple-500/15 to-purple-500/0", activeBg: "from-purple-500/30 to-purple-500/5" },
+};
+
+function DockItem({ icon, label, onClick, color = "neutral", active = false }: {
     icon: React.ReactNode;
     label: string;
     onClick: () => void;
-    color?: "neutral" | "cyan" | "crimson" | "amber" | "emerald" | "purple";
+    color?: DockColor;
+    active?: boolean;
 }) {
-    const colorStyles = {
-        neutral: "hover:bg-foreground/10 text-foreground/80 hover:text-foreground",
-        cyan: "text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.3)]",
-        crimson: "text-red-600 dark:text-red-400 hover:bg-red-500/20 hover:shadow-[0_0_15px_rgba(248,113,113,0.3)]",
-        amber: "text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 hover:shadow-[0_0_15px_rgba(251,191,36,0.3)]",
-        emerald: "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 hover:shadow-[0_0_15px_rgba(52,211,153,0.3)]",
-        purple: "text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)]",
-    };
+    const p = DOCK_PALETTE[color];
 
     return (
-        <div className="group relative flex flex-col items-center gap-1.5 lg:gap-2 shrink-0 snap-center">
-            <span className="
-                absolute bottom-full mb-3 left-1/2 -translate-x-1/2
-                scale-0 opacity-0
-                group-hover:scale-100 group-hover:opacity-100
-                transition-all duration-300 origin-bottom
-                bg-foreground text-background text-xs sm:text-sm font-medium px-3 py-1.5 rounded-full
-                border border-background/20 whitespace-nowrap drop-shadow-md z-[100]
-                pointer-events-none
-                after:content-[''] after:absolute after:top-full after:left-1/2 after:-translate-x-1/2
-                after:border-4 after:border-transparent after:border-t-foreground
-            ">
-                {label}
-            </span>
+        <div className="group relative flex w-[58px] lg:w-[78px] shrink-0 snap-center flex-col items-center gap-1">
             <button
                 onClick={onClick}
+                aria-current={active ? "page" : undefined}
+                title={label}
                 className={cn(
-                    "relative flex items-center justify-center w-12 h-12 lg:w-16 lg:h-16 rounded-[--radius-full] transition-all duration-300 active:scale-95 group-hover:scale-110",
-                    "before:absolute before:inset-0 before:rounded-[--radius-full] before:border before:border-transparent hover:before:border-foreground/20",
-                    colorStyles[color]
+                    "relative flex items-center justify-center w-12 h-12 lg:w-16 lg:h-16 rounded-2xl transition-all duration-300 active:scale-95 group-hover:scale-105",
+                    "bg-gradient-to-br ring-1 ring-inset",
+                    p.text,
+                    active
+                        ? cn(p.activeBg, "ring-2", p.ring, p.glow, "scale-105")
+                        : cn(p.bg, "ring-white/10 hover:ring-white/25"),
                 )}
             >
                 {icon}
+                {active && (
+                    <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" aria-hidden />
+                )}
             </button>
-            <div className="w-1.5 h-1.5 rounded-full bg-foreground/20 group-hover:bg-foreground/80 transition-colors" />
+            <span
+                className={cn(
+                    "max-w-[58px] lg:max-w-[78px] truncate text-center text-[9px] lg:text-[11px] leading-tight transition-colors",
+                    active ? cn(p.text, "font-semibold") : "text-foreground/55 group-hover:text-foreground/85",
+                )}
+            >
+                {label}
+            </span>
         </div>
     );
 }

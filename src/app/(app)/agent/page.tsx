@@ -58,7 +58,7 @@ import { SensesPanel } from "@/components/hermes/senses-panel";
 import { McpPanel } from "@/components/hermes/mcp-panel";
 import { QuickOptionsGrid } from "@/components/hermes/quick-options-grid";
 import { AiStudioDashboard } from "@/components/hermes/ai-studio-dashboard";
-import { ExocortexBrain } from "@/components/exocortex/exocortex-brain";
+import { MemoryBrain3D } from "@/components/exocortex/memory-brain-3d";
 import { BatchJobsPanel } from "@/components/hermes/batch-jobs-panel";
 import { ServerRegistryPanel } from "@/components/hermes/server-registry-panel";
 import { HardDrive } from "lucide-react";
@@ -356,8 +356,8 @@ function AgentPageInner() {
           <AiStudioDashboard />
         </TabsContent>
 
-        <TabsContent value="cerebro" className="flex-1 min-h-0 overflow-y-auto">
-          <ExocortexBrain />
+        <TabsContent value="cerebro" className="flex-1 min-h-0 overflow-hidden">
+          <MemoryBrain3D className="h-full min-h-[70vh]" />
         </TabsContent>
 
         <TabsContent value="batch" className="flex-1 min-h-0 overflow-y-auto">

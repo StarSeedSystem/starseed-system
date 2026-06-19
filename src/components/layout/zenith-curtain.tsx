@@ -18,6 +18,7 @@ import { useFullscreen } from "@/hooks/useFullscreen";
 import { UniversalEditor } from "@/components/layout/universal-editor";
 import { Switch } from "@/components/ui/switch";
 import { useAppearance } from "@/context/appearance-context";
+import { MemoryBrain3D } from "@/components/exocortex/memory-brain-3d";
 
 type Domain = 'ALL' | 'POLITICS' | 'EDUCATION' | 'CULTURE' | 'SYSTEM';
 
@@ -119,6 +120,8 @@ export function ZenithCurtain() {
     const [senses, setSenses] = useState<AISense[]>(DEFAULT_SENSES);
     const [connections, setConnections] = useState<AIConnection[]>(DEFAULT_CONNECTIONS);
     const [sensesTab, setSensesTab] = useState<"senses" | "connections" | "topology">("senses");
+    // Vista principal del Exocórtex: buscador universal o el Cerebro 3D (con chat IA).
+    const [mainView, setMainView] = useState<"buscar" | "cerebro">("buscar");
 
     const toggleSense = (id: string) => {
         setSenses(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
@@ -174,6 +177,23 @@ export function ZenithCurtain() {
 
                                     {/* Quick Actions */}
                                     <div className="flex items-center gap-2 flex-wrap">
+                                        {/* Cerebro 3D del Exocórtex (con chat IA incorporado) */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setMainView(mainView === "cerebro" ? "buscar" : "cerebro")}
+                                            className={cn(
+                                                "gap-2 rounded-full px-4 transition-all",
+                                                mainView === "cerebro"
+                                                    ? "border-purple-400/60 text-purple-100 bg-purple-500/25 shadow-[0_0_15px_rgba(168,85,247,0.35)]"
+                                                    : "border-purple-500/40 text-purple-300 hover:bg-purple-500/15 hover:text-purple-100"
+                                            )}
+                                            title="Cerebro 3D de tu memoria y red, con chat del Exocórtex"
+                                        >
+                                            <BrainCircuit className="w-3.5 h-3.5" />
+                                            <span className="hidden sm:inline text-xs uppercase tracking-wider">Cerebro</span>
+                                        </Button>
+
                                         {/* AI Senses Toggle */}
                                         <Button
                                             variant="outline"
@@ -266,7 +286,8 @@ export function ZenithCurtain() {
                                 {/* Left: Search + Results (always visible) */}
                                 <div className={cn(
                                     "flex-1 flex flex-col min-h-0 min-w-0 transition-all duration-300",
-                                    showSensesPanel && "hidden md:flex"
+                                    showSensesPanel && "hidden md:flex",
+                                    mainView === "cerebro" && "hidden"
                                 )}>
                                     {/* Search Bar + Domains */}
                                     <div className="px-5 md:px-8 py-4 shrink-0 border-b border-cyan-500/10 bg-black/10">
@@ -375,6 +396,13 @@ export function ZenithCurtain() {
                                         </div>
                                     </motion.div>
                                 </div>
+
+                                {/* Cerebro 3D del Exocórtex — visor de memoria + red + chat IA */}
+                                {mainView === "cerebro" && (
+                                    <div className="flex-1 flex flex-col min-h-0 min-w-0">
+                                        <MemoryBrain3D compact showChat className="flex-1 min-h-0" />
+                                    </div>
+                                )}
 
                                 {/* Right: AI Senses & Connections Panel */}
                                 <AnimatePresence>

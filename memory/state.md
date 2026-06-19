@@ -1187,3 +1187,28 @@ enriquecer mensajes/cuenta/mapas/archivos/feed y widgets según prioridad; rotar
 
 **Pendiente:** persistencia Supabase de mensajes (no hay tabla os_messages aún); profundizar
 widgets del dashboard; rotar tokens del chat.
+
+---
+## Adenda 32 — 2026-06-18 · Cerebro 3D del Exocórtex en AI Studio + publicar real + widgets (commit 65ff165, vivo)
+
+**Resumen:** El "Cerebro" (gráfica viva) sale de la sección Red y vive en el Exocórtex/AI Studio como
+visualización 3D tipo StarSeed-Memoria-3D, alimentada por el grafo real y con IA real. Desplegado.
+
+### Hecho
+- **ExocortexBrain** (`src/components/exocortex/exocortex-brain.tsx` + `memory-graph-data.ts`):
+  núcleo 3D = `HarmonicGraph3D` (three.js, SSR-safe) + panel Exocórtex: "Pregunta al Exocórtex"
+  con `chat()` del proveedor activo (mismo patrón que /agent), búsqueda en memoria, insights/stats,
+  capas/tipos, accesos a la red y ajustes. Alimentado por el grafo REAL
+  `src/data/starseed-memory-graph.json` (82 nodos del ecosistema, copiado desde ~/Documents/Claude/Projects/StarSeed).
+- **AI Studio** (`/agent`) pestaña Cerebro ahora usa `ExocortexBrain` (antes `LivingGraph`).
+- **Red:** quitado el acceso "Gráfica Viva"/Cerebro de `network/page.tsx` y del nav de red; la ruta
+  `/network/graph` ahora REDIRIGE a `/agent?tab=cerebro` (no rompe enlaces de dashboard/onboarding/Trinity/widgets).
+- **Publicar:** el compositor de `publish/page.tsx` persiste en `os_posts` vía `useOsPosts.publish`
+  según el destino elegido (page/group/event).
+- **Widgets:** explore-network (rutas reales /pagina,/grupo,/entidad,/partido + filtros),
+  messages (conversaciones reales + /profile + /messages), active-projects (progreso+estado+/hub).
+- Typecheck: archivos nuevos/tocados limpios; errores restantes pre-existentes (harmonic-graph-3d
+  null-guards/THREE namespace, keyStorage, knowledge-network-selector) cubiertos por ignoreBuildErrors.
+
+**Pendiente:** persistencia privada de mensajes (os_messages con RLS por participantes, diseño cuidadoso);
+endurecer tipos de harmonic-graph-3d; rotar tokens del chat.
