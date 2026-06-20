@@ -31,9 +31,11 @@ import {
     Trash2,
     Download,
     Store,
-    BookOpen
+    BookOpen,
+    Music
 } from "lucide-react";
 import { MarketplaceView } from "./board/marketplace-view";
+import { MediaControlWidget } from "@/components/dashboard/widgets/media/media-control-widget";
 
 export function ControlPanel() {
     const {
@@ -80,6 +82,7 @@ export function ControlPanel() {
         boards: "border-emerald-500/50 shadow-[0_0_50px_-10px_rgba(16,185,129,0.15)]", // Creation (Green)
         store: "border-purple-500/50 shadow-[0_0_50px_-10px_rgba(168,85,247,0.15)]", // Library/Store (Purple - Auxiliary)
         widgets: "border-amber-500/50 shadow-[0_0_50px_-10px_rgba(245,158,11,0.15)]", // Logic (Amber)
+        media: "border-pink-500/50 shadow-[0_0_50px_-10px_rgba(244,114,182,0.15)]", // Media (Pink)
     };
 
     const activeColorClass = colorMap[activeTab] || "border-primary/10";
@@ -98,7 +101,8 @@ export function ControlPanel() {
         ai: "top",      // Zenith (North)
         boards: "left", // Horizon (West)
         widgets: "right", // Logic (East)
-        store: "right"  // Auxiliary
+        store: "right",  // Auxiliary
+        media: "bottom" // Media (Anchor/South)
     };
 
     const sheetSide = SHEET_SIDES[activeTab] || "right";
@@ -158,9 +162,12 @@ export function ControlPanel() {
 
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
                             <div className="px-6 pt-4">
-                                <TabsList className="grid w-full grid-cols-4 bg-muted/50">
+                                <TabsList className="grid w-full grid-cols-5 bg-muted/50">
                                     <TabsTrigger value="ai" className={getTabTriggerStyle("ai", "text-cyan-400 data-[state=active]:text-cyan-400")}>
                                         <Bot className="h-4 w-4" /> <span className="hidden sm:inline">IA</span>
+                                    </TabsTrigger>
+                                    <TabsTrigger value="media" className={getTabTriggerStyle("media", "text-pink-400 data-[state=active]:text-pink-400")}>
+                                        <Music className="h-4 w-4" /> <span className="hidden sm:inline">Medios</span>
                                     </TabsTrigger>
                                     <TabsTrigger value="boards" className={getTabTriggerStyle("boards", "text-emerald-400 data-[state=active]:text-emerald-400")}>
                                         <Layout className="h-4 w-4" /> <span className="hidden sm:inline">Crear</span>
@@ -173,6 +180,13 @@ export function ControlPanel() {
                                     </TabsTrigger>
                                 </TabsList>
                             </div>
+
+                            {/* MEDIA CONTENT (PINK) — Centro de control de medios */}
+                            <TabsContent value="media" className="flex-1 flex flex-col p-6 gap-4 overflow-hidden data-[state=active]:animate-in data-[state=active]:fade-in-50">
+                                <div className="flex-1 min-h-[460px]">
+                                    <MediaControlWidget />
+                                </div>
+                            </TabsContent>
 
                             {/* AI CONTENT (CYAN) */}
                             <TabsContent value="ai" className="flex-1 flex flex-col p-6 gap-4 overflow-hidden data-[state=active]:animate-in data-[state=active]:fade-in-50 data-[state=active]:zoom-in-[0.98]">

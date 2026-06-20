@@ -30,6 +30,8 @@ import { AccountProvider } from "@/context/account-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
+import { MediaMiniDock } from "@/components/dashboard/apps/media/media-mini-dock";
+import { SovereignSyncMount } from "@/components/system/sovereign-sync-mount";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -117,6 +119,10 @@ export default function RootLayout({
 
                         <OmniDock />
                         <PinnedWidgetOverlay />
+                        {/* Mini-reproductor global del media center (aparece al reproducir). */}
+                        <MediaMiniDock />
+                        {/* Sincronización soberana: biblioteca/apps/dashboards ↔ Supabase (defensiva). */}
+                        <SovereignSyncMount />
                         <SplineWatermarkCover />
                         <PerimeterInterface />
                         {/* Trinity Móvil · Bloque 4 — asas de borde + deslizar desde

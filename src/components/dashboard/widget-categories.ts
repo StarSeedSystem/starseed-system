@@ -3,7 +3,7 @@ import {
     ListChecks, MapPin, Wrench, Brush, Telescope, Sparkles,
     Cpu, SlidersHorizontal, FolderOpen, Gamepad2, BrainCircuit,
     HelpCircle, Landmark, Network, Eye, Lightbulb, Compass,
-    ShieldCheck, Home, Wand2, UserCircle, Globe,
+    ShieldCheck, Home, Wand2, UserCircle, Globe, LayoutGrid,
     type LucideIcon
 } from "lucide-react";
 
@@ -46,10 +46,20 @@ export type WidgetCategory =
     | 'dispositivos'
     | 'creatividad'
     | 'perfil'
-    | 'sociedad';
+    | 'sociedad'
+    | 'aplicaciones';
 
 // ── Master Category Registry ─────────────────────────────────────
 export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
+    {
+        id: 'aplicaciones',
+        name: 'Aplicaciones',
+        icon: LayoutGrid,
+        color: 'lime-400',
+        description: 'Apps StarSeed, módulos del sistema y programas como pantalla de inicio.',
+        tags: ['apps', 'launcher', 'carpetas', 'programas', 'inicio', 'nexus', 'café', 'audiomorphic'],
+        hasWidgets: true,
+    },
     {
         id: 'politica',
         name: 'Política',

@@ -1,0 +1,303 @@
+"use client";
+
+/*
+ * dashboards-sync — Respaldo NO invasivo de los tableros del usuario en la cuenta.
+ * ------------------------------------------------------------------------------
+ * Hace una COPIA DE SEGURIDAD de los tableros (dashboards) y su disposición de
+ * widgets en la cuenta soberana (Supabase `user_settings.prefs.dashboards`), para
+ * que la misma identidad pueda RECUPERARLOS si entra desde un dispositivo nuevo
+ * (o si se borró el almacenamiento local). NO es la fuente de verdad ni altera la
+ * lógica de siembra de `dashboard-layout.tsx`: solo lee/escribe localStorage.
+ *
+ * Principios (alineados con CLAUDE.md · Identidad Soberana, tolerancia a fallos):
+ *  - LOCAL ES LA VERDAD: localStorage manda. La nube es red de seguridad.
+ *  - RESTAURACIÓN SOLO SI VACÍO: si NO hay tableros locales pero SÍ respaldo,
+ *    restaura a localStorage y avisa (evento + reload suave). Si hay locales,
+ *    nunca los sobrescribe con la nube: solo sube el respaldo.
+ *  - DEFENSIVO: sin sesión / sin tabla / red caída → no rompe (try/catch).
+ *  - NO TOCA la lógica de dashboard-layout (no cambia `dashboard-layout` ni las
+ *    claves de inicialización/orden; solo replica los datos).
+ *
+ * Persistencia en Supabase (merge no destructivo sobre el jsonb `prefs`):
+ *   prefs.dashboards → { dashboards, widgets, order, savedAt }
+ */
+
+import { useEffect } from "react";
+import { createClient } from "@/utils/supabase/client";
+
+// ── Claves de localStorage del dashboard (NO se modifica su lógica) ──
+const LS_DASHBOARDS = "starseed_dashboards";
+const LS_WIDGETS = "starseed_widgets";
+const LS_ORDER = "dashboard_order";
+
+// Evento emitido tras restaurar, por si la UI quiere reaccionar sin reload.
+const DASHBOARDS_RESTORED_EVENT = "starseed:dashboards:restored";
+
+const PUSH_DEBOUNCE_MS = 1500;
+const POLL_INTERVAL_MS = 30_000;
+
+// ── Helpers de bajo nivel ────────────────────────────────────────
+function isClient(): boolean {
+    return typeof window !== "undefined" && typeof localStorage !== "undefined";
+}
+
+function readRaw(key: string): string | null {
+    if (!isClient()) return null;
+    try {
+        return localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+}
+
+function writeRaw(key: string, value: string): void {
+    if (!isClient()) return;
+    try {
+        localStorage.setItem(key, value);
+    } catch {
+        /* cuota / modo privado: degradamos en silencio */
+    }
+}
+
+async function getUserId(): Promise<string | null> {
+    try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getUser();
+        return data?.user?.id ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/** ¿Hay tableros propios guardados localmente? (la clave principal) */
+function hasLocalDashboards(): boolean {
+    const raw = readRaw(LS_DASHBOARDS);
+    if (!raw) return false;
+    try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.length > 0;
+        // Algunos formatos guardan un objeto/diccionario de tableros.
+        if (parsed && typeof parsed === "object") return Object.keys(parsed).length > 0;
+        return false;
+    } catch {
+        // Si no parsea pero hay contenido, lo consideramos presente.
+        return raw.trim().length > 0;
+    }
+}
+
+interface DashboardsBackup {
+    dashboards: unknown;
+    widgets?: unknown;
+    order?: unknown;
+    savedAt: number;
+}
+
+/** Snapshot local actual de los tableros (lo que respaldamos). */
+function collectLocalBackup(): DashboardsBackup | null {
+    const dashboardsRaw = readRaw(LS_DASHBOARDS);
+    if (!dashboardsRaw) return null;
+    let dashboards: unknown;
+    try {
+        dashboards = JSON.parse(dashboardsRaw);
+    } catch {
+        dashboards = dashboardsRaw;
+    }
+
+    const backup: DashboardsBackup = { dashboards, savedAt: Date.now() };
+
+    const widgetsRaw = readRaw(LS_WIDGETS);
+    if (widgetsRaw != null) {
+        try {
+            backup.widgets = JSON.parse(widgetsRaw);
+        } catch {
+            backup.widgets = widgetsRaw;
+        }
+    }
+
+    const orderRaw = readRaw(LS_ORDER);
+    if (orderRaw != null) {
+        try {
+            backup.order = JSON.parse(orderRaw);
+        } catch {
+            backup.order = orderRaw;
+        }
+    }
+
+    return backup;
+}
+
+/** Restaura un respaldo remoto a localStorage (solo si no hay tableros locales). */
+function restoreBackupToLocal(backup: DashboardsBackup): void {
+    if (!isClient()) return;
+    if (backup.dashboards === undefined || backup.dashboards === null) return;
+
+    const ser = (v: unknown): string =>
+        typeof v === "string" ? v : JSON.stringify(v);
+
+    writeRaw(LS_DASHBOARDS, ser(backup.dashboards));
+    if (backup.widgets !== undefined) writeRaw(LS_WIDGETS, ser(backup.widgets));
+    if (backup.order !== undefined) writeRaw(LS_ORDER, ser(backup.order));
+
+    // Aviso + reload suave para que dashboard-layout relea su estado limpio.
+    try {
+        window.dispatchEvent(new Event(DASHBOARDS_RESTORED_EVENT));
+    } catch {
+        /* noop */
+    }
+    try {
+        // Reload suave: deja que React/efectos relean localStorage.
+        window.location.reload();
+    } catch {
+        /* noop */
+    }
+}
+
+function isBackup(x: unknown): x is DashboardsBackup {
+    return (
+        typeof x === "object" &&
+        x !== null &&
+        "dashboards" in x &&
+        (x as DashboardsBackup).dashboards !== undefined
+    );
+}
+
+// ── Lectura remota del respaldo ──────────────────────────────────
+async function fetchRemoteBackup(userId: string): Promise<DashboardsBackup | null> {
+    try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+            .from("user_settings")
+            .select("prefs")
+            .eq("user_id", userId)
+            .maybeSingle();
+        if (error || !data?.prefs || typeof data.prefs !== "object") return null;
+        const prefs = data.prefs as Record<string, unknown>;
+        const dash = prefs.dashboards;
+        return isBackup(dash) ? dash : null;
+    } catch {
+        return null;
+    }
+}
+
+// ── Escritura remota del respaldo (merge no destructivo de prefs) ─
+async function pushBackup(userId: string): Promise<void> {
+    try {
+        const backup = collectLocalBackup();
+        if (!backup) return; // nada local que respaldar
+
+        const supabase = createClient();
+
+        // Lee prefs actual para NO pisar otras claves (library, installed, settings…).
+        let prefs: Record<string, unknown> = {};
+        try {
+            const { data } = await supabase
+                .from("user_settings")
+                .select("prefs")
+                .eq("user_id", userId)
+                .maybeSingle();
+            if (data?.prefs && typeof data.prefs === "object") {
+                prefs = { ...(data.prefs as Record<string, unknown>) };
+            }
+        } catch {
+            /* mezclamos sobre objeto vacío si no se pudo leer */
+        }
+
+        prefs.dashboards = backup;
+
+        await supabase
+            .from("user_settings")
+            .upsert(
+                { user_id: userId, prefs, updated_at: new Date().toISOString() },
+                { onConflict: "user_id" },
+            );
+    } catch {
+        /* nunca rompemos: el respaldo es best-effort */
+    }
+}
+
+// ── Hook ─────────────────────────────────────────────────────────
+/**
+ * useDashboardsBackup — móntalo UNA vez (vía SovereignSyncMount) en el RootLayout.
+ *
+ * Comportamiento:
+ *  - Al montar con sesión:
+ *      · Si NO hay tableros locales pero SÍ respaldo remoto → RESTAURA a
+ *        localStorage (evento `starseed:dashboards:restored` + reload suave).
+ *      · Si hay tableros locales → sube el respaldo a `prefs.dashboards`.
+ *  - Mientras hay sesión: sube respaldo (debounce) al detectar 'storage' y en
+ *    un intervalo suave (~30s). Es respaldo/seguridad, no fuente de verdad.
+ *  - Defensivo y SSR-safe.
+ */
+export function useDashboardsBackup(): void {
+    useEffect(() => {
+        if (!isClient()) return;
+
+        const supabase = createClient();
+        let active = true;
+        let pushTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const schedulePush = () => {
+            if (pushTimer) clearTimeout(pushTimer);
+            pushTimer = setTimeout(() => {
+                void (async () => {
+                    const userId = await getUserId();
+                    if (!active || !userId) return;
+                    if (!hasLocalDashboards()) return; // nada propio que respaldar
+                    await pushBackup(userId);
+                })();
+            }, PUSH_DEBOUNCE_MS);
+        };
+
+        // Arranque: restaurar si vacío, o respaldar si hay local.
+        const bootstrap = async (userId: string) => {
+            if (!active) return;
+            if (!hasLocalDashboards()) {
+                const remote = await fetchRemoteBackup(userId);
+                if (active && remote) {
+                    restoreBackupToLocal(remote); // dispara reload suave
+                    return;
+                }
+            }
+            // Hay tableros locales (o no había respaldo): respaldar.
+            if (active && hasLocalDashboards()) await pushBackup(userId);
+        };
+
+        void (async () => {
+            const userId = await getUserId();
+            if (!active || !userId) return;
+            await bootstrap(userId);
+        })();
+
+        // Cambios entre pestañas de las claves de dashboard → respaldo con debounce.
+        const onStorage = (e: StorageEvent) => {
+            if (e.key === LS_DASHBOARDS || e.key === LS_WIDGETS || e.key === LS_ORDER || e.key === null) {
+                schedulePush();
+            }
+        };
+        window.addEventListener("storage", onStorage);
+
+        // Intervalo suave de respaldo (la pestaña activa no recibe su propio 'storage').
+        const poll = setInterval(() => schedulePush(), POLL_INTERVAL_MS);
+
+        // Cambios de sesión: al iniciar sesión, re-evaluar restauración/respaldo.
+        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+            void (async () => {
+                if (!active) return;
+                const userId = session?.user?.id ?? null;
+                if (userId) await bootstrap(userId);
+            })();
+        });
+
+        return () => {
+            active = false;
+            if (pushTimer) clearTimeout(pushTimer);
+            clearInterval(poll);
+            window.removeEventListener("storage", onStorage);
+            try {
+                sub.subscription.unsubscribe();
+            } catch {
+                /* noop */
+            }
+        };
+    }, []);
+}

@@ -41,7 +41,7 @@ const LS_INITIALIZED = 'starseed_dashboards_initialized';
 // el acomodo/los widgets por defecto para que las instalaciones existentes
 // re-siembren los tableros predeterminados (preservando los tableros propios).
 const LS_DEFAULTS_VERSION = 'starseed_defaults_version';
-const DEFAULTS_VERSION = 'gen7-2026-06-14-mapa';
+const DEFAULTS_VERSION = 'gen8-2026-06-20-apps-media-datos';
 const LS_ACTIVE_PROFILE = 'starseed_active_profile_v1';
 const LS_AI_PROVIDER = 'starseed_ai_provider_v1';
 const LS_SERVERS = 'starseed_internet_servers_v1';
@@ -139,7 +139,7 @@ function generateDefaultDashboards(): { dashboards: Dashboard[], widgetMap: Reco
             dashboard_id: dashId,
             widget_type: w.type as any,
             layout: { x: w.x, y: w.y, w: w.w, h: w.h, i: crypto.randomUUID() },
-            settings: {},
+            settings: (w as any).settings ?? {},
             created_at: now,
         }));
     }

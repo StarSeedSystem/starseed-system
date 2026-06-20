@@ -44,6 +44,14 @@ import { RelevantPostsWidget } from "@/components/dashboard/widgets/relevant-pos
 import { MessagesWidget } from "@/components/dashboard/widgets/messages-widget";
 import { NotificationsWidget } from "@/components/dashboard/widgets/notifications-widget";
 import { AiGeneratedWidget } from "@/components/dashboard/widgets/ai-generated-widget";
+import { AppLauncherWidget } from "@/components/dashboard/widgets/app-launcher-widget";
+import { UniversalOpenerWidget } from "@/components/dashboard/widgets/universal-opener-widget";
+import { MusicPlayerWidget } from "@/components/dashboard/widgets/media/music-player-widget";
+import { OmnifrecuenciasWidget } from "@/components/dashboard/widgets/media/omnifrecuencias-widget";
+import { RadioWidget } from "@/components/dashboard/widgets/media/radio-widget";
+import { AudiomorphicBgWidget } from "@/components/dashboard/widgets/media/audiomorphic-bg-widget";
+import { MediaControlWidget } from "@/components/dashboard/widgets/media/media-control-widget";
+import { OfficialDataWidget } from "@/components/dashboard/widgets/data/official-data-widget";
 import { LearningPathWidget } from "@/components/dashboard/widgets/learning-path-widget";
 import { SocialRadarWidget } from "@/components/dashboard/widgets/social-radar-widget";
 import { LiveDataWidget } from "@/components/dashboard/widgets/live-data-widget";
@@ -197,6 +205,22 @@ export function WidgetRegistry({ widget }: WidgetProps) {
             return <LiveDataWidget />;
         case 'AI_GENERATED':
             return <AiGeneratedWidget widget={widget} />;
+        case 'APP_LAUNCHER':
+            return <AppLauncherWidget widget={widget} />;
+        case 'UNIVERSAL_OPENER':
+            return <UniversalOpenerWidget widget={widget} />;
+        case 'MUSIC_PLAYER':
+            return <MusicPlayerWidget />;
+        case 'OMNIFRECUENCIAS':
+            return <OmnifrecuenciasWidget />;
+        case 'RADIO_LIVE':
+            return <RadioWidget />;
+        case 'AUDIOMORPHIC_BG':
+            return <AudiomorphicBgWidget />;
+        case 'MEDIA_CONTROL':
+            return <MediaControlWidget />;
+        case 'OFFICIAL_DATA':
+            return <OfficialDataWidget />;
 
         // ── Segunda generación: widgets adaptativos ──
         case 'AGORA_CAUSAL':

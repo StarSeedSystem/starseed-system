@@ -4,11 +4,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-    LayoutDashboard, FileText, Vote, GraduationCap, Activity,
+    LayoutDashboard, LayoutGrid, FileText, Vote, GraduationCap, Activity,
     Heart, Palette, Network, Book, Rocket, Calendar, Plus,
     BrainCircuit, CloudLightning, CloudRain, Wind, ThermometerSun,
     Tornado, Globe, MoonStar, Sparkles, Radio, Calculator, ListChecks,
     MessageSquare, BellRing, Zap, Search, Star, ChevronRight, Wallet,
+    Music, Waves, AudioWaveform, Satellite, SlidersHorizontal,
     type LucideIcon
 } from "lucide-react";
 import { useState, useMemo } from "react";
@@ -31,6 +32,65 @@ interface WidgetDefinition {
 }
 
 const AVAILABLE_WIDGETS: WidgetDefinition[] = [
+    // ── Aplicaciones (launcher) ──
+    {
+        type: 'APP_LAUNCHER', title: "Apps StarSeed",
+        description: "Carpeta de apps y módulos: Nexus, Café, Audiomorphic, Omnifrecuencias y más. Iconos personalizables y modos de apertura.",
+        icon: <LayoutGrid className="h-5 w-5 text-lime-400" />,
+        primaryCategory: 'aplicaciones', secondaryCategories: ['sistema', 'entretenimiento'],
+        tags: ['apps', 'launcher', 'carpeta', 'programas', 'inicio', 'nexus', 'café', 'audiomorphic', 'omnifrecuencias'], isPopular: true,
+    },
+    {
+        type: 'UNIVERSAL_OPENER', title: "Visor Universal",
+        description: "Abre cualquier archivo o contenido: imagen, GIF, vídeo, audio, PDF, HTML, 3D, markdown, código. Por URL, archivo local o desde tu Biblioteca.",
+        icon: <FileText className="h-5 w-5 text-lime-400" />,
+        primaryCategory: 'aplicaciones', secondaryCategories: ['archivos', 'sistema'],
+        tags: ['abridor', 'archivos', 'visor', 'pdf', 'imagen', 'vídeo', 'audio', '3d', 'html', 'markdown', 'código', 'biblioteca'], isPopular: true,
+    },
+    // ── Media center ──
+    {
+        type: 'MUSIC_PLAYER', title: "Reproductor",
+        description: "Reproductor de tu biblioteca con cola, progreso y volumen.",
+        icon: <Music className="h-5 w-5 text-pink-400" />,
+        primaryCategory: 'entretenimiento', secondaryCategories: ['cultura'],
+        tags: ['musica', 'reproductor', 'audio', 'biblioteca', 'media', 'player', 'mp3', 'sonido'], isPopular: true,
+    },
+    {
+        type: 'OMNIFRECUENCIAS', title: "Omnifrecuencias",
+        description: "Generador de frecuencias funcionales (Solfeggio, Schumann, binaural).",
+        icon: <Waves className="h-5 w-5 text-cyan-400" />,
+        primaryCategory: 'entretenimiento', secondaryCategories: ['ayudantia', 'astrologia'],
+        tags: ['frecuencias', '432', '528', 'solfeggio', 'schumann', 'binaural', 'tono', 'meditación', 'sonido'], isPopular: true,
+    },
+    {
+        type: 'RADIO_LIVE', title: "Radio en vivo",
+        description: "Emisoras en vivo (SomaFM): ambient, espacial, downtempo.",
+        icon: <Radio className="h-5 w-5 text-orange-400" />,
+        primaryCategory: 'entretenimiento', secondaryCategories: ['cultura'],
+        tags: ['radio', 'stream', 'emisoras', 'somafm', 'en vivo', 'música', 'ambient', 'audio'],
+    },
+    {
+        type: 'AUDIOMORPHIC_BG', title: "Audiomorphic",
+        description: "Activa el visualizador Audiomorphic como fondo del sistema. Gratis dentro del OS.",
+        icon: <AudioWaveform className="h-5 w-5 text-purple-400" />,
+        primaryCategory: 'entretenimiento', secondaryCategories: ['personalizacion', 'ciberdelia'],
+        tags: ['audiomorphic', 'fondo', 'visualizador', 'apariencia', 'background', 'reactivo', 'vr'], isPopular: true,
+    },
+    {
+        type: 'MEDIA_CONTROL', title: "Control de Medios",
+        description: "Mando central de audio: reproductor, volumen maestro y salida (fondo Audiomorphic + dispositivo).",
+        icon: <SlidersHorizontal className="h-5 w-5 text-pink-400" />,
+        primaryCategory: 'entretenimiento', secondaryCategories: ['personalizacion', 'sistema'],
+        tags: ['media', 'audio', 'reproductor', 'volumen', 'radio', 'audiomorphic', 'salida', 'control'], isPopular: true,
+    },
+    // ── Datos oficiales en tiempo real ──
+    {
+        type: 'OFFICIAL_DATA', title: "Datos Oficiales",
+        description: "Fuentes oficiales en tiempo real (clima, clima espacial, sismos, espacio), ajustable y con auto-refresco.",
+        icon: <Satellite className="h-5 w-5 text-sky-400" />,
+        primaryCategory: 'descubrimientos', secondaryCategories: ['sistema', 'clima'],
+        tags: ['datos', 'tiempo real', 'oficial', 'clima', 'sismos', 'espacio', 'noaa', 'usgs', 'open-meteo', 'ajustable'], isPopular: true,
+    },
     // ── Social ──
     {
         type: 'EXPLORE_NETWORK', title: "Explorar la Red",

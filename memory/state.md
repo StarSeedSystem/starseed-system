@@ -1285,3 +1285,136 @@ persistir el vault en Supabase (hoy localStorage); rotar tokens del chat.
 **Pendiente:** quedan errores de tipo PRE-EXISTENTES (anteriores a esta sesión) en theme-utils/
 theme-gallery (distortWidth), keyStorage, knowledge-network-selector, universal-editor, board-viewer,
 LiquidWaveFilter — cubiertos por ignoreBuildErrors; pase dedicado "cero errores" pendiente.
+
+---
+## Adenda 36 — 2026-06-20 · Launcher de Dashboard (apps + carpetas) · Fase 1
+
+### Por qué
+Ampliar la sección de Dashboards para que aloje apps, carpetas y programas (pantalla de inicio
+soberana), con modos de apertura, abridor universal de archivos y media center. Regla de oro: SOP antes
+que código.
+
+### Hecho (cambio puramente aditivo — ningún widget existente tocado)
+- **SOP nuevo:** `architecture/dashboard-launcher-apps-y-archivos.md` — blueprint completo (modelo de
+  apps/carpetas, OpenMode incrustado/ventana/popup/pestaña/ruta/instalada, abridor universal de archivos,
+  media center + Trinity, VR/AR, seguridad soberana). Marca 🟢 Fase 1 (launcher) vs 🟡 Fase 2+.
+- **Tipo de widget `APP_LAUNCHER`** montado sobre la maquinaria existente (settings jsonb, sin migración):
+  · `dashboard/apps/launcher-types.ts` — tipos + presets (forma/estilo de icono, densidad, columnas).
+  · `dashboard/apps/app-catalog.ts` — catálogo: Nexus, Café (/cafe/), Audiomorphic, Omnifrecuencias
+    (soon), Mensajes, Red, Biblioteca, Exocórtex, Clima, Música (soon), Radio (soon). Estrategia de
+    apertura decidida POR APP (embed con fallback a pestaña / ruta interna / soon). URLs canónicas del
+    MANUAL DE ENLACES.
+  · `dashboard/apps/app-launch.tsx` — `useAppLauncher` + `AppWindow` (ventana OS arrastrable, iframe
+    sandbox con timeout→fallback "abrir en pestaña", estado "próximamente"; portal a body).
+  · `dashboard/widgets/app-launcher-widget.tsx` — variantes folder (grid) y single (tile); menú de modo
+    de apertura por app (portado); iconos personalizables (squircle/circle/rounded/hex, glass/solid/
+    outline/gradient).
+- **Registro:** WidgetType += APP_LAUNCHER · manifest (6×3, min 2×2) · categoría nueva `aplicaciones`
+  (LayoutGrid) · widget-registry case · WIDGET_CATEGORY_MAP · AVAILABLE_WIDGETS (selector).
+- **Semilla:** carpeta "Apps StarSeed" por defecto en el template de inicio (`Dashboards`, 12×3 arriba);
+  settings vacío → resuelve la colección `starseed`.
+- Verificado: `tsc --noEmit` → CERO errores en archivos nuevos/editados y CERO menciones a APP_LAUNCHER
+  en el log. Los ~146 errores restantes son los PRE-EXISTENTES (AI-refernces, hermes-integration,
+  design-canvas, settings, weather solar-wind, react-grid-layout typing) — sin relación con esta sesión.
+
+**Pendiente (Fase 2+):** abridor universal de archivos; media center (música/radio/Omnifrecuencias) +
+control Trinity; Audiomorphic ajustable y gratis dentro del OS; persistir apps instaladas en
+`cafe_accounts.apps` y carpetas en `user_settings`; VR/AR (WebXR); UI de edición de settings del launcher.
+
+---
+## Adenda 37 — 2026-06-20 · Abridor Universal de Contenido · Fase 2 (en progreso)
+
+### Por qué
+Cumplir "abrir cualquier archivo/formato con opciones reales, sincronizado con biblioteca, publicaciones
+y datos del usuario". Keystone que interconecta el OS (Lienzo Universal).
+
+### Hecho (aditivo — nada existente roto)
+- **Ventana OS reutilizable:** `dashboard/apps/os-window.tsx` (arrastrable, Esc, acento, acciones,
+  toolbar). `AppWindow` (launcher) **refactorizado** para usarla (DRY).
+- **Motor de contenido** en `dashboard/apps/content/`:
+  · `content-types.ts` — `ContentResource`/`ContentKind` (image/gif/gallery/video/audio/pdf/html/
+    model3d/markdown/code/text/dataset/link/entity/app/unknown); `detectKind` (mime+extensión);
+    adaptadores `fromUrl`, `fromFile`, `fromPostMedia` (publicaciones, `social-posts.ts`),
+    `fromLibraryItem` (biblioteca, `widget-data/types.ts`) → MISMO motor para mensajes/posts/biblioteca.
+  · `viewers.tsx` — imagen (zoom/pan, GIF), galería, vídeo/audio, PDF nativo, HTML (sandbox/srcdoc),
+    documento (markdown vía react-markdown / código con números de línea / texto, con fetch remoto),
+    tarjeta de enlace, tarjeta de entidad (biblioteca), fallback.
+  · `model-viewer.tsx` — 3D GLB/GLTF (R3F + drei: useGLTF/OrbitControls/Center), `next/dynamic` ssr:false.
+  · `viewer-registry.tsx` — mapa `kind → componente` (3D diferido).
+  · `content-opener.tsx` — `useContentOpener` (pila de ventanas, portal) + `ContentWindow` + **barra de
+    acciones universal**: abrir en pestaña, descargar, copiar (enlace/contenido), clonar/duplicar,
+    guardar en biblioteca, instalar. copiar/descargar/pestaña reales; guardar/instalar vía callback
+    (persistencia → Fase 2.1); gancho `onOpen` para Exocórtex/memoria.
+- **Widget `UNIVERSAL_OPENER`** (`widgets/universal-opener-widget.tsx`): abrir por URL, subir archivo
+  local (multi), 9 ejemplos reales (imagen/GIF/vídeo/audio/PDF/3D/HTML/markdown/código) e items de la
+  Biblioteca del usuario (`useWidgetData('education.library')`). Registrado (types/manifest 4×5/registry/
+  picker/category-map) y sembrado en el dashboard de inicio.
+- Verificado: `tsc -p` acotado a los archivos nuevos (incl. cadena 3D/drei) → **exit 0, cero errores**;
+  archivos de registro (types/manifest/categories/defaults) → **cero errores**. (El `tsc` global no cabe
+  en una sola pasada por el peso de three/drei; por eso la verificación acotada.)
+
+**Pendiente (Fase 2.1+):** persistencia real de guardar/instalar (`cafe_accounts.apps`/`user_settings`);
+media center (música/radio/Omnifrecuencias) + control Trinity; Audiomorphic ajustable y gratis dentro
+del OS; fuentes de datos oficiales en tiempo real (capa `data-sources` con selector); magic-bytes para
+archivos sin extensión; visor de dataset/CSV enriquecido; VR/AR (WebXR).
+
+---
+## Adenda 38 — 2026-06-20 · Media center + Persistencia + Datos oficiales + Siembra (Fase 2)
+
+### Cómo
+Dos subagentes en paralelo (cada uno solo archivos nuevos) + integración por el orquestador (registro
+compartido + siembra). Aditivo; nada existente roto.
+
+### Hecho
+- **Media center** (5 archivos nuevos): `apps/media/media-engine.ts` (singleton `<audio>` + `useMediaPlayer`,
+  SSR-safe), `apps/media/media-catalog.ts` (SoundHelix + SomaFM + presets de frecuencia) y widgets
+  `MUSIC_PLAYER` (cola/progreso/volumen), `OMNIFRECUENCIAS` (WebAudio: osciladores sine, binaural L/R con
+  fades), `RADIO_LIVE` (streams reales), `AUDIOMORPHIC_BG` (activa fondo audiomorphic + overlay + abrir en
+  pestaña; `updateConfig({background:{...}})`).
+- **Persistencia soberana** (`lib/library-store.ts`): `saveResource`/`installApp` + hooks, localStorage
+  SSR-safe (useSyncExternalStore), eventos cross-widget. `content-opener` ahora persiste por defecto en
+  guardar/instalar (Lienzo Universal).
+- **Fuentes de datos oficiales en tiempo real** (`apps/data-sources/*`): registro con fetch REAL sin clave
+  (Open-Meteo, NOAA SWPC Kp, USGS sismos, Spaceflight News) + `useDataSource` (selección + auto-refresco +
+  reintento) + widget `OFFICIAL_DATA` con selector de fuente y atribución.
+- **Registro** de los 5 widgets nuevos (dashboard-types, widget-manifest, widget-registry, add-widget-dialog
+  +iconos Music/Waves/AudioWaveform/Satellite, WIDGET_CATEGORY_MAP).
+- **Siembra en TODOS los dashboards predeterminados:** `DefaultDashboardTemplate.widgets` admite `settings?`
+  (jsonb) y `dashboard-layout` lo propaga (`settings: (w as any).settings ?? {}`). Helper `withSeededExtras`
+  inyecta en cada plantilla la carpeta de apps StarSeed (dock, colección por tema) + los elementos del tema,
+  sin solapes ni duplicados. **Inicio** = muestrario completo (apps + Visor Universal + Reproductor +
+  Omnifrecuencias + Radio + Audiomorphic + Datos Oficiales + variaciones del launcher single/circle y
+  folder/media hex/gradient).
+- Verificado: `tsc -p` acotado a los 25 archivos nuevos/editados (incl. cadena 3D/drei y el `content-opener`
+  del subagente B) → **exit 0, cero errores**.
+
+**Pendiente (Fase 2.2+):** mini-reproductor en el centro Trinity; subir el store soberano a Supabase
+(`user_settings`/`cafe_accounts.apps`); UI visual para editar settings de launcher/carpetas; VR/AR (WebXR).
+
+---
+## Adenda 39 — 2026-06-20 · Visibilidad en cuentas activas + Mini-dock global + Pulida
+
+### Por qué
+El usuario no veía los widgets nuevos: la siembra solo corre al GENERAR los predeterminados, pero las
+cuentas activas (demo) ya los tenían guardados. El código reseed-ea cuando cambia `DEFAULTS_VERSION`.
+
+### Hecho
+- **Reseed de cuentas activas:** `DEFAULTS_VERSION` en `dashboard-layout.tsx` → `gen8-2026-06-20-apps-media-datos`.
+  Al recargar, toda cuenta con versión distinta ejecuta `reseedDefaultDashboards()` (conserva tableros
+  personalizados, regenera los predeterminados) → aparecen apps folder + Visor Universal + media + datos +
+  variaciones en TODOS los dashboards. (Si se ve en producción, requiere deploy del repo OS.)
+- **Mini-reproductor global** (`apps/media/media-mini-dock.tsx`, subagente C): barra flotante fixed z-90,
+  aparece al reproducir, `useMediaPlayer` (prev/play/next/seek/volumen, "EN VIVO" en radio). Montado en
+  `src/app/layout.tsx` (RootLayout, junto a OmniDock, dentro de AppearanceProvider) → global en todo el OS.
+- **Pulida profesional** (subagente D) de los 5 widgets nuevos: adaptabilidad por `size` de WidgetShell,
+  estados loading/error/vacío con reintento, accesibilidad (aria, foco visible), reduced-motion,
+  `tabular-nums`. Sin cambios de export/API.
+- Verificado: `tsc -p` acotado (mini-dock + 5 widgets pulidos + deps + dashboard-defaults) → **0 errores**.
+
+### Orquestación
+2 subagentes en paralelo (Agent tool) solo-archivos-nuevos / edición acotada a sus 5 widgets; el
+orquestador hizo el bump de versión y el montaje del dock (sin conflictos de archivos).
+
+**Pendiente (Fase 2.3+):** panel Trinity explícito + salida de medios/conexiones; Supabase para el store
+soberano y los dashboards; UI visual de settings de launcher/carpetas; VR/AR (WebXR). Para verlo en
+starseed-os.vercel.app hace falta deploy (regla de autor de commit Vercel).

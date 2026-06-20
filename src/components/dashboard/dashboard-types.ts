@@ -78,6 +78,17 @@ export type WidgetType =
     | 'IDEA_FORGE'            // Creatividad — Incubadora de Quimeras
     | 'MERIT_GALLERY'         // Perfil — Cristalería de Mérito y Abundancia
     | 'SOCIETY_PULSE'         // Sociedad — Monitor de Cohesión Macro-Social
+    // ── Launcher: apps, carpetas y programas en el dashboard ──
+    | 'APP_LAUNCHER'          // Aplicaciones — carpeta/tile de apps StarSeed y módulos del OS
+    | 'UNIVERSAL_OPENER'      // Aplicaciones — abridor universal de archivos y contenido
+    // ── Media center ──
+    | 'MUSIC_PLAYER'          // Entretenimiento — reproductor con biblioteca y cola
+    | 'OMNIFRECUENCIAS'       // Entretenimiento — generador de frecuencias funcionales (WebAudio)
+    | 'RADIO_LIVE'            // Entretenimiento — radio en vivo (streaming)
+    | 'AUDIOMORPHIC_BG'       // Entretenimiento — Audiomorphic como fondo del sistema
+    | 'MEDIA_CONTROL'         // Entretenimiento — centro de control de medios + salida
+    // ── Datos oficiales en tiempo real ──
+    | 'OFFICIAL_DATA'         // Descubrimientos — fuentes oficiales en vivo (clima, espacio, sismos)
     | 'AI_GENERATED';         // 🔮 La Fragua de Interfaces — Custom AI-forged widgets
 
 export interface Dashboard {

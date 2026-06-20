@@ -12,6 +12,20 @@ export interface WidgetCategoryMapping {
 }
 
 export const WIDGET_CATEGORY_MAP: WidgetCategoryMapping[] = [
+    // ── Aplicaciones (launcher) ──
+    { type: 'APP_LAUNCHER', primaryCategory: 'aplicaciones', secondaryCategories: ['sistema', 'entretenimiento'], tags: ['apps', 'launcher', 'carpeta', 'programas', 'inicio', 'nexus', 'café', 'audiomorphic', 'omnifrecuencias', 'pantalla de inicio'], isPopular: true },
+    { type: 'UNIVERSAL_OPENER', primaryCategory: 'aplicaciones', secondaryCategories: ['archivos', 'sistema'], tags: ['abridor', 'archivos', 'visor', 'pdf', 'imagen', 'vídeo', 'audio', '3d', 'html', 'markdown', 'biblioteca', 'universal'], isPopular: true },
+
+    // ── Media center ──
+    { type: 'MUSIC_PLAYER', primaryCategory: 'entretenimiento', secondaryCategories: ['cultura'], tags: ['musica', 'reproductor', 'audio', 'biblioteca', 'media', 'player', 'spotify', 'sonido'], isPopular: true },
+    { type: 'OMNIFRECUENCIAS', primaryCategory: 'entretenimiento', secondaryCategories: ['ayudantia', 'astrologia'], tags: ['frecuencias', '432', '528', 'solfeggio', 'schumann', 'binaural', 'meditación', 'sonido', 'omnifrecuencias'], isPopular: true },
+    { type: 'RADIO_LIVE', primaryCategory: 'entretenimiento', secondaryCategories: ['cultura'], tags: ['radio', 'stream', 'emisoras', 'somafm', 'en vivo', 'ambient', 'audio'] },
+    { type: 'AUDIOMORPHIC_BG', primaryCategory: 'entretenimiento', secondaryCategories: ['personalizacion', 'ciberdelia'], tags: ['audiomorphic', 'fondo', 'visualizador', 'apariencia', 'background', 'reactivo', 'vr'], isPopular: true },
+    { type: 'MEDIA_CONTROL', primaryCategory: 'entretenimiento', secondaryCategories: ['personalizacion', 'sistema'], tags: ['media', 'audio', 'control', 'volumen', 'salida', 'radio', 'audiomorphic', 'reproductor'], isPopular: true },
+
+    // ── Datos oficiales en tiempo real ──
+    { type: 'OFFICIAL_DATA', primaryCategory: 'descubrimientos', secondaryCategories: ['sistema', 'clima'], tags: ['datos', 'tiempo real', 'oficial', 'clima', 'sismos', 'espacio', 'noaa', 'usgs', 'open-meteo', 'ajustable'], isPopular: true },
+
     // ── Segunda generación (gen2) ──
     { type: 'AGORA_CAUSAL', primaryCategory: 'politica', secondaryCategories: ['parlamento', 'social'], tags: ['ágora', 'propuestas', 'votación', 'causal', 'deliberación', 'ontocracia'], isPopular: true },
     { type: 'LIQUID_DELEGATION', primaryCategory: 'politica', secondaryCategories: ['parlamento'], tags: ['delegación', 'voto líquido', 'representación', 'confianza', 'ontocracia'] },
@@ -137,21 +151,36 @@ export interface DefaultDashboardTemplate {
     categoryId: WidgetCategory;
     name: string;
     isDefault?: boolean;  // Only one should be true (the first dashboard for new users)
-    widgets: { type: WidgetType; w: number; h: number; x: number; y: number }[];
+    widgets: { type: WidgetType; w: number; h: number; x: number; y: number; settings?: Record<string, any> }[];
 }
 
-export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
+const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
     // ─── 1. Dashboards / Inicio (DEFAULT) ────────────────────
     {
         categoryId: 'social',
         name: 'Dashboards',
         isDefault: true,
         widgets: [
-            { type: 'EXPLORE_NETWORK', w: 7, h: 4, x: 0, y: 0 },
-            { type: 'MESSAGES', w: 5, h: 4, x: 7, y: 0 },
-            { type: 'MY_PAGES', w: 4, h: 3, x: 0, y: 4 },
-            { type: 'SOCIAL_RADAR', w: 4, h: 3, x: 4, y: 4 },
-            { type: 'NOTIFICATIONS', w: 4, h: 3, x: 8, y: 4 },
+            // Carpeta de apps StarSeed por defecto (pantalla de inicio): Nexus, Café,
+            // Audiomorphic, Omnifrecuencias + módulos del sistema. Settings vacío →
+            // el widget resuelve la colección 'starseed' (ver app-catalog.ts).
+            { type: 'APP_LAUNCHER', w: 12, h: 3, x: 0, y: 0 },
+            { type: 'EXPLORE_NETWORK', w: 7, h: 4, x: 0, y: 3 },
+            { type: 'MESSAGES', w: 5, h: 4, x: 7, y: 3 },
+            { type: 'MY_PAGES', w: 4, h: 3, x: 0, y: 7 },
+            { type: 'SOCIAL_RADAR', w: 4, h: 3, x: 4, y: 7 },
+            { type: 'NOTIFICATIONS', w: 4, h: 3, x: 8, y: 7 },
+            // Muestras funcionales (abridor universal + media center + datos oficiales) en el inicio
+            { type: 'UNIVERSAL_OPENER', w: 4, h: 5, x: 0, y: 10 },
+            { type: 'MUSIC_PLAYER', w: 4, h: 5, x: 4, y: 10 },
+            { type: 'OFFICIAL_DATA', w: 4, h: 5, x: 8, y: 10 },
+            { type: 'OMNIFRECUENCIAS', w: 4, h: 5, x: 0, y: 15 },
+            { type: 'RADIO_LIVE', w: 4, h: 4, x: 4, y: 15 },
+            { type: 'AUDIOMORPHIC_BG', w: 4, h: 5, x: 8, y: 15 },
+            // Variaciones del launcher: tile único (circle) + carpeta de colección media (hex/gradient)
+            { type: 'APP_LAUNCHER', w: 4, h: 4, x: 0, y: 20, settings: { variant: 'single', appIds: ['audiomorphic'], iconShape: 'circle', label: 'Audiomorphic' } },
+            { type: 'APP_LAUNCHER', w: 8, h: 4, x: 4, y: 20, settings: { variant: 'folder', collection: 'media', label: 'Media', iconShape: 'hex', iconStyle: 'gradient' } },
+            { type: 'MEDIA_CONTROL', w: 4, h: 6, x: 0, y: 24 },
         ],
     },
     // ─── 2. Política ─────────────────────────────────────────
@@ -345,7 +374,7 @@ export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
 ];
 
 // Categorías recién habilitadas por la 2.ª generación de widgets.
-export const FUTURE_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
+const BASE_FUTURE_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
     // ─── Astrología ──────────────────────────────────────────
     {
         categoryId: 'astrologia',
@@ -457,6 +486,76 @@ export const FUTURE_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         ],
     },
 ];
+
+// ── Siembra automática de variaciones por tema ───────────────────
+// Cada dashboard predeterminado recibe la carpeta de apps StarSeed (dock)
+// y los elementos funcionales correspondientes a su tema; la posición Y se
+// calcula tras el contenido existente (sin solapes) y no se duplica lo ya
+// presente. Así "cada tema con sus variaciones de elementos correspondientes".
+type SeedWidget = { type: WidgetType; w: number; h: number; settings?: Record<string, any> };
+
+const APPS_DOCK_COLLECTION: Partial<Record<WidgetCategory, 'starseed' | 'sistema' | 'media'>> = {
+    sistema: 'sistema',
+    entretenimiento: 'media',
+    archivos: 'sistema',
+};
+
+const THEME_EXTRA_WIDGETS: Partial<Record<WidgetCategory, SeedWidget[]>> = {
+    cultura: [{ type: 'MUSIC_PLAYER', w: 4, h: 4 }, { type: 'RADIO_LIVE', w: 4, h: 4 }],
+    clima: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
+    sistema: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
+    personalizacion: [{ type: 'AUDIOMORPHIC_BG', w: 3, h: 4 }],
+    astronomia: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
+    entretenimiento: [
+        { type: 'MEDIA_CONTROL', w: 4, h: 6 },
+        { type: 'MUSIC_PLAYER', w: 4, h: 4 },
+        { type: 'RADIO_LIVE', w: 4, h: 4 },
+        { type: 'OMNIFRECUENCIAS', w: 4, h: 5 },
+        { type: 'AUDIOMORPHIC_BG', w: 4, h: 4 },
+        { type: 'UNIVERSAL_OPENER', w: 4, h: 5 },
+    ],
+    astrologia: [{ type: 'OMNIFRECUENCIAS', w: 4, h: 5 }],
+    ciberdelia: [{ type: 'AUDIOMORPHIC_BG', w: 4, h: 4 }, { type: 'OMNIFRECUENCIAS', w: 4, h: 5 }],
+    descubrimientos: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
+    archivos: [{ type: 'UNIVERSAL_OPENER', w: 4, h: 5 }],
+    ayudantia: [{ type: 'OMNIFRECUENCIAS', w: 4, h: 5 }],
+    ia: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
+};
+
+const SEED_GRID_COLS = 12;
+
+function withSeededExtras(t: DefaultDashboardTemplate): DefaultDashboardTemplate {
+    const widgets = t.widgets.map((w) => ({ ...w }));
+    let cursorY = widgets.reduce((m, w) => Math.max(m, w.y + w.h), 0);
+
+    // Dock de apps StarSeed (si el tablero aún no tiene un launcher).
+    if (!widgets.some((w) => w.type === 'APP_LAUNCHER')) {
+        widgets.push({
+            type: 'APP_LAUNCHER', w: SEED_GRID_COLS, h: 2, x: 0, y: cursorY,
+            settings: { variant: 'folder', collection: APPS_DOCK_COLLECTION[t.categoryId] ?? 'starseed', label: 'Apps StarSeed', density: 'compact' },
+        });
+        cursorY += 2;
+    }
+
+    // Elementos funcionales del tema (empaquetado simple por estantes).
+    const extras = THEME_EXTRA_WIDGETS[t.categoryId];
+    if (extras) {
+        let x = 0;
+        let rowH = 0;
+        for (const e of extras) {
+            if (widgets.some((w) => w.type === e.type)) continue; // no duplicar lo ya presente
+            const w = Math.min(e.w, SEED_GRID_COLS);
+            if (x + w > SEED_GRID_COLS) { x = 0; cursorY += rowH; rowH = 0; }
+            widgets.push({ type: e.type, w, h: e.h, x, y: cursorY, settings: e.settings });
+            x += w;
+            rowH = Math.max(rowH, e.h);
+        }
+    }
+    return { ...t, widgets };
+}
+
+export const DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = BASE_DEFAULT_DASHBOARD_TEMPLATES.map(withSeededExtras);
+export const FUTURE_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = BASE_FUTURE_DASHBOARD_TEMPLATES.map(withSeededExtras);
 
 // All templates combined (for the create-dashboard dialog)
 export const ALL_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [

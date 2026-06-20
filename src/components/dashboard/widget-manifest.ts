@@ -101,6 +101,20 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
     THEME_SELECTOR: { label: "Selector de Tema", category: "ciberdelia", w: 3, h: 3, minW: 2, minH: 2, relevance: 30 },
     THEME_MANAGER: { label: "Gestor de Temas", category: "ciberdelia", w: 4, h: 4, minW: 3, minH: 3, relevance: 28 },
     AI_GENERATED: { label: "Widget IA", category: "ciberdelia", w: 3, h: 4, minW: 2, minH: 2, relevance: 45 },
+
+    // ── Launcher de apps / carpetas ──────────────────────────────
+    APP_LAUNCHER: { label: "Apps StarSeed", category: "aplicaciones", w: 6, h: 3, minW: 2, minH: 2, relevance: 96 },
+    UNIVERSAL_OPENER: { label: "Visor Universal", category: "aplicaciones", w: 4, h: 5, minW: 3, minH: 4, relevance: 94 },
+
+    // ── Media center ─────────────────────────────────────────────
+    MUSIC_PLAYER: { label: "Reproductor", category: "entretenimiento", w: 4, h: 4, minW: 3, minH: 3, relevance: 90 },
+    OMNIFRECUENCIAS: { label: "Omnifrecuencias", category: "entretenimiento", w: 4, h: 5, minW: 3, minH: 4, relevance: 88 },
+    RADIO_LIVE: { label: "Radio en vivo", category: "entretenimiento", w: 4, h: 4, minW: 3, minH: 3, relevance: 84 },
+    AUDIOMORPHIC_BG: { label: "Audiomorphic", category: "entretenimiento", w: 3, h: 4, minW: 3, minH: 4, relevance: 86 },
+    MEDIA_CONTROL: { label: "Control de Medios", category: "entretenimiento", w: 4, h: 6, minW: 3, minH: 4, relevance: 91 },
+
+    // ── Datos oficiales en tiempo real ───────────────────────────
+    OFFICIAL_DATA: { label: "Datos Oficiales", category: "descubrimientos", w: 4, h: 4, minW: 2, minH: 3, relevance: 89 },
 };
 
 export function getManifest(type: WidgetType): WidgetManifestEntry | undefined {
