@@ -3,16 +3,18 @@
 /*
  * Fondo "audiomorphic" — visualizador Audiomorphic embebido a pantalla completa.
  * ----------------------------------------------------------------------------
- * Monta un <iframe> a pantalla completa (position:fixed inset-0 -z-40,
- * pointer-events:none) con el visualizador Audiomorphic como FONDO FIJO y
- * continuo del OS, igual que los demás fondos globales (Spline, WebGL,
- * líquidos, materia, living). Visible solo cuando config.background.type ===
- * "audiomorphic". URL y opacidad del overlay configurables vía
- * config.background.audiomorphic (deep-merge → defaults para configs antiguas).
+ * Monta un <iframe> a pantalla completa (fixed inset-0 -z-40, pointer-events:none)
+ * con el visualizador Audiomorphic como FONDO FIJO del OS. Visible cuando
+ * config.background.type === "audiomorphic".
  *
- * Nota: si el destino envía X-Frame-Options / CSP frame-ancestors restrictivo,
- * el iframe podría no cargar; la opción se mantiene igualmente (es lo pedido).
- * SOP: architecture/integracion-portal-starseed-os.md
+ * CLAVE (antes "no se veía"): el visualizador necesita ARRANCAR y una fuente de
+ * señal. Por eso pasamos params a la app (?bg=1&autostart=1&full=1[&mic=1][&cam=1]
+ * [&preset=…]) y damos permisos al iframe vía allow="microphone; camera; …". La
+ * app, en modo bg, oculta su UI y, si el micrófono no está disponible, anima de
+ * forma autónoma → el fondo SIEMPRE se ve con movimiento. Todo configurable desde
+ * la ventana de ajustes (AudiomorphicConfigWindow) y persistido en
+ * config.background.audiomorphic (sync soberana).
+ * SOP: architecture/dashboard-launcher-apps-y-archivos.md §5
  */
 
 import React, { useEffect, useState } from "react";
@@ -21,18 +23,39 @@ import { useAppearance } from "@/context/appearance-context";
 const DEFAULT_URL = "https://audiomorphic.vercel.app";
 const DEFAULT_OVERLAY = 0.15;
 
+const IFRAME_ALLOW =
+    "microphone; camera; autoplay; fullscreen; gyroscope; accelerometer; magnetometer; xr-spatial-tracking";
+
+interface AudioCfg { url?: string; overlay?: number; mode?: "auto" | "manual"; mic?: boolean; camera?: boolean; preset?: string }
+
+/** Construye la URL del visualizador en modo fondo con los ajustes del usuario. */
+export function buildAudiomorphicBgUrl(cfg?: AudioCfg): string {
+    const base = cfg?.url || DEFAULT_URL;
+    try {
+        const u = new URL(base);
+        u.searchParams.set("bg", "1");
+        u.searchParams.set("autostart", "1");
+        u.searchParams.set("full", "1");
+        u.searchParams.set("starseed_os", "1");
+        if (cfg?.mic || cfg?.mode === "auto") u.searchParams.set("mic", "1");
+        if (cfg?.camera) u.searchParams.set("cam", "1");
+        if (cfg?.preset) u.searchParams.set("preset", cfg.preset);
+        return u.toString();
+    } catch {
+        return `${base}?bg=1&autostart=1&full=1&starseed_os=1`;
+    }
+}
+
 export function AudiomorphicBackground() {
     const { config } = useAppearance();
     const [mounted, setMounted] = useState(false);
 
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    useEffect(() => { setMounted(true); }, []);
 
     const isActive = (config.background.type as string) === "audiomorphic";
-    const audiomorphic = config.background.audiomorphic;
-    const url = audiomorphic?.url || DEFAULT_URL;
+    const audiomorphic = config.background.audiomorphic as AudioCfg | undefined;
     const overlay = audiomorphic?.overlay ?? DEFAULT_OVERLAY;
+    const src = buildAudiomorphicBgUrl(audiomorphic);
 
     if (!mounted) return null;
 
@@ -42,23 +65,20 @@ export function AudiomorphicBackground() {
             style={{ opacity: isActive ? 1 : 0 }}
             aria-hidden="true"
         >
-            {/* Solo montamos el iframe cuando está activo para no cargarlo en vano. */}
             {isActive && (
                 <iframe
-                    src={url}
+                    key={src}
+                    src={src}
                     title="Audiomorphic visualizer"
                     className="absolute inset-0 w-full h-full border-0"
                     style={{ pointerEvents: "none" }}
                     loading="lazy"
                     referrerPolicy="no-referrer"
-                    sandbox="allow-scripts allow-same-origin allow-popups"
+                    allow={IFRAME_ALLOW}
+                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
                 />
             )}
-            {/* Overlay sutil para legibilidad de la UI superpuesta. */}
-            <div
-                className="absolute inset-0"
-                style={{ background: `rgba(0,0,0,${overlay})` }}
-            />
+            <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${overlay})` }} />
         </div>
     );
 }

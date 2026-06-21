@@ -33,6 +33,7 @@ import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widge
 import { MediaMiniDock } from "@/components/dashboard/apps/media/media-mini-dock";
 import { SovereignSyncMount } from "@/components/system/sovereign-sync-mount";
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
+import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -126,6 +127,8 @@ export default function RootLayout({
                         <SovereignSyncMount />
                         {/* App Omnifrecuencias en ventana del OS (escucha 'starseed:open-omnifrecuencias'). */}
                         <OmniAppHost />
+                        {/* Ventana de configuración del fondo Audiomorphic (escucha 'starseed:open-audiomorphic-config'). */}
+                        <AudiomorphicConfigHost />
                         <SplineWatermarkCover />
                         <PerimeterInterface />
                         {/* Trinity Móvil · Bloque 4 — asas de borde + deslizar desde

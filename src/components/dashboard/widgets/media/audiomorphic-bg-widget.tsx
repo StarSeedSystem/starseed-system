@@ -20,7 +20,7 @@
 
 import React, { useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { AudioWaveform, Power, X, ExternalLink, Check } from 'lucide-react';
+import { AudioWaveform, Power, X, ExternalLink, Check, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WidgetShell } from '@/components/dashboard/kit';
 import { useAppearance } from '@/context/appearance-context';
@@ -72,6 +72,13 @@ export function AudiomorphicBgWidget() {
     const openTab = () => {
         if (typeof window !== 'undefined') {
             window.open(AUDIOMORPHIC_URL, '_blank', 'noopener,noreferrer');
+        }
+    };
+
+    // Abre la ventana de configuración del fondo (modos, micrófono/cámara, preset…).
+    const openConfig = () => {
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('starseed:open-audiomorphic-config'));
         }
     };
 
@@ -197,6 +204,20 @@ export function AudiomorphicBgWidget() {
                         )}
 
                         <div className="mt-auto shrink-0 space-y-2">
+                            <button
+                                type="button"
+                                onClick={openConfig}
+                                aria-label="Configurar el fondo Audiomorphic (modos, micrófono, cámara, preset)"
+                                title="Configurar fondo"
+                                className={cn(
+                                    'flex w-full items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[11px] font-bold transition-colors cursor-pointer',
+                                    'border-purple-400/40 bg-purple-400/[0.1] text-purple-100 hover:bg-purple-400/20',
+                                    FOCUS_RING,
+                                )}
+                            >
+                                <Wand2 className="size-3.5" />
+                                Configurar fondo
+                            </button>
                             <button
                                 type="button"
                                 onClick={openTab}

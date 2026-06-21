@@ -96,6 +96,14 @@ export interface AppearanceConfig {
             url: string;
             /** opacidad del overlay sutil sobre el iframe (0–1). */
             overlay: number;
+            /** 'auto' = micrófono + autostart; 'manual' = autostart con animación autónoma. */
+            mode?: "auto" | "manual";
+            /** Alimentar el visualizador con el micrófono (requiere permiso del navegador). */
+            mic?: boolean;
+            /** Modo AR: usar la cámara como fondo (requiere permiso). */
+            camera?: boolean;
+            /** Preset visual integrado: nebula | genesis | solaris | aqua | void. */
+            preset?: string;
         };
 
         // New Filter System
@@ -394,6 +402,10 @@ const defaultConfig: AppearanceConfig = {
         audiomorphic: {
             url: "https://audiomorphic.vercel.app",
             overlay: 0.15,
+            mode: "manual",
+            mic: false,
+            camera: false,
+            preset: "nebula",
         },
         living: {
             variant: "aurora",
