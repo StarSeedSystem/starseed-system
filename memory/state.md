@@ -1523,3 +1523,26 @@ Construido con 3 subagentes en paralelo (N port, O iconos, P clima espacial) + i
 
 **Pendiente:** variantes de icono por tema (-mono/-dark); abrir apps nativas en ventana desde el launcher; más
 apps completas (clima terrestre, radio, música) al nivel de Omnifrecuencias; data-driven design en más widgets; VR/AR.
+
+---
+## Adenda 45 — 2026-06-20 · Fix iconos + Clima rediseñada + Temas Omni/Audiomorphic + widgets (deploy add09ca)
+
+- **BUG iconos resuelto:** los `.svg` de `public/app-icons/` contenían **bytes PNG** (sharp guardó PNG con
+  extensión .svg) → el navegador los servía como image/svg+xml y fallaban (rotos). Fix: `app-catalog.ts`
+  → iconUrl a `.png` (los .png sí son válidos), `.svg` falsos borrados. Deploy `311cd5a`. **Lección:** verificar
+  `file` del asset, no fiarse del nombre.
+- **App Clima (`/atmosphere`) rediseñada** (subagente Q): `atmosphere-view.tsx` reescrita de capas absolutas
+  apiladas (solapes) a **flex column** real (header/main/footer), responsive sin solapes. Pestañas Terrestre/
+  Espacial/Solar; Espacial+Solar con **datos NOAA reales** (Kp+G, viento solar L1 Bz, R/S/G, aurora OVATION,
+  rayos X+R, protones+S, F10.7, SSN, imagen SDO/AIA 171). Nuevos: `weather/hooks/use-space-weather.ts`,
+  `weather/components/space/space-weather-panels.tsx`.
+- **Temas Omnifrecuencias + Audiomorphic** (subagente R) como opciones de Apariencia: `OsThemeId` += ambos,
+  presets en `os-theme-selector.tsx`, variables CSS completas en `globals.css` (`[data-os-theme=…]`), audiomorphic-
+  bg-widget deriva acento del tema. Omnifrecuencias cian/violeta; Audiomorphic violeta/oro.
+- **5 widgets mejorados data-driven** (subagente S): explore-network, my-pages, social-radar, notifications,
+  relevant-posts — adaptabilidad por `size`, color/estado según datos (tendencias, urgencia, resonancia, triaje),
+  sparklines/barras, mejores CTAs/empty-states, reduced-motion. Sin cambios de export.
+- Verificado: `tsc -p` acotado conjunto → 0 errores. Construido con 3 subagentes en paralelo (Q/R/S).
+
+**Pendiente:** Omnifrecuencias App rewire total a `useAppearance()` (hoy su paleta nativa ya casa con su tema);
+más apps al nivel de Omnifrecuencias; VR/AR; variantes de icono por tema.
