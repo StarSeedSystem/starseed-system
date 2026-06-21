@@ -73,14 +73,15 @@ export const APP_CATALOG: StarseedApp[] = [
         id: "omnifrecuencias",
         name: "Omnifrecuencias",
         short: "Omni",
-        description: "Reproductor de frecuencias y binaurales. Módulo nativo del media center.",
+        description: "Estudio de frecuencias funcionales: multi-tono, binaural, isocrónico, presets en tu biblioteca.",
         icon: Waves,
         accent: "#22D3EE",
         category: "starseed",
-        status: "soon", // player real en Fase 2 (media center)
+        status: "native",
         open: {
-            primary: "window",
-            allowed: ["window", "route"],
+            primary: "route",
+            allowed: ["route", "window", "tab"],
+            route: "/omnifrecuencias",
         },
     },
 

@@ -1,210 +1,106 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-// OmnifrecuenciasWidget — Generador de tonos funcionales (Web Audio).
+// OmnifrecuenciasWidget — Controlador compacto de frecuencias funcionales
 // ----------------------------------------------------------------
-// Sintetiza frecuencias (Solfeggio + Schumann) con OscillatorNode (sine).
-// • Solo un preset suena a la vez.
-// • Entradas con `binauralBeat` → dos osciladores (hz y hz+beat) ruteados
-//   a L/R con StereoPannerNode (-1 / +1) → latido binaural percibido.
-// • Fade-in/out (~80ms) con GainNode para evitar clicks.
-// • Volumen ajustable (GainNode maestro).
-// • El AudioContext se crea SOLO tras un gesto del usuario (clic Play).
-// • Anillo/onda que pulsa mientras suena (respeta animations.enabled +
-//   prefers-reduced-motion: sin bucles intensos si el usuario lo pide).
-// • Limpieza total de osciladores/panners/contexto al desmontar y al
-//   cambiar de preset (corte instantáneo con fade para no producir clics).
+// Versión ligera del Estudio de Omnifrecuencias para el dashboard:
+//   • Reusa `omni-engine` (motor WebAudio robusto, SSR-safe, multi-tono,
+//     binaural + isocrónico, fades anti-click) → MISMO motor que la app.
+//   • Quick-presets: una selección de BUILTIN_PRESETS (Solfeggio +
+//     ondas cerebrales) que suenan al instante.
+//   • Visualizador (anillo pulsante) + control de volumen maestro.
+//   • Botón «Abrir app completa» → emite el evento global
+//     `starseed:open-omnifrecuencias` (el orquestador lo engancha para
+//     abrir `OmnifrecuenciasApp` en una ventana del OS) y, como respaldo
+//     navegable, enlaza a la ruta `/omnifrecuencias`.
+//   • Recall: recuerda el último preset usado (rememberLastConfig) para
+//     que la app completa pueda ofrecer "continuar donde lo dejaste".
 //
 // Adaptabilidad (render-prop `size`): en micro se oculta el visualizador
-// y el slider de volumen; el grid de presets pasa a 1 columna para no
-// truncar etiquetas. Accesibilidad: aria-pressed por preset, role="status"
-// en el visualizador, aria-valuetext en el volumen, foco visible.
+// y el slider de volumen; el grid de presets pasa a 1 columna. Respeta
+// `config.animations.enabled` + prefers-reduced-motion. AudioContext y
+// localStorage solo se tocan tras un gesto del usuario (Play).
 // ════════════════════════════════════════════════════════════════
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Waves, Play, Square, Volume2, VolumeX } from 'lucide-react';
+import { Waves, Play, Square, Volume2, VolumeX, Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WidgetShell } from '@/components/dashboard/kit';
 import { useAppearance } from '@/context/appearance-context';
-import { FREQUENCY_PRESETS, type FrequencyPreset } from '@/components/dashboard/apps/media/media-catalog';
+import { useOmniEngine, type OmniConfig } from '@/components/dashboard/apps/omnifrecuencias/omni-engine';
+import {
+    BUILTIN_PRESETS,
+    rememberLastConfig,
+} from '@/components/dashboard/apps/omnifrecuencias/omni-presets';
 
 const ACCENT = '#22D3EE';
-const FADE = 0.08; // 80ms fade in/out
 
 const FOCUS_RING =
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-background';
 
-type WindowWithWebkitAudio = Window & { webkitAudioContext?: typeof AudioContext };
+// Selección compacta de presets para el dashboard (los más usados).
+const QUICK_IDS = [
+    'solf-528',
+    'solf-396',
+    'tune-432',
+    'schumann-783',
+    'alpha-calm',
+    'beta-focus',
+    'delta-sleep',
+    'theta-meditate',
+] as const;
+
+const QUICK_PRESETS = QUICK_IDS.map((id) => BUILTIN_PRESETS.find((p) => p.id === id)).filter(
+    (p): p is (typeof BUILTIN_PRESETS)[number] => Boolean(p),
+);
+
+/** Abre la app completa: evento para el orquestador (o navegación de respaldo). */
+function openFullApp(): void {
+    if (typeof window === 'undefined') return;
+    try {
+        window.dispatchEvent(new CustomEvent('starseed:open-omnifrecuencias'));
+    } catch {
+        /* noop */
+    }
+}
 
 export function OmnifrecuenciasWidget() {
-    const { config } = useAppearance();
+    const { config: appearance } = useAppearance();
     const prefersReduced = useReducedMotion();
-    // Anima solo si está habilitado globalmente y el usuario no pidió menos movimiento.
-    const animate = config.animations.enabled && !prefersReduced;
+    const animate = appearance.animations.enabled && !prefersReduced;
+
+    const engine = useOmniEngine();
 
     const [activeId, setActiveId] = useState<string | null>(null);
     const [volume, setVolume] = useState(0.4);
 
-    // Refs de audio (no provocan re-render).
-    const ctxRef = useRef<AudioContext | null>(null);
-    const masterRef = useRef<GainNode | null>(null);
-    const oscsRef = useRef<OscillatorNode[]>([]);
-    // Guardamos también los panners para desconectarlos explícitamente al limpiar.
-    const pannersRef = useRef<StereoPannerNode[]>([]);
-    const volumeRef = useRef(volume);
-    volumeRef.current = volume;
-
-    const stopOscillators = useCallback((immediate = false) => {
-        const ctx = ctxRef.current;
-        const master = masterRef.current;
-        if (ctx && master) {
-            const now = ctx.currentTime;
-            if (immediate) {
-                master.gain.cancelScheduledValues(now);
-                master.gain.setValueAtTime(0, now);
-            } else {
-                master.gain.cancelScheduledValues(now);
-                master.gain.setValueAtTime(master.gain.value, now);
-                master.gain.linearRampToValueAtTime(0, now + FADE);
-            }
-        }
-        const oscs = oscsRef.current;
-        const panners = pannersRef.current;
-        oscsRef.current = [];
-        pannersRef.current = [];
-        const stopAt = ctx ? ctx.currentTime + (immediate ? 0 : FADE + 0.02) : 0;
-        oscs.forEach((osc) => {
-            try {
-                osc.stop(stopAt);
-            } catch {
-                /* ya detenido */
-            }
-        });
-        // Desconectamos los panners para liberar el grafo de audio sin esperar al GC.
-        panners.forEach((p) => {
-            try {
-                p.disconnect();
-            } catch {
-                /* noop */
-            }
-        });
-    }, []);
-
     const playPreset = useCallback(
-        (preset: FrequencyPreset) => {
-            if (typeof window === 'undefined') return;
-
-            // Crear/reanudar el AudioContext SOLO tras gesto del usuario.
-            if (!ctxRef.current) {
-                const Ctor =
-                    window.AudioContext || (window as WindowWithWebkitAudio).webkitAudioContext;
-                if (!Ctor) return;
-                const ctx = new Ctor();
-                const master = ctx.createGain();
-                master.gain.value = 0;
-                master.connect(ctx.destination);
-                ctxRef.current = ctx;
-                masterRef.current = master;
-            }
-            const ctx = ctxRef.current;
-            const master = masterRef.current;
-            if (!ctx || !master) return;
-            void ctx.resume();
-
-            // Cortar lo anterior de forma instantánea (cambiamos de preset).
-            stopOscillators(true);
-
-            const now = ctx.currentTime;
-            const made: OscillatorNode[] = [];
-            const madePanners: StereoPannerNode[] = [];
-
-            const makeOsc = (freq: number, pan?: number) => {
-                const osc = ctx.createOscillator();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(freq, now);
-                if (typeof pan === 'number' && typeof ctx.createStereoPanner === 'function') {
-                    const panner = ctx.createStereoPanner();
-                    panner.pan.setValueAtTime(pan, now);
-                    osc.connect(panner);
-                    panner.connect(master);
-                    madePanners.push(panner);
-                } else {
-                    osc.connect(master);
-                }
-                osc.start(now);
-                made.push(osc);
-            };
-
-            if (preset.binauralBeat) {
-                // Dos portadoras: L = hz, R = hz + beat. La diferencia es el latido.
-                makeOsc(preset.hz, -1);
-                makeOsc(preset.hz + preset.binauralBeat, 1);
-            } else {
-                makeOsc(preset.hz);
-            }
-
-            oscsRef.current = made;
-            pannersRef.current = madePanners;
-
-            // Fade-in al volumen actual.
-            master.gain.cancelScheduledValues(now);
-            master.gain.setValueAtTime(0, now);
-            master.gain.linearRampToValueAtTime(volumeRef.current, now + FADE);
-
+        (preset: (typeof BUILTIN_PRESETS)[number]) => {
+            // Reproduce con el volumen maestro actual del widget.
+            const cfg: OmniConfig = { ...preset.config, masterVolume: volume };
+            engine.play(cfg);
+            rememberLastConfig(cfg); // recall para la app completa
             setActiveId(preset.id);
         },
-        [stopOscillators],
+        [engine, volume],
     );
 
     const stop = useCallback(() => {
-        stopOscillators(false);
+        engine.stop();
         setActiveId(null);
-    }, [stopOscillators]);
+    }, [engine]);
 
-    // Aplicar cambios de volumen en vivo al master (con suavizado corto).
-    useEffect(() => {
-        const ctx = ctxRef.current;
-        const master = masterRef.current;
-        if (ctx && master && activeId) {
-            const now = ctx.currentTime;
-            master.gain.cancelScheduledValues(now);
-            master.gain.setValueAtTime(master.gain.value, now);
-            master.gain.linearRampToValueAtTime(volume, now + 0.05);
-        }
-    }, [volume, activeId]);
+    const changeVolume = useCallback(
+        (v: number) => {
+            setVolume(v);
+            engine.setMasterVolume(v);
+        },
+        [engine],
+    );
 
-    // Limpieza total al desmontar.
-    useEffect(() => {
-        return () => {
-            const oscs = oscsRef.current;
-            const panners = pannersRef.current;
-            oscsRef.current = [];
-            pannersRef.current = [];
-            oscs.forEach((osc) => {
-                try {
-                    osc.stop();
-                } catch {
-                    /* noop */
-                }
-            });
-            panners.forEach((p) => {
-                try {
-                    p.disconnect();
-                } catch {
-                    /* noop */
-                }
-            });
-            const ctx = ctxRef.current;
-            ctxRef.current = null;
-            masterRef.current = null;
-            if (ctx && ctx.state !== 'closed') {
-                void ctx.close().catch(() => undefined);
-            }
-        };
-    }, []);
-
-    const active = FREQUENCY_PRESETS.find((p) => p.id === activeId) ?? null;
+    const active = QUICK_PRESETS.find((p) => p.id === activeId) ?? null;
+    const activeFreq = active?.config.tones[0]?.freq ?? 0;
 
     return (
         <WidgetShell
@@ -213,6 +109,7 @@ export function OmnifrecuenciasWidget() {
             icon={Waves}
             accent={ACCENT}
             live={!!activeId}
+            onExpand={openFullApp}
             connections={[
                 { label: 'Reproductor', color: '#F472B6' },
                 { label: 'Radio en vivo', color: '#FB923C' },
@@ -220,7 +117,6 @@ export function OmnifrecuenciasWidget() {
         >
             {(size) => {
                 const micro = size.tier === 'micro' || size.vTier === 'micro';
-                // Con poca anchura, una sola columna evita truncar etiquetas de presets.
                 const oneCol = size.tier === 'micro' || size.tier === 'compact';
                 return (
                     <div className="flex h-full flex-col gap-2 pt-1">
@@ -230,7 +126,11 @@ export function OmnifrecuenciasWidget() {
                                 className="relative grid shrink-0 place-items-center py-2"
                                 role="status"
                                 aria-live="polite"
-                                aria-label={active ? `Sonando ${active.hz} hercios — ${active.desc}` : 'Sin frecuencia activa'}
+                                aria-label={
+                                    active
+                                        ? `Sonando ${Math.round(activeFreq)} hercios — ${active.desc}`
+                                        : 'Sin frecuencia activa'
+                                }
                             >
                                 <div className="relative grid size-20 place-items-center">
                                     {active && (
@@ -240,7 +140,9 @@ export function OmnifrecuenciasWidget() {
                                                     key={i}
                                                     aria-hidden
                                                     className="absolute inset-0 rounded-full border"
-                                                    style={{ borderColor: `color-mix(in srgb, ${ACCENT} 50%, transparent)` }}
+                                                    style={{
+                                                        borderColor: `color-mix(in srgb, ${ACCENT} 50%, transparent)`,
+                                                    }}
                                                     animate={
                                                         animate
                                                             ? { scale: [1, 1.6], opacity: [0.6, 0] }
@@ -248,7 +150,12 @@ export function OmnifrecuenciasWidget() {
                                                     }
                                                     transition={
                                                         animate
-                                                            ? { duration: 2.4, repeat: Infinity, delay: i * 0.8, ease: 'easeOut' }
+                                                            ? {
+                                                                  duration: 2.4,
+                                                                  repeat: Infinity,
+                                                                  delay: i * 0.8,
+                                                                  ease: 'easeOut',
+                                                              }
                                                             : undefined
                                                     }
                                                 />
@@ -263,11 +170,16 @@ export function OmnifrecuenciasWidget() {
                                                 : 'rgba(255,255,255,0.04)',
                                         }}
                                         animate={active && animate ? { scale: [1, 1.06, 1] } : { scale: 1 }}
-                                        transition={active && animate ? { duration: 1.6, repeat: Infinity } : undefined}
+                                        transition={
+                                            active && animate ? { duration: 1.6, repeat: Infinity } : undefined
+                                        }
                                     >
                                         <span className="text-center leading-none">
-                                            <span className="block text-sm font-black tabular-nums" style={{ color: active ? '#fff' : ACCENT }}>
-                                                {active ? active.hz : '—'}
+                                            <span
+                                                className="block text-sm font-black tabular-nums"
+                                                style={{ color: active ? '#fff' : ACCENT }}
+                                            >
+                                                {active ? Math.round(activeFreq) : '—'}
                                             </span>
                                             <span className="block text-[8px] font-bold uppercase tracking-wider text-white/70">
                                                 {active ? 'Hz' : 'off'}
@@ -278,16 +190,19 @@ export function OmnifrecuenciasWidget() {
                                 {active && (
                                     <p className="mt-1 text-center text-[10px] font-semibold text-muted-foreground/70">
                                         {active.desc}
-                                        {active.binauralBeat ? ` · binaural ${active.binauralBeat} Hz` : ''}
                                     </p>
                                 )}
                             </div>
                         )}
 
-                        {/* Presets */}
+                        {/* Quick-presets */}
                         <div className="min-h-0 flex-1 overflow-auto custom-scrollbar">
-                            <div className={cn('grid gap-1.5', oneCol ? 'grid-cols-1' : 'grid-cols-2')} role="group" aria-label="Frecuencias">
-                                {FREQUENCY_PRESETS.map((p) => {
+                            <div
+                                className={cn('grid gap-1.5', oneCol ? 'grid-cols-1' : 'grid-cols-2')}
+                                role="group"
+                                aria-label="Frecuencias rápidas"
+                            >
+                                {QUICK_PRESETS.map((p) => {
                                     const isActive = activeId === p.id;
                                     return (
                                         <button
@@ -295,8 +210,12 @@ export function OmnifrecuenciasWidget() {
                                             type="button"
                                             onClick={() => (isActive ? stop() : playPreset(p))}
                                             aria-pressed={isActive}
-                                            aria-label={isActive ? `Detener ${p.label}` : `Reproducir ${p.label} — ${p.desc}`}
-                                            title={`${p.label} — ${p.desc}`}
+                                            aria-label={
+                                                isActive
+                                                    ? `Detener ${p.name}`
+                                                    : `Reproducir ${p.name} — ${p.desc}`
+                                            }
+                                            title={`${p.name} — ${p.desc}`}
                                             className={cn(
                                                 'group flex items-center gap-2 rounded-xl border px-2 py-1.5 text-left transition-all cursor-pointer',
                                                 FOCUS_RING,
@@ -320,9 +239,13 @@ export function OmnifrecuenciasWidget() {
                                                 )}
                                             </span>
                                             <span className="min-w-0 flex-1">
-                                                <span className="block truncate text-[11px] font-bold leading-tight tabular-nums">{p.label}</span>
+                                                <span className="block truncate text-[11px] font-bold leading-tight">
+                                                    {p.name}
+                                                </span>
                                                 {!micro && (
-                                                    <span className="block truncate text-[9px] text-muted-foreground/60">{p.desc}</span>
+                                                    <span className="block truncate text-[9px] text-muted-foreground/60">
+                                                        {p.desc}
+                                                    </span>
                                                 )}
                                             </span>
                                         </button>
@@ -331,38 +254,60 @@ export function OmnifrecuenciasWidget() {
                             </div>
                         </div>
 
-                        {/* Volumen */}
+                        {/* Volumen + abrir app completa */}
                         {!micro && (
-                            <div className="flex shrink-0 items-center gap-2 rounded-xl border border-cyan-400/20 bg-white/[0.02] px-2.5 py-1.5">
-                                <button
-                                    type="button"
-                                    onClick={() => setVolume((v) => (v > 0 ? 0 : 0.4))}
-                                    aria-label={volume > 0 ? 'Silenciar' : 'Activar sonido'}
-                                    title={volume > 0 ? 'Silenciar' : 'Activar sonido'}
+                            <div className="flex shrink-0 flex-col gap-1.5">
+                                <div className="flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-white/[0.02] px-2.5 py-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => changeVolume(volume > 0 ? 0 : 0.4)}
+                                        aria-label={volume > 0 ? 'Silenciar' : 'Activar sonido'}
+                                        title={volume > 0 ? 'Silenciar' : 'Activar sonido'}
+                                        className={cn(
+                                            'grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer',
+                                            FOCUS_RING,
+                                        )}
+                                    >
+                                        {volume > 0 ? (
+                                            <Volume2 className="size-3.5" />
+                                        ) : (
+                                            <VolumeX className="size-3.5" />
+                                        )}
+                                    </button>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={1}
+                                        step={0.01}
+                                        value={volume}
+                                        onChange={(e) => changeVolume(Number(e.target.value))}
+                                        aria-label="Volumen"
+                                        aria-valuetext={`${Math.round(volume * 100)} por ciento`}
+                                        className={cn(
+                                            'h-1 flex-1 cursor-pointer appearance-none rounded-full accent-cyan-400 [&::-webkit-slider-thumb]:size-2.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-300',
+                                            FOCUS_RING,
+                                        )}
+                                        style={{
+                                            background: `linear-gradient(90deg, ${ACCENT} ${volume * 100}%, rgba(255,255,255,0.15) ${volume * 100}%)`,
+                                        }}
+                                    />
+                                </div>
+                                <a
+                                    href="/omnifrecuencias"
+                                    onClick={(e) => {
+                                        // Preferimos abrir en ventana del OS (evento). Si el
+                                        // orquestador no lo intercepta, el href navega de todos modos.
+                                        e.preventDefault();
+                                        openFullApp();
+                                    }}
                                     className={cn(
-                                        'grid size-5 shrink-0 place-items-center text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer rounded-full',
+                                        'inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-400/[0.06] px-3 py-1.5 text-[11px] font-bold text-cyan-200 transition-all hover:bg-cyan-400/15 cursor-pointer',
                                         FOCUS_RING,
                                     )}
                                 >
-                                    {volume > 0 ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5" />}
-                                </button>
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={1}
-                                    step={0.01}
-                                    value={volume}
-                                    onChange={(e) => setVolume(Number(e.target.value))}
-                                    aria-label="Volumen"
-                                    aria-valuetext={`${Math.round(volume * 100)} por ciento`}
-                                    className={cn(
-                                        'h-1 flex-1 cursor-pointer appearance-none rounded-full accent-cyan-400 [&::-webkit-slider-thumb]:size-2.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-300',
-                                        FOCUS_RING,
-                                    )}
-                                    style={{
-                                        background: `linear-gradient(90deg, ${ACCENT} ${volume * 100}%, rgba(255,255,255,0.15) ${volume * 100}%)`,
-                                    }}
-                                />
+                                    <Maximize2 className="size-3.5" />
+                                    Abrir app completa
+                                </a>
                             </div>
                         )}
                     </div>

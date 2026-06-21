@@ -32,6 +32,7 @@ import { OmniDock } from "@/components/layout/omni-dock";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
 import { MediaMiniDock } from "@/components/dashboard/apps/media/media-mini-dock";
 import { SovereignSyncMount } from "@/components/system/sovereign-sync-mount";
+import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -123,6 +124,8 @@ export default function RootLayout({
                         <MediaMiniDock />
                         {/* Sincronización soberana: biblioteca/apps/dashboards ↔ Supabase (defensiva). */}
                         <SovereignSyncMount />
+                        {/* App Omnifrecuencias en ventana del OS (escucha 'starseed:open-omnifrecuencias'). */}
+                        <OmniAppHost />
                         <SplineWatermarkCover />
                         <PerimeterInterface />
                         {/* Trinity Móvil · Bloque 4 — asas de borde + deslizar desde
