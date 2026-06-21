@@ -1461,3 +1461,17 @@ salida de dispositivo real (el engine no expone su <audio>); VR/AR (WebXR).
   en el repo de la org `StarSeedSystem`, deploy con sus credenciales / launcher ⑥).
 
 **Token de deploy:** guardado en `.env.local` (gitignored) como `GITHUB_TOKEN`. ⚠️ Rotar (viajó por chat).
+
+---
+## Adenda 42 — 2026-06-20 · DEPLOY a producción + fusión de cuentas GitHub
+
+- **Desplegado:** `git push` a `StarSeedSystem/starseed-system` `main` → `49aef5e..c26b7b7`. Autor de commits
+  = alexbordongarrigos (regla Vercel). Vercel auto-deploy → starseed-os.vercel.app. (El push se hizo con el
+  token de la cuenta `StarSeedSystem`, que es dueña del repo.)
+- **Cuentas fusionadas (acceso cruzado total):** `alexbordongarrigos` y `StarSeedSystem` son AMBAS cuentas de
+  usuario (no orgs). Vía API de GitHub se invitó y aceptó colaborador **admin** en TODAS las repos de la otra
+  (12 de StarSeedSystem ↔ 16 de alexbordongarrigos, 28 invitaciones, todas 204). Verificado: alex tiene
+  push+admin en `starseed-system`; StarSeedSystem tiene push+admin en `Starseed-Cafe`. → Cualquiera de las
+  dos cuentas puede desplegar/empujar cualquier repo del ecosistema. Futuro deploy del OS: `git push origin
+  main` con el token de `.env.local` (alex ya tiene admin) o el launcher `⑥`.
+- ⚠️ Ambos tokens viajaron por el chat: **rotarlos** tras esta sesión (el acceso cruzado permanece tras rotar).
