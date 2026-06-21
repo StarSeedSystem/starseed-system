@@ -1500,3 +1500,26 @@ salida de dispositivo real (el engine no expone su <audio>); VR/AR (WebXR).
 
 **Pendiente:** iconos PNG oficiales del resto de apps (Café, Omni, etc.); abrir apps nativas (no-href) en OSWindow
 desde el launcher (hoy rutean); más apps completas (clima, radio, música) al nivel de Omnifrecuencias; VR/AR.
+
+---
+## Adenda 44 — 2026-06-20 · App frecuencias real + Iconos StarSeed + Clima Espacial NOAA (deploy ba1c8b1)
+
+Construido con 3 subagentes en paralelo (N port, O iconos, P clima espacial) + integración.
+
+- **App Omnifrecuencias REAL portada nativa:** se portó `github.com/alexbordongarrigos/frecuencias` (Vite/React,
+  ver memoria [[omnifrecuencias-app-repo]]) a `apps/omnifrecuencias/frecuencias/` (App + types + data + hooks
+  useAudio/useFileSystem + components). `OmnifrecuenciasApp` ahora renderiza `<FrecuenciasApp/>` (no el placeholder).
+  Capacitor eliminado; `useFileSystem` reescrito → presets como archivos en `library-store` (sync Supabase).
+  Biblioteca por categorías + generador multi-osc paneo 3D + sinergias (Phi/Pi/Schumann) + visualizador + player.
+- **Iconos StarSeed:** 10 SVG + 10 PNG 512px en `public/app-icons/` (nexus/cafe/omnifrecuencias/messages/network/
+  library/agent/clima/musica/radio), lenguaje visual común (squircle, geometría sagrada, oro+musgo, glass, gemas
+  cardinales). `iconUrl` cableado en `app-catalog.ts` (audiomorphic conserva su PNG oficial). Rasterizado con sharp.
+- **Clima Espacial NOAA en tiempo real** (`SPACE_WEATHER`): `apps/data-sources/space-weather-sources.ts` (fetchers
+  reales: escalas R/S/G, Kp, viento solar plasma+IMF/Bz, rayos X GOES, protones, F10.7, manchas, aurora OVATION;
+  Schumann ref). Widget `widgets/space/space-weather-widget.tsx` (reactivo a severidad: gauge Kp, banner tormenta
+  si G≥1, paneles) + `space-weather-app.tsx` (sparklines). Registrado (types/manifest/registry/picker/category-map)
+  y sembrado en temas clima/astronomía. 9 endpoints NOAA verificados 200.
+- Verificado: `tsc -p` acotado (todo lo nuevo) → 0 errores. Deploy `ba1c8b1` (tras limpiar `.git/index.lock`).
+
+**Pendiente:** variantes de icono por tema (-mono/-dark); abrir apps nativas en ventana desde el launcher; más
+apps completas (clima terrestre, radio, música) al nivel de Omnifrecuencias; data-driven design en más widgets; VR/AR.
