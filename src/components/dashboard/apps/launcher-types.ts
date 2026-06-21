@@ -44,6 +44,8 @@ export interface StarseedApp {
     short?: string;
     description: string;
     icon: LucideIcon;
+    /** Icono oficial (imagen en /public). Si está, se usa en vez del Lucide. */
+    iconUrl?: string;
     /** Color de acento: token CSS o hex. */
     accent: string;
     category: AppCategory;

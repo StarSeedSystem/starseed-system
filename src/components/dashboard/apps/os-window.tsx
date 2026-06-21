@@ -66,19 +66,22 @@ export function OSWindow({
     };
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
-            <motion.div
-                initial={{ opacity: 0, scale: 0.96, y: 8 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: "spring", stiffness: 260, damping: 26 }}
-                style={{ transform: `translate(calc(-50% + ${offset.dx}px), calc(-50% + ${offset.dy}px))`, left: "50%", top: "50%" }}
-                className={cn(
-                    "absolute flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
-                    sizeClass,
-                )}
-            >
+            {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
+                aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
+                el centrado y la ventana SIEMPRE abre centrada. */}
+            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                    className={cn(
+                        "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
+                        sizeClass,
+                    )}
+                >
                 <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[2px] z-20 opacity-80"
                     style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }} />
 
@@ -114,7 +117,8 @@ export function OSWindow({
                         {toolbar}
                     </footer>
                 )}
-            </motion.div>
+                </motion.div>
+            </div>
         </div>
     );
 }

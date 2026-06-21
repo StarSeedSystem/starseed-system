@@ -21,6 +21,7 @@ export const APP_CATALOG: StarseedApp[] = [
         short: "Nexus",
         description: "Portal del ecosistema: las 6 áreas + Audiomorphic bajo una cuenta soberana.",
         icon: Globe,
+        iconUrl: "/app-icons/nexus.png",
         accent: "#39FF14",
         category: "starseed",
         status: "live",
@@ -54,6 +55,7 @@ export const APP_CATALOG: StarseedApp[] = [
         short: "Audiomorphic",
         description: "Visualizador de consciencia: audio → geometría sagrada. Gratis dentro del OS.",
         icon: AudioWaveform,
+        iconUrl: "/app-icons/audiomorphic.png",
         accent: "#A855F7",
         category: "starseed",
         status: "live",
@@ -61,7 +63,9 @@ export const APP_CATALOG: StarseedApp[] = [
         open: {
             primary: "window",
             allowed: ["window", "tab", "popup", "embed"],
-            href: "https://audiomorphic.vercel.app",
+            // ?starseed_os=1&full=1 → señal para desbloquear la VERSIÓN COMPLETA al
+            // usarse incrustado dentro del OS con sesión (la app lo detecta).
+            href: "https://audiomorphic.vercel.app/?starseed_os=1&full=1",
             embeddable: true, // ya se embebe como fondo del OS → framing permitido
         },
     },

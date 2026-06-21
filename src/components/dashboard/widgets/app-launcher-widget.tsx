@@ -109,14 +109,19 @@ function AppTile({ app, settings, big, onOpen, onMenu }: {
                 onClick={onOpen}
                 title={`${app.name} — ${app.description}`}
                 className={cn(
-                    "grid place-items-center transition-transform hover:-translate-y-0.5 active:scale-95 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+                    "grid place-items-center overflow-hidden transition-transform hover:-translate-y-0.5 active:scale-95 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
                     ICON_SHAPE_CLASS[shape],
                     isCls,
                     sizeCls,
                 )}
                 style={{ ...isStyle, ...hexStyle }}
             >
-                <Icon className={big ? "size-9" : "size-6"} strokeWidth={2} />
+                {app.iconUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={app.iconUrl} alt="" draggable={false} className="size-full object-cover" />
+                ) : (
+                    <Icon className={big ? "size-9" : "size-6"} strokeWidth={2} />
+                )}
             </button>
 
             {/* Badge "pronto" para módulos en construcción */}
