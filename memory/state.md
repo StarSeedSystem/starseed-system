@@ -1418,3 +1418,31 @@ orquestador hizo el bump de versión y el montaje del dock (sin conflictos de ar
 **Pendiente (Fase 2.3+):** panel Trinity explícito + salida de medios/conexiones; Supabase para el store
 soberano y los dashboards; UI visual de settings de launcher/carpetas; VR/AR (WebXR). Para verlo en
 starseed-os.vercel.app hace falta deploy (regla de autor de commit Vercel).
+
+---
+## Adenda 40 — 2026-06-20 · Centro de medios + Sync Supabase + Acceso + Deploy
+
+### Cómo
+3 subagentes en paralelo (E centro de medios, F sync Supabase, G carpeta de acceso) + integración por el
+orquestador.
+
+### Hecho
+- **Centro de Control de Medios** (`widgets/media/media-control-widget.tsx`, `MEDIA_CONTROL`): sonando-ahora,
+  transporte, volumen maestro, lanzamiento rápido, y **salida de medios** (toggle "visualización al fondo"
+  Audiomorphic + selección de dispositivo si el navegador lo soporta). Registrado y sembrado (entretenimiento
+  + inicio). Montado además como **pestaña "Medios"** en el panel Trinity (`control-panel.tsx`, 5ª pestaña,
+  rosa, side bottom — cambio aditivo con fallback).
+- **Sincronización soberana con Supabase** (defensiva, SSR-safe, localStorage manda si no hay sesión):
+  `lib/library-sync.ts` (biblioteca/apps ↔ `user_settings.prefs.library/.installed`, merge no destructivo;
+  espejo opcional en `cafe_accounts.apps`), `lib/dashboards-sync.ts` (respaldo no invasivo de dashboards en
+  `user_settings.prefs.dashboards`), `components/system/sovereign-sync-mount.tsx` (`SovereignSyncMount`)
+  montado en RootLayout. Esquema verificado por MCP: `user_settings(user_id,prefs jsonb,updated_at)`.
+- **Carpeta de acceso completo** (fuera del repo): `~/Documents/StarSeed OS · Acceso Completo/` con LEEME,
+  Integraciones, Mapa, y 9 lanzadores `.command` ejecutables (web/local/deploy/sync/abrir apps/manual).
+- **Deploy:** commit `52d1486` hecho (árbol limpio). **Push NO posible desde este entorno** (sin credenciales
+  GitHub; `could not read Username`). El usuario despliega con un clic: `⑥ Desplegar StarSeed OS.command` o
+  `git push origin main` (sus credenciales). Vercel auto-despliega al recibir el push.
+- Verificado: `tsc -p` acotado (MEDIA_CONTROL + sync + mount + dashboard-defaults) → **0 errores**.
+
+**Pendiente:** push a producción (acción del usuario); cabecera dinámica de la pestaña Medios (opcional);
+salida de dispositivo real (el engine no expone su <audio>); VR/AR (WebXR).

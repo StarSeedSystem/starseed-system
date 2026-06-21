@@ -175,7 +175,13 @@ Servicio `openContent(resource)` que **detecta el tipo** (extensión / MIME / fi
 | Hook de fuente ajustable | `dashboard/apps/data-sources/use-data-source.ts` | 🟢 selección + auto-refresco + reintento |
 | Widget Datos Oficiales | `widgets/data/official-data-widget.tsx` (`OFFICIAL_DATA`) | 🟢 selector de fuente + datos en vivo + atribución |
 
-**Pendiente 5b.x:** subir el store soberano de localStorage a Supabase (`user_settings`/`cafe_accounts.apps`, RLS por `auth.uid()`); más fuentes; magic-bytes para archivos sin extensión.
+🟢 **Sincronización soberana con Supabase (hecha):** `lib/library-sync.ts` (biblioteca/apps ↔ `user_settings.prefs.library`/`.installed`, merge no destructivo; espejo opcional en `cafe_accounts.apps`), `lib/dashboards-sync.ts` (respaldo no invasivo de dashboards en `user_settings.prefs.dashboards`), montadas vía `components/system/sovereign-sync-mount.tsx` en el RootLayout. Defensiva y SSR-safe: si no hay sesión, manda localStorage. Esquema real: `user_settings(user_id, prefs jsonb, updated_at)`.
+
+🟢 **Centro de Control de Medios** `widgets/media/media-control-widget.tsx` (`MEDIA_CONTROL`): sonando-ahora + transporte + volumen maestro + lanzamiento rápido + **salida de medios** (toggle visualización al fondo Audiomorphic + dispositivo si el navegador lo soporta). Montado también como **pestaña "Medios"** del panel Trinity (`control-panel.tsx`).
+
+🟢 **Carpeta de acceso completo** (fuera del repo): `~/Documents/StarSeed OS · Acceso Completo/` — LEEME índice, Integraciones, Mapa de carpetas/comandos, y 9 lanzadores `.command` (web/local/deploy/sync/abrir apps/manual).
+
+**Pendiente 5b.x:** más fuentes oficiales; magic-bytes para archivos sin extensión; salida de dispositivo real (exponer el `<audio>` del engine).
 
 ## 5c. Siembra en dashboards predeterminados 🟢
 `DefaultDashboardTemplate.widgets` ahora admite `settings?` (jsonb sembrado) y `dashboard-layout` lo propaga. Un helper `withSeededExtras` (en `dashboard-defaults.ts`) inyecta en CADA dashboard predeterminado: (1) la **carpeta de apps StarSeed** (dock; colección según el tema: `sistema`/`media`/`starseed`) y (2) los **elementos funcionales correspondientes al tema** (música/radio en cultura·entretenimiento, Omnifrecuencias en astrología·ciberdelia·ayudantía, Datos Oficiales en clima·sistema·astronomía·descubrimientos, Audiomorphic en personalización·ciberdelia, Visor Universal en archivos), calculando la posición sin solapes y sin duplicar. El **dashboard de inicio** es el muestrario completo: carpeta de apps + Visor Universal + Reproductor + Omnifrecuencias + Radio + Audiomorphic + Datos Oficiales + variaciones del launcher (tile único `circle` y carpeta `media` `hex`/`gradient`).
