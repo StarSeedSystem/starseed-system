@@ -1446,3 +1446,18 @@ orquestador.
 
 **Pendiente:** push a producción (acción del usuario); cabecera dinámica de la pestaña Medios (opcional);
 salida de dispositivo real (el engine no expone su <audio>); VR/AR (WebXR).
+
+---
+## Adenda 41 — 2026-06-20 · Editor visual de ajustes del launcher
+
+- **Editor de carpeta (engranaje) en `APP_LAUNCHER`** (`widgets/app-launcher-widget.tsx`): panel portado con
+  etiqueta, variante (carpeta/tile), colección (StarSeed/Sistema/Media/Propia), forma de icono (squircle/
+  circle/rounded/hex), estilo (glass/solid/outline/gradient), densidad, columnas (slider), modo de apertura
+  por defecto, mostrar/ocultar etiquetas, y selector de apps (toggle del catálogo → colección "Propia").
+- **Persistencia genérica:** el widget emite `window 'starseed:update-widget-settings'` {id, settings}; un
+  listener nuevo en `dashboard-layout.tsx` actualiza `loadAllWidgets`/`saveAllWidgets` + `setWidgets`
+  (sirve para cualquier widget futuro). Feedback óptimo con estado local `edits`.
+- Verificado: `tsc -p` acotado → 0 errores. Commit local (pendiente push del usuario; token personal da 403
+  en el repo de la org `StarSeedSystem`, deploy con sus credenciales / launcher ⑥).
+
+**Token de deploy:** guardado en `.env.local` (gitignored) como `GITHUB_TOKEN`. ⚠️ Rotar (viajó por chat).

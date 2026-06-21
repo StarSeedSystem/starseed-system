@@ -295,6 +295,31 @@ export function DashboardLayout() {
         }
     }, []);
 
+    // ── Edición de ajustes de widgets ──────────────────────────────
+    // Un widget (p. ej. el launcher) emite 'starseed:update-widget-settings'
+    // con { id, settings } y aquí lo persistimos (todas las cuentas) + refresco.
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail as { id?: string; settings?: Record<string, any> } | undefined;
+            if (!detail?.id || !detail.settings) return;
+            const { id, settings: patch } = detail;
+            try {
+                const all = loadAllWidgets();
+                let changed = false;
+                for (const k of Object.keys(all)) {
+                    all[k] = all[k].map((w) => {
+                        if (w.id === id) { changed = true; return { ...w, settings: { ...(w.settings || {}), ...patch } }; }
+                        return w;
+                    });
+                }
+                if (changed) saveAllWidgets(all);
+            } catch { /* noop */ }
+            setWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, settings: { ...(w.settings || {}), ...patch } } : w)));
+        };
+        window.addEventListener('starseed:update-widget-settings', handler as EventListener);
+        return () => window.removeEventListener('starseed:update-widget-settings', handler as EventListener);
+    }, []);
+
     // ── Initialize dashboards ──────────────────────────────────────
     useEffect(() => {
         const initialized = localStorage.getItem(LS_INITIALIZED);
