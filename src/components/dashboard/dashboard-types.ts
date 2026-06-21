@@ -89,6 +89,7 @@ export type WidgetType =
     | 'MEDIA_CONTROL'         // Entretenimiento — centro de control de medios + salida
     // ── Datos oficiales en tiempo real ──
     | 'OFFICIAL_DATA'         // Descubrimientos — fuentes oficiales en vivo (clima, espacio, sismos)
+    | 'SPACE_WEATHER'         // Astronomía — clima espacial NOAA SWPC en tiempo real (reactivo)
     | 'AI_GENERATED';         // 🔮 La Fragua de Interfaces — Custom AI-forged widgets
 
 export interface Dashboard {

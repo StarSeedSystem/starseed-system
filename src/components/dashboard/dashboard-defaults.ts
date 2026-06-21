@@ -25,6 +25,7 @@ export const WIDGET_CATEGORY_MAP: WidgetCategoryMapping[] = [
 
     // ── Datos oficiales en tiempo real ──
     { type: 'OFFICIAL_DATA', primaryCategory: 'descubrimientos', secondaryCategories: ['sistema', 'clima'], tags: ['datos', 'tiempo real', 'oficial', 'clima', 'sismos', 'espacio', 'noaa', 'usgs', 'open-meteo', 'ajustable'], isPopular: true },
+    { type: 'SPACE_WEATHER', primaryCategory: 'astronomia', secondaryCategories: ['clima', 'descubrimientos'], tags: ['clima espacial', 'noaa', 'kp', 'viento solar', 'llamaradas', 'aurora', 'schumann', 'tiempo real'], isPopular: true },
 
     // ── Segunda generación (gen2) ──
     { type: 'AGORA_CAUSAL', primaryCategory: 'politica', secondaryCategories: ['parlamento', 'social'], tags: ['ágora', 'propuestas', 'votación', 'causal', 'deliberación', 'ontocracia'], isPopular: true },
@@ -502,10 +503,10 @@ const APPS_DOCK_COLLECTION: Partial<Record<WidgetCategory, 'starseed' | 'sistema
 
 const THEME_EXTRA_WIDGETS: Partial<Record<WidgetCategory, SeedWidget[]>> = {
     cultura: [{ type: 'MUSIC_PLAYER', w: 4, h: 4 }, { type: 'RADIO_LIVE', w: 4, h: 4 }],
-    clima: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
+    clima: [{ type: 'SPACE_WEATHER', w: 4, h: 4 }, { type: 'OFFICIAL_DATA', w: 4, h: 4 }],
     sistema: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
     personalizacion: [{ type: 'AUDIOMORPHIC_BG', w: 3, h: 4 }],
-    astronomia: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
+    astronomia: [{ type: 'SPACE_WEATHER', w: 5, h: 5 }, { type: 'OFFICIAL_DATA', w: 4, h: 4 }],
     entretenimiento: [
         { type: 'MEDIA_CONTROL', w: 4, h: 6 },
         { type: 'MUSIC_PLAYER', w: 4, h: 4 },

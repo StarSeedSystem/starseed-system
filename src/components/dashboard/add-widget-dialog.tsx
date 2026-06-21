@@ -91,6 +91,13 @@ const AVAILABLE_WIDGETS: WidgetDefinition[] = [
         primaryCategory: 'descubrimientos', secondaryCategories: ['sistema', 'clima'],
         tags: ['datos', 'tiempo real', 'oficial', 'clima', 'sismos', 'espacio', 'noaa', 'usgs', 'open-meteo', 'ajustable'], isPopular: true,
     },
+    {
+        type: 'SPACE_WEATHER', title: "Clima Espacial",
+        description: "Telemetría solar y geomagnética en tiempo real (NOAA SWPC): viento solar, Kp, llamaradas, protones y aurora, reactivo a la severidad.",
+        icon: <Satellite className="h-5 w-5 text-amber-400" />,
+        primaryCategory: 'astronomia', secondaryCategories: ['clima', 'descubrimientos'],
+        tags: ['clima espacial', 'noaa', 'kp', 'viento solar', 'llamaradas', 'aurora', 'schumann', 'tiempo real', 'astronomía'], isPopular: true,
+    },
     // ── Social ──
     {
         type: 'EXPLORE_NETWORK', title: "Explorar la Red",

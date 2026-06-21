@@ -115,6 +115,7 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
 
     // ── Datos oficiales en tiempo real ───────────────────────────
     OFFICIAL_DATA: { label: "Datos Oficiales", category: "descubrimientos", w: 4, h: 4, minW: 2, minH: 3, relevance: 89 },
+    SPACE_WEATHER: { label: "Clima Espacial", category: "astronomia", w: 4, h: 4, minW: 2, minH: 3, relevance: 90 },
 };
 
 export function getManifest(type: WidgetType): WidgetManifestEntry | undefined {
