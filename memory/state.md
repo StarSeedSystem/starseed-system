@@ -1546,3 +1546,16 @@ apps completas (clima terrestre, radio, música) al nivel de Omnifrecuencias; da
 
 **Pendiente:** Omnifrecuencias App rewire total a `useAppearance()` (hoy su paleta nativa ya casa con su tema);
 más apps al nivel de Omnifrecuencias; VR/AR; variantes de icono por tema.
+
+---
+## Adenda 46 — 2026-06-20 · Fondo Audiomorphic funcional + icono original Omni + widgets Omni reales (deploy 2f76a77)
+
+- **Icono original de Omnifrecuencias:** `Documents/iconos/iconos-png/omnifrequency.png` → `public/app-icons/omnifrecuencias.png` (512px). El de Audiomorphic ya era el oficial.
+- **Fondo Audiomorphic AHORA funciona** (antes "no se veía" porque el iframe no tenía `allow` de micrófono ni arranque):
+  - `audiomorphic-background.tsx`: URL con `?bg=1&autostart=1&full=1&starseed_os=1[&mic=1][&cam=1][&preset=…]` (export `buildAudiomorphicBgUrl`) + `allow="microphone; camera; autoplay; fullscreen; gyroscope; accelerometer; magnetometer; xr-spatial-tracking"`.
+  - **App Audiomorphic** (`alexbordongarrigos/audiomorphic-ar`, subagente U, commit `c8fce11`): `utils/embedMode.ts` + App.tsx → honra `bg/autostart/mic/cam/preset`; en `bg` oculta UI; **modo autónomo sintético** anima el lienzo aunque el micrófono falle (clave). Push → auto-deploy audiomorphic.vercel.app.
+  - **Ventana de configuración** `ui/backgrounds/audiomorphic-config-window.tsx` (`AudiomorphicConfigHost`, montada en RootLayout, evento `starseed:open-audiomorphic-config`): vista previa interactiva (concede mic/cam ahí) + controles modo auto/manual, micrófono, cámara/AR, preset (nebula/genesis/solaris/aqua/void), overlay; guarda en `config.background.audiomorphic` (tipo extendido: mode/mic/camera/preset). El widget abre la ventana con botón "Configurar fondo".
+- **Widgets Omnifrecuencias con motor/datos/presets REALES** (subagente T): `omnifrecuencias-widget.tsx` reescrito sobre el `useAudio` de la app portada + `data/frequencies` + sinergias + presets `library-store`; pestañas Reproductor/Generador/Presets + player maestro + "Abrir app completa". Compartido vía `frecuencias/data/synergy-recipes.ts`, `featured-frequencies.ts`, `hooks/useOmniLastSession.ts`, `components/CompactOscillator.tsx`.
+- Verificado: `tsc -p` acotado → 0 errores. Construido con 2 subagentes (T widget, U app-repo) + integración del orquestador.
+
+**Pendiente:** sincronía total de estado entre widget Omni y app (hoy comparten código/presets, instancias separadas); AR Audiomorphic como textura WebGL real; VR/AR del OS.
