@@ -1559,3 +1559,25 @@ más apps al nivel de Omnifrecuencias; VR/AR; variantes de icono por tema.
 - Verificado: `tsc -p` acotado → 0 errores. Construido con 2 subagentes (T widget, U app-repo) + integración del orquestador.
 
 **Pendiente:** sincronía total de estado entre widget Omni y app (hoy comparten código/presets, instancias separadas); AR Audiomorphic como textura WebGL real; VR/AR del OS.
+
+---
+## Adenda 47 — 2026-06-20 · Sincronía total Omni + Fundación VR/AR WebXR (deploy aef61f8)
+
+- **Sincronía total del audio Omnifrecuencias** (subagente V): `frecuencias/hooks/useAudio.ts` refactorizado a
+  **singleton de módulo** (clase `OmniAudioEngine`, UN solo AudioContext + master/analyser + lista de osciladores
+  como snapshot inmutable + RAF global de transiciones), expuesto vía `useSyncExternalStore`. **API idéntica** →
+  cero cambios en call-sites (widget, `App.tsx`, `Generator`, `GlobalPlayer`). Resultado: lo que suena/edita en
+  widget ↔ app ↔ mini-dock se refleja en vivo; ya no hay "dos audios". (Nota: `omni-engine.ts`/`omni-presets.ts`
+  siguen huérfanos del subagente I; la app activa usa `useAudio`.)
+- **Fundación VR/AR (WebXR)** (subagente W): `apps/immersive/immersive-space.tsx` (escena R3F: Flor de la Vida vía
+  `THREE.Line`/primitive, estrellas/sparkles, suelo reflejante, **portales 3D** que usan `useAppLauncher` para abrir
+  apps `vrCapable`), `apps/immersive/use-webxr.ts` (`navigator.xr` feature-detect VR+AR; `gl.xr.setSession` SIN
+  @react-three/xr; degradación elegante), ruta `(app)/immersive`, widget `immersive-widget.tsx`. Sin deps nuevas
+  (three/R3F/drei + WebXR nativo; Environment evitado por HDR remoto → luces+Stars offline-safe; Html en vez de Text).
+  Registrado `IMMERSIVE` (types/manifest ciberdelia 4×5/registry/picker icono Orbit/category-map) + app de catálogo
+  `immersive` (ruta /immersive, vrCapable, colección media) + sembrado en tema ciberdelia.
+- Verificado: `tsc -p` acotado → 0 errores. **Limitación honesta:** WebXR no probado en visor real; sin
+  controladores/manos (la interacción con portales hoy es por puntero) → siguiente paso `@react-three/xr` o input XR.
+
+**Pendiente:** controladores/manos XR + locomoción; bajar coste de MeshReflector en sesión XR; AR Audiomorphic como
+textura real; unificar `omni-engine` huérfano o eliminarlo; más apps nativas completas.
