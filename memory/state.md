@@ -1475,3 +1475,28 @@ salida de dispositivo real (el engine no expone su <audio>); VR/AR (WebXR).
   dos cuentas puede desplegar/empujar cualquier repo del ecosistema. Futuro deploy del OS: `git push origin
   main` con el token de `.env.local` (alex ya tiene admin) o el launcher `⑥`.
 - ⚠️ Ambos tokens viajaron por el chat: **rotarlos** tras esta sesión (el acceso cruzado permanece tras rotar).
+
+---
+## Adenda 43 — 2026-06-20 · Fix ventana centrada + iconos oficiales + Audiomorphic full + App Omnifrecuencias
+
+- **Ventana de apps centrada (fix):** `os-window.tsx` separaba mal el centrado del drag — Framer Motion pisaba
+  el `translate(-50%,-50%)`. Ahora el drag va en una capa plana (transform) y la animación (opacity/scale) en
+  el hijo → la ventana SIEMPRE abre centrada. Deploy `2aa4340`.
+- **Iconos oficiales:** `StarseedApp.iconUrl?` + render `<img>` en los tiles (overflow-hidden por forma).
+  `public/app-icons/audiomorphic.png` (oficial) y `nexus.png` (símbolo StarSeed). Resto sigue con Lucide
+  (faltan PNG oficiales de Café/otros — pendiente generarlos).
+- **Audiomorphic VERSIÓN COMPLETA gratis dentro del OS:** el OS abre `audiomorphic.vercel.app/?starseed_os=1&full=1`
+  (referrerPolicy no-referrer, por eso el param). El subagente parcheó el repo LIVE **`alexbordongarrigos/audiomorphic-ar`**
+  (`App.tsx`: si `?starseed_os`/`?full`/referrer incluye `starseed-os`/en iframe → `subscriptionTier='lifetime'`,
+  sin tocar Stripe/SubscriptionScreen). Commit `4be4c29` → Vercel auto-deploy `audiomorphic.vercel.app` (READY).
+  Reversible revirtiendo `4be4c29`.
+- **App Omnifrecuencias completa** (`apps/omnifrecuencias/`): `omni-engine.ts` (WebAudio multi-tono,
+  binaural L/R, isocrónico, ondas, fades), `omni-presets.ts` (16 built-ins + **presets guardados como ARCHIVOS
+  en `library-store` → data URL JSON, sync Supabase; recall localStorage**), `omnifrecuencias-app.tsx` (editor de
+  tonos, visualizador, temporizador, guardar/cargar/eliminar), ruta `(app)/omnifrecuencias`, `omni-app-host.tsx`
+  (abre en OSWindow al oír `starseed:open-omnifrecuencias`, montado en RootLayout). Catálogo: omnifrecuencias →
+  `native` ruta `/omnifrecuencias`. Deploy `3a41142`.
+- Verificado: `tsc -p` acotado de todo lo nuevo → 0 errores. Construido con 2 subagentes en paralelo (I app, J app-repo).
+
+**Pendiente:** iconos PNG oficiales del resto de apps (Café, Omni, etc.); abrir apps nativas (no-href) en OSWindow
+desde el launcher (hoy rutean); más apps completas (clima, radio, música) al nivel de Omnifrecuencias; VR/AR.
