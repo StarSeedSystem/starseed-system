@@ -25,7 +25,14 @@ import { cn } from '@/lib/utils';
 import { WidgetShell } from '@/components/dashboard/kit';
 import { useAppearance } from '@/context/appearance-context';
 
-const ACCENT = '#A855F7';
+// Acento por defecto (violeta Audiomorphic). Si el OS corre con un tema
+// holográfico afín, el widget adopta su acento para integrarse sin romper
+// el resto de su estética. Cambio aditivo y seguro: solo afecta a este color.
+const ACCENT_DEFAULT = '#A855F7';
+const ACCENT_BY_OS_THEME: Partial<Record<string, string>> = {
+    audiomorphic: '#A855F7', // violeta místico
+    omnifrecuencias: '#22D3EE', // cian holográfico
+};
 const AUDIOMORPHIC_URL = 'https://audiomorphic.vercel.app';
 
 const FOCUS_RING =
@@ -35,6 +42,9 @@ export function AudiomorphicBgWidget() {
     const { config, updateConfig } = useAppearance();
     const prefersReduced = useReducedMotion();
     const animate = config.animations.enabled && !prefersReduced;
+
+    // Acento del widget: sigue al tema del OS si es uno afín; si no, violeta.
+    const ACCENT = ACCENT_BY_OS_THEME[config.themeStore?.osTheme ?? 'default'] ?? ACCENT_DEFAULT;
 
     const bgType = config.background.type as string;
     const isActive = bgType === 'audiomorphic';

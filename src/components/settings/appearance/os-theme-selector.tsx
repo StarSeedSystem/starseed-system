@@ -13,7 +13,7 @@
 
 import React from "react";
 import { toast } from "sonner";
-import { Check, Coffee, Orbit } from "lucide-react";
+import { Check, Coffee, Orbit, Waves, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppearance, type OsThemeId } from "@/context/appearance-context";
 
@@ -46,6 +46,22 @@ const OS_THEMES: OsThemePreset[] = [
         dark: ["#0d130e", "#141b14", "#E9C46A", "#9FE870"],
         light: ["#fdf7ea", "#fefbf2", "#C05C3B", "#3f7a2a"],
         serif: true,
+    },
+    {
+        id: "omnifrecuencias",
+        name: "Omnifrecuencias",
+        tagline: "Holográfico cian/turquesa + violeta sobre negro profundo. Ondas y brillos de frecuencia.",
+        icon: <Waves className="w-4 h-4" />,
+        dark: ["#030712", "#0a1626", "#22D3EE", "#A855F7"],
+        light: ["#eef9fc", "#fbfeff", "#0891B2", "#7C3AED"],
+    },
+    {
+        id: "audiomorphic",
+        name: "Audiomorphic",
+        tagline: "Geometría sagrada · violeta + oro sobre negro. Místico, resonante, ceremonial.",
+        icon: <Sparkles className="w-4 h-4" />,
+        dark: ["#08040f", "#150b24", "#A855F7", "#D4AF37"],
+        light: ["#f6f1fd", "#fdfbff", "#7C3AED", "#B8860B"],
     },
 ];
 

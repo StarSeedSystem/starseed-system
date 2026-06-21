@@ -1,26 +1,27 @@
 'use client';
 
 import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
     Bell, AlertTriangle, Info, CheckCircle2, Landmark, Users, Coins,
-    Check, X, CheckCheck, Zap, type LucideIcon
+    Check, X, CheckCheck, Zap, Filter, type LucideIcon
 } from "lucide-react";
 import Link from "next/link";
-import { WidgetShell, MiniList, Chip, timeAgo } from "../kit";
+import { WidgetShell, Chip, timeAgo } from "../kit";
+import { useAppearance } from "@/context/appearance-context";
 import { useWidgetData } from "@/lib/widget-data";
 import type { Notification } from "@/lib/widget-data";
 
 // ════════════════════════════════════════════════════════════════
-// NotificationsWidget v2 — monitor sensorial del sistema y la red.
+// NotificationsWidget v3 — monitor sensorial del sistema y la red.
 // ----------------------------------------------------------------
-// MEJORAS v2:
-//   • Entrada animada por ítem (slide + fade) con stagger.
-//   • Pulso vivo en el dot de alertas no leídas.
-//   • Fondo con gradiente de acento por tipo de alerta (prioridad alta).
-//   • Contadores de categoría con badge animado al cambiar.
-//   • Micro: muestra top-3 con iconos de color y dot de prioridad.
+// MEJORAS v3 (sobre v2):
+//   • Tira-resumen data-driven: prioridad alta + no leídas con color.
+//   • Filtro "Solo sin leer" que reordena/acota la corriente.
+//   • Triaje por prioridad: críticas primero, con barra y glow propios.
+//   • Animaciones respetan config.animations + prefers-reduced-motion.
 //   • Deep-links a rutas reales del ecosistema por tipo de alerta.
+//   • Estados vacíos contextuales (sin alertas / todo leído / sin filtro).
 // ════════════════════════════════════════════════════════════════
 
 const KIND_META: Record<Notification["kind"], {
@@ -47,10 +48,20 @@ function isHighPriority(n: Notification): boolean {
     return n.kind === "warning" || n.kind === "governance";
 }
 
+/** ¿Reciente? (<15 min) → realza la marca de tiempo (data-driven). */
+function isFresh(ts: number): boolean {
+    return Date.now() - ts < 15 * 60_000;
+}
+
 export function NotificationsWidget() {
+    const { config } = useAppearance();
+    const prefersReduced = useReducedMotion();
+    const animate = config.animations.enabled && !prefersReduced;
+
     const { data, loading } = useWidgetData("common.notifications", { refreshMs: 10000 });
 
     const [filter, setFilter] = useState<FilterId>("todo");
+    const [onlyUnread, setOnlyUnread] = useState(false);
     const [readLocal, setReadLocal] = useState<Set<string>>(() => new Set());
     const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
 
@@ -72,8 +83,13 @@ export function NotificationsWidget() {
     }, [merged]);
 
     const activeFilter = FILTERS.find((f) => f.id === filter) ?? FILTERS[0];
-    const visible = useMemo(() => merged.filter((n) => activeFilter.match(n.kind)), [merged, activeFilter]);
+    const visible = useMemo(
+        () => merged.filter((n) => activeFilter.match(n.kind) && (!onlyUnread || !n.read)),
+        [merged, activeFilter, onlyUnread]
+    );
     const unread = merged.filter((n) => !n.read).length;
+    // Triaje data-driven: alertas críticas (alta prioridad y no leídas).
+    const criticalCount = useMemo(() => merged.filter((n) => isHighPriority(n) && !n.read).length, [merged]);
 
     function markRead(id: string) {
         setReadLocal((prev) => { const s = new Set(prev); s.add(id); return s; });
@@ -97,7 +113,7 @@ export function NotificationsWidget() {
                 unread > 0 ? (
                     <motion.span
                         key={unread}
-                        initial={{ scale: 0.6, opacity: 0 }}
+                        initial={animate ? { scale: 0.6, opacity: 0 } : false}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ type: "spring", stiffness: 400, damping: 18 }}
                         className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-rose-500/20 border border-rose-500/50 text-[10px] font-black tabular-nums text-rose-300"
@@ -130,9 +146,9 @@ export function NotificationsWidget() {
                                 return (
                                     <motion.div
                                         key={n.id}
-                                        initial={{ opacity: 0, x: -8 }}
+                                        initial={animate ? { opacity: 0, x: -8 } : false}
                                         animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: i * 0.06, ease: [0.16, 1, 0.3, 1] }}
+                                        transition={{ delay: animate ? i * 0.06 : 0, ease: [0.16, 1, 0.3, 1] }}
                                         className="flex items-center gap-2 rounded-lg border px-2 py-1.5"
                                         style={{
                                             borderColor: n.read ? "hsl(var(--border)/0.3)" : `${meta.color}40`,
@@ -145,18 +161,47 @@ export function NotificationsWidget() {
                                         </span>
                                         <span className="text-[10px] font-semibold truncate min-w-0 flex-1">{n.title}</span>
                                         {high && (
-                                            <span className="size-1.5 rounded-full shrink-0 animate-pulse"
+                                            <span className={`size-1.5 rounded-full shrink-0 ${animate ? "animate-pulse" : ""}`}
                                                 style={{ background: meta.color }} />
                                         )}
                                     </motion.div>
                                 );
                             })}
+                            {topItems.length === 0 && (
+                                <div className="flex-1 grid place-items-center text-[10px] text-muted-foreground/50 italic">Sin alertas</div>
+                            )}
                         </div>
                     );
                 }
 
                 return (
                     <div className="pt-1 h-full flex flex-col gap-2">
+                        {/* ── Tira-resumen de triaje (data-driven) ───────── */}
+                        {size.tier !== "compact" && merged.length > 0 && (
+                            <div className="shrink-0 flex items-center gap-2 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-1.5">
+                                {criticalCount > 0 ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-rose-300 tabular-nums">
+                                        <AlertTriangle className="size-2.5" />{criticalCount} críticas
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-emerald-400">
+                                        <CheckCircle2 className="size-2.5" /> Sin críticas
+                                    </span>
+                                )}
+                                <span className="text-[10px] font-bold text-muted-foreground/60 tabular-nums">
+                                    {unread} sin leer · {merged.length} total
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setOnlyUnread((v) => !v)}
+                                    aria-pressed={onlyUnread}
+                                    className={`ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${onlyUnread ? "border-rose-500/50 bg-rose-500/15 text-rose-300" : "border-border/40 text-muted-foreground/60 hover:text-foreground"}`}
+                                >
+                                    <Filter className="size-2.5" /> Sin leer
+                                </button>
+                            </div>
+                        )}
+
                         {/* ── Filtros ─────────────────────────────────────── */}
                         <div className="shrink-0 flex flex-col gap-1.5">
                             <div className="flex items-center gap-1 overflow-x-auto -mx-0.5 px-0.5 pb-0.5 no-scrollbar">
@@ -170,8 +215,8 @@ export function NotificationsWidget() {
                                             type="button"
                                             onClick={() => setFilter(f.id)}
                                             aria-pressed={active}
-                                            whileHover={{ scale: 1.04 }}
-                                            whileTap={{ scale: 0.96 }}
+                                            whileHover={animate ? { scale: 1.04 } : undefined}
+                                            whileTap={animate ? { scale: 0.96 } : undefined}
                                             transition={{ type: "spring", stiffness: 400, damping: 20 }}
                                             className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
                                                 active
@@ -206,14 +251,15 @@ export function NotificationsWidget() {
                                         const meta = KIND_META[n.kind];
                                         const Icon = meta.icon;
                                         const high = isHighPriority(n) && !n.read;
+                                        const fresh = isFresh(n.ts) && !n.read;
                                         return (
                                             <motion.div
                                                 key={n.id}
-                                                layout
-                                                initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                                                layout={animate}
+                                                initial={animate ? { opacity: 0, y: 6, scale: 0.98 } : false}
                                                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                exit={{ opacity: 0, x: 16, scale: 0.95 }}
-                                                transition={{ delay: i * 0.04, ease: [0.16, 1, 0.3, 1], duration: 0.28 }}
+                                                exit={animate ? { opacity: 0, x: 16, scale: 0.95 } : { opacity: 0 }}
+                                                transition={{ delay: animate ? i * 0.04 : 0, ease: [0.16, 1, 0.3, 1], duration: animate ? 0.28 : 0 }}
                                                 className={`relative flex items-start gap-2.5 rounded-xl border px-2.5 py-2 transition-colors ${
                                                     n.read
                                                         ? "border-border/40 bg-white/[0.02] opacity-75"
@@ -242,7 +288,7 @@ export function NotificationsWidget() {
                                                     className="shrink-0 grid place-items-center size-7 rounded-lg border"
                                                     style={{ color: meta.color, borderColor: `${meta.color}40`, background: meta.bg }}
                                                 >
-                                                    {!n.read && high ? (
+                                                    {!n.read && high && animate ? (
                                                         <motion.span
                                                             animate={{ scale: [1, 1.2, 1] }}
                                                             transition={{ repeat: Infinity, duration: 2, ease: [0.16, 1, 0.3, 1] }}
@@ -266,7 +312,8 @@ export function NotificationsWidget() {
                                                             )}
                                                             {n.title}
                                                         </Link>
-                                                        <span className="text-[10px] text-muted-foreground/50 font-bold shrink-0 tabular-nums">
+                                                        <span className={`text-[10px] font-bold shrink-0 tabular-nums inline-flex items-center gap-1 ${fresh ? "text-emerald-400" : "text-muted-foreground/50"}`}>
+                                                            {fresh && <span className={`size-1 rounded-full bg-emerald-400 ${animate ? "animate-pulse" : ""}`} />}
                                                             {timeAgo(n.ts)}
                                                         </span>
                                                     </div>
@@ -308,7 +355,15 @@ export function NotificationsWidget() {
                                         <span className="grid place-items-center size-10 rounded-2xl border border-border/40 bg-muted/20">
                                             <CheckCircle2 className="size-5 text-emerald-400/60" strokeWidth={1.5} />
                                         </span>
-                                        <span className="text-xs text-muted-foreground/60">Sin alertas pendientes</span>
+                                        <span className="text-xs text-muted-foreground/60">
+                                            {onlyUnread ? "Todo al día — sin alertas sin leer" : filter !== "todo" ? "Sin alertas en esta categoría" : "Sin alertas pendientes"}
+                                        </span>
+                                        {(onlyUnread || filter !== "todo") && (
+                                            <button type="button" onClick={() => { setOnlyUnread(false); setFilter("todo"); }}
+                                                className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-rose-300 hover:text-rose-200 transition-colors cursor-pointer">
+                                                Ver todas
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>

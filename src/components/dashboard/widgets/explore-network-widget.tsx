@@ -2,9 +2,10 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { TrendingUp, ChevronRight, Users, Telescope, Globe, Landmark, Vote, BookOpen, Palette, Building2 } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { TrendingUp, ChevronRight, Users, Telescope, Globe, Landmark, Vote, BookOpen, Palette, Building2, Flame, Sparkles, Check } from "lucide-react";
 import { WidgetShell, MiniList, Chip, ProgressBar, ProgressRing } from "../kit";
+import { useAppearance } from "@/context/appearance-context";
 import { useWidgetData } from "@/lib/widget-data";
 import type { NetworkEntity } from "@/lib/widget-data";
 import { widgetEntityHref } from "@/lib/entity-links";
@@ -17,10 +18,16 @@ import { samplePages, sampleGroups } from "@/data/sample-entities";
 // ════════════════════════════════════════════════════════════════
 // ExploreNetworkWidget — comunidades y entidades en tendencia.
 // Datos en vivo "social.entities". Lista de momentum + filtro kind.
+// Diseño data-driven: el momentum tiñe acentos, marca "candentes" (🔥),
+// y la cabecera muestra el pulso de tendencias (mini-distribución).
 // Adaptativo + theme-aware. Accent "#f59e0b". Link a /explorer.
 // ════════════════════════════════════════════════════════════════
 
 const ACCENT = "#f59e0b";
+
+// Umbrales de momentum → estado data-driven (color + etiqueta + icono).
+const HOT = 0.78;     // candente
+const RISING = 0.55;  // en ascenso
 
 const KIND_META: Record<NetworkEntity["kind"], { label: string; icon: React.ElementType }> = {
     comunidad:  { label: "Comunidad",  icon: Users },
@@ -64,6 +71,13 @@ function entityKindFromOs(name: string, tags: string[], isGroup: boolean): Netwo
 function synthMomentum(members: number): number {
     const v = Math.log10(Math.max(10, members)) / 5; // ~0.2..1
     return Math.min(1, Math.max(0.15, v));
+}
+
+/** Estado de tendencia derivado del momentum (diseño reactivo a datos). */
+function momentumState(m: number): { label: string; color: string; hot: boolean; rising: boolean } {
+    if (m >= HOT) return { label: "Candente", color: "#fb7185", hot: true, rising: true };
+    if (m >= RISING) return { label: "En ascenso", color: "#10b981", hot: false, rising: true };
+    return { label: "Estable", color: "#94a3b8", hot: false, rising: false };
 }
 
 function osToEntity(p: OsPage | OsGroup, isGroup: boolean): NetworkEntity {
@@ -155,6 +169,10 @@ function buildRichEntities(): RichEntity[] {
 }
 
 export function ExploreNetworkWidget() {
+    const { config } = useAppearance();
+    const prefersReduced = useReducedMotion();
+    const animate = config.animations.enabled && !prefersReduced;
+
     // Datos simulados como último recurso; las entidades reales vienen de Supabase.
     const { data: mockData, loading: mockLoading } = useWidgetData("social.entities", { refreshMs: 6000 });
     const { data: pages, loading: pagesLoading } = useOsPages();
@@ -198,6 +216,14 @@ export function ExploreNetworkWidget() {
 
     const top = sorted[0];
     const totalMembers = displayEntities.reduce((acc, e) => acc + e.members, 0);
+    // Métricas data-driven para la cabecera: cuántas candentes / en ascenso.
+    const hotCount = useMemo(() => displayEntities.filter(e => e.momentum >= HOT).length, [displayEntities]);
+    // Conteos por filtro (se muestran como badge en cada pestaña).
+    const filterCounts = useMemo(() => {
+        const c = {} as Record<FilterKind, number>;
+        for (const k of FILTER_KEYS) c[k] = k === "todas" ? displayEntities.length : displayEntities.filter(e => e.filterKind === k).length;
+        return c;
+    }, [displayEntities]);
 
     return (
         <WidgetShell
@@ -222,16 +248,19 @@ export function ExploreNetworkWidget() {
                 if (micro) {
                     if (!top) return <div className="h-full grid place-items-center text-xs text-muted-foreground/50 italic">Sin entidades</div>;
                     const TopIcon = top.typeIcon ?? Globe;
+                    const st = momentumState(top.momentum);
                     return (
                         <Link href={top.href} className="h-full flex items-center gap-3 px-1 cursor-pointer">
-                            <ProgressRing value={top.momentum} size={52} stroke={5} color={top.accent ?? ACCENT}
+                            <ProgressRing value={top.momentum} size={52} stroke={5} color={st.color}
                                 label={`${Math.round(top.momentum * 100)}%`} sublabel="mom." />
                             <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-black truncate" style={{ color: top.accent ?? ACCENT }}>{top.name}</p>
+                                <p className="text-[11px] font-black truncate flex items-center gap-1" style={{ color: top.accent ?? ACCENT }}>
+                                    {st.hot && <Flame className="size-3 shrink-0" style={{ color: st.color }} />}{top.name}
+                                </p>
                                 <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wide truncate inline-flex items-center gap-0.5">
                                     <TopIcon className="size-2.5" />{top.typeLabel}
                                 </p>
-                                <p className="text-[10px] font-bold text-muted-foreground/70 mt-0.5">
+                                <p className="text-[10px] font-bold text-muted-foreground/70 mt-0.5 tabular-nums">
                                     <Users className="size-2.5 inline mr-0.5" />{top.members.toLocaleString()}
                                 </p>
                             </div>
@@ -247,19 +276,29 @@ export function ExploreNetworkWidget() {
                 return (
                     <div className="flex flex-col gap-2 pt-1 h-full">
 
-                        {/* Cabecera: conteo total + filtro kind */}
-                        <div className="shrink-0 flex items-center justify-between gap-2 flex-wrap">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: ACCENT }}>
-                                <Globe className="size-3" /> {displayEntities.length} entidades · {totalMembers.toLocaleString()} miembros
-                            </span>
+                        {/* Cabecera: conteo total + pulso de tendencias + filtro kind */}
+                        <div className="shrink-0 flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider tabular-nums" style={{ color: ACCENT }}>
+                                    <Globe className="size-3" /> {displayEntities.length} entidades · {totalMembers.toLocaleString()} miembros
+                                </span>
+                                {hotCount > 0 && (
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-rose-300 tabular-nums">
+                                        <Flame className="size-2.5" />{hotCount} candentes
+                                    </span>
+                                )}
+                            </div>
                             {showFilter && (
                                 <div className="flex items-center gap-1 flex-wrap">
                                     {filterTabsVisible.map(k => {
                                         const FIcon = FILTER_META[k].icon;
+                                        const n = filterCounts[k];
+                                        const active = filter === k;
                                         return (
-                                            <button key={k} onClick={() => setFilter(k)}
-                                                className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${filter === k ? "border-amber-500/40 bg-amber-500/15 text-amber-300" : "border-border/40 text-muted-foreground/60 hover:text-foreground hover:border-border/70"}`}>
+                                            <button key={k} onClick={() => setFilter(k)} aria-pressed={active}
+                                                className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${active ? "border-amber-500/40 bg-amber-500/15 text-amber-300" : "border-border/40 text-muted-foreground/60 hover:text-foreground hover:border-border/70"}`}>
                                                 <FIcon className="size-2.5" />{FILTER_META[k].label}
+                                                {n > 0 && <span className="tabular-nums opacity-60">{n}</span>}
                                             </button>
                                         );
                                     })}
@@ -272,16 +311,18 @@ export function ExploreNetworkWidget() {
                             <MiniList
                                 items={sorted}
                                 max={maxItems}
-                                empty="Sin entidades en tendencia"
+                                empty={filter === "todas" ? "Sin entidades en tendencia" : "Sin entidades de este tipo"}
                                 render={(e) => {
                                     const isJoined = joined.has(e.id);
                                     const EIcon = (e as RichEntity).typeIcon ?? KIND_META[e.kind]?.icon ?? Globe;
                                     const eHref = (e as RichEntity).href ?? widgetEntityHref(e.name, e.kind);
                                     const eLabel = (e as RichEntity).typeLabel ?? KIND_META[e.kind]?.label ?? e.kind;
+                                    const st = momentumState(e.momentum);
                                     return (
                                         <motion.div
-                                            whileHover={{ scale: 1.01 }}
+                                            whileHover={animate ? { scale: 1.01 } : undefined}
                                             className="rounded-xl border border-border/40 bg-white/[0.02] hover:border-amber-500/25 hover:bg-white/[0.04] transition-all"
+                                            style={st.hot ? { boxShadow: `inset 2px 0 0 ${st.color}` } : undefined}
                                         >
                                           <Link href={eHref} className="block px-2.5 py-2 cursor-pointer">
                                             <div className="flex items-center gap-2">
@@ -294,6 +335,7 @@ export function ExploreNetworkWidget() {
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-1.5">
                                                         <span className="text-[11px] @sm:text-xs font-bold truncate">{e.name}</span>
+                                                        {st.hot && <Flame className="size-3 shrink-0" style={{ color: st.color }} />}
                                                         <Chip color={e.accent ?? ACCENT}>
                                                             <EIcon className="size-2 inline mr-0.5" />{eLabel}
                                                         </Chip>
@@ -302,7 +344,7 @@ export function ExploreNetworkWidget() {
                                                 </div>
 
                                                 <div className="shrink-0 flex flex-col items-end gap-1">
-                                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-emerald-400">
+                                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-black tabular-nums" style={{ color: st.color }} title={st.label}>
                                                         <TrendingUp className="size-2.5" />{Math.round(e.momentum * 100)}
                                                     </span>
                                                     <button
@@ -331,16 +373,16 @@ export function ExploreNetworkWidget() {
                                                             });
                                                         }}
                                                         aria-pressed={isJoined}
-                                                        className={`rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-wide transition-colors cursor-pointer ${isJoined ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300" : "border-amber-500/40 text-amber-400 hover:bg-amber-500/10"}`}
+                                                        className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-wide transition-colors cursor-pointer ${isJoined ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300" : "border-amber-500/40 text-amber-400 hover:bg-amber-500/10"}`}
                                                     >
-                                                        {isJoined ? "Miembro" : "Unirse"}
+                                                        {isJoined ? <><Check className="size-2.5" />Miembro</> : "Unirse"}
                                                     </button>
                                                 </div>
                                             </div>
 
                                             <div className="mt-1.5 flex items-center gap-2">
-                                                <div className="flex-1"><ProgressBar value={e.momentum} color={e.accent ?? ACCENT} height={3} /></div>
-                                                <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] text-muted-foreground/60">
+                                                <div className="flex-1"><ProgressBar value={e.momentum} color={st.color} height={3} /></div>
+                                                <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] text-muted-foreground/60 tabular-nums">
                                                     <Users className="size-2.5" />{e.members.toLocaleString()}
                                                 </span>
                                             </div>
@@ -352,12 +394,17 @@ export function ExploreNetworkWidget() {
                         </div>
 
                         {/* Footer expandido: top entidad destacada con link real */}
-                        {size.vTier === "expanded" && top && (
-                            <Link href={top.href} className="shrink-0 rounded-xl border px-2.5 py-1.5 cursor-pointer hover:opacity-80 transition-opacity" style={{ borderColor: `color-mix(in srgb, ${top.accent} 25%, transparent)`, background: `color-mix(in srgb, ${top.accent} 5%, transparent)` }}>
-                                <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: top.accent }}>Top momentum</span>
-                                <p className="text-[11px] font-semibold leading-snug truncate">{top.name} — {top.focus}</p>
-                            </Link>
-                        )}
+                        {size.vTier === "expanded" && top && (() => {
+                            const st = momentumState(top.momentum);
+                            return (
+                                <Link href={top.href} className="shrink-0 rounded-xl border px-2.5 py-1.5 cursor-pointer hover:opacity-80 transition-opacity" style={{ borderColor: `color-mix(in srgb, ${top.accent} 25%, transparent)`, background: `color-mix(in srgb, ${top.accent} 5%, transparent)` }}>
+                                    <span className="text-[9px] font-bold uppercase tracking-wider inline-flex items-center gap-1" style={{ color: top.accent }}>
+                                        {st.hot ? <Flame className="size-2.5" /> : <Sparkles className="size-2.5" />} Top momentum · {st.label}
+                                    </span>
+                                    <p className="text-[11px] font-semibold leading-snug truncate">{top.name} — {top.focus}</p>
+                                </Link>
+                            );
+                        })()}
                     </div>
                 );
             }}

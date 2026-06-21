@@ -2,9 +2,10 @@
 
 import { useState, useMemo, useId } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { LayoutGrid, Plus, Users, Crown, Shield, Folder, User, ChevronRight, Activity, type LucideIcon } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { LayoutGrid, Plus, Users, Crown, Shield, Folder, User, ChevronRight, Activity, Flame, type LucideIcon } from "lucide-react";
 import { WidgetShell, ProgressBar, Chip, ProgressRing } from "../kit";
+import { useAppearance } from "@/context/appearance-context";
 import { useWidgetData } from "@/lib/widget-data";
 import type { PageRef } from "@/lib/widget-data";
 import { widgetEntityHref, slugify } from "@/lib/entity-links";
@@ -18,8 +19,17 @@ function pageRefHref(pg: PageRef): string {
     return widgetEntityHref(pg.name, pg.kind);
 }
 
+// Umbrales de actividad → estado data-driven (etiqueta + color reactivo).
+const THRIVING = 0.72;
+const ACTIVE = 0.45;
+function activityState(a: number): { label: string; color: string; hot: boolean } {
+    if (a >= THRIVING) return { label: "Vibrante", color: "#10b981", hot: true };
+    if (a >= ACTIVE) return { label: "Activa", color: "#38bdf8", hot: false };
+    return { label: "Tranquila", color: "#94a3b8", hot: false };
+}
+
 /** Mini sparkline SVG para tendencia de actividad (path simple, sin recharts). */
-function MiniSparkline({ value, color, id }: { value: number; color: string; id: string }) {
+function MiniSparkline({ value, color, id, animate = true }: { value: number; color: string; id: string; animate?: boolean }) {
     // Genera puntos sintéticos deterministas desde el valor de actividad actual.
     const pts = useMemo(() => {
         const seed = value;
@@ -55,9 +65,9 @@ function MiniSparkline({ value, color, id }: { value: number; color: string; id:
                 d={d} fill="none" stroke={color} strokeWidth={1.5}
                 strokeLinecap="round" strokeLinejoin="round"
                 vectorEffect="non-scaling-stroke"
-                initial={{ pathLength: 0 }}
+                initial={animate ? { pathLength: 0 } : false}
                 animate={{ pathLength: 1 }}
-                transition={{ duration: 0.9, ease: "easeOut" }}
+                transition={{ duration: animate ? 0.9 : 0, ease: "easeOut" }}
             />
         </svg>
     );
@@ -66,7 +76,8 @@ function MiniSparkline({ value, color, id }: { value: number; color: string; id:
 // ════════════════════════════════════════════════════════════════
 // MyPagesWidget — perfiles, comunidades y entidades del usuario.
 // Datos en vivo "social.pages". Filtro local por kind, actividad
-// visual, microinteracciones. Adaptativo + theme-aware.
+// visual data-driven (estado vibrante/activa/tranquila → color),
+// spotlight de la más activa y resumen agregado. Adaptativo + theme.
 // ════════════════════════════════════════════════════════════════
 
 const ACCENT = "#38bdf8";
@@ -117,6 +128,10 @@ function osGroupToRef(g: OsGroup): PageRef {
 }
 
 export function MyPagesWidget() {
+    const { config } = useAppearance();
+    const prefersReduced = useReducedMotion();
+    const animate = config.animations.enabled && !prefersReduced;
+
     const { data: mockData, loading: mockLoading } = useWidgetData("social.pages", { refreshMs: 12000 });
     const { data: pages, loading: pagesLoading, refetch: refetchPages } = useOsPages();
     const { data: groups, loading: groupsLoading, refetch: refetchGroups } = useOsGroups();
@@ -144,6 +159,20 @@ export function MyPagesWidget() {
     const mostActive = useMemo(() => {
         if (!data?.length) return null;
         return [...data].sort((a, b) => b.activity - a.activity)[0];
+    }, [data]);
+
+    // Métricas agregadas data-driven (resumen + badge por filtro).
+    const totals = useMemo(() => {
+        const members = data.reduce((s, p) => s + p.members, 0);
+        const avgActivity = data.length ? data.reduce((s, p) => s + p.activity, 0) / data.length : 0;
+        const thriving = data.filter(p => p.activity >= THRIVING).length;
+        return { members, avgActivity, thriving };
+    }, [data]);
+
+    const filterCounts = useMemo(() => {
+        const c = {} as Record<PageRef["kind"] | "todas", number>;
+        for (const k of KIND_FILTERS) c[k] = k === "todas" ? data.length : data.filter(p => p.kind === k).length;
+        return c;
     }, [data]);
 
     return (
@@ -183,15 +212,21 @@ export function MyPagesWidget() {
 
                 // ── Micro: conteo + página más activa ──────────────
                 if (micro) {
+                    const st = mostActive ? activityState(mostActive.activity) : null;
                     return (
                         <div className="h-full flex items-center gap-3 px-1">
-                            <ProgressRing value={mostActive?.activity ?? 0} size={52} stroke={5} color={ACCENT}
+                            <ProgressRing value={mostActive?.activity ?? 0} size={52} stroke={5} color={st?.color ?? ACCENT}
                                 label={String(data?.length ?? 0)} sublabel="págs." />
                             <div className="min-w-0 flex-1">
                                 {mostActive ? (
                                     <>
-                                        <p className="text-[11px] font-black truncate" style={{ color: mostActive.accent ?? ACCENT }}>{mostActive.name}</p>
+                                        <p className="text-[11px] font-black truncate flex items-center gap-1" style={{ color: mostActive.accent ?? ACCENT }}>
+                                            {st?.hot && <Flame className="size-3 shrink-0" style={{ color: st.color }} />}{mostActive.name}
+                                        </p>
                                         <p className="text-[9px] uppercase tracking-wide text-muted-foreground/60">{KIND_META[mostActive.kind]?.label}</p>
+                                        <p className="text-[10px] font-bold text-muted-foreground/70 mt-0.5 tabular-nums">
+                                            <Users className="size-2.5 inline mr-0.5" />{mostActive.members.toLocaleString()}
+                                        </p>
                                     </>
                                 ) : (
                                     <p className="text-[10px] text-muted-foreground/50 italic">Sin páginas</p>
@@ -208,12 +243,31 @@ export function MyPagesWidget() {
                 return (
                     <div className="flex flex-col gap-2 pt-1 h-full">
 
+                        {/* Resumen agregado — miembros totales + actividad media + vibrantes */}
+                        {size.tier !== "compact" && data.length > 0 && (
+                            <div className="shrink-0 flex items-center gap-3 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-1.5">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-muted-foreground/70 tabular-nums">
+                                    <Users className="size-3 text-sky-400" />{totals.members.toLocaleString()}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold tabular-nums" style={{ color: activityState(totals.avgActivity).color }}>
+                                    <Activity className="size-3" />{Math.round(totals.avgActivity * 100)}% media
+                                </span>
+                                {totals.thriving > 0 && (
+                                    <span className="ml-auto inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-300 tabular-nums">
+                                        <Flame className="size-2.5" />{totals.thriving} vibrantes
+                                    </span>
+                                )}
+                            </div>
+                        )}
+
                         {/* Spotlight — página más activa */}
-                        {showSpotlight && mostActive && (
+                        {showSpotlight && mostActive && (() => {
+                            const st = activityState(mostActive.activity);
+                            return (
                             <motion.div
-                                initial={{ opacity: 0, y: -8 }}
+                                initial={animate ? { opacity: 0, y: -8 } : false}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.4, ease: "easeOut" }}
+                                transition={{ duration: animate ? 0.4 : 0, ease: "easeOut" }}
                                 className="shrink-0"
                             >
                                 <Link href={pageRefHref(mostActive)} className="block cursor-pointer">
@@ -225,7 +279,7 @@ export function MyPagesWidget() {
                                         }}
                                     >
                                         <div className="flex items-center gap-2.5">
-                                            {/* Avatar grande con pulse ring si actividad > 0.6 */}
+                                            {/* Avatar grande con pulse ring si actividad vibrante */}
                                             <div className="relative shrink-0">
                                                 <div
                                                     className="grid place-items-center size-10 rounded-xl text-white font-black text-sm border"
@@ -237,7 +291,7 @@ export function MyPagesWidget() {
                                                 >
                                                     {mostActive.name.charAt(0)}
                                                 </div>
-                                                {mostActive.activity > 0.6 && (
+                                                {animate && mostActive.activity >= THRIVING && (
                                                     <motion.span
                                                         animate={{ scale: [1, 1.6, 1], opacity: [0.6, 0, 0.6] }}
                                                         transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut" }}
@@ -255,34 +309,42 @@ export function MyPagesWidget() {
                                                     <Chip color={mostActive.accent ?? ACCENT}>{KIND_META[mostActive.kind]?.label}</Chip>
                                                 </div>
                                                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70">
-                                                    <span className="inline-flex items-center gap-0.5">
+                                                    <span className="inline-flex items-center gap-0.5 tabular-nums">
                                                         <Users className="size-2.5" />{mostActive.members.toLocaleString()}
                                                     </span>
-                                                    <span className="inline-flex items-center gap-0.5 font-black" style={{ color: mostActive.accent ?? ACCENT }}>
+                                                    <span className="inline-flex items-center gap-0.5 font-black tabular-nums" style={{ color: st.color }}>
                                                         <Activity className="size-2.5" />{Math.round(mostActive.activity * 100)}%
                                                     </span>
-                                                    <span className="ml-auto text-[9px] text-muted-foreground/50 uppercase tracking-wider font-bold">Más activa</span>
+                                                    <span className="ml-auto text-[9px] uppercase tracking-wider font-bold inline-flex items-center gap-0.5" style={{ color: st.color }}>
+                                                        {st.hot && <Flame className="size-2.5" />}{st.label}
+                                                    </span>
                                                 </div>
                                             </div>
 
                                             <div className="shrink-0">
-                                                <MiniSparkline value={mostActive.activity} color={mostActive.accent ?? ACCENT} id={`${sparkId}-spotlight`} />
+                                                <MiniSparkline value={mostActive.activity} color={mostActive.accent ?? ACCENT} id={`${sparkId}-spotlight`} animate={animate} />
                                             </div>
                                         </div>
                                     </div>
                                 </Link>
                             </motion.div>
-                        )}
+                            );
+                        })()}
 
-                        {/* Filtro por kind */}
+                        {/* Filtro por kind con badge de conteo */}
                         {showFilter && (
                             <div className="shrink-0 flex items-center gap-1 flex-wrap">
-                                {KIND_FILTERS.slice(0, 4).map(k => (
-                                    <button key={k} onClick={() => setFilter(k)}
-                                        className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${filter === k ? "bg-sky-500/15 border-sky-400/40 text-sky-300" : "border-border/40 text-muted-foreground/60 hover:text-foreground"}`}>
-                                        {k === "todas" ? "Todas" : KIND_META[k as PageRef["kind"]]?.label}
-                                    </button>
-                                ))}
+                                {KIND_FILTERS.slice(0, 4).map(k => {
+                                    const active = filter === k;
+                                    const n = filterCounts[k];
+                                    return (
+                                        <button key={k} onClick={() => setFilter(k)} aria-pressed={active}
+                                            className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer ${active ? "bg-sky-500/15 border-sky-400/40 text-sky-300" : "border-border/40 text-muted-foreground/60 hover:text-foreground"}`}>
+                                            {k === "todas" ? "Todas" : KIND_META[k as PageRef["kind"]]?.label}
+                                            {n > 0 && <span className="tabular-nums opacity-60">{n}</span>}
+                                        </button>
+                                    );
+                                })}
                                 <span className="ml-auto text-[9px] text-muted-foreground/50 font-bold tabular-nums">{filteredPages.length} págs.</span>
                             </div>
                         )}
@@ -297,13 +359,14 @@ export function MyPagesWidget() {
                                     const RoleIcon = role.icon;
                                     const activityPct = Math.round(pg.activity * 100);
                                     const accentVal = pg.accent ?? ACCENT;
+                                    const st = activityState(pg.activity);
                                     return (
                                         <motion.div
                                             key={pg.id}
-                                            initial={{ opacity: 0, x: -10 }}
+                                            initial={animate ? { opacity: 0, x: -10 } : false}
                                             animate={{ opacity: 1, x: 0 }}
-                                            transition={{ duration: 0.3, delay: idx * 0.05, ease: "easeOut" }}
-                                            whileHover={{ scale: 1.01, y: -1 }}
+                                            transition={{ duration: animate ? 0.3 : 0, delay: animate ? idx * 0.05 : 0, ease: "easeOut" }}
+                                            whileHover={animate ? { scale: 1.01, y: -1 } : undefined}
                                             className="rounded-xl border border-border/40 bg-white/[0.02] transition-shadow"
                                             style={{ ["--hover-glow" as string]: accentVal }}
                                         >
@@ -313,10 +376,10 @@ export function MyPagesWidget() {
                                                     <div className="shrink-0 relative grid place-items-center size-8 rounded-xl text-white font-black text-xs border"
                                                         style={{ background: `linear-gradient(135deg, ${accentVal}, color-mix(in srgb, ${accentVal} 50%, #000))`, borderColor: `${accentVal}44` }}>
                                                         {pg.name.charAt(0)}
-                                                        {/* actividad pulsante si > 0.6 */}
-                                                        {pg.activity > 0.6 && (
+                                                        {/* actividad pulsante si vibrante */}
+                                                        {pg.activity >= THRIVING && (
                                                             <motion.span
-                                                                animate={{ opacity: [0.5, 1, 0.5] }}
+                                                                animate={animate ? { opacity: [0.5, 1, 0.5] } : undefined}
                                                                 transition={{ duration: 2, repeat: Infinity, delay: idx * 0.3 }}
                                                                 className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 border border-background"
                                                             />
@@ -332,10 +395,10 @@ export function MyPagesWidget() {
                                                             <span className="inline-flex items-center gap-0.5 text-[9px]" style={{ color: role.color }}>
                                                                 <RoleIcon className="size-2.5" />{role.label}
                                                             </span>
-                                                            <span className="inline-flex items-center gap-0.5 text-[9px] text-muted-foreground/60">
+                                                            <span className="inline-flex items-center gap-0.5 text-[9px] text-muted-foreground/60 tabular-nums">
                                                                 <Users className="size-2.5" />{pg.members.toLocaleString()}
                                                             </span>
-                                                            <span className="ml-auto inline-flex items-center gap-0.5 text-[9px] font-black" style={{ color: accentVal }}>
+                                                            <span className="ml-auto inline-flex items-center gap-0.5 text-[9px] font-black tabular-nums" style={{ color: st.color }}>
                                                                 <KindIcon className="size-2.5" />{activityPct}%
                                                             </span>
                                                         </div>
@@ -343,13 +406,13 @@ export function MyPagesWidget() {
 
                                                     {/* Mini sparkline por ítem */}
                                                     <div className="shrink-0 opacity-70">
-                                                        <MiniSparkline value={pg.activity} color={accentVal} id={`${sparkId}-${pg.id}`} />
+                                                        <MiniSparkline value={pg.activity} color={accentVal} id={`${sparkId}-${pg.id}`} animate={animate} />
                                                     </div>
                                                 </div>
 
                                                 {size.vTier !== "compact" && (
                                                     <div className="mt-1.5">
-                                                        <ProgressBar value={pg.activity} color={accentVal} height={3} />
+                                                        <ProgressBar value={pg.activity} color={st.color} height={3} />
                                                     </div>
                                                 )}
                                             </Link>
@@ -358,7 +421,13 @@ export function MyPagesWidget() {
                                 })}
                                 {filteredPages.length === 0 && (
                                     <div className="flex flex-col items-center justify-center gap-2 py-4 text-center">
+                                        <span className="grid place-items-center size-9 rounded-2xl border border-border/40 bg-muted/20">
+                                            <LayoutGrid className="size-4 text-muted-foreground/50" strokeWidth={1.5} />
+                                        </span>
                                         <span className="text-xs text-muted-foreground/60">Sin páginas en esta categoría</span>
+                                        <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-1 rounded-full border border-sky-400/30 bg-sky-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-sky-300 hover:bg-sky-500/20 transition-colors cursor-pointer">
+                                            <Plus className="size-3" /> Crear página
+                                        </button>
                                     </div>
                                 )}
                             </div>

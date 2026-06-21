@@ -2656,6 +2656,383 @@ html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb {
 html[data-os-theme="cafe"] ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--primary-hsl) / 0.50);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   TEMA "OMNIFRECUENCIAS" — identidad completa del OS (opt-in)
+   ─────────────────────────────────────────────────────────────
+   applyStyles() (appearance-context) pone data-os-theme="omnifrecuencias"
+   en <html> cuando themeStore.osTheme === "omnifrecuencias". Sin atributo,
+   NADA de este bloque aplica: los temas existentes quedan byte a byte
+   igual. Lenguaje visual de la app Omnifrecuencias: holográfico, cian /
+   turquesa (#22D3EE) + violeta (#A855F7), negro profundo (#030712),
+   ondas/brillos de frecuencia. SOP: architecture/integracion-portal-starseed-os.md.
+
+   Variante OSCURA (base) — negro profundo + cian holográfico:
+     fondo #030712/#0a1626 · tinta cian-clara · primario cian #22D3EE
+     · acento violeta #A855F7 · bordes cian ~30%
+   Variante CLARA (.dark/.natural/.glass ausentes) — bruma turquesa:
+     fondo #eef9fc → #d2eef5 · tinta cian profunda · primario #0891B2
+     · acento #7C3AED
+   ═══════════════════════════════════════════════════════════ */
+
+/* ---- OMNIFRECUENCIAS CLARO (variante base) ---- */
+html[data-os-theme="omnifrecuencias"] {
+  --background-hsl: 190 63% 96%;
+  --foreground-hsl: 200 60% 14%;
+
+  --card-hsl: 192 100% 99%;
+  --card-foreground-hsl: 200 60% 14%;
+
+  --popover-hsl: 192 100% 99%;
+  --popover-foreground-hsl: 200 60% 14%;
+
+  --primary-hsl: 192 91% 37%;
+  --primary-foreground-hsl: 190 80% 97%;
+
+  --secondary-hsl: 262 83% 58%;
+  --secondary-foreground-hsl: 262 80% 97%;
+
+  --muted-hsl: 191 45% 90%;
+  --muted-foreground-hsl: 200 22% 38%;
+
+  --accent-hsl: 262 83% 58%;
+  --accent-foreground-hsl: 262 80% 97%;
+
+  --destructive-hsl: 340 75% 50%;
+  --destructive-foreground-hsl: 0 0% 100%;
+
+  --border-hsl: 191 42% 78%;
+  --input-hsl: 191 48% 90%;
+  --ring-hsl: 192 91% 37%;
+  --primary-rgb: 8, 145, 178;
+
+  --chart-1: 187;
+  --chart-2: 262;
+  --chart-3: 322;
+  --chart-4: 158;
+  --chart-5: 210;
+
+  /* Esquinas Omni: cristal redondeado moderno */
+  --radius: 1rem;
+  --radius-sm: 0.75rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 1.875rem;
+
+  /* Cristal frío holográfico */
+  --glass-rgb: 238, 249, 252;
+  --glass-shadow-layer-1: 0 4px 10px -2px rgba(8, 70, 90, 0.08);
+  --glass-shadow-layer-2: 0 12px 24px -6px rgba(8, 70, 90, 0.07);
+  --glass-shadow-layer-3: 0 24px 44px -12px rgba(34, 211, 238, 0.10);
+  --glass-shadow-ambient: 0 0 36px rgba(168, 85, 247, 0.10);
+}
+
+/* ---- OMNIFRECUENCIAS OSCURO (atmósferas oscuras: dark / natural / glass) ---- */
+html[data-os-theme="omnifrecuencias"]:is(.dark, .natural, .glass) {
+  --background-hsl: 222 47% 5%;
+  --foreground-hsl: 187 60% 92%;
+
+  --card-hsl: 213 59% 9%;
+  --card-foreground-hsl: 187 60% 92%;
+
+  --popover-hsl: 216 55% 7%;
+  --popover-foreground-hsl: 187 60% 92%;
+
+  --primary-hsl: 187 85% 53%;
+  --primary-foreground-hsl: 215 60% 7%;
+
+  --secondary-hsl: 271 91% 65%;
+  --secondary-foreground-hsl: 271 80% 97%;
+
+  --muted-hsl: 214 30% 14%;
+  --muted-foreground-hsl: 195 25% 70%;
+
+  --accent-hsl: 271 91% 65%;
+  --accent-foreground-hsl: 271 80% 97%;
+
+  --destructive-hsl: 340 80% 58%;
+  --destructive-foreground-hsl: 0 0% 100%;
+
+  --border-hsl: 190 50% 26%;
+  --input-hsl: 214 30% 13%;
+  --ring-hsl: 187 85% 53%;
+  --primary-rgb: 34, 211, 238;
+
+  --chart-1: 187;
+  --chart-2: 271;
+  --chart-3: 322;
+  --chart-4: 158;
+  --chart-5: 210;
+
+  --glass-rgb: 8, 18, 32;
+  --glass-shadow-layer-1: 0 4px 16px -4px rgba(34, 211, 238, 0.14);
+  --glass-shadow-layer-2: 0 16px 32px -8px rgba(168, 85, 247, 0.10);
+  --glass-shadow-layer-3: 0 32px 64px -16px rgba(34, 211, 238, 0.08);
+  --glass-shadow-ambient: 0 0 50px rgba(34, 211, 238, 0.10);
+}
+
+/* ---- Fondo de página (bruma turquesa / negro profundo holográfico) ---- */
+html[data-os-theme="omnifrecuencias"] body {
+  background:
+    radial-gradient(900px 620px at 18% -8%, rgba(34, 211, 238, 0.14) 0%, transparent 60%),
+    radial-gradient(900px 620px at 82% 8%, rgba(168, 85, 247, 0.12) 0%, transparent 60%),
+    radial-gradient(1100px 760px at 50% 110%, #d2eef5 0%, #e6f6fb 50%, #eef9fc 100%) fixed;
+  background-attachment: fixed;
+}
+
+html[data-os-theme="omnifrecuencias"]:is(.dark, .natural, .glass) body {
+  background:
+    radial-gradient(900px 620px at 22% -10%, rgba(34, 211, 238, 0.16) 0%, transparent 58%),
+    radial-gradient(900px 620px at 80% 4%, rgba(168, 85, 247, 0.16) 0%, transparent 58%),
+    radial-gradient(1100px 820px at 50% 112%, #0a1626 0%, #050b18 56%, #030712 100%) fixed;
+  background-attachment: fixed;
+}
+
+/* Tarjetas/paneles con tinte cian holográfico (oscuro) */
+html[data-os-theme="omnifrecuencias"]:is(.dark, .natural, .glass) .liquid-glass-panel {
+  background: rgba(8, 18, 32, 0.74) !important;
+  border-color: rgba(34, 211, 238, 0.22) !important;
+  box-shadow: 0 1px 16px rgba(0, 0, 0, 0.45) !important;
+}
+
+html[data-os-theme="omnifrecuencias"]:is(.dark, .natural, .glass) .glass-card,
+html[data-os-theme="omnifrecuencias"]:is(.dark, .natural, .glass) .card-glass {
+  border-color: rgba(34, 211, 238, 0.24);
+  box-shadow:
+    0 14px 40px -16px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(34, 211, 238, 0.10);
+}
+
+html[data-os-theme="omnifrecuencias"]:not(.dark):not(.natural):not(.glass) .card-glass,
+html[data-os-theme="omnifrecuencias"]:not(.dark):not(.natural):not(.glass) .glass-card {
+  background: rgba(248, 253, 255, 0.86) !important;
+  border-color: rgba(34, 211, 238, 0.32) !important;
+  box-shadow:
+    0 2px 12px rgba(8, 70, 90, 0.08),
+    0 10px 28px rgba(8, 70, 90, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Glow de hover cian (sustituye al violeta de Nebula) */
+html[data-os-theme="omnifrecuencias"]:is(.dark, .natural, .glass) button:not([disabled]):hover,
+html[data-os-theme="omnifrecuencias"]:is(.dark, .natural, .glass) [role="button"]:not([disabled]):hover {
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.20);
+}
+
+/* Botones primarios "neón frecuencia" */
+html[data-os-theme="omnifrecuencias"] button.bg-primary,
+html[data-os-theme="omnifrecuencias"] .shadcn-button.bg-primary,
+html[data-os-theme="omnifrecuencias"] [role="button"].bg-primary {
+  background-image: linear-gradient(180deg,
+      hsl(var(--primary-hsl) / 0.92) 0%,
+      hsl(var(--primary-hsl)) 55%,
+      color-mix(in srgb, hsl(var(--primary-hsl)) 80%, #7C3AED) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 10px 26px -10px hsl(var(--primary-hsl) / 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+html[data-os-theme="omnifrecuencias"]:is(.dark, .natural, .glass) .os-widget-shell {
+  box-shadow: 0 18px 48px -20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(34, 211, 238, 0.08);
+}
+
+html[data-os-theme="omnifrecuencias"] ::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary-hsl) / 0.30);
+}
+
+html[data-os-theme="omnifrecuencias"] ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary-hsl) / 0.50);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TEMA "AUDIOMORPHIC" — identidad completa del OS (opt-in)
+   ─────────────────────────────────────────────────────────────
+   applyStyles() (appearance-context) pone data-os-theme="audiomorphic"
+   en <html> cuando themeStore.osTheme === "audiomorphic". Sin atributo,
+   NADA de este bloque aplica: los temas existentes quedan byte a byte
+   igual. Lenguaje visual de Audiomorphic: geometría sagrada, violeta
+   (#A855F7) + oro (#D4AF37) sobre negro, místico y ceremonial.
+   SOP: architecture/integracion-portal-starseed-os.md.
+
+   Variante OSCURA (base) — negro místico + violeta/oro:
+     fondo #08040f/#150b24 · tinta violeta-clara · primario violeta
+     #A855F7 · acento oro #D4AF37 · bordes violeta ~30%
+   Variante CLARA (.dark/.natural/.glass ausentes) — templo lila:
+     fondo #f6f1fd → #e9def8 · tinta violeta profunda · primario #7C3AED
+     · acento oro viejo #B8860B
+   ═══════════════════════════════════════════════════════════ */
+
+/* ---- AUDIOMORPHIC CLARO (variante base) ---- */
+html[data-os-theme="audiomorphic"] {
+  --background-hsl: 267 67% 97%;
+  --foreground-hsl: 268 45% 16%;
+
+  --card-hsl: 270 100% 99%;
+  --card-foreground-hsl: 268 45% 16%;
+
+  --popover-hsl: 270 100% 99%;
+  --popover-foreground-hsl: 268 45% 16%;
+
+  --primary-hsl: 262 83% 58%;
+  --primary-foreground-hsl: 262 80% 97%;
+
+  --secondary-hsl: 43 89% 38%;
+  --secondary-foreground-hsl: 45 80% 96%;
+
+  --muted-hsl: 266 40% 91%;
+  --muted-foreground-hsl: 265 20% 40%;
+
+  --accent-hsl: 43 89% 38%;
+  --accent-foreground-hsl: 45 80% 96%;
+
+  --destructive-hsl: 350 72% 50%;
+  --destructive-foreground-hsl: 0 0% 100%;
+
+  --border-hsl: 266 40% 80%;
+  --input-hsl: 266 44% 91%;
+  --ring-hsl: 262 83% 58%;
+  --primary-rgb: 124, 58, 237;
+
+  --chart-1: 271;
+  --chart-2: 43;
+  --chart-3: 322;
+  --chart-4: 224;
+  --chart-5: 173;
+
+  /* Esquinas Audiomorphic: ceremonial, generoso */
+  --radius: 1.125rem;
+  --radius-sm: 0.875rem;
+  --radius-lg: 1.375rem;
+  --radius-xl: 1.625rem;
+  --radius-2xl: 2rem;
+
+  /* Cristal lila con halo dorado */
+  --glass-rgb: 246, 241, 253;
+  --glass-shadow-layer-1: 0 4px 10px -2px rgba(60, 30, 90, 0.08);
+  --glass-shadow-layer-2: 0 12px 24px -6px rgba(60, 30, 90, 0.07);
+  --glass-shadow-layer-3: 0 24px 44px -12px rgba(168, 85, 247, 0.10);
+  --glass-shadow-ambient: 0 0 36px rgba(212, 175, 55, 0.12);
+}
+
+/* ---- AUDIOMORPHIC OSCURO (atmósferas oscuras: dark / natural / glass) ---- */
+html[data-os-theme="audiomorphic"]:is(.dark, .natural, .glass) {
+  --background-hsl: 267 60% 4%;
+  --foreground-hsl: 271 50% 92%;
+
+  --card-hsl: 264 53% 9%;
+  --card-foreground-hsl: 271 50% 92%;
+
+  --popover-hsl: 266 50% 7%;
+  --popover-foreground-hsl: 271 50% 92%;
+
+  --primary-hsl: 271 91% 65%;
+  --primary-foreground-hsl: 266 60% 8%;
+
+  --secondary-hsl: 46 65% 52%;
+  --secondary-foreground-hsl: 45 80% 8%;
+
+  --muted-hsl: 265 30% 15%;
+  --muted-foreground-hsl: 270 22% 72%;
+
+  --accent-hsl: 46 65% 52%;
+  --accent-foreground-hsl: 45 80% 8%;
+
+  --destructive-hsl: 350 78% 58%;
+  --destructive-foreground-hsl: 0 0% 100%;
+
+  --border-hsl: 271 45% 28%;
+  --input-hsl: 265 30% 14%;
+  --ring-hsl: 271 91% 65%;
+  --primary-rgb: 168, 85, 247;
+
+  --chart-1: 271;
+  --chart-2: 46;
+  --chart-3: 322;
+  --chart-4: 224;
+  --chart-5: 173;
+
+  --glass-rgb: 21, 11, 36;
+  --glass-shadow-layer-1: 0 4px 16px -4px rgba(168, 85, 247, 0.14);
+  --glass-shadow-layer-2: 0 16px 32px -8px rgba(212, 175, 55, 0.08);
+  --glass-shadow-layer-3: 0 32px 64px -16px rgba(168, 85, 247, 0.08);
+  --glass-shadow-ambient: 0 0 50px rgba(212, 175, 55, 0.09);
+}
+
+/* ---- Fondo de página (templo lila / negro místico) ---- */
+html[data-os-theme="audiomorphic"] body {
+  background:
+    radial-gradient(900px 620px at 20% -8%, rgba(168, 85, 247, 0.14) 0%, transparent 60%),
+    radial-gradient(900px 620px at 80% 6%, rgba(212, 175, 55, 0.10) 0%, transparent 60%),
+    radial-gradient(1100px 760px at 50% 110%, #e9def8 0%, #f1e9fb 50%, #f6f1fd 100%) fixed;
+  background-attachment: fixed;
+}
+
+html[data-os-theme="audiomorphic"]:is(.dark, .natural, .glass) body {
+  background:
+    radial-gradient(900px 620px at 22% -10%, rgba(168, 85, 247, 0.18) 0%, transparent 58%),
+    radial-gradient(900px 620px at 80% 4%, rgba(212, 175, 55, 0.12) 0%, transparent 58%),
+    radial-gradient(1100px 820px at 50% 112%, #150b24 0%, #0c0617 56%, #08040f 100%) fixed;
+  background-attachment: fixed;
+}
+
+/* Tarjetas/paneles con tinte violeta místico (oscuro) */
+html[data-os-theme="audiomorphic"]:is(.dark, .natural, .glass) .liquid-glass-panel {
+  background: rgba(21, 11, 36, 0.74) !important;
+  border-color: rgba(168, 85, 247, 0.24) !important;
+  box-shadow: 0 1px 16px rgba(0, 0, 0, 0.45) !important;
+}
+
+html[data-os-theme="audiomorphic"]:is(.dark, .natural, .glass) .glass-card,
+html[data-os-theme="audiomorphic"]:is(.dark, .natural, .glass) .card-glass {
+  border-color: rgba(168, 85, 247, 0.26);
+  box-shadow:
+    0 14px 40px -16px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(212, 175, 55, 0.10);
+}
+
+html[data-os-theme="audiomorphic"]:not(.dark):not(.natural):not(.glass) .card-glass,
+html[data-os-theme="audiomorphic"]:not(.dark):not(.natural):not(.glass) .glass-card {
+  background: rgba(251, 248, 255, 0.86) !important;
+  border-color: rgba(168, 85, 247, 0.30) !important;
+  box-shadow:
+    0 2px 12px rgba(60, 30, 90, 0.08),
+    0 10px 28px rgba(60, 30, 90, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Glow de hover violeta/oro */
+html[data-os-theme="audiomorphic"]:is(.dark, .natural, .glass) button:not([disabled]):hover,
+html[data-os-theme="audiomorphic"]:is(.dark, .natural, .glass) [role="button"]:not([disabled]):hover {
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.20);
+}
+
+/* Botones primarios "violeta sagrado" con filo dorado */
+html[data-os-theme="audiomorphic"] button.bg-primary,
+html[data-os-theme="audiomorphic"] .shadcn-button.bg-primary,
+html[data-os-theme="audiomorphic"] [role="button"].bg-primary {
+  background-image: linear-gradient(180deg,
+      hsl(var(--primary-hsl) / 0.92) 0%,
+      hsl(var(--primary-hsl)) 55%,
+      color-mix(in srgb, hsl(var(--primary-hsl)) 80%, #D4AF37) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  box-shadow:
+    0 10px 26px -10px hsl(var(--primary-hsl) / 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+html[data-os-theme="audiomorphic"]:is(.dark, .natural, .glass) .os-widget-shell {
+  box-shadow: 0 18px 48px -20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(168, 85, 247, 0.08);
+}
+
+html[data-os-theme="audiomorphic"] ::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary-hsl) / 0.30);
+}
+
+html[data-os-theme="audiomorphic"] ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary-hsl) / 0.50);
+}
+
 /* ═══════════════════════════════════════════════════════════
    CRISTAL LÍQUIDO REALISTA — reflejo que deriva (profundidad/movimiento)
    Capa ::after no intrusiva en cada widget (.os-widget-shell ya usa ::before

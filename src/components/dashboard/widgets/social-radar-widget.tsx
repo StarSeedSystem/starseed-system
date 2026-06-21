@@ -2,15 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
     CalendarDays, MapPin, Users, ChevronRight, type LucideIcon,
-    Landmark, Hammer, Sparkles, Palette, Store,
+    Landmark, Hammer, Sparkles, Palette, Store, LayoutGrid,
 } from "lucide-react";
 import {
     RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
 } from "recharts";
 import { WidgetShell, MiniList, Chip, timeUntil } from "../kit";
+import { useAppearance } from "@/context/appearance-context";
 import { useWidgetData } from "@/lib/widget-data";
 import type { SocialEvent } from "@/lib/widget-data";
 import { createClient } from "@/utils/supabase/client";
@@ -24,8 +25,9 @@ const NUM_ES = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
 
 // ════════════════════════════════════════════════════════════════
 // SocialRadarWidget — eventos próximos de la red (asambleas, talleres,
-// rituales, obras, mercados). Radar visual con recharts, stagger,
-// countdown pill, entidades activas y live-pulse.
+// rituales, obras, mercados). Radar visual con recharts, segmentos por
+// tipo, urgencia data-driven (eventos inminentes → pulso ámbar/verde),
+// countdown pill, entidades activas y live-pulse. Adaptativo + theme.
 // ════════════════════════════════════════════════════════════════
 const KIND_META: Record<SocialEvent["kind"], { icon: LucideIcon; color: string; label: string }> = {
     asamblea: { icon: Landmark, color: "#f59e0b", label: "Asamblea" },
@@ -36,6 +38,8 @@ const KIND_META: Record<SocialEvent["kind"], { icon: LucideIcon; color: string; 
 };
 const MONTHS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
 const KIND_ORDER: SocialEvent["kind"][] = ["asamblea", "taller", "ritual", "obra", "mercado"];
+
+type RadarFilter = "todos" | SocialEvent["kind"];
 
 interface LocationRow { id: string; name: string | null; city: string | null }
 type RadarEvent = SocialEvent & { slug?: string };
@@ -72,20 +76,18 @@ function timeCountdown(ts: number): string {
     return `en ${m}m`;
 }
 
-/** ¿El evento empieza dentro de 1 hora? */
-function startsWithinHour(ts: number): boolean {
+/** Urgencia data-driven: "live" (<1h), "soon" (<24h) o "scheduled". */
+function eventUrgency(ts: number): "live" | "soon" | "scheduled" {
     const diff = ts - Date.now();
-    return diff > 0 && diff < 3_600_000;
+    if (diff > 0 && diff < 3_600_000) return "live";
+    if (diff > 0 && diff < 86_400_000) return "soon";
+    return "scheduled";
 }
 
-// Variantes para entrada escalonada de tarjetas
-const cardVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: (i: number) => ({
-        opacity: 1, y: 0,
-        transition: { delay: i * 0.07, duration: 0.22, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
-    }),
-};
+/** ¿El evento empieza dentro de 1 hora? */
+function startsWithinHour(ts: number): boolean {
+    return eventUrgency(ts) === "live";
+}
 
 // ── Mini radar SVG para modo micro ──────────────────────────────
 function MicroRadarRings({ counts }: { counts: Record<string, number> }) {
@@ -117,11 +119,16 @@ function MicroRadarRings({ counts }: { counts: Record<string, number> }) {
 }
 
 export function SocialRadarWidget() {
+    const { config } = useAppearance();
+    const prefersReduced = useReducedMotion();
+    const animate = config.animations.enabled && !prefersReduced;
+
     const { data: mockData, loading: mockLoading } = useWidgetData("social.events", { refreshMs: 20000 });
     const { data: osEvents, loading: osLoading } = useOsEvents();
     const supabase = useMemo(() => createClient(), []);
     const [realPlaces, setRealPlaces] = useState<string[] | null>(null);
     const [branchActivity, setBranchActivity] = useState<Record<string, number> | null>(null);
+    const [filter, setFilter] = useState<RadarFilter>("todos");
 
     useEffect(() => {
         let active = true;
@@ -168,7 +175,7 @@ export function SocialRadarWidget() {
         });
     }, [osEvents, mockData, realPlaces, branchActivity]);
 
-    // Conteos por tipo para el radar
+    // Conteos por tipo para el radar y los segmentos.
     const kindCounts = useMemo(() => {
         const counts: Record<string, number> = {};
         if (data) for (const e of data) counts[e.kind] = (counts[e.kind] ?? 0) + 1;
@@ -181,16 +188,27 @@ export function SocialRadarWidget() {
         [kindCounts]
     );
 
-    // Evento más próximo (para countdown pill y live pulse)
-    const nearestEvent = useMemo(() => {
-        if (!data || !data.length) return null;
-        return [...data].sort((a, b) => a.startTs - b.startTs)[0];
-    }, [data]);
+    // Lista filtrada por segmento de tipo.
+    const filtered = useMemo(() => {
+        if (!data) return [];
+        const base = filter === "todos" ? data : data.filter(e => e.kind === filter);
+        return [...base].sort((a, b) => a.startTs - b.startTs);
+    }, [data, filter]);
 
+    // Evento más próximo (para countdown pill y live pulse)
+    const nearestEvent = useMemo(() => filtered[0] ?? null, [filtered]);
     const liveNow = nearestEvent ? startsWithinHour(nearestEvent.startTs) : false;
+    // Cuántos eventos son inminentes (<24h): señal de urgencia data-driven.
+    const soonCount = useMemo(() => (data ?? []).filter(e => eventUrgency(e.startTs) !== "scheduled").length, [data]);
 
     // E.F. activas (top 3 para mostrar chips)
     const activeEFs = useMemo(() => listFederativeEntities().slice(0, 3), []);
+
+    // Segmentos de tipo presentes (solo los que tienen eventos).
+    const segments = useMemo<RadarFilter[]>(() => {
+        const present = KIND_ORDER.filter(k => (kindCounts[k] ?? 0) > 0);
+        return ["todos", ...present];
+    }, [kindCounts]);
 
     return (
         <WidgetShell
@@ -217,10 +235,11 @@ export function SocialRadarWidget() {
                         <div className="flex items-center justify-between gap-2 text-[10px] font-semibold text-muted-foreground/70 min-w-0">
                             <span className="inline-flex items-center gap-1.5 min-w-0">
                                 {/* Live pulse indicator */}
-                                {liveNow && (
-                                    <span className="size-1.5 rounded-full shrink-0 bg-emerald-400 animate-pulse" />
+                                {liveNow ? (
+                                    <span className={`size-1.5 rounded-full shrink-0 bg-emerald-400 ${animate ? "animate-pulse" : ""}`} />
+                                ) : (
+                                    <span className="size-1.5 rounded-full shrink-0" style={{ background: "#ec4899" }} />
                                 )}
-                                {!liveNow && <span className="size-1.5 rounded-full shrink-0" style={{ background: "#ec4899" }} />}
                                 <span className="truncate tabular-nums">{data.length} eventos · {NUM_ES.format(totalAttendees)} asistentes</span>
                             </span>
                             <span className="shrink-0 tabular-nums">próximo {timeUntil(next.startTs)}</span>
@@ -232,7 +251,7 @@ export function SocialRadarWidget() {
             {(size) => {
                 if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
                 const micro = size.tier === "micro" || size.vTier === "micro";
-                const sorted = [...data].sort((a, b) => a.startTs - b.startTs);
+                const sorted = filtered;
                 const max = micro ? 3 : size.vTier === "expanded" ? 5 : 3;
 
                 // Micro: miniatura de radar + lista compacta
@@ -248,11 +267,13 @@ export function SocialRadarWidget() {
                                     render={(e) => {
                                         const meta = KIND_META[e.kind];
                                         const Icon = meta.icon;
+                                        const soon = startsWithinHour(e.startTs);
                                         return (
                                             <Link href={e.slug ? eventHref(e.slug) : eventHref(slugify(e.title) || "evento")}
                                                 className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 hover:bg-white/[0.04] transition-colors cursor-pointer">
                                                 <Icon className="size-3 shrink-0" style={{ color: meta.color }} />
                                                 <span className="text-[10px] font-bold truncate flex-1">{e.title}</span>
+                                                {soon && <span className={`size-1.5 rounded-full shrink-0 bg-emerald-400 ${animate ? "animate-pulse" : ""}`} />}
                                             </Link>
                                         );
                                     }}
@@ -264,6 +285,33 @@ export function SocialRadarWidget() {
 
                 return (
                     <div className="pt-1 h-full flex flex-col gap-2.5">
+                        {/* ── Segmentos por tipo + señal de urgencia ── */}
+                        {size.tier !== "compact" && (
+                            <div className="shrink-0 flex items-center gap-1 overflow-x-auto no-scrollbar -mx-0.5 px-0.5">
+                                {segments.map((s) => {
+                                    const active = filter === s;
+                                    const meta = s === "todos" ? null : KIND_META[s];
+                                    const SIcon = s === "todos" ? CalendarDays : meta!.icon;
+                                    const n = s === "todos" ? data.length : (kindCounts[s] ?? 0);
+                                    const col = s === "todos" ? "#ec4899" : meta!.color;
+                                    return (
+                                        <button key={s} type="button" onClick={() => setFilter(s)} aria-pressed={active}
+                                            className="shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide transition-colors cursor-pointer tabular-nums"
+                                            style={active
+                                                ? { color: col, borderColor: `${col}66`, background: `${col}1f` }
+                                                : { color: "hsl(var(--muted-foreground)/0.7)", borderColor: "hsl(var(--border)/0.4)" }}>
+                                            <SIcon className="size-2.5" />{s === "todos" ? "Todos" : meta!.label}<span className="opacity-60">{n}</span>
+                                        </button>
+                                    );
+                                })}
+                                {soonCount > 0 && (
+                                    <span className="shrink-0 ml-auto inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-300 tabular-nums">
+                                        <span className={`size-1.5 rounded-full bg-emerald-400 ${animate ? "animate-pulse" : ""}`} />{soonCount} pronto
+                                    </span>
+                                )}
+                            </div>
+                        )}
+
                         {/* ── Radar visual (expanded) ── */}
                         {size.vTier === "expanded" && (
                             <div className="shrink-0 rounded-2xl border border-border/40 bg-white/[0.02] p-2.5">
@@ -275,7 +323,8 @@ export function SocialRadarWidget() {
                                             <PolarAngleAxis dataKey="kind"
                                                 tick={{ fontSize: 8, fill: "currentColor", opacity: 0.55 }} />
                                             <Radar name="Eventos" dataKey="value" stroke="#ec4899"
-                                                strokeWidth={1.5} fill="#ec4899" fillOpacity={0.25} />
+                                                strokeWidth={1.5} fill="#ec4899" fillOpacity={0.25}
+                                                isAnimationActive={animate} />
                                         </RadarChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -287,27 +336,27 @@ export function SocialRadarWidget() {
                             <MiniList
                                 items={sorted}
                                 max={max}
-                                empty="Sin eventos próximos"
+                                empty={filter === "todos" ? "Sin eventos próximos" : `Sin ${KIND_META[filter as SocialEvent["kind"]]?.label.toLowerCase()}s próximos`}
+                                emptyIcon={LayoutGrid}
                                 render={(e, idx) => {
                                     const meta = KIND_META[e.kind];
                                     const d = new Date(e.startTs);
                                     const hh = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
                                     const isNearest = e.id === nearestEvent?.id;
-                                    const startingSoon = startsWithinHour(e.startTs);
+                                    const urgency = eventUrgency(e.startTs);
+                                    const startingSoon = urgency === "live";
+                                    // Urgencia ⇒ el badge de fecha se intensifica.
+                                    const badgeColor = startingSoon ? "#10b981" : meta.color;
                                     return (
                                         <motion.div
                                             key={e.id}
-                                            custom={idx}
-                                            variants={cardVariants}
-                                            initial="hidden"
-                                            animate="visible"
+                                            initial={animate ? { opacity: 0, y: 10 } : false}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: animate ? idx * 0.07 : 0, duration: animate ? 0.22 : 0, ease: [0.16, 1, 0.3, 1] }}
                                         >
                                             <Link
                                                 href={e.slug ? eventHref(e.slug) : eventHref(slugify(e.title) || "evento")}
                                                 className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 transition-all cursor-pointer block"
-                                                style={{
-                                                    // hover glow — se implementa vía CSS class porque inline no puede :hover
-                                                }}
                                                 onMouseEnter={(ev) => {
                                                     (ev.currentTarget as HTMLElement).style.boxShadow = `0 0 12px ${meta.color}33`;
                                                     (ev.currentTarget as HTMLElement).style.borderColor = `${meta.color}40`;
@@ -317,16 +366,24 @@ export function SocialRadarWidget() {
                                                     (ev.currentTarget as HTMLElement).style.borderColor = "";
                                                 }}
                                             >
-                                                {/* Badge de fecha con glow sutil */}
-                                                <div className="shrink-0 grid place-items-center size-10 rounded-xl border text-center leading-none"
+                                                {/* Badge de fecha con glow sutil; pulso si inminente */}
+                                                <div className="shrink-0 relative grid place-items-center size-10 rounded-xl border text-center leading-none"
                                                     style={{
-                                                        color: meta.color,
-                                                        borderColor: `${meta.color}40`,
-                                                        background: `${meta.color}1a`,
-                                                        boxShadow: `0 0 8px ${meta.color}66`,
+                                                        color: badgeColor,
+                                                        borderColor: `${badgeColor}40`,
+                                                        background: `${badgeColor}1a`,
+                                                        boxShadow: `0 0 8px ${badgeColor}66`,
                                                     }}>
                                                     <span className="text-[8px] font-black uppercase">{MONTHS[d.getMonth()]}</span>
                                                     <span className="text-base font-black tabular-nums">{d.getDate()}</span>
+                                                    {startingSoon && animate && (
+                                                        <motion.span
+                                                            animate={{ scale: [1, 1.35, 1], opacity: [0.55, 0, 0.55] }}
+                                                            transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+                                                            className="absolute inset-0 rounded-xl border-2 pointer-events-none"
+                                                            style={{ borderColor: badgeColor }}
+                                                        />
+                                                    )}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center justify-between gap-2">
@@ -341,11 +398,11 @@ export function SocialRadarWidget() {
                                                             <Users className="size-3" /> {NUM_ES.format(e.attendees)}
                                                         </span>
                                                     </div>
-                                                    {/* Countdown pill para el más próximo */}
-                                                    {isNearest && (
+                                                    {/* Countdown pill: para el más próximo o cualquier evento inminente */}
+                                                    {(isNearest || urgency !== "scheduled") && (
                                                         <div className="mt-1 flex items-center gap-1.5">
-                                                            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-px text-[8px] font-black uppercase tracking-wider ${startingSoon ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400" : "bg-white/[0.06] border-border/40 text-muted-foreground/60"}`}>
-                                                                {startingSoon && <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                                                            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-px text-[8px] font-black uppercase tracking-wider ${startingSoon ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400" : urgency === "soon" ? "bg-amber-500/15 border-amber-500/30 text-amber-300" : "bg-white/[0.06] border-border/40 text-muted-foreground/60"}`}>
+                                                                {startingSoon && <span className={`size-1.5 rounded-full bg-emerald-400 ${animate ? "animate-pulse" : ""}`} />}
                                                                 {timeCountdown(e.startTs)}
                                                             </span>
                                                         </div>

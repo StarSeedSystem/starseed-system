@@ -16,7 +16,7 @@ export interface CustomFont {
  * "default" = sin atributo (comportamiento histórico intacto).
  * SOP: architecture/integracion-portal-starseed-os.md → "Tema StarSeed Café".
  */
-export type OsThemeId = "default" | "cafe";
+export type OsThemeId = "default" | "cafe" | "omnifrecuencias" | "audiomorphic";
 
 export type DeepPartial<T> = {
     [P in keyof T]?: T[P] extends Array<infer U>
