@@ -26,6 +26,7 @@ export const WIDGET_CATEGORY_MAP: WidgetCategoryMapping[] = [
     // ── Datos oficiales en tiempo real ──
     { type: 'OFFICIAL_DATA', primaryCategory: 'descubrimientos', secondaryCategories: ['sistema', 'clima'], tags: ['datos', 'tiempo real', 'oficial', 'clima', 'sismos', 'espacio', 'noaa', 'usgs', 'open-meteo', 'ajustable'], isPopular: true },
     { type: 'SPACE_WEATHER', primaryCategory: 'astronomia', secondaryCategories: ['clima', 'descubrimientos'], tags: ['clima espacial', 'noaa', 'kp', 'viento solar', 'llamaradas', 'aurora', 'schumann', 'tiempo real'], isPopular: true },
+    { type: 'IMMERSIVE', primaryCategory: 'ciberdelia', secondaryCategories: ['entretenimiento', 'sistema'], tags: ['vr', 'ar', 'webxr', 'inmersivo', '3d', 'portales', 'multiverso', 'xr'], isPopular: true },
 
     // ── Segunda generación (gen2) ──
     { type: 'AGORA_CAUSAL', primaryCategory: 'politica', secondaryCategories: ['parlamento', 'social'], tags: ['ágora', 'propuestas', 'votación', 'causal', 'deliberación', 'ontocracia'], isPopular: true },
@@ -516,7 +517,7 @@ const THEME_EXTRA_WIDGETS: Partial<Record<WidgetCategory, SeedWidget[]>> = {
         { type: 'UNIVERSAL_OPENER', w: 4, h: 5 },
     ],
     astrologia: [{ type: 'OMNIFRECUENCIAS', w: 4, h: 5 }],
-    ciberdelia: [{ type: 'AUDIOMORPHIC_BG', w: 4, h: 4 }, { type: 'OMNIFRECUENCIAS', w: 4, h: 5 }],
+    ciberdelia: [{ type: 'IMMERSIVE', w: 5, h: 5 }, { type: 'AUDIOMORPHIC_BG', w: 4, h: 4 }, { type: 'OMNIFRECUENCIAS', w: 4, h: 5 }],
     descubrimientos: [{ type: 'OFFICIAL_DATA', w: 4, h: 4 }],
     archivos: [{ type: 'UNIVERSAL_OPENER', w: 4, h: 5 }],
     ayudantia: [{ type: 'OMNIFRECUENCIAS', w: 4, h: 5 }],

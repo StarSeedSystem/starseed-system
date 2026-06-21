@@ -9,7 +9,7 @@ import {
     BrainCircuit, CloudLightning, CloudRain, Wind, ThermometerSun,
     Tornado, Globe, MoonStar, Sparkles, Radio, Calculator, ListChecks,
     MessageSquare, BellRing, Zap, Search, Star, ChevronRight, Wallet,
-    Music, Waves, AudioWaveform, Satellite, SlidersHorizontal,
+    Music, Waves, AudioWaveform, Satellite, SlidersHorizontal, Orbit,
     type LucideIcon
 } from "lucide-react";
 import { useState, useMemo } from "react";
@@ -97,6 +97,13 @@ const AVAILABLE_WIDGETS: WidgetDefinition[] = [
         icon: <Satellite className="h-5 w-5 text-amber-400" />,
         primaryCategory: 'astronomia', secondaryCategories: ['clima', 'descubrimientos'],
         tags: ['clima espacial', 'noaa', 'kp', 'viento solar', 'llamaradas', 'aurora', 'schumann', 'tiempo real', 'astronomía'], isPopular: true,
+    },
+    {
+        type: 'IMMERSIVE', title: "Espacio Inmersivo",
+        description: "Entra al espacio VR/AR (WebXR): geometría sagrada y portales 3D a las apps StarSeed.",
+        icon: <Orbit className="h-5 w-5 text-violet-400" />,
+        primaryCategory: 'ciberdelia', secondaryCategories: ['entretenimiento', 'sistema'],
+        tags: ['vr', 'ar', 'webxr', 'inmersivo', '3d', 'portales', 'ciberdelia', 'xr', 'multiverso'], isPopular: true,
     },
     // ── Social ──
     {

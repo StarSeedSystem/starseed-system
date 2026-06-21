@@ -1,6 +1,34 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+// ════════════════════════════════════════════════════════════════
+// useAudio — Motor WebAudio COMPARTIDO (singleton a nivel de módulo)
+// ----------------------------------------------------------------
+// Antes, este hook creaba un AudioContext + grafo + estado PROPIOS por cada
+// componente que lo usaba (App, GlobalPlayer, widget), de modo que el audio
+// NO estaba sincronizado entre el widget, la app completa y el mini-dock
+// (dos AudioContext, dos listas de osciladores, dos master gain).
+//
+// Ahora hay UNA sola instancia global (`engine`) que posee:
+//   • UN único AudioContext (creado perezosamente en el navegador, tras un
+//     gesto del usuario; en SSR no se toca nada).
+//   • UN único master gain + analyser y UN único combined bus + analyser.
+//   • UNA única lista de osciladores (`OscillatorState[]`) y su Map de nodos.
+//   • UN único bucle de transiciones (requestAnimationFrame) global.
+//
+// El hook `useAudio()` se convierte en una vista delgada del singleton: se
+// suscribe vía `useSyncExternalStore` (con `getServerSnapshot` estable para
+// SSR) y devuelve EXACTAMENTE la misma API pública de antes (mismos nombres
+// y firmas), por lo que todos los consumidores quedan auto-sincronizados sin
+// reescribir sus call-sites: lo que suena/edita en uno se refleja al instante
+// en los demás (misma fuente de verdad).
+//
+// El AudioContext NUNCA se cierra al desmontar un componente (el singleton
+// persiste mientras viva la página); solo se liberan los nodos de cada
+// oscilador cuando se elimina. Se conserva intacta toda la lógica de paneo
+// 3D, binaural, crossfade de ondas, transiciones, sinergias y presets.
+// ════════════════════════════════════════════════════════════════
+
+import { useSyncExternalStore } from 'react';
 import { OscillatorState, WaveType } from '../types';
 
 interface AudioNodeRefs {
@@ -16,116 +44,168 @@ interface AudioNodeRefs {
 // Factor de escala para el espacio 3D.
 const SPATIAL_SCALE = 10.0;
 
-export const useAudio = () => {
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const masterGainRef = useRef<GainNode | null>(null);
-  const masterAnalyserRef = useRef<AnalyserNode | null>(null);
+// Snapshot inmutable que consume React. Se reemplaza por referencia en cada
+// cambio para que useSyncExternalStore detecte la actualización.
+interface AudioSnapshot {
+  isPlaying: boolean;
+  oscillators: OscillatorState[];
+  masterVolume: number;
+}
 
-  // New: Combined Bus for "Main Resonance" visualization/binaural calculation
-  const combinedGainRef = useRef<GainNode | null>(null);
-  const combinedAnalyserRef = useRef<AnalyserNode | null>(null);
+// Snapshot inicial: idéntico en server y primer render del cliente para evitar
+// mismatches de hidratación. Estable (misma referencia) → seguro para SSR.
+const INITIAL_SNAPSHOT: AudioSnapshot = {
+  isPlaying: false,
+  oscillators: [],
+  masterVolume: 1.0,
+};
 
-  // Map to store audio nodes for each active oscillator
-  const nodesRef = useRef<Map<string, AudioNodeRefs>>(new Map());
+class OmniAudioEngine {
+  // ── Grafo WebAudio (único, perezoso) ───────────────────────────
+  private ctx: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
+  private masterAnalyser: AnalyserNode | null = null;
+  private combinedGain: GainNode | null = null;
+  private combinedAnalyser: AnalyserNode | null = null;
 
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [oscillators, setOscillators] = useState<OscillatorState[]>([]);
-  const [masterVolume, setMasterVolume] = useState(1.0);
+  // Nodos por oscilador activo.
+  private nodes = new Map<string, AudioNodeRefs>();
 
-  // Initialize Audio Context (SSR-safe: solo se llama tras un gesto del usuario)
-  const initAudio = () => {
-    if (typeof window === 'undefined') return;
-    if (!audioCtxRef.current) {
-      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new Ctx();
+  // ── Estado reactivo (snapshot inmutable) ───────────────────────
+  private snapshot: AudioSnapshot = INITIAL_SNAPSHOT;
 
-      // Sync isPlaying state with context state
-      ctx.onstatechange = () => {
-        setIsPlaying(ctx.state === 'running');
-      };
+  // ── Suscriptores (useSyncExternalStore) ────────────────────────
+  private listeners = new Set<() => void>();
 
-      // Listener set to center
-      const listener = ctx.listener;
-      if (listener.positionX) {
-        listener.positionX.value = 0;
-        listener.positionY.value = 0;
-        listener.positionZ.value = 0;
-        listener.forwardX.value = 0;
-        listener.forwardY.value = 0;
-        listener.forwardZ.value = -1;
-        listener.upX.value = 0;
-        listener.upY.value = 1;
-        listener.upZ.value = 0;
-      }
+  // ── Bucle de transiciones global ───────────────────────────────
+  private rafId = 0;
+  private lastTime = 0;
+  private loopRunning = false;
 
-      // Master Output
-      const masterGain = ctx.createGain();
-      masterGain.gain.value = masterVolume; // Default master volume
-      const masterAnalyser = ctx.createAnalyser();
-      masterAnalyser.fftSize = 2048;
-
-      // Combined Bus (For binaural resonance calculation)
-      const combinedGain = ctx.createGain();
-      const combinedAnalyser = ctx.createAnalyser();
-      combinedAnalyser.fftSize = 2048;
-
-      // Routing:
-      // 1. Combined Bus -> Master
-      combinedGain.connect(combinedAnalyser);
-      combinedAnalyser.connect(masterGain);
-
-      // 2. Master -> Speaker
-      masterGain.connect(masterAnalyser);
-      masterAnalyser.connect(ctx.destination);
-
-      audioCtxRef.current = ctx;
-      masterGainRef.current = masterGain;
-      masterAnalyserRef.current = masterAnalyser;
-      combinedGainRef.current = combinedGain;
-      combinedAnalyserRef.current = combinedAnalyser;
-
-      setIsPlaying(ctx.state === 'running');
-    }
-  };
-
-  useEffect(() => {
+  // ────────────────────────────────────────────────────────────────
+  // Suscripción / snapshot (API de useSyncExternalStore)
+  // ────────────────────────────────────────────────────────────────
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    // Arranca el bucle de transiciones en la primera suscripción del cliente.
+    this.startLoop();
     return () => {
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close();
-        audioCtxRef.current = null;
-      }
-      masterGainRef.current = null;
-      masterAnalyserRef.current = null;
-      combinedGainRef.current = null;
-      combinedAnalyserRef.current = null;
-      nodesRef.current.clear();
+      this.listeners.delete(listener);
     };
-  }, []);
+  };
 
-  const updateMasterVolume = (vol: number) => {
-    setMasterVolume(vol);
-    if (masterGainRef.current && audioCtxRef.current) {
-      masterGainRef.current.gain.cancelScheduledValues(audioCtxRef.current.currentTime);
-      masterGainRef.current.gain.setTargetAtTime(vol, audioCtxRef.current.currentTime, 0.02);
+  getSnapshot = (): AudioSnapshot => this.snapshot;
+
+  getServerSnapshot = (): AudioSnapshot => INITIAL_SNAPSHOT;
+
+  private emit(): void {
+    this.listeners.forEach((l) => l());
+  }
+
+  /** Reemplaza el snapshot por referencia y notifica a los suscriptores. */
+  private setSnapshot(patch: Partial<AudioSnapshot>): void {
+    this.snapshot = { ...this.snapshot, ...patch };
+    this.emit();
+  }
+
+  /** Actualiza la lista de osciladores (siempre crea un array nuevo). */
+  private setOscillators(
+    updater: (prev: OscillatorState[]) => OscillatorState[],
+  ): void {
+    const next = updater(this.snapshot.oscillators);
+    if (next !== this.snapshot.oscillators) {
+      this.snapshot = { ...this.snapshot, oscillators: next };
+      this.emit();
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // Inicialización del AudioContext (SSR-safe: solo tras gesto, en cliente)
+  // ────────────────────────────────────────────────────────────────
+  private initAudio(): void {
+    if (typeof window === 'undefined') return;
+    if (this.ctx) return;
+
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new Ctx();
+
+    // Sincroniza isPlaying con el estado real del contexto.
+    ctx.onstatechange = () => {
+      this.setSnapshot({ isPlaying: ctx.state === 'running' });
+    };
+
+    // Listener centrado.
+    const listener = ctx.listener;
+    if (listener.positionX) {
+      listener.positionX.value = 0;
+      listener.positionY.value = 0;
+      listener.positionZ.value = 0;
+      listener.forwardX.value = 0;
+      listener.forwardY.value = 0;
+      listener.forwardZ.value = -1;
+      listener.upX.value = 0;
+      listener.upY.value = 1;
+      listener.upZ.value = 0;
+    }
+
+    // Master Output.
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = this.snapshot.masterVolume;
+    const masterAnalyser = ctx.createAnalyser();
+    masterAnalyser.fftSize = 2048;
+
+    // Combined Bus (para el cálculo de resonancia binaural).
+    const combinedGain = ctx.createGain();
+    const combinedAnalyser = ctx.createAnalyser();
+    combinedAnalyser.fftSize = 2048;
+
+    // Routing:
+    // 1. Combined Bus -> Master
+    combinedGain.connect(combinedAnalyser);
+    combinedAnalyser.connect(masterGain);
+    // 2. Master -> Speaker
+    masterGain.connect(masterAnalyser);
+    masterAnalyser.connect(ctx.destination);
+
+    this.ctx = ctx;
+    this.masterGain = masterGain;
+    this.masterAnalyser = masterAnalyser;
+    this.combinedGain = combinedGain;
+    this.combinedAnalyser = combinedAnalyser;
+
+    this.setSnapshot({ isPlaying: ctx.state === 'running' });
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // Acciones públicas (mismas firmas que la API original del hook)
+  // ────────────────────────────────────────────────────────────────
+  updateMasterVolume = (vol: number): void => {
+    this.setSnapshot({ masterVolume: vol });
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.masterGain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.02);
     }
   };
 
-  const toggleMasterPlay = async () => {
-    initAudio();
-    if (!audioCtxRef.current) return;
+  toggleMasterPlay = async (): Promise<void> => {
+    this.initAudio();
+    if (!this.ctx) return;
 
-    if (audioCtxRef.current.state === 'suspended') {
-      await audioCtxRef.current.resume();
-    } else if (audioCtxRef.current.state === 'running') {
-      await audioCtxRef.current.suspend();
+    if (this.ctx.state === 'suspended') {
+      await this.ctx.resume();
+    } else if (this.ctx.state === 'running') {
+      await this.ctx.suspend();
     }
   };
 
-  const addOscillator = (initialState?: Partial<OscillatorState>) => {
-    initAudio();
-    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
+  addOscillator = (initialState?: Partial<OscillatorState>): void => {
+    this.initAudio();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      void this.ctx.resume();
     }
+
     const newOsc: OscillatorState = {
       id: crypto.randomUUID(),
       frequency: initialState?.frequency || 432,
@@ -140,27 +220,32 @@ export const useAudio = () => {
       name: initialState?.name || 'Oscilador',
       isIndependent: initialState?.isIndependent ?? false,
       color: initialState?.color || '#38bdf8',
+
+      // Conserva crossfade/transición si vienen en el preset/sinergia.
+      type2: initialState?.type2,
+      typeMix: initialState?.typeMix,
+      transition: initialState?.transition,
     };
 
-    setOscillators((prev) => [...prev, newOsc]);
-    createOscillatorNodes(newOsc);
+    this.setOscillators((prev) => [...prev, newOsc]);
+    this.createOscillatorNodes(newOsc);
   };
 
-  const removeOscillator = (id: string) => {
-    setOscillators((prev) => prev.filter((o) => o.id !== id));
-    destroyOscillatorNodes(id);
+  removeOscillator = (id: string): void => {
+    this.setOscillators((prev) => prev.filter((o) => o.id !== id));
+    this.destroyOscillatorNodes(id);
   };
 
-  const updateOscillator = (id: string, changes: Partial<OscillatorState>) => {
-    initAudio();
-    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
+  updateOscillator = (id: string, changes: Partial<OscillatorState>): void => {
+    this.initAudio();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      void this.ctx.resume();
     }
-    setOscillators((prev) =>
+    this.setOscillators((prev) =>
       prev.map((o) => {
         if (o.id === id) {
           const updated = { ...o, ...changes };
-          updateOscillatorNodes(updated);
+          this.updateOscillatorNodes(updated);
           return updated;
         }
         return o;
@@ -168,11 +253,49 @@ export const useAudio = () => {
     );
   };
 
-  // --- Internal Audio Node Management ---
+  // ── Ajustes globales ────────────────────────────────────────────
+  setGlobalVolume = (vol: number): void => {
+    this.setOscillators((prev) =>
+      prev.map((o) => {
+        const updated = { ...o, volume: vol };
+        this.updateOscillatorNodes(updated);
+        return updated;
+      }),
+    );
+  };
 
-  const createOscillatorNodes = (oscState: OscillatorState) => {
-    if (!audioCtxRef.current || !masterGainRef.current || !combinedGainRef.current) return;
-    const ctx = audioCtxRef.current;
+  centerAllPositions = (): void => {
+    this.setOscillators((prev) =>
+      prev.map((o) => {
+        const updated = { ...o, panX: 0, panY: 0, panZ: 0 };
+        this.updateOscillatorNodes(updated);
+        return updated;
+      }),
+    );
+  };
+
+  setGlobalWaveType = (type: WaveType): void => {
+    this.setOscillators((prev) =>
+      prev.map((o) => {
+        const updated = { ...o, type };
+        this.updateOscillatorNodes(updated);
+        return updated;
+      }),
+    );
+  };
+
+  // ── Getters de analizadores ─────────────────────────────────────
+  getMasterAnalyser = (): AnalyserNode | null => this.masterAnalyser;
+  getCombinedAnalyser = (): AnalyserNode | null => this.combinedAnalyser;
+  getOscillatorAnalyser = (id: string): AnalyserNode | undefined =>
+    this.nodes.get(id)?.analyser;
+
+  // ────────────────────────────────────────────────────────────────
+  // Gestión interna de nodos de audio
+  // ────────────────────────────────────────────────────────────────
+  private createOscillatorNodes(oscState: OscillatorState): void {
+    if (!this.ctx || !this.masterGain || !this.combinedGain) return;
+    const ctx = this.ctx;
 
     const osc1 = ctx.createOscillator();
     const osc2 = ctx.createOscillator();
@@ -180,7 +303,7 @@ export const useAudio = () => {
     const gain2 = ctx.createGain();
     const mainGain = ctx.createGain();
 
-    // PannerNode: Equal Power for Hard Panning capability
+    // PannerNode: Equal Power para hard panning.
     const panner = ctx.createPanner();
     panner.panningModel = 'equalpower';
     panner.distanceModel = 'inverse';
@@ -203,14 +326,14 @@ export const useAudio = () => {
 
     mainGain.gain.setValueAtTime(oscState.volume, ctx.currentTime);
 
-    // Set 3D Position
+    // Posición 3D.
     if (panner.positionX) {
       panner.positionX.setValueAtTime(oscState.panX * SPATIAL_SCALE, ctx.currentTime);
       panner.positionY.setValueAtTime(oscState.panY * SPATIAL_SCALE, ctx.currentTime);
       panner.positionZ.setValueAtTime(oscState.panZ * -SPATIAL_SCALE, ctx.currentTime);
     }
 
-    // Graph Connection
+    // Conexión del grafo.
     osc1.connect(gain1);
     osc2.connect(gain2);
     gain1.connect(mainGain);
@@ -218,56 +341,57 @@ export const useAudio = () => {
     mainGain.connect(panner);
     panner.connect(analyser);
 
-    // Routing Logic: Independent vs Combined
+    // Routing: Independiente vs Combinado.
     if (oscState.isIndependent) {
-      analyser.connect(masterGainRef.current); // Direct to Master
+      analyser.connect(this.masterGain); // Directo a Master
     } else {
-      analyser.connect(combinedGainRef.current); // To Combined Bus
+      analyser.connect(this.combinedGain); // Al Combined Bus
     }
 
     osc1.start();
     osc2.start();
 
-    nodesRef.current.set(oscState.id, { osc1, osc2, gain1, gain2, mainGain, panner, analyser });
-  };
+    this.nodes.set(oscState.id, { osc1, osc2, gain1, gain2, mainGain, panner, analyser });
+  }
 
-  const destroyOscillatorNodes = (id: string) => {
-    const nodes = nodesRef.current.get(id);
-    if (nodes) {
-      try {
-        if (audioCtxRef.current) {
-          nodes.mainGain.gain.setTargetAtTime(0, audioCtxRef.current.currentTime, 0.01);
-        }
-        setTimeout(() => {
-          nodes.osc1.stop();
-          nodes.osc2.stop();
-          nodes.osc1.disconnect();
-          nodes.osc2.disconnect();
-          nodes.gain1.disconnect();
-          nodes.gain2.disconnect();
-          nodes.mainGain.disconnect();
-          nodes.panner.disconnect();
-          nodes.analyser.disconnect();
-        }, 50);
-      } catch (e) {
-        console.error('Error disconnecting node', e);
+  private destroyOscillatorNodes(id: string): void {
+    const nodes = this.nodes.get(id);
+    if (!nodes) return;
+
+    try {
+      if (this.ctx) {
+        nodes.mainGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.01);
       }
-
-      nodesRef.current.delete(id);
+      setTimeout(() => {
+        nodes.osc1.stop();
+        nodes.osc2.stop();
+        nodes.osc1.disconnect();
+        nodes.osc2.disconnect();
+        nodes.gain1.disconnect();
+        nodes.gain2.disconnect();
+        nodes.mainGain.disconnect();
+        nodes.panner.disconnect();
+        nodes.analyser.disconnect();
+      }, 50);
+    } catch (e) {
+      console.error('Error disconnecting node', e);
     }
-  };
 
-  const updateOscillatorNodes = (oscState: OscillatorState) => {
-    const nodes = nodesRef.current.get(oscState.id);
-    if (!nodes || !audioCtxRef.current || !masterGainRef.current || !combinedGainRef.current) return;
-    const ctx = audioCtxRef.current;
+    this.nodes.delete(id);
+  }
+
+  private updateOscillatorNodes(oscState: OscillatorState): void {
+    const nodes = this.nodes.get(oscState.id);
+    if (!nodes || !this.ctx || !this.masterGain || !this.combinedGain) return;
+    const ctx = this.ctx;
     const now = ctx.currentTime;
 
-    // Type
+    // Tipo.
     if (nodes.osc1.type !== oscState.type) nodes.osc1.type = oscState.type;
-    if (nodes.osc2.type !== (oscState.type2 || oscState.type)) nodes.osc2.type = oscState.type2 || oscState.type;
+    if (nodes.osc2.type !== (oscState.type2 || oscState.type))
+      nodes.osc2.type = oscState.type2 || oscState.type;
 
-    // Crossfade Mix (Equal Power)
+    // Crossfade de mezcla (Equal Power).
     const mix = oscState.typeMix || 0;
     const gain1Value = Math.cos(mix * 0.5 * Math.PI);
     const gain2Value = Math.sin(mix * 0.5 * Math.PI);
@@ -275,80 +399,45 @@ export const useAudio = () => {
     nodes.gain1.gain.setTargetAtTime(gain1Value, now, 0.02);
     nodes.gain2.gain.setTargetAtTime(gain2Value, now, 0.02);
 
-    // Freq & Vol
+    // Frecuencia y volumen.
     nodes.osc1.frequency.setTargetAtTime(oscState.frequency, now, 0.02);
     nodes.osc2.frequency.setTargetAtTime(oscState.frequency, now, 0.02);
 
     nodes.mainGain.gain.setTargetAtTime(oscState.isPlaying ? oscState.volume : 0, now, 0.02);
 
-    // 3D Position
+    // Posición 3D.
     if (nodes.panner.positionX) {
       nodes.panner.positionX.setTargetAtTime(oscState.panX * SPATIAL_SCALE, now, 0.02);
       nodes.panner.positionY.setTargetAtTime(oscState.panY * SPATIAL_SCALE, now, 0.02);
       nodes.panner.positionZ.setTargetAtTime(oscState.panZ * -SPATIAL_SCALE, now, 0.02);
     }
 
-    // Routing update
-    // We disconnect and reconnect to switch buses
+    // Actualización de routing: desconectar y reconectar para cambiar de bus.
     try {
       nodes.analyser.disconnect();
       if (oscState.isIndependent) {
-        nodes.analyser.connect(masterGainRef.current);
+        nodes.analyser.connect(this.masterGain);
       } else {
-        nodes.analyser.connect(combinedGainRef.current);
+        nodes.analyser.connect(this.combinedGain);
       }
     } catch (e) {
       console.error('Routing update error', e);
     }
-  };
+  }
 
-  const getMasterAnalyser = () => masterAnalyserRef.current;
-  const getCombinedAnalyser = () => combinedAnalyserRef.current;
-  const getOscillatorAnalyser = (id: string) => nodesRef.current.get(id)?.analyser;
+  // ────────────────────────────────────────────────────────────────
+  // Bucle de transiciones (único, global)
+  // ────────────────────────────────────────────────────────────────
+  private startLoop(): void {
+    if (this.loopRunning || typeof window === 'undefined') return;
+    this.loopRunning = true;
 
-  // Global Adjustments
-  const setGlobalVolume = (vol: number) => {
-    setOscillators((prev) =>
-      prev.map((o) => {
-        const updated = { ...o, volume: vol };
-        updateOscillatorNodes(updated);
-        return updated;
-      }),
-    );
-  };
+    const loop = (time: number): void => {
+      if (!this.lastTime) this.lastTime = time;
+      const dt = (time - this.lastTime) / 1000; // en segundos
+      this.lastTime = time;
 
-  const centerAllPositions = () => {
-    setOscillators((prev) =>
-      prev.map((o) => {
-        const updated = { ...o, panX: 0, panY: 0, panZ: 0 };
-        updateOscillatorNodes(updated);
-        return updated;
-      }),
-    );
-  };
-
-  const setGlobalWaveType = (type: WaveType) => {
-    setOscillators((prev) =>
-      prev.map((o) => {
-        const updated = { ...o, type };
-        updateOscillatorNodes(updated);
-        return updated;
-      }),
-    );
-  };
-
-  // --- Transition Loop ---
-  const lastTimeRef = useRef<number>(0);
-  const reqFrameRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const loop = (time: number) => {
-      if (!lastTimeRef.current) lastTimeRef.current = time;
-      const dt = (time - lastTimeRef.current) / 1000; // in seconds
-      lastTimeRef.current = time;
-
-      setOscillators((prev) => {
+      this.setOscillators((prev) => {
         let hasChanges = false;
         const next = prev.map((osc) => {
           if (!osc.transition || !osc.transition.enabled || !osc.transition.isPlaying) {
@@ -356,7 +445,7 @@ export const useAudio = () => {
           }
 
           const t = osc.transition;
-          const step = dt / Math.max(t.duration, 0.1); // avoid division by zero
+          const step = dt / Math.max(t.duration, 0.1); // evita división por cero
           let newProgress = t.progress + (t.direction === 'forward' ? step : -step);
           let newDirection = t.direction;
           let newLoop = t.currentLoop;
@@ -388,7 +477,7 @@ export const useAudio = () => {
           ) {
             hasChanges = true;
 
-            const lerp = (a: number, b: number, p: number) => a + (b - a) * p;
+            const lerp = (a: number, b: number, p: number): number => a + (b - a) * p;
 
             const updatedOsc: OscillatorState = {
               ...osc,
@@ -409,7 +498,7 @@ export const useAudio = () => {
               },
             };
 
-            updateOscillatorNodes(updatedOsc);
+            this.updateOscillatorNodes(updatedOsc);
             return updatedOsc;
           }
 
@@ -419,27 +508,44 @@ export const useAudio = () => {
         return hasChanges ? next : prev;
       });
 
-      reqFrameRef.current = requestAnimationFrame(loop);
+      this.rafId = requestAnimationFrame(loop);
     };
 
-    reqFrameRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(reqFrameRef.current);
-  }, []);
+    this.rafId = requestAnimationFrame(loop);
+  }
+}
+
+// ── Singleton a nivel de módulo: UNA sola instancia para toda la app ──
+const engine = new OmniAudioEngine();
+
+/**
+ * Hook de acceso al motor de audio COMPARTIDO. Devuelve la misma API pública
+ * de siempre (mismos nombres/firmas); el estado (`isPlaying`, `oscillators`,
+ * `masterVolume`) proviene del singleton vía useSyncExternalStore, así que
+ * todos los consumidores (widget, app completa, mini-dock) quedan
+ * sincronizados en vivo automáticamente.
+ */
+export const useAudio = () => {
+  const { isPlaying, oscillators, masterVolume } = useSyncExternalStore(
+    engine.subscribe,
+    engine.getSnapshot,
+    engine.getServerSnapshot,
+  );
 
   return {
     isPlaying,
     oscillators,
     masterVolume,
-    updateMasterVolume,
-    toggleMasterPlay,
-    addOscillator,
-    removeOscillator,
-    updateOscillator,
-    getMasterAnalyser,
-    getCombinedAnalyser,
-    getOscillatorAnalyser,
-    setGlobalVolume,
-    centerAllPositions,
-    setGlobalWaveType,
+    updateMasterVolume: engine.updateMasterVolume,
+    toggleMasterPlay: engine.toggleMasterPlay,
+    addOscillator: engine.addOscillator,
+    removeOscillator: engine.removeOscillator,
+    updateOscillator: engine.updateOscillator,
+    getMasterAnalyser: engine.getMasterAnalyser,
+    getCombinedAnalyser: engine.getCombinedAnalyser,
+    getOscillatorAnalyser: engine.getOscillatorAnalyser,
+    setGlobalVolume: engine.setGlobalVolume,
+    centerAllPositions: engine.centerAllPositions,
+    setGlobalWaveType: engine.setGlobalWaveType,
   };
 };

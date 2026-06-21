@@ -53,6 +53,7 @@ import { AudiomorphicBgWidget } from "@/components/dashboard/widgets/media/audio
 import { MediaControlWidget } from "@/components/dashboard/widgets/media/media-control-widget";
 import { OfficialDataWidget } from "@/components/dashboard/widgets/data/official-data-widget";
 import { SpaceWeatherWidget } from "@/components/dashboard/widgets/space/space-weather-widget";
+import { ImmersiveWidget } from "@/components/dashboard/widgets/immersive-widget";
 import { LearningPathWidget } from "@/components/dashboard/widgets/learning-path-widget";
 import { SocialRadarWidget } from "@/components/dashboard/widgets/social-radar-widget";
 import { LiveDataWidget } from "@/components/dashboard/widgets/live-data-widget";
@@ -224,6 +225,8 @@ export function WidgetRegistry({ widget }: WidgetProps) {
             return <OfficialDataWidget />;
         case 'SPACE_WEATHER':
             return <SpaceWeatherWidget />;
+        case 'IMMERSIVE':
+            return <ImmersiveWidget />;
 
         // ── Segunda generación: widgets adaptativos ──
         case 'AGORA_CAUSAL':

@@ -90,6 +90,7 @@ export type WidgetType =
     // ── Datos oficiales en tiempo real ──
     | 'OFFICIAL_DATA'         // Descubrimientos — fuentes oficiales en vivo (clima, espacio, sismos)
     | 'SPACE_WEATHER'         // Astronomía — clima espacial NOAA SWPC en tiempo real (reactivo)
+    | 'IMMERSIVE'             // Ciberdelia — espacio inmersivo VR/AR (WebXR) con portales de apps
     | 'AI_GENERATED';         // 🔮 La Fragua de Interfaces — Custom AI-forged widgets
 
 export interface Dashboard {

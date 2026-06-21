@@ -9,7 +9,7 @@
 
 import {
     Globe, Coffee, AudioWaveform, Radio, MessageSquare, Network,
-    Library, BrainCircuit, CloudSun, Music, Waves,
+    Library, BrainCircuit, CloudSun, Music, Waves, Orbit,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -174,6 +174,18 @@ export const APP_CATALOG: StarseedApp[] = [
         status: "soon", // streaming en Fase 2
         open: { primary: "window", allowed: ["window", "tab"] },
     },
+    {
+        id: "immersive",
+        name: "Espacio Inmersivo",
+        short: "Inmersivo",
+        description: "Espacio VR/AR (WebXR): geometría sagrada y portales 3D a las apps StarSeed.",
+        icon: Orbit,
+        accent: "#A855F7",
+        category: "starseed",
+        status: "native",
+        vrCapable: true,
+        open: { primary: "route", allowed: ["route", "tab"], route: "/immersive" },
+    },
 ];
 
 const CATALOG_INDEX: Record<string, StarseedApp> = Object.fromEntries(
@@ -189,7 +201,7 @@ export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
     // 'starseed' = carpeta de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "messages", "network", "musica", "clima"],
     sistema: ["messages", "network", "library", "agent"],
-    media: ["musica", "radio", "omnifrecuencias", "audiomorphic"],
+    media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive"],
     custom: [],
 };
 
