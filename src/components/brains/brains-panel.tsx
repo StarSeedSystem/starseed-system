@@ -47,6 +47,8 @@ import {
   UploadCloud,
   BookOpen,
   Terminal,
+  Link2,
+  Image as ImageIcon,
 } from "lucide-react";
 import {
   SERVER_KINDS,
@@ -79,6 +81,11 @@ import {
   syncToServer,
   pingServer as pingServerRuntime,
 } from "@/lib/brains/runtime";
+import {
+  GEN_PRESETS,
+  applyPreset,
+  type GenAdapter,
+} from "@/lib/brains/adapters";
 
 const BOT_BASE = "https://starseed-neurocortex.vercel.app";
 
@@ -320,6 +327,23 @@ export default function BrainsPanel() {
       if (updated) setDraft(updated);
     } else {
       patchDraft({ servers: draft.servers.filter((x) => x.id !== s.id) });
+    }
+  }
+
+  /**
+   * Aplica un parche a un servidor (p.ej. su `adapter` de generación) y lo
+   * persiste si el cerebro ya existe; si es nuevo, lo guarda en el borrador.
+   * Mismo patrón que pingServer/onAddServer.
+   */
+  async function patchServer(serverId: string, patch: Partial<BrainServer>) {
+    if (!draft) return;
+    if (draft.id) {
+      const updated = await updateServer(draft, serverId, patch);
+      if (updated) setDraft(updated);
+    } else {
+      setDraft((d) =>
+        d ? { ...d, servers: d.servers.map((x) => (x.id === serverId ? { ...x, ...patch, id: x.id } : x)) } : d,
+      );
     }
   }
 
@@ -582,6 +606,7 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
           setNewSrvFields={setNewSrvFields}
           onAddServer={onAddServer}
           onRemoveServer={onRemoveServer}
+          patchServer={patchServer}
           pingServer={pingServer}
           runServer={runServer}
           syncServer={syncServer}
@@ -883,6 +908,7 @@ function BrainEditor(props: {
   setNewSrvFields: (f: Record<string, string>) => void;
   onAddServer: () => void;
   onRemoveServer: (s: BrainServer) => void;
+  patchServer: (serverId: string, patch: Partial<BrainServer>) => void;
   pingServer: (s: BrainServer) => void;
   runServer: (s: BrainServer) => void;
   syncServer: (s: BrainServer) => void;
@@ -915,6 +941,7 @@ function BrainEditor(props: {
     setNewSrvFields,
     onAddServer,
     onRemoveServer,
+    patchServer,
     pingServer,
     runServer,
     syncServer,
@@ -1217,6 +1244,11 @@ function BrainEditor(props: {
                     </div>
                   </div>
 
+                  {/* Adaptador de generación (Higgsfield / cualquier API de gen) */}
+                  {(String(s.kind) === "higgsfield" || String(s.kind) === "online") && (
+                    <GenAdapterEditor server={s} patchServer={patchServer} />
+                  )}
+
                   {/* Ejecutar una tarea contra este servidor */}
                   <div className="mt-2 flex flex-wrap items-end gap-2">
                     <Textarea
@@ -1234,11 +1266,7 @@ function BrainEditor(props: {
                       <Play className={cn("h-3.5 w-3.5", busy && "animate-pulse")} /> Ejecutar
                     </Button>
                   </div>
-                  {result && (
-                    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-white/10 bg-black/40 p-2 text-[11px] leading-relaxed text-white/70">
-                      {result}
-                    </pre>
-                  )}
+                  {result && <RunResultView text={result} />}
                 </div>
               );
             })}
@@ -1311,6 +1339,224 @@ function BrainEditor(props: {
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ====================================================================== */
+/* Adaptador de generación (Higgsfield / cualquier API de gen)             */
+/* ====================================================================== */
+
+/**
+ * Editor colapsable del adaptador de generación de un servidor. Permite elegir
+ * un preset (GEN_PRESETS) y editar a mano la plantilla de la petición, el
+ * resultPath y, opcionalmente, la configuración de sondeo (poll) como JSON.
+ * Lo guardado se persiste en `server.adapter` vía `patchServer`.
+ */
+function GenAdapterEditor(props: {
+  server: BrainServer;
+  patchServer: (serverId: string, patch: Partial<BrainServer>) => void;
+}) {
+  const { server, patchServer } = props;
+  const adapter = (server.adapter as GenAdapter | undefined) || undefined;
+  const [open, setOpen] = useState(false);
+  // Texto del poll editado a mano (JSON). Se inicializa desde el adaptador.
+  const [pollText, setPollText] = useState<string>(
+    adapter?.poll ? JSON.stringify(adapter.poll, null, 2) : "",
+  );
+  const [pollErr, setPollErr] = useState<string | null>(null);
+
+  function setAdapter(next: GenAdapter | undefined) {
+    patchServer(server.id, { adapter: next });
+  }
+
+  function onPreset(presetId: string) {
+    if (!presetId) return; // placeholder: no-op
+    if (presetId === "__none__") {
+      setAdapter(undefined);
+      setPollText("");
+      setPollErr(null);
+      return;
+    }
+    const next = applyPreset(presetId);
+    setAdapter(next);
+    setPollText(next.poll ? JSON.stringify(next.poll, null, 2) : "");
+    setPollErr(null);
+  }
+
+  function patchAdapter(patch: Partial<GenAdapter>) {
+    const base: GenAdapter = adapter || { template: '{\n  "prompt": "{{task}}"\n}', resultPath: "url" };
+    setAdapter({ ...base, ...patch });
+  }
+
+  function commitPoll(text: string) {
+    setPollText(text);
+    const trimmed = text.trim();
+    if (!trimmed) {
+      setPollErr(null);
+      // quitar poll del adaptador
+      if (adapter) {
+        const { poll: _omit, ...rest } = adapter;
+        void _omit;
+        setAdapter({ ...rest });
+      }
+      return;
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      setPollErr(null);
+      patchAdapter({ poll: parsed });
+    } catch {
+      setPollErr("JSON de sondeo no válido.");
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-md border border-fuchsia-400/20 bg-fuchsia-950/10">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[11px] text-fuchsia-100"
+      >
+        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        <Sparkles className="h-3.5 w-3.5 text-fuchsia-300" />
+        <span className="font-medium">Adaptador de generación</span>
+        {adapter ? (
+          <Badge variant="outline" className="border-fuchsia-400/40 text-[9px] text-fuchsia-200">
+            activo{adapter.poll ? " · async" : ""}
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="border-white/15 text-[9px] text-white/40">
+            sin configurar
+          </Badge>
+        )}
+      </button>
+
+      {open && (
+        <div className="space-y-2 px-2 pb-2">
+          <p className="text-[10px] text-white/40">
+            Convierte una tarea en una petición a una API de generación (imagen/vídeo). El proxy sustituye{" "}
+            <code className="text-fuchsia-200">{"{{task}}"}</code> /{" "}
+            <code className="text-fuchsia-200">{"{{prompt}}"}</code> en la plantilla, hace POST a tu endpoint con tu
+            clave de la bóveda, y extrae el resultado por el path indicado.
+          </p>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] text-white/50">Preset</span>
+            <select
+              value=""
+              onChange={(e) => onPreset(e.target.value)}
+              className="h-8 rounded-md border border-white/15 bg-black/30 px-2 text-xs text-white"
+            >
+              <option value="">{adapter ? "— aplicar otro preset —" : "— elige un preset —"}</option>
+              {GEN_PRESETS.map((p) => (
+                <option key={p.id} value={p.id} title={p.blurb}>
+                  {p.label}
+                </option>
+              ))}
+              {adapter && <option value="__none__">— quitar adaptador —</option>}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] text-white/50">
+              Cuerpo de la petición (JSON, usa {"{{task}}"})
+            </span>
+            <Textarea
+              value={adapter?.template ?? ""}
+              onChange={(e) => patchAdapter({ template: e.target.value })}
+              placeholder={'{\n  "prompt": "{{task}}"\n}'}
+              className="min-h-[72px] border-white/15 bg-black/30 font-mono text-[11px] text-white placeholder:text-white/30"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] text-white/50">resultPath (path al output, p.ej. result.url, data.0.url)</span>
+            <Input
+              value={adapter?.resultPath ?? ""}
+              onChange={(e) => patchAdapter({ resultPath: e.target.value })}
+              placeholder="result.url"
+              className="h-8 border-white/15 bg-black/30 font-mono text-[11px] text-white placeholder:text-white/30"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] text-white/50">
+              Sondeo asíncrono (poll, JSON · opcional · vacío = síncrono)
+            </span>
+            <Textarea
+              value={pollText}
+              onChange={(e) => commitPoll(e.target.value)}
+              placeholder={
+                '{\n  "statusUrl": "https://…/{{id}}",\n  "idPath": "id",\n  "donePath": "status",\n  "doneValue": "completed",\n  "resultPath": "result.url",\n  "intervalMs": 3000,\n  "maxTries": 40\n}'
+              }
+              className="min-h-[72px] border-white/15 bg-black/30 font-mono text-[11px] text-white placeholder:text-white/30"
+            />
+            {pollErr && <span className="text-[10px] text-red-300">{pollErr}</span>}
+          </label>
+
+          <p className="text-[10px] text-white/35">
+            Para Higgsfield Image-to-Video añade <code className="text-fuchsia-200">{'"image_url"'}</code> al cuerpo; para
+            Soul Mode usa <code className="text-fuchsia-200">{'"reference_image_urls"'}</code>. Pega tu endpoint exacto en
+            el campo «Base URL/API» del servidor.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ====================================================================== */
+/* Render del resultado de ejecución (link/preview si es URL)              */
+/* ====================================================================== */
+
+/** Extrae la primera URL http(s) de un texto, si la hay. */
+function firstUrl(text: string): string | null {
+  const m = String(text || "").match(/https?:\/\/[^\s"'<>)\]]+/);
+  return m ? m[0] : null;
+}
+
+/** ¿La URL apunta a una imagen por extensión? */
+function isImageUrl(url: string): boolean {
+  return /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(url);
+}
+
+/** ¿La URL apunta a un vídeo por extensión? */
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|webm|mov|m4v|ogg)(\?|#|$)/i.test(url);
+}
+
+/**
+ * Muestra el resultado de `run`. Si contiene una URL, ofrece un enlace y, si es
+ * imagen/vídeo, una previsualización. Siempre incluye el texto crudo.
+ */
+function RunResultView({ text }: { text: string }) {
+  const url = firstUrl(text);
+  return (
+    <div className="mt-2 space-y-2">
+      {url && (
+        <div className="space-y-1.5">
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex max-w-full items-center gap-1.5 truncate rounded-md border border-cyan-400/30 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-500/20"
+          >
+            {isImageUrl(url) ? <ImageIcon className="h-3.5 w-3.5 shrink-0" /> : <Link2 className="h-3.5 w-3.5 shrink-0" />}
+            <span className="truncate">{url}</span>
+          </a>
+          {isImageUrl(url) && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={url} alt="resultado de generación" className="max-h-48 rounded-md border border-white/10" />
+          )}
+          {isVideoUrl(url) && (
+            <video src={url} controls className="max-h-48 rounded-md border border-white/10" />
+          )}
+        </div>
+      )}
+      <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-white/10 bg-black/40 p-2 text-[11px] leading-relaxed text-white/70">
+        {text}
+      </pre>
     </div>
   );
 }
