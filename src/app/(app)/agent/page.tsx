@@ -46,6 +46,8 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import OKFPanel from "@/components/exocortex/okf-panel";
+import ProviderPanel from "@/components/exocortex/provider-panel";
 
 import { chat } from "@/ai/client/chat";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
@@ -360,6 +362,8 @@ function AgentPageInner() {
           <TabsTrigger value="baules" className="gap-2"><Layers className="w-4 h-4" /> Baúles</TabsTrigger>
           <TabsTrigger value="mapa3d" className="gap-2"><Sparkles className="w-4 h-4" /> Mapa 3D</TabsTrigger>
           <TabsTrigger value="runtimes" className="gap-2"><Server className="w-4 h-4" /> Agentes</TabsTrigger>
+          <TabsTrigger value="okf" className="gap-2"><BookOpen className="w-4 h-4" /> Wiki/OKF</TabsTrigger>
+          <TabsTrigger value="proveedor" className="gap-2"><Database className="w-4 h-4" /> Proveedor</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto">
@@ -786,6 +790,10 @@ function AgentPageInner() {
         <TabsContent value="mapa3d" className="flex-1 min-h-0 overflow-y-auto"><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-fuchsia-500 to-cyan-500 flex items-center justify-center text-3xl">🌐</div><div className="text-lg font-semibold text-cyan-50">Mapa 3D de memorias</div><p className="text-sm text-white/50 max-w-md">Visualiza tus baúles, memorias y conexiones como un grafo 3D interactivo, con vistas múltiples, ramificación y la ayuda de Astraura para organizarlo.</p><Link href="/memorias-3d"><Button className="gap-2 bg-cyan-600 hover:bg-cyan-500"><Sparkles className="w-4 h-4" /> Abrir mapa 3D</Button></Link></div></TabsContent>
 
         <TabsContent value="runtimes" className="flex-1 min-h-0 overflow-y-auto"><AgentRuntimePanel /></TabsContent>
+
+        <TabsContent value="okf" className="flex-1 min-h-0 overflow-y-auto"><OKFPanel /></TabsContent>
+
+        <TabsContent value="proveedor" className="flex-1 min-h-0 overflow-y-auto"><ProviderPanel /></TabsContent>
 
         <TabsContent value="quick" className="flex-1 min-h-0 overflow-y-auto space-y-3">
           <QuickOptionsGrid
