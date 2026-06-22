@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { chat } from "@/ai/client/chat";
 import { loadConfigs } from "@/ai/client/providerStore";
 import type { ChatMessage } from "@/ai/providers/types";
@@ -31,6 +31,8 @@ import {
   uid,
   type Attachment,
   type AttachmentType,
+  type CommandSpec,
+  type DecisionParams,
   type ProposalOption,
   type Urgency,
 } from "@/lib/governance/types";
@@ -44,32 +46,111 @@ const ATTACH_TYPES: { id: AttachmentType; label: string }[] = [
   { id: "program", label: "Programa" },
 ];
 
+// Prefill opcional: permite sembrar el compositor desde un borrador (p.ej. el
+// que produce PermissionGate vía proposalForChange). Es aditivo y opcional:
+// cuando no se pasa, el compositor funciona exactamente igual que antes.
+export type ProposalComposerInitial = {
+  title?: string;
+  description?: string;
+  kind?: string;
+  options?: ProposalOption[];
+  attachments?: Attachment[];
+  command?: CommandSpec;
+  params?: Partial<DecisionParams>;
+};
+
+// Normaliza un payload de comando (valores arbitrarios) a strings, tal como los
+// consume el compositor (commandPayload es Record<string, string>).
+function payloadToStrings(payload?: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!payload) return out;
+  for (const [k, v] of Object.entries(payload)) {
+    if (v == null) continue;
+    out[k] = typeof v === "string" ? v : String(v);
+  }
+  return out;
+}
+
 export default function ProposalComposer({
   scope,
   scopeRef,
+  initial = {},
+  onCreated,
 }: {
   scope: string;
   scopeRef?: string;
+  initial?: ProposalComposerInitial;
+  onCreated?: (proposalId: string) => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [kind, setKind] = useState("decision");
+  const [title, setTitle] = useState(() => initial.title ?? "");
+  const [description, setDescription] = useState(() => initial.description ?? "");
+  const [kind, setKind] = useState(() => initial.kind ?? "decision");
 
-  const [options, setOptions] = useState<ProposalOption[]>([]);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [options, setOptions] = useState<ProposalOption[]>(() => initial.options ?? []);
+  const [attachments, setAttachments] = useState<Attachment[]>(() => initial.attachments ?? []);
 
-  const [commandType, setCommandType] = useState("none");
-  const [commandPayload, setCommandPayload] = useState<Record<string, string>>({});
+  const [commandType, setCommandType] = useState(() => initial.command?.type ?? "none");
+  const [commandPayload, setCommandPayload] = useState<Record<string, string>>(() =>
+    payloadToStrings(initial.command?.payload),
+  );
 
-  const [urgency, setUrgency] = useState<Urgency>("normal");
-  const [votingMinutes, setVotingMinutes] = useState<number>(URGENCY.normal.votingMinutes);
-  const [minParticipants, setMinParticipants] = useState<number>(1);
-  const [minPercent, setMinPercent] = useState<number>(0);
-  const [threshold, setThreshold] = useState<number>(50);
+  const [urgency, setUrgency] = useState<Urgency>(() => initial.params?.urgency ?? "normal");
+  const [votingMinutes, setVotingMinutes] = useState<number>(
+    () => initial.params?.votingMinutes ?? URGENCY[initial.params?.urgency ?? "normal"].votingMinutes,
+  );
+  const [minParticipants, setMinParticipants] = useState<number>(
+    () => initial.params?.minParticipants ?? 1,
+  );
+  const [minPercent, setMinPercent] = useState<number>(() => initial.params?.minPercent ?? 0);
+  const [threshold, setThreshold] = useState<number>(() => initial.params?.threshold ?? 50);
 
   const [saving, setSaving] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
+
+  // Re-sembrar el formulario cuando cambia la identidad del borrador `initial`,
+  // sin pisar las ediciones del usuario en re-renders normales. Construimos una
+  // clave estable a partir del contenido del borrador: sólo re-sembramos si esa
+  // clave cambia (montaje incluido).
+  const initialKey = useMemo(
+    () =>
+      JSON.stringify({
+        t: initial.title ?? "",
+        d: initial.description ?? "",
+        k: initial.kind ?? "",
+        o: initial.options ?? [],
+        a: initial.attachments ?? [],
+        c: initial.command ?? null,
+        p: initial.params ?? null,
+      }),
+    [initial.title, initial.description, initial.kind, initial.options, initial.attachments, initial.command, initial.params],
+  );
+  const seededKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    // No sembrar con un borrador vacío (uso clásico sin `initial`).
+    if (initialKey === seededKey.current) return;
+    const empty = JSON.stringify({ t: "", d: "", k: "", o: [], a: [], c: null, p: null });
+    if (initialKey === empty) {
+      seededKey.current = initialKey;
+      return;
+    }
+    setTitle(initial.title ?? "");
+    setDescription(initial.description ?? "");
+    setKind(initial.kind ?? "decision");
+    setOptions(initial.options ?? []);
+    setAttachments(initial.attachments ?? []);
+    setCommandType(initial.command?.type ?? "none");
+    setCommandPayload(payloadToStrings(initial.command?.payload));
+    const u = initial.params?.urgency ?? "normal";
+    setUrgency(u);
+    setVotingMinutes(initial.params?.votingMinutes ?? URGENCY[u].votingMinutes);
+    setMinParticipants(initial.params?.minParticipants ?? 1);
+    setMinPercent(initial.params?.minPercent ?? 0);
+    setThreshold(initial.params?.threshold ?? 50);
+    seededKey.current = initialKey;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialKey]);
 
   const cmdDef = useMemo(() => commandTypeById(commandType), [commandType]);
   const hasProvider = useMemo(() => {
@@ -196,6 +277,8 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("gov:proposal-created"));
         }
+        // callback para integraciones (p.ej. cerrar diálogo de PermissionGate)
+        if (res.id) onCreated?.(res.id);
       }
     } catch {
       toast.error("No se pudo crear la propuesta.");
