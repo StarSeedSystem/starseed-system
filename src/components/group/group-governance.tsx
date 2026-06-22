@@ -22,8 +22,14 @@ import {
   Lock,
   Rocket,
   PackageCheck,
+  Crown,
+  Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { getConfig, saveConfig } from "@/lib/governance/config";
+import { GovernanceModeBadge } from "@/components/governance/permission-gate";
+import type { GovernanceMode } from "@/lib/governance/types";
 
 type ProposalKind = "config" | "memory" | "agent" | "policy";
 
@@ -89,6 +95,10 @@ export function GroupGovernance({ groupId, isMember = true }: { groupId: string;
   const [busyAccept, setBusyAccept] = useState<string | null>(null);
   const [busyApply, setBusyApply] = useState<string | null>(null);
 
+  // Modo de gobernanza real del grupo (governance_configs · scope="group").
+  const [govMode, setGovMode] = useState<GovernanceMode>("democratic");
+  const [savingMode, setSavingMode] = useState(false);
+
   // formulario de nueva propuesta
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
@@ -104,6 +114,14 @@ export function GroupGovernance({ groupId, isMember = true }: { groupId: string;
       const { data: au } = await supabase.auth.getUser();
       const uid = au?.user?.id ?? null;
       setUserId(uid);
+
+      // Modo de gobernanza del grupo (best-effort).
+      try {
+        const cfg = await getConfig("group", groupId);
+        setGovMode(cfg.mode);
+      } catch {
+        /* sin config aún */
+      }
 
       const { data: props } = await supabase
         .from("group_ai_proposals")
@@ -145,6 +163,37 @@ export function GroupGovernance({ groupId, isMember = true }: { groupId: string;
   useEffect(() => {
     load();
   }, [load]);
+
+  // Guarda el modo de gobernanza del grupo. La opción democrática SIEMPRE
+  // queda disponible (saveConfig fuerza allowDemocraticOverride: true).
+  async function saveMode(next: GovernanceMode) {
+    if (!isMember) {
+      setError("Únete al grupo para cambiar el modo de gobernanza.");
+      return;
+    }
+    if (next === govMode) return;
+    setSavingMode(true);
+    setError(null);
+    try {
+      const prev = govMode;
+      setGovMode(next);
+      const cfg = await getConfig("group", groupId);
+      const res = await saveConfig("group", groupId, next, cfg.params || {});
+      if (!res.ok) {
+        setGovMode(prev);
+        setError(res.error ?? "No se pudo guardar el modo de gobernanza.");
+      } else {
+        toast.success(
+          next === "hierarchical"
+            ? "Modo jerárquico activado · la opción democrática sigue disponible"
+            : "Modo democrático activado",
+        );
+      }
+    } catch {
+      setError("No se pudo guardar el modo de gobernanza.");
+    }
+    setSavingMode(false);
+  }
 
   async function createProposal() {
     if (!isMember) {
@@ -350,6 +399,52 @@ export function GroupGovernance({ groupId, isMember = true }: { groupId: string;
             <Plus className="w-3.5 h-3.5" /> Nueva propuesta
           </Button>
         </div>
+      </div>
+
+      {/* Selector de modo de gobernanza (democrático / jerárquico) */}
+      <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Scale className="w-4 h-4 text-emerald-300" />
+          <span className="text-xs font-semibold text-white">Modo de gobernanza</span>
+          <GovernanceModeBadge scope="group" scopeRef={groupId} />
+          {savingMode && <Loader2 className="w-3.5 h-3.5 animate-spin text-white/40" />}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            disabled={savingMode || participationLocked}
+            onClick={() => saveMode("democratic")}
+            title={participationLocked ? "Únete al grupo para cambiar el modo" : undefined}
+            className={cn(
+              "text-[11px] rounded-full px-2.5 py-1 border transition flex items-center gap-1 disabled:opacity-50",
+              govMode === "democratic"
+                ? "border-emerald-400/50 text-emerald-200 bg-emerald-500/10"
+                : "bg-white/5 border-white/10 text-white/60 hover:border-emerald-400/30",
+            )}
+          >
+            <Scale className="w-3 h-3" /> Democrático
+          </button>
+          <button
+            type="button"
+            disabled={savingMode || participationLocked}
+            onClick={() => saveMode("hierarchical")}
+            title={participationLocked ? "Únete al grupo para cambiar el modo" : undefined}
+            className={cn(
+              "text-[11px] rounded-full px-2.5 py-1 border transition flex items-center gap-1 disabled:opacity-50",
+              govMode === "hierarchical"
+                ? "border-amber-400/50 text-amber-200 bg-amber-500/10"
+                : "bg-white/5 border-white/10 text-white/60 hover:border-amber-400/30",
+            )}
+          >
+            <Crown className="w-3 h-3" /> Jerárquico
+          </button>
+        </div>
+        <p className="text-[10px] text-white/40 flex items-start gap-1.5">
+          <Save className="w-3 h-3 mt-0.5 shrink-0 text-white/30" />
+          {govMode === "hierarchical"
+            ? "En modo jerárquico un admin/owner puede aplicar cambios directamente. La opción democrática siempre está disponible: cualquiera puede abrir una propuesta a votación."
+            : "En modo democrático todo cambio de configuración, permisos o membresía se decide por votación. La opción democrática siempre está disponible."}
+        </p>
       </div>
 
       {creating && !participationLocked && (
