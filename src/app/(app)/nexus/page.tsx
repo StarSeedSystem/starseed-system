@@ -35,6 +35,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { QuickOptionsGrid } from "@/components/hermes/quick-options-grid";
+import { TelegramChatsFolder } from "@/components/exocortex/telegram-chats-folder";
 
 // --- Types ---
 type Workspace = {
@@ -111,6 +112,7 @@ export default function NexusPage() {
                     <div className="space-y-4 py-2">
 
                         {/* Folders */}
+                        <TelegramChatsFolder />
                         {MOCK_FOLDERS.map(folder => (
                             <div key={folder.id} className="space-y-1">
                                 <button
