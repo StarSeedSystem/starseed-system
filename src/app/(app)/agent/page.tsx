@@ -51,6 +51,7 @@ import ProviderPanel from "@/components/exocortex/provider-panel";
 import AuroraStudio from "@/components/aurora/aurora-studio";
 import StoragePanel from "@/components/storage/storage-panel";
 import ConnectionsHub from "@/components/storage/connections-hub";
+import BrainsPanel from "@/components/brains/brains-panel";
 
 import { chat } from "@/ai/client/chat";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
@@ -370,6 +371,7 @@ function AgentPageInner() {
           <TabsTrigger value="aurora" className="gap-2"><Mic className="w-4 h-4" /> Aurora</TabsTrigger>
           <TabsTrigger value="almacenes" className="gap-2"><HardDrive className="w-4 h-4" /> Almacenes</TabsTrigger>
           <TabsTrigger value="conexiones" className="gap-2"><Cloud className="w-4 h-4" /> Conexiones</TabsTrigger>
+          <TabsTrigger value="cerebros" className="gap-2"><BrainCircuit className="w-4 h-4" /> Cerebros</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto">
@@ -806,6 +808,8 @@ function AgentPageInner() {
         <TabsContent value="almacenes" className="flex-1 min-h-0 overflow-y-auto"><StoragePanel /></TabsContent>
 
         <TabsContent value="conexiones" className="flex-1 min-h-0 overflow-y-auto"><ConnectionsHub /></TabsContent>
+
+        <TabsContent value="cerebros" className="flex-1 min-h-0 overflow-y-auto"><BrainsPanel /></TabsContent>
 
         <TabsContent value="quick" className="flex-1 min-h-0 overflow-y-auto space-y-3">
           <QuickOptionsGrid
