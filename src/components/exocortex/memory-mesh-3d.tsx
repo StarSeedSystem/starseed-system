@@ -45,6 +45,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { parseWikilinks } from "@/lib/okf";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -69,6 +70,7 @@ interface MemoryRow {
   format?: string | null;
   scope?: string | null;
   vault_id?: string | null;
+  content?: string | null;
 }
 
 type LayoutMode = "radial" | "tipo" | "ramificado";
@@ -114,6 +116,8 @@ const VAULT_COLOR = "#fcd34d";
 const NO_VAULT_COLOR = "#64748b";
 const EDGE_VAULT_MEM = "#fbbf2455";
 const EDGE_VAULT_CONN = "#818cf855";
+// Aristas memoria↔memoria por wikilinks [[Nombre]] (cian suave).
+const EDGE_WIKILINK = "#67e8f9aa";
 const HIGHLIGHT_EDGE = "#fde68a";
 
 const CONN_META: Record<ConnKey, { label: string; color: string }> = {
@@ -199,6 +203,7 @@ function buildGraph(
   mode: LayoutMode,
   activeKinds: Set<string>,
   showConnections: boolean,
+  showWikiLinks: boolean,
 ): BuiltGraph {
   const nodes: GNode[] = [];
   const edges: GEdge[] = [];
@@ -345,6 +350,37 @@ function buildGraph(
       });
     }
   });
+
+  // ── Aristas memoria↔memoria por wikilinks [[Nombre]] ──
+  // Para cada memoria presente como nodo, por cada [[Nombre]] de su contenido,
+  // se dibuja una arista hacia la memoria cuyo name coincide (case-insensitive).
+  if (showWikiLinks) {
+    const memNodeIds = new Set(nodes.filter((n) => n.kind === "memory").map((n) => n.id));
+    const idByName = new Map<string, string>();
+    for (const cl of clusters) {
+      for (const mem of cl.memories) {
+        const nm = (mem.name ?? "").trim().toLowerCase();
+        const nodeId = `m:${mem.id}`;
+        if (nm && memNodeIds.has(nodeId) && !idByName.has(nm)) idByName.set(nm, nodeId);
+      }
+    }
+    const seenWiki = new Set<string>();
+    for (const cl of clusters) {
+      for (const mem of cl.memories) {
+        const srcId = `m:${mem.id}`;
+        if (!memNodeIds.has(srcId)) continue;
+        const links = parseWikilinks(mem.content ?? "");
+        for (const lnk of links) {
+          const dstId = idByName.get(lnk.trim().toLowerCase());
+          if (!dstId || dstId === srcId) continue;
+          const key = `${srcId}=>${dstId}`;
+          if (seenWiki.has(key)) continue;
+          seenWiki.add(key);
+          edges.push({ id: `w:${srcId}-${dstId}`, source: srcId, target: dstId, color: EDGE_WIKILINK });
+        }
+      }
+    }
+  }
 
   return { nodes, edges, branchMap };
 }
@@ -786,6 +822,7 @@ export function MemoryMesh3D({ className = "" }: { className?: string }) {
 
   const [mode, setMode] = useState<LayoutMode>("radial");
   const [showConnections, setShowConnections] = useState(true);
+  const [showWikiLinks, setShowWikiLinks] = useState(true);
   const [activeKinds, setActiveKinds] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
 
@@ -811,7 +848,7 @@ export function MemoryMesh3D({ className = "" }: { className?: string }) {
           sb.from("vaults").select("id,owner,name,scope,connections,preferences").eq("owner", uid),
           sb
             .from("memories")
-            .select("id,owner,name,kinds,format,scope,vault_id")
+            .select("id,owner,name,kinds,format,scope,vault_id,content")
             .eq("owner", uid)
             .limit(500),
         ]);
@@ -841,8 +878,8 @@ export function MemoryMesh3D({ className = "" }: { className?: string }) {
   }, [memories]);
 
   const graph = useMemo(
-    () => buildGraph(clusters, mode, activeKinds, showConnections),
-    [clusters, mode, activeKinds, showConnections],
+    () => buildGraph(clusters, mode, activeKinds, showConnections, showWikiLinks),
+    [clusters, mode, activeKinds, showConnections, showWikiLinks],
   );
 
   const summary = useMemo(() => {
@@ -938,6 +975,20 @@ export function MemoryMesh3D({ className = "" }: { className?: string }) {
             Conexiones
           </button>
 
+          <button
+            onClick={() => setShowWikiLinks((s) => !s)}
+            className={cn(
+              "pointer-events-auto flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs backdrop-blur transition",
+              showWikiLinks
+                ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-200"
+                : "border-white/10 bg-black/50 text-white/60",
+            )}
+            title="Mostrar/ocultar enlaces [[wiki]] entre memorias"
+          >
+            {showWikiLinks ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            Mostrar enlaces wiki
+          </button>
+
           {presentKinds.length > 0 && (
             <div className="pointer-events-auto relative">
               <button
@@ -1012,6 +1063,9 @@ export function MemoryMesh3D({ className = "" }: { className?: string }) {
             </span>
             <span className="flex items-center gap-1">
               <span className="h-2 w-2 rounded-full" style={{ background: "#818cf8" }} /> Conexión
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full" style={{ background: EDGE_WIKILINK }} /> Enlaces [[wiki]]
             </span>
           </div>
           <div className="text-white/45">
