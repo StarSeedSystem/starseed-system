@@ -45,6 +45,12 @@ import {
   Cpu,
   Plug,
   Brain as BrainIcon,
+  RefreshCcw,
+  FolderSync,
+  Settings2,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import {
   SERVER_KINDS,
@@ -72,6 +78,7 @@ import {
   type RegistryServer,
   type ServerLink,
 } from "@/lib/brains/servers";
+import { runLinkSync, type RunLinkSyncResult, type SyncStep } from "@/lib/brains/sync";
 
 type Draft = Partial<RegistryServer> & { _connector?: string };
 
@@ -233,6 +240,12 @@ export default function ServersPanel() {
 
   const selected = useMemo(() => servers.find((s) => s.id === selectedId) || null, [servers, selectedId]);
   const [srvLinks, setSrvLinks] = useState<ServerLink[]>([]);
+  // Sincronización por enlace: estado de ejecución, resultado y editor de config.
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({});
+  const [syncResults, setSyncResults] = useState<Record<string, RunLinkSyncResult>>({});
+  const [cfgOpen, setCfgOpen] = useState<Record<string, boolean>>({});
+  const [cfgDir, setCfgDir] = useState<Record<string, string>>({});
+  const [cfgFolder, setCfgFolder] = useState<Record<string, string>>({});
   const [pickBrain, setPickBrain] = useState("");
   const [pickRole, setPickRole] = useState("primary");
   const [pickPriority, setPickPriority] = useState(0);
@@ -278,6 +291,74 @@ export default function ServersPanel() {
       await load();
     } else {
       toast.error("No se pudo enlazar.");
+    }
+  }
+
+  /** Clave única por enlace (servidor seleccionado + cerebro). */
+  function linkKey(brainId: string): string {
+    return `${selectedId ?? ""}::${brainId}`;
+  }
+
+  /** Ejecuta la sincronización REAL de un enlace (Syncthing + push de bundle). */
+  async function runSync(link: ServerLink, server: RegistryServer) {
+    const key = linkKey(link.brain_id);
+    setSyncing((m) => ({ ...m, [key]: true }));
+    setSyncResults((m) => {
+      const next = { ...m };
+      delete next[key];
+      return next;
+    });
+    try {
+      const res = await runLinkSync(link, server, { accountId: userId });
+      setSyncResults((m) => ({ ...m, [key]: res }));
+      if (res.ok) toast.success(res.detail);
+      else toast.message(res.detail);
+    } catch {
+      toast.error("No se pudo sincronizar este enlace.");
+    } finally {
+      setSyncing((m) => ({ ...m, [key]: false }));
+    }
+  }
+
+  /** Abre/cierra el editor de config de sync de un enlace (precarga valores). */
+  function toggleSyncConfig(link: ServerLink) {
+    const key = linkKey(link.brain_id);
+    setCfgOpen((m) => {
+      const open = !m[key];
+      if (open) {
+        const sync = (link.sync || {}) as Record<string, unknown>;
+        setCfgDir((d) => ({ ...d, [key]: String(sync.direction ?? "both") }));
+        setCfgFolder((f) => ({ ...f, [key]: String(sync.syncthingFolderId ?? "") }));
+      }
+      return { ...m, [key]: open };
+    });
+  }
+
+  /** Guarda la config de sync (dirección + carpeta Syncthing) en el enlace. */
+  async function saveLinkSyncConfig(link: ServerLink) {
+    if (!selectedId) return;
+    const key = linkKey(link.brain_id);
+    const direction = cfgDir[key] ?? String((link.sync as Record<string, unknown>)?.direction ?? "both");
+    const folder = (cfgFolder[key] ?? "").trim();
+    const nextSync: Record<string, unknown> = {
+      ...((link.sync || {}) as Record<string, unknown>),
+      direction,
+      auto: direction !== "none",
+    };
+    if (folder) nextSync.syncthingFolderId = folder;
+    else delete nextSync.syncthingFolderId;
+    const ok = await linkServer(link.brain_id, selectedId, {
+      role: link.role,
+      priority: link.priority,
+      sync: nextSync,
+    });
+    if (ok) {
+      toast.success("Configuración de sincronización guardada.");
+      setCfgOpen((m) => ({ ...m, [key]: false }));
+      await loadSrvLinks(selectedId);
+      await load();
+    } else {
+      toast.error("No se pudo guardar la configuración.");
     }
   }
 
@@ -580,29 +661,125 @@ export default function ServersPanel() {
                         <p className="text-[10px] text-white/40">Aún no hay cerebros enlazados a este servidor.</p>
                       ) : (
                         <div className="space-y-1">
-                          {srvLinks.map((l) => (
-                            <div
-                              key={l.brain_id}
-                              className="flex flex-wrap items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/80"
-                            >
-                              <BrainIcon className="h-3.5 w-3.5 text-cyan-300" />
-                              <span className="truncate font-medium">{brainName(l.brain_id)}</span>
-                              <Badge variant="outline" className="border-indigo-400/30 text-[9px] text-indigo-200">
-                                {linkRoleById(String(l.role))?.label ?? l.role}
-                              </Badge>
-                              <span className="text-[9px] text-white/40">prio {l.priority}</span>
-                              <Badge variant="outline" className="border-white/15 text-[9px] text-white/50">
-                                {SYNC_DIRECTIONS.find((d) => d.id === l.sync?.direction)?.label ?? "Bidireccional"}
-                              </Badge>
-                              <button
-                                onClick={() => detachBrain(l.brain_id)}
-                                className="ml-auto text-white/30 hover:text-red-400"
-                                title="Desenlazar"
+                          {srvLinks.map((l) => {
+                            const lk = `${selectedId ?? ""}::${l.brain_id}`;
+                            const busy = !!syncing[lk];
+                            const result = syncResults[lk];
+                            const open = !!cfgOpen[lk];
+                            const folderId = String((l.sync as Record<string, unknown> | undefined)?.syncthingFolderId ?? "");
+                            return (
+                              <div
+                                key={l.brain_id}
+                                className="rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/80"
                               >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          ))}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <BrainIcon className="h-3.5 w-3.5 text-cyan-300" />
+                                  <span className="truncate font-medium">{brainName(l.brain_id)}</span>
+                                  <Badge variant="outline" className="border-indigo-400/30 text-[9px] text-indigo-200">
+                                    {linkRoleById(String(l.role))?.label ?? l.role}
+                                  </Badge>
+                                  <span className="text-[9px] text-white/40">prio {l.priority}</span>
+                                  <Badge variant="outline" className="border-white/15 text-[9px] text-white/50">
+                                    {SYNC_DIRECTIONS.find((d) => d.id === l.sync?.direction)?.label ?? "Bidireccional"}
+                                  </Badge>
+                                  {folderId && (
+                                    <Badge variant="outline" className="gap-1 border-cyan-400/30 text-[9px] text-cyan-200" title="Carpeta Syncthing">
+                                      <FolderSync className="h-3 w-3" /> {folderId}
+                                    </Badge>
+                                  )}
+                                  <button
+                                    onClick={() => detachBrain(l.brain_id)}
+                                    className="ml-auto text-white/30 hover:text-red-400"
+                                    title="Desenlazar"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+
+                                {/* Acciones de sincronización del enlace */}
+                                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                  <Button
+                                    size="sm"
+                                    className="h-6 gap-1.5 bg-cyan-600 px-2 text-[10px] text-white hover:bg-cyan-500"
+                                    onClick={() => runSync(l, s)}
+                                    disabled={busy}
+                                    title="Dispara Syncthing y empuja el bundle del cerebro a este servidor"
+                                  >
+                                    {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />}
+                                    Sincronizar ahora
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className={cn("h-6 gap-1.5 border-white/15 px-2 text-[10px] text-white/70", open && "border-cyan-400/40 text-cyan-100")}
+                                    onClick={() => toggleSyncConfig(l)}
+                                    title="Configurar sincronización (dirección y carpeta Syncthing)"
+                                  >
+                                    <Settings2 className="h-3 w-3" /> Config. sync
+                                  </Button>
+                                  {result && (
+                                    <span className={cn("inline-flex items-center gap-1 text-[10px]", result.ok ? "text-emerald-300" : "text-amber-300")}>
+                                      {result.ok ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                                      {result.detail}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Editor de config de sync del enlace */}
+                                {open && (
+                                  <div className="mt-1.5 grid grid-cols-1 gap-1.5 rounded-md border border-cyan-500/20 bg-cyan-950/15 p-2 sm:grid-cols-[1fr_1.4fr_auto] sm:items-end">
+                                    <label className="flex flex-col gap-0.5">
+                                      <span className="text-[9px] text-white/40">Dirección</span>
+                                      <select
+                                        value={cfgDir[lk] ?? String((l.sync as Record<string, unknown>)?.direction ?? "both")}
+                                        onChange={(e) => setCfgDir((m) => ({ ...m, [lk]: e.target.value }))}
+                                        className="h-7 rounded-md border border-white/15 bg-black/40 px-1.5 text-[11px] text-white"
+                                      >
+                                        {SYNC_DIRECTIONS.map((d) => (
+                                          <option key={d.id} value={d.id}>
+                                            {d.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <label className="flex flex-col gap-0.5">
+                                      <span className="text-[9px] text-white/40">Carpeta Syncthing (id)</span>
+                                      <Input
+                                        value={cfgFolder[lk] ?? ""}
+                                        onChange={(e) => setCfgFolder((m) => ({ ...m, [lk]: e.target.value }))}
+                                        placeholder="p.ej. starseed-memorias"
+                                        className="h-7 border-white/15 bg-black/40 px-1.5 text-[11px] text-white placeholder:text-white/25"
+                                        spellCheck={false}
+                                      />
+                                    </label>
+                                    <Button
+                                      size="sm"
+                                      className="h-7 gap-1.5 bg-indigo-600 px-2 text-[10px] text-white hover:bg-indigo-500"
+                                      onClick={() => saveLinkSyncConfig(l)}
+                                    >
+                                      <Save className="h-3 w-3" /> Guardar
+                                    </Button>
+                                  </div>
+                                )}
+
+                                {/* Pasos del último intento de sincronización */}
+                                {result && result.steps.length > 0 && (
+                                  <ul className="mt-1.5 space-y-0.5 border-t border-white/10 pt-1.5">
+                                    {result.steps.map((st: SyncStep, i: number) => (
+                                      <li key={i} className={cn("flex items-start gap-1.5 text-[10px]", st.ok ? "text-white/70" : "text-amber-300")}>
+                                        {st.ok ? (
+                                          <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-400" />
+                                        ) : (
+                                          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                                        )}
+                                        <span>{st.detail}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
 
