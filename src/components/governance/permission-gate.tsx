@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Crown, Scale, Vote, Sparkles, Info } from "lucide-react";
+import { toast } from "sonner";
 import ProposalComposer from "@/components/governance/proposal-composer";
 import {
   useGovernanceContext,
@@ -124,6 +125,21 @@ export function PermissionGate({
     [scope, scopeRef, change],
   );
 
+  // Borrador listo para sembrar el compositor: título, descripción y el comando
+  // (con su payload ya serializado a strings por proposalForChange). Así el
+  // cambio queda totalmente prefigurado, sin copiar/pegar manual.
+  const composerInitial = useMemo(
+    () => ({
+      title: draft.title,
+      description: draft.description,
+      command: {
+        type: draft.command.type,
+        payload: { ...draft.command.payload, ...draft.payload },
+      },
+    }),
+    [draft],
+  );
+
   const actionLabel = label || change.label || action || "este cambio";
 
   function ProposeButton({
@@ -210,38 +226,30 @@ export function PermissionGate({
             </DialogDescription>
           </DialogHeader>
 
-          {/* Sugerencia prefigurada del cambio (comando a ejecutar al aprobarse). */}
-          <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/10 p-3 space-y-2">
+          {/* Aviso: el compositor ya viene prefigurado con el cambio (título,
+              descripción y el comando con sus valores). Sólo hay que revisarlo
+              y publicar; al aprobarse, el cambio se aplica solo. */}
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/10 p-3">
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-200/80">
-              <Sparkles className="w-3.5 h-3.5" /> Cambio sugerido (cópialo en la propuesta)
+              <Sparkles className="w-3.5 h-3.5" /> Cambio prefigurado
             </div>
-            <div className="text-xs text-white/70">
-              <div>
-                <span className="text-white/40">Título: </span>
-                {draft.title}
-              </div>
-              {draft.description && (
-                <div className="mt-1 whitespace-pre-wrap">
-                  <span className="text-white/40">Descripción: </span>
-                  {draft.description}
-                </div>
-              )}
-              <div className="mt-2 rounded-md border border-white/10 bg-black/30 p-2 font-mono text-[10px] text-amber-200/80 break-words">
-                comando · {draft.command.type}
-                {Object.entries(draft.payload).map(([k, v]) => (
-                  <div key={k}>
-                    {k}: {v || "—"}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-1 text-[10px] text-emerald-300/70">
-                Selecciona el comando «{draft.command.type}» en el compositor y rellena
-                estos valores; al aprobarse, el cambio se aplica solo.
-              </p>
-            </div>
+            <p className="mt-1 text-[10px] text-emerald-300/70">
+              La propuesta ya viene rellenada con este cambio y el comando «
+              {draft.command.type}» que se ejecutará al aprobarse. Revísala y
+              publícala; puedes ajustar cualquier campo antes de enviar.
+            </p>
           </div>
 
-          <ProposalComposer scope={scope} scopeRef={scopeRef} />
+          <ProposalComposer
+            key={draft.title + "|" + draft.command.type}
+            scope={scope}
+            scopeRef={scopeRef}
+            initial={composerInitial}
+            onCreated={() => {
+              setOpen(false);
+              toast.success("Propuesta creada");
+            }}
+          />
         </DialogContent>
       </Dialog>
     </div>
