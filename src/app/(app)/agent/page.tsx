@@ -48,6 +48,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import OKFPanel from "@/components/exocortex/okf-panel";
 import ProviderPanel from "@/components/exocortex/provider-panel";
+import AuroraStudio from "@/components/aurora/aurora-studio";
 
 import { chat } from "@/ai/client/chat";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
@@ -364,6 +365,7 @@ function AgentPageInner() {
           <TabsTrigger value="runtimes" className="gap-2"><Server className="w-4 h-4" /> Agentes</TabsTrigger>
           <TabsTrigger value="okf" className="gap-2"><BookOpen className="w-4 h-4" /> Wiki/OKF</TabsTrigger>
           <TabsTrigger value="proveedor" className="gap-2"><Database className="w-4 h-4" /> Proveedor</TabsTrigger>
+          <TabsTrigger value="aurora" className="gap-2"><Mic className="w-4 h-4" /> Aurora</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto">
@@ -794,6 +796,8 @@ function AgentPageInner() {
         <TabsContent value="okf" className="flex-1 min-h-0 overflow-y-auto"><OKFPanel /></TabsContent>
 
         <TabsContent value="proveedor" className="flex-1 min-h-0 overflow-y-auto"><ProviderPanel /></TabsContent>
+
+        <TabsContent value="aurora" className="flex-1 min-h-0 overflow-y-auto"><AuroraStudio /></TabsContent>
 
         <TabsContent value="quick" className="flex-1 min-h-0 overflow-y-auto space-y-3">
           <QuickOptionsGrid
