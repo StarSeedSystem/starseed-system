@@ -62,6 +62,7 @@ import { MemoryBrain3D } from "@/components/exocortex/memory-brain-3d";
 import { TelegramSpacesPanel } from "@/components/exocortex/telegram-spaces-panel";
 import { ChatNeuralSidebar } from "@/components/agent/chat-neural-sidebar";
 import { MemoryHub } from "@/components/exocortex/memory-hub";
+import { AgentRuntimePanel } from "@/components/agent/agent-runtime-panel";
 import { BatchJobsPanel } from "@/components/hermes/batch-jobs-panel";
 import { ServerRegistryPanel } from "@/components/hermes/server-registry-panel";
 import { HardDrive } from "lucide-react";
@@ -355,6 +356,7 @@ function AgentPageInner() {
           <TabsTrigger value="quick" className="gap-2"><Plus className="w-4 h-4" /> Accesos</TabsTrigger>
           <TabsTrigger value="telegram" className="gap-2"><Bot className="w-4 h-4" /> Telegram</TabsTrigger>
           <TabsTrigger value="memorias" className="gap-2"><Brain className="w-4 h-4" /> Memorias</TabsTrigger>
+          <TabsTrigger value="runtimes" className="gap-2"><Server className="w-4 h-4" /> Agentes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto">
@@ -775,6 +777,8 @@ function AgentPageInner() {
         <TabsContent value="telegram" className="flex-1 min-h-0 overflow-y-auto"><TelegramSpacesPanel /></TabsContent>
 
         <TabsContent value="memorias" className="flex-1 min-h-0 overflow-y-auto"><MemoryHub /></TabsContent>
+
+        <TabsContent value="runtimes" className="flex-1 min-h-0 overflow-y-auto"><AgentRuntimePanel /></TabsContent>
 
         <TabsContent value="quick" className="flex-1 min-h-0 overflow-y-auto space-y-3">
           <QuickOptionsGrid
