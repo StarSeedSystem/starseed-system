@@ -39,6 +39,7 @@ import {
   BookOpen,
   CheckCircle2,
   Database,
+  Vote,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -52,6 +53,8 @@ import AuroraStudio from "@/components/aurora/aurora-studio";
 import StoragePanel from "@/components/storage/storage-panel";
 import ConnectionsHub from "@/components/storage/connections-hub";
 import BrainsPanel from "@/components/brains/brains-panel";
+import GovernancePanel from "@/components/governance/governance-panel";
+import GovNotifications from "@/components/governance/notifications-panel";
 
 import { chat } from "@/ai/client/chat";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
@@ -372,6 +375,7 @@ function AgentPageInner() {
           <TabsTrigger value="almacenes" className="gap-2"><HardDrive className="w-4 h-4" /> Almacenes</TabsTrigger>
           <TabsTrigger value="conexiones" className="gap-2"><Cloud className="w-4 h-4" /> Conexiones</TabsTrigger>
           <TabsTrigger value="cerebros" className="gap-2"><BrainCircuit className="w-4 h-4" /> Cerebros</TabsTrigger>
+          <TabsTrigger value="decisiones" className="gap-2"><Vote className="w-4 h-4" /> Decisiones</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto">
@@ -810,6 +814,8 @@ function AgentPageInner() {
         <TabsContent value="conexiones" className="flex-1 min-h-0 overflow-y-auto"><ConnectionsHub /></TabsContent>
 
         <TabsContent value="cerebros" className="flex-1 min-h-0 overflow-y-auto"><BrainsPanel /></TabsContent>
+
+        <TabsContent value="decisiones" className="flex-1 min-h-0 overflow-y-auto"><div className="space-y-6"><GovernancePanel /><GovNotifications /></div></TabsContent>
 
         <TabsContent value="quick" className="flex-1 min-h-0 overflow-y-auto space-y-3">
           <QuickOptionsGrid
