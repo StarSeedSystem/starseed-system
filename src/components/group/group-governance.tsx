@@ -19,6 +19,9 @@ import {
   Bot,
   Scale,
   RefreshCw,
+  Lock,
+  Rocket,
+  PackageCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -62,13 +65,29 @@ function kindMeta(kind: string) {
   return KIND_META[kind as ProposalKind] ?? KIND_META.config;
 }
 
-export function GroupGovernance({ groupId }: { groupId: string }) {
+// Mapea el tipo de propuesta al conjunto de "kinds" de la memoria materializada.
+function kindsForProposal(kind: string): string[] {
+  switch (kind) {
+    case "memory":
+      return ["memory"];
+    case "agent":
+      return ["config", "skills"];
+    case "policy":
+      return ["config", "md"];
+    case "config":
+    default:
+      return ["config"];
+  }
+}
+
+export function GroupGovernance({ groupId, isMember = true }: { groupId: string; isMember?: boolean }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [tallies, setTallies] = useState<Record<string, Tally>>({});
   const [loading, setLoading] = useState(true);
   const [busyVote, setBusyVote] = useState<string | null>(null);
   const [busyAccept, setBusyAccept] = useState<string | null>(null);
+  const [busyApply, setBusyApply] = useState<string | null>(null);
 
   // formulario de nueva propuesta
   const [creating, setCreating] = useState(false);
@@ -128,6 +147,10 @@ export function GroupGovernance({ groupId }: { groupId: string }) {
   }, [load]);
 
   async function createProposal() {
+    if (!isMember) {
+      setError("Únete al grupo para participar.");
+      return;
+    }
     if (!userId || !title.trim()) {
       setError(!userId ? "Inicia sesión para proponer." : "Pon un título a la propuesta.");
       return;
@@ -162,6 +185,10 @@ export function GroupGovernance({ groupId }: { groupId: string }) {
   }
 
   async function castVote(proposalId: string, value: 1 | -1) {
+    if (!isMember) {
+      setError("Únete al grupo para participar.");
+      return;
+    }
     if (!userId) {
       setError("Inicia sesión para votar.");
       return;
@@ -202,13 +229,98 @@ export function GroupGovernance({ groupId }: { groupId: string }) {
     setBusyAccept(null);
   }
 
+  // Motor de aplicación: materializa el payload de una propuesta aceptada como
+  // memoria de grupo, y marca la propuesta como "applied".
+  async function applyProposal(p: Proposal) {
+    if (!userId || p.author !== userId) return;
+    setBusyApply(p.id);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const payload = p.payload ?? {};
+      const kinds = kindsForProposal(p.kind);
+
+      // ¿Existe ya una memoria materializada desde esta propuesta? (upsert manual)
+      const { data: existing } = await supabase
+        .from("memories")
+        .select("id, config")
+        .eq("scope", "group")
+        .eq("scope_ref", groupId)
+        .eq("owner", userId)
+        .eq("name", p.title)
+        .limit(1);
+
+      const prior = (existing as { id: string; config: Record<string, unknown> | null }[] | null)?.[0];
+
+      if (prior) {
+        const { error: upErr } = await supabase
+          .from("memories")
+          .update({
+            kinds,
+            format: "json",
+            content: JSON.stringify(payload),
+            config: { ...(prior.config ?? {}), from_proposal: p.id, applied_kind: p.kind },
+          })
+          .eq("id", prior.id);
+        if (upErr) {
+          setError(upErr.message);
+          setBusyApply(null);
+          return;
+        }
+      } else {
+        const { error: insErr } = await supabase.from("memories").insert({
+          owner: userId,
+          name: p.title,
+          scope: "group",
+          scope_ref: groupId,
+          kinds,
+          format: "json",
+          storage: ["account"],
+          sync: true,
+          content: JSON.stringify(payload),
+          config: { from_proposal: p.id, applied_kind: p.kind },
+        });
+        if (insErr) {
+          setError(insErr.message);
+          setBusyApply(null);
+          return;
+        }
+      }
+
+      // Marcar la propuesta como aplicada.
+      const { error: stErr } = await supabase
+        .from("group_ai_proposals")
+        .update({ status: "applied" })
+        .eq("id", p.id);
+      if (stErr) setError(stErr.message);
+      await load();
+    } catch {
+      setError("No se pudo aplicar la propuesta al grupo.");
+    }
+    setBusyApply(null);
+  }
+
   function canAccept(p: Proposal, t: Tally | undefined): boolean {
     if (!t) return false;
     return p.status === "open" && t.total >= MIN_VOTES && t.up > t.down;
   }
 
+  const participationLocked = !isMember;
+
   return (
     <div className="space-y-4">
+      {/* Aviso de pertenencia */}
+      {participationLocked && (
+        <div className="rounded-lg border border-amber-400/25 bg-amber-500/5 p-3 flex items-start gap-2">
+          <Lock className="w-4 h-4 text-amber-300 mt-0.5 shrink-0" />
+          <div className="text-xs text-amber-100/80 leading-relaxed">
+            <span className="text-amber-200 font-medium">Únete al grupo para participar.</span> Puedes ver las
+            propuestas y los recuentos, pero proponer y votar está reservado a los miembros. Ve a la pestaña{" "}
+            <span className="text-amber-200 font-medium">Miembros</span> para unirte.
+          </div>
+        </div>
+      )}
+
       {/* Cabecera + crear */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
@@ -230,15 +342,17 @@ export function GroupGovernance({ groupId }: { groupId: string }) {
           </Button>
           <Button
             size="sm"
-            className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
+            className="gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50"
             onClick={() => setCreating((v) => !v)}
+            disabled={participationLocked}
+            title={participationLocked ? "Únete al grupo para participar" : undefined}
           >
             <Plus className="w-3.5 h-3.5" /> Nueva propuesta
           </Button>
         </div>
       </div>
 
-      {creating && (
+      {creating && !participationLocked && (
         <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
           <label className="block text-[11px] text-white/50">
             Título
@@ -324,15 +438,21 @@ export function GroupGovernance({ groupId }: { groupId: string }) {
             const meta = kindMeta(p.kind);
             const KindIcon = meta.icon;
             const accepted = p.status === "accepted";
+            const applied = p.status === "applied";
             const eligible = canAccept(p, t);
             const isAuthor = !!userId && p.author === userId;
             const myVote = t?.mine ?? null;
+            const closed = accepted || applied;
             return (
               <div
                 key={p.id}
                 className={cn(
                   "rounded-lg border bg-white/5 p-3",
-                  accepted ? "border-emerald-500/40 bg-emerald-500/5" : "border-white/10",
+                  applied
+                    ? "border-cyan-500/40 bg-cyan-500/5"
+                    : accepted
+                      ? "border-emerald-500/40 bg-emerald-500/5"
+                      : "border-white/10",
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -342,7 +462,11 @@ export function GroupGovernance({ groupId }: { groupId: string }) {
                       <Badge variant="outline" className={cn("text-[9px] gap-1", meta.color)}>
                         <KindIcon className="w-2.5 h-2.5" /> {meta.label}
                       </Badge>
-                      {accepted ? (
+                      {applied ? (
+                        <Badge variant="outline" className="text-[9px] gap-1 border-cyan-500/50 text-cyan-200 bg-cyan-500/10">
+                          <PackageCheck className="w-2.5 h-2.5" /> Aplicada
+                        </Badge>
+                      ) : accepted ? (
                         <Badge variant="outline" className="text-[9px] gap-1 border-emerald-500/50 text-emerald-200 bg-emerald-500/10">
                           <Check className="w-2.5 h-2.5" /> Aceptada
                         </Badge>
@@ -391,10 +515,11 @@ export function GroupGovernance({ groupId }: { groupId: string }) {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={busyVote === p.id || accepted}
+                    disabled={busyVote === p.id || closed || participationLocked}
                     onClick={() => castVote(p.id, 1)}
+                    title={participationLocked ? "Únete al grupo para participar" : undefined}
                     className={cn(
-                      "gap-1.5 h-8 border-white/15 hover:bg-emerald-900/20",
+                      "gap-1.5 h-8 border-white/15 hover:bg-emerald-900/20 disabled:opacity-50",
                       myVote === 1 ? "border-emerald-400/60 text-emerald-200 bg-emerald-500/10" : "text-white/70",
                     )}
                   >
@@ -408,10 +533,11 @@ export function GroupGovernance({ groupId }: { groupId: string }) {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={busyVote === p.id || accepted}
+                    disabled={busyVote === p.id || closed || participationLocked}
                     onClick={() => castVote(p.id, -1)}
+                    title={participationLocked ? "Únete al grupo para participar" : undefined}
                     className={cn(
-                      "gap-1.5 h-8 border-white/15 hover:bg-red-900/20",
+                      "gap-1.5 h-8 border-white/15 hover:bg-red-900/20 disabled:opacity-50",
                       myVote === -1 ? "border-red-400/60 text-red-200 bg-red-500/10" : "text-white/70",
                     )}
                   >
@@ -423,7 +549,13 @@ export function GroupGovernance({ groupId }: { groupId: string }) {
                     En contra
                   </Button>
 
-                  {!accepted && eligible && isAuthor && (
+                  {participationLocked && !closed && (
+                    <span className="text-[10px] text-amber-300/70 ml-auto self-center flex items-center gap-1">
+                      <Lock className="w-3 h-3" /> Únete al grupo para participar
+                    </span>
+                  )}
+
+                  {!closed && !participationLocked && eligible && isAuthor && (
                     <Button
                       size="sm"
                       className="gap-1.5 h-8 bg-emerald-600 hover:bg-emerald-500 ml-auto"
@@ -438,14 +570,41 @@ export function GroupGovernance({ groupId }: { groupId: string }) {
                       Marcar como aceptada
                     </Button>
                   )}
-                  {!accepted && eligible && !isAuthor && (
+                  {!closed && !participationLocked && eligible && !isAuthor && (
                     <span className="text-[10px] text-emerald-300/70 ml-auto self-center">
                       Mayoría alcanzada · pendiente de que el autor la confirme
                     </span>
                   )}
-                  {!accepted && !eligible && (
+                  {!closed && !participationLocked && !eligible && (
                     <span className="text-[10px] text-white/35 ml-auto self-center">
                       Faltan {Math.max(0, MIN_VOTES - (t?.total ?? 0))} voto(s) para poder aceptar
+                    </span>
+                  )}
+
+                  {/* Motor de aplicación: visible para el autor en propuestas aceptadas */}
+                  {accepted && isAuthor && (
+                    <Button
+                      size="sm"
+                      className="gap-1.5 h-8 bg-cyan-600 hover:bg-cyan-500 ml-auto"
+                      disabled={busyApply === p.id}
+                      onClick={() => applyProposal(p)}
+                    >
+                      {busyApply === p.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Rocket className="w-3.5 h-3.5" />
+                      )}
+                      Aplicar al grupo
+                    </Button>
+                  )}
+                  {accepted && !isAuthor && (
+                    <span className="text-[10px] text-emerald-300/70 ml-auto self-center">
+                      Aceptada · pendiente de que el autor la aplique
+                    </span>
+                  )}
+                  {applied && (
+                    <span className="text-[10px] text-cyan-300/70 ml-auto self-center flex items-center gap-1">
+                      <PackageCheck className="w-3 h-3" /> Materializada como memoria del grupo
                     </span>
                   )}
                 </div>
