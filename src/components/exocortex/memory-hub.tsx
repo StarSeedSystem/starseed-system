@@ -7,10 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Brain, Plus, Trash2, Wand2, Check, X, FileText, Download, Upload, Github, Save, Loader2, RefreshCw, Cloud, Link2, Link2Off, BookOpen } from "lucide-react";
+import { Brain, Plus, Trash2, Wand2, Check, X, FileText, Download, Upload, Github, Save, Loader2, RefreshCw, Cloud, Link2, Link2Off, BookOpen, Boxes, HardDrive, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseWikilinks } from "@/lib/okf";
 import Link from "next/link";
+import { routeAndStore } from "@/lib/storage/route-memory";
+import { getPolicy } from "@/lib/storage/backends";
+import type { StoragePolicy } from "@/lib/storage/backends";
 
 // El PAT ya NO se guarda en config: vive cifrado en la bóveda (api/vault).
 type GithubConfig = { repo?: string; branch?: string; path?: string };
@@ -30,6 +33,16 @@ const SCOPES: [string, string][] = [["account","Toda la cuenta"],["profile","Un 
 const KINDS: [string, string][] = [["soul","🪷 Alma"],["memory","🧠 Memoria"],["dream","🌙 Sueños"],["md","📝 Markdown"],["3d","🌐 3D"],["skills","✨ Skills"],["apis","🔌 APIs"],["mcp","🧩 MCP"],["plugins","🧱 Plugins"],["tokens","🔐 Tokens"],["connections","🔗 Conexiones"]];
 const FORMATS: [string, string][] = [["markdown","Markdown (.md)"],["json","JSON"],["3d","Memoria 3D"],["mixed","Mixto"]];
 const STORES: [string, string][] = [["account","Cuenta StarSeed"],["drive","Google Drive"],["obsidian","Obsidian"],["local","Local"],["github","GitHub (repo-memoria)"]];
+
+// Etiquetas legibles para los backends de almacenamiento. Cubre el naming antiguo
+// del Memory Hub (account/drive) y el del router multi-fuente (starseed/gdrive…).
+const STORAGE_LABELS: Record<string, string> = {
+  account: "StarSeed", starseed: "StarSeed",
+  drive: "Drive", gdrive: "Drive",
+  local: "Local", github: "GitHub", obsidian: "Obsidian",
+  webdav: "WebDAV", s3: "S3", custom: "Personalizada",
+};
+function storageLabel(id: string): string { return STORAGE_LABELS[id] ?? id; }
 
 type Preset = { key: string; icon: string; label: string; hint: string; kinds: string[]; format: string };
 const PRESETS: Preset[] = [
@@ -73,6 +86,10 @@ export function MemoryHub() {
   const [status, setStatus] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  // Enrutado a almacén (router multi-fuente): política + estado del botón "Guardar en almacén".
+  const [policy, setPolicy] = useState<StoragePolicy>({});
+  const [routing, setRouting] = useState(false);
+
   const load = useCallback(async () => {
     try {
       const supabase = createClient();
@@ -85,6 +102,38 @@ export function MemoryHub() {
     } catch { /* sin sesión */ }
   }, []);
   useEffect(() => { load(); }, [load]);
+  // Carga la política de almacenamiento (umbral starseedMaxMb, destino preferido…).
+  useEffect(() => { getPolicy().then(setPolicy).catch(() => setPolicy({})); }, [userId]);
+
+  // ── enrutar y guardar una memoria en el mejor almacén (router multi-fuente) ──
+  async function storeToBackend(m: Memory, contentOverride?: string) {
+    setRouting(true); setStatus(null);
+    try {
+      const res = await routeAndStore(
+        {
+          id: m.id,
+          name: m.name,
+          content: typeof contentOverride === "string" ? contentOverride : (m.id === openId ? draft : m.content),
+          kinds: m.kinds,
+          config: m.config ?? {},
+          storage: m.storage ?? [],
+        },
+        { uid: userId, policy },
+      );
+      const where = res.backend ? storageLabel(res.backend) : "almacén";
+      const msg = res.ok
+        ? `Guardado en ${where}${res.link ? ` · ${res.link}` : ""}. ${res.detail}`
+        : res.detail;
+      setStatus({ kind: res.ok ? "ok" : "err", msg });
+      await load();
+      return res;
+    } catch (e) {
+      setStatus({ kind: "err", msg: e instanceof Error ? e.message : "No se pudo enrutar la memoria." });
+      return null;
+    } finally {
+      setRouting(false);
+    }
+  }
 
   // ── bóveda cifrada: helpers (api/vault) ──
   async function vaultGet(secretName: string): Promise<string> {
@@ -158,8 +207,19 @@ export function MemoryHub() {
     try {
       const supabase = createClient();
       const { error } = await supabase.from("memories").update({ content: draft }).eq("id", m.id);
-      if (error) { setStatus({ kind: "err", msg: error.message }); }
-      else { setStatus({ kind: "ok", msg: "Contenido guardado y sincronizado en tu cuenta." }); await load(); }
+      if (error) { setStatus({ kind: "err", msg: error.message }); setSavingContent(false); return; }
+      setStatus({ kind: "ok", msg: "Contenido guardado y sincronizado en tu cuenta." });
+      await load();
+      // Si la memoria supera el umbral del servidor StarSeed, enruta automáticamente
+      // al mejor almacén (p. ej. tu Google Drive) e informa dónde quedó.
+      const maxMb = typeof policy.starseedMaxMb === "number" ? policy.starseedMaxMb : 5;
+      const sizeMb = (typeof TextEncoder !== "undefined" ? new TextEncoder().encode(draft ?? "").length : (draft ?? "").length) / (1024 * 1024);
+      if (sizeMb > maxMb) {
+        setSavingContent(false);
+        setStatus({ kind: "ok", msg: `Memoria grande (${sizeMb.toFixed(2)} MB > ${maxMb} MB): enrutando al mejor almacén…` });
+        await storeToBackend({ ...m, content: draft }, draft);
+        return;
+      }
     } catch (e) { setStatus({ kind: "err", msg: e instanceof Error ? e.message : "Error al guardar" }); }
     setSavingContent(false);
   }
@@ -332,7 +392,24 @@ export function MemoryHub() {
                   <button onClick={() => openMemory(m)} className="flex-1 min-w-0 text-left group">
                     <div className="text-sm font-medium text-white group-hover:text-fuchsia-200 transition flex items-center gap-1.5"><FileText className="w-3.5 h-3.5 text-fuchsia-300/70" /> {m.name}</div>
                     <div className="flex flex-wrap gap-1 mt-1">{m.kinds.map((k) => <Badge key={k} variant="outline" className="text-[9px] border-fuchsia-500/30 text-fuchsia-200/80">{(KINDS.find((x) => x[0] === k) || [k, k])[1]}</Badge>)}</div>
-                    <div className="text-[10px] text-white/40 mt-1">{(SCOPES.find((x) => x[0] === m.scope) || ["", m.scope])[1]} · {m.format} · {(m.storage || []).join(", ")} · {m.sync ? "sync ✓" : "sin sync"}</div>
+                    <div className="text-[10px] text-white/40 mt-1">{(SCOPES.find((x) => x[0] === m.scope) || ["", m.scope])[1]} · {m.format} · {m.sync ? "sync ✓" : "sin sync"}</div>
+                    {/* Insignias de almacén: dónde vive realmente esta memoria + enlace a Drive si existe. */}
+                    <div className="flex flex-wrap items-center gap-1 mt-1">
+                      {(m.storage && m.storage.length ? m.storage : ["account"]).map((s) => (
+                        <Badge key={s} variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-200/80 inline-flex items-center gap-1">
+                          {s === "drive" || s === "gdrive" ? <Cloud className="w-2.5 h-2.5" /> : s === "local" ? <HardDrive className="w-2.5 h-2.5" /> : s === "github" ? <Github className="w-2.5 h-2.5" /> : <Boxes className="w-2.5 h-2.5" />}
+                          {storageLabel(s)}
+                        </Badge>
+                      ))}
+                      {(() => {
+                        const link = (m.config?.drive as { link?: string } | undefined)?.link;
+                        return link ? (
+                          <a href={link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[9px] inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-200 hover:bg-emerald-500/20" title="Abrir en Google Drive">
+                            <ExternalLink className="w-2.5 h-2.5" /> Abrir en Drive
+                          </a>
+                        ) : null;
+                      })()}
+                    </div>
                   </button>
                   <button onClick={() => remove(m.id)} className="text-white/30 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                 </div>
@@ -362,6 +439,7 @@ export function MemoryHub() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" className="gap-1.5 bg-fuchsia-600 hover:bg-fuchsia-500" disabled={savingContent} onClick={() => saveContent(m)}>{savingContent ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Guardar</Button>
+                      <Button size="sm" variant="outline" className="gap-1.5 border-emerald-400/30 text-emerald-100 hover:bg-emerald-900/20" disabled={routing || savingContent} onClick={() => storeToBackend(m)} title="Enruta esta memoria al mejor almacén (StarSeed, Google Drive, GitHub o local) según su tamaño y tu política.">{routing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Boxes className="w-3.5 h-3.5" />} Guardar en almacén</Button>
                       <Button size="sm" variant="outline" className="gap-1.5 border-cyan-400/30 text-cyan-100 hover:bg-cyan-900/20" onClick={() => exportMd(m)}><Download className="w-3.5 h-3.5" /> Exportar .md</Button>
                       <Button size="sm" variant="outline" className="gap-1.5 border-cyan-400/30 text-cyan-100 hover:bg-cyan-900/20" onClick={() => fileRef.current?.click()}><Upload className="w-3.5 h-3.5" /> Importar .md</Button>
                       <input ref={fileRef} type="file" accept=".md,.markdown,text/markdown,text/plain" className="hidden" onChange={(e) => importMd(e.target.files?.[0] ?? null)} />
