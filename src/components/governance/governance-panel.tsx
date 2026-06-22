@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { chat } from "@/ai/client/chat";
 import { loadConfigs } from "@/ai/client/providerStore";
@@ -27,6 +27,7 @@ import {
   Info,
 } from "lucide-react";
 import ProposalComposer from "@/components/governance/proposal-composer";
+import type { CommandSpec } from "@/lib/governance/types";
 import ProposalCard from "@/components/governance/proposal-card";
 import { resolveOpenProposals } from "@/lib/governance/engine";
 import { getConfig, saveConfig } from "@/lib/governance/config";
@@ -44,12 +45,42 @@ type Filter = "open" | "passed" | "executed" | "all";
 export default function GovernancePanel({
   scope: initialScope,
   scopeRef: initialRef,
+  initialProposal,
+  autoOpen,
 }: {
   scope?: string;
   scopeRef?: string;
+  // Borrador prefilled (deep-link). Cuando se pasa junto a `autoOpen`, el
+  // compositor se siembra con estos datos y se desplaza a la vista.
+  initialProposal?: { title?: string; description?: string; command?: CommandSpec };
+  autoOpen?: boolean;
 } = {}) {
   const [scope, setScope] = useState<string>(initialScope ?? "global");
   const [scopeRef, setScopeRef] = useState<string>(initialRef ?? "");
+
+  // Si el contexto llega por props (deep-link), lo sincronizamos en caliente
+  // cuando cambie su identidad — sin pisar la navegación manual del usuario.
+  useEffect(() => {
+    if (initialScope) setScope(initialScope);
+  }, [initialScope]);
+  useEffect(() => {
+    if (initialRef !== undefined) setScopeRef(initialRef);
+  }, [initialRef]);
+
+  // Ancla para desplazar/expandir el compositor cuando llega un borrador.
+  const composerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!autoOpen || !initialProposal) return;
+    const t = setTimeout(() => {
+      try {
+        composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch {
+        /* no-op (entornos sin scrollIntoView) */
+      }
+    }, 120);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen, initialProposal?.title, initialProposal?.description, initialProposal?.command?.type]);
 
   const [mode, setMode] = useState<GovernanceMode>("democratic");
   const [govVotingMinutes, setGovVotingMinutes] = useState<number>(
@@ -362,7 +393,13 @@ Sé concreto y motivador.`;
       </div>
 
       {/* Compositor */}
-      <ProposalComposer scope={scope} scopeRef={scopeRef || undefined} />
+      <div ref={composerRef}>
+        <ProposalComposer
+          scope={scope}
+          scopeRef={scopeRef || undefined}
+          initial={initialProposal ?? {}}
+        />
+      </div>
 
       {/* Listado de propuestas */}
       <div className="space-y-3">
