@@ -21,7 +21,17 @@ import { createClient } from "@/utils/supabase/client";
 
 export type BrainScope = "account" | "profile" | "group" | "page";
 
-export type BrainServerKind = "higgsfield" | "online" | "vps" | "local" | "runtime";
+export type BrainServerKind =
+  | "local"
+  | "hostinger"
+  | "starseed"
+  | "own"
+  | "vps"
+  | "service"
+  | "online"
+  // Compat: tipos previos que aún usan plantillas/runtime existentes.
+  | "higgsfield"
+  | "runtime";
 
 export interface BrainServer {
   id: string;
@@ -95,16 +105,77 @@ export interface ServerKind {
   blurb: string;
   icon?: string;
   fields: ServerField[];
+  /** ¿El tipo de servidor es de naturaleza open-source / autoalojable? */
+  oss?: boolean;
 }
 
 export const SERVER_KINDS: ServerKind[] = [
   {
-    id: "higgsfield",
-    label: "Higgsfield",
-    blurb: "Servicio de IA/render en la nube",
-    icon: "🎬",
+    id: "local",
+    label: "Cerebro local (este equipo)",
+    blurb:
+      "Este equipo actúa como el ordenador online del cerebro: guarda y ejecuta sus datos y conexiones, sincronizado. Open-source (local_brain.py).",
+    icon: "💻",
+    oss: true,
+    fields: [
+      { key: "endpoint", label: "URL local (p.ej. http://localhost:8800)" },
+      { key: "syncthingFolderId", label: "Carpeta Syncthing (opcional)" },
+    ],
+  },
+  {
+    id: "hostinger",
+    label: "Hostinger (VPS/nube)",
+    blurb:
+      "VPS/nube de Hostinger con el servidor de cerebro open-source desplegado. Tus datos, tu control.",
+    icon: "🟣",
+    oss: true,
+    fields: [
+      { key: "endpoint", label: "Base URL/API (p.ej. http://TU_IP:8800)" },
+      { key: "keyRef", label: "Clave (nombre en bóveda)" },
+    ],
+  },
+  {
+    id: "starseed",
+    label: "Servidor StarSeed",
+    blurb: "Servidor gestionado de la red StarSeed para tu cerebro.",
+    icon: "✨",
     fields: [
       { key: "endpoint", label: "Base URL/API" },
+      { key: "keyRef", label: "Clave (nombre en bóveda)" },
+    ],
+  },
+  {
+    id: "own",
+    label: "Servidor propio configurado",
+    blurb:
+      "Un servidor propio que ya configuraste (con el contrato de cerebro). Lo más abierto posible.",
+    icon: "🛠️",
+    oss: true,
+    fields: [
+      { key: "endpoint", label: "Base URL/API" },
+      { key: "keyRef", label: "Clave (nombre en bóveda)" },
+    ],
+  },
+  {
+    id: "vps",
+    label: "VPS (otro)",
+    blurb: "Otro VPS/nube (DigitalOcean, Hetzner, etc.) actuando como servidor del cerebro.",
+    icon: "🖥️",
+    oss: true,
+    fields: [
+      { key: "endpoint", label: "Base URL/API" },
+      { key: "keyRef", label: "Clave (nombre en bóveda)" },
+    ],
+  },
+  {
+    id: "service",
+    label: "Servicio conectado integrado",
+    blurb:
+      "Cualquier servicio ya conectado e integrado (conector directo, preferentemente open-source: Ollama, ComfyUI…).",
+    icon: "🔌",
+    oss: true,
+    fields: [
+      { key: "endpoint", label: "Base URL/API del servicio" },
       { key: "keyRef", label: "Clave (nombre en bóveda)" },
     ],
   },
@@ -118,37 +189,80 @@ export const SERVER_KINDS: ServerKind[] = [
       { key: "keyRef", label: "Clave (nombre en bóveda)" },
     ],
   },
-  {
-    id: "vps",
-    label: "VPS (Hostinger/otro)",
-    blurb: "Tu VPS (Hostinger u otro) actuando como servidor del cerebro.",
-    icon: "🖥️",
-    fields: [
-      { key: "endpoint", label: "Base URL/API" },
-      { key: "keyRef", label: "Clave (nombre en bóveda)" },
-    ],
-  },
-  {
-    id: "local",
-    label: "Servidor local (este equipo como cerebro)",
-    blurb: "Un equipo local, totalmente funcional, online y sincronizado, actuando como cerebro.",
-    icon: "💻",
-    fields: [
-      { key: "endpoint", label: "URL local (p.ej. http://localhost:8800)" },
-      { key: "syncthingFolderId", label: "Carpeta Syncthing (opcional)" },
-    ],
-  },
-  {
-    id: "runtime",
-    label: "Runtime de agente existente",
-    blurb: "Reutiliza un runtime de agente ya configurado como servidor del cerebro.",
-    icon: "🤖",
-    fields: [{ key: "runtimeId", label: "Runtime" }],
-  },
 ];
 
 export function serverKindById(id: string): ServerKind | undefined {
   return SERVER_KINDS.find((k) => k.id === id);
+}
+
+/* ------------------------------------------------------------------ */
+/* Servicios de generación (open-source PRIMERO; Higgsfield es UNA más) */
+/* ------------------------------------------------------------------ */
+
+export interface GenerationService {
+  id: string;
+  label: string;
+  /** true = código abierto / autoalojable (preferido). */
+  oss: boolean;
+  blurb: string;
+  /** Endpoint por defecto sugerido (cuando aplica). */
+  defaultEndpoint?: string;
+}
+
+/**
+ * Servicios para generar (texto, imagen, vídeo, audio…). La filosofía es
+ * conectar DIRECTAMENTE a cada servicio, lo más OPEN-SOURCE posible. Higgsfield
+ * es solo UNA opción (propietaria) entre las alternativas abiertas, no la
+ * principal.
+ */
+export const GENERATION_SERVICES: GenerationService[] = [
+  {
+    id: "ollama",
+    label: "Ollama",
+    oss: true,
+    blurb: "LLMs locales (texto/embeddings), privados y gratuitos.",
+    defaultEndpoint: "http://localhost:11434",
+  },
+  {
+    id: "llamacpp",
+    label: "llama.cpp",
+    oss: true,
+    blurb: "Inferencia LLM local ultraligera vía su servidor HTTP.",
+    defaultEndpoint: "http://localhost:8080",
+  },
+  {
+    id: "comfyui",
+    label: "ComfyUI",
+    oss: true,
+    blurb: "Imagen/vídeo por nodos (Stable Diffusion), 100% open-source.",
+    defaultEndpoint: "http://localhost:8188",
+  },
+  {
+    id: "sd_webui",
+    label: "Stable Diffusion web UI",
+    oss: true,
+    blurb: "Generación de imágenes open-source (AUTOMATIC1111) con API REST.",
+    defaultEndpoint: "http://localhost:7860",
+  },
+  {
+    id: "replicate",
+    label: "Replicate",
+    oss: false,
+    blurb: "Ejecuta modelos open-source en la nube (muchos pesos son abiertos).",
+    defaultEndpoint: "https://api.replicate.com",
+  },
+  {
+    id: "higgsfield",
+    label: "Higgsfield (propietario · una opción más)",
+    oss: false,
+    blurb:
+      "Servicio propietario de IA/render en la nube. Disponible como UNA opción; preferimos las alternativas open-source.",
+    defaultEndpoint: "https://api.higgsfield.ai",
+  },
+];
+
+export function generationServiceById(id: string): GenerationService | undefined {
+  return GENERATION_SERVICES.find((g) => g.id === id);
 }
 
 /* ------------------------------------------------------------------ */
