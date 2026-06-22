@@ -2,18 +2,23 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { ChevronRight, ChevronDown, Folder, ExternalLink, RefreshCw } from "lucide-react";
+import { ChevronRight, ChevronDown, Folder, ExternalLink, RefreshCw, Send } from "lucide-react";
 import { TG_SPACES } from "@/lib/telegram-spaces";
 import { cn } from "@/lib/utils";
 
 type Msg = { id: string; chat_id: string | null; role: string | null; content: string | null; created_at: string };
 
+const SEND_ENDPOINT = "https://starseed-neurocortex.vercel.app/api/tg_send";
+
 export function TelegramChatsFolder({ defaultOpen = true }: { defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   const [sel, setSel] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [dmId, setDmId] = useState<string | null>(null);
   const [byChat, setByChat] = useState<Record<string, Msg[]>>({});
   const [loading, setLoading] = useState(false);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [sending, setSending] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -23,6 +28,8 @@ export function TelegramChatsFolder({ defaultOpen = true }: { defaultOpen?: bool
       const uid = au?.user?.id ?? null;
       setUserId(uid);
       if (uid) {
+        const { data: tl } = await supabase.from("telegram_links").select("telegram_id").eq("user_id", uid).maybeSingle();
+        setDmId((tl as { telegram_id?: number | string } | null)?.telegram_id != null ? String((tl as { telegram_id: number | string }).telegram_id) : null);
         const { data: m } = await supabase
           .from("astraura_messages")
           .select("id,chat_id,role,content,created_at")
@@ -57,9 +64,27 @@ export function TelegramChatsFolder({ defaultOpen = true }: { defaultOpen?: bool
     : `https://t.me/starseed_nexus_bot?start=connect`;
 
   const chats = [
-    { key: "dm", emoji: "🤖", name: "Chatbot personal", kind: "Privado", url: "https://t.me/starseed_nexus_bot", msgs: dmMsgs },
-    ...TG_SPACES.map((s) => ({ key: s.chatId, emoji: s.emoji, name: s.name, kind: s.kind, url: s.url, msgs: byChat[s.chatId] || [] })),
+    { key: "dm", emoji: "🤖", name: "Chatbot personal", kind: "Privado", url: "https://t.me/starseed_nexus_bot", sendId: dmId, msgs: dmMsgs },
+    ...TG_SPACES.map((s) => ({ key: s.chatId, emoji: s.emoji, name: s.name, kind: s.kind, url: s.url, sendId: s.chatId, msgs: byChat[s.chatId] || [] })),
   ];
+
+  async function send(key: string, sendId: string | null) {
+    const text = (draft[key] || "").trim();
+    if (!text || !userId || !sendId) return;
+    setSending(key);
+    try {
+      await fetch(SEND_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_id: userId, chat_id: sendId, text }),
+      });
+      setDraft((d) => ({ ...d, [key]: "" }));
+      await load();
+    } catch {
+      /* error de red: se ignora silenciosamente en esta versión */
+    }
+    setSending(null);
+  }
 
   return (
     <div className="space-y-1">
@@ -112,20 +137,41 @@ export function TelegramChatsFolder({ defaultOpen = true }: { defaultOpen?: bool
                 </a>
               </button>
               {sel === c.key && (
-                <div className="ml-6 my-1 space-y-1 max-h-56 overflow-y-auto pr-1">
-                  {c.msgs.length === 0 ? (
-                    <div className="text-[10px] text-cyan-500/40 px-2 py-1">
-                      {c.key === "dm" ? "Habla con el bot y tus mensajes aparecerán aquí." : "Abre el espacio en Telegram ↗"}
-                    </div>
-                  ) : (
-                    c.msgs.slice(0, 40).map((m) => (
-                      <div
-                        key={m.id}
-                        className={cn("rounded px-2 py-1 text-[11px]", m.role === "user" ? "bg-cyan-600/15 text-cyan-50" : "bg-white/5 text-white/75")}
-                      >
-                        <span className="block whitespace-pre-wrap line-clamp-3">{m.content}</span>
+                <div className="ml-6 my-1 space-y-1">
+                  <div className="max-h-56 overflow-y-auto pr-1 space-y-1">
+                    {c.msgs.length === 0 ? (
+                      <div className="text-[10px] text-cyan-500/40 px-2 py-1">
+                        {c.key === "dm" ? "Habla con el bot y tus mensajes aparecerán aquí." : "Aún sin mensajes sincronizados de este espacio."}
                       </div>
-                    ))
+                    ) : (
+                      c.msgs.slice(0, 40).map((m) => (
+                        <div
+                          key={m.id}
+                          className={cn("rounded px-2 py-1 text-[11px]", m.role === "user" ? "bg-cyan-600/15 text-cyan-50" : "bg-white/5 text-white/75")}
+                        >
+                          <span className="block whitespace-pre-wrap line-clamp-3">{m.content}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {userId && c.sendId && (
+                    <div className="flex items-center gap-1 pt-1">
+                      <input
+                        value={draft[c.key] || ""}
+                        onChange={(e) => setDraft((d) => ({ ...d, [c.key]: e.target.value }))}
+                        onKeyDown={(e) => e.key === "Enter" && send(c.key, c.sendId)}
+                        placeholder="Escribe y envía a Telegram…"
+                        className="flex-1 bg-white/5 border border-cyan-500/15 rounded px-2 py-1 text-[11px] text-cyan-50 placeholder:text-cyan-500/40 focus:outline-none focus:border-cyan-400/40"
+                      />
+                      <button
+                        onClick={() => send(c.key, c.sendId)}
+                        disabled={sending === c.key || !(draft[c.key] || "").trim()}
+                        className="shrink-0 rounded bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white p-1.5"
+                        title="Enviar a Telegram"
+                      >
+                        <Send className={cn("w-3 h-3", sending === c.key && "animate-pulse")} />
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
