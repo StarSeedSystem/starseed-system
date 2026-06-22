@@ -21,9 +21,16 @@ export type StorageKindId =
   | "obsidian"
   | "webdav"
   | "s3"
-  | "custom";
+  | "custom"
+  | "postgres"
+  | "sqlite"
+  | "qdrant"
+  | "minio"
+  | "couchdb"
+  | "nextcloud"
+  | "syncthing";
 
-export type StorageScope = "account" | "profile" | "group" | "page";
+export type StorageScope = "account" | "profile" | "group" | "page" | "brain" | "vault";
 
 export interface StorageField {
   key: string;
@@ -43,6 +50,8 @@ export interface StorageKind {
   defaultRules: Record<string, unknown>;
   /** Suggested default quota in MB (used when seeding). */
   defaultQuotaMb?: number | null;
+  /** True for open-source datastores (PostgreSQL, SQLite, Qdrant, MinIO, CouchDB, Nextcloud, Syncthing…). */
+  oss?: boolean;
 }
 
 export interface StorageBackend {
@@ -175,6 +184,124 @@ export const STORAGE_KINDS: StorageKind[] = [
     defaultRules: {},
     defaultQuotaMb: null,
   },
+  /* ----------------------- Datastores open-source ----------------------- */
+  {
+    id: "postgres",
+    label: "PostgreSQL / Supabase (open-source)",
+    icon: "🐘",
+    blurb:
+      "Base de datos relacional open-source (PostgreSQL / Supabase). Soporta replicación lógica y sincronización directa. Conecta vía el servidor del cerebro o proxy.",
+    fields: [
+      { key: "url", label: "URL (PostgREST / conexión, secreto → bóveda)", type: "password" },
+      { key: "keyRef", label: "Referencia de clave (secreto → bóveda)", type: "password" },
+    ],
+    unlimited: true,
+    defaultRules: { oss: true, structured: true, replication: "logical", prefersLarge: false },
+    defaultQuotaMb: null,
+    oss: true,
+  },
+  {
+    id: "sqlite",
+    label: "SQLite (local, embebido)",
+    icon: "📁",
+    blurb:
+      "Base de datos SQLite embebida y open-source. Ideal para datos locales del cerebro/baúl; sincronizable vía Syncthing.",
+    fields: [{ key: "path", label: "Ruta del fichero .sqlite" }],
+    unlimited: false,
+    defaultRules: { oss: true, structured: true, embedded: true },
+    defaultQuotaMb: null,
+    oss: true,
+  },
+  {
+    id: "qdrant",
+    label: "Qdrant (vector, open-source)",
+    icon: "🧮",
+    blurb:
+      "Base de datos vectorial open-source para embeddings y memoria semántica. Conecta vía el servidor del cerebro o proxy.",
+    fields: [
+      { key: "url", label: "URL (secreto → bóveda)", type: "password" },
+      { key: "keyRef", label: "Referencia de clave (secreto → bóveda)", type: "password" },
+      { key: "collection", label: "Colección" },
+    ],
+    unlimited: true,
+    defaultRules: { oss: true, prefersKinds: ["vectors", "embedding", "semantic"], vector: true },
+    defaultQuotaMb: null,
+    oss: true,
+  },
+  {
+    id: "minio",
+    label: "MinIO / S3 (open-source)",
+    icon: "🪣",
+    blurb:
+      "Almacenamiento de objetos S3 open-source (MinIO). Escala prácticamente ilimitada para ficheros grandes. Conecta vía el servidor del cerebro o proxy.",
+    fields: [
+      { key: "endpoint", label: "Endpoint (secreto → bóveda)", type: "password" },
+      { key: "bucket", label: "Bucket" },
+      { key: "keyRef", label: "Referencia de clave (secreto → bóveda)", type: "password" },
+    ],
+    unlimited: true,
+    defaultRules: { oss: true, prefersLarge: true, object: true },
+    defaultQuotaMb: null,
+    oss: true,
+  },
+  {
+    id: "couchdb",
+    label: "CouchDB (open-source, sync)",
+    icon: "🛋️",
+    blurb:
+      "Base de datos documental open-source con replicación/sincronización bidireccional incorporada. Conecta vía el servidor del cerebro o proxy.",
+    fields: [
+      { key: "url", label: "URL (secreto → bóveda)", type: "password" },
+      { key: "keyRef", label: "Referencia de clave (secreto → bóveda)", type: "password" },
+    ],
+    unlimited: true,
+    defaultRules: { oss: true, document: true, replication: "bidirectional", sync: true },
+    defaultQuotaMb: null,
+    oss: true,
+  },
+  {
+    id: "nextcloud",
+    label: "Nextcloud (WebDAV, open-source)",
+    icon: "☁️",
+    blurb:
+      "Nube soberana open-source vía WebDAV. Ideal para ficheros y sincronización entre dispositivos. Conecta vía el servidor del cerebro o proxy.",
+    fields: [
+      { key: "url", label: "URL WebDAV (secreto → bóveda)", type: "password" },
+      { key: "keyRef", label: "Referencia de clave (secreto → bóveda)", type: "password" },
+    ],
+    unlimited: true,
+    defaultRules: { oss: true, prefersLarge: true, sync: true },
+    defaultQuotaMb: null,
+    oss: true,
+  },
+  {
+    id: "syncthing",
+    label: "Carpeta Syncthing (open-source)",
+    icon: "🔁",
+    blurb:
+      "Carpeta sincronizada de forma continua y descentralizada (open-source) entre tus dispositivos. Sin servidor central.",
+    fields: [
+      { key: "folderId", label: "ID de carpeta Syncthing" },
+      { key: "path", label: "Ruta local" },
+    ],
+    unlimited: false,
+    defaultRules: { oss: true, sync: true, decentralized: true },
+    defaultQuotaMb: null,
+    oss: true,
+  },
+];
+
+/**
+ * Scopes a storage backend can be attached to. Beyond account/profile/group/page,
+ * a datastore can be linked directly to a brain (cerebro) or a vault (baúl).
+ */
+export const SCOPES_EXT: { id: StorageScope; label: string }[] = [
+  { id: "account", label: "Cuenta" },
+  { id: "profile", label: "Perfil" },
+  { id: "group", label: "Grupo" },
+  { id: "page", label: "Página" },
+  { id: "brain", label: "Cerebro" },
+  { id: "vault", label: "Baúl" },
 ];
 
 export function kindById(id: string): StorageKind | undefined {
