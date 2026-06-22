@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import { chat } from "@/ai/client/chat";
 import { loadConfigs } from "@/ai/client/providerStore";
@@ -48,6 +49,7 @@ import {
   BookOpen,
   Terminal,
   Link2,
+  Network,
   Image as ImageIcon,
 } from "lucide-react";
 import {
@@ -81,6 +83,17 @@ import {
   syncToServer,
   pingServer as pingServerRuntime,
 } from "@/lib/brains/runtime";
+import {
+  serversForBrain,
+  listServers,
+  linkServer,
+  unlinkServer,
+  LINK_ROLES,
+  SYNC_DIRECTIONS,
+  linkRoleById,
+  type RegistryServer,
+  type LinkedServer,
+} from "@/lib/brains/servers";
 import {
   GEN_PRESETS,
   applyPreset,
@@ -287,7 +300,7 @@ export default function BrainsPanel() {
 
   /* ---------------------------- servers ---------------------------- */
 
-  const [newSrvKind, setNewSrvKind] = useState<string>("higgsfield");
+  const [newSrvKind, setNewSrvKind] = useState<string>("local");
   const [newSrvName, setNewSrvName] = useState("");
   const [newSrvFields, setNewSrvFields] = useState<Record<string, string>>({});
 
@@ -559,6 +572,12 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
                 <Upload className="h-4 w-4" /> Importar
               </span>
             </label>
+            <Link
+              href="/servidores"
+              className="inline-flex items-center gap-2 rounded-md border border-cyan-500/30 px-3 py-1.5 text-sm text-cyan-100 hover:bg-cyan-500/10"
+            >
+              <Network className="h-4 w-4" /> Servidores (registro N:N)
+            </Link>
             <Button size="sm" className="gap-2 bg-cyan-600 text-white hover:bg-cyan-500" onClick={startNew}>
               <Plus className="h-4 w-4" /> Nuevo cerebro
             </Button>
@@ -676,6 +695,8 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
                       <ServerStatusChip key={s.id} status={s.status} />
                     ))}
                   </div>
+
+                  <LinkedRegistryServers brainId={b.id} brainName={b.name} />
 
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     <Button size="sm" variant="outline" className="h-7 gap-1.5 border-white/15 text-white/80" onClick={() => startEdit(b)}>
@@ -1573,5 +1594,185 @@ function ServerStatusChip({ status }: { status?: string | null }) {
     <Badge variant="outline" className={cn("text-[9px]", s.cls)}>
       {s.label}
     </Badge>
+  );
+}
+
+/* ====================================================================== */
+/* Servidores enlazados desde el registro (muchos-a-muchos)                */
+/* ====================================================================== */
+
+/**
+ * Sección additiva por cerebro: lista los servidores del REGISTRO
+ * (`brain_servers`) enlazados a este cerebro vía `brain_server_links` y permite
+ * adjuntar más (N:N) con rol y prioridad, además de los servidores inline. No
+ * interfiere con los servidores inline ni con run/sync/ping existentes.
+ */
+function LinkedRegistryServers({ brainId, brainName }: { brainId: string; brainName?: string }) {
+  const [linked, setLinked] = useState<LinkedServer[]>([]);
+  const [all, setAll] = useState<RegistryServer[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [pickServer, setPickServer] = useState("");
+  const [pickRole, setPickRole] = useState<string>("primary");
+  const [pickPriority, setPickPriority] = useState<number>(0);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [ls, servers] = await Promise.all([serversForBrain(brainId), listServers()]);
+    setLinked(ls);
+    setAll(servers);
+    setLoading(false);
+  }, [brainId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const available = useMemo(() => {
+    const used = new Set(linked.map((l) => l.id));
+    return all.filter((s) => !used.has(s.id));
+  }, [all, linked]);
+
+  async function attach() {
+    if (!pickServer) {
+      toast.error("Elige un servidor del registro.");
+      return;
+    }
+    const ok = await linkServer(brainId, pickServer, { role: pickRole, priority: pickPriority });
+    if (ok) {
+      toast.success("Servidor enlazado a este cerebro.");
+      setPickServer("");
+      setPickRole("primary");
+      setPickPriority(0);
+      await load();
+    } else {
+      toast.error("No se pudo enlazar.");
+    }
+  }
+
+  async function detach(serverId: string) {
+    const ok = await unlinkServer(brainId, serverId);
+    if (ok) {
+      toast.message("Enlace eliminado.");
+      await load();
+    } else {
+      toast.error("No se pudo desenlazar.");
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-indigo-500/20 bg-indigo-950/15 p-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 text-left text-[11px] font-medium text-indigo-100"
+      >
+        <Network className="h-3.5 w-3.5 text-indigo-300" />
+        Servidores enlazados (registro)
+        <Badge variant="outline" className="border-indigo-400/40 text-[9px] text-indigo-200">
+          {linked.length}
+        </Badge>
+        <span className="ml-auto text-indigo-300/70">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-2">
+          <p className="text-[10px] text-indigo-200/60">
+            Muchos-a-muchos: comparte servidores del registro entre varios cerebros (además de los servidores inline).{" "}
+            <Link href="/servidores" className="text-indigo-200 underline hover:text-indigo-100">
+              Gestionar registro
+            </Link>
+            .
+          </p>
+
+          {loading ? (
+            <p className="text-[10px] text-white/40">Cargando…</p>
+          ) : linked.length === 0 ? (
+            <p className="text-[10px] text-white/40">Aún no hay servidores del registro enlazados a este cerebro.</p>
+          ) : (
+            <div className="space-y-1">
+              {linked.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] text-white/80"
+                >
+                  <Server className="h-3.5 w-3.5 text-indigo-300" />
+                  <span className="truncate font-medium">{s.name}</span>
+                  <Badge variant="outline" className="border-white/15 text-[9px] text-white/55">
+                    {serverKindById(String(s.kind))?.label ?? s.kind}
+                  </Badge>
+                  <Badge variant="outline" className="border-indigo-400/30 text-[9px] text-indigo-200">
+                    {linkRoleById(String(s.link.role))?.label ?? s.link.role}
+                  </Badge>
+                  <span className="text-[9px] text-white/40">prio {s.link.priority}</span>
+                  <button
+                    onClick={() => detach(s.id)}
+                    className="ml-auto text-white/30 hover:text-red-400"
+                    title="Desenlazar"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {available.length > 0 ? (
+            <div className="flex flex-wrap items-end gap-1.5 rounded-md border border-white/10 bg-black/20 p-2">
+              <label className="flex flex-1 flex-col gap-0.5">
+                <span className="text-[9px] text-white/40">Servidor del registro</span>
+                <select
+                  value={pickServer}
+                  onChange={(e) => setPickServer(e.target.value)}
+                  className="h-7 rounded-md border border-white/15 bg-black/40 px-1.5 text-[11px] text-white"
+                >
+                  <option value="">— elige —</option>
+                  {available.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} · {serverKindById(String(s.kind))?.label ?? s.kind}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[9px] text-white/40">Rol</span>
+                <select
+                  value={pickRole}
+                  onChange={(e) => setPickRole(e.target.value)}
+                  className="h-7 rounded-md border border-white/15 bg-black/40 px-1.5 text-[11px] text-white"
+                >
+                  {LINK_ROLES.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex w-16 flex-col gap-0.5">
+                <span className="text-[9px] text-white/40">Prioridad</span>
+                <Input
+                  type="number"
+                  value={pickPriority}
+                  onChange={(e) => setPickPriority(Number(e.target.value) || 0)}
+                  className="h-7 border-white/15 bg-black/40 px-1.5 text-[11px] text-white"
+                />
+              </label>
+              <Button size="sm" className="h-7 gap-1.5 bg-indigo-600 text-white hover:bg-indigo-500" onClick={attach}>
+                <Link2 className="h-3.5 w-3.5" /> Enlazar
+              </Button>
+            </div>
+          ) : (
+            <p className="text-[10px] text-white/35">
+              {all.length === 0
+                ? "No hay servidores en el registro todavía. "
+                : "Todos los servidores del registro ya están enlazados a este cerebro. "}
+              <Link href="/servidores" className="text-indigo-200 underline hover:text-indigo-100">
+                Crear / administrar servidores
+              </Link>
+              .
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
