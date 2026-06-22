@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Brain, Plus, Trash2, Wand2, Check, X, FileText, Download, Upload, Github, Save, Loader2, RefreshCw, Cloud } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type GithubConfig = { repo?: string; branch?: string; path?: string; token?: string };
+// El PAT ya NO se guarda en config: vive cifrado en la bóveda (api/vault).
+type GithubConfig = { repo?: string; branch?: string; path?: string };
 type MemoryConfig = { github?: GithubConfig } & Record<string, unknown>;
 
 type Memory = {
@@ -20,6 +21,8 @@ type Memory = {
 };
 
 const BOT_ENDPOINT = "https://starseed-neurocortex.vercel.app/api/memory_github";
+const VAULT_ENDPOINT = "https://starseed-neurocortex.vercel.app/api/vault";
+const DRIVE_OAUTH_ENDPOINT = "https://starseed-neurocortex.vercel.app/api/drive_oauth";
 
 const SCOPES: [string, string][] = [["account","Toda la cuenta"],["profile","Un perfil"],["page","Una página"],["group","Un grupo"],["chat","Un chat"],["message","Un mensaje"],["library","Biblioteca"],["database","Base de datos"]];
 const KINDS: [string, string][] = [["soul","🪷 Alma"],["memory","🧠 Memoria"],["dream","🌙 Sueños"],["md","📝 Markdown"],["3d","🌐 3D"],["skills","✨ Skills"],["apis","🔌 APIs"],["mcp","🧩 MCP"],["plugins","🧱 Plugins"],["tokens","🔐 Tokens"],["connections","🔗 Conexiones"]];
@@ -61,7 +64,8 @@ export function MemoryHub() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [savingContent, setSavingContent] = useState(false);
-  const [gh, setGh] = useState<GithubConfig>({ repo: "", branch: "main", path: "", token: "" });
+  const [gh, setGh] = useState<GithubConfig>({ repo: "", branch: "main", path: "" });
+  const [pat, setPat] = useState("");           // PAT en memoria (se guarda cifrado en la bóveda)
   const [savingGh, setSavingGh] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [status, setStatus] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
@@ -79,6 +83,31 @@ export function MemoryHub() {
     } catch { /* sin sesión */ }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // ── bóveda cifrada: helpers (api/vault) ──
+  async function vaultGet(secretName: string): Promise<string> {
+    try {
+      const res = await fetch(VAULT_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_id: userId, action: "get", name: secretName }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok && typeof data.value === "string") return data.value;
+    } catch { /* sin secreto o bóveda no disponible */ }
+    return "";
+  }
+  async function vaultSet(secretName: string, value: string): Promise<boolean> {
+    try {
+      const res = await fetch(VAULT_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_id: userId, action: "set", name: secretName, value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      return res.ok && Boolean(data.ok);
+    } catch { return false; }
+  }
 
   function applyPreset(p: Preset) {
     setName(p.label); setKinds(p.kinds); setFormat(p.format);
@@ -104,7 +133,7 @@ export function MemoryHub() {
   }
 
   // ── abrir/cerrar el editor de una memoria ──
-  function openMemory(m: Memory) {
+  async function openMemory(m: Memory) {
     if (openId === m.id) { setOpenId(null); return; }
     setOpenId(m.id);
     setDraft(m.content ?? "");
@@ -114,8 +143,11 @@ export function MemoryHub() {
       repo: cfg.repo ?? "",
       branch: cfg.branch ?? "main",
       path: cfg.path ?? `memorias/${slugify(m.name)}.md`,
-      token: cfg.token ?? "",
     });
+    // El PAT se recupera de la bóveda cifrada (si existe; si no, queda en blanco).
+    setPat("");
+    const stored = await vaultGet(`github:${m.id}`);
+    if (stored) setPat(stored);
   }
 
   // ── guardar contenido markdown (sync real entre dispositivos vía la cuenta) ──
@@ -155,31 +187,48 @@ export function MemoryHub() {
     if (fileRef.current) fileRef.current.value = "";
   }
 
-  // ── guardar config GitHub (repo/branch/path/token) en memories.config ──
+  // ── guardar config GitHub: repo/branch/path en memories.config; PAT cifrado en la bóveda ──
   async function saveGithubConfig(m: Memory) {
     setSavingGh(true); setStatus(null);
     try {
       const supabase = createClient();
-      const nextConfig: MemoryConfig = { ...(m.config ?? {}), github: { ...gh } };
+      // Sólo se persisten repo/branch/path en config (nunca el token).
+      const cleanGh: GithubConfig = { repo: gh.repo ?? "", branch: gh.branch ?? "main", path: gh.path ?? "" };
+      const nextConfig: MemoryConfig = { ...(m.config ?? {}), github: cleanGh };
       const { error } = await supabase.from("memories").update({ config: nextConfig }).eq("id", m.id);
-      if (error) { setStatus({ kind: "err", msg: error.message }); }
-      else { setStatus({ kind: "ok", msg: "Configuración de GitHub guardada." }); await load(); }
+      if (error) { setStatus({ kind: "err", msg: error.message }); setSavingGh(false); return; }
+
+      // El PAT se cifra en la bóveda (si se introdujo uno).
+      let vaultMsg = "";
+      if (pat.trim()) {
+        const ok = await vaultSet(`github:${m.id}`, pat.trim());
+        vaultMsg = ok ? " PAT cifrado en la bóveda." : " (No se pudo guardar el PAT en la bóveda.)";
+      }
+      setStatus({ kind: "ok", msg: `Configuración de GitHub guardada.${vaultMsg}` });
+      await load();
     } catch (e) { setStatus({ kind: "err", msg: e instanceof Error ? e.message : "Error al guardar config" }); }
     setSavingGh(false);
   }
 
-  // ── sincronizar a GitHub vía el bot (action: push) ──
+  // ── sincronizar a GitHub vía el bot (action: push) — PAT desde la bóveda ──
   async function syncGithub(m: Memory) {
-    if (!gh.repo || !gh.token) { setStatus({ kind: "err", msg: "Indica repo (owner/repo) y un PAT de GitHub." }); return; }
+    if (!gh.repo) { setStatus({ kind: "err", msg: "Indica el repo (owner/repo)." }); return; }
     setSyncing(true); setStatus(null);
     try {
+      // Recupera el PAT: usa el que esté en pantalla, o cae a la bóveda.
+      let token = pat.trim();
+      if (!token) token = await vaultGet(`github:${m.id}`);
+      if (!token) {
+        setStatus({ kind: "err", msg: "No hay PAT guardado. Introduce uno y pulsa \"Guardar config\"." });
+        setSyncing(false); return;
+      }
       const res = await fetch(BOT_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           account_id: userId,
           repo: gh.repo,
-          token: gh.token,
+          token,
           branch: gh.branch || "main",
           path: gh.path || `memorias/${slugify(m.name)}.md`,
           content: draft ?? "",
@@ -196,6 +245,13 @@ export function MemoryHub() {
       }
     } catch (e) { setStatus({ kind: "err", msg: e instanceof Error ? e.message : "Fallo al contactar el bot" }); }
     setSyncing(false);
+  }
+
+  // ── conectar Google Drive (abre el flujo OAuth del bot en otra pestaña) ──
+  function connectDrive() {
+    if (!userId) return;
+    const url = `${DRIVE_OAUTH_ENDPOINT}?action=authorize&account_id=${encodeURIComponent(userId)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   if (!userId) {
@@ -249,7 +305,7 @@ export function MemoryHub() {
             <div className="flex flex-wrap gap-1.5">
               {STORES.map(([v, l]) => <button key={v} onClick={() => toggle(storage, v, setStorage)} className={cn("text-[11px] rounded-full px-2.5 py-1 border transition", storage.includes(v) ? "bg-cyan-600/25 border-cyan-400/50 text-white" : "bg-white/5 border-white/10 text-white/60 hover:border-cyan-400/30")}>{l}</button>)}
             </div>
-            {storage.some((s) => s !== "account") && <div className="text-[10px] text-cyan-300/60 mt-1">Drive/Obsidian se activan por OAuth en una fase posterior; GitHub ya se puede sincronizar desde cada memoria. Por ahora se guarda tu preferencia.</div>}
+            {storage.some((s) => s !== "account") && <div className="text-[10px] text-cyan-300/60 mt-1">GitHub ya se puede sincronizar desde cada memoria; Google Drive se conecta por OAuth; Obsidian se sincroniza apuntando un repo de GitHub a tu bóveda. Por ahora se guarda tu preferencia.</div>}
           </div>
           <div className="flex items-center gap-2"><Switch checked={sync} onCheckedChange={setSync} /><span className="text-xs text-white/70">Sincronización automática en toda la cuenta y dispositivos</span></div>
           <div className="flex gap-2 pt-1">
@@ -305,10 +361,10 @@ export function MemoryHub() {
                             <Input value={gh.path ?? ""} onChange={(e) => setGh((g) => ({ ...g, path: e.target.value }))} placeholder={`memorias/${slugify(m.name)}.md`} className="mt-1 bg-white/5 text-xs h-8" />
                           </label>
                           <label className="text-[10px] text-white/50">PAT de GitHub
-                            <Input type="password" value={gh.token ?? ""} onChange={(e) => setGh((g) => ({ ...g, token: e.target.value }))} placeholder="ghp_…" className="mt-1 bg-white/5 text-xs h-8" />
+                            <Input type="password" value={pat} onChange={(e) => setPat(e.target.value)} placeholder="ghp_…" className="mt-1 bg-white/5 text-xs h-8" />
                           </label>
                         </div>
-                        <div className="text-[10px] text-amber-300/70">🔐 El PAT se guarda en la configuración de la memoria. Se cifrará en bóveda en una fase posterior.</div>
+                        <div className="text-[10px] text-emerald-300/70">🔐 El PAT se cifra y se guarda en tu bóveda segura (no en texto plano).</div>
                         <div className="flex flex-wrap gap-2 pt-0.5">
                           <Button size="sm" variant="outline" className="gap-1.5 border-white/15 text-white/80 hover:bg-white/10" disabled={savingGh} onClick={() => saveGithubConfig(m)}>{savingGh ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Guardar config</Button>
                           <Button size="sm" className="gap-1.5 bg-cyan-600 hover:bg-cyan-500" disabled={syncing} onClick={() => syncGithub(m)}>{syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Sincronizar a GitHub</Button>
@@ -316,16 +372,20 @@ export function MemoryHub() {
                       </div>
                     )}
 
-                    {/* Drive / Obsidian: honesto — conexión OAuth próximamente */}
-                    {((m.storage || []).includes("drive") || (m.storage || []).includes("obsidian")) && (
+                    {/* Google Drive: conexión OAuth vía el bot */}
+                    {(m.storage || []).includes("drive") && (
+                      <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+                        <div className="text-[11px] text-white/60 flex items-center gap-1.5"><Cloud className="w-3.5 h-3.5 text-cyan-300/70" /> Google Drive</div>
+                        <Button size="sm" variant="outline" className="gap-1.5 border-cyan-400/30 text-cyan-100 hover:bg-cyan-900/20" onClick={connectDrive}><Cloud className="w-3.5 h-3.5" /> Conectar Google Drive</Button>
+                        <div className="text-[10px] text-amber-300/70">Requiere configurar la app OAuth de Google (GOOGLE_OAUTH_CLIENT_ID/SECRET en el bot). Se abrirá en otra pestaña.</div>
+                      </div>
+                    )}
+
+                    {/* Obsidian: vía repo de GitHub o exportación .md */}
+                    {(m.storage || []).includes("obsidian") && (
                       <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-[11px] text-white/55 flex items-start gap-2">
                         <Cloud className="w-3.5 h-3.5 mt-0.5 text-cyan-300/70 shrink-0" />
-                        <span>
-                          {(m.storage || []).includes("drive") && "Google Drive"}
-                          {(m.storage || []).includes("drive") && (m.storage || []).includes("obsidian") && " · "}
-                          {(m.storage || []).includes("obsidian") && "Obsidian"}
-                          {": conexión OAuth próximamente. Por ahora usa Exportar/Importar .md o GitHub para sincronizar."}
-                        </span>
+                        <span>Obsidian: apunta un repo de GitHub a tu bóveda Obsidian (usa el almacenamiento GitHub) o usa Exportar .md.</span>
                       </div>
                     )}
 
