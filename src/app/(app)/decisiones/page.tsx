@@ -1,7 +1,29 @@
 "use client";
 
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import GovernancePanel from "@/components/governance/governance-panel";
 import GovNotifications from "@/components/governance/notifications-panel";
+import { parseProposalParams } from "@/lib/governance/links";
+
+// Lee los parámetros de la URL (deep-link de propuesta prefilled) y monta el
+// panel de gobernanza con el contexto + borrador correspondiente. Se aísla en
+// su propio componente cliente para poder envolverlo en <Suspense> (Next exige
+// un límite de Suspense alrededor de useSearchParams para no romper el
+// prerender estático). Sin parámetros, el panel se comporta igual que siempre.
+function DecisionesPanel() {
+  const searchParams = useSearchParams();
+  const { open, initial, scope, scopeRef } = parseProposalParams(searchParams);
+
+  return (
+    <GovernancePanel
+      scope={scope}
+      scopeRef={scopeRef}
+      initialProposal={initial}
+      autoOpen={open}
+    />
+  );
+}
 
 export default function DecisionesPage() {
   return (
@@ -14,7 +36,9 @@ export default function DecisionesPage() {
           puede ejecutar un comando procedimental.
         </p>
         <div className="space-y-6">
-          <GovernancePanel />
+          <Suspense fallback={null}>
+            <DecisionesPanel />
+          </Suspense>
           <GovNotifications />
         </div>
       </div>
