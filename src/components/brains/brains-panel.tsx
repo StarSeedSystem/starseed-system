@@ -43,6 +43,10 @@ import {
   Cpu,
   Layers,
   RefreshCw,
+  Play,
+  UploadCloud,
+  BookOpen,
+  Terminal,
 } from "lucide-react";
 import {
   SERVER_KINDS,
@@ -70,6 +74,11 @@ import {
   type BrainSelection,
   type NamedRef,
 } from "@/lib/brains/brains";
+import {
+  runOnServer,
+  syncToServer,
+  pingServer as pingServerRuntime,
+} from "@/lib/brains/runtime";
 
 const BOT_BASE = "https://starseed-neurocortex.vercel.app";
 
@@ -315,34 +324,13 @@ export default function BrainsPanel() {
   }
 
   async function pingServer(s: BrainServer) {
-    if (!userId) return;
     setDraft((d) =>
       d ? { ...d, servers: d.servers.map((x) => (x.id === s.id ? { ...x, status: "probando" } : x)) } : d,
     );
-    let status = "pendiente";
-    try {
-      const res = await fetch(`${BOT_BASE}/api/brain`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          account_id: userId,
-          action: "ping",
-          endpoint: s.endpoint ?? "",
-          keyRef: s.keyRef ?? "",
-        }),
-      });
-      if (res.ok) {
-        const j = await res.json().catch(() => ({ ok: false }));
-        status = j?.ok ? "ok" : "error";
-        toast[j?.ok ? "success" : "message"](j?.ok ? "Servidor disponible." : "El servidor respondió sin éxito.");
-      } else {
-        status = "pendiente";
-        toast.message("Proxy de cerebros no disponible aún (pendiente).");
-      }
-    } catch {
-      status = "pendiente";
-      toast.message("No se pudo contactar el proxy de cerebros (pendiente).");
-    }
+    // Enrutado automático local-vs-remoto dentro de runtime.ts.
+    const r = await pingServerRuntime(s, userId);
+    const status = r.ok ? "ok" : r.reachable ? "error" : "pendiente";
+    toast[r.ok ? "success" : "message"](r.detail || (r.ok ? "Servidor disponible." : "El servidor no respondió."));
     if (draft?.id) {
       const updated = await updateServer(draft, s.id, { status });
       if (updated) setDraft(updated);
@@ -350,6 +338,65 @@ export default function BrainsPanel() {
       setDraft((d) =>
         d ? { ...d, servers: d.servers.map((x) => (x.id === s.id ? { ...x, status } : x)) } : d,
       );
+    }
+  }
+
+  /* ---- ejecutar / sincronizar contra el servidor (local o remoto) ---- */
+
+  const [taskByServer, setTaskByServer] = useState<Record<string, string>>({});
+  const [busyServer, setBusyServer] = useState<string | null>(null);
+  const [resultByServer, setResultByServer] = useState<Record<string, string>>({});
+
+  function setTaskFor(id: string, v: string) {
+    setTaskByServer((m) => ({ ...m, [id]: v }));
+  }
+
+  async function runServer(s: BrainServer) {
+    const task = (taskByServer[s.id] || "").trim();
+    if (!task) {
+      toast.error("Escribe una tarea para ejecutar.");
+      return;
+    }
+    setBusyServer(s.id);
+    try {
+      const r = await runOnServer(s, task, { brain: draft?.name, scope: draft?.scope }, userId);
+      if (r.ok) {
+        const text = typeof r.result === "string" ? r.result : JSON.stringify(r.result, null, 2);
+        setResultByServer((m) => ({ ...m, [s.id]: text }));
+        toast.success(`Ejecutado (${r.via === "local" ? "directo" : "vía proxy"}).`);
+      } else {
+        setResultByServer((m) => ({ ...m, [s.id]: `Error: ${r.error ?? "desconocido"}` }));
+        toast.message(r.error || "No se pudo ejecutar.");
+      }
+    } finally {
+      setBusyServer(null);
+    }
+  }
+
+  async function syncServer(s: BrainServer) {
+    if (!draft?.id) {
+      toast.error("Guarda el cerebro antes de sincronizar.");
+      return;
+    }
+    setBusyServer(s.id);
+    try {
+      const bundle = await assembleBrainBundle(draft.id);
+      if (!bundle) {
+        toast.error("No se pudo ensamblar el cerebro.");
+        return;
+      }
+      const r = await syncToServer(s, bundle, userId);
+      if (r.ok) {
+        const text =
+          typeof r.stored === "string" ? r.stored : JSON.stringify(r.stored, null, 2);
+        setResultByServer((m) => ({ ...m, [s.id]: text }));
+        toast.success(`Sincronizado (${r.via === "local" ? "directo" : "vía proxy"}).`);
+      } else {
+        setResultByServer((m) => ({ ...m, [s.id]: `Error: ${r.error ?? "desconocido"}` }));
+        toast.message(r.error || "No se pudo sincronizar.");
+      }
+    } finally {
+      setBusyServer(null);
     }
   }
 
@@ -536,6 +583,12 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
           onAddServer={onAddServer}
           onRemoveServer={onRemoveServer}
           pingServer={pingServer}
+          runServer={runServer}
+          syncServer={syncServer}
+          taskByServer={taskByServer}
+          setTaskFor={setTaskFor}
+          busyServer={busyServer}
+          resultByServer={resultByServer}
           onExport={() => draft.id && onExport(draft)}
         />
       )}
@@ -732,6 +785,52 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
         )}
       </div>
 
+      {/* Convertir este equipo en cerebro */}
+      <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Terminal className="h-4 w-4 text-emerald-300" />
+          <span className="text-sm font-semibold text-emerald-50">Convierte este equipo en cerebro</span>
+          <span className="text-[11px] text-emerald-300/70">
+            Un pequeño servidor local (sin dependencias) que actúa como cerebro.
+          </span>
+        </div>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-[12px] text-emerald-100/80">
+          <li>
+            Descarga el servidor de referencia{" "}
+            <a href="/brain/local_brain.py" download className="text-emerald-200 underline hover:text-emerald-100">
+              local_brain.py
+            </a>{" "}
+            (Python 3, sin dependencias).
+          </li>
+          <li>
+            Ejecútalo: <code className="rounded bg-black/40 px-1 text-emerald-100">python3 local_brain.py</code> — escuchará en{" "}
+            <code className="rounded bg-black/40 px-1 text-emerald-100">http://127.0.0.1:8800</code>.
+          </li>
+          <li>
+            En un cerebro, añade un servidor de tipo «Servidor local» con la URL{" "}
+            <code className="rounded bg-black/40 px-1 text-emerald-100">http://localhost:8800</code> y pulsa Probar.
+          </li>
+          <li>Apunta una carpeta de Syncthing a ./starseed_brain para sincronizar entre dispositivos.</li>
+        </ol>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <a
+            href="/brain/local_brain.py"
+            download
+            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 px-3 py-1.5 text-xs text-emerald-100 hover:bg-emerald-500/10"
+          >
+            <Download className="h-3.5 w-3.5" /> Descargar local_brain.py
+          </a>
+          <a
+            href="/brain/README.md"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 px-3 py-1.5 text-xs text-emerald-100 hover:bg-emerald-500/10"
+          >
+            <BookOpen className="h-3.5 w-3.5" /> Guía y contrato
+          </a>
+        </div>
+      </div>
+
       {/* Astraura */}
       <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/10 p-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -785,6 +884,12 @@ function BrainEditor(props: {
   onAddServer: () => void;
   onRemoveServer: (s: BrainServer) => void;
   pingServer: (s: BrainServer) => void;
+  runServer: (s: BrainServer) => void;
+  syncServer: (s: BrainServer) => void;
+  taskByServer: Record<string, string>;
+  setTaskFor: (id: string, v: string) => void;
+  busyServer: string | null;
+  resultByServer: Record<string, string>;
   onExport: () => void;
 }) {
   const {
@@ -811,6 +916,12 @@ function BrainEditor(props: {
     onAddServer,
     onRemoveServer,
     pingServer,
+    runServer,
+    syncServer,
+    taskByServer,
+    setTaskFor,
+    busyServer,
+    resultByServer,
     onExport,
   } = props;
 
@@ -1066,29 +1177,71 @@ function BrainEditor(props: {
 
         {draft.servers.length > 0 && (
           <div className="space-y-1.5">
-            {draft.servers.map((s) => (
-              <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-                <span className="text-base">{serverKindById(String(s.kind))?.icon ?? "🔌"}</span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm text-white">{s.name}</span>
-                    <Badge variant="outline" className="border-white/15 text-[9px] text-white/50">
-                      {serverKindById(String(s.kind))?.label ?? s.kind}
-                    </Badge>
-                    <ServerStatusChip status={s.status} />
+            {draft.servers.map((s) => {
+              const isLocal = String(s.kind) === "local";
+              const busy = busyServer === s.id;
+              const result = resultByServer[s.id];
+              return (
+                <div key={s.id} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-base">{serverKindById(String(s.kind))?.icon ?? "🔌"}</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm text-white">{s.name}</span>
+                        <Badge variant="outline" className="border-white/15 text-[9px] text-white/50">
+                          {serverKindById(String(s.kind))?.label ?? s.kind}
+                        </Badge>
+                        <Badge variant="outline" className="border-white/15 text-[9px] text-white/40">
+                          {isLocal ? "directo" : "vía proxy"}
+                        </Badge>
+                        <ServerStatusChip status={s.status} />
+                      </div>
+                      {s.endpoint && <div className="truncate text-[10px] text-white/35">{String(s.endpoint)}</div>}
+                    </div>
+                    <div className="ml-auto flex items-center gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-white/60" onClick={() => pingServer(s)}>
+                        <Plug className="h-3.5 w-3.5" /> Probar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 gap-1 px-2 text-cyan-200"
+                        disabled={busy}
+                        onClick={() => syncServer(s)}
+                      >
+                        <UploadCloud className="h-3.5 w-3.5" /> Sincronizar
+                      </Button>
+                      <button onClick={() => onRemoveServer(s)} className="text-white/30 hover:text-red-400">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                  {s.endpoint && <div className="truncate text-[10px] text-white/35">{String(s.endpoint)}</div>}
+
+                  {/* Ejecutar una tarea contra este servidor */}
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    <Textarea
+                      value={taskByServer[s.id] ?? ""}
+                      onChange={(e) => setTaskFor(s.id, e.target.value)}
+                      placeholder="Tarea para este cerebro (p.ej. «resume mi contexto»)…"
+                      className="min-h-[38px] flex-1 border-white/15 bg-black/30 text-white placeholder:text-white/30"
+                    />
+                    <Button
+                      size="sm"
+                      className="gap-1.5 bg-cyan-600 text-white hover:bg-cyan-500"
+                      disabled={busy}
+                      onClick={() => runServer(s)}
+                    >
+                      <Play className={cn("h-3.5 w-3.5", busy && "animate-pulse")} /> Ejecutar
+                    </Button>
+                  </div>
+                  {result && (
+                    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-white/10 bg-black/40 p-2 text-[11px] leading-relaxed text-white/70">
+                      {result}
+                    </pre>
+                  )}
                 </div>
-                <div className="ml-auto flex items-center gap-1">
-                  <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-white/60" onClick={() => pingServer(s)}>
-                    <Plug className="h-3.5 w-3.5" /> Probar
-                  </Button>
-                  <button onClick={() => onRemoveServer(s)} className="text-white/30 hover:text-red-400">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -1101,7 +1254,13 @@ function BrainEditor(props: {
                 onClick={() => {
                   setNewSrvKind(k.id);
                   setNewSrvName(k.label);
-                  setNewSrvFields({});
+                  setNewSrvFields(
+                    k.id === "higgsfield"
+                      ? { endpoint: "https://api.higgsfield.ai", keyRef: "higgsfield" }
+                      : k.id === "local"
+                        ? { endpoint: "http://localhost:8800" }
+                        : {},
+                  );
                 }}
                 className={cn(
                   "rounded-lg border px-2 py-1.5 text-left text-[11px]",
@@ -1114,6 +1273,24 @@ function BrainEditor(props: {
             ))}
           </div>
           {newKindDef && <p className="text-[10px] text-white/45">{newKindDef.blurb}</p>}
+          {newSrvKind === "higgsfield" && (
+            <div className="rounded-md border border-fuchsia-400/30 bg-fuchsia-950/20 p-2 text-[10px] text-fuchsia-200/80">
+              <span className="font-medium text-fuchsia-100">Preset Higgsfield.</span> Endpoint{" "}
+              <code className="text-fuchsia-100">https://api.higgsfield.ai</code>. En el campo «Clave», pega el{" "}
+              <span className="font-medium">nombre</span> de tu clave guardada en la bóveda (nunca la clave en claro). Se
+              conecta vía el proxy del bot.
+            </div>
+          )}
+          {(newSrvKind === "higgsfield" || newSrvKind === "online" || newSrvKind === "vps") && (
+            <p className="text-[10px] text-white/35">
+              Servidor remoto: se contacta a través del proxy del bot usando la clave de tu bóveda.
+            </p>
+          )}
+          {newSrvKind === "local" && (
+            <p className="text-[10px] text-white/35">
+              Servidor local: se contacta directo desde el navegador (debe enviar CORS permisivo).
+            </p>
+          )}
           <Input
             value={newSrvName}
             onChange={(e) => setNewSrvName(e.target.value)}
