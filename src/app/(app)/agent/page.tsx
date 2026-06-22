@@ -49,6 +49,8 @@ import { toast } from "sonner";
 import OKFPanel from "@/components/exocortex/okf-panel";
 import ProviderPanel from "@/components/exocortex/provider-panel";
 import AuroraStudio from "@/components/aurora/aurora-studio";
+import StoragePanel from "@/components/storage/storage-panel";
+import ConnectionsHub from "@/components/storage/connections-hub";
 
 import { chat } from "@/ai/client/chat";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
@@ -366,6 +368,8 @@ function AgentPageInner() {
           <TabsTrigger value="okf" className="gap-2"><BookOpen className="w-4 h-4" /> Wiki/OKF</TabsTrigger>
           <TabsTrigger value="proveedor" className="gap-2"><Database className="w-4 h-4" /> Proveedor</TabsTrigger>
           <TabsTrigger value="aurora" className="gap-2"><Mic className="w-4 h-4" /> Aurora</TabsTrigger>
+          <TabsTrigger value="almacenes" className="gap-2"><HardDrive className="w-4 h-4" /> Almacenes</TabsTrigger>
+          <TabsTrigger value="conexiones" className="gap-2"><Cloud className="w-4 h-4" /> Conexiones</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto">
@@ -798,6 +802,10 @@ function AgentPageInner() {
         <TabsContent value="proveedor" className="flex-1 min-h-0 overflow-y-auto"><ProviderPanel /></TabsContent>
 
         <TabsContent value="aurora" className="flex-1 min-h-0 overflow-y-auto"><AuroraStudio /></TabsContent>
+
+        <TabsContent value="almacenes" className="flex-1 min-h-0 overflow-y-auto"><StoragePanel /></TabsContent>
+
+        <TabsContent value="conexiones" className="flex-1 min-h-0 overflow-y-auto"><ConnectionsHub /></TabsContent>
 
         <TabsContent value="quick" className="flex-1 min-h-0 overflow-y-auto space-y-3">
           <QuickOptionsGrid
