@@ -9,6 +9,8 @@ import { AlarmScheduler } from "@/components/calendar/alarm-scheduler";
 import { ActiveAlertModal } from "@/components/calendar/active-alert-modal";
 import { useEffect } from "react";
 import { hermes } from "@/hermes-integration";
+import { AuroraProvider } from "@/components/aurora/aurora-provider";
+import { AuroraWidget } from "@/components/aurora/aurora-widget";
 // AiOverlay retirado: el botón flotante del bot de IA se elimina; la función de
 // IA vive ahora en el Exocórtex del menú Trinity (Zenith). El componente se
 // conserva en el repo por si se reutiliza, pero ya no se monta globalmente.
@@ -32,7 +34,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <AppHeader />
             <main className="flex-1 flex flex-col bg-transparent transition-all duration-300 overflow-y-auto">
               <div className="w-full px-[clamp(0.75rem,2vw,2rem)] py-[clamp(0.75rem,1.5vw,1.5rem)] flex flex-col gap-[clamp(0.75rem,1.5vw,1.5rem)] flex-1">
-                {children}
+                <AuroraProvider>
+                  {children}
+                  <AuroraWidget />
+                </AuroraProvider>
               </div>
             </main>
           </div>
