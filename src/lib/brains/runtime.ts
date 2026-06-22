@@ -17,6 +17,12 @@
  *     proxy del bot (POST {BOT_BASE}/api/brain) para evitar CORS y usar la
  *     clave guardada en la bóveda del usuario (key_ref).
  *
+ * Adaptador de generación: un servidor remoto puede llevar `server.adapter`
+ * (ver src/lib/brains/adapters.ts). Si está presente, `runOnServer` lo envía en
+ * el cuerpo del proxy (`adapter`) y api/brain.py ejecuta el flujo plantillado
+ * (Higgsfield/Replicate/etc.) en lugar del POST plano `{task,context}`. Los
+ * servidores locales lo ignoran.
+ *
  * Todo con try/catch, timeout (~8s vía AbortController) y errores amables.
  * SSR-safe: nada se ejecuta sin `globalThis.fetch`.
  *
@@ -167,7 +173,9 @@ async function readJson(res: Response): Promise<Record<string, unknown>> {
 /**
  * Ejecuta una tarea en un servidor de cerebro.
  * LOCAL → POST directo a `<endpoint>/run`.
- * REMOTO → proxy del bot con `action:'run'`.
+ * REMOTO → proxy del bot con `action:'run'`. Si el servidor lleva un adaptador
+ *   de generación (`server.adapter`), se incluye en el cuerpo para que el bot
+ *   ejecute el flujo plantillado (Higgsfield/Replicate/etc.).
  */
 export async function runOnServer(
   server: BrainServer,
@@ -194,8 +202,13 @@ export async function runOnServer(
       return { ok: true, result: j.result ?? j, via };
     }
 
-    // Remoto → proxy del bot.
-    const res = await postProxy("run", server, accountId, { task, context: ctx });
+    // Remoto → proxy del bot. Incluye el adaptador de generación si el servidor
+    // lo lleva (los servidores locales lo ignoran). El proxy usará el flujo
+    // plantillado cuando `adapter` esté presente.
+    const adapter = (server as { adapter?: unknown }).adapter;
+    const extra: Record<string, unknown> = { task, context: ctx };
+    if (adapter) extra.adapter = adapter;
+    const res = await postProxy("run", server, accountId, extra);
     const j = await readJson(res);
     if (!res.ok || j.ok === false) {
       return {
