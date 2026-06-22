@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GroupGovernance } from "@/components/group/group-governance";
+import { GroupMembers } from "@/components/group/group-members";
 import {
   Brain,
   Plus,
@@ -55,6 +56,7 @@ export function GroupAIStudio({ groupId, groupName }: { groupId: string; groupNa
   const [userId, setUserId] = useState<string | null>(null);
   const [items, setItems] = useState<Memory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMember, setIsMember] = useState(false);
 
   // creación compacta
   const [creating, setCreating] = useState(false);
@@ -78,6 +80,19 @@ export function GroupAIStudio({ groupId, groupName }: { groupId: string; groupNa
         .eq("scope_ref", groupId)
         .order("created_at", { ascending: false });
       setItems((data as Memory[]) ?? []);
+
+      // Pertenencia al grupo: ¿hay fila propia en group_members?
+      if (uid) {
+        const { data: mem } = await supabase
+          .from("group_members")
+          .select("member")
+          .eq("group_id", groupId)
+          .eq("member", uid)
+          .maybeSingle();
+        setIsMember(!!mem);
+      } else {
+        setIsMember(false);
+      }
     } catch {
       /* sin sesión / error transitorio */
     }
@@ -152,9 +167,9 @@ export function GroupAIStudio({ groupId, groupName }: { groupId: string; groupNa
         <div className="text-xs text-white/70 leading-relaxed">
           <span className="text-cyan-200 font-medium">AI Studio del grupo</span> — configuración gestionada
           democráticamente por sus miembros mediante propuestas y votos.
-          <span className="block text-[11px] text-amber-300/70 mt-1 flex items-center gap-1">
-            <Users className="w-3 h-3" /> En esta v1 la pertenencia al grupo es abierta a cualquier usuario
-            autenticado; aún no hay control de membresía.
+          <span className="block text-[11px] text-cyan-300/70 mt-1 flex items-center gap-1">
+            <Users className="w-3 h-3" /> Únete al grupo desde la pestaña{" "}
+            <span className="text-cyan-200 font-medium">Miembros</span> para proponer, votar y aplicar cambios.
           </span>
         </div>
       </div>
@@ -166,6 +181,9 @@ export function GroupAIStudio({ groupId, groupName }: { groupId: string; groupNa
           </TabsTrigger>
           <TabsTrigger value="governance" className="gap-2">
             <Vote className="w-4 h-4" /> Gobernanza
+          </TabsTrigger>
+          <TabsTrigger value="members" className="gap-2">
+            <Users className="w-4 h-4" /> Miembros
           </TabsTrigger>
         </TabsList>
 
@@ -302,7 +320,12 @@ export function GroupAIStudio({ groupId, groupName }: { groupId: string; groupNa
 
         {/* TAB: Gobernanza */}
         <TabsContent value="governance" className="space-y-4">
-          <GroupGovernance groupId={groupId} />
+          <GroupGovernance groupId={groupId} isMember={isMember} />
+        </TabsContent>
+
+        {/* TAB: Miembros */}
+        <TabsContent value="members" className="space-y-4">
+          <GroupMembers groupId={groupId} />
         </TabsContent>
       </Tabs>
     </div>
