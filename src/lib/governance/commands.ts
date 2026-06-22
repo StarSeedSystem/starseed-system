@@ -137,6 +137,30 @@ export const COMMAND_TYPES: CommandTypeDef[] = [
     ],
   },
   {
+    id: "deploy",
+    label: "Desplegar / conectar infraestructura",
+    blurb: "Conecta un servidor o datastore compartido (requiere aprobación).",
+    fields: [
+      {
+        key: "target",
+        label: "Tipo",
+        type: "select",
+        options: [
+          { value: "server", label: "server" },
+          { value: "datastore", label: "datastore" },
+        ],
+      },
+      { key: "kind", label: "Clase (p.ej. hostinger, local, postgres, qdrant, minio…)", type: "text" },
+      { key: "name", label: "Nombre", type: "text" },
+      { key: "endpoint", label: "Endpoint/URL (opcional)", type: "text", optional: true },
+      { key: "keyRef", label: "Clave en bóveda (opcional)", type: "text", optional: true },
+      { key: "brainId", label: "Cerebro a enlazar (opcional, para target=server)", type: "text", optional: true },
+      { key: "scope", label: "Ámbito (group/page/community/account)", type: "text", optional: true },
+      { key: "scopeRef", label: "Ref del ámbito (opcional)", type: "text", optional: true },
+      { key: "role", label: "Rol del enlace (primary/replica/compute/storage/sync, opcional)", type: "text", optional: true },
+    ],
+  },
+  {
     id: "custom",
     label: "Personalizado",
     blurb: "Registra un comando libre para revisión (Astraura o manual pueden ejecutarlo).",
@@ -332,6 +356,52 @@ export async function executeCommand(spec: CommandSpec | null, ctx: ExecCtx): Pr
           .eq("id", p.id);
         if (error) return { ok: false, detail: error.message };
         return { ok: true, detail: "memoria actualizada" };
+      }
+
+      case "deploy": {
+        const target = p.target;
+        if (target === "server") {
+          const { data, error } = await supabase
+            .from("brain_servers")
+            .insert({
+              owner: ctx.userId,
+              name: p.name,
+              kind: p.kind,
+              endpoint: p.endpoint,
+              key_ref: p.keyRef,
+              config: { deployedBy: "governance", scope: p.scope, scope_ref: p.scopeRef },
+              shared: true,
+            })
+            .select("id")
+            .single();
+          if (error) return { ok: false, detail: error.message };
+          if (p.brainId && data?.id) {
+            const { error: linkError } = await supabase
+              .from("brain_server_links")
+              .insert({
+                brain_id: p.brainId,
+                server_id: data.id,
+                owner: ctx.userId,
+                role: p.role || "primary",
+              });
+            if (linkError) return { ok: false, detail: linkError.message };
+          }
+          return { ok: true, detail: "Servidor conectado: " + p.name };
+        }
+        if (target === "datastore") {
+          const { error } = await supabase.from("storage_backends").insert({
+            owner: ctx.userId,
+            name: p.name,
+            kind: p.kind,
+            scope: p.scope || "account",
+            scope_ref: p.scopeRef || null,
+            config: { endpoint: p.endpoint, keyRef: p.keyRef, deployedBy: "governance" },
+            enabled: true,
+          });
+          if (error) return { ok: false, detail: error.message };
+          return { ok: true, detail: "Datastore conectado: " + p.name };
+        }
+        return { ok: false, detail: "target inválido (server/datastore)" };
       }
 
       case "custom": {
