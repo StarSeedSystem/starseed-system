@@ -60,6 +60,7 @@ import { QuickOptionsGrid } from "@/components/hermes/quick-options-grid";
 import { AiStudioDashboard } from "@/components/hermes/ai-studio-dashboard";
 import { MemoryBrain3D } from "@/components/exocortex/memory-brain-3d";
 import { TelegramSpacesPanel } from "@/components/exocortex/telegram-spaces-panel";
+import { ChatNeuralSidebar } from "@/components/agent/chat-neural-sidebar";
 import { BatchJobsPanel } from "@/components/hermes/batch-jobs-panel";
 import { ServerRegistryPanel } from "@/components/hermes/server-registry-panel";
 import { HardDrive } from "lucide-react";
@@ -372,6 +373,7 @@ function AgentPageInner() {
 
         {/* --- TAB: CHAT --- */}
         <TabsContent value="chat" className="flex-1 data-[state=active]:flex gap-6 min-h-0">
+          <ChatNeuralSidebar />
           {/* Chat Interface */}
           <div className="flex-1 flex flex-col rounded-xl border bg-background/50 overflow-hidden shadow-sm relative">
             <div className="absolute top-4 right-4 z-10 flex gap-2">
