@@ -29,6 +29,11 @@ import {
   Settings2,
   Save,
   X,
+  Network,
+  RefreshCcw,
+  Brain,
+  Archive,
+  Info,
 } from "lucide-react";
 import {
   STORAGE_KINDS,
@@ -42,6 +47,7 @@ import {
   getPolicy,
   savePolicy,
   ensureDefaults,
+  SCOPES_EXT,
   type StorageBackend,
   type StorageKind,
   type StoragePolicy,
@@ -50,12 +56,10 @@ import { chooseBackend, capacityInfo, explainPolicy } from "@/lib/storage/router
 
 const BOT_BASE = "https://starseed-neurocortex.vercel.app";
 
-const SCOPES: { id: string; label: string }[] = [
-  { id: "account", label: "Cuenta" },
-  { id: "profile", label: "Perfil" },
-  { id: "group", label: "Grupo" },
-  { id: "page", label: "Página" },
-];
+const SCOPES: { id: string; label: string }[] = SCOPES_EXT;
+
+/** Scopes that target a concrete brain (cerebro) or vault (baúl). */
+type ScopeTarget = { id: string; name: string };
 
 type Msg = { kind: "ok" | "err" | "info"; text: string } | null;
 
@@ -63,6 +67,7 @@ export default function StoragePanel() {
   const [userId, setUserId] = useState<string | null>(null);
   const [scope, setScope] = useState("account");
   const [scopeRef, setScopeRef] = useState("");
+  const [scopeTargets, setScopeTargets] = useState<ScopeTarget[]>([]);
   const [backends, setBackends] = useState<StorageBackend[]>([]);
   const [policy, setPolicy] = useState<StoragePolicy>({});
   const [loading, setLoading] = useState(false);
@@ -119,6 +124,40 @@ export default function StoragePanel() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Load the user's brains / vaults so a datastore can be attached to one by scope.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (scope !== "brain" && scope !== "vault") {
+        setScopeTargets([]);
+        return;
+      }
+      try {
+        const sb = createClient();
+        const { data: au } = await sb.auth.getUser();
+        const uid = au?.user?.id;
+        if (!uid) return;
+        const table = scope === "brain" ? "brains" : "vaults";
+        const { data } = await sb
+          .from(table)
+          .select("id,name")
+          .eq("owner", uid)
+          .order("created_at", { ascending: true });
+        if (!alive) return;
+        const rows = ((data as { id: string; name?: string | null }[]) ?? []).map((r) => ({
+          id: String(r.id),
+          name: r.name && String(r.name).trim() ? String(r.name) : String(r.id),
+        }));
+        setScopeTargets(rows);
+      } catch {
+        if (alive) setScopeTargets([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [scope]);
 
   /* --------------------------- backend actions --------------------------- */
 
@@ -234,7 +273,23 @@ export default function StoragePanel() {
       }
       return;
     }
-    // others: mark configured/unknown
+    // Open-source server-side datastores: direct browser pings suelen estar
+    // bloqueados por CORS; se conectan vía el servidor del cerebro/proxy en runtime.
+    const SERVER_OSS = ["postgres", "qdrant", "couchdb", "minio", "nextcloud"];
+    if (SERVER_OSS.includes(b.kind)) {
+      const ready = (kindById(b.kind)?.fields ?? []).every((f) =>
+        String((b.config as Record<string, unknown>)?.[f.key] ?? "").trim(),
+      );
+      await updateBackend(b.id, { status: ready ? "configured" : "unknown" });
+      setBackends((prev) => prev.map((x) => (x.id === b.id ? { ...x, status: ready ? "configured" : "unknown" } : x)));
+      toast.message(
+        ready
+          ? "Configurado (open-source). Se conecta vía el servidor del cerebro/proxy en runtime."
+          : "Faltan datos de configuración",
+      );
+      return;
+    }
+    // others (sqlite, syncthing, github, obsidian, webdav, s3, custom…): mark configured/unknown
     const ok = (kindById(b.kind)?.fields ?? []).every((f) => String((b.config as Record<string, unknown>)?.[f.key] ?? "").trim());
     await updateBackend(b.id, { status: ok ? "configured" : "unknown" });
     setBackends((prev) => prev.map((x) => (x.id === b.id ? { ...x, status: ok ? "configured" : "unknown" } : x)));
@@ -367,14 +422,85 @@ Propón en español, de forma breve y accionable, una política de enrutado ópt
             </button>
           ))}
         </div>
-        {scope !== "account" && (
-          <Input
-            value={scopeRef}
-            onChange={(e) => setScopeRef(e.target.value)}
-            placeholder="ID del perfil/grupo/página"
-            className="h-8 w-56 border-white/15 bg-black/30 text-white placeholder:text-white/30"
-          />
-        )}
+        {scope !== "account" &&
+          (scope === "brain" || scope === "vault" ? (
+            <div className="flex items-center gap-1.5">
+              {scope === "brain" ? (
+                <Brain className="h-3.5 w-3.5 text-violet-300/70" />
+              ) : (
+                <Archive className="h-3.5 w-3.5 text-violet-300/70" />
+              )}
+              <select
+                value={scopeRef}
+                onChange={(e) => setScopeRef(e.target.value)}
+                className="h-8 w-56 rounded-md border border-white/15 bg-black/30 px-2 text-xs text-white"
+              >
+                <option value="">
+                  {scopeTargets.length
+                    ? scope === "brain"
+                      ? "Elige un cerebro…"
+                      : "Elige un baúl…"
+                    : scope === "brain"
+                      ? "Sin cerebros (escribe un ID)"
+                      : "Sin baúles (escribe un ID)"}
+                </option>
+                {scopeTargets.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              {scopeTargets.length === 0 && (
+                <Input
+                  value={scopeRef}
+                  onChange={(e) => setScopeRef(e.target.value)}
+                  placeholder={scope === "brain" ? "ID del cerebro" : "ID del baúl"}
+                  className="h-8 w-44 border-white/15 bg-black/30 text-white placeholder:text-white/30"
+                />
+              )}
+            </div>
+          ) : (
+            <Input
+              value={scopeRef}
+              onChange={(e) => setScopeRef(e.target.value)}
+              placeholder="ID del perfil/grupo/página"
+              className="h-8 w-56 border-white/15 bg-black/30 text-white placeholder:text-white/30"
+            />
+          ))}
+      </div>
+
+      {/* Open-source primero + Interconexión & Sincronización */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-950/15 px-3 py-2.5">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+          <div className="text-[11px] leading-relaxed text-emerald-100/85">
+            <span className="font-semibold text-emerald-200">Open-source primero.</span> Prioriza conexiones
+            directas y soberanas: PostgreSQL/Supabase, SQLite, Qdrant (vectores), MinIO/S3, CouchDB, Nextcloud y
+            Syncthing. Cualquier datastore puede vincularse a un{" "}
+            <span className="font-medium text-emerald-200">Cerebro</span> o{" "}
+            <span className="font-medium text-emerald-200">Baúl</span> eligiendo su ámbito arriba.
+          </div>
+        </div>
+        <div className="flex items-start gap-2 rounded-xl border border-cyan-500/20 bg-cyan-950/15 px-3 py-2.5">
+          <Network className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" />
+          <div className="text-[11px] leading-relaxed text-cyan-100/85">
+            <span className="font-semibold text-cyan-200">Interconexión & Sincronización.</span>
+            <span className="mt-1 flex flex-col gap-0.5">
+              <span className="flex items-center gap-1.5">
+                <RefreshCcw className="h-3 w-3 text-cyan-300/80" /> <b>Syncthing</b> sincroniza ficheros entre
+                dispositivos sin servidor central (open-source).
+              </span>
+              <span className="flex items-center gap-1.5">
+                <RefreshCcw className="h-3 w-3 text-cyan-300/80" /> <b>CouchDB</b> y <b>PostgreSQL</b> replican
+                datos (sync bidireccional / replicación lógica).
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Brain className="h-3 w-3 text-cyan-300/80" /> Vincula cualquier datastore a un cerebro o baúl
+                por ámbito; se conecta vía el servidor del cerebro/proxy en runtime.
+              </span>
+            </span>
+          </div>
+        </div>
       </div>
 
       {msg && (
@@ -421,10 +547,20 @@ Propón en español, de forma breve y accionable, una política de enrutado ópt
                 >
                   <span className="mr-1">{k.icon}</span>
                   {k.label}
+                  {k.oss && (
+                    <span className="ml-1 rounded bg-emerald-500/20 px-1 py-0.5 text-[8px] font-semibold text-emerald-300">
+                      OSS
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
-            {newKindDef && <p className="text-[11px] text-white/50">{newKindDef.blurb}</p>}
+            {newKindDef && (
+              <p className="text-[11px] text-white/50">
+                {newKindDef.oss && <span className="mr-1 font-semibold text-emerald-300">Open-source ·</span>}
+                {newKindDef.blurb}
+              </p>
+            )}
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
@@ -447,6 +583,14 @@ Propón en español, de forma breve y accionable, una política de enrutado ópt
                   <CloudUpload className="h-4 w-4" /> Conectar Google Drive
                 </Button>
               </div>
+            )}
+            {["postgres", "qdrant", "couchdb", "minio", "nextcloud"].includes(newKind) && (
+              <p className="flex items-start gap-1.5 rounded-md border border-cyan-500/15 bg-cyan-950/10 px-2 py-1.5 text-[10px] text-cyan-200/75">
+                <Network className="mt-0.5 h-3 w-3 shrink-0" />
+                Datastore open-source: se conecta directamente vía el servidor del cerebro/proxy en runtime (los
+                pings directos desde el navegador pueden estar bloqueados por CORS). Guarda las credenciales como
+                referencia a la bóveda.
+              </p>
             )}
             <div className="flex gap-2">
               <Button size="sm" className="gap-2 bg-violet-600 text-white hover:bg-violet-500" onClick={addBackend}>
