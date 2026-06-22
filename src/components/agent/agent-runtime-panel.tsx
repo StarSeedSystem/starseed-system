@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Check, X, Wand2, Play, Loader2 } from "lucide-react";
+import { Plus, Trash2, Check, X, Wand2, Play, Loader2, KeyRound, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Runtime = { id: string; name: string; mode: string; devices: { name: string }[]; vps: Record<string, string>; agents: string[]; enabled: boolean; created_at: string };
 type DispatchState = { loading: boolean; ok?: boolean; mode?: string; message?: string; open?: boolean; task?: string };
 
 const DISPATCH_URL = "https://starseed-neurocortex.vercel.app/api/agent_dispatch";
+const VAULT_URL = "https://starseed-neurocortex.vercel.app/api/vault";
 
 const MODES: [string, string, string][] = [
   ["local", "💻 Este dispositivo", "El agente corre aquí, en tu equipo/navegador"],
@@ -31,9 +32,11 @@ export function AgentRuntimePanel() {
   const [devices, setDevices] = useState<{ name: string }[]>([]);
   const [deviceName, setDeviceName] = useState("");
   const [vps, setVps] = useState<Record<string, string>>({ provider: "hostinger", host: "", port: "22", endpoint: "", auth_method: "ssh_key" });
+  const [vpsKey, setVpsKey] = useState("");
   const [agents, setAgents] = useState<string[]>(["hermes"]);
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [vaultNote, setVaultNote] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Record<string, string>>({});
   const [dispatch, setDispatch] = useState<Record<string, DispatchState>>({});
 
@@ -51,10 +54,41 @@ export function AgentRuntimePanel() {
   async function create() {
     if (!userId || !name.trim()) return;
     setSaving(true);
+    setVaultNote(null);
     try {
       const supabase = createClient();
-      await supabase.from("agent_runtimes").insert({ owner: userId, name: name.trim(), mode, devices: mode === "local_multi" ? devices : [], vps: mode === "vps" ? vps : {}, agents, enabled });
-      setCreating(false); setName(""); setMode("local"); setDevices([]); setAgents(["hermes"]); setEnabled(true);
+      // La clave/token del VPS NUNCA se guarda en la fila: se cifra aparte en la bóveda.
+      const { data: inserted, error: insErr } = await supabase
+        .from("agent_runtimes")
+        .insert({ owner: userId, name: name.trim(), mode, devices: mode === "local_multi" ? devices : [], vps: mode === "vps" ? vps : {}, agents, enabled })
+        .select("id")
+        .single();
+      if (insErr) {
+        setVaultNote(`Error al crear el runtime: ${insErr.message}`);
+        setSaving(false);
+        return;
+      }
+      const newId = (inserted as { id: string } | null)?.id;
+      // Si es VPS y se aportó clave/token, cifrarla en la bóveda con nombre "vps:<runtimeId>".
+      if (mode === "vps" && vpsKey.trim() && newId) {
+        try {
+          const res = await fetch(VAULT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ account_id: userId, action: "set", name: `vps:${newId}`, value: vpsKey.trim() }),
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok || json?.ok === false) {
+            setVaultNote(`Runtime creado, pero la clave no pudo cifrarse en la bóveda: ${json?.error ?? `HTTP ${res.status}`}`);
+          } else {
+            setVaultNote("🔐 Clave del VPS cifrada y guardada en tu bóveda.");
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          setVaultNote(`Runtime creado, pero no se pudo contactar la bóveda: ${msg}`);
+        }
+      }
+      setCreating(false); setName(""); setMode("local"); setDevices([]); setVps({ provider: "hostinger", host: "", port: "22", endpoint: "", auth_method: "ssh_key" }); setVpsKey(""); setAgents(["hermes"]); setEnabled(true);
       await load();
     } catch { /* */ }
     setSaving(false);
@@ -138,7 +172,10 @@ export function AgentRuntimePanel() {
               <label className="text-[11px] text-white/50">Host / IP<Input value={vps.host} onChange={(e) => setVps((v) => ({ ...v, host: e.target.value }))} placeholder="123.45.67.89" className="bg-white/5 h-8 text-xs mt-1" /></label>
               <label className="text-[11px] text-white/50">Puerto<Input value={vps.port} onChange={(e) => setVps((v) => ({ ...v, port: e.target.value }))} placeholder="22" className="bg-white/5 h-8 text-xs mt-1" /></label>
               <label className="text-[11px] text-white/50">Endpoint del agente (URL)<Input value={vps.endpoint} onChange={(e) => setVps((v) => ({ ...v, endpoint: e.target.value }))} placeholder="https://mi-vps:8080/agent" className="bg-white/5 h-8 text-xs mt-1" /></label>
-              <div className="sm:col-span-2 text-[10px] text-amber-300/70">🔐 Las claves SSH / tokens se añaden en la bóveda segura (no se guardan en texto plano aquí).</div>
+              <label className="text-[11px] text-white/50 sm:col-span-2 flex items-center gap-1"><KeyRound className="w-3 h-3 text-amber-300" /> Clave / Token del VPS
+                <Input value={vpsKey} onChange={(e) => setVpsKey(e.target.value)} type="password" placeholder="Clave SSH, token o contraseña del servidor" className="bg-white/5 h-8 text-xs mt-1" />
+              </label>
+              <div className="sm:col-span-2 text-[10px] text-emerald-300/70 flex items-start gap-1"><ShieldCheck className="w-3 h-3 mt-0.5 shrink-0" /> La clave/token se guarda cifrada en tu bóveda (no se almacena en texto plano en la fila del runtime).</div>
             </div>
           )}
           <div>
@@ -146,7 +183,10 @@ export function AgentRuntimePanel() {
             <div className="flex flex-wrap gap-1.5">{AGENTS.map(([v, l]) => <button key={v} onClick={() => toggleAgent(v)} className={cn("text-[11px] rounded-full px-2.5 py-1 border transition", agents.includes(v) ? "bg-emerald-600/30 border-emerald-400/50 text-white" : "bg-white/5 border-white/10 text-white/60")}>{l}</button>)}</div>
           </div>
           <div className="flex items-center gap-2"><Switch checked={enabled} onCheckedChange={setEnabled} /><span className="text-xs text-white/70">Activo</span></div>
-          <div className="flex gap-2 pt-1"><Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-500" disabled={saving || !name.trim()} onClick={create}><Check className="w-4 h-4" /> Crear</Button><Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancelar</Button></div>
+          {vaultNote && (
+            <div className="text-[11px] rounded px-2 py-1.5 bg-emerald-950/30 text-emerald-100 border border-emerald-500/30 break-words">{vaultNote}</div>
+          )}
+          <div className="flex gap-2 pt-1"><Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-500" disabled={saving || !name.trim()} onClick={create}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Crear</Button><Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancelar</Button></div>
         </div>
       )}
 
