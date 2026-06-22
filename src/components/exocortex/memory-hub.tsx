@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Brain, Plus, Trash2, Wand2, Check, X, FileText, Download, Upload, Github, Save, Loader2, RefreshCw, Cloud } from "lucide-react";
+import { Brain, Plus, Trash2, Wand2, Check, X, FileText, Download, Upload, Github, Save, Loader2, RefreshCw, Cloud, Link2, Link2Off, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { parseWikilinks } from "@/lib/okf";
+import Link from "next/link";
 
 // El PAT ya NO se guarda en config: vive cifrado en la bóveda (api/vault).
 type GithubConfig = { repo?: string; branch?: string; path?: string };
@@ -266,7 +268,10 @@ export function MemoryHub() {
           <div className="text-sm font-semibold text-fuchsia-50">Memory Hub · memorias de StarSeed</div>
           <div className="text-[11px] text-fuchsia-300/60">Crea, configura y sincroniza tus memorias por contexto. Astraura te guía.</div>
         </div>
-        <Button size="sm" className="ml-auto gap-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white" onClick={() => setCreating((c) => !c)}><Plus className="w-4 h-4" /> Crear memoria</Button>
+        <div className="ml-auto flex items-center gap-2">
+          <Link href="/wiki" className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 transition hover:bg-cyan-500/20" title="Abrir la wiki OKF de tus baúles"><BookOpen className="w-3.5 h-3.5" /> Abrir wiki (OKF)</Link>
+          <Button size="sm" className="gap-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white" onClick={() => setCreating((c) => !c)}><Plus className="w-4 h-4" /> Crear memoria</Button>
+        </div>
       </div>
 
       <div>
@@ -338,6 +343,22 @@ export function MemoryHub() {
                     <div>
                       <div className="text-[11px] text-white/50 mb-1 flex items-center gap-1"><FileText className="w-3 h-3" /> Contenido (markdown · sincroniza entre dispositivos vía tu cuenta)</div>
                       <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`# ${m.name}\n\nEscribe aquí el contenido de esta memoria…`} className="bg-black/40 border-white/10 text-xs font-mono min-h-[160px]" />
+                      {/* Enlaces [[…]] vivos: conexiones neuronales hacia otras memorias por nombre */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] text-white/40 flex items-center gap-1"><Link2 className="w-3 h-3" /> Enlaces [[…]]:</span>
+                        {parseWikilinks(draft).length === 0 ? (
+                          <span className="text-[10px] text-white/30">sin enlaces — usa [[Nombre]] para conectar memorias</span>
+                        ) : (
+                          parseWikilinks(draft).map((nm) => {
+                            const exists = items.some((it) => (it.name || "").trim().toLowerCase() === nm.trim().toLowerCase());
+                            return (
+                              <span key={nm} className={cn("text-[10px] rounded-full px-2 py-0.5 border flex items-center gap-1", exists ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200" : "border-amber-400/40 bg-amber-500/10 text-amber-200")} title={exists ? "Existe una memoria con ese nombre" : "Aún no existe esa memoria"}>
+                                {exists ? <Link2 className="w-2.5 h-2.5" /> : <Link2Off className="w-2.5 h-2.5" />}[[{nm}]]
+                              </span>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" className="gap-1.5 bg-fuchsia-600 hover:bg-fuchsia-500" disabled={savingContent} onClick={() => saveContent(m)}>{savingContent ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Guardar</Button>
