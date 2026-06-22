@@ -284,6 +284,39 @@ export function useAuroraEngine(): AuroraEngine {
       return;
     }
 
+    // ── decisiones / sistema ontocrático (StarSeed) ──
+    // votos pendientes: navega a /decisiones y confirma por voz
+    if (
+      n.includes("mis votos pendientes") ||
+      n.includes("que tengo que votar") ||
+      n.includes("qué tengo que votar")
+    ) {
+      try { router.push("/decisiones"); } catch { /* */ }
+      const m = "Abriendo tus decisiones pendientes.";
+      setLastReply(m); speak(m); return;
+    }
+    // crear / proponer una propuesta
+    if (
+      n.includes("crea una propuesta") ||
+      n.includes("nueva propuesta") ||
+      n.includes("proponer")
+    ) {
+      try { router.push("/decisiones"); } catch { /* */ }
+      const m = "Abriendo decisiones.";
+      setLastReply(m); speak(m); return;
+    }
+    // decisiones / propuestas / votaciones / ontocracia
+    if (
+      n.includes("decisiones") ||
+      n.includes("propuestas") ||
+      n.includes("votaciones") ||
+      n.includes("ontocracia")
+    ) {
+      try { router.push("/decisiones"); } catch { /* */ }
+      const m = "Abriendo decisiones.";
+      setLastReply(m); speak(m); return;
+    }
+
     // ── fallback: Astraura ──
     try {
       if (!loadConfigs().some((c) => c.enabled)) {
