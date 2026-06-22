@@ -1,18 +1,25 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Plus, Trash2, Wand2, Check, X } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Brain, Plus, Trash2, Wand2, Check, X, FileText, Download, Upload, Github, Save, Loader2, RefreshCw, Cloud } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+type GithubConfig = { repo?: string; branch?: string; path?: string; token?: string };
+type MemoryConfig = { github?: GithubConfig } & Record<string, unknown>;
 
 type Memory = {
   id: string; name: string; scope: string; scope_ref: string | null;
-  kinds: string[]; format: string; storage: string[]; sync: boolean; created_at: string;
+  kinds: string[]; format: string; storage: string[]; sync: boolean;
+  config: MemoryConfig | null; content: string | null; created_at: string;
 };
+
+const BOT_ENDPOINT = "https://starseed-neurocortex.vercel.app/api/memory_github";
 
 const SCOPES: [string, string][] = [["account","Toda la cuenta"],["profile","Un perfil"],["page","Una página"],["group","Un grupo"],["chat","Un chat"],["message","Un mensaje"],["library","Biblioteca"],["database","Base de datos"]];
 const KINDS: [string, string][] = [["soul","🪷 Alma"],["memory","🧠 Memoria"],["dream","🌙 Sueños"],["md","📝 Markdown"],["3d","🌐 3D"],["skills","✨ Skills"],["apis","🔌 APIs"],["mcp","🧩 MCP"],["plugins","🧱 Plugins"],["tokens","🔐 Tokens"],["connections","🔗 Conexiones"]];
@@ -29,6 +36,15 @@ const PRESETS: Preset[] = [
   { key:"custom", icon:"⚙️", label:"Personalizada", hint:"Tú eliges todo", kinds:[], format:"markdown" },
 ];
 
+function slugify(s: string) {
+  return (s || "memoria")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "memoria";
+}
+
 export function MemoryHub() {
   const [userId, setUserId] = useState<string | null>(null);
   const [items, setItems] = useState<Memory[]>([]);
@@ -40,6 +56,16 @@ export function MemoryHub() {
   const [storage, setStorage] = useState<string[]>(["account"]);
   const [sync, setSync] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // editor de contenido / sincronización
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [savingContent, setSavingContent] = useState(false);
+  const [gh, setGh] = useState<GithubConfig>({ repo: "", branch: "main", path: "", token: "" });
+  const [savingGh, setSavingGh] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [status, setStatus] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -67,14 +93,109 @@ export function MemoryHub() {
     setSaving(true);
     try {
       const supabase = createClient();
-      await supabase.from("memories").insert({ owner: userId, name: name.trim(), scope, kinds, format, storage, sync });
+      await supabase.from("memories").insert({ owner: userId, name: name.trim(), scope, kinds, format, storage, sync, content: "", config: {} });
       setCreating(false); setName(""); setKinds([]); setFormat("markdown"); setScope("account"); setStorage(["account"]); setSync(true);
       await load();
     } catch { /* error */ }
     setSaving(false);
   }
   async function remove(id: string) {
-    try { const supabase = createClient(); await supabase.from("memories").delete().eq("id", id); await load(); } catch { /* */ }
+    try { const supabase = createClient(); await supabase.from("memories").delete().eq("id", id); if (openId === id) setOpenId(null); await load(); } catch { /* */ }
+  }
+
+  // ── abrir/cerrar el editor de una memoria ──
+  function openMemory(m: Memory) {
+    if (openId === m.id) { setOpenId(null); return; }
+    setOpenId(m.id);
+    setDraft(m.content ?? "");
+    setStatus(null);
+    const cfg = (m.config?.github ?? {}) as GithubConfig;
+    setGh({
+      repo: cfg.repo ?? "",
+      branch: cfg.branch ?? "main",
+      path: cfg.path ?? `memorias/${slugify(m.name)}.md`,
+      token: cfg.token ?? "",
+    });
+  }
+
+  // ── guardar contenido markdown (sync real entre dispositivos vía la cuenta) ──
+  async function saveContent(m: Memory) {
+    setSavingContent(true); setStatus(null);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("memories").update({ content: draft }).eq("id", m.id);
+      if (error) { setStatus({ kind: "err", msg: error.message }); }
+      else { setStatus({ kind: "ok", msg: "Contenido guardado y sincronizado en tu cuenta." }); await load(); }
+    } catch (e) { setStatus({ kind: "err", msg: e instanceof Error ? e.message : "Error al guardar" }); }
+    setSavingContent(false);
+  }
+
+  // ── exportar el contenido como archivo .md ──
+  function exportMd(m: Memory) {
+    try {
+      const blob = new Blob([draft ?? ""], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `${slugify(m.name)}.md`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { setStatus({ kind: "err", msg: e instanceof Error ? e.message : "No se pudo exportar" }); }
+  }
+
+  // ── importar un .md y volcarlo al editor ──
+  function importMd(file: File | null) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setDraft(String(reader.result ?? ""));
+      setStatus({ kind: "ok", msg: `Importado "${file.name}". Pulsa "Guardar" para sincronizar.` });
+    };
+    reader.onerror = () => setStatus({ kind: "err", msg: "No se pudo leer el archivo." });
+    reader.readAsText(file);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  // ── guardar config GitHub (repo/branch/path/token) en memories.config ──
+  async function saveGithubConfig(m: Memory) {
+    setSavingGh(true); setStatus(null);
+    try {
+      const supabase = createClient();
+      const nextConfig: MemoryConfig = { ...(m.config ?? {}), github: { ...gh } };
+      const { error } = await supabase.from("memories").update({ config: nextConfig }).eq("id", m.id);
+      if (error) { setStatus({ kind: "err", msg: error.message }); }
+      else { setStatus({ kind: "ok", msg: "Configuración de GitHub guardada." }); await load(); }
+    } catch (e) { setStatus({ kind: "err", msg: e instanceof Error ? e.message : "Error al guardar config" }); }
+    setSavingGh(false);
+  }
+
+  // ── sincronizar a GitHub vía el bot (action: push) ──
+  async function syncGithub(m: Memory) {
+    if (!gh.repo || !gh.token) { setStatus({ kind: "err", msg: "Indica repo (owner/repo) y un PAT de GitHub." }); return; }
+    setSyncing(true); setStatus(null);
+    try {
+      const res = await fetch(BOT_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account_id: userId,
+          repo: gh.repo,
+          token: gh.token,
+          branch: gh.branch || "main",
+          path: gh.path || `memorias/${slugify(m.name)}.md`,
+          content: draft ?? "",
+          action: "push",
+        }),
+      });
+      let data: Record<string, unknown> = {};
+      try { data = await res.json(); } catch { /* respuesta no-JSON */ }
+      if (res.ok && data.ok) {
+        const url = typeof data.html_url === "string" ? data.html_url : "";
+        setStatus({ kind: "ok", msg: `Sincronizado a GitHub${url ? ` · ${url}` : ""}` });
+      } else {
+        setStatus({ kind: "err", msg: `GitHub: ${String(data.error ?? `HTTP ${res.status}`)}` });
+      }
+    } catch (e) { setStatus({ kind: "err", msg: e instanceof Error ? e.message : "Fallo al contactar el bot" }); }
+    setSyncing(false);
   }
 
   if (!userId) {
@@ -128,7 +249,7 @@ export function MemoryHub() {
             <div className="flex flex-wrap gap-1.5">
               {STORES.map(([v, l]) => <button key={v} onClick={() => toggle(storage, v, setStorage)} className={cn("text-[11px] rounded-full px-2.5 py-1 border transition", storage.includes(v) ? "bg-cyan-600/25 border-cyan-400/50 text-white" : "bg-white/5 border-white/10 text-white/60 hover:border-cyan-400/30")}>{l}</button>)}
             </div>
-            {storage.some((s) => s !== "account") && <div className="text-[10px] text-cyan-300/60 mt-1">La conexión real con Drive/Obsidian/GitHub se activa en la siguiente fase; por ahora se guarda tu preferencia.</div>}
+            {storage.some((s) => s !== "account") && <div className="text-[10px] text-cyan-300/60 mt-1">Drive/Obsidian se activan por OAuth en una fase posterior; GitHub ya se puede sincronizar desde cada memoria. Por ahora se guarda tu preferencia.</div>}
           </div>
           <div className="flex items-center gap-2"><Switch checked={sync} onCheckedChange={setSync} /><span className="text-xs text-white/70">Sincronización automática en toda la cuenta y dispositivos</span></div>
           <div className="flex gap-2 pt-1">
@@ -145,13 +266,74 @@ export function MemoryHub() {
         ) : (
           <div className="space-y-2">
             {items.map((m) => (
-              <div key={m.id} className="rounded-lg border border-white/10 bg-white/5 p-3 flex items-start gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white">{m.name}</div>
-                  <div className="flex flex-wrap gap-1 mt-1">{m.kinds.map((k) => <Badge key={k} variant="outline" className="text-[9px] border-fuchsia-500/30 text-fuchsia-200/80">{(KINDS.find((x) => x[0] === k) || [k, k])[1]}</Badge>)}</div>
-                  <div className="text-[10px] text-white/40 mt-1">{(SCOPES.find((x) => x[0] === m.scope) || ["", m.scope])[1]} · {m.format} · {(m.storage || []).join(", ")} · {m.sync ? "sync ✓" : "sin sync"}</div>
+              <div key={m.id} className="rounded-lg border border-white/10 bg-white/5">
+                <div className="p-3 flex items-start gap-3">
+                  <button onClick={() => openMemory(m)} className="flex-1 min-w-0 text-left group">
+                    <div className="text-sm font-medium text-white group-hover:text-fuchsia-200 transition flex items-center gap-1.5"><FileText className="w-3.5 h-3.5 text-fuchsia-300/70" /> {m.name}</div>
+                    <div className="flex flex-wrap gap-1 mt-1">{m.kinds.map((k) => <Badge key={k} variant="outline" className="text-[9px] border-fuchsia-500/30 text-fuchsia-200/80">{(KINDS.find((x) => x[0] === k) || [k, k])[1]}</Badge>)}</div>
+                    <div className="text-[10px] text-white/40 mt-1">{(SCOPES.find((x) => x[0] === m.scope) || ["", m.scope])[1]} · {m.format} · {(m.storage || []).join(", ")} · {m.sync ? "sync ✓" : "sin sync"}</div>
+                  </button>
+                  <button onClick={() => remove(m.id)} className="text-white/30 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                 </div>
-                <button onClick={() => remove(m.id)} className="text-white/30 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+
+                {openId === m.id && (
+                  <div className="border-t border-white/10 p-3 space-y-3">
+                    {/* Editor de contenido markdown (sincroniza entre dispositivos vía la cuenta) */}
+                    <div>
+                      <div className="text-[11px] text-white/50 mb-1 flex items-center gap-1"><FileText className="w-3 h-3" /> Contenido (markdown · sincroniza entre dispositivos vía tu cuenta)</div>
+                      <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`# ${m.name}\n\nEscribe aquí el contenido de esta memoria…`} className="bg-black/40 border-white/10 text-xs font-mono min-h-[160px]" />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" className="gap-1.5 bg-fuchsia-600 hover:bg-fuchsia-500" disabled={savingContent} onClick={() => saveContent(m)}>{savingContent ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Guardar</Button>
+                      <Button size="sm" variant="outline" className="gap-1.5 border-cyan-400/30 text-cyan-100 hover:bg-cyan-900/20" onClick={() => exportMd(m)}><Download className="w-3.5 h-3.5" /> Exportar .md</Button>
+                      <Button size="sm" variant="outline" className="gap-1.5 border-cyan-400/30 text-cyan-100 hover:bg-cyan-900/20" onClick={() => fileRef.current?.click()}><Upload className="w-3.5 h-3.5" /> Importar .md</Button>
+                      <input ref={fileRef} type="file" accept=".md,.markdown,text/markdown,text/plain" className="hidden" onChange={(e) => importMd(e.target.files?.[0] ?? null)} />
+                    </div>
+
+                    {/* Sincronización a GitHub (solo si storage incluye github) */}
+                    {(m.storage || []).includes("github") && (
+                      <div className="rounded-lg border border-white/10 bg-black/30 p-3 space-y-2">
+                        <div className="text-[11px] text-white/60 flex items-center gap-1.5"><Github className="w-3.5 h-3.5" /> Sincronizar con GitHub (repo-memoria)</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <label className="text-[10px] text-white/50">Repositorio (owner/repo)
+                            <Input value={gh.repo ?? ""} onChange={(e) => setGh((g) => ({ ...g, repo: e.target.value }))} placeholder="usuario/mi-repo-memoria" className="mt-1 bg-white/5 text-xs h-8" />
+                          </label>
+                          <label className="text-[10px] text-white/50">Rama
+                            <Input value={gh.branch ?? ""} onChange={(e) => setGh((g) => ({ ...g, branch: e.target.value }))} placeholder="main" className="mt-1 bg-white/5 text-xs h-8" />
+                          </label>
+                          <label className="text-[10px] text-white/50">Ruta del archivo
+                            <Input value={gh.path ?? ""} onChange={(e) => setGh((g) => ({ ...g, path: e.target.value }))} placeholder={`memorias/${slugify(m.name)}.md`} className="mt-1 bg-white/5 text-xs h-8" />
+                          </label>
+                          <label className="text-[10px] text-white/50">PAT de GitHub
+                            <Input type="password" value={gh.token ?? ""} onChange={(e) => setGh((g) => ({ ...g, token: e.target.value }))} placeholder="ghp_…" className="mt-1 bg-white/5 text-xs h-8" />
+                          </label>
+                        </div>
+                        <div className="text-[10px] text-amber-300/70">🔐 El PAT se guarda en la configuración de la memoria. Se cifrará en bóveda en una fase posterior.</div>
+                        <div className="flex flex-wrap gap-2 pt-0.5">
+                          <Button size="sm" variant="outline" className="gap-1.5 border-white/15 text-white/80 hover:bg-white/10" disabled={savingGh} onClick={() => saveGithubConfig(m)}>{savingGh ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Guardar config</Button>
+                          <Button size="sm" className="gap-1.5 bg-cyan-600 hover:bg-cyan-500" disabled={syncing} onClick={() => syncGithub(m)}>{syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Sincronizar a GitHub</Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Drive / Obsidian: honesto — conexión OAuth próximamente */}
+                    {((m.storage || []).includes("drive") || (m.storage || []).includes("obsidian")) && (
+                      <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-[11px] text-white/55 flex items-start gap-2">
+                        <Cloud className="w-3.5 h-3.5 mt-0.5 text-cyan-300/70 shrink-0" />
+                        <span>
+                          {(m.storage || []).includes("drive") && "Google Drive"}
+                          {(m.storage || []).includes("drive") && (m.storage || []).includes("obsidian") && " · "}
+                          {(m.storage || []).includes("obsidian") && "Obsidian"}
+                          {": conexión OAuth próximamente. Por ahora usa Exportar/Importar .md o GitHub para sincronizar."}
+                        </span>
+                      </div>
+                    )}
+
+                    {status && (
+                      <div className={cn("text-[11px] rounded px-2 py-1.5 break-words", status.kind === "ok" ? "bg-emerald-900/30 text-emerald-200 border border-emerald-500/30" : "bg-red-900/30 text-red-200 border border-red-500/30")}>{status.msg}</div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
