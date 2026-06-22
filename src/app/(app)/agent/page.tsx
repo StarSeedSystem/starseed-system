@@ -358,6 +358,7 @@ function AgentPageInner() {
           <TabsTrigger value="telegram" className="gap-2"><Bot className="w-4 h-4" /> Telegram</TabsTrigger>
           <TabsTrigger value="memorias" className="gap-2"><Brain className="w-4 h-4" /> Memorias</TabsTrigger>
           <TabsTrigger value="baules" className="gap-2"><Layers className="w-4 h-4" /> Baúles</TabsTrigger>
+          <TabsTrigger value="mapa3d" className="gap-2"><Sparkles className="w-4 h-4" /> Mapa 3D</TabsTrigger>
           <TabsTrigger value="runtimes" className="gap-2"><Server className="w-4 h-4" /> Agentes</TabsTrigger>
         </TabsList>
 
@@ -781,6 +782,8 @@ function AgentPageInner() {
         <TabsContent value="memorias" className="flex-1 min-h-0 overflow-y-auto"><MemoryHub /></TabsContent>
 
         <TabsContent value="baules" className="flex-1 min-h-0 overflow-y-auto"><VaultsPanel /></TabsContent>
+
+        <TabsContent value="mapa3d" className="flex-1 min-h-0 overflow-y-auto"><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-fuchsia-500 to-cyan-500 flex items-center justify-center text-3xl">🌐</div><div className="text-lg font-semibold text-cyan-50">Mapa 3D de memorias</div><p className="text-sm text-white/50 max-w-md">Visualiza tus baúles, memorias y conexiones como un grafo 3D interactivo, con vistas múltiples, ramificación y la ayuda de Astraura para organizarlo.</p><Link href="/memorias-3d"><Button className="gap-2 bg-cyan-600 hover:bg-cyan-500"><Sparkles className="w-4 h-4" /> Abrir mapa 3D</Button></Link></div></TabsContent>
 
         <TabsContent value="runtimes" className="flex-1 min-h-0 overflow-y-auto"><AgentRuntimePanel /></TabsContent>
 
