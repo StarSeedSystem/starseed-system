@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GroupGovernance } from "@/components/group/group-governance";
 import { GroupMembers } from "@/components/group/group-members";
+import { GovernanceModeBadge } from "@/components/governance/permission-gate";
 import {
   Brain,
   Plus,
@@ -165,8 +166,10 @@ export function GroupAIStudio({ groupId, groupName }: { groupId: string; groupNa
       <div className="rounded-lg border border-cyan-400/20 bg-cyan-500/5 p-3 flex items-start gap-2">
         <Info className="w-4 h-4 text-cyan-300 mt-0.5 shrink-0" />
         <div className="text-xs text-white/70 leading-relaxed">
-          <span className="text-cyan-200 font-medium">AI Studio del grupo</span> — configuración gestionada
-          democráticamente por sus miembros mediante propuestas y votos.
+          <span className="inline-flex items-center gap-2 flex-wrap"><span className="text-cyan-200 font-medium">AI Studio del grupo</span><GovernanceModeBadge scope="group" scopeRef={groupId} /></span> — configuración gestionada
+          según el modo de gobernanza del grupo. En modo democrático los cambios se deciden
+          mediante propuestas y votos; en modo jerárquico un admin puede aplicarlos directamente,
+          pero la opción democrática siempre está disponible.
           <span className="block text-[11px] text-cyan-300/70 mt-1 flex items-center gap-1">
             <Users className="w-3 h-3" /> Únete al grupo desde la pestaña{" "}
             <span className="text-cyan-200 font-medium">Miembros</span> para proponer, votar y aplicar cambios.
