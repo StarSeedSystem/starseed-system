@@ -1,0 +1,690 @@
+"use client";
+
+/**
+ * Cerebros (Brains) — CRUD + ensamblado + selección por contexto sobre Supabase
+ * (RLS por owner). Un "cerebro" es el contenedor maestro que empaqueta TODO el
+ * contexto del usuario: memorias, baúles y carpetas, conexiones, sistemas de IA
+ * (configs y adaptaciones a Astraura y Aurora), permisos, accesos, ficheros,
+ * configuraciones, APIs, cuentas, fuentes y servidores. Un cerebro puede
+ * conectarse a Higgsfield, a cualquier servicio de servidor online, o a un
+ * servidor local configurado para actuar como cerebro en un equipo totalmente
+ * funcional, online y sincronizado.
+ *
+ * Sigue el patrón de src/lib/storage/backends.ts y src/lib/aurora/personalities.ts.
+ */
+
+import { createClient } from "@/utils/supabase/client";
+
+/* ------------------------------------------------------------------ */
+/* Tipos                                                               */
+/* ------------------------------------------------------------------ */
+
+export type BrainScope = "account" | "profile" | "group" | "page";
+
+export type BrainServerKind = "higgsfield" | "online" | "vps" | "local" | "runtime";
+
+export interface BrainServer {
+  id: string;
+  kind: BrainServerKind | string;
+  name: string;
+  endpoint?: string;
+  /** Nombre de la clave en la bóveda (secrets_vault). Nunca el valor en claro. */
+  keyRef?: string;
+  status?: string;
+  notes?: string;
+  /** Campos extra según el tipo (p.ej. syncthingFolderId, runtimeId). */
+  [k: string]: unknown;
+}
+
+export interface BrainPermission {
+  who: string;
+  level: "lectura" | "escritura" | "admin" | string;
+}
+
+export interface BrainIncludes {
+  vaults: string[];
+  backends: string[];
+  personalities: string[];
+  runtimes: string[];
+  tokens: string[];
+  memories: string[];
+  connections: string[];
+  /** Vincular automáticamente TODO lo que exista en este alcance. */
+  bindScope: boolean;
+  /** Lista editable de permisos (a quién, qué nivel). */
+  permissions: BrainPermission[] | Record<string, unknown>;
+  /** Id del proveedor/config de IA que este cerebro usa para Astraura. */
+  aiProvider?: string;
+}
+
+export interface Brain {
+  id: string;
+  owner?: string;
+  name: string;
+  scope: string;
+  scope_ref: string | null;
+  description: string;
+  config: Record<string, unknown>;
+  includes: BrainIncludes;
+  servers: BrainServer[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface BrainSelection {
+  owner?: string;
+  context: string;
+  context_ref: string | null;
+  brain_id: string;
+  server_ids: string[];
+  updated_at?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Catálogo de tipos de servidor                                       */
+/* ------------------------------------------------------------------ */
+
+export interface ServerField {
+  key: string;
+  label: string;
+}
+
+export interface ServerKind {
+  id: BrainServerKind;
+  label: string;
+  blurb: string;
+  icon?: string;
+  fields: ServerField[];
+}
+
+export const SERVER_KINDS: ServerKind[] = [
+  {
+    id: "higgsfield",
+    label: "Higgsfield",
+    blurb: "Servicio de IA/render en la nube",
+    icon: "🎬",
+    fields: [
+      { key: "endpoint", label: "Base URL/API" },
+      { key: "keyRef", label: "Clave (nombre en bóveda)" },
+    ],
+  },
+  {
+    id: "online",
+    label: "Servidor online (cualquiera)",
+    blurb: "Cualquier servicio de servidor online (API/endpoint propio).",
+    icon: "🌐",
+    fields: [
+      { key: "endpoint", label: "Base URL/API" },
+      { key: "keyRef", label: "Clave (nombre en bóveda)" },
+    ],
+  },
+  {
+    id: "vps",
+    label: "VPS (Hostinger/otro)",
+    blurb: "Tu VPS (Hostinger u otro) actuando como servidor del cerebro.",
+    icon: "🖥️",
+    fields: [
+      { key: "endpoint", label: "Base URL/API" },
+      { key: "keyRef", label: "Clave (nombre en bóveda)" },
+    ],
+  },
+  {
+    id: "local",
+    label: "Servidor local (este equipo como cerebro)",
+    blurb: "Un equipo local, totalmente funcional, online y sincronizado, actuando como cerebro.",
+    icon: "💻",
+    fields: [
+      { key: "endpoint", label: "URL local (p.ej. http://localhost:8800)" },
+      { key: "syncthingFolderId", label: "Carpeta Syncthing (opcional)" },
+    ],
+  },
+  {
+    id: "runtime",
+    label: "Runtime de agente existente",
+    blurb: "Reutiliza un runtime de agente ya configurado como servidor del cerebro.",
+    icon: "🤖",
+    fields: [{ key: "runtimeId", label: "Runtime" }],
+  },
+];
+
+export function serverKindById(id: string): ServerKind | undefined {
+  return SERVER_KINDS.find((k) => k.id === id);
+}
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+async function uid(): Promise<string | null> {
+  try {
+    const sb = createClient();
+    const { data } = await sb.auth.getUser();
+    return data?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function emptyIncludes(): BrainIncludes {
+  return {
+    vaults: [],
+    backends: [],
+    personalities: [],
+    runtimes: [],
+    tokens: [],
+    memories: [],
+    connections: [],
+    bindScope: false,
+    permissions: [],
+    aiProvider: undefined,
+  };
+}
+
+function normalizeIncludes(raw: unknown): BrainIncludes {
+  const r = (raw || {}) as Partial<BrainIncludes>;
+  const arr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
+  return {
+    vaults: arr(r.vaults),
+    backends: arr(r.backends),
+    personalities: arr(r.personalities),
+    runtimes: arr(r.runtimes),
+    tokens: arr(r.tokens),
+    memories: arr(r.memories),
+    connections: arr(r.connections),
+    bindScope: !!r.bindScope,
+    permissions: (r.permissions as BrainPermission[]) ?? [],
+    aiProvider: (r.aiProvider as string) || undefined,
+  };
+}
+
+function normalizeBrain(row: Record<string, unknown>): Brain {
+  return {
+    id: String(row.id ?? ""),
+    owner: (row.owner as string) ?? undefined,
+    name: (row.name as string) || "Cerebro",
+    scope: (row.scope as string) || "account",
+    scope_ref: (row.scope_ref as string) ?? null,
+    description: (row.description as string) || "",
+    config: ((row.config as Record<string, unknown>) || {}),
+    includes: normalizeIncludes(row.includes),
+    servers: Array.isArray(row.servers) ? (row.servers as BrainServer[]) : [],
+    created_at: (row.created_at as string) ?? undefined,
+    updated_at: (row.updated_at as string) ?? undefined,
+  };
+}
+
+export function newServerId(): string {
+  try {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  } catch {
+    /* */
+  }
+  return `srv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* CRUD de cerebros                                                    */
+/* ------------------------------------------------------------------ */
+
+export async function listBrains(scope?: string, scopeRef?: string | null): Promise<Brain[]> {
+  try {
+    const owner = await uid();
+    if (!owner) return [];
+    const sb = createClient();
+    let q = sb.from("brains").select("*").eq("owner", owner).order("updated_at", { ascending: false });
+    if (scope) q = q.eq("scope", scope);
+    if (scope && scope !== "account" && scopeRef) q = q.eq("scope_ref", scopeRef);
+    const { data } = await q;
+    return ((data as Record<string, unknown>[]) || []).map(normalizeBrain);
+  } catch {
+    return [];
+  }
+}
+
+export async function getBrain(id: string): Promise<Brain | null> {
+  try {
+    const owner = await uid();
+    if (!owner) return null;
+    const sb = createClient();
+    const { data } = await sb.from("brains").select("*").eq("owner", owner).eq("id", id).single();
+    return data ? normalizeBrain(data as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Inserta o actualiza un cerebro. Devuelve la fila guardada (o null). */
+export async function saveBrain(brain: Partial<Brain>): Promise<Brain | null> {
+  try {
+    const owner = await uid();
+    if (!owner) return null;
+    const sb = createClient();
+    const payload: Record<string, unknown> = {
+      owner,
+      name: brain.name || "Cerebro",
+      scope: brain.scope || "account",
+      scope_ref: brain.scope && brain.scope !== "account" ? brain.scope_ref ?? null : null,
+      description: brain.description ?? "",
+      config: brain.config ?? {},
+      includes: brain.includes ? normalizeIncludes(brain.includes) : emptyIncludes(),
+      servers: Array.isArray(brain.servers) ? brain.servers : [],
+      updated_at: new Date().toISOString(),
+    };
+    if (brain.id) payload.id = brain.id;
+    const { data } = await sb.from("brains").upsert(payload).select("*").single();
+    return data ? normalizeBrain(data as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteBrain(id: string): Promise<boolean> {
+  try {
+    const owner = await uid();
+    if (!owner) return false;
+    const sb = createClient();
+    await sb.from("brain_selections").delete().eq("owner", owner).eq("brain_id", id);
+    await sb.from("brains").delete().eq("owner", owner).eq("id", id);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function duplicateBrain(brain: Brain): Promise<Brain | null> {
+  return saveBrain({
+    name: `${brain.name} (copia)`,
+    scope: brain.scope,
+    scope_ref: brain.scope_ref,
+    description: brain.description,
+    config: brain.config,
+    includes: brain.includes,
+    // Regenera IDs de servidor para que no colisionen entre copias.
+    servers: (brain.servers || []).map((s) => ({ ...s, id: newServerId() })),
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Servidores (operan sobre brains.servers jsonb)                      */
+/* ------------------------------------------------------------------ */
+
+export async function addServer(brain: Brain, server: Partial<BrainServer>): Promise<Brain | null> {
+  const next: BrainServer = {
+    id: server.id || newServerId(),
+    kind: server.kind || "online",
+    name: server.name || serverKindById(String(server.kind))?.label || "Servidor",
+    endpoint: server.endpoint,
+    keyRef: server.keyRef,
+    status: server.status || "pendiente",
+    notes: server.notes,
+    ...server,
+  };
+  next.id = server.id || next.id;
+  const servers = [...(brain.servers || []), next];
+  return saveBrain({ ...brain, servers });
+}
+
+export async function removeServer(brain: Brain, serverId: string): Promise<Brain | null> {
+  const servers = (brain.servers || []).filter((s) => s.id !== serverId);
+  return saveBrain({ ...brain, servers });
+}
+
+export async function updateServer(
+  brain: Brain,
+  serverId: string,
+  patch: Partial<BrainServer>,
+): Promise<Brain | null> {
+  const servers = (brain.servers || []).map((s) => (s.id === serverId ? { ...s, ...patch, id: s.id } : s));
+  return saveBrain({ ...brain, servers });
+}
+
+/* ------------------------------------------------------------------ */
+/* Selección por contexto (brain_selections)                           */
+/* ------------------------------------------------------------------ */
+
+export async function selectBrainForContext(
+  context: string,
+  contextRef: string | null,
+  brainId: string,
+  serverIds: string[],
+): Promise<BrainSelection | null> {
+  try {
+    const owner = await uid();
+    if (!owner) return null;
+    const sb = createClient();
+    const payload = {
+      owner,
+      context,
+      context_ref: contextRef ?? "",
+      brain_id: brainId,
+      server_ids: serverIds ?? [],
+      updated_at: new Date().toISOString(),
+    };
+    const { data } = await sb
+      .from("brain_selections")
+      .upsert(payload, { onConflict: "owner,context,context_ref" })
+      .select("*")
+      .single();
+    if (!data) return null;
+    const d = data as Record<string, unknown>;
+    return {
+      owner: d.owner as string,
+      context: d.context as string,
+      context_ref: (d.context_ref as string) ?? null,
+      brain_id: d.brain_id as string,
+      server_ids: Array.isArray(d.server_ids) ? (d.server_ids as string[]) : [],
+      updated_at: d.updated_at as string,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function getSelection(context: string, contextRef: string | null): Promise<BrainSelection | null> {
+  try {
+    const owner = await uid();
+    if (!owner) return null;
+    const sb = createClient();
+    const { data } = await sb
+      .from("brain_selections")
+      .select("*")
+      .eq("owner", owner)
+      .eq("context", context)
+      .eq("context_ref", contextRef ?? "")
+      .maybeSingle();
+    if (!data) return null;
+    const d = data as Record<string, unknown>;
+    return {
+      context: d.context as string,
+      context_ref: (d.context_ref as string) ?? null,
+      brain_id: d.brain_id as string,
+      server_ids: Array.isArray(d.server_ids) ? (d.server_ids as string[]) : [],
+      updated_at: d.updated_at as string,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function listSelections(): Promise<BrainSelection[]> {
+  try {
+    const owner = await uid();
+    if (!owner) return [];
+    const sb = createClient();
+    const { data } = await sb
+      .from("brain_selections")
+      .select("*")
+      .eq("owner", owner)
+      .order("updated_at", { ascending: false });
+    return ((data as Record<string, unknown>[]) || []).map((d) => ({
+      context: d.context as string,
+      context_ref: (d.context_ref as string) ?? null,
+      brain_id: d.brain_id as string,
+      server_ids: Array.isArray(d.server_ids) ? (d.server_ids as string[]) : [],
+      updated_at: d.updated_at as string,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Catálogo de subsistemas (para poblar los multi-selects)             */
+/* ------------------------------------------------------------------ */
+
+export interface NamedRef {
+  id: string;
+  name: string;
+  meta?: string;
+}
+
+/** Lee de forma defensiva una tabla owner-scoped y devuelve {id,name,meta}. */
+async function listNamed(
+  table: string,
+  nameCol: string,
+  metaCol?: string,
+): Promise<NamedRef[]> {
+  try {
+    const owner = await uid();
+    if (!owner) return [];
+    const sb = createClient();
+    const { data, error } = await sb.from(table).select("*").eq("owner", owner);
+    if (error) return [];
+    return ((data as Record<string, unknown>[]) || []).map((r) => ({
+      id: String(r.id ?? r[nameCol] ?? ""),
+      name: String(r[nameCol] ?? r.name ?? "(sin nombre)"),
+      meta: metaCol ? (r[metaCol] != null ? String(r[metaCol]) : undefined) : undefined,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export interface BrainCatalog {
+  vaults: NamedRef[];
+  backends: NamedRef[];
+  personalities: NamedRef[];
+  runtimes: NamedRef[];
+  tokens: NamedRef[];
+  memories: NamedRef[];
+}
+
+/** Carga todos los subsistemas que un cerebro puede empaquetar. */
+export async function loadBrainCatalog(): Promise<BrainCatalog> {
+  const [vaults, backends, personalities, runtimes, tokens, memories] = await Promise.all([
+    listNamed("vaults", "name", "scope"),
+    listNamed("storage_backends", "name", "kind"),
+    listNamed("aurora_personalities", "name"),
+    listNamed("agent_runtimes", "name", "mode"),
+    listNamed("provider_tokens", "label", "scope"),
+    listNamed("memories", "name", "vault_id"),
+  ]);
+  return { vaults, backends, personalities, runtimes, tokens, memories };
+}
+
+/* ------------------------------------------------------------------ */
+/* Ensamblado / Export / Import                                        */
+/* ------------------------------------------------------------------ */
+
+export interface BrainBundle {
+  starseedBrain: 1;
+  exportedAt: string;
+  brain: {
+    name: string;
+    scope: string;
+    description: string;
+    config: Record<string, unknown>;
+    bindScope: boolean;
+    permissions: unknown;
+    aiProvider?: string;
+    servers: BrainServer[];
+  };
+  contents: {
+    vaults: string[];
+    backends: string[];
+    personalities: string[];
+    runtimes: string[];
+    tokens: string[];
+    memories: string[];
+    connections: string[];
+  };
+}
+
+/**
+ * Reúne las filas referenciadas (nombres de baúles/almacenes/personalidad/
+ * runtimes, ETIQUETAS de tokens — NUNCA valores secretos, id de proveedor de IA)
+ * en un objeto JSON portable para exportar (.brain.json).
+ */
+export async function assembleBrainBundle(brainId: string): Promise<BrainBundle | null> {
+  const brain = await getBrain(brainId);
+  if (!brain) return null;
+  const cat = await loadBrainCatalog();
+  const inc = brain.includes;
+
+  const nameOf = (refs: NamedRef[], ids: string[]) =>
+    ids.map((id) => refs.find((r) => r.id === id)?.name ?? id);
+
+  return {
+    starseedBrain: 1,
+    exportedAt: new Date().toISOString(),
+    brain: {
+      name: brain.name,
+      scope: brain.scope,
+      description: brain.description,
+      config: brain.config,
+      bindScope: inc.bindScope,
+      permissions: inc.permissions,
+      aiProvider: inc.aiProvider,
+      // Servidores sin claves en claro: sólo keyRef (nombre en bóveda).
+      servers: (brain.servers || []).map((s) => ({ ...s, keyRef: s.keyRef })),
+    },
+    contents: {
+      vaults: nameOf(cat.vaults, inc.vaults),
+      backends: nameOf(cat.backends, inc.backends),
+      personalities: nameOf(cat.personalities, inc.personalities),
+      runtimes: nameOf(cat.runtimes, inc.runtimes),
+      tokens: nameOf(cat.tokens, inc.tokens),
+      memories: nameOf(cat.memories, inc.memories),
+      connections: inc.connections,
+    },
+  };
+}
+
+/**
+ * Crea un nuevo cerebro a partir de un bundle exportado. Re-vincula por nombre
+ * cuando es posible; si no encuentra el subsistema, conserva el nombre como
+ * metadato en config.unlinked para no perder información.
+ */
+export async function importBrainBundle(json: unknown): Promise<Brain | null> {
+  try {
+    const bundle = (typeof json === "string" ? JSON.parse(json) : json) as Partial<BrainBundle>;
+    const b = bundle?.brain;
+    if (!b) return null;
+    const cat = await loadBrainCatalog();
+
+    const linkByName = (refs: NamedRef[], names: string[] = []) => {
+      const linked: string[] = [];
+      const unlinked: string[] = [];
+      for (const n of names) {
+        const hit = refs.find((r) => r.name === n);
+        if (hit) linked.push(hit.id);
+        else unlinked.push(n);
+      }
+      return { linked, unlinked };
+    };
+
+    const c = bundle.contents || ({} as BrainBundle["contents"]);
+    const v = linkByName(cat.vaults, c.vaults);
+    const bk = linkByName(cat.backends, c.backends);
+    const p = linkByName(cat.personalities, c.personalities);
+    const rt = linkByName(cat.runtimes, c.runtimes);
+    const tk = linkByName(cat.tokens, c.tokens);
+    const mm = linkByName(cat.memories, c.memories);
+
+    return saveBrain({
+      name: b.name || "Cerebro importado",
+      scope: b.scope || "account",
+      scope_ref: null,
+      description: b.description || "",
+      config: {
+        ...(b.config || {}),
+        imported: true,
+        unlinked: {
+          vaults: v.unlinked,
+          backends: bk.unlinked,
+          personalities: p.unlinked,
+          runtimes: rt.unlinked,
+          tokens: tk.unlinked,
+          memories: mm.unlinked,
+        },
+      },
+      includes: {
+        vaults: v.linked,
+        backends: bk.linked,
+        personalities: p.linked,
+        runtimes: rt.linked,
+        tokens: tk.linked,
+        memories: mm.linked,
+        connections: c.connections || [],
+        bindScope: !!b.bindScope,
+        permissions: (b.permissions as BrainPermission[]) || [],
+        aiProvider: b.aiProvider,
+      },
+      servers: Array.isArray(b.servers) ? b.servers.map((s) => ({ ...s, id: newServerId() })) : [],
+    });
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Plantillas                                                          */
+/* ------------------------------------------------------------------ */
+
+export interface BrainTemplate {
+  id: string;
+  name: string;
+  description: string;
+  scope: BrainScope;
+  bindScope: boolean;
+  servers: Partial<BrainServer>[];
+}
+
+export const BRAIN_TEMPLATES: BrainTemplate[] = [
+  {
+    id: "personal",
+    name: "Cerebro Personal",
+    description:
+      "Empaqueta todo tu contexto de cuenta: memorias, baúles, conexiones e IA. Vincula automáticamente el alcance de cuenta.",
+    scope: "account",
+    bindScope: true,
+    servers: [],
+  },
+  {
+    id: "grupo",
+    name: "Cerebro de Grupo",
+    description:
+      "Contexto compartido para un grupo: baúles, permisos y servidores del grupo. Pensado para colaborar.",
+    scope: "group",
+    bindScope: false,
+    servers: [],
+  },
+  {
+    id: "creativo",
+    name: "Cerebro Creativo (Higgsfield)",
+    description:
+      "Orientado a creación y render: incluye un servidor Higgsfield preconfigurado para IA/render en la nube.",
+    scope: "account",
+    bindScope: false,
+    servers: [
+      {
+        kind: "higgsfield",
+        name: "Higgsfield",
+        endpoint: "https://api.higgsfield.ai",
+        keyRef: "higgsfield",
+        status: "pendiente",
+      },
+    ],
+  },
+];
+
+/** Construye un Brain (sin persistir) a partir de una plantilla. */
+export function brainFromTemplate(t: BrainTemplate): Partial<Brain> {
+  return {
+    name: t.name,
+    scope: t.scope,
+    scope_ref: null,
+    description: t.description,
+    config: { template: t.id },
+    includes: { ...emptyIncludes(), bindScope: t.bindScope },
+    servers: (t.servers || []).map((s) => ({
+      id: newServerId(),
+      kind: s.kind || "online",
+      name: s.name || serverKindById(String(s.kind))?.label || "Servidor",
+      endpoint: s.endpoint,
+      keyRef: s.keyRef,
+      status: s.status || "pendiente",
+      notes: s.notes,
+    })),
+  };
+}
