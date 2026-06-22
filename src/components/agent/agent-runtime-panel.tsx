@@ -6,10 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Check, X, Wand2 } from "lucide-react";
+import { Plus, Trash2, Check, X, Wand2, Play, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Runtime = { id: string; name: string; mode: string; devices: { name: string }[]; vps: Record<string, string>; agents: string[]; enabled: boolean; created_at: string };
+type DispatchState = { loading: boolean; ok?: boolean; mode?: string; message?: string; open?: boolean; task?: string };
+
+const DISPATCH_URL = "https://starseed-neurocortex.vercel.app/api/agent_dispatch";
 
 const MODES: [string, string, string][] = [
   ["local", "💻 Este dispositivo", "El agente corre aquí, en tu equipo/navegador"],
@@ -31,6 +34,8 @@ export function AgentRuntimePanel() {
   const [agents, setAgents] = useState<string[]>(["hermes"]);
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [tasks, setTasks] = useState<Record<string, string>>({});
+  const [dispatch, setDispatch] = useState<Record<string, DispatchState>>({});
 
   const load = useCallback(async () => {
     try {
@@ -55,6 +60,40 @@ export function AgentRuntimePanel() {
     setSaving(false);
   }
   async function remove(id: string) { try { const supabase = createClient(); await supabase.from("agent_runtimes").delete().eq("id", id); await load(); } catch { /* */ } }
+
+  function panelToggle(id: string) {
+    setDispatch((d) => ({ ...d, [id]: { ...(d[id] || { loading: false }), open: !(d[id]?.open) } }));
+  }
+
+  async function runTask(r: Runtime) {
+    if (!userId) return;
+    const task = (tasks[r.id] || "").trim() || "ping";
+    setDispatch((d) => ({ ...d, [r.id]: { loading: true, open: true, task } }));
+    try {
+      const res = await fetch(DISPATCH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_id: userId, runtime_id: r.id, task }),
+      });
+      const json = await res.json().catch(() => ({}));
+      const okFlag = res.ok && json?.ok !== false;
+      let message: string;
+      if (okFlag && json?.mode === "local") {
+        // Gancho para Hermes en el navegador: aquí se invocaría el runtime local.
+        // De momento dejamos claro que el navegador es quien ejecutaría la tarea.
+        message = `🖥️ Se ejecutaría en el navegador vía Hermes — tarea: "${json?.task ?? task}"`;
+      } else if (okFlag && json?.mode === "vps") {
+        const resultStr = typeof json?.result === "string" ? json.result : JSON.stringify(json?.result ?? {});
+        message = `☁️ VPS respondió: ${resultStr}`;
+      } else {
+        message = json?.error ? `Error: ${json.error}` : `Error HTTP ${res.status}`;
+      }
+      setDispatch((d) => ({ ...d, [r.id]: { loading: false, open: true, ok: okFlag, mode: json?.mode, message, task } }));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setDispatch((d) => ({ ...d, [r.id]: { loading: false, open: true, ok: false, message: `No se pudo contactar el dispatcher: ${msg}`, task } }));
+    }
+  }
 
   if (!userId) return <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-sm text-white/60 m-1">Inicia sesión para configurar tus agentes y servidores.</div>;
 
@@ -114,15 +153,38 @@ export function AgentRuntimePanel() {
       <div>
         <div className="text-[11px] uppercase tracking-widest text-emerald-300/50 mb-2">Tus runtimes</div>
         {items.length === 0 ? <div className="text-sm text-white/40 px-1">Aún no tienes runtimes. Crea uno — empieza con &quot;Este dispositivo&quot; (lo más simple) y añade un VPS cuando quieras.</div> : (
-          <div className="space-y-2">{items.map((r) => (
-            <div key={r.id} className="rounded-lg border border-white/10 bg-white/5 p-3 flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-white">{r.name} {!r.enabled && <span className="text-[10px] text-white/40">(inactivo)</span>}</div>
-                <div className="text-[10px] text-white/45 mt-0.5">{(MODES.find((x) => x[0] === r.mode) || ["", "", ""])[1]} · agentes: {(r.agents || []).join(", ")}{r.mode === "vps" && r.vps?.host ? ` · ${r.vps.host}` : ""}{r.mode === "local_multi" ? ` · ${(r.devices || []).length} disp.` : ""}</div>
+          <div className="space-y-2">{items.map((r) => {
+            const ds = dispatch[r.id] || { loading: false };
+            return (
+            <div key={r.id} className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-white">{r.name} {!r.enabled && <span className="text-[10px] text-white/40">(inactivo)</span>}</div>
+                  <div className="text-[10px] text-white/45 mt-0.5">{(MODES.find((x) => x[0] === r.mode) || ["", "", ""])[1]} · agentes: {(r.agents || []).join(", ")}{r.mode === "vps" && r.vps?.host ? ` · ${r.vps.host}` : ""}{r.mode === "local_multi" ? ` · ${(r.devices || []).length} disp.` : ""}</div>
+                </div>
+                <button onClick={() => panelToggle(r.id)} className={cn("text-white/40 hover:text-emerald-300 transition", ds.open && "text-emerald-300")} title="Probar / Ejecutar"><Play className="w-4 h-4" /></button>
+                <button onClick={() => remove(r.id)} className="text-white/30 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
               </div>
-              <button onClick={() => remove(r.id)} className="text-white/30 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+              {ds.open && (
+                <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+                  <div className="flex gap-1.5">
+                    <Input value={tasks[r.id] ?? ""} onChange={(e) => setTasks((t) => ({ ...t, [r.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter" && !ds.loading) runTask(r); }} placeholder='Tarea de prueba (vacío = "ping")' className="bg-white/5 h-8 text-xs" />
+                    <Button size="sm" className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white" disabled={ds.loading} onClick={() => runTask(r)}>
+                      {ds.loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                      {ds.loading ? "Ejecutando…" : "Probar / Ejecutar"}
+                    </Button>
+                  </div>
+                  {ds.message && (
+                    <div className={cn("rounded-md border px-2.5 py-2 text-[11px] leading-relaxed", ds.ok ? "border-emerald-500/30 bg-emerald-950/30 text-emerald-100" : "border-red-500/30 bg-red-950/30 text-red-100")}>
+                      <div className="flex items-center gap-1.5 mb-0.5 font-medium">{ds.ok ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{ds.ok ? (ds.mode === "vps" ? "VPS" : "Local / navegador") : "Fallo"}</div>
+                      <div className="text-white/80 break-words">{ds.message}</div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          ))}</div>
+            );
+          })}</div>
         )}
       </div>
     </div>
