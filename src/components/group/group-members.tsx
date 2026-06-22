@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Users,
@@ -13,8 +14,13 @@ import {
   Shield,
   User as UserIcon,
   CheckCircle2,
+  Vote,
+  Settings,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PermissionGate } from "@/components/governance/permission-gate";
+import { useGovernanceContext } from "@/lib/governance/permissions";
 
 type Member = {
   group_id: string;
@@ -45,6 +51,14 @@ export function GroupMembers({ groupId }: { groupId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Contexto de gobernanza real del grupo (modo + rol del usuario).
+  const { canActDirectly } = useGovernanceContext("group", groupId);
+
+  // Alta directa de miembro (solo modo jerarquico + admin).
+  const [newMemberId, setNewMemberId] = useState("");
+  const [newMemberRole, setNewMemberRole] = useState("member");
+  const [busyManage, setBusyManage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,6 +126,71 @@ export function GroupMembers({ groupId }: { groupId: string }) {
     setBusy(false);
   }
 
+  // === Gestion directa (solo en modo jerarquico siendo admin/owner) ===
+  // En modo democratico estos cambios se canalizan via PermissionGate -> propuesta.
+  async function addMemberDirect() {
+    if (!canActDirectly) return;
+    if (!newMemberId.trim()) {
+      setError("Indica el ID del perfil a anadir.");
+      return;
+    }
+    setBusyManage("add");
+    setError(null);
+    try {
+      const supabase = createClient();
+      const { error: err } = await supabase
+        .from("group_members")
+        .insert({ group_id: groupId, member: newMemberId.trim(), role: newMemberRole || "member" });
+      if (err) setError(err.message);
+      else {
+        setNewMemberId("");
+        setNewMemberRole("member");
+      }
+      await load();
+    } catch {
+      setError("No se pudo anadir al miembro.");
+    }
+    setBusyManage(null);
+  }
+
+  async function removeMemberDirect(memberId: string) {
+    if (!canActDirectly) return;
+    setBusyManage("rm:" + memberId);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const { error: err } = await supabase
+        .from("group_members")
+        .delete()
+        .eq("group_id", groupId)
+        .eq("member", memberId);
+      if (err) setError(err.message);
+      await load();
+    } catch {
+      setError("No se pudo eliminar al miembro.");
+    }
+    setBusyManage(null);
+  }
+
+  async function changeRoleDirect(memberId: string, nextRole: string) {
+    if (!canActDirectly) return;
+    setBusyManage("role:" + memberId);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const { error: err } = await supabase
+        .from("group_members")
+        .update({ role: nextRole })
+        .eq("group_id", groupId)
+        .eq("member", memberId);
+      if (err) setError(err.message);
+      await load();
+    } catch {
+      setError("No se pudo cambiar el rol.");
+    }
+    setBusyManage(null);
+  }
+
   return (
     <div className="space-y-4">
       {/* Cabecera + acción */}
@@ -160,6 +239,51 @@ export function GroupMembers({ groupId }: { groupId: string }) {
         <div className="text-[11px] rounded px-2 py-1.5 bg-red-900/30 text-red-200 border border-red-500/30 break-words">
           {error}
         </div>
+      )}
+
+      {/* Gestion de miembros segun el modo de gobernanza.
+          Jerarquico + admin -> alta directa; democratico (o no-admin) -> propuesta add_member. */}
+      {userId && (
+        <PermissionGate
+          scope="group"
+          scopeRef={groupId}
+          action="add_member"
+          label="anadir un miembro al grupo"
+          change={{ kind: "add_member", role: "member", label: "nuevo miembro del grupo", note: "Indica el ID del perfil y el rol en el compositor." }}
+        >
+          {/* Control directo (solo visible en jerarquico + admin) */}
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-white">
+              <UserPlus className="w-3.5 h-3.5 text-cyan-300" /> Anadir miembro directamente
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Input
+                value={newMemberId}
+                onChange={(e) => setNewMemberId(e.target.value)}
+                placeholder="ID del perfil (uuid)"
+                className="h-8 flex-1 min-w-[180px] bg-white/5 text-xs"
+              />
+              <select
+                value={newMemberRole}
+                onChange={(e) => setNewMemberRole(e.target.value)}
+                className="h-8 rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
+              >
+                <option value="member">Miembro</option>
+                <option value="admin">Admin</option>
+                <option value="owner">Propietario</option>
+              </select>
+              <Button
+                size="sm"
+                className="gap-1.5 h-8 bg-cyan-600 hover:bg-cyan-500"
+                disabled={busyManage === "add" || !newMemberId.trim()}
+                onClick={addMemberDirect}
+              >
+                {busyManage === "add" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
+                Anadir
+              </Button>
+            </div>
+          </div>
+        </PermissionGate>
       )}
 
       {!userId && !loading && (
@@ -214,6 +338,35 @@ export function GroupMembers({ groupId }: { groupId: string }) {
                 <Badge variant="outline" className={cn("text-[9px] gap-1 shrink-0", meta.color)}>
                   <RoleIcon className="w-2.5 h-2.5" /> {meta.label}
                 </Badge>
+                {/* Controles de admin (modo jerarquico). En democratico, los cambios
+                    de rol/expulsion se proponen a votacion via PermissionGate arriba. */}
+                {canActDirectly && !mine && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <select
+                      value={m.role}
+                      onChange={(e) => changeRoleDirect(m.member, e.target.value)}
+                      disabled={busyManage === "role:" + m.member}
+                      className="h-7 rounded-md border border-white/15 bg-black/40 px-1.5 text-[10px] text-white"
+                      title="Cambiar rol"
+                    >
+                      <option value="member">Miembro</option>
+                      <option value="admin">Admin</option>
+                      <option value="owner">Propietario</option>
+                    </select>
+                    <button
+                      onClick={() => removeMemberDirect(m.member)}
+                      disabled={busyManage === "rm:" + m.member}
+                      className="text-white/30 hover:text-red-400 disabled:opacity-50"
+                      title="Expulsar del grupo"
+                    >
+                      {busyManage === "rm:" + m.member ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <UserMinus className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
