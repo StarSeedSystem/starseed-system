@@ -338,7 +338,10 @@ export function evaluate(
           `.${hierNote}`,
       };
     }
-    if (thresholdMet && t.leader && !(!((proposal.options ?? []).length > 0) && t.leader === "no")) {
+    const hasOpts = (proposal.options ?? []).length > 0;
+    // En sí/no, sólo aprueba si gana "yes"; "no"/"abstain" → rechazada.
+    const leaderApproves = hasOpts ? t.leader != null : t.leader === "yes";
+    if (thresholdMet && leaderApproves) {
       return {
         decided: true,
         status: "passed",
