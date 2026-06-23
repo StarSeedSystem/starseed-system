@@ -8,6 +8,7 @@ import { Dashboard } from "./dashboard-types";
 import { DashboardPanelHeader } from "./dashboard-panel-header";
 import { GridArea } from "./grid-area";
 import { AddWidgetDialog } from "./add-widget-dialog";
+import { DashboardAiSuggestions } from "./dashboard-ai-suggestions";
 import { DashboardWidget, WidgetType } from "./dashboard-types";
 import { cn } from "@/lib/utils";
 import { 
@@ -29,6 +30,8 @@ interface WorkspaceRendererProps {
     onForgeOpen: () => void;
     onCreateDashboard?: () => void;
     onDeleteDashboard?: (id: string) => void;
+    onRenameDashboard?: (id: string) => void;
+    onCreateFromTemplate?: (categoryId: string, name: string) => void;
 }
 
 export function DashboardWorkspaceRenderer(props: WorkspaceRendererProps) {
@@ -102,7 +105,7 @@ function NodeRenderer({ node, ...props }: { node: WorkspaceNode } & WorkspaceRen
     return null;
 }
 
-function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, onPinWidget, onAddWidget, onForgeOpen, onCreateDashboard, onDeleteDashboard }: { node: PanelNode } & WorkspaceRendererProps) {
+function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, onPinWidget, onAddWidget, onForgeOpen, onCreateDashboard, onDeleteDashboard, onRenameDashboard, onCreateFromTemplate }: { node: PanelNode } & WorkspaceRendererProps) {
     const { activeDashboardId, dashboardIds } = node;
     const activeDashboard = dashboards.find(d => d.id === activeDashboardId);
     const panelDashboards = dashboards.filter(d => dashboardIds.includes(d.id));
@@ -198,6 +201,7 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
                     isEditMode={isEditMode}
                     onCreateDashboard={onCreateDashboard}
                     onDeleteDashboard={onDeleteDashboard}
+                    onRenameDashboard={onRenameDashboard}
                 />
             </div>
             {/* Zona-pista para revelar la barra cuando está oculta (hover/tap arriba) */}
@@ -230,12 +234,23 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
                 />
 
                 {isEditMode && (
-                    <div className="flex justify-center mt-6 pb-12 opacity-50 hover:opacity-100 transition-opacity">
-                        <AddWidgetDialog
-                            isEditMode={isEditMode}
-                            onAdd={(type: WidgetType) => onAddWidget(activeDashboard.id, type)}
-                            onForgeOpen={onForgeOpen}
-                        />
+                    <div className="mt-6 pb-12 flex flex-col items-center gap-4">
+                        {/* Astraura — sugerencias proactivas para este tablero */}
+                        <div className="w-full max-w-md">
+                            <DashboardAiSuggestions
+                                widgets={activeWidgets}
+                                dashboardName={activeDashboard.name}
+                                onAddWidget={(type) => onAddWidget(activeDashboard.id, type)}
+                                onCreateFromTemplate={onCreateFromTemplate}
+                            />
+                        </div>
+                        <div className="opacity-50 hover:opacity-100 transition-opacity">
+                            <AddWidgetDialog
+                                isEditMode={isEditMode}
+                                onAdd={(type: WidgetType) => onAddWidget(activeDashboard.id, type)}
+                                onForgeOpen={onForgeOpen}
+                            />
+                        </div>
                     </div>
                 )}
             </div>
