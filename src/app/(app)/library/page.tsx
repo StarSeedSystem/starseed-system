@@ -37,6 +37,14 @@ import {
   SlidersHorizontal,
   X,
   ExternalLink,
+  Store,
+  Send,
+  Link2,
+  PenSquare,
+  LayoutTemplate,
+  Trash2,
+  Bookmark,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -51,6 +59,13 @@ import { StarSeedKnowledgePanel } from "@/components/library/StarSeedKnowledgePa
 import { DesignAssetsPanel } from "@/components/library/DesignAssetsPanel";
 import { articles, courses, files, categories } from "@/lib/data";
 import { samplePages } from "@/data/sample-entities";
+
+// ── Interconexión aditiva (Módulo 8) ──
+// Consumimos el store soberano (NO se modifica) y el puente de share para
+// invocar recursos guardados en lienzo / publicación / mensaje.
+import { useSavedLibrary, type SavedResource } from "@/lib/library-store";
+import { emitAttach, openComposer } from "@/lib/share/bridge";
+import { toast } from "sonner";
 
 // --- Types ---
 
@@ -262,6 +277,224 @@ function ResourceCard({ resource, view }: { resource: UnifiedResource; view: Vie
   );
 }
 
+// ══════════════════════════════════════════════════════════════════
+// MIS RECURSOS GUARDADOS — interconexión aditiva (Módulo 8)
+// Consume el store soberano (useSavedLibrary) y, por cada recurso,
+// ofrece acciones para INVOCARLO en la red:
+//   · Usar en lienzo       → emitAttach({kind:'file', url, title})
+//   · Adjuntar a publicación → openComposer({type:'archivo', content:{url,title}})
+//   · Enviar a mensaje      → copia una referencia compartible al portapapeles
+// Lo que se instala desde la Tienda aterriza aquí (saveResource/installApp).
+// NO modifica library-store.ts ni library-sync.ts: solo los consume.
+// ══════════════════════════════════════════════════════════════════
+
+// Etiqueta legible por tipo de recurso guardado.
+const SAVED_KIND_LABEL: Record<string, string> = {
+  articulos: "Artículo",
+  cursos: "Curso",
+  documentos: "Documento",
+  comunidades: "Comunidad",
+  archivo: "Archivo",
+  app: "App",
+  diseno: "Diseño",
+  pagina: "Página",
+};
+
+function savedKindLabel(kind: string): string {
+  return SAVED_KIND_LABEL[kind] ?? (kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : "Recurso");
+}
+
+// Construye una referencia compartible (deep-link) para enviar a mensajes.
+function buildShareRef(r: SavedResource): string {
+  if (r.url && r.url.trim() && r.url !== "#") return r.url;
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/library?ref=${encodeURIComponent(r.id)}`;
+  }
+  return `starseed://library/${r.id}`;
+}
+
+function SavedResourceCard({
+  resource,
+  onRemove,
+}: {
+  resource: SavedResource;
+  onRemove: (id: string) => void;
+}) {
+  const title = resource.title || "Recurso";
+  const url = resource.url && resource.url !== "#" ? resource.url : undefined;
+
+  // ── Usar en lienzo: lo adjunta a cualquier pizarra/lienzo abierto ──
+  const handleUseInCanvas = () => {
+    emitAttach({ kind: "file", url, title });
+    toast.success("Enviado al lienzo", {
+      description: `«${title}» se adjuntará a la pizarra abierta.`,
+    });
+  };
+
+  // ── Adjuntar a publicación: abre el compositor prerellenado ──
+  const handleAttachToPost = () => {
+    openComposer({ type: "archivo", content: { url, title } });
+    toast.success("Compositor abierto", {
+      description: `«${title}» listo para tu publicación.`,
+    });
+  };
+
+  // ── Enviar a mensaje: copia una referencia compartible al portapapeles ──
+  const handleSendToMessage = async () => {
+    const ref = buildShareRef(resource);
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(ref);
+        toast.success("Referencia copiada", {
+          description: "Pégala en un mensaje para compartir este recurso.",
+        });
+      } else {
+        toast.message("Referencia del recurso", { description: ref });
+      }
+    } catch {
+      toast.message("Referencia del recurso", { description: ref });
+    }
+    // Además emitimos un evento por si la página de mensajes está escuchando.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("starseed:share-to-message", {
+          detail: { id: resource.id, title, url, ref, kind: resource.kind },
+        }),
+      );
+    }
+  };
+
+  return (
+    <GlassCard
+      variant="hover"
+      intensity="low"
+      className="group flex flex-col gap-3 p-4 border-white/5 bg-gradient-to-br from-white/5 to-transparent"
+    >
+      <div className="flex items-start gap-3 min-w-0">
+        <div className="p-2.5 rounded-xl bg-white/5 shrink-0">
+          <Bookmark className="w-6 h-6 text-indigo-300/90" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-gray-100 truncate">{title}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {savedKindLabel(resource.kind)}
+            {resource.origin ? ` · ${resource.origin}` : ""}
+          </p>
+        </div>
+        <button
+          onClick={() => onRemove(resource.id)}
+          className="p-1.5 rounded-full text-muted-foreground hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+          aria-label="Quitar de guardados"
+          title="Quitar de guardados"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Acciones de interconexión */}
+      <div className="flex flex-wrap items-center gap-2 mt-auto">
+        <Button
+          size="sm"
+          className="gap-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer"
+          onClick={handleUseInCanvas}
+        >
+          <LayoutTemplate className="w-3.5 h-3.5" /> Usar en lienzo
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 text-xs border-white/15 hover:bg-white/10 cursor-pointer"
+          onClick={handleAttachToPost}
+        >
+          <PenSquare className="w-3.5 h-3.5" /> Adjuntar a publicación
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 text-xs border-white/15 hover:bg-white/10 cursor-pointer"
+          onClick={handleSendToMessage}
+        >
+          <Send className="w-3.5 h-3.5" /> Enviar a mensaje
+        </Button>
+        {url && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="gap-1.5 text-xs text-muted-foreground hover:text-white cursor-pointer"
+            asChild
+          >
+            <Link href={url}>
+              <ExternalLink className="w-3.5 h-3.5" /> Abrir
+            </Link>
+          </Button>
+        )}
+      </div>
+    </GlassCard>
+  );
+}
+
+function SavedResourcesPanel() {
+  const { items, remove } = useSavedLibrary();
+
+  return (
+    <section className="flex flex-col gap-4 w-full">
+      {/* Cabecera de la sección */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-indigo-500/15 border border-indigo-500/20">
+            <Bookmark className="w-5 h-5 text-indigo-300" />
+          </div>
+          <div>
+            <h2 className="text-[clamp(1.25rem,2.5vw,1.75rem)] font-bold font-headline text-indigo-200">
+              Mis recursos guardados
+            </h2>
+            <p className="text-xs text-muted-foreground max-w-2xl">
+              Tus recursos soberanos (guardados o instalados desde la Tienda). Invócalos en
+              un lienzo, adjúntalos a una publicación o envíalos por mensaje.
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          className="gap-2 border-indigo-500/30 text-indigo-200 hover:bg-indigo-500/10 cursor-pointer shrink-0"
+          asChild
+        >
+          <Link href="/store">
+            <Store className="w-4 h-4" /> Explorar la Tienda
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </Button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground border border-dashed border-white/10 rounded-3xl bg-white/5">
+          <Bookmark className="w-10 h-10 mb-3 opacity-25" />
+          <p className="text-sm">Aún no has guardado recursos.</p>
+          <p className="text-xs mt-1">
+            Guarda recursos del explorador o instala desde la Tienda: aterrizarán aquí.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4 gap-2 border-indigo-500/30 text-indigo-200 hover:bg-indigo-500/10 cursor-pointer"
+            asChild
+          >
+            <Link href="/store">
+              <Store className="w-3.5 h-3.5" /> Ir a la Tienda
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))] gap-3">
+          {items.map((r) => (
+            <SavedResourceCard key={r.id} resource={r} onRemove={remove} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 import { Suspense } from "react";
 
 function LibraryContent() {
@@ -393,6 +626,14 @@ function LibraryContent() {
               ? "Accede al conocimiento y recursos compartidos por toda la red StarSeed."
               : "Tu espacio personal seguro para archivos, ideas y proyectos."}
           </p>
+          {/* Enlace a la Tienda — los recursos instalados aterrizan en «Mis recursos guardados» */}
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5 justify-center md:justify-start">
+            <Store className="w-3.5 h-3.5 text-indigo-300" />
+            <Link href="/store" className="text-indigo-300 hover:text-indigo-200 hover:underline cursor-pointer font-medium">
+              Explorar la Tienda
+            </Link>
+            <span className="opacity-70">— lo que instales aterriza en «Mis recursos guardados».</span>
+          </p>
         </div>
 
         {/* Zone Switcher */}
@@ -421,6 +662,12 @@ function LibraryContent() {
           </button>
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════════════
+          MIS RECURSOS GUARDADOS — interconexión + enlace a Tienda
+          (aditivo: consume el store soberano; siempre visible)
+          ══════════════════════════════════════════════════════ */}
+      <SavedResourcesPanel />
 
       {/* ══════════════════════════════════════════════════════
           EXPLORADOR UNIFICADO — solo en Librería Global / raíz
