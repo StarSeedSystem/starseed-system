@@ -13,6 +13,12 @@
  * inmediatamente visibles en los otros, igual que las alarmas y recordatorios.
  *
  * Diseño: panel "Crystal Liquid Glass" coherente con MASTER.md.
+ *
+ * NOTA (tiempo real): los eventos/recordatorios viven en memoria vía
+ * CalendarProvider (semilla `communityEvents` + items locales, mutados con
+ * useState); no hay tabla Supabase que respaldar, por lo que NO se añade
+ * useRealtime aquí. Cuando el Sincrómetro se conecte a una tabla (p.ej.
+ * eventos o `posts` de tipo evento), suscribir esa tabla y re-cargar.
  */
 
 import { useMemo, useState } from 'react';
