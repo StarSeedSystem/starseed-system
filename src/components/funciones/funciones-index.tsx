@@ -134,6 +134,7 @@ const GROUPS: FeatureGroup[] = [
     icon: Database,
     accent: "cyan",
     features: [
+      { label: "Cuenta e Identidad", route: "/cuenta", blurb: "Tu perfil, @star.seed y correos adjuntos.", icon: Mail },
       { label: "Almacenes multi-fuente", route: "/almacenes", blurb: "Unifica datos de muchas fuentes.", icon: Database },
       { label: "Hub de Conexiones", route: "/conexiones", blurb: "Servicios, cuentas, APIs y agentes.", icon: Link2 },
       { label: "Syncthing", route: "/sincronizacion", blurb: "Sincronización de archivos P2P.", icon: RefreshCw },
