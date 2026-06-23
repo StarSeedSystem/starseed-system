@@ -39,6 +39,12 @@ import {
   ChevronDown,
   Info,
   Code2,
+  Rocket,
+  ExternalLink,
+  Copy,
+  Link2,
+  BrainCircuit,
+  Server,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -68,7 +74,14 @@ import {
   exportApp,
   basename,
   languageForPath,
+  deployApp,
+  runOnBrain,
+  appShareRef,
 } from "@/lib/appgen/appgen";
+
+import { createClient } from "@/utils/supabase/client";
+import { listBrains, type Brain, type BrainServer } from "@/lib/brains/brains";
+import { serversForBrain, listServers } from "@/lib/brains/servers";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Árbol de archivos (deriva carpetas a partir de las rutas planas)
@@ -130,6 +143,19 @@ export default function AiAppGenerator() {
 
   const abortRef = useRef<AbortController | null>(null);
 
+  // Despliegue en la red (ruta /app/{id} donde la app se EJECUTA).
+  const [deploying, setDeploying] = useState(false);
+  const [deployUrl, setDeployUrl] = useState<string | null>(null);
+
+  // Ejecutar en cerebro: id de cuenta + selector de cerebro/servidor.
+  const [userId, setUserId] = useState<string | null>(null);
+  const [brainPickerOpen, setBrainPickerOpen] = useState(false);
+  const [brains, setBrains] = useState<Brain[]>([]);
+  const [pickBrainId, setPickBrainId] = useState<string>("");
+  const [brainServers, setBrainServers] = useState<BrainServer[]>([]);
+  const [loadingBrains, setLoadingBrains] = useState(false);
+  const [runningServerId, setRunningServerId] = useState<string | null>(null);
+
   // Proveedor de IA listo? (mismo patrón que memory-mesh-3d)
   useEffect(() => {
     try {
@@ -138,6 +164,23 @@ export default function AiAppGenerator() {
     } catch {
       setHasProvider(false);
     }
+  }, []);
+
+  // Id de cuenta (para enrutar la ejecución en cerebro). Mismo patrón que brains-panel.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const sb = createClient();
+        const { data } = await sb.auth.getUser();
+        if (alive) setUserId(data?.user?.id ?? null);
+      } catch {
+        if (alive) setUserId(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const activeFile = useMemo(
@@ -347,6 +390,175 @@ export default function AiAppGenerator() {
       toast.error("No se pudo exportar", { description: (err as Error)?.message });
     }
   }, [app]);
+
+  // Copia texto al portapapeles (con fallback). SSR-guard incluido.
+  const copyText = useCallback(async (text: string, ok = "Copiado") => {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        toast.success(ok);
+        return;
+      } catch {
+        /* cae al fallback */
+      }
+    }
+    if (typeof document !== "undefined") {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        toast.success(ok);
+        return;
+      } catch {
+        /* */
+      }
+    }
+    toast.message(text);
+  }, []);
+
+  // Construye la URL absoluta de la app desplegada (/app/{id}).
+  const appUrlFor = useCallback((id: string) => {
+    const path = `/app/${id}`;
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return `${window.location.origin}${path}`;
+    }
+    return path;
+  }, []);
+
+  // Desplegar EN LA RED: guarda si hace falta, marca shared y muestra el enlace /app/{id}.
+  const onDeploy = useCallback(async () => {
+    if (deploying) return;
+    setDeploying(true);
+    const t = toast.loading("Desplegando app en la red…");
+    try {
+      // Asegura que la app está guardada (necesita una fila en generated_apps).
+      let current = app;
+      if (!current.shared || current.updated_at == null) {
+        current = await saveApp({ ...current, shared: true });
+        setApp(current);
+      }
+      const r = await deployApp(current.id);
+      if (!r.ok) {
+        toast.error("No se pudo desplegar", { id: t, description: r.error });
+        return;
+      }
+      setApp((prev) => ({ ...prev, shared: true }));
+      setDeployUrl(r.url ?? `/app/${current.id}`);
+      toast.success("App desplegada en la red", {
+        id: t,
+        description: "Disponible en " + (r.url ?? `/app/${current.id}`),
+      });
+    } catch (err) {
+      toast.error("No se pudo desplegar", { id: t, description: (err as Error)?.message });
+    } finally {
+      setDeploying(false);
+    }
+  }, [app, deploying]);
+
+  // Abre el selector de cerebro y carga los cerebros del usuario.
+  const openBrainPicker = useCallback(async () => {
+    const willOpen = !brainPickerOpen;
+    setBrainPickerOpen(willOpen);
+    if (!willOpen) return;
+    setLoadingBrains(true);
+    try {
+      const list = await listBrains();
+      setBrains(list);
+      // Preselecciona el primer cerebro y carga sus servidores.
+      const first = list[0]?.id ?? "";
+      setPickBrainId(first);
+    } catch (err) {
+      toast.error("No se pudieron cargar los cerebros", { description: (err as Error)?.message });
+    } finally {
+      setLoadingBrains(false);
+    }
+  }, [brainPickerOpen]);
+
+  // Cuando cambia el cerebro elegido, reúne sus servidores (propios + enlazados del registro).
+  useEffect(() => {
+    if (!brainPickerOpen) return;
+    let alive = true;
+    (async () => {
+      try {
+        const brain = brains.find((b) => b.id === pickBrainId);
+        const own: BrainServer[] = Array.isArray(brain?.servers) ? (brain!.servers as BrainServer[]) : [];
+        let linked: BrainServer[] = [];
+        if (pickBrainId) {
+          const ls = await serversForBrain(pickBrainId);
+          linked = ls.map((s) => ({
+            id: s.id,
+            kind: s.kind,
+            name: s.name,
+            endpoint: s.endpoint,
+            keyRef: s.keyRef,
+            status: s.status,
+          })) as BrainServer[];
+        }
+        // Si no hay cerebro/servidores, ofrece el registro completo del usuario.
+        let registry: BrainServer[] = [];
+        if (own.length === 0 && linked.length === 0) {
+          const all = await listServers();
+          registry = all.map((s) => ({
+            id: s.id,
+            kind: s.kind,
+            name: s.name,
+            endpoint: s.endpoint,
+            keyRef: s.keyRef,
+            status: s.status,
+          })) as BrainServer[];
+        }
+        // Deduplica por id (propios primero).
+        const byId = new Map<string, BrainServer>();
+        [...own, ...linked, ...registry].forEach((s) => {
+          if (s && s.id && !byId.has(s.id)) byId.set(s.id, s);
+        });
+        if (alive) setBrainServers(Array.from(byId.values()));
+      } catch {
+        if (alive) setBrainServers([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [brainPickerOpen, pickBrainId, brains]);
+
+  // Ejecuta la app en un servidor de cerebro concreto.
+  const onRunOnBrain = useCallback(
+    async (server: BrainServer) => {
+      if (runningServerId) return;
+      setRunningServerId(server.id);
+      const t = toast.loading(`Enviando «${app.name}» a ${server.name}…`);
+      try {
+        const r = await runOnBrain(app, server, userId);
+        if (r.ok) {
+          const text =
+            typeof r.result === "string" ? r.result : JSON.stringify(r.result ?? { ok: true });
+          toast.success("Ejecutado en el cerebro", { id: t, description: text.slice(0, 160) });
+        } else {
+          toast.error("El cerebro no pudo ejecutar la app", { id: t, description: r.error });
+        }
+      } catch (err) {
+        toast.error("No se pudo ejecutar en el cerebro", {
+          id: t,
+          description: (err as Error)?.message,
+        });
+      } finally {
+        setRunningServerId(null);
+      }
+    },
+    [app, userId, runningServerId],
+  );
+
+  // Adjuntar: copia la referencia de la app (para pegarla en una pizarra/publicación).
+  const onAttach = useCallback(async () => {
+    const ref = appShareRef(app);
+    await copyText(JSON.stringify(ref), "Referencia de la app copiada");
+  }, [app, copyText]);
 
   const addPlugin = useCallback(() => {
     const p = pluginDraft.trim();
@@ -687,6 +899,39 @@ export default function AiAppGenerator() {
             <Download className="h-3.5 w-3.5" /> Exportar
           </Button>
 
+          <Button
+            size="sm"
+            className="h-8 gap-1.5 bg-gradient-to-br from-emerald-500 to-cyan-500 text-xs text-white hover:opacity-90"
+            onClick={onDeploy}
+            disabled={deploying}
+            title="Desplegar la app en la red de StarSeed (/app/{id})"
+          >
+            {deploying ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Rocket className="h-3.5 w-3.5" />
+            )}
+            Desplegar
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 border-fuchsia-400/30 text-xs text-fuchsia-100"
+            onClick={openBrainPicker}
+            title="Ejecutar la app en un servidor de cerebro"
+          >
+            <BrainCircuit className="h-3.5 w-3.5" /> Ejecutar en cerebro
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 gap-1.5 text-xs text-white/80"
+            onClick={onAttach}
+            title="Copiar referencia de la app para adjuntar a una pizarra o publicación"
+          >
+            <Link2 className="h-3.5 w-3.5" /> Adjuntar
+          </Button>
+
           <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1">
             <Share2 className="h-3.5 w-3.5 text-fuchsia-300" />
             <span className="text-[11px] text-white/70">Compartir</span>
@@ -727,6 +972,137 @@ export default function AiAppGenerator() {
             </Button>
           </div>
         </div>
+
+        {/* Enlace de la app desplegada (/app/{id}) */}
+        {deployUrl && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2">
+            <Rocket className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+            <span className="text-[11px] text-emerald-100">Desplegada en la red:</span>
+            <code className="max-w-full truncate rounded bg-black/40 px-1.5 py-0.5 font-mono text-[11px] text-emerald-50">
+              {deployUrl}
+            </code>
+            <div className="ml-auto flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 text-[11px] text-emerald-100"
+                onClick={() => copyText(appUrlFor(app.id), "Enlace copiado")}
+              >
+                <Copy className="h-3 w-3" /> Copiar
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 border-emerald-400/30 text-[11px] text-emerald-100"
+                onClick={() => {
+                  if (typeof window !== "undefined") window.open(deployUrl, "_blank");
+                }}
+              >
+                <ExternalLink className="h-3 w-3" /> Abrir app
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Selector: ejecutar en cerebro */}
+        {brainPickerOpen && (
+          <div className="mt-2 rounded-xl border border-fuchsia-400/20 bg-black/30 p-3">
+            <div className="mb-2 flex items-center gap-2">
+              <BrainCircuit className="h-4 w-4 text-fuchsia-300" />
+              <span className="text-xs font-semibold text-white/80">Ejecutar en cerebro</span>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="ml-auto h-6 w-6 text-white/50"
+                onClick={() => setBrainPickerOpen(false)}
+                title="Cerrar"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            {loadingBrains ? (
+              <p className="flex items-center gap-2 py-2 text-xs text-white/50">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando cerebros…
+              </p>
+            ) : brains.length === 0 ? (
+              <p className="py-2 text-xs text-white/40">
+                No tienes cerebros aún. Crea uno en <b>Cerebros</b> y enlázale un servidor para poder
+                ejecutar apps en él.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-white/55">Cerebro:</span>
+                  {brains.map((b) => (
+                    <button
+                      key={b.id}
+                      onClick={() => setPickBrainId(b.id)}
+                      className={cn(
+                        "rounded-md border px-2 py-1 text-[11px] transition",
+                        b.id === pickBrainId
+                          ? "border-fuchsia-400/50 bg-fuchsia-500/20 text-fuchsia-50"
+                          : "border-white/10 bg-white/[0.02] text-white/70 hover:bg-white/5",
+                      )}
+                    >
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] text-white/55">Servidor del cerebro:</span>
+                  {brainServers.length === 0 ? (
+                    <p className="rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-100">
+                      Este cerebro no tiene servidores enlazados todavía. Añade o enlaza un servidor
+                      (p.ej. tu servidor de cerebro local) en <b>Cerebros</b> para ejecutar la app.
+                    </p>
+                  ) : (
+                    <ul className="grid gap-1.5 sm:grid-cols-2">
+                      {brainServers.map((srv) => (
+                        <li
+                          key={srv.id}
+                          className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5"
+                        >
+                          <Server className="h-3.5 w-3.5 shrink-0 text-cyan-300/80" />
+                          <div className="flex min-w-0 flex-1 flex-col">
+                            <span className="truncate text-xs font-medium text-white/85">
+                              {srv.name}
+                            </span>
+                            <span className="truncate text-[10px] text-white/40">
+                              {String(srv.kind)}
+                              {srv.endpoint ? ` · ${srv.endpoint}` : ""}
+                            </span>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="h-7 gap-1 bg-gradient-to-br from-fuchsia-500 to-indigo-500 text-[11px] text-white hover:opacity-90"
+                            onClick={() => onRunOnBrain(srv)}
+                            disabled={runningServerId != null}
+                          >
+                            {runningServerId === srv.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Play className="h-3 w-3" />
+                            )}
+                            Ejecutar
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <p className="flex items-start gap-1.5 text-[10px] leading-relaxed text-white/40">
+                  <Info className="mt-0.5 h-3 w-3 shrink-0" />
+                  Honestidad: el servidor del cerebro decide qué hacer con la app (el servidor de
+                  referencia simplemente la registra). El hospedaje ejecutable dentro de la red es la
+                  ruta <code className="font-mono">/app/{app.id}</code> («Desplegar»).
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-white/40">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
