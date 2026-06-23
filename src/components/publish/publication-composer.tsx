@@ -2,28 +2,30 @@
 
 // src/components/publish/publication-composer.tsx
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPOSER UNIVERSAL DE PUBLICACIONES de StarSeed OS.
+// COMPOSER UNIVERSAL DE PUBLICACIONES de StarSeed OS · alineado al MÓDULO 5
+// (El Lienzo Universal de Creación — flujo guiado por INTENCIÓN).
 //
-// Un asistente (wizard) de 5 pasos que arranca preguntando QUÉ se publica, DESDE
-// qué perfil(es), HACIA qué destinos, con qué FORMATO y CONTENIDO, y finalmente
-// muestra una VISTA PREVIA antes de PUBLICAR (con resultados por destino).
-//
-//   Paso 1 · Tipo      → rejilla de PUBLICATION_TYPES.
-//   Paso 2 · Desde     → multi-selección de los perfiles del usuario.
-//   Paso 3 · Destinos  → multi-selección agrupada por DESTINATION_KINDS, cargando
-//                         opciones reales por cada tipo de destino.
-//   Paso 4 · Formato + contenido → selector de formato + editor según el tipo.
-//   Paso 5 · Vista previa → render del preview ("Abrir completo" en modal) →
-//                         botón Publicar (llama a `publish`) + resultados.
+// El acto creador sigue el orden del Módulo 5:
+//   Paso 1 · Área         → Política · Educación · Cultura · General (AREAS).
+//   Paso 2 · Sub-Área      → si el área la define (carga plantilla de campos).
+//   Paso 3 · Desde         → multi-selección de los perfiles del usuario.
+//   Paso 4 · Destino+Tipo  → Publicación Principal / Historia (POST_KINDS) +
+//                            multi-selección de destinos (DESTINATION_KINDS).
+//   Paso 5 · Formato+cont. → formato + editor (incluye campos de la plantilla).
+//   Paso 6 · Config+Ámbito → visibilidad, votación (toggle + umbral), alcance.
+//   Paso 7 · Vista previa   → preview + ALCANCE (reachOf) + "Abrir completo" +
+//                            "Abrir en el Lienzo" (/pizarra) → Publicar.
 //
 // SSR-safe: "use client"; toda lectura de Supabase ocurre en efectos/handlers.
 // Permite `initial` para prerellenar (p. ej. desde el lienzo). Español, limpio.
+// Aditivo: conserva el editor, destinos, preview y la lógica de `publish`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState, type ComponentType } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +58,11 @@ import {
     BrainCircuit,
     LibraryBig,
     Box,
+    Scale,
+    Gavel,
+    GraduationCap,
+    BookOpen,
+    Palette,
     Check,
     ChevronLeft,
     ChevronRight,
@@ -66,14 +73,21 @@ import {
     CheckCircle2,
     AlertTriangle,
     Archive,
+    Compass,
+    Eye,
 } from "lucide-react";
 import {
     PUBLICATION_TYPES,
     DESTINATION_KINDS,
+    AREAS,
+    POST_KINDS,
+    DEFAULT_VOTING,
     listProfiles,
     listDestinations,
     publish,
     previewOf,
+    reachOf,
+    subAreaById,
     type PublicationType,
     type PublicationTypeId,
     type DestinationKind,
@@ -84,6 +98,11 @@ import {
     type SelectedDestination,
     type DestinationResult,
     type PreviewModel,
+    type Area,
+    type AreaId,
+    type SubArea,
+    type PostKindId,
+    type VotingConfig,
 } from "@/lib/publish/publish";
 
 // ── Resolución de iconos (string → componente de lucide) ──
@@ -109,6 +128,11 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
     BrainCircuit,
     LibraryBig,
     Box,
+    Scale,
+    Gavel,
+    GraduationCap,
+    BookOpen,
+    Palette,
 };
 
 function Icon({ name, className }: { name: string; className?: string }) {
@@ -124,6 +148,11 @@ export interface PublicationComposerInitial {
     fromProfiles?: string[];
     destinations?: SelectedDestination[];
     content?: PublishContent;
+    // ── Módulo 5 (opcionales) ──
+    area?: AreaId;
+    subArea?: string;
+    postKind?: PostKindId;
+    scope?: string;
 }
 
 export interface PublicationComposerProps {
@@ -135,9 +164,23 @@ export interface PublicationComposerProps {
 
 // ── Constantes de UI ──
 
-const STEPS = ["Tipo", "Desde", "Destinos", "Formato", "Vista previa"] as const;
+const STEPS = [
+    "Área",
+    "Sub-Área",
+    "Desde",
+    "Destino + Tipo",
+    "Formato",
+    "Ámbito",
+    "Vista previa",
+] as const;
 
 const ACCENT = "#E9C46A";
+
+const VISIBILITIES: { id: string; label: string; hint: string }[] = [
+    { id: "public", label: "Pública", hint: "Visible para cualquiera en la red." },
+    { id: "members", label: "Miembros", hint: "Sólo miembros del destino." },
+    { id: "private", label: "Privada", hint: "Sólo tú y los destinatarios directos." },
+];
 
 // Estado del contenido editable (campos crudos de la UI).
 interface DraftContent {
@@ -146,6 +189,8 @@ interface DraftContent {
     url: string;
     urls: string[];
     options: string[];
+    /** Campos de la plantilla de Sub-Área (id → valor). */
+    template: Record<string, string>;
 }
 
 const EMPTY_DRAFT: DraftContent = {
@@ -154,7 +199,20 @@ const EMPTY_DRAFT: DraftContent = {
     url: "",
     urls: [],
     options: ["", ""],
+    template: {},
 };
+
+// Cómo cada Área/Sub-Área sugiere un tipo de publicación de base.
+function suggestTypeFor(areaId: AreaId | null, subId: string | null): PublicationTypeId {
+    if (areaId === "politica") return subId === "caso_judicial" ? "articulo" : "propuesta";
+    if (areaId === "educacion") return subId === "articulo" ? "articulo" : "mixto";
+    if (areaId === "cultura") {
+        if (subId === "evento") return "mixto";
+        if (subId === "publicacion") return "imagen";
+        return "articulo";
+    }
+    return "texto";
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENTE PRINCIPAL
@@ -163,15 +221,21 @@ const EMPTY_DRAFT: DraftContent = {
 export default function PublicationComposer({ initial, onPublished }: PublicationComposerProps = {}) {
     const [step, setStep] = useState(0);
 
-    // Paso 1: tipo.
+    // Paso 1: Área principal (Módulo 5).
+    const [areaId, setAreaId] = useState<AreaId | null>(initial?.area ?? null);
+    // Paso 2: Sub-Área (si aplica).
+    const [subAreaId, setSubAreaId] = useState<string | null>(initial?.subArea ?? null);
+
+    // Tipo de publicación (derivado de la intención; editable en Formato).
     const [typeId, setTypeId] = useState<PublicationTypeId | null>(initial?.type ?? null);
 
-    // Paso 2: perfiles.
+    // Paso 3: perfiles.
     const [profiles, setProfiles] = useState<PublishProfile[]>([]);
     const [profilesLoading, setProfilesLoading] = useState(false);
     const [selectedProfiles, setSelectedProfiles] = useState<string[]>(initial?.fromProfiles ?? []);
 
-    // Paso 3: destinos (opciones cargadas por tipo + selección).
+    // Paso 4: Tipo de publicación (Principal/Historia) + destinos.
+    const [postKind, setPostKind] = useState<PostKindId>(initial?.postKind ?? "principal");
     const [openKinds, setOpenKinds] = useState<Record<string, boolean>>({});
     const [optionsByKind, setOptionsByKind] = useState<Record<string, DestinationOption[]>>({});
     const [loadingKinds, setLoadingKinds] = useState<Record<string, boolean>>({});
@@ -179,7 +243,7 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
         initial?.destinations ?? [],
     );
 
-    // Paso 4: formato + contenido.
+    // Paso 5: formato + contenido.
     const [format, setFormat] = useState<string>(initial?.format ?? "");
     const [draft, setDraft] = useState<DraftContent>(() => ({
         ...EMPTY_DRAFT,
@@ -188,17 +252,42 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
         url: initial?.content?.url ?? "",
         urls: initial?.content?.urls ?? [],
         options: initial?.content?.options ?? ["", ""],
+        template: {},
     }));
 
-    // Paso 5: publicación.
+    // Paso 6: configuración contextual + ámbito (Módulo 5).
+    const [visibility, setVisibility] = useState<string>("public");
+    const [voting, setVoting] = useState<VotingConfig>({ ...DEFAULT_VOTING });
+    const [scope, setScope] = useState<string>(initial?.scope ?? "");
+
+    // Paso 7: publicación.
     const [publishing, setPublishing] = useState(false);
     const [results, setResults] = useState<DestinationResult[] | null>(null);
     const [fullOpen, setFullOpen] = useState(false);
+
+    const area: Area | null = useMemo(
+        () => (areaId ? AREAS.find((a) => a.id === areaId) ?? null : null),
+        [areaId],
+    );
+    const subArea: SubArea | null = useMemo(
+        () => (areaId && subAreaId ? subAreaById(areaId, subAreaId) ?? null : null),
+        [areaId, subAreaId],
+    );
+    const hasSubAreas = (area?.sub.length ?? 0) > 0;
 
     const selectedType: PublicationType | null = useMemo(
         () => (typeId ? PUBLICATION_TYPES.find((t) => t.id === typeId) ?? null : null),
         [typeId],
     );
+
+    // Al elegir Área (o Sub-Área), sugiere un tipo de publicación de base si no
+    // hay uno ya fijado por `initial`. No pisa una elección explícita posterior.
+    useEffect(() => {
+        if (!areaId) return;
+        if (initial?.type) return;
+        setTypeId(suggestTypeFor(areaId, subAreaId));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [areaId, subAreaId]);
 
     // Cuando se elige un tipo, fija un formato por defecto si no hay uno válido.
     useEffect(() => {
@@ -208,16 +297,15 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedType]);
 
-    // Carga de perfiles al entrar al paso 2 (una vez).
+    // Carga de perfiles al entrar al paso "Desde" (índice 2), una vez.
     useEffect(() => {
-        if (step !== 1 || profiles.length > 0 || profilesLoading) return;
+        if (step !== 2 || profiles.length > 0 || profilesLoading) return;
         let alive = true;
         setProfilesLoading(true);
         listProfiles()
             .then((rows) => {
                 if (!alive) return;
                 setProfiles(rows);
-                // Autoselecciona el primer perfil si no hay ninguno elegido.
                 if (rows.length > 0 && selectedProfiles.length === 0) {
                     setSelectedProfiles([rows[0].id]);
                 }
@@ -239,15 +327,34 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
         if (urls.length) c.urls = urls;
         const opts = draft.options.map((o) => o.trim()).filter(Boolean);
         if (opts.length) c.options = opts;
+        // Campos de la plantilla de Sub-Área → content.meta.template (+ área/sub).
+        const tmpl: Record<string, string> = {};
+        for (const [k, v] of Object.entries(draft.template)) {
+            if (v && v.trim()) tmpl[k] = v.trim();
+        }
+        if (Object.keys(tmpl).length || areaId) {
+            c.meta = {
+                ...(areaId ? { area: areaId } : {}),
+                ...(subAreaId ? { subArea: subAreaId } : {}),
+                ...(Object.keys(tmpl).length ? { template: tmpl } : {}),
+            };
+        }
         return c;
-    }, [draft]);
+    }, [draft, areaId, subAreaId]);
 
     const preview: PreviewModel | null = useMemo(
         () => (typeId ? previewOf(typeId, content, format) : null),
         [typeId, content, format],
     );
 
+    const reach = useMemo(() => reachOf(selectedDestinations), [selectedDestinations]);
+
     // ── Toggles de selección ──
+
+    function pickArea(id: AreaId) {
+        setAreaId(id);
+        setSubAreaId(null); // resetea la sub-área al cambiar de área
+    }
 
     function toggleProfile(id: string) {
         setSelectedProfiles((prev) =>
@@ -283,38 +390,54 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
         }
     }
 
+    // ── Navegación: salta el paso Sub-Área si el área no tiene sub-áreas ──
+    function nextStepFrom(s: number): number {
+        let n = s + 1;
+        if (n === 1 && !hasSubAreas) n = 2; // sin sub-áreas → directo a "Desde"
+        return Math.min(n, STEPS.length - 1);
+    }
+    function prevStepFrom(s: number): number {
+        let n = s - 1;
+        if (n === 1 && !hasSubAreas) n = 0; // sin sub-áreas → vuelve a "Área"
+        return Math.max(n, 0);
+    }
+
     // ── Validación por paso para habilitar "Siguiente" ──
     const canNext = useMemo(() => {
         switch (step) {
             case 0:
-                return Boolean(typeId);
+                return Boolean(areaId);
             case 1:
-                // Permitir avanzar incluso sin perfiles (se publicará como autor por defecto).
-                return true;
+                // Sub-área: si hay sub-áreas, exige elegir una; si no, libre.
+                return !hasSubAreas || Boolean(subAreaId);
             case 2:
+                return true; // perfiles opcionales (autor por defecto)
+            case 3:
                 return selectedDestinations.length > 0;
-            case 3: {
-                // Requiere algo de contenido coherente con el tipo.
+            case 4: {
                 if (!typeId) return false;
                 const hasText = Boolean(content.title || content.body);
                 const hasUrl = Boolean(content.url || (content.urls && content.urls.length));
                 const hasOpts = Boolean(content.options && content.options.length >= 2);
+                const hasTemplate = Boolean(content.meta && (content.meta as any).template);
                 if (typeId === "imagen" || typeId === "enlace" || typeId === "archivo" || typeId === "app")
-                    return hasUrl;
+                    return hasUrl || hasTemplate;
                 if (typeId === "encuesta") return Boolean(content.title) && hasOpts;
-                if (typeId === "lienzo") return hasUrl || hasText;
-                return hasText;
+                if (typeId === "lienzo") return hasUrl || hasText || hasTemplate;
+                return hasText || hasTemplate;
             }
+            case 5:
+                return Boolean(visibility);
             default:
                 return true;
         }
-    }, [step, typeId, selectedDestinations, content]);
+    }, [step, areaId, subAreaId, hasSubAreas, typeId, selectedDestinations, content, visibility]);
 
     function goNext() {
-        if (step < STEPS.length - 1) setStep((s) => s + 1);
+        setStep((s) => nextStepFrom(s));
     }
     function goBack() {
-        if (step > 0) setStep((s) => s - 1);
+        setStep((s) => prevStepFrom(s));
     }
 
     // ── Publicar ──
@@ -329,6 +452,12 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                 fromProfiles: selectedProfiles,
                 destinations: selectedDestinations,
                 content,
+                // ── Módulo 5: intención + configuración contextual ──
+                area: areaId ?? undefined,
+                subArea: subAreaId ?? undefined,
+                postKind,
+                voting,
+                scope: scope.trim() || undefined,
             });
             if (res.needsAuth) {
                 toast.error("Inicia sesión para publicar.");
@@ -354,6 +483,8 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
         }
     }
 
+    const isLast = step === STEPS.length - 1;
+
     // ─────────────────────────────────────────────────────────────────────────
     // RENDER
     // ─────────────────────────────────────────────────────────────────────────
@@ -365,6 +496,8 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                 {STEPS.map((label, i) => {
                     const done = i < step;
                     const active = i === step;
+                    const skipped = i === 1 && !hasSubAreas;
+                    if (skipped) return null;
                     return (
                         <li key={label} className="flex items-center gap-2">
                             <button
@@ -399,10 +532,11 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
 
             {/* Cuerpo del paso */}
             <div className="min-h-[280px]">
-                {step === 0 && (
-                    <StepType typeId={typeId} onPick={setTypeId} />
+                {step === 0 && <StepArea areaId={areaId} onPick={pickArea} />}
+                {step === 1 && area && (
+                    <StepSubArea area={area} subAreaId={subAreaId} onPick={setSubAreaId} />
                 )}
-                {step === 1 && (
+                {step === 2 && (
                     <StepFrom
                         profiles={profiles}
                         loading={profilesLoading}
@@ -410,8 +544,10 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                         onToggle={toggleProfile}
                     />
                 )}
-                {step === 2 && (
-                    <StepDestinations
+                {step === 3 && (
+                    <StepDestinationAndKind
+                        postKind={postKind}
+                        onPostKind={setPostKind}
                         openKinds={openKinds}
                         optionsByKind={optionsByKind}
                         loadingKinds={loadingKinds}
@@ -421,21 +557,37 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                         isSelected={isDestSelected}
                     />
                 )}
-                {step === 3 && selectedType && (
+                {step === 4 && selectedType && (
                     <StepFormatContent
                         type={selectedType}
+                        subArea={subArea}
                         format={format}
                         onFormat={setFormat}
                         draft={draft}
                         onDraft={setDraft}
                     />
                 )}
-                {step === 4 && preview && (
+                {step === 5 && (
+                    <StepConfigScope
+                        visibility={visibility}
+                        onVisibility={setVisibility}
+                        voting={voting}
+                        onVoting={setVoting}
+                        scope={scope}
+                        onScope={setScope}
+                        reach={reach}
+                    />
+                )}
+                {step === 6 && preview && (
                     <StepPreview
                         preview={preview}
+                        area={area}
+                        subArea={subArea}
+                        postKind={postKind}
                         profiles={profiles}
                         selectedProfiles={selectedProfiles}
                         destinations={selectedDestinations}
+                        reach={reach}
                         results={results}
                         onOpenFull={() => setFullOpen(true)}
                     />
@@ -453,7 +605,7 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                     <ChevronLeft className="mr-1 h-4 w-4" /> Atrás
                 </Button>
 
-                {step < STEPS.length - 1 ? (
+                {!isLast ? (
                     <Button
                         onClick={goNext}
                         disabled={!canNext}
@@ -499,32 +651,88 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PASO 1 · TIPO
+// PASO 1 · ÁREA PRINCIPAL (Módulo 5)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function StepType({
-    typeId,
+function StepArea({
+    areaId,
     onPick,
 }: {
-    typeId: PublicationTypeId | null;
-    onPick: (id: PublicationTypeId) => void;
+    areaId: AreaId | null;
+    onPick: (id: AreaId) => void;
 }) {
     return (
         <div>
-            <h3 className="mb-1 text-lg font-semibold text-amber-50">¿Qué quieres publicar?</h3>
+            <h3 className="mb-1 text-lg font-semibold text-amber-50">¿Cuál es tu intención?</h3>
             <p className="mb-4 text-sm text-white/50">
-                Elige el tipo de publicación. Cada tipo ofrece sus propios formatos y editor.
+                Elige el <span className="text-amber-200">Área Principal</span> de tu creación. El
+                acto creador se guía por la intención.
             </p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                {PUBLICATION_TYPES.map((t) => {
-                    const active = t.id === typeId;
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {AREAS.map((a) => {
+                    const active = a.id === areaId;
                     return (
                         <button
-                            key={t.id}
+                            key={a.id}
                             type="button"
-                            onClick={() => onPick(t.id)}
+                            onClick={() => onPick(a.id)}
                             className={cn(
-                                "group flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all",
+                                "group flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all",
+                                active
+                                    ? "border-amber-400/60 bg-amber-400/10 shadow-[0_0_0_1px_rgba(233,196,106,0.3)]"
+                                    : "border-white/10 bg-white/[0.02] hover:border-white/25 hover:bg-white/[0.05]",
+                            )}
+                        >
+                            <span
+                                className={cn(
+                                    "flex h-10 w-10 items-center justify-center rounded-lg",
+                                    active ? "bg-amber-400/20 text-amber-200" : "bg-white/5 text-white/60",
+                                )}
+                            >
+                                <Icon name={a.icon} className="h-5 w-5" />
+                            </span>
+                            <span className="text-sm font-medium text-amber-50">{a.label}</span>
+                            <span className="text-[11px] leading-snug text-white/45">{a.blurb}</span>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PASO 2 · SUB-ÁREA (si aplica)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StepSubArea({
+    area,
+    subAreaId,
+    onPick,
+}: {
+    area: Area;
+    subAreaId: string | null;
+    onPick: (id: string) => void;
+}) {
+    return (
+        <div>
+            <h3 className="mb-1 text-lg font-semibold text-amber-50">
+                {area.label} · elige el tipo de creación
+            </h3>
+            <p className="mb-4 text-sm text-white/50">
+                Cada sub-área carga una <span className="text-amber-200">plantilla</span> y
+                herramientas específicas para tu contenido.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {area.sub.map((s) => {
+                    const active = s.id === subAreaId;
+                    return (
+                        <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => onPick(s.id)}
+                            className={cn(
+                                "flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all",
                                 active
                                     ? "border-amber-400/60 bg-amber-400/10 shadow-[0_0_0_1px_rgba(233,196,106,0.3)]"
                                     : "border-white/10 bg-white/[0.02] hover:border-white/25 hover:bg-white/[0.05]",
@@ -536,10 +744,17 @@ function StepType({
                                     active ? "bg-amber-400/20 text-amber-200" : "bg-white/5 text-white/60",
                                 )}
                             >
-                                <Icon name={t.icon} className="h-5 w-5" />
+                                <Icon name={s.icon || "Sparkles"} className="h-5 w-5" />
                             </span>
-                            <span className="text-sm font-medium text-amber-50">{t.label}</span>
-                            <span className="text-[11px] leading-snug text-white/45">{t.blurb}</span>
+                            <span className="text-sm font-medium text-amber-50">{s.label}</span>
+                            {s.blurb && (
+                                <span className="text-[11px] leading-snug text-white/45">{s.blurb}</span>
+                            )}
+                            {s.template && s.template.length > 0 && (
+                                <span className="mt-1 rounded-full bg-white/10 px-2 py-0.5 text-[9px] uppercase tracking-wide text-white/50">
+                                    {s.template.length} campos
+                                </span>
+                            )}
                         </button>
                     );
                 })}
@@ -549,7 +764,7 @@ function StepType({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PASO 2 · DESDE (perfiles)
+// PASO 3 · DESDE (perfiles)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function StepFrom({
@@ -623,10 +838,12 @@ function StepFrom({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PASO 3 · DESTINOS
+// PASO 4 · DESTINO + TIPO (Principal/Historia + destinos)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function StepDestinations({
+function StepDestinationAndKind({
+    postKind,
+    onPostKind,
     openKinds,
     optionsByKind,
     loadingKinds,
@@ -635,6 +852,8 @@ function StepDestinations({
     onToggleOption,
     isSelected,
 }: {
+    postKind: PostKindId;
+    onPostKind: (k: PostKindId) => void;
     openKinds: Record<string, boolean>;
     optionsByKind: Record<string, DestinationOption[]>;
     loadingKinds: Record<string, boolean>;
@@ -646,149 +865,200 @@ function StepDestinations({
     const selectedCount = (kindId: string) => selected.filter((d) => d.kind === kindId).length;
 
     return (
-        <div>
-            <h3 className="mb-1 text-lg font-semibold text-amber-50">¿A dónde lo publicamos?</h3>
-            <p className="mb-2 text-sm text-white/50">
-                Elige uno o varios destinos. Despliega cada tipo para cargar sus opciones.
-            </p>
-            {selected.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-1.5">
-                    {selected.map((d) => (
-                        <Badge
-                            key={d.kind + ":" + d.id}
-                            variant="secondary"
-                            className="gap-1 bg-amber-400/15 text-amber-100"
-                        >
-                            {d.label || d.id}
-                        </Badge>
-                    ))}
-                </div>
-            )}
+        <div className="space-y-5">
+            <div>
+                <h3 className="mb-1 text-lg font-semibold text-amber-50">Destino y tipo</h3>
+                <p className="text-sm text-white/50">
+                    Elige si será <span className="text-amber-200">Publicación Principal</span> o{" "}
+                    <span className="text-amber-200">Historia</span>, y a qué destinos llega.
+                </p>
+            </div>
 
-            <div className="space-y-2">
-                {DESTINATION_KINDS.map((kind) => {
-                    const open = openKinds[kind.id];
-                    const opts = optionsByKind[kind.id];
-                    const loading = loadingKinds[kind.id];
-                    const count = selectedCount(kind.id);
+            {/* Tipo de publicación: Principal / Historia */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {POST_KINDS.map((k) => {
+                    const active = k.id === postKind;
                     return (
-                        <div
-                            key={kind.id}
-                            className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.02]"
-                        >
-                            <button
-                                type="button"
-                                onClick={() => onToggleKind(kind)}
-                                className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-white/[0.03]"
-                            >
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white/60">
-                                    <Icon name={kind.icon} className="h-4 w-4" />
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                    <span className="flex items-center gap-2 text-sm font-medium text-amber-50">
-                                        {kind.label}
-                                        {kind.fulfillment === "registered" && (
-                                            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-white/50">
-                                                registrado
-                                            </span>
-                                        )}
-                                    </span>
-                                    <span className="block truncate text-[11px] text-white/40">
-                                        {kind.blurb}
-                                    </span>
-                                </span>
-                                {count > 0 && (
-                                    <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
-                                        {count}
-                                    </span>
-                                )}
-                                <ChevronRight
-                                    className={cn(
-                                        "h-4 w-4 shrink-0 text-white/40 transition-transform",
-                                        open && "rotate-90",
-                                    )}
-                                />
-                            </button>
-
-                            {open && (
-                                <div className="border-t border-white/10 p-2">
-                                    {loading ? (
-                                        <div className="flex items-center gap-2 px-2 py-2 text-xs text-white/50">
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando opciones…
-                                        </div>
-                                    ) : !opts || opts.length === 0 ? (
-                                        <div className="px-2 py-2 text-xs text-white/40">
-                                            No hay opciones disponibles para este destino todavía.
-                                        </div>
-                                    ) : (
-                                        <div className="grid gap-1.5 sm:grid-cols-2">
-                                            {opts.map((opt) => {
-                                                const active = isSelected(kind.id, opt.id);
-                                                return (
-                                                    <button
-                                                        key={opt.id}
-                                                        type="button"
-                                                        onClick={() => onToggleOption(opt)}
-                                                        className={cn(
-                                                            "flex items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
-                                                            active
-                                                                ? "border-amber-400/60 bg-amber-400/10"
-                                                                : "border-white/10 hover:border-white/25",
-                                                        )}
-                                                    >
-                                                        <span
-                                                            className={cn(
-                                                                "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-                                                                active
-                                                                    ? "border-amber-400 bg-amber-400/30 text-amber-100"
-                                                                    : "border-white/25",
-                                                            )}
-                                                        >
-                                                            {active && <Check className="h-3 w-3" />}
-                                                        </span>
-                                                        <span className="min-w-0 flex-1">
-                                                            <span className="block truncate text-sm text-amber-50">
-                                                                {opt.label}
-                                                            </span>
-                                                            {opt.sub && (
-                                                                <span className="block truncate text-[11px] text-white/40">
-                                                                    {opt.sub}
-                                                                </span>
-                                                            )}
-                                                        </span>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
+                        <button
+                            key={k.id}
+                            type="button"
+                            onClick={() => onPostKind(k.id)}
+                            className={cn(
+                                "flex items-start gap-3 rounded-xl border p-4 text-left transition-all",
+                                active
+                                    ? "border-amber-400/60 bg-amber-400/10 shadow-[0_0_0_1px_rgba(233,196,106,0.3)]"
+                                    : "border-white/10 bg-white/[0.02] hover:border-white/25",
                             )}
-                        </div>
+                        >
+                            <span
+                                className={cn(
+                                    "flex h-9 w-9 items-center justify-center rounded-lg",
+                                    active ? "bg-amber-400/20 text-amber-200" : "bg-white/5 text-white/60",
+                                )}
+                            >
+                                <Icon name={k.icon} className="h-5 w-5" />
+                            </span>
+                            <span className="min-w-0">
+                                <span className="block text-sm font-medium text-amber-50">{k.label}</span>
+                                <span className="block text-[11px] leading-snug text-white/45">
+                                    {k.blurb}
+                                </span>
+                            </span>
+                            {active && <Check className="ml-auto h-4 w-4 shrink-0 text-amber-300" />}
+                        </button>
                     );
                 })}
+            </div>
+
+            {/* Multi-selección de destinos */}
+            <div>
+                <h4 className="mb-1 text-sm font-semibold text-amber-50">Destinos</h4>
+                <p className="mb-2 text-xs text-white/50">
+                    Elige uno o varios destinos. Despliega cada tipo para cargar sus opciones.
+                </p>
+                {selected.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-1.5">
+                        {selected.map((d) => (
+                            <Badge
+                                key={d.kind + ":" + d.id}
+                                variant="secondary"
+                                className="gap-1 bg-amber-400/15 text-amber-100"
+                            >
+                                {d.label || d.id}
+                            </Badge>
+                        ))}
+                    </div>
+                )}
+
+                <div className="space-y-2">
+                    {DESTINATION_KINDS.map((kind) => {
+                        const open = openKinds[kind.id];
+                        const opts = optionsByKind[kind.id];
+                        const loading = loadingKinds[kind.id];
+                        const count = selectedCount(kind.id);
+                        return (
+                            <div
+                                key={kind.id}
+                                className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.02]"
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => onToggleKind(kind)}
+                                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-white/[0.03]"
+                                >
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white/60">
+                                        <Icon name={kind.icon} className="h-4 w-4" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="flex items-center gap-2 text-sm font-medium text-amber-50">
+                                            {kind.label}
+                                            {kind.fulfillment === "registered" && (
+                                                <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-white/50">
+                                                    registrado
+                                                </span>
+                                            )}
+                                        </span>
+                                        <span className="block truncate text-[11px] text-white/40">
+                                            {kind.blurb}
+                                        </span>
+                                    </span>
+                                    {count > 0 && (
+                                        <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                                            {count}
+                                        </span>
+                                    )}
+                                    <ChevronRight
+                                        className={cn(
+                                            "h-4 w-4 shrink-0 text-white/40 transition-transform",
+                                            open && "rotate-90",
+                                        )}
+                                    />
+                                </button>
+
+                                {open && (
+                                    <div className="border-t border-white/10 p-2">
+                                        {loading ? (
+                                            <div className="flex items-center gap-2 px-2 py-2 text-xs text-white/50">
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando opciones…
+                                            </div>
+                                        ) : !opts || opts.length === 0 ? (
+                                            <div className="px-2 py-2 text-xs text-white/40">
+                                                No hay opciones disponibles para este destino todavía.
+                                            </div>
+                                        ) : (
+                                            <div className="grid gap-1.5 sm:grid-cols-2">
+                                                {opts.map((opt) => {
+                                                    const active = isSelected(kind.id, opt.id);
+                                                    return (
+                                                        <button
+                                                            key={opt.id}
+                                                            type="button"
+                                                            onClick={() => onToggleOption(opt)}
+                                                            className={cn(
+                                                                "flex items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
+                                                                active
+                                                                    ? "border-amber-400/60 bg-amber-400/10"
+                                                                    : "border-white/10 hover:border-white/25",
+                                                            )}
+                                                        >
+                                                            <span
+                                                                className={cn(
+                                                                    "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                                                                    active
+                                                                        ? "border-amber-400 bg-amber-400/30 text-amber-100"
+                                                                        : "border-white/25",
+                                                                )}
+                                                            >
+                                                                {active && <Check className="h-3 w-3" />}
+                                                            </span>
+                                                            <span className="min-w-0 flex-1">
+                                                                <span className="block truncate text-sm text-amber-50">
+                                                                    {opt.label}
+                                                                </span>
+                                                                {opt.sub && (
+                                                                    <span className="block truncate text-[11px] text-white/40">
+                                                                        {opt.sub}
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PASO 4 · FORMATO + CONTENIDO
+// PASO 5 · FORMATO + CONTENIDO (incluye campos de la plantilla de Sub-Área)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function StepFormatContent({
     type,
+    subArea,
     format,
     onFormat,
     draft,
     onDraft,
 }: {
     type: PublicationType;
+    subArea: SubArea | null;
     format: string;
     onFormat: (f: string) => void;
     draft: DraftContent;
     onDraft: (d: DraftContent) => void;
 }) {
     const set = (patch: Partial<DraftContent>) => onDraft({ ...draft, ...patch });
+    const setTemplate = (id: string, value: string) =>
+        onDraft({ ...draft, template: { ...draft.template, [id]: value } });
 
     return (
         <div className="space-y-5">
@@ -799,6 +1069,36 @@ function StepFormatContent({
                     el contenido.
                 </p>
             </div>
+
+            {/* Plantilla de la Sub-Área (Módulo 5): campos específicos primero */}
+            {subArea && subArea.template && subArea.template.length > 0 && (
+                <div className="space-y-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-amber-100">
+                        <ScrollText className="h-4 w-4" /> Plantilla · {subArea.label}
+                    </div>
+                    {subArea.template.map((f) => (
+                        <div key={f.id} className="space-y-1">
+                            <label className="text-xs font-medium text-amber-50/90">{f.label}</label>
+                            {f.kind === "textarea" ? (
+                                <Textarea
+                                    placeholder={f.placeholder}
+                                    value={draft.template[f.id] || ""}
+                                    onChange={(e) => setTemplate(f.id, e.target.value)}
+                                    className="min-h-[110px] bg-white/[0.03] text-amber-50"
+                                />
+                            ) : (
+                                <Input
+                                    placeholder={f.placeholder}
+                                    value={draft.template[f.id] || ""}
+                                    onChange={(e) => setTemplate(f.id, e.target.value)}
+                                    className="bg-white/[0.03] text-amber-50"
+                                />
+                            )}
+                            {f.hint && <p className="text-[11px] text-white/35">{f.hint}</p>}
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Selector de formato */}
             <div className="flex flex-wrap gap-2">
@@ -821,7 +1121,6 @@ function StepFormatContent({
 
             {/* Editor según el tipo */}
             <div className="space-y-3">
-                {/* Título: para tipos que lo usan */}
                 {(type.id === "articulo" ||
                     type.id === "propuesta" ||
                     type.id === "encuesta" ||
@@ -835,7 +1134,6 @@ function StepFormatContent({
                     />
                 )}
 
-                {/* Cuerpo de texto / markdown */}
                 {(type.id === "texto" ||
                     type.id === "articulo" ||
                     type.id === "propuesta" ||
@@ -852,7 +1150,6 @@ function StepFormatContent({
                     />
                 )}
 
-                {/* URL: imagen / archivo / enlace / app / lienzo / mixto */}
                 {(type.id === "imagen" ||
                     type.id === "archivo" ||
                     type.id === "enlace" ||
@@ -885,7 +1182,6 @@ function StepFormatContent({
                     </div>
                 )}
 
-                {/* Galería de imágenes (urls múltiples) */}
                 {type.id === "imagen" && format === "galeria" && (
                     <UrlList
                         label="Imágenes de la galería"
@@ -895,7 +1191,6 @@ function StepFormatContent({
                     />
                 )}
 
-                {/* Pie de foto para imagen */}
                 {type.id === "imagen" && (
                     <Input
                         placeholder="Pie de foto (opcional)"
@@ -905,7 +1200,6 @@ function StepFormatContent({
                     />
                 )}
 
-                {/* Opciones de encuesta */}
                 {type.id === "encuesta" && (
                     <UrlList
                         label="Opciones"
@@ -984,21 +1278,175 @@ function UrlList({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PASO 5 · VISTA PREVIA + RESULTADOS
+// PASO 6 · CONFIGURACIÓN CONTEXTUAL + ÁMBITO (Módulo 5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StepConfigScope({
+    visibility,
+    onVisibility,
+    voting,
+    onVoting,
+    scope,
+    onScope,
+    reach,
+}: {
+    visibility: string;
+    onVisibility: (v: string) => void;
+    voting: VotingConfig;
+    onVoting: (v: VotingConfig) => void;
+    scope: string;
+    onScope: (s: string) => void;
+    reach: string;
+}) {
+    return (
+        <div className="space-y-6">
+            <div>
+                <h3 className="mb-1 text-lg font-semibold text-amber-50">Configuración y ámbito</h3>
+                <p className="text-sm text-white/50">
+                    Define la visibilidad, la votación y el ámbito de tu publicación.
+                </p>
+            </div>
+
+            {/* Visibilidad */}
+            <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-amber-50">
+                    <Eye className="h-4 w-4 text-amber-300" /> Visibilidad
+                </label>
+                <div className="flex flex-wrap gap-2">
+                    {VISIBILITIES.map((v) => {
+                        const active = v.id === visibility;
+                        return (
+                            <button
+                                key={v.id}
+                                type="button"
+                                onClick={() => onVisibility(v.id)}
+                                title={v.hint}
+                                className={cn(
+                                    "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                                    active
+                                        ? "border-amber-400/60 bg-amber-400/15 text-amber-100"
+                                        : "border-white/15 text-white/55 hover:border-white/30 hover:text-white/80",
+                                )}
+                            >
+                                {v.label}
+                            </button>
+                        );
+                    })}
+                </div>
+                <p className="text-[11px] text-white/35">
+                    {VISIBILITIES.find((v) => v.id === visibility)?.hint}
+                </p>
+            </div>
+
+            {/* Votación (Módulo 5 · Votación Avanzada) */}
+            <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <button
+                    type="button"
+                    onClick={() => onVoting({ ...voting, enabled: !voting.enabled })}
+                    className="flex w-full items-center gap-3 text-left"
+                >
+                    <span
+                        className={cn(
+                            "flex h-5 w-9 items-center rounded-full p-0.5 transition-colors",
+                            voting.enabled ? "bg-amber-400/70" : "bg-white/15",
+                        )}
+                    >
+                        <span
+                            className={cn(
+                                "h-4 w-4 rounded-full bg-white transition-transform",
+                                voting.enabled && "translate-x-4",
+                            )}
+                        />
+                    </span>
+                    <span className="flex items-center gap-2 text-sm font-medium text-amber-50">
+                        <Vote className="h-4 w-4 text-amber-300" /> Habilitar votación
+                    </span>
+                </button>
+
+                {voting.enabled && (
+                    <div className="space-y-3 pl-1">
+                        <div className="flex flex-wrap gap-2">
+                            {(["simple", "ponderada", "cuadratica"] as const).map((m) => {
+                                const active = (voting.mode ?? "simple") === m;
+                                return (
+                                    <button
+                                        key={m}
+                                        type="button"
+                                        onClick={() => onVoting({ ...voting, mode: m })}
+                                        className={cn(
+                                            "rounded-full border px-3 py-1 text-xs capitalize transition-colors",
+                                            active
+                                                ? "border-amber-400/60 bg-amber-400/15 text-amber-100"
+                                                : "border-white/15 text-white/55 hover:border-white/30",
+                                        )}
+                                    >
+                                        {m}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-medium text-white/55">
+                                Umbral de aprobación: {voting.threshold ?? 50}%
+                            </label>
+                            <input
+                                type="range"
+                                min={1}
+                                max={100}
+                                value={voting.threshold ?? 50}
+                                onChange={(e) =>
+                                    onVoting({ ...voting, threshold: Number(e.target.value) })
+                                }
+                                className="w-full accent-amber-400"
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Ámbito / scope */}
+            <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-amber-50">
+                    <Compass className="h-4 w-4 text-amber-300" /> Ámbito
+                </label>
+                <Input
+                    placeholder="Ámbito de la publicación (p. ej. local, regional, global, una comunidad…)"
+                    value={scope}
+                    onChange={(e) => onScope(e.target.value)}
+                    className="bg-white/[0.03] text-amber-50"
+                />
+                <p className="text-[11px] text-white/35">
+                    El ámbito declara el alcance previsto. {reach}
+                </p>
+            </div>
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PASO 7 · VISTA PREVIA + ALCANCE + LIENZO + RESULTADOS
 // ─────────────────────────────────────────────────────────────────────────────
 
 function StepPreview({
     preview,
+    area,
+    subArea,
+    postKind,
     profiles,
     selectedProfiles,
     destinations,
+    reach,
     results,
     onOpenFull,
 }: {
     preview: PreviewModel;
+    area: Area | null;
+    subArea: SubArea | null;
+    postKind: PostKindId;
     profiles: PublishProfile[];
     selectedProfiles: string[];
     destinations: SelectedDestination[];
+    reach: string;
     results: DestinationResult[] | null;
     onOpenFull: () => void;
 }) {
@@ -1008,22 +1456,45 @@ function StepPreview({
             .filter(Boolean)
             .join(", ") || "Perfil por defecto";
 
+    const postKindLabel = POST_KINDS.find((k) => k.id === postKind)?.label || postKind;
+
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-amber-50">Vista previa</h3>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onOpenFull}
-                    className="text-white/60 hover:text-amber-200"
-                >
-                    <Maximize2 className="mr-1.5 h-3.5 w-3.5" /> Abrir completo
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        asChild
+                        variant="ghost"
+                        size="sm"
+                        className="text-white/60 hover:text-amber-200"
+                    >
+                        <Link href="/pizarra">
+                            <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" /> Abrir en el Lienzo
+                        </Link>
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onOpenFull}
+                        className="text-white/60 hover:text-amber-200"
+                    >
+                        <Maximize2 className="mr-1.5 h-3.5 w-3.5" /> Abrir completo
+                    </Button>
+                </div>
             </div>
 
-            {/* Resumen de envío */}
+            {/* Resumen de intención + envío */}
             <div className="flex flex-wrap items-center gap-2 text-xs text-white/50">
+                {area && (
+                    <Badge variant="secondary" className="bg-amber-400/15 text-amber-100">
+                        {area.label}
+                        {subArea ? " · " + subArea.label : ""}
+                    </Badge>
+                )}
+                <Badge variant="secondary" className="bg-white/10 text-white/70">
+                    {postKindLabel}
+                </Badge>
                 <span className="text-white/40">Desde:</span>
                 <span className="text-amber-200">{fromLabels}</span>
                 <span className="text-white/20">·</span>
@@ -1042,12 +1513,34 @@ function StepPreview({
                 ))}
             </div>
 
+            {/* Alcance (Módulo 5 · alcance transparente) */}
+            <div className="flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/[0.04] p-3 text-sm text-amber-50/90">
+                <Compass className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                <span>
+                    <span className="font-semibold text-amber-100">Alcance: </span>
+                    {reach}
+                </span>
+            </div>
+
             {/* Cuerpo del preview */}
             <Card className="border-white/10 bg-white/[0.02]">
                 <CardContent className="p-4">
                     <PreviewBody preview={preview} />
                 </CardContent>
             </Card>
+
+            {/* Llamada al Lienzo de Creación (editor híbrido) */}
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-white/15 bg-white/[0.02] p-3">
+                <span className="text-xs text-white/55">
+                    ¿Necesitas el editor híbrido (Insertar · Capas · Propiedades)? Abre el Lienzo de
+                    Creación ilimitado.
+                </span>
+                <Button asChild size="sm" variant="outline" className="shrink-0">
+                    <Link href="/pizarra">
+                        <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" /> Lienzo
+                    </Link>
+                </Button>
+            </div>
 
             {/* Resultados por destino tras publicar */}
             {results && (
