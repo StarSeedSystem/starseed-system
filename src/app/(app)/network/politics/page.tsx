@@ -14,6 +14,7 @@ import Link from "next/link";
 import { listFederativeEntities, listPartidos } from "@/data/sample-governance";
 
 import { ExecutiveProjectsBoard, JudicialCaseList } from "./components";
+import { OntocraciaDecisionesCard } from "./ontocracia-decisiones";
 import { SystemShowcase } from "@/components/showcase/SystemShowcase";
 
 /** Lanzador de gobernanza: enlaza a las páginas de detalle de E.F. y partidos. */
@@ -99,6 +100,9 @@ export default function PoliticsPage() {
 
                     <TabsContent value="legislativo" className="mt-6 animate-in fade-in-50 duration-500 slide-in-from-bottom-2">
                         <div className="space-y-6">
+                            {/* Ontocracia · Decisiones (en vivo) — propuestas democráticas + deep-link a /decisiones */}
+                            <OntocraciaDecisionesCard />
+
                             {politicalProposals.map(p => (
                                 <PoliticalProposalCard key={p.id} proposal={p} />
                             ))}
