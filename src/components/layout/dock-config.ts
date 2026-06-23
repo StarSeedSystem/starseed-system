@@ -47,6 +47,9 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   // ── IA: UN solo botón a la página principal por defecto ──
   { id: 'ai-studio',     label: 'AI Studio',        iconKey: 'BrainCircuit', path: '/agent',               color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'settings',      label: 'Ajustes',          iconKey: 'Settings',     path: '/settings',            color: 'neutral', enabled: true,  origin: 'preset' },
+  { id: 'navegador',     label: 'Navegador',        iconKey: 'Network',      path: '/navegador',           color: 'cyan',    enabled: true,  origin: 'preset' },
+  { id: 'pizarra',       label: 'Pizarra',          iconKey: 'Sparkles',     path: '/pizarra',             color: 'purple',  enabled: true,  origin: 'preset' },
+  { id: 'seguridad',     label: 'Seguridad',        iconKey: 'Settings',     path: '/seguridad',           color: 'emerald', enabled: false, origin: 'preset' },
   // ── Opciones extra disponibles desde el editor (no visibles por defecto) ──
   { id: 'sincrometro',   label: 'Sincrómetro',      iconKey: 'CalendarDays', path: '/hub?tab=calendar',    color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'hermes-graph',  label: 'Cerebro',          iconKey: 'Brain',        path: '/network/graph',       color: 'purple',  enabled: false, origin: 'preset' },
