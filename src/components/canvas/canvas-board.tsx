@@ -13,6 +13,13 @@
 // grupo en cada bloque (`block.group`); y un botón VR/AR (modo inmersivo
 // experimental con WebXR, honesto si no está soportado). Todo es ADITIVO:
 // se preservan añadir/arrastrar/persistir/publicar.
+//
+// INTERCONEXIÓN (puente): la pizarra escucha el bus `@/lib/share/bridge`:
+//   · onAttach({kind:'window',url}) → añade un bloque `browser` con esa URL.
+//   · onOpenComposer(initial)       → hospeda un Dialog con <PublicationComposer/>.
+// Además, «Publicar lienzo» abre el compositor universal prerellenado (tipo
+// `lienzo`, formato `snapshot`) en un Dialog, y el botón VR/AR monta el lienzo
+// inmersivo REAL <XRView/> (WebXR) en un overlay.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -22,6 +29,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import PublicationComposer from "@/components/publish/publication-composer";
+import { onAttach, onOpenComposer, type ComposerInitial } from "@/lib/share/bridge";
+import XRView from "@/components/canvas/xr-view";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -143,6 +160,11 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   const [connectMode, setConnectMode] = useState(false);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
 
+  // ---- interconexión (puente) + inmersivo + publicar lienzo ---------------
+  const [showXR, setShowXR] = useState(false); // overlay WebXR (lienzo inmersivo)
+  const [publishCanvasOpen, setPublishCanvasOpen] = useState(false); // Dialog «Publicar lienzo»
+  const [composerInitial, setComposerInitial] = useState<ComposerInitial | null>(null); // Dialog del compositor (peticiones externas)
+
   // Datos de referencia (cargados perezosamente para selectores).
   const [vaults, setVaults] = useState<VaultRef[]>([]);
   const [memories, setMemories] = useState<MemoryRef[]>([]);
@@ -252,6 +274,24 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
     if (kind === "vault" || kind === "memory") ensureRefData();
     mutate((c) => ({ ...c, blocks: [...c.blocks, defaultBlock(kind, c.blocks.length)] }));
   }
+
+  // Añade un bloque `browser` con una URL ya conocida (usado por adjuntos del
+  // puente: una ventana del navegador llega y se materializa en la pizarra).
+  const addBrowserBlockWithUrl = useCallback(
+    (url: string, title?: string) => {
+      if (!url) return;
+      mutate((c) => {
+        const base = defaultBlock("browser", c.blocks.length);
+        const blk: CanvasBlock = {
+          ...base,
+          title: title || base.title,
+          data: { url },
+        };
+        return { ...c, blocks: [...c.blocks, blk] };
+      });
+    },
+    [mutate],
+  );
 
   function removeBlock(id: string) {
     // Al borrar un bloque, eliminamos también sus aristas.
@@ -525,32 +565,34 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
     toast.message(v ? "Lienzo compartible activado" : "Compartir desactivado");
   }
 
-  // ---- VR / AR (modo inmersivo experimental, WebXR) -----------------------
-  async function enterImmersive() {
-    if (typeof navigator === "undefined" || !(navigator as any).xr) {
-      toast.message("Modo inmersivo (experimental)", {
-        description: "WebXR no está disponible en este navegador/dispositivo.",
-      });
-      return;
-    }
-    try {
-      const xr = (navigator as any).xr;
-      const ok = typeof xr.isSessionSupported === "function" ? await xr.isSessionSupported("immersive-vr") : false;
-      if (ok) {
-        toast.message("Modo inmersivo (experimental)", {
-          description: "WebXR detectado. La sesión VR/AR del lienzo llegará en una próxima versión.",
-        });
-      } else {
-        toast.message("Modo inmersivo (experimental)", {
-          description: "Tu dispositivo no soporta sesiones VR inmersivas.",
-        });
-      }
-    } catch {
-      toast.message("Modo inmersivo (experimental)", {
-        description: "No se pudo iniciar WebXR.",
-      });
-    }
+  // ---- VR / AR real (lienzo inmersivo, WebXR) -----------------------------
+  // Monta <XRView/> en un overlay a pantalla completa. La detección de soporte
+  // y el fallback honesto (no soportado) los gestiona el propio XRView.
+  function enterImmersive() {
+    setShowXR(true);
   }
+
+  // ---- interconexión: recibir adjuntos del puente -------------------------
+  // Cuando llega un adjunto de tipo `window` (desde el Navegador), lo
+  // materializamos como un bloque `browser` en el lienzo actual.
+  useEffect(() => {
+    const off = onAttach((payload) => {
+      if (payload.kind === "window" && payload.url) {
+        addBrowserBlockWithUrl(payload.url, payload.title);
+        toast.success("Ventana añadida a la pizarra");
+      }
+    });
+    return off;
+  }, [addBrowserBlockWithUrl]);
+
+  // La pizarra también HOSPEDA el compositor: si alguien pide abrirlo (p. ej. el
+  // Navegador con «adjuntar a publicación»), montamos el Dialog con su `initial`.
+  useEffect(() => {
+    const off = onOpenComposer((initial) => {
+      setComposerInitial(initial);
+    });
+    return off;
+  }, []);
 
   // ---- publicar ------------------------------------------------------------
   async function publishNow() {
@@ -558,6 +600,32 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
     if (res.ok) toast.success("Publicado en el lienzo universal");
     else toast.error(res.detail);
   }
+
+  // Abre el compositor universal prerellenado para publicar ESTE lienzo
+  // (tipo `lienzo`, formato `snapshot`). Convive con el publicado inmediato.
+  function openPublishCanvas() {
+    setPublishCanvasOpen(true);
+  }
+
+  // `initial` para el compositor al publicar el lienzo. `PublishContent` es
+  // estricto (title/body/url/urls/options/meta), así que `canvasId` y el
+  // resumen viajan en `title`/`body`/`meta`.
+  const canvasComposerInitial: ComposerInitial = useMemo(
+    () => ({
+      type: "lienzo",
+      format: "snapshot",
+      content: {
+        title: canvas.title,
+        body: summarizeCanvas(canvas),
+        meta: {
+          canvasId: canvas.id,
+          title: canvas.title,
+          summary: summarizeCanvas(canvas),
+        },
+      },
+    }),
+    [canvas],
+  );
 
   function publishDemocratic() {
     // Deep-link a /decisiones con una propuesta `publish` prefilled.
@@ -742,6 +810,9 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
           <Button size="sm" className="gap-1.5 h-8 bg-amber-600 hover:bg-amber-500 text-white" onClick={publishNow}>
             <Send className="w-3.5 h-3.5" /> Publicar
           </Button>
+          <Button size="sm" variant="outline" className="gap-1.5 h-8 border-amber-500/30 text-amber-100" onClick={openPublishCanvas} title="Publicar el lienzo con el compositor (instantánea)">
+            <Send className="w-3.5 h-3.5" /> Publicar lienzo
+          </Button>
           <Button size="sm" variant="outline" className="gap-1.5 h-8 border-amber-500/30 text-amber-100" onClick={publishDemocratic}>
             <Vote className="w-3.5 h-3.5" /> Publicar (democrático)
           </Button>
@@ -789,7 +860,7 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
           <Button size="sm" variant="outline" className="gap-1.5 h-8 border-white/15 text-white/70" onClick={resetView} title="Restablecer vista">
             <Maximize2 className="w-3.5 h-3.5" /> Centrar
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 h-8 border-fuchsia-500/30 text-fuchsia-100" onClick={enterImmersive} title="Modo inmersivo (experimental)">
+          <Button size="sm" variant="outline" className="gap-1.5 h-8 border-fuchsia-500/30 text-fuchsia-100" onClick={enterImmersive} title="Lienzo inmersivo (VR/AR · WebXR)">
             <Glasses className="w-3.5 h-3.5" /> VR/AR
           </Button>
         </div>
@@ -898,6 +969,48 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
       <p className="px-1 pt-2 text-[10px] text-white/30">
         Los bloques de navegador se incrustan con <code className="text-white/40">sandbox</code>. Algunos sitios bloquean el embebido (X-Frame-Options / CSP).
       </p>
+
+      {/* Overlay del lienzo inmersivo (WebXR real) */}
+      {showXR && <XRView blocks={canvas.blocks} onExit={() => setShowXR(false)} />}
+
+      {/* Dialog · Publicar lienzo (compositor universal prerellenado) */}
+      <Dialog open={publishCanvasOpen} onOpenChange={setPublishCanvasOpen}>
+        <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Publicar lienzo</DialogTitle>
+            <DialogDescription>
+              Publica una instantánea de «{canvas.title}» con el compositor universal.
+            </DialogDescription>
+          </DialogHeader>
+          <PublicationComposer
+            initial={canvasComposerInitial as any}
+            onPublished={() => {
+              setPublishCanvasOpen(false);
+              toast.success("Lienzo publicado");
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog · Compositor hospedado para peticiones externas (p. ej. Navegador
+          → «adjuntar a publicación»: openComposer del puente). */}
+      <Dialog open={!!composerInitial} onOpenChange={(o) => !o && setComposerInitial(null)}>
+        <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nueva publicación</DialogTitle>
+            <DialogDescription>Compositor universal de publicaciones.</DialogDescription>
+          </DialogHeader>
+          {composerInitial && (
+            <PublicationComposer
+              initial={composerInitial as any}
+              onPublished={() => {
+                setComposerInitial(null);
+                toast.success("Publicado");
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
