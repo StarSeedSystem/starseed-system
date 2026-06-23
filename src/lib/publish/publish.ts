@@ -536,6 +536,17 @@ export interface PublishInput {
     /** Destinos seleccionados. */
     destinations: SelectedDestination[];
     content: PublishContent;
+    // ── Módulo 5 · flujo guiado por intención (todos opcionales) ──
+    /** Área principal (politica · educacion · cultura · general). */
+    area?: AreaId;
+    /** Sub-área (si el área la define): propuesta_legislativa, curso, etc. */
+    subArea?: string;
+    /** Tipo de publicación: principal (línea de tiempo) o historia. */
+    postKind?: PostKindId;
+    /** Configuración de votación (Módulo 5 · Votación Avanzada). */
+    voting?: VotingConfig;
+    /** Ámbito / alcance declarado de la publicación. */
+    scope?: string;
 }
 
 /** Resultado de la entrega a UN destino. */
@@ -629,6 +640,12 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
         type: input.type,
         format: input.format,
         fromProfiles,
+        // ── Módulo 5 · intención de creación (se almacena en post_references) ──
+        area: input.area ?? null,
+        subArea: input.subArea ?? null,
+        postKind: input.postKind ?? "principal",
+        voting: input.voting ?? null,
+        scope: input.scope ?? null,
     };
 
     for (const dest of input.destinations) {
@@ -859,4 +876,342 @@ export function previewOf(
         default:
             return base;
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MÓDULO 5 · EL ACTO CREADOR — FLUJO GUIADO POR INTENCIÓN
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// El composer arranca preguntando por la INTENCIÓN (Área → Sub-Área → Tipo).
+// Cada Área puede declarar Sub-Áreas, y cada Sub-Área puede cargar una PLANTILLA
+// de campos específicos (p. ej. una Propuesta Legislativa con Exposición de
+// Motivos, Articulado, Análisis de Impacto y Ámbito de Aplicación). Estos datos
+// se almacenan dentro de `post_references` (area/subArea/postKind/voting/scope)
+// para que la publicación —entidad atómica— conserve su intención de origen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** IDs estables de las Áreas Principales. */
+export type AreaId = "politica" | "educacion" | "cultura" | "general";
+
+/** Tipo de publicación según destino: línea de tiempo vs. historias. */
+export type PostKindId = "principal" | "historia";
+
+/**
+ * Un campo de una plantilla de Sub-Área. La UI lo renderiza como input o área de
+ * texto según `kind`. El `id` se usa como clave dentro de `content.meta.template`.
+ */
+export interface TemplateField {
+    id: string;
+    label: string;
+    /** Tipo de control que renderiza el composer. */
+    kind: "text" | "textarea";
+    placeholder?: string;
+    /** Pista de ayuda contextual. */
+    hint?: string;
+}
+
+/** Una Sub-Área de un Área (con plantilla de campos opcional). */
+export interface SubArea {
+    id: string;
+    label: string;
+    blurb?: string;
+    /** Nombre de icono de `lucide-react` (la UI lo resuelve). */
+    icon?: string;
+    /** Campos de plantilla específicos que el composer muestra al crear. */
+    template?: TemplateField[];
+}
+
+/** Un Área Principal del acto creador. */
+export interface Area {
+    id: AreaId;
+    label: string;
+    blurb: string;
+    icon: string;
+    /** Sub-áreas disponibles (vacío si el área no se subdivide). */
+    sub: SubArea[];
+}
+
+/** Catálogo de Tipos de Publicación por destino (Principal / Historia). */
+export const POST_KINDS: { id: PostKindId; label: string; icon: string; blurb: string }[] = [
+    {
+        id: "principal",
+        label: "Publicación Principal",
+        icon: "LayoutDashboard",
+        blurb: "Aparece en la línea de tiempo (feed) de tus destinos.",
+    },
+    {
+        id: "historia",
+        label: "Historia",
+        icon: "Sparkles",
+        blurb: "Aparece en la sección de Historias (efímera / destacada).",
+    },
+];
+
+// ── Plantillas específicas (Política) ──
+
+/** Plantilla de campos para una Propuesta Legislativa. */
+const TEMPLATE_PROPUESTA_LEGISLATIVA: TemplateField[] = [
+    {
+        id: "exposicion_motivos",
+        label: "Exposición de Motivos",
+        kind: "textarea",
+        placeholder: "Justificación, contexto y finalidad de la propuesta…",
+        hint: "El porqué de la norma: problema que resuelve y objetivos.",
+    },
+    {
+        id: "articulado",
+        label: "Articulado",
+        kind: "textarea",
+        placeholder: "Artículo 1. … Artículo 2. …",
+        hint: "El texto normativo, estructurado en artículos.",
+    },
+    {
+        id: "analisis_impacto",
+        label: "Análisis de Impacto",
+        kind: "textarea",
+        placeholder: "Efectos sociales, económicos y ambientales esperados…",
+        hint: "Consecuencias previstas y a quién afectan.",
+    },
+    {
+        id: "ambito_aplicacion",
+        label: "Ámbito de Aplicación",
+        kind: "text",
+        placeholder: "Territorial / personal / temporal de aplicación",
+        hint: "Dónde y a quién aplica la propuesta.",
+    },
+];
+
+/** Plantilla de campos para un Caso Judicial. */
+const TEMPLATE_CASO_JUDICIAL: TemplateField[] = [
+    {
+        id: "partes",
+        label: "Partes",
+        kind: "textarea",
+        placeholder: "Demandante(s), demandado(s) y representación…",
+        hint: "Quiénes intervienen en el caso.",
+    },
+    {
+        id: "hechos",
+        label: "Hechos",
+        kind: "textarea",
+        placeholder: "Relato cronológico de los hechos relevantes…",
+        hint: "Qué ocurrió, en orden y con datos verificables.",
+    },
+    {
+        id: "principios_afectados",
+        label: "Principios Afectados",
+        kind: "textarea",
+        placeholder: "Derechos y principios en juego…",
+        hint: "Normas, derechos o principios que se discuten.",
+    },
+    {
+        id: "pruebas",
+        label: "Pruebas",
+        kind: "textarea",
+        placeholder: "Documentos, testimonios y evidencias aportadas…",
+        hint: "Elementos probatorios del caso.",
+    },
+];
+
+// ── Catálogo de ÁREAS (Módulo 5 · paso 1 del acto creador) ──
+
+export const AREAS: Area[] = [
+    {
+        id: "politica",
+        label: "Política",
+        blurb: "Gobernanza, leyes y decisiones colectivas.",
+        icon: "Scale",
+        sub: [
+            {
+                id: "propuesta_legislativa",
+                label: "Propuesta Legislativa",
+                blurb: "Una norma propuesta para deliberación y voto.",
+                icon: "ScrollText",
+                template: TEMPLATE_PROPUESTA_LEGISLATIVA,
+            },
+            {
+                id: "caso_judicial",
+                label: "Caso Judicial",
+                blurb: "Un caso para análisis y resolución.",
+                icon: "Gavel",
+                template: TEMPLATE_CASO_JUDICIAL,
+            },
+        ],
+    },
+    {
+        id: "educacion",
+        label: "Educación",
+        blurb: "Conocimiento, formación y aprendizaje.",
+        icon: "GraduationCap",
+        sub: [
+            {
+                id: "curso",
+                label: "Curso",
+                blurb: "Un itinerario formativo con módulos.",
+                icon: "BookOpen",
+                template: [
+                    { id: "objetivos", label: "Objetivos de Aprendizaje", kind: "textarea", placeholder: "Qué aprenderá el estudiante…" },
+                    { id: "temario", label: "Temario", kind: "textarea", placeholder: "Módulos y lecciones…" },
+                    { id: "requisitos", label: "Requisitos", kind: "text", placeholder: "Conocimientos previos recomendados" },
+                ],
+            },
+            {
+                id: "articulo",
+                label: "Artículo",
+                blurb: "Una pieza divulgativa o académica.",
+                icon: "Newspaper",
+                template: [
+                    { id: "resumen", label: "Resumen", kind: "textarea", placeholder: "Síntesis del artículo…" },
+                    { id: "referencias", label: "Referencias", kind: "textarea", placeholder: "Fuentes y bibliografía…" },
+                ],
+            },
+            {
+                id: "espacio",
+                label: "Espacio",
+                blurb: "Un espacio de estudio o comunidad de aprendizaje.",
+                icon: "Users2",
+                template: [
+                    { id: "proposito", label: "Propósito", kind: "textarea", placeholder: "Para qué sirve este espacio…" },
+                    { id: "normas", label: "Normas de Convivencia", kind: "textarea", placeholder: "Reglas del espacio…" },
+                ],
+            },
+        ],
+    },
+    {
+        id: "cultura",
+        label: "Cultura",
+        blurb: "Arte, expresión, eventos y comunidad.",
+        icon: "Palette",
+        sub: [
+            {
+                id: "publicacion",
+                label: "Publicación",
+                blurb: "Una obra o pieza cultural.",
+                icon: "Image",
+                template: [
+                    { id: "descripcion", label: "Descripción", kind: "textarea", placeholder: "Sobre la obra…" },
+                    { id: "creditos", label: "Créditos", kind: "text", placeholder: "Autoría y colaboraciones" },
+                ],
+            },
+            {
+                id: "evento",
+                label: "Evento",
+                blurb: "Una convocatoria con fecha y lugar.",
+                icon: "Flag",
+                template: [
+                    { id: "fecha", label: "Fecha y Hora", kind: "text", placeholder: "Cuándo ocurre" },
+                    { id: "lugar", label: "Lugar", kind: "text", placeholder: "Dónde (físico o virtual)" },
+                    { id: "programa", label: "Programa", kind: "textarea", placeholder: "Actividades y agenda…" },
+                ],
+            },
+            {
+                id: "historia",
+                label: "Historia",
+                blurb: "Un relato o narración cultural.",
+                icon: "BookOpen",
+                template: [
+                    { id: "sinopsis", label: "Sinopsis", kind: "textarea", placeholder: "De qué trata la historia…" },
+                ],
+            },
+        ],
+    },
+    {
+        id: "general",
+        label: "General",
+        blurb: "Sin un área específica; publicación libre.",
+        icon: "Globe",
+        sub: [],
+    },
+];
+
+/** Búsqueda rápida de un Área por id. */
+export function areaById(id: string): Area | undefined {
+    return AREAS.find((a) => a.id === id);
+}
+
+/** Búsqueda rápida de una Sub-Área dentro de un Área. */
+export function subAreaById(areaId: string, subId: string): SubArea | undefined {
+    return areaById(areaId)?.sub.find((s) => s.id === subId);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIGURACIÓN DE VOTACIÓN (Módulo 5 · F. Votación Avanzada)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Configuración de votación asociada a la publicación. */
+export interface VotingConfig {
+    /** Si la publicación admite votación. */
+    enabled: boolean;
+    /** Modo de votación (simple por defecto). */
+    mode?: "simple" | "ponderada" | "cuadratica";
+    /** Umbral de aprobación (0–100 %). */
+    threshold?: number;
+}
+
+/** Configuración de votación por defecto (desactivada). */
+export const DEFAULT_VOTING: VotingConfig = {
+    enabled: false,
+    mode: "simple",
+    threshold: 50,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ALCANCE (Módulo 5 · A. visibilidad contextual y alcance transparente)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Resume en español DÓNDE vivirá la publicación (su "alcance"): los hogares
+ * —perfiles, páginas, grupos, chats, bibliotecas…— donde quedará referenciada
+ * la entidad atómica. Pensado para mostrarse en la Vista Previa.
+ *
+ * No accede a la red: trabaja sólo sobre los destinos ya seleccionados.
+ */
+export function reachOf(destinations: SelectedDestination[]): string {
+    if (!destinations || destinations.length === 0) {
+        return "Sin destinos: la publicación no tendrá alcance todavía.";
+    }
+
+    // Agrupa por tipo de destino para un resumen legible.
+    const counts = new Map<DestinationKindId, number>();
+    for (const d of destinations) {
+        counts.set(d.kind, (counts.get(d.kind) || 0) + 1);
+    }
+
+    // Etiquetas en plural por tipo de destino.
+    const plural: Record<DestinationKindId, [string, string]> = {
+        red: ["feed", "feeds"],
+        pagina: ["página", "páginas"],
+        perfil: ["perfil", "perfiles"],
+        grupo: ["grupo", "grupos"],
+        comunidad: ["comunidad", "comunidades"],
+        entidad_federativa: ["entidad federativa", "entidades federativas"],
+        mensaje: ["mensaje", "mensajes"],
+        chat_ia: ["chat IA", "chats IA"],
+        biblioteca: ["biblioteca", "bibliotecas"],
+        carpeta: ["carpeta", "carpetas"],
+    };
+
+    const parts: string[] = [];
+    for (const [kind, n] of counts) {
+        const [sing, plur] = plural[kind] || [kind, kind];
+        parts.push(n + " " + (n === 1 ? sing : plur));
+    }
+
+    // Une con comas y una "y" final.
+    let where: string;
+    if (parts.length === 1) {
+        where = parts[0];
+    } else {
+        where = parts.slice(0, -1).join(", ") + " y " + parts[parts.length - 1];
+    }
+
+    const total = destinations.length;
+    const homes = total === 1 ? "1 hogar" : total + " hogares";
+    return (
+        "La publicación vivirá como una entidad única, referenciada en " +
+        homes +
+        ": " +
+        where +
+        "."
+    );
 }
