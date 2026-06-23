@@ -11,6 +11,7 @@ import { culturalPosts } from "@/lib/data";
 import { CommentSystem } from '@/components/comment-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MapPlaceholder } from './components';
+import { CrearAffordances, CulturalFeedLive } from './crear-realtime';
 import { UnifiedCalendar } from '@/components/calendar/unified-calendar';
 import { SystemShowcase } from '@/components/showcase/SystemShowcase';
 
@@ -76,6 +77,9 @@ function CulturalPostCard({ post }: { post: typeof culturalPosts[0] }) {
 export default function CulturePage() {
   return (
     <div className="flex flex-col gap-6">
+      {/* Crear: accesos directos al Composer universal (/publicar) y al Lienzo (/pizarra) */}
+      <CrearAffordances />
+
       <Tabs defaultValue="feed" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="feed"><Radio className="mr-2 h-4 w-4" />Feed Cultural</TabsTrigger>
@@ -85,6 +89,8 @@ export default function CulturePage() {
 
         <TabsContent value="feed" className="animate-in fade-in-50 duration-500">
           <div className="space-y-6">
+            {/* Indicador en vivo (realtime sobre la tabla `posts`) */}
+            <CulturalFeedLive />
             {culturalPosts.map(post => (
               <CulturalPostCard key={post.id} post={post} />
             ))}
@@ -121,4 +127,3 @@ export default function CulturePage() {
     </div>
   );
 }
-
