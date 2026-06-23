@@ -99,6 +99,7 @@ import {
   applyPreset,
   type GenAdapter,
 } from "@/lib/brains/adapters";
+import { useRealtime } from "@/lib/realtime/realtime";
 
 const BOT_BASE = "https://starseed-neurocortex.vercel.app";
 
@@ -176,6 +177,12 @@ export default function BrainsPanel() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // TIEMPO REAL: recarga la lista de cerebros (y catálogo/selecciones) cuando
+  // cambian los cerebros del usuario en cualquier dispositivo. RLS por owner.
+  useRealtime("brains", { filter: userId ? `owner=eq.${userId}` : undefined }, () => {
+    void load();
+  });
 
   /* ---------------------------- editor helpers ---------------------------- */
 
@@ -1627,6 +1634,12 @@ function LinkedRegistryServers({ brainId, brainName }: { brainId: string; brainN
   useEffect(() => {
     void load();
   }, [load]);
+
+  // TIEMPO REAL: refresca los enlaces servidor↔cerebro cuando se crean o
+  // eliminan vínculos en `brain_server_links` (incl. desde otros clientes).
+  useRealtime("brain_server_links", {}, () => {
+    void load();
+  });
 
   const available = useMemo(() => {
     const used = new Set(linked.map((l) => l.id));
