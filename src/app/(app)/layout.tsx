@@ -12,6 +12,7 @@ import { hermes } from "@/hermes-integration";
 import { AuroraProvider } from "@/components/aurora/aurora-provider";
 import { AuroraWidget } from "@/components/aurora/aurora-widget";
 import { DecisionsBell } from "@/components/decisions/decisions-bell";
+import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 // AiOverlay retirado: el botón flotante del bot de IA se elimina; la función de
 // IA vive ahora en el Exocórtex del menú Trinity (Zenith). El componente se
 // conserva en el repo por si se reutiliza, pero ya no se monta globalmente.
@@ -39,6 +40,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   {children}
                   <AuroraWidget />
                   <DecisionsBell />
+                  <OnboardingGate />
                 </AuroraProvider>
               </div>
             </main>
