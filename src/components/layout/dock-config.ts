@@ -50,6 +50,13 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'navegador',     label: 'Navegador',        iconKey: 'Network',      path: '/navegador',           color: 'cyan',    enabled: true,  origin: 'preset' },
   { id: 'pizarra',       label: 'Pizarra',          iconKey: 'Sparkles',     path: '/pizarra',             color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'seguridad',     label: 'Seguridad',        iconKey: 'Settings',     path: '/seguridad',           color: 'emerald', enabled: false, origin: 'preset' },
+  { id: 'funciones',     label: 'Funciones',        iconKey: 'Sparkles',     path: '/funciones',           color: 'purple',  enabled: true,  origin: 'preset' },
+  { id: 'decisiones',    label: 'Decisiones',       iconKey: 'Shield',       path: '/decisiones',          color: 'amber',   enabled: true,  origin: 'preset' },
+  { id: 'conocimiento',  label: 'Conocimiento',     iconKey: 'BrainCircuit', path: '/conocimiento',        color: 'cyan',    enabled: false, origin: 'preset' },
+  { id: 'cerebros',      label: 'Cerebros',         iconKey: 'Brain',        path: '/cerebros',            color: 'purple',  enabled: false, origin: 'preset' },
+  { id: 'tienda',        label: 'Tienda',           iconKey: 'Library',      path: '/store',               color: 'emerald', enabled: false, origin: 'preset' },
+  { id: 'insignias',     label: 'Insignias',        iconKey: 'Zap',          path: '/insignias',           color: 'amber',   enabled: false, origin: 'preset' },
+  { id: 'apps-ia',       label: 'Apps IA',          iconKey: 'Cpu',          path: '/apps-ia',             color: 'emerald', enabled: false, origin: 'preset' },
   // ── Opciones extra disponibles desde el editor (no visibles por defecto) ──
   { id: 'sincrometro',   label: 'Sincrómetro',      iconKey: 'CalendarDays', path: '/hub?tab=calendar',    color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'hermes-graph',  label: 'Cerebro',          iconKey: 'Brain',        path: '/network/graph',       color: 'purple',  enabled: false, origin: 'preset' },
