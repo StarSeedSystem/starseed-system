@@ -6,12 +6,17 @@
  * muestra en un popover, con enlace a /decisiones y acción "marcar visto".
  * Posición fija abajo-izquierda (distinta del widget Aurora, abajo-derecha).
  * SSR-safe: sólo consulta tras auth.getUser(); si no hay sesión, no renderiza nada.
+ *
+ * Tiempo real: además del polling de seguridad, se suscribe a Supabase Realtime
+ * sobre `proposal_notifications` (filtrado por el usuario actual) para que las
+ * nuevas decisiones aparezcan al instante. El polling lento queda como backstop.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Gavel, Check, RefreshCw } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { useRealtime } from "@/lib/realtime/realtime";
 import {
   Popover,
   PopoverContent,
@@ -88,7 +93,20 @@ export function DecisionsBell() {
     };
   }, [load]);
 
-  // ── polling en montaje (mientras haya sesión) ──
+  // ── TIEMPO REAL: nuevas/actualizadas notificaciones del usuario actual ──
+  // Cualquier INSERT/UPDATE/DELETE sobre `proposal_notifications` del usuario
+  // dispara una recarga, de modo que el badge y la lista se actualizan al
+  // instante (RLS limita lo que el cliente puede recibir). Mientras no haya
+  // `userId`, el filtro es undefined y el hook es no-op.
+  useRealtime(
+    "proposal_notifications",
+    { filter: userId ? `user_id=eq.${userId}` : undefined, event: "*" },
+    () => {
+      if (userId) void load(userId);
+    }
+  );
+
+  // ── polling en montaje (backstop, mientras haya sesión) ──
   useEffect(() => {
     if (!userId) return;
     const id = window.setInterval(() => {
