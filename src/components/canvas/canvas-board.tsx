@@ -6,6 +6,13 @@
 // widgets y ventanas del navegador. Persiste en `canvases.blocks` (guardado
 // con debounce). Publica como post (inmediato) o vía propuesta democrática.
 // SSR-safe: nada de window en el cuerpo del módulo.
+//
+// AMPLIADO (centros de trabajo): pan/zoom infinito sobre una superficie
+// transformada; conexiones (aristas) entre bloques persistidas en
+// `canvases.edges`; modos de vista libre / mapa-mental / cerebro; metadatos de
+// grupo en cada bloque (`block.group`); y un botón VR/AR (modo inmersivo
+// experimental con WebXR, honesto si no está soportado). Todo es ADITIVO:
+// se preservan añadir/arrastrar/persistir/publicar.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -39,6 +46,13 @@ import {
   Layers,
   ChevronDown,
   Upload,
+  Spline,
+  Network,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Glasses,
+  Move,
 } from "lucide-react";
 import {
   BLOCK_KINDS,
@@ -60,6 +74,17 @@ import {
   type VaultRef,
   type MemoryRef,
 } from "@/lib/canvas/canvas";
+import {
+  getEdges,
+  addEdge as addEdgeToCanvas,
+  removeEdge as removeEdgeFromCanvas,
+  pruneEdges,
+  saveCanvasWithEdges,
+  VIEW_MODES,
+  VIEW_MODE_LABELS,
+  type CanvasEdge,
+  type ViewMode,
+} from "@/lib/canvas/workcenters";
 import { buildProposalLink } from "@/lib/governance/links";
 
 // Mapa de iconos lucide por nombre (declarado en el catálogo del lib).
@@ -81,6 +106,24 @@ function KindIcon({ kind, className }: { kind: BlockKind; className?: string }) 
   return <Cmp className={className} />;
 }
 
+// Metadatos de grupo/carpeta de un bloque (campo opcional `group`). Se modela
+// de forma aditiva aquí para no tocar el tipo base CanvasBlock del lib.
+type GroupedBlock = CanvasBlock & { group?: string };
+function blockGroup(b: CanvasBlock): string | undefined {
+  return (b as GroupedBlock).group;
+}
+
+// Iconos por modo de vista.
+const VIEW_ICONS: Record<ViewMode, React.ComponentType<{ className?: string }>> = {
+  libre: LayoutGrid,
+  "mapa-mental": Network,
+  cerebro: Brain,
+};
+
+// Límites de zoom.
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 2.5;
+
 export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   const [userId, setUserId] = useState<string | null>(null);
   const [canvas, setCanvas] = useState<Canvas>(() => newCanvas("Lienzo sin título"));
@@ -92,6 +135,13 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   const [titleDraft, setTitleDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  // ---- pan/zoom + vista + conexiones (estado de la ampliación) ------------
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [viewMode, setViewMode] = useState<ViewMode>("libre");
+  const [connectMode, setConnectMode] = useState(false);
+  const [connectFrom, setConnectFrom] = useState<string | null>(null);
 
   // Datos de referencia (cargados perezosamente para selectores).
   const [vaults, setVaults] = useState<VaultRef[]>([]);
@@ -109,6 +159,14 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
     origW: number;
     origH: number;
   } | null>(null);
+  // Estado del paneo (arrastrar el vacío del lienzo).
+  const panState = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  // Espejo del zoom para que los handlers de puntero (que no recrean closures)
+  // lean siempre el valor actual sin re-suscribirse.
+  const zoomRef = useRef(1);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
 
   // ---- carga inicial -------------------------------------------------------
   const refreshList = useCallback(async () => {
@@ -145,6 +203,13 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvasId]);
 
+  // Al cambiar de lienzo, reseteamos vista/conexión y saneamos aristas.
+  useEffect(() => {
+    setConnectMode(false);
+    setConnectFrom(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvas.id]);
+
   // Carga perezosa de baúles/memorias la primera vez que se necesitan.
   const ensureRefData = useCallback(async () => {
     if (!vaults.length) listVaults().then(setVaults).catch(() => {});
@@ -152,11 +217,12 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   }, [vaults.length, memories.length]);
 
   // ---- guardado con debounce ----------------------------------------------
+  // Persistimos también la columna `edges` (degrada con elegancia si no existe).
   const scheduleSave = useCallback((next: Canvas) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       if (!next.title) return;
-      const persisted = await saveCanvas(next);
+      const persisted = await saveCanvasWithEdges(next);
       if (persisted) {
         setCanvas((cur) => (cur.id === persisted.id || !cur.id ? { ...cur, id: persisted.id, updated_at: persisted.updated_at } : cur));
         setSavedAt(new Date().toLocaleTimeString());
@@ -188,8 +254,10 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   }
 
   function removeBlock(id: string) {
-    mutate((c) => ({ ...c, blocks: c.blocks.filter((b) => b.id !== id) }));
+    // Al borrar un bloque, eliminamos también sus aristas.
+    mutate((c) => pruneEdges({ ...c, blocks: c.blocks.filter((b) => b.id !== id) }));
     if (editingId === id) setEditingId(null);
+    if (connectFrom === id) setConnectFrom(null);
   }
 
   function updateBlock(id: string, patch: Partial<CanvasBlock>) {
@@ -204,6 +272,131 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
       ...c,
       blocks: c.blocks.map((b) => (b.id === id ? { ...b, data: { ...b.data, ...dataPatch } } : b)),
     }));
+  }
+
+  // Asigna/limpia el grupo (carpeta) de un bloque.
+  function setBlockGroup(id: string) {
+    const cur = canvas.blocks.find((b) => b.id === id);
+    const next = typeof window !== "undefined" ? window.prompt("Grupo del bloque", (cur ? blockGroup(cur) : "") ?? "") : null;
+    if (next === null) return;
+    const group = next.trim() || undefined;
+    updateBlock(id, { group } as Partial<CanvasBlock>);
+  }
+
+  // ---- conexiones (aristas) -----------------------------------------------
+  const edges = useMemo(() => getEdges(canvas), [canvas]);
+
+  // Click sobre un bloque en modo conectar: primer click marca origen, segundo
+  // crea la arista.
+  function onBlockConnectClick(id: string) {
+    if (!connectFrom) {
+      setConnectFrom(id);
+      toast.message("Conectar", { description: "Elige el bloque destino." });
+      return;
+    }
+    if (connectFrom === id) {
+      setConnectFrom(null);
+      return;
+    }
+    const from = connectFrom;
+    mutate((c) => addEdgeToCanvas(c, from, id));
+    setConnectFrom(null);
+    toast.success("Bloques conectados");
+  }
+
+  function deleteEdge(edgeId: string) {
+    mutate((c) => removeEdgeFromCanvas(c, edgeId));
+  }
+
+  function toggleConnectMode() {
+    setConnectMode((m) => {
+      const next = !m;
+      if (!next) setConnectFrom(null);
+      else toast.message("Modo conectar", { description: "Pulsa dos bloques para unirlos." });
+      return next;
+    });
+  }
+
+  // ---- vista (libre / mapa-mental / cerebro) ------------------------------
+  function cycleViewMode() {
+    const idx = VIEW_MODES.indexOf(viewMode);
+    const next = VIEW_MODES[(idx + 1) % VIEW_MODES.length];
+    setViewMode(next);
+    if (next === "mapa-mental") applyRadialLayout();
+    toast.message(`Vista: ${VIEW_MODE_LABELS[next]}`);
+  }
+
+  // Disposición radial automática (mapa mental): el primer bloque al centro y
+  // el resto en un anillo. Persiste posiciones.
+  function applyRadialLayout() {
+    mutate((c) => {
+      const bs = c.blocks;
+      if (bs.length === 0) return c;
+      const cx = 520;
+      const cy = 380;
+      const ring = bs.slice(1);
+      const R = Math.max(220, 90 + ring.length * 26);
+      const next = bs.map((b, i) => {
+        if (i === 0) return { ...b, x: cx - b.w / 2, y: cy - b.h / 2 };
+        const k = i - 1;
+        const angle = (k / Math.max(1, ring.length)) * Math.PI * 2;
+        return {
+          ...b,
+          x: cx + Math.cos(angle) * R - b.w / 2,
+          y: cy + Math.sin(angle) * R - b.h / 2,
+        };
+      });
+      return { ...c, blocks: next };
+    });
+  }
+
+  // ---- pan / zoom ----------------------------------------------------------
+  function clampZoom(z: number) {
+    return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  }
+
+  function onWheel(e: React.WheelEvent) {
+    // Zoom con rueda (con Ctrl/Cmd o siempre): centrado en el cursor.
+    if (!surfaceRef.current) return;
+    e.preventDefault();
+    const rect = surfaceRef.current.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    setZoom((z0) => {
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      const z1 = clampZoom(z0 * factor);
+      // Mantener el punto bajo el cursor estable al hacer zoom.
+      setPan((p0) => {
+        const wx = (px - p0.x) / z0;
+        const wy = (py - p0.y) / z0;
+        return { x: px - wx * z1, y: py - wy * z1 };
+      });
+      return z1;
+    });
+  }
+
+  function zoomBy(factor: number) {
+    if (!surfaceRef.current) {
+      setZoom((z) => clampZoom(z * factor));
+      return;
+    }
+    const rect = surfaceRef.current.getBoundingClientRect();
+    const px = rect.width / 2;
+    const py = rect.height / 2;
+    setZoom((z0) => {
+      const z1 = clampZoom(z0 * factor);
+      setPan((p0) => {
+        const wx = (px - p0.x) / z0;
+        const wy = (py - p0.y) / z0;
+        return { x: px - wx * z1, y: py - wy * z1 };
+      });
+      return z1;
+    });
+  }
+
+  function resetView() {
+    setPan({ x: 0, y: 0 });
+    setZoom(1);
   }
 
   // ---- drag & resize (pointer events) -------------------------------------
@@ -223,19 +416,36 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
     };
   }
 
+  // Paneo: pointer-down sobre el vacío de la superficie.
+  function onSurfacePointerDown(e: React.PointerEvent) {
+    if (dragState.current) return;
+    // Solo si el target es la propia superficie/inner (no un bloque).
+    const t = e.target as HTMLElement;
+    if (t.closest("[data-block]")) return;
+    panState.current = { startX: e.clientX, startY: e.clientY, origX: pan.x, origY: pan.y };
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  }
+
   function onPointerMove(e: React.PointerEvent) {
     const ds = dragState.current;
-    if (!ds) return;
-    const dx = e.clientX - ds.startX;
-    const dy = e.clientY - ds.startY;
-    if (ds.mode === "move") {
-      const nx = Math.max(0, ds.origX + dx);
-      const ny = Math.max(0, ds.origY + dy);
-      setCanvas((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === ds.id ? { ...b, x: nx, y: ny } : b)) }));
-    } else {
-      const nw = Math.max(160, ds.origW + dx);
-      const nh = Math.max(120, ds.origH + dy);
-      setCanvas((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === ds.id ? { ...b, w: nw, h: nh } : b)) }));
+    if (ds) {
+      const z = zoomRef.current || 1;
+      const dx = (e.clientX - ds.startX) / z;
+      const dy = (e.clientY - ds.startY) / z;
+      if (ds.mode === "move") {
+        const nx = Math.max(0, ds.origX + dx);
+        const ny = Math.max(0, ds.origY + dy);
+        setCanvas((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === ds.id ? { ...b, x: nx, y: ny } : b)) }));
+      } else {
+        const nw = Math.max(160, ds.origW + dx);
+        const nh = Math.max(120, ds.origH + dy);
+        setCanvas((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === ds.id ? { ...b, w: nw, h: nh } : b)) }));
+      }
+      return;
+    }
+    const ps = panState.current;
+    if (ps) {
+      setPan({ x: ps.origX + (e.clientX - ps.startX), y: ps.origY + (e.clientY - ps.startY) });
     }
   }
 
@@ -248,6 +458,7 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
         return cur;
       });
     }
+    if (panState.current) panState.current = null;
   }
 
   // ---- toolbar: lienzo -----------------------------------------------------
@@ -266,7 +477,7 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
 
   async function handleSaveNow() {
     setSaving(true);
-    const persisted = await saveCanvas(canvas);
+    const persisted = await saveCanvasWithEdges(canvas);
     setSaving(false);
     if (persisted) {
       setCanvas(persisted);
@@ -312,6 +523,33 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   function toggleShared(v: boolean) {
     mutate((c) => ({ ...c, shared: v }));
     toast.message(v ? "Lienzo compartible activado" : "Compartir desactivado");
+  }
+
+  // ---- VR / AR (modo inmersivo experimental, WebXR) -----------------------
+  async function enterImmersive() {
+    if (typeof navigator === "undefined" || !(navigator as any).xr) {
+      toast.message("Modo inmersivo (experimental)", {
+        description: "WebXR no está disponible en este navegador/dispositivo.",
+      });
+      return;
+    }
+    try {
+      const xr = (navigator as any).xr;
+      const ok = typeof xr.isSessionSupported === "function" ? await xr.isSessionSupported("immersive-vr") : false;
+      if (ok) {
+        toast.message("Modo inmersivo (experimental)", {
+          description: "WebXR detectado. La sesión VR/AR del lienzo llegará en una próxima versión.",
+        });
+      } else {
+        toast.message("Modo inmersivo (experimental)", {
+          description: "Tu dispositivo no soporta sesiones VR inmersivas.",
+        });
+      }
+    } catch {
+      toast.message("Modo inmersivo (experimental)", {
+        description: "No se pudo iniciar WebXR.",
+      });
+    }
   }
 
   // ---- publicar ------------------------------------------------------------
@@ -373,6 +611,18 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   }
 
   const summary = useMemo(() => summarizeCanvas(canvas), [canvas]);
+  const ViewIcon = VIEW_ICONS[viewMode] ?? LayoutGrid;
+  const isMemoryView = viewMode === "cerebro";
+
+  // Centros de los bloques (en coordenadas del lienzo) para dibujar aristas.
+  const blockCenter = useCallback(
+    (id: string) => {
+      const b = canvas.blocks.find((x) => x.id === id);
+      if (!b) return null;
+      return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+    },
+    [canvas.blocks],
+  );
 
   // ---- render --------------------------------------------------------------
   return (
@@ -404,9 +654,21 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
           <Badge variant="outline" className="text-[9px] border-fuchsia-500/30 text-fuchsia-200/70 shrink-0">
             {canvas.blocks.length} bloque{canvas.blocks.length === 1 ? "" : "s"}
           </Badge>
+          {edges.length > 0 && (
+            <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-200/70 shrink-0">
+              {edges.length} conexi{edges.length === 1 ? "ón" : "ones"}
+            </Badge>
+          )}
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {/* Centros de trabajo (/pizarras) */}
+          <Link href="/pizarras">
+            <Button size="sm" variant="outline" className="gap-1.5 h-8 border-fuchsia-500/30 text-fuchsia-100">
+              <LayoutGrid className="w-3.5 h-3.5" /> Centros
+            </Button>
+          </Link>
+
           {/* Switcher de lienzos */}
           <div className="relative">
             <Button size="sm" variant="outline" className="gap-1.5 h-8 border-white/15 text-white/80" onClick={() => { setShowSwitcher((s) => !s); refreshList(); }}>
@@ -489,48 +751,147 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
         </div>
       </div>
 
+      {/* Barra de vista: modo, conectar, zoom, VR */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-white/10 bg-zinc-950/40 p-1.5 mb-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 h-8 border-white/15 text-white/80"
+          onClick={cycleViewMode}
+          title="Cambiar modo de vista"
+        >
+          <ViewIcon className="w-3.5 h-3.5 text-fuchsia-300" /> {VIEW_MODE_LABELS[viewMode]}
+        </Button>
+        {viewMode === "mapa-mental" && (
+          <Button size="sm" variant="outline" className="gap-1.5 h-8 border-white/15 text-white/70" onClick={applyRadialLayout} title="Reorganizar en radial">
+            <Network className="w-3.5 h-3.5" /> Reorganizar
+          </Button>
+        )}
+
+        <Button
+          size="sm"
+          variant={connectMode ? "default" : "outline"}
+          className={cn("gap-1.5 h-8", connectMode ? "bg-amber-600 hover:bg-amber-500 text-white" : "border-white/15 text-white/80")}
+          onClick={toggleConnectMode}
+          title="Conectar bloques"
+        >
+          <Spline className="w-3.5 h-3.5" /> {connectMode ? "Conectando…" : "Conectar"}
+        </Button>
+
+        <div className="ml-auto flex items-center gap-1">
+          <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-white/15 text-white/70" onClick={() => zoomBy(1 / 1.2)} title="Alejar">
+            <ZoomOut className="w-3.5 h-3.5" />
+          </Button>
+          <span className="text-[10px] text-white/50 w-10 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
+          <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-white/15 text-white/70" onClick={() => zoomBy(1.2)} title="Acercar">
+            <ZoomIn className="w-3.5 h-3.5" />
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5 h-8 border-white/15 text-white/70" onClick={resetView} title="Restablecer vista">
+            <Maximize2 className="w-3.5 h-3.5" /> Centrar
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5 h-8 border-fuchsia-500/30 text-fuchsia-100" onClick={enterImmersive} title="Modo inmersivo (experimental)">
+            <Glasses className="w-3.5 h-3.5" /> VR/AR
+          </Button>
+        </div>
+      </div>
+
       {/* Sub-cabecera: resumen + estado de guardado */}
       <div className="flex items-center gap-2 px-1 mb-2 text-[11px] text-white/40">
         <span>{summary}</span>
         {savedAt && <span className="text-emerald-300/50">· guardado {savedAt}</span>}
         {!userId && <span className="text-amber-300/60">· inicia sesión para persistir</span>}
+        {connectMode && <span className="text-amber-300/70">· {connectFrom ? "elige destino" : "elige origen"}</span>}
       </div>
 
-      {/* Superficie del lienzo */}
+      {/* Superficie del lienzo (con pan/zoom infinito) */}
       <div
         ref={surfaceRef}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
-        className="relative flex-1 min-h-0 overflow-auto rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)] [background-size:22px_22px] bg-zinc-950/40"
+        onPointerDown={onSurfacePointerDown}
+        onWheel={onWheel}
+        className={cn(
+          "relative flex-1 min-h-0 overflow-hidden rounded-2xl border bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)] [background-size:22px_22px]",
+          isMemoryView ? "border-fuchsia-500/25 bg-[#0a0612]" : "border-white/10 bg-zinc-950/40",
+          panState.current ? "cursor-grabbing" : "cursor-grab",
+        )}
       >
         {canvas.blocks.length === 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 pointer-events-none">
             <Layers className="w-10 h-10 text-fuchsia-400/40 mb-3" />
             <p className="text-sm text-white/50">Lienzo vacío. Pulsa <span className="text-fuchsia-200">Añadir bloque</span> para conectar archivos, baúles, memorias, apps, enlaces, widgets o el navegador.</p>
+            <p className="text-[11px] text-white/30 mt-2">Rueda para zoom · arrastra el vacío para mover · «Conectar» para unir bloques.</p>
           </div>
         )}
 
-        {canvas.blocks.map((b) => (
-          <BlockCard
-            key={b.id}
-            block={b}
-            editing={editingId === b.id}
-            vaults={vaults}
-            memories={memories}
-            onEditToggle={() => {
-              const opening = editingId !== b.id;
-              setEditingId(opening ? b.id : null);
-              if (opening && (b.kind === "vault" || b.kind === "memory")) ensureRefData();
-            }}
-            onRemove={() => removeBlock(b.id)}
-            onPointerDownMove={(e) => onPointerDownBlock(e, b, "move")}
-            onPointerDownResize={(e) => onPointerDownBlock(e, b, "resize")}
-            onData={(patch) => updateBlockData(b.id, patch)}
-            onTitle={(t) => updateBlock(b.id, { title: t })}
-            onPickFile={(e) => onPickFile(b.id, e)}
-          />
-        ))}
+        {/* Superficie interna transformada (pan + zoom) */}
+        <div
+          className="absolute top-0 left-0 origin-top-left"
+          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+        >
+          {/* Capa de aristas (SVG) por debajo de los bloques */}
+          <svg
+            className="absolute top-0 left-0 overflow-visible pointer-events-none"
+            width={1}
+            height={1}
+          >
+            {edges.map((edge) => {
+              const a = blockCenter(edge.from);
+              const b = blockCenter(edge.to);
+              if (!a || !b) return null;
+              const mx = (a.x + b.x) / 2;
+              const my = (a.y + b.y) / 2;
+              return (
+                <g key={edge.id}>
+                  <line
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
+                    stroke={isMemoryView ? "rgba(217,70,239,0.5)" : "rgba(245,158,11,0.55)"}
+                    strokeWidth={isMemoryView ? 2 : 1.5}
+                    strokeDasharray={isMemoryView ? "4 4" : undefined}
+                  />
+                  {/* Punto medio: borrar la arista (clickable) */}
+                  <g
+                    className="pointer-events-auto cursor-pointer"
+                    onClick={() => deleteEdge(edge.id)}
+                  >
+                    <circle cx={mx} cy={my} r={8} fill="rgba(9,9,11,0.9)" stroke="rgba(245,158,11,0.6)" strokeWidth={1} />
+                    <path d={`M${mx - 3} ${my - 3} L${mx + 3} ${my + 3} M${mx + 3} ${my - 3} L${mx - 3} ${my + 3}`} stroke="rgba(248,113,113,0.9)" strokeWidth={1.4} />
+                  </g>
+                </g>
+              );
+            })}
+          </svg>
+
+          {canvas.blocks.map((b) => (
+            <BlockCard
+              key={b.id}
+              block={b}
+              editing={editingId === b.id}
+              vaults={vaults}
+              memories={memories}
+              connectMode={connectMode}
+              connectActive={connectFrom === b.id}
+              memoryView={isMemoryView}
+              onConnectClick={() => onBlockConnectClick(b.id)}
+              onEditToggle={() => {
+                const opening = editingId !== b.id;
+                setEditingId(opening ? b.id : null);
+                if (opening && (b.kind === "vault" || b.kind === "memory")) ensureRefData();
+              }}
+              onRemove={() => removeBlock(b.id)}
+              onGroup={() => setBlockGroup(b.id)}
+              onPointerDownMove={(e) => onPointerDownBlock(e, b, "move")}
+              onPointerDownResize={(e) => onPointerDownBlock(e, b, "resize")}
+              onData={(patch) => updateBlockData(b.id, patch)}
+              onTitle={(t) => updateBlock(b.id, { title: t })}
+              onPickFile={(e) => onPickFile(b.id, e)}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Nota de seguridad de iframes */}
@@ -550,8 +911,13 @@ function BlockCard({
   editing,
   vaults,
   memories,
+  connectMode,
+  connectActive,
+  memoryView,
+  onConnectClick,
   onEditToggle,
   onRemove,
+  onGroup,
   onPointerDownMove,
   onPointerDownResize,
   onData,
@@ -562,8 +928,13 @@ function BlockCard({
   editing: boolean;
   vaults: VaultRef[];
   memories: MemoryRef[];
+  connectMode: boolean;
+  connectActive: boolean;
+  memoryView: boolean;
+  onConnectClick: () => void;
   onEditToggle: () => void;
   onRemove: () => void;
+  onGroup: () => void;
   onPointerDownMove: (e: React.PointerEvent) => void;
   onPointerDownResize: (e: React.PointerEvent) => void;
   onData: (patch: Record<string, any>) => void;
@@ -573,13 +944,27 @@ function BlockCard({
   const def = blockKindDef(block.kind);
   return (
     <div
-      className="absolute rounded-xl border border-white/12 bg-zinc-900/80 backdrop-blur shadow-lg flex flex-col overflow-hidden"
+      data-block={block.id}
+      onClick={connectMode ? onConnectClick : undefined}
+      className={cn(
+        "absolute rounded-xl border bg-zinc-900/80 backdrop-blur shadow-lg flex flex-col overflow-hidden",
+        connectActive
+          ? "border-amber-400 ring-2 ring-amber-400/40"
+          : connectMode
+            ? "border-amber-500/40 hover:border-amber-400 cursor-pointer"
+            : memoryView
+              ? "border-fuchsia-500/30 shadow-[0_0_24px_-6px_rgba(217,70,239,0.45)]"
+              : "border-white/12",
+      )}
       style={{ left: block.x, top: block.y, width: block.w, height: block.h }}
     >
       {/* Cabecera arrastrable */}
       <div
-        onPointerDown={onPointerDownMove}
-        className="flex items-center gap-1.5 px-2 py-1.5 bg-white/5 border-b border-white/10 cursor-grab active:cursor-grabbing select-none"
+        onPointerDown={connectMode ? undefined : onPointerDownMove}
+        className={cn(
+          "flex items-center gap-1.5 px-2 py-1.5 bg-white/5 border-b border-white/10 select-none",
+          connectMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+        )}
       >
         <GripVertical className="w-3.5 h-3.5 text-white/25 shrink-0" />
         <KindIcon kind={block.kind} className="w-3.5 h-3.5 text-fuchsia-300 shrink-0" />
@@ -587,12 +972,43 @@ function BlockCard({
           value={block.title ?? def?.label ?? ""}
           onChange={(e) => onTitle(e.target.value)}
           onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           className="flex-1 min-w-0 bg-transparent text-[11px] text-amber-50 outline-none truncate"
         />
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={onEditToggle} className="text-white/30 hover:text-fuchsia-300">
+        {blockGroup(block) && (
+          <Badge variant="outline" className="text-[8px] border-fuchsia-500/30 text-fuchsia-200/70 shrink-0 px-1 py-0">
+            {blockGroup(block)}
+          </Badge>
+        )}
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onGroup();
+          }}
+          className="text-white/30 hover:text-fuchsia-300"
+          title="Grupo / carpeta del bloque"
+        >
+          <Move className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditToggle();
+          }}
+          className="text-white/30 hover:text-fuchsia-300"
+        >
           <Pencil className="w-3.5 h-3.5" />
         </button>
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={onRemove} className="text-white/30 hover:text-red-400">
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="text-white/30 hover:text-red-400"
+        >
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -608,7 +1024,8 @@ function BlockCard({
 
       {/* Manija de redimensión */}
       <div
-        onPointerDown={onPointerDownResize}
+        onPointerDown={connectMode ? undefined : onPointerDownResize}
+        onClick={(e) => e.stopPropagation()}
         className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize text-white/30 hover:text-fuchsia-300"
         title="Redimensionar"
       >
@@ -735,6 +1152,8 @@ function BlockEditor({
           autoFocus
           value={d.text ?? ""}
           onChange={(e) => onData({ text: e.target.value })}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           placeholder="Escribe tu nota, idea o markdown…"
           className="w-full h-full min-h-[100px] bg-white/5 text-xs resize-none"
         />
@@ -745,6 +1164,8 @@ function BlockEditor({
           autoFocus
           value={d.url ?? ""}
           onChange={(e) => onData({ url: e.target.value })}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           placeholder="https://…/imagen.png"
           className="bg-white/5 text-xs"
         />
@@ -755,13 +1176,15 @@ function BlockEditor({
           autoFocus
           value={d.url ?? ""}
           onChange={(e) => onData({ url: e.target.value })}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           placeholder="https://… (interno o externo)"
           className="bg-white/5 text-xs"
         />
       );
     case "browser":
       return (
-        <div className="space-y-1.5">
+        <div className="space-y-1.5" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
           <Input
             autoFocus
             value={d.url ?? ""}
@@ -774,7 +1197,7 @@ function BlockEditor({
       );
     case "file":
       return (
-        <div className="space-y-2">
+        <div className="space-y-2" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
           <label className="block">
             <input type="file" className="hidden" onChange={onPickFile} />
             <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 text-amber-100 text-[11px] px-2.5 py-1.5 cursor-pointer hover:bg-amber-500/10">
@@ -811,7 +1234,7 @@ function BlockEditor({
     case "app":
     case "widget":
       return (
-        <div className="space-y-1.5">
+        <div className="space-y-1.5" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
           <Input
             autoFocus
             value={d.name ?? ""}
@@ -846,7 +1269,7 @@ function Picker({
 }) {
   if (!items.length) return <Empty label={emptyLabel} />;
   return (
-    <div className="space-y-1 max-h-full overflow-auto">
+    <div className="space-y-1 max-h-full overflow-auto" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
       {items.map((it) => (
         <button
           key={it.id}
