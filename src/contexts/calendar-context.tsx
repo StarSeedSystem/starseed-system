@@ -31,6 +31,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -38,6 +39,11 @@ import {
 } from 'react';
 import { communityEvents } from '@/lib/data';
 import type { SincrometroMode } from '@/lib/sincrometro';
+import {
+  createEvent as createRemoteEvent,
+  listEvents as listRemoteEvents,
+} from '@/lib/events/events-store';
+import { onTableChange } from '@/lib/realtime/realtime';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 export type CalendarLayer =
@@ -337,6 +343,51 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   // Set de "itemId::reminderId" ya disparados (no se persiste — sólo sesión).
   const firedAlertsRef = useRef<Set<string>>(new Set());
 
+  // ── Eventos reales (Supabase) ──────────────────────────────────────────────
+  // ADITIVO: los eventos de la tabla `events` se MEZCLAN con la semilla local
+  // (`communityEvents` + recordatorios/logs). Si no hay sesión o red, la lista
+  // sigue siendo la semilla — el calendario nunca deja de funcionar.
+  //
+  // `remoteIdsRef` recuerda qué ids provienen de Supabase para poder refrescar
+  // sólo esos en cada recarga sin tocar la semilla ni los ítems creados en
+  // local. La de-duplicación es por `id`.
+  const remoteIdsRef = useRef<Set<string>>(new Set());
+
+  const reloadRemoteEvents = useCallback(async () => {
+    try {
+      const remote = await listRemoteEvents(); // nunca lanza; [] ante fallo
+      const remoteIds = new Set(remote.map((e) => e.id));
+      remoteIdsRef.current = remoteIds;
+      setItems((prev) => {
+        // Conservamos todo lo que NO es remoto (semilla + creados en local)…
+        const localOnly = prev.filter((it) => !remoteIds.has(it.id));
+        // …y añadimos los remotos frescos. Dedupe final por id por seguridad.
+        const seen = new Set<string>();
+        const merged: CalendarItem[] = [];
+        for (const it of [...localOnly, ...remote]) {
+          if (seen.has(it.id)) continue;
+          seen.add(it.id);
+          merged.push(it);
+        }
+        return merged;
+      });
+    } catch {
+      /* degradación silenciosa: conservamos la semilla local */
+    }
+  }, []);
+
+  // Carga inicial de eventos reales (sólo en cliente) + suscripción realtime
+  // para sincronizar altas/cambios/bajas en vivo. SSR-safe: en el servidor no
+  // se ejecuta nada. Si la suscripción no puede crearse, degrada a no-op.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    void reloadRemoteEvents();
+    const unsub = onTableChange('events', {}, () => {
+      void reloadRemoteEvents();
+    });
+    return unsub;
+  }, [reloadRemoteEvents]);
+
   const setSincrometroMode = useCallback((mode: SincrometroMode) => {
     setSincrometroModeState(mode);
     if (typeof window !== 'undefined') {
@@ -359,8 +410,72 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       recurrence: 'none',
       ...data,
     };
+    // 1) Inserción optimista en local: la UI reacciona al instante y, si no hay
+    //    sesión/red, el evento sigue existiendo (comportamiento histórico).
     setItems((prev) => [...prev, newItem]);
+
+    // 2) ADITIVO: intentamos PERSISTIR el evento en Supabase (tabla `events`).
+    //    Es best-effort: si falla (sin sesión, sin red, RLS…), el ítem local
+    //    permanece intacto y no se rompe nada. Si tiene éxito, reconciliamos el
+    //    ítem optimista con la fila real (mismo contenido, id de la BD) para
+    //    evitar duplicados cuando llegue por realtime / próxima recarga.
+    void persistNewItem(newItem);
+
     return newItem;
+  }, []);
+
+  // Persiste un `CalendarItem` recién creado como fila de `events` y, si lo
+  // consigue, sustituye el ítem optimista por el persistido (id real).
+  const persistNewItem = useCallback(async (item: CalendarItem) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const startsAt = eventDateTimeMs(item);
+      const start = new Date(startsAt);
+      const endsAt =
+        item.durationMin && item.durationMin > 0
+          ? new Date(startsAt + item.durationMin * 60 * 1000)
+          : item.endDate
+            ? parseISODate(item.endDate)
+            : null;
+
+      const created = await createRemoteEvent({
+        title: item.title,
+        description: item.description,
+        startsAt: start,
+        endsAt: endsAt,
+        // Guardamos la capa canónica como `kind`: round-trip exacto al recargar.
+        kind: item.layer,
+        visibility:
+          item.visibility === 'publico' || item.visibility === 'red'
+            ? 'public'
+            : 'private',
+        meta: {
+          attendees: item.attendees,
+          capacity: item.capacity,
+          urgent: item.urgent,
+          color: item.color,
+          tags: item.tags,
+          durationMin: item.durationMin,
+          aiHighlight: item.aiHighlight,
+          // Conservamos la visibilidad fina (`red`) que la BD no distingue.
+          visibilityHint: item.visibility,
+        },
+      });
+
+      if (!created) return; // sin sesión/red: nos quedamos con el ítem local.
+
+      // Reconciliación: registramos el id remoto y reemplazamos el optimista.
+      remoteIdsRef.current.add(created.id);
+      setItems((prev) => {
+        const withoutOptimistic = prev.filter((it) => it.id !== item.id);
+        if (withoutOptimistic.some((it) => it.id === created.id)) {
+          return withoutOptimistic; // ya llegó por realtime
+        }
+        return [...withoutOptimistic, created];
+      });
+    } catch {
+      /* best-effort: el ítem local permanece, sin romper el calendario */
+    }
   }, []);
 
   const updateItem: CalendarContextValue['updateItem'] = useCallback((id, patch) => {
