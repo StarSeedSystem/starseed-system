@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Dashboard, DashboardWidget, WidgetType } from "./dashboard-types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,17 @@ import { curatedPresets } from "@/lib/themes/curated-presets";
 import { WorkspaceProvider } from "./dashboard-workspace-context";
 import { DashboardWorkspaceRenderer } from "./dashboard-workspace-renderer";
 import { DashboardAiSuggestions } from "./dashboard-ai-suggestions";
+
+// ── Sincronización ENTRE DISPOSITIVOS (Supabase, aditiva sobre localStorage) ──
+// localStorage sigue siendo la caché/fallback; Supabase añade sync multi-dispositivo
+// + realtime. Si no hay sesión/red, todo degrada en silencio a la ruta local.
+import { useRealtime } from "@/lib/realtime/realtime";
+import {
+    loadRemoteDashboardState,
+    saveRemoteDashboardState,
+    mergeIntoLocal,
+    collectLocal,
+} from "@/lib/dashboard/dashboard-sync";
 
 // ── LocalStorage Keys ────────────────────────────────────────────
 const LS_DASHBOARDS = 'starseed_dashboards';
@@ -286,6 +297,34 @@ export function DashboardLayout() {
 
     const { toast } = useToast();
 
+    // ── Re-hidratación desde localStorage (fuente de verdad local) ──────────────
+    // Relee la lista de tableros y los widgets del tablero activo desde
+    // localStorage. Se reutiliza tanto para la sincronización entre pestañas
+    // (BroadcastChannel / storage) como para la sincronización ENTRE DISPOSITIVOS
+    // (Supabase realtime, tras volcar el blob remoto a localStorage).
+    const rehydrateFromLocal = useCallback(() => {
+        const stored = loadDashboards();
+        if (stored.length > 0) {
+            const sorted = sortDashboards(stored);
+            setDashboards(sorted);
+            setActiveDashboardId((curr) => {
+                const stillExists = curr && sorted.some((d) => d.id === curr);
+                const nextActive = stillExists ? curr : sorted[0]?.id ?? null;
+                if (nextActive) setWidgets(loadWidgetsForDashboard(nextActive));
+                return nextActive;
+            });
+        }
+    }, []);
+
+    // ── Sincronización ENTRE DISPOSITIVOS (Supabase) ────────────────────────────
+    // UID de la sesión (para filtrar el canal realtime). Sin sesión → undefined,
+    // y toda la capa Supabase queda inerte (solo localStorage + BroadcastChannel).
+    const [syncUid, setSyncUid] = useState<string | undefined>(undefined);
+    // Timer de debounce para el upsert remoto (write-through).
+    const remoteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Evita re-subir inmediatamente lo que acabamos de hidratar desde remoto.
+    const hydratingFromRemote = useRef(false);
+
     // Load active settings on mount
     useEffect(() => {
         const storedProfile = localStorage.getItem(LS_ACTIVE_PROFILE);
@@ -402,6 +441,94 @@ export function DashboardLayout() {
         setLoading(false);
     }, []);
 
+    // ── [Sync multi-dispositivo] Resolver UID de sesión (para el filtro realtime) ──
+    // Aditivo: si no hay sesión, syncUid queda undefined y la capa Supabase es inerte.
+    useEffect(() => {
+        let active = true;
+        void (async () => {
+            try {
+                const { createClient } = await import("@/utils/supabase/client");
+                const supabase = createClient();
+                const { data } = await supabase.auth.getUser();
+                if (active) setSyncUid(data?.user?.id ?? undefined);
+                // Reaccionar a inicio/cierre de sesión sin recargar.
+                const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+                    setSyncUid(session?.user?.id ?? undefined);
+                });
+                if (!active) { try { sub.subscription.unsubscribe(); } catch {} }
+            } catch {
+                /* sin Supabase: nos quedamos en modo local */
+            }
+        })();
+        return () => { active = false; };
+    }, []);
+
+    // ── [Sync multi-dispositivo] Hidratar desde Supabase al montar ─────────────
+    // Tras la carga inicial de localStorage, si Supabase tiene una fila del usuario,
+    // volcamos el blob remoto a localStorage y re-leemos el estado (así un
+    // dispositivo nuevo recibe los tableros del usuario). Defensivo y SSR-safe:
+    // si no hay sesión/fila/red, no hace nada y se conserva la ruta local.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        let active = true;
+        void (async () => {
+            try {
+                const remote = await loadRemoteDashboardState();
+                if (!active || !remote) return;
+                hydratingFromRemote.current = true;
+                const wrote = mergeIntoLocal(remote.data);
+                if (wrote) rehydrateFromLocal();
+            } catch {
+                /* best-effort: el fallback local ya está cargado */
+            }
+        })();
+        return () => { active = false; };
+    }, [rehydrateFromLocal]);
+
+    // ── [Sync multi-dispositivo] Write-through con debounce (~800ms) ───────────
+    // Cuando cambian los tableros/widgets en memoria, subimos el blob completo de
+    // localStorage a Supabase (upsert). El debounce agrupa ráfagas de ediciones.
+    // Saltamos el primer disparo provocado por una hidratación remota para evitar
+    // un eco innecesario. Nunca rompe: sin sesión es no-op silencioso (solo local).
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (loading) return; // no subir durante la carga/siembra inicial
+        if (hydratingFromRemote.current) {
+            // Este cambio proviene de una hidratación remota: no lo reenviamos.
+            hydratingFromRemote.current = false;
+            return;
+        }
+        if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current);
+        remoteSaveTimer.current = setTimeout(() => {
+            void saveRemoteDashboardState(collectLocal());
+        }, 800);
+        return () => {
+            if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current);
+        };
+    }, [dashboards, widgets, loading]);
+
+    // ── [Sync multi-dispositivo] Realtime: re-hidratar ante cambios remotos ────
+    // Escucha la fila `dashboard_state` del usuario; cuando otro dispositivo la
+    // actualiza, recargamos el blob remoto → localStorage → estado. SSR-safe; si
+    // no hay sesión/red, useRealtime es no-op y se conserva la sincronización local.
+    useRealtime(
+        "dashboard_state",
+        { filter: syncUid ? `owner=eq.${syncUid}` : undefined },
+        () => {
+            void (async () => {
+                try {
+                    const remote = await loadRemoteDashboardState();
+                    if (!remote) return;
+                    hydratingFromRemote.current = true;
+                    const wrote = mergeIntoLocal(remote.data);
+                    if (wrote) rehydrateFromLocal();
+                } catch {
+                    /* best-effort */
+                }
+            })();
+        },
+    );
+
     // ── Auto-Fullscreen Effect ─────────────────────────────────────
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -512,19 +639,7 @@ export function DashboardLayout() {
     useEffect(() => {
         if (typeof window === "undefined") return;
 
-        const refreshFromStorage = () => {
-            const stored = loadDashboards();
-            if (stored.length > 0) {
-                const sorted = sortDashboards(stored);
-                setDashboards(sorted);
-                setActiveDashboardId((curr) => {
-                    const stillExists = curr && sorted.some((d) => d.id === curr);
-                    const nextActive = stillExists ? curr : sorted[0]?.id ?? null;
-                    if (nextActive) setWidgets(loadWidgetsForDashboard(nextActive));
-                    return nextActive;
-                });
-            }
-        };
+        const refreshFromStorage = () => rehydrateFromLocal();
 
         let ch: BroadcastChannel | null = null;
         if (typeof BroadcastChannel !== "undefined") {
