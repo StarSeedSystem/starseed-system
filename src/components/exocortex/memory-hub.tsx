@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { useRealtime } from "@/lib/realtime/realtime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -102,6 +103,13 @@ export function MemoryHub() {
     } catch { /* sin sesión */ }
   }, []);
   useEffect(() => { load(); }, [load]);
+  // TIEMPO REAL: la lista de memorias se actualiza en vivo entre dispositivos
+  // cuando cambia la tabla `memories` del propietario actual (RLS aplica).
+  useRealtime(
+    "memories",
+    { filter: userId ? `owner=eq.${userId}` : undefined },
+    () => load(),
+  );
   // Carga la política de almacenamiento (umbral starseedMaxMb, destino preferido…).
   useEffect(() => { getPolicy().then(setPolicy).catch(() => setPolicy({})); }, [userId]);
 
