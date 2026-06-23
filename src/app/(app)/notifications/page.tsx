@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useNotifications, type AppNotification, type NotificationCategory, type NotificationPriority } from "@/context/notifications-context";
-import { 
-    Bell, Info, AlertTriangle, CheckCircle, X, Search, Sparkles, Users, 
-    BookOpen, Palette, Bot, Shield, Globe, Clock, Trash2, Database, 
-    Settings, Play, Download, ShieldCheck, Eye, EyeOff, Radio, RefreshCw 
+import {
+    Bell, Info, AlertTriangle, CheckCircle, X, Search, Sparkles, Users,
+    BookOpen, Palette, Bot, Shield, Globe, Clock, Trash2, Database,
+    Settings, Play, Download, ShieldCheck, Eye, EyeOff, Radio, RefreshCw
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { NotificationsCenter } from "@/components/notifications/notifications-center";
 
 // --- Types for System Logs ---
 interface SystemLog {
@@ -39,11 +40,11 @@ const DEFAULT_LOGS: SystemLog[] = [
 ];
 
 export default function NotificationsPage() {
-    const { 
-        all, inbox, unread, unreadCount, markRead, markAllRead, archive, snooze, remove, clearAll 
+    const {
+        all, inbox, unread, unreadCount, markRead, markAllRead, archive, snooze, remove, clearAll
     } = useNotifications();
 
-    const [activeSection, setActiveSection] = useState<"notifications" | "logs">("notifications");
+    const [activeSection, setActiveSection] = useState<"feed" | "notifications" | "logs">("feed");
     const [searchQuery, setSearchQuery] = useState("");
     const [categoryFilter, setCategoryFilter] = useState<string>("all");
     const [priorityFilter, setPriorityFilter] = useState<string>("all");
@@ -142,8 +143,8 @@ export default function NotificationsPage() {
         }
 
         return baseList.filter(n => {
-            const matchesSearch = searchQuery.trim() === "" || 
-                n.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            const matchesSearch = searchQuery.trim() === "" ||
+                n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (n.body && n.body.toLowerCase().includes(searchQuery.toLowerCase()));
             const matchesCategory = categoryFilter === "all" || n.category === categoryFilter;
             const matchesPriority = priorityFilter === "all" || n.priority === priorityFilter;
@@ -154,7 +155,7 @@ export default function NotificationsPage() {
     // Filter Logs
     const filteredLogs = useMemo(() => {
         return logs.filter(l => {
-            const matchesSearch = logSearchQuery.trim() === "" || 
+            const matchesSearch = logSearchQuery.trim() === "" ||
                 l.message.toLowerCase().includes(logSearchQuery.toLowerCase()) ||
                 (l.details && l.details.toLowerCase().includes(logSearchQuery.toLowerCase()));
             const matchesDomain = logDomainFilter === "all" || l.domain === logDomainFilter;
@@ -167,7 +168,7 @@ export default function NotificationsPage() {
     const handleTriggerTest = () => {
         const testCategories: NotificationCategory[] = ["system", "ai", "governance", "achievement", "education"];
         const testPriorities: NotificationPriority[] = ["low", "normal", "high", "critical"];
-        
+
         const randomCat = testCategories[Math.floor(Math.random() * testCategories.length)];
         const randomPrior = testPriorities[Math.floor(Math.random() * testPriorities.length)];
 
@@ -194,7 +195,7 @@ export default function NotificationsPage() {
         // Dispatch test alert
         markRead("seed-welcome", false); // make sure it's unread
         const now = new Date().toISOString();
-        
+
         // Simular alerta sonora
         if (soundEnabled && typeof AudioContext !== "undefined") {
             const audioCtx = new AudioContext();
@@ -223,13 +224,22 @@ export default function NotificationsPage() {
                 </div>
                 <div className="flex items-center gap-2 bg-black/30 backdrop-blur-xl border border-white/10 p-1 rounded-2xl">
                     <button
+                        onClick={() => setActiveSection("feed")}
+                        className={cn(
+                            "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                            activeSection === "feed" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" : "text-muted-foreground hover:text-white"
+                        )}
+                    >
+                        Feed Unificado
+                    </button>
+                    <button
                         onClick={() => setActiveSection("notifications")}
                         className={cn(
                             "px-4 py-2 rounded-xl text-sm font-medium transition-all",
                             activeSection === "notifications" ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" : "text-muted-foreground hover:text-white"
                         )}
                     >
-                        Notificaciones ({unreadCount})
+                        Locales ({unreadCount})
                     </button>
                     <button
                         onClick={() => setActiveSection("logs")}
@@ -243,7 +253,13 @@ export default function NotificationsPage() {
                 </div>
             </div>
 
-            {/* Layout Grid */}
+            {/* Feed Unificado (Centro de Notificaciones realtime, Supabase) */}
+            {activeSection === "feed" && (
+                <NotificationsCenter />
+            )}
+
+            {/* Layout Grid — vista Locales / System Logs (preservado) */}
+            {activeSection !== "feed" && (
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Left Side: Filter Options / Configs */}
                 <div className="lg:col-span-1 space-y-6">
@@ -280,36 +296,36 @@ export default function NotificationsPage() {
 
                             <div className="pt-2">
                                 <Label className="text-xs text-white/80 block mb-2">Tiempo de Snooze Defecto: {snoozeDefault[0]}h</Label>
-                                <Slider 
-                                    value={snoozeDefault} 
-                                    onValueChange={setSnoozeDefault} 
-                                    max={24} 
-                                    min={1} 
-                                    step={1} 
+                                <Slider
+                                    value={snoozeDefault}
+                                    onValueChange={setSnoozeDefault}
+                                    max={24}
+                                    min={1}
+                                    step={1}
                                     className="my-2"
                                 />
                             </div>
 
                             <div className="pt-4 border-t border-white/5 space-y-2">
-                                <Button 
+                                <Button
                                     onClick={handleTriggerTest}
-                                    variant="outline" 
+                                    variant="outline"
                                     className="w-full text-xs gap-2 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 border-amber-500/20"
                                 >
                                     <Play className="w-3.5 h-3.5" /> Disparar Test Alert
                                 </Button>
                                 {activeSection === "notifications" ? (
                                     <>
-                                        <Button 
-                                            onClick={markAllRead} 
-                                            variant="ghost" 
+                                        <Button
+                                            onClick={markAllRead}
+                                            variant="ghost"
                                             className="w-full text-xs justify-start hover:bg-white/5 rounded-xl"
                                         >
                                             ✓ Marcar todo leído
                                         </Button>
-                                        <Button 
-                                            onClick={clearAll} 
-                                            variant="ghost" 
+                                        <Button
+                                            onClick={clearAll}
+                                            variant="ghost"
                                             className="w-full text-xs justify-start text-red-400 hover:text-red-300 hover:bg-red-500/5 rounded-xl"
                                         >
                                             ✕ Limpiar inbox
@@ -317,16 +333,16 @@ export default function NotificationsPage() {
                                     </>
                                 ) : (
                                     <>
-                                        <Button 
-                                            onClick={exportLogs} 
-                                            variant="ghost" 
+                                        <Button
+                                            onClick={exportLogs}
+                                            variant="ghost"
                                             className="w-full text-xs justify-start hover:bg-white/5 rounded-xl text-cyan-400 hover:text-cyan-300"
                                         >
                                             <Download className="w-3.5 h-3.5 mr-2" /> Exportar registros
                                         </Button>
-                                        <Button 
-                                            onClick={clearLogs} 
-                                            variant="ghost" 
+                                        <Button
+                                            onClick={clearLogs}
+                                            variant="ghost"
                                             className="w-full text-xs justify-start text-red-400 hover:text-red-300 hover:bg-red-500/5 rounded-xl"
                                         >
                                             <Trash2 className="w-3.5 h-3.5 mr-2" /> Limpiar registros
@@ -402,9 +418,9 @@ export default function NotificationsPage() {
                                 <AnimatePresence mode="popLayout">
                                     {filteredNotifications.length > 0 ? (
                                         filteredNotifications.map((notif) => (
-                                            <NotificationItemFull 
-                                                key={notif.id} 
-                                                notif={notif} 
+                                            <NotificationItemFull
+                                                key={notif.id}
+                                                notif={notif}
                                                 categoryConfig={categoryConfig(notif.category)}
                                                 onRead={(id) => {
                                                     markRead(id, !notif.read);
@@ -517,9 +533,9 @@ export default function NotificationsPage() {
                                                             <span className="text-white/80 font-medium">{log.message}</span>
                                                         </div>
                                                         {log.details && (
-                                                            <Button 
-                                                                variant="ghost" 
-                                                                size="icon" 
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
                                                                 className="h-6 w-6 rounded-md hover:bg-white/5 text-white/50 hover:text-white"
                                                                 onClick={() => setShowLogDetails(prev => ({ ...prev, [log.id]: !isOpen }))}
                                                             >
@@ -530,7 +546,7 @@ export default function NotificationsPage() {
 
                                                     {/* Expandible details */}
                                                     {isOpen && log.details && (
-                                                        <motion.div 
+                                                        <motion.div
                                                             initial={{ height: 0, opacity: 0 }}
                                                             animate={{ height: "auto", opacity: 1 }}
                                                             className="text-[10px] text-white/50 bg-white/[0.02] border border-white/5 p-2 rounded-lg ml-6 leading-relaxed"
@@ -554,15 +570,16 @@ export default function NotificationsPage() {
                     )}
                 </div>
             </div>
+            )}
         </div>
     );
 }
 
 // --- Internal Helper Component for Full Notifications Display ---
-function NotificationItemFull({ notif, categoryConfig, onRead, onArchive, onDelete, onSnooze }: { 
-    notif: AppNotification, 
-    categoryConfig: any, 
-    onRead: (id: string) => void, 
+function NotificationItemFull({ notif, categoryConfig, onRead, onArchive, onDelete, onSnooze }: {
+    notif: AppNotification,
+    categoryConfig: any,
+    onRead: (id: string) => void,
     onArchive: (id: string) => void,
     onDelete: (id: string) => void,
     onSnooze: (id: string) => void
@@ -612,10 +629,10 @@ function NotificationItemFull({ notif, categoryConfig, onRead, onArchive, onDele
                 {/* Call-to-actions */}
                 {notif.action && (
                     <div className="pt-2">
-                        <Button 
+                        <Button
                             asChild={!!notif.action.href}
-                            size="sm" 
-                            variant="secondary" 
+                            size="sm"
+                            variant="secondary"
                             className="h-8 rounded-lg text-xs bg-amber-500/15 border border-amber-500/20 text-amber-300 hover:bg-amber-500/30"
                         >
                             {notif.action.href ? (
