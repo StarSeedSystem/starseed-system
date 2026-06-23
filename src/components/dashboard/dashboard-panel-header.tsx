@@ -25,6 +25,7 @@ interface HeaderProps {
     isEditMode?: boolean;
     onCreateDashboard?: () => void;
     onDeleteDashboard?: (id: string) => void;
+    onRenameDashboard?: (id: string) => void;
 }
 
 function SortableTab({ dashboard, isActive, onClick }: { dashboard: Dashboard; isActive: boolean; onClick: () => void }) {
@@ -55,7 +56,7 @@ function SortableTab({ dashboard, isActive, onClick }: { dashboard: Dashboard; i
     );
 }
 
-export function DashboardPanelHeader({ panelId, dashboards, activeId, allDashboards, isEditMode, onCreateDashboard, onDeleteDashboard }: HeaderProps) {
+export function DashboardPanelHeader({ panelId, dashboards, activeId, allDashboards, isEditMode, onCreateDashboard, onDeleteDashboard, onRenameDashboard }: HeaderProps) {
     const { setActiveDashboard, closePanel, splitPanel, setState } = useWorkspace();
 
     const sensors = useSensors(
@@ -134,7 +135,10 @@ export function DashboardPanelHeader({ panelId, dashboards, activeId, allDashboa
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-black/90 border-white/10 backdrop-blur-xl">
-                            <DropdownMenuItem className="text-white hover:bg-white/10 cursor-pointer">
+                            <DropdownMenuItem
+                                className="text-white hover:bg-white/10 cursor-pointer"
+                                onClick={() => onRenameDashboard?.(activeId)}
+                            >
                                 Renombrar Dashboard
                             </DropdownMenuItem>
                             <DropdownMenuItem className="text-white hover:bg-white/10 cursor-pointer">
