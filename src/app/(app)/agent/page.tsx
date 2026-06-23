@@ -59,6 +59,9 @@ import ServersPanel from "@/components/brains/servers-panel";
 import SecurityPanel from "@/components/security/security-panel";
 import CanvasBoard from "@/components/canvas/canvas-board";
 import BrowserWindows from "@/components/browser/browser-windows";
+import PublicationComposer from "@/components/publish/publication-composer";
+import WorkCenters from "@/components/canvas/work-centers";
+import AiAppGenerator from "@/components/appgen/ai-app-generator";
 import GovernancePanel from "@/components/governance/governance-panel";
 import GovNotifications from "@/components/governance/notifications-panel";
 import MyActivity from "@/components/decisions/my-activity";
@@ -387,6 +390,9 @@ function AgentPageInner() {
           <TabsTrigger value="seguridad" className="gap-2"><Shield className="w-4 h-4" /> Seguridad</TabsTrigger>
           <TabsTrigger value="pizarra" className="gap-2"><Layers className="w-4 h-4" /> Pizarra</TabsTrigger>
           <TabsTrigger value="navegador" className="gap-2"><Network className="w-4 h-4" /> Navegador</TabsTrigger>
+          <TabsTrigger value="publicar" className="gap-2"><Send className="w-4 h-4" /> Publicar</TabsTrigger>
+          <TabsTrigger value="pizarras" className="gap-2"><LayoutDashboard className="w-4 h-4" /> Pizarras</TabsTrigger>
+          <TabsTrigger value="apps-ia" className="gap-2"><Code className="w-4 h-4" /> Apps IA</TabsTrigger>
           <TabsTrigger value="decisiones" className="gap-2"><Vote className="w-4 h-4" /> Decisiones</TabsTrigger>
           <TabsTrigger value="mi-actividad" className="gap-2"><Activity className="w-4 h-4" /> Mi actividad</TabsTrigger>
         </TabsList>
@@ -835,6 +841,12 @@ function AgentPageInner() {
         <TabsContent value="pizarra" className="flex-1 min-h-0 overflow-hidden"><CanvasBoard /></TabsContent>
 
         <TabsContent value="navegador" className="flex-1 min-h-0 overflow-hidden"><BrowserWindows /></TabsContent>
+
+        <TabsContent value="publicar" className="flex-1 min-h-0 overflow-y-auto"><PublicationComposer /></TabsContent>
+
+        <TabsContent value="pizarras" className="flex-1 min-h-0 overflow-y-auto"><WorkCenters /></TabsContent>
+
+        <TabsContent value="apps-ia" className="flex-1 min-h-0 overflow-hidden"><AiAppGenerator /></TabsContent>
 
         <TabsContent value="red3d" className="flex-1 min-h-0 overflow-y-auto"><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-cyan-500 flex items-center justify-center text-3xl">🕸️</div><div className="text-lg font-semibold text-cyan-50">Red 3D de interconexión</div><p className="text-sm text-white/50 max-w-md">Visualiza la malla viva de cerebros, servidores, almacenes y baúles con sus enlaces y sincronizaciones, en 3D y con ayuda de Astraura.</p><Link href="/red-3d"><Button className="gap-2 bg-cyan-600 hover:bg-cyan-500"><Network className="w-4 h-4" /> Abrir Red 3D</Button></Link></div></TabsContent>
 
