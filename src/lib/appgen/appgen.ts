@@ -17,6 +17,8 @@
 import { createClient } from "@/utils/supabase/client";
 import { chat } from "@/ai/client/chat";
 import type { ChatMessage } from "@/ai/providers/types";
+import { runOnServer, type RunResult } from "@/lib/brains/runtime";
+import type { BrainServer } from "@/lib/brains/brains";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -587,5 +589,103 @@ export function publishRef(app: GeneratedApp): PublishRef {
     name: app.name,
     fileCount: app.files.length,
     shared: !!app.shared,
+  };
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────
+// Despliegue en la red + ejecución en cerebro + referencia para adjuntar
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Referencia de una app para adjuntar a una publicación o a la pizarra. */
+export interface AppShareRef {
+  type: "app";
+  appId: string;
+  name: string;
+  /** Ruta interna donde la app se EJECUTA dentro de StarSeed. */
+  url: string;
+}
+
+export interface DeployResult {
+  ok: boolean;
+  /** Ruta de la app en la red (cuando ok). */
+  url?: string;
+  /** Mensaje de error amable (cuando !ok). */
+  error?: string;
+}
+
+export interface RunOnBrainResult {
+  ok: boolean;
+  /** Resultado devuelto por el servidor del cerebro (cuando ok). */
+  result?: unknown;
+  /** Mensaje de error amable (cuando !ok). */
+  error?: string;
+}
+
+/** Tarea de hospedaje que se envía al servidor de cerebro. */
+export interface HostAppTask {
+  kind: "host_app";
+  name: string;
+  /** HTML autocontenido (vista previa construida con buildPreview). */
+  html: string;
+}
+
+/**
+ * Despliega la app EN LA RED de StarSeed: marca `shared = true` en la fila de
+ * `generated_apps` (para que cualquiera con el enlace pueda abrirla, según RLS)
+ * y devuelve la ruta interna donde la app se EJECUTA dentro de StarSeed
+ * (`/app/{id}`). El destino real de "deploy en red" es esa ruta, que monta la
+ * app en un iframe a pantalla completa.
+ */
+export async function deployApp(appId: string): Promise<DeployResult> {
+  const supabase = createClient();
+  try {
+    const { error } = await supabase
+      .from(TABLE)
+      .update({ shared: true, updated_at: new Date().toISOString() })
+      .eq("id", appId);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, url: `/app/${appId}` };
+  } catch (e) {
+    return { ok: false, error: (e as Error)?.message || "No se pudo desplegar la app." };
+  }
+}
+
+/**
+ * Ejecuta la app en un servidor de cerebro. Construye el HTML autocontenido con
+ * `buildPreview(app.files)` y lo envía a la runtime de cerebros mediante
+ * `runOnServer`, con una tarea `{ kind:'host_app', name, html }`.
+ *
+ * Honestidad: el servidor del cerebro decide qué hace con la app (nuestro
+ * servidor de referencia local_brain.py simplemente la acusa/registra). El
+ * hospedaje REAL y ejecutable dentro de la red es la ruta `/app/{id}`.
+ */
+export async function runOnBrain(
+  app: GeneratedApp,
+  server: BrainServer,
+  accountId?: string | null,
+): Promise<RunOnBrainResult> {
+  try {
+    const html = buildPreview(app.files);
+    const task: HostAppTask = { kind: "host_app", name: app.name, html };
+    // runOnServer espera `task: string` → serializamos la tarea estructurada.
+    const r: RunResult = await runOnServer(server, JSON.stringify(task), { name: app.name }, accountId);
+    if (r.ok) return { ok: true, result: r.result };
+    return { ok: false, error: r.error || "El servidor del cerebro no pudo procesar la app." };
+  } catch (e) {
+    return { ok: false, error: (e as Error)?.message || "No se pudo ejecutar en el cerebro." };
+  }
+}
+
+/**
+ * Referencia ligera de la app para adjuntar a una publicación o a un canvas.
+ * Apunta a la ruta interna donde la app se ejecuta (`/app/{id}`).
+ */
+export function appShareRef(app: GeneratedApp): AppShareRef {
+  return {
+    type: "app",
+    appId: app.id,
+    name: app.name,
+    url: `/app/${app.id}`,
   };
 }
