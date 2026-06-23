@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 import { DashboardWorkspaceState, WorkspaceNode, PanelNode, SplitNode, createDefaultWorkspace } from "./dashboard-workspace-types";
 
 interface WorkspaceContextValue {
@@ -162,6 +162,61 @@ export function WorkspaceProvider({ children, initialDashboards }: { children: R
             return newState;
         });
     }, []);
+
+    // ── Sincronización en vivo entre pestañas (cross-tab realtime) ──────────────
+    // PERSISTENCIA: el dashboard de StarSeed OS persiste en localStorage (claves
+    // `starseed_dashboards` / `starseed_widgets`), NO en las tablas Supabase
+    // `dashboards`/`dashboard_widgets`. Por eso, en lugar de `useRealtime(...)`
+    // (que aplica a datos servidos por Supabase), sincronizamos la disposición de
+    // ventanas/pestañas de este workspace entre pestañas del mismo navegador con
+    // un BroadcastChannel('starseed-dashboard'). Es mínimo, aditivo y SSR-safe.
+    const channelRef = useRef<BroadcastChannel | null>(null);
+    const applyingRemoteRef = useRef(false);
+    const lastSentRef = useRef<string>("");
+
+    // Abre/cierra el canal una sola vez por montaje.
+    useEffect(() => {
+        if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
+        let ch: BroadcastChannel | null = null;
+        try {
+            ch = new BroadcastChannel("starseed-dashboard");
+            channelRef.current = ch;
+            ch.onmessage = (ev) => {
+                const msg = ev?.data;
+                if (!msg || msg.type !== "workspace:layout" || !msg.root) return;
+                const incoming = JSON.stringify(msg.root);
+                // Evita eco/bucles: si es idéntico a lo último, ignóralo.
+                if (incoming === lastSentRef.current) return;
+                applyingRemoteRef.current = true;
+                setState({ root: msg.root });
+            };
+        } catch {
+            channelRef.current = null;
+        }
+        return () => {
+            try { ch?.close(); } catch { /* best-effort */ }
+            channelRef.current = null;
+        };
+    }, []);
+
+    // Difunde cambios locales de disposición a las demás pestañas (no los remotos).
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        // Si este cambio provino de un mensaje remoto, no lo reenviamos.
+        if (applyingRemoteRef.current) {
+            applyingRemoteRef.current = false;
+            lastSentRef.current = JSON.stringify(state.root);
+            return;
+        }
+        const payload = JSON.stringify(state.root);
+        if (payload === lastSentRef.current) return;
+        lastSentRef.current = payload;
+        try {
+            channelRef.current?.postMessage({ type: "workspace:layout", root: state.root });
+        } catch {
+            /* best-effort: la difusión es opcional */
+        }
+    }, [state]);
 
     return (
         <WorkspaceContext.Provider value={{ state, splitPanel, closePanel, moveDashboard, setActiveDashboard, openDashboardInPanel, setState }}>
