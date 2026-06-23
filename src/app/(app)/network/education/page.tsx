@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useState } from "react";
 import { CommentSystem } from "@/components/comment-system";
+import { ConocimientoCard } from "./conocimiento-card";
 import { SystemShowcase } from "@/components/showcase/SystemShowcase";
 
 
@@ -163,8 +164,8 @@ function ThemeNetworkView() {
                     <CardContent>
                         <div className="flex flex-wrap gap-2">
                            {themes.map(theme => (
-                               <Button 
-                                    key={theme.id} 
+                               <Button
+                                    key={theme.id}
                                     variant={selectedTheme?.id === theme.id ? "default" : "outline"}
                                     onClick={() => setSelectedTheme(theme)}
                                 >
@@ -206,6 +207,11 @@ function ThemeNetworkView() {
 export default function EducationPage() {
   return (
     <>
+    {/* Red de Conocimiento (Módulo 3) — enlace + explicación de cómo se conecta con cursos/temas */}
+    <div className="mb-6">
+      <ConocimientoCard />
+    </div>
+
     <Tabs defaultValue="network" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="network">Red de Categorías</TabsTrigger>
