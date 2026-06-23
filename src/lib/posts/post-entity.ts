@@ -24,6 +24,7 @@
 // -----------------------------------------------------------------------------
 
 import { createClient } from "@/utils/supabase/client";
+import { onTableChange } from "@/lib/realtime/realtime";
 
 // ----------------------------- Tipos ----------------------------------------
 
@@ -518,11 +519,27 @@ export async function commentTree(postId: string): Promise<CommentNode[]> {
     return roots;
 }
 
-// ----------------------- Tiempo real (HONESTO: polling) ----------------------
+// ----------------------- Tiempo real (Supabase Realtime) ---------------------
 //
-// No asumimos canales de realtime de Supabase configurados. Hacemos polling
-// cada ~8s y notificamos al callback con la entidad + su árbol de comentarios.
-// Devuelve una función de limpieza para cancelar el intervalo.
+// Ahora usamos Supabase Realtime (no polling) vía `onTableChange`. La entidad
+// atómica vive en `posts`, así que escuchamos:
+//   1) La PROPIA fila de la entidad: filter `id=eq.<postId>` (ediciones de
+//      contenido, interactions, votes, republicaciones que tocan
+//      post_references, etc.).
+//   2) Comentarios: filas `posts` con `type:'comment'`. El filtro por el padre
+//      (un valor dentro del jsonb `post_references`) NO es expresable con un
+//      filtro PostgREST simple (`eq.`), así que escuchamos los INSERT/UPDATE/
+//      DELETE de `posts` de forma amplia y dejamos que `listComments` —que SÍ
+//      filtra por `post_references->>parent`— resuelva qué pertenece a este
+//      post. RLS sigue limitando lo que el cliente puede recibir.
+//
+// En CUALQUIER cambio relevante volvemos a ejecutar la carga existente
+// (`loadPost` + `commentTree`) y notificamos al callback con
+// `{ post, comments }`. Mantenemos:
+//   • un primer disparo inmediato,
+//   • un re-fetch de seguridad de intervalo largo (~30s) como backstop,
+//   • la MISMA firma `subscribe(postId, cb, intervalMs?)` y una función de
+//     limpieza devuelta (para que post-view siga funcionando sin cambios).
 
 export interface PostSnapshot {
     post: PostEntity | null;
@@ -535,23 +552,75 @@ export function subscribe(
     intervalMs = 8000,
 ): () => void {
     let cancelled = false;
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const tick = async () => {
-        if (cancelled) return;
+    // Re-ejecuta la carga existente y notifica al callback.
+    const refresh = async () => {
+        if (cancelled || !postId) return;
         try {
             const [post, comments] = await Promise.all([loadPost(postId), commentTree(postId)]);
             if (!cancelled) cb({ post, comments });
         } catch {
-            /* silencioso: el siguiente tick reintenta */
+            /* silencioso: el siguiente evento/backstop reintenta */
         }
     };
 
-    // Primer disparo inmediato + intervalo.
-    void tick();
-    const handle = setInterval(tick, Math.max(3000, intervalMs));
+    // Pequeño debounce: varios eventos seguidos (p.ej. ráfaga de comentarios o
+    // un read-modify-write de interactions) coalescen en una sola recarga.
+    const scheduleRefresh = () => {
+        if (cancelled) return;
+        if (reloadTimer) clearTimeout(reloadTimer);
+        reloadTimer = setTimeout(() => {
+            reloadTimer = null;
+            void refresh();
+        }, 120);
+    };
+
+    // Primer disparo inmediato (mantiene el comportamiento previo).
+    void refresh();
+
+    // 1) Suscripción a la PROPIA entidad (id=eq.<postId>).
+    const unsubEntity = onTableChange(
+        "posts",
+        { filter: `id=eq.${postId}`, event: "*" },
+        () => scheduleRefresh(),
+    );
+
+    // 2) Suscripción amplia a comentarios (no filtrable por padre vía eq simple).
+    //    Reaccionamos sólo a filas de tipo 'comment' para reducir ruido; si el
+    //    tipo no viene en el payload, recargamos igualmente (seguridad).
+    const unsubComments = onTableChange<{ type?: string }>(
+        "posts",
+        { event: "*" },
+        (payload) => {
+            const row = (payload?.new ?? payload?.old ?? null) as { type?: string } | null;
+            const type = row?.type;
+            if (type == null || type === "comment") {
+                scheduleRefresh();
+            }
+        },
+    );
+
+    // 3) Backstop: re-fetch de seguridad de intervalo largo (~30s mínimo).
+    //    Cubre eventos perdidos o entornos sin realtime disponible.
+    const backstopMs = Math.max(30000, intervalMs);
+    const handle = setInterval(() => {
+        void refresh();
+    }, backstopMs);
 
     return () => {
         cancelled = true;
+        if (reloadTimer) clearTimeout(reloadTimer);
         clearInterval(handle);
+        try {
+            unsubEntity();
+        } catch {
+            /* limpieza best-effort */
+        }
+        try {
+            unsubComments();
+        } catch {
+            /* limpieza best-effort */
+        }
     };
 }
