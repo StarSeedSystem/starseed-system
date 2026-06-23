@@ -31,6 +31,7 @@ import { curatedPresets } from "@/lib/themes/curated-presets";
 
 import { WorkspaceProvider } from "./dashboard-workspace-context";
 import { DashboardWorkspaceRenderer } from "./dashboard-workspace-renderer";
+import { DashboardAiSuggestions } from "./dashboard-ai-suggestions";
 
 // ── LocalStorage Keys ────────────────────────────────────────────
 const LS_DASHBOARDS = 'starseed_dashboards';
@@ -45,6 +46,27 @@ const DEFAULTS_VERSION = 'gen8-2026-06-20-apps-media-datos';
 const LS_ACTIVE_PROFILE = 'starseed_active_profile_v1';
 const LS_AI_PROVIDER = 'starseed_ai_provider_v1';
 const LS_SERVERS = 'starseed_internet_servers_v1';
+
+// ── Cross-tab realtime (difusión entre pestañas) ─────────────────
+// PERSISTENCIA: dashboards y widgets viven en localStorage (NO en las tablas
+// Supabase `dashboards`/`dashboard_widgets`). Para que los cambios se reflejen
+// en vivo en otras pestañas del mismo navegador, difundimos un ping ligero por
+// BroadcastChannel('starseed-dashboard') tras cada escritura. Las otras pestañas
+// recargan su estado desde localStorage. Mínimo, aditivo y SSR-safe. El evento
+// nativo `storage` cubre además el caso sin BroadcastChannel.
+let __dashboardChannel: BroadcastChannel | null = null;
+function getDashboardChannel(): BroadcastChannel | null {
+    if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return null;
+    if (!__dashboardChannel) {
+        try { __dashboardChannel = new BroadcastChannel("starseed-dashboard"); }
+        catch { __dashboardChannel = null; }
+    }
+    return __dashboardChannel;
+}
+function broadcastDashboardChange(scope: "dashboards" | "widgets") {
+    try { getDashboardChannel()?.postMessage({ type: "data:changed", scope, at: Date.now() }); }
+    catch { /* best-effort */ }
+}
 
 // ── Types for local state ────────────────────────────────────────
 interface UserProfile {
@@ -87,6 +109,7 @@ function loadDashboards(): Dashboard[] {
 
 function saveDashboards(dashboards: Dashboard[]) {
     localStorage.setItem(LS_DASHBOARDS, JSON.stringify(dashboards));
+    broadcastDashboardChange("dashboards");
 }
 
 function loadAllWidgets(): Record<string, DashboardWidget[]> {
@@ -98,6 +121,7 @@ function loadAllWidgets(): Record<string, DashboardWidget[]> {
 
 function saveAllWidgets(widgetMap: Record<string, DashboardWidget[]>) {
     localStorage.setItem(LS_WIDGETS, JSON.stringify(widgetMap));
+    broadcastDashboardChange("widgets");
 }
 
 function loadWidgetsForDashboard(dashboardId: string): DashboardWidget[] {
@@ -256,6 +280,9 @@ export function DashboardLayout() {
     const [newDashboardName, setNewDashboardName] = useState("");
     const [isCreating, setIsCreating] = useState(false);
     const [isForgeOpen, setIsForgeOpen] = useState(false);
+    // Renombrar dashboard (rellena la opción "Renombrar Dashboard" del menú de panel).
+    const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
+    const [renameValue, setRenameValue] = useState("");
 
     const { toast } = useToast();
 
@@ -477,6 +504,52 @@ export function DashboardLayout() {
         return () => window.removeEventListener('starseed:transfer-widget', handleTransfer);
     }, [activeDashboardId, toast]);
 
+    // ── Cross-tab realtime: recarga al cambiar datos en otra pestaña ────────────
+    // Escucha BroadcastChannel('starseed-dashboard') y el evento nativo `storage`.
+    // Cuando otra pestaña modifica dashboards/widgets, refrescamos la lista de
+    // tableros y los widgets del tablero activo desde localStorage (fuente de
+    // verdad). Aditivo y SSR-safe; no altera la persistencia existente.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const refreshFromStorage = () => {
+            const stored = loadDashboards();
+            if (stored.length > 0) {
+                const sorted = sortDashboards(stored);
+                setDashboards(sorted);
+                setActiveDashboardId((curr) => {
+                    const stillExists = curr && sorted.some((d) => d.id === curr);
+                    const nextActive = stillExists ? curr : sorted[0]?.id ?? null;
+                    if (nextActive) setWidgets(loadWidgetsForDashboard(nextActive));
+                    return nextActive;
+                });
+            }
+        };
+
+        let ch: BroadcastChannel | null = null;
+        if (typeof BroadcastChannel !== "undefined") {
+            try {
+                ch = new BroadcastChannel("starseed-dashboard");
+                ch.onmessage = (ev) => {
+                    if (ev?.data?.type === "data:changed") refreshFromStorage();
+                };
+            } catch { ch = null; }
+        }
+
+        const onStorage = (e: StorageEvent) => {
+            if (e.key === LS_DASHBOARDS || e.key === LS_WIDGETS || e.key === LS_ORDER) {
+                refreshFromStorage();
+            }
+        };
+        window.addEventListener("storage", onStorage);
+
+        return () => {
+            window.removeEventListener("storage", onStorage);
+            try { ch?.close(); } catch { /* best-effort */ }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // Load widgets when active dashboard changes
     useEffect(() => {
         if (activeDashboardId) {
@@ -645,6 +718,40 @@ export function DashboardLayout() {
         }
     };
 
+    // Crea un dashboard directamente desde una categoría/plantilla (usado por las
+    // sugerencias de Astraura). Reutiliza la siembra de plantillas existente.
+    const handleCreateDashboardFromTemplate = useCallback((categoryId: string, name: string) => {
+        const now = new Date().toISOString();
+        const dashId = crypto.randomUUID();
+        const template = ALL_DASHBOARD_TEMPLATES.find((t) => t.categoryId === categoryId);
+        const newDashboard: Dashboard = {
+            id: dashId,
+            profile_id: 'local',
+            name: name?.trim() || template?.name || 'Nuevo Dashboard',
+            is_default: false,
+            category: categoryId,
+            created_at: now,
+            updated_at: now,
+        };
+        const seededWidgets: DashboardWidget[] = (template?.widgets || []).map((w) => ({
+            id: crypto.randomUUID(),
+            dashboard_id: dashId,
+            widget_type: w.type as any,
+            layout: { x: w.x, y: w.y, w: w.w, h: w.h, i: crypto.randomUUID() },
+            settings: (w as any).settings ?? {},
+            created_at: now,
+        }));
+        setDashboards((prev) => {
+            const all = [...prev, newDashboard];
+            saveDashboards(all);
+            return all;
+        });
+        saveWidgetsForDashboard(dashId, seededWidgets);
+        setActiveDashboardId(dashId);
+        setWidgets(seededWidgets);
+        toast({ title: "Dashboard creado", description: `Astraura preparó "${newDashboard.name}".` });
+    }, [toast]);
+
     const handleSetDefault = (dashboardId: string) => {
         const updated = dashboards.map(d => ({ ...d, is_default: d.id === dashboardId }));
         const sorted = sortDashboards(updated);
@@ -684,6 +791,27 @@ export function DashboardLayout() {
         }
 
         toast({ title: "Eliminado", description: "Dashboard eliminado correctamente." });
+    };
+
+    // Abre el diálogo de renombrado para un tablero concreto.
+    const handleOpenRename = (id: string) => {
+        const d = dashboards.find((x) => x.id === id) ?? dashboards.find((x) => x.id === activeDashboardId);
+        if (!d) return;
+        setRenameTargetId(d.id);
+        setRenameValue(d.name);
+    };
+
+    // Persiste el nuevo nombre del tablero (localStorage + difusión cross-tab).
+    const handleRenameDashboard = () => {
+        const name = renameValue.trim();
+        if (!renameTargetId || !name) return;
+        const now = new Date().toISOString();
+        const updated = dashboards.map((d) => (d.id === renameTargetId ? { ...d, name, updated_at: now } : d));
+        setDashboards(updated);
+        saveDashboards(updated);
+        toast({ title: "Dashboard renombrado", description: `Ahora se llama "${name}".` });
+        setRenameTargetId(null);
+        setRenameValue("");
     };
 
     // Change profile helper
@@ -1625,6 +1753,9 @@ export function DashboardLayout() {
                                 onAddWidget={(dashId, type) => handleAddWidget(dashId, type)}
                                 onForgeOpen={() => setIsForgeOpen(true)}
                                 onCreateDashboard={() => setIsCreateDialogOpen(true)}
+                                onDeleteDashboard={handleDeleteDashboard}
+                                onRenameDashboard={handleOpenRename}
+                                onCreateFromTemplate={handleCreateDashboardFromTemplate}
                             />
                         </WorkspaceProvider>
                     </div>
@@ -1699,6 +1830,34 @@ export function DashboardLayout() {
                                 <Button type="submit" onClick={handleCreateDashboard} disabled={isCreating} className="w-full sm:w-auto min-w-[200px] h-12 text-base font-semibold">
                                     {isCreating ? "Creando..." : "Crear Dashboard"}
                                 </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Rename Dashboard Dialog (activa la opción "Renombrar Dashboard") */}
+                    <Dialog open={!!renameTargetId} onOpenChange={(o) => { if (!o) { setRenameTargetId(null); setRenameValue(""); } }}>
+                        <DialogContent className="w-[90vw] max-w-[440px] p-6">
+                            <DialogHeader>
+                                <DialogTitle className="text-xl font-bold">Renombrar dashboard</DialogTitle>
+                                <DialogDescription className="text-sm">
+                                    Elige un nombre claro para identificar este tablero.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="py-4">
+                                <Label htmlFor="rename" className="text-xs font-semibold text-muted-foreground">Nombre</Label>
+                                <Input
+                                    id="rename"
+                                    value={renameValue}
+                                    onChange={(e) => setRenameValue(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === "Enter") handleRenameDashboard(); }}
+                                    className="mt-2 h-11"
+                                    placeholder="Ej. Estudio Profundo"
+                                    autoFocus
+                                />
+                            </div>
+                            <DialogFooter className="gap-2 sm:justify-end">
+                                <Button variant="ghost" onClick={() => { setRenameTargetId(null); setRenameValue(""); }}>Cancelar</Button>
+                                <Button onClick={handleRenameDashboard} disabled={!renameValue.trim()} className="min-w-[120px]">Guardar</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
