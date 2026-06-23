@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { getConfig, saveConfig } from "@/lib/governance/config";
 import { GovernanceModeBadge } from "@/components/governance/permission-gate";
 import type { GovernanceMode } from "@/lib/governance/types";
+import { useRealtime } from "@/lib/realtime/realtime";
 
 type ProposalKind = "config" | "memory" | "agent" | "policy";
 
@@ -163,6 +164,17 @@ export function GroupGovernance({ groupId, isMember = true }: { groupId: string;
   useEffect(() => {
     load();
   }, [load]);
+
+  // TIEMPO REAL: refleja en vivo nuevas propuestas / cambios de estado y los
+  // votos emitidos, re-ejecutando el loader (recuentos incluidos).
+  useRealtime("group_ai_proposals", { filter: groupId ? `group_id=eq.${groupId}` : undefined }, () => {
+    void load();
+  });
+  // Los votos no llevan group_id (referencian proposal_id); escuchamos la tabla
+  // completa y dejamos que RLS filtre. `load()` recalcula los recuentos.
+  useRealtime("group_ai_votes", {}, () => {
+    void load();
+  });
 
   // Guarda el modo de gobernanza del grupo. La opción democrática SIEMPRE
   // queda disponible (saveConfig fuerza allowDemocraticOverride: true).
