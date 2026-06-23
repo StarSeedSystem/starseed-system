@@ -36,6 +36,16 @@ import {
     SharePublicationDialog,
     type UniversalComposePayload,
 } from "@/components/messages/module9-enhancements";
+// ── Mensajes "En la red" (Supabase, ADITIVO) ────────────────────────────────
+import { useRealtime } from "@/lib/realtime/realtime";
+import {
+    listConversations,
+    createConversation,
+    listMessages,
+    sendMessage,
+    type Conversation as RealConversation,
+    type Message as RealMessage,
+} from "@/lib/messages/messages-store";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -50,6 +60,12 @@ interface AugmentedConversation extends ConversationFull {
     channelType: ChannelType;
     handle?: string;
     localMessages: LocalMessage[];
+    // ── Supabase (ADITIVO) ──────────────────────────────────────────────────
+    // `_real` marca las conversaciones cargadas desde Supabase ("En la red");
+    // las demo no lo llevan y conservan su comportamiento local intacto.
+    _real?: boolean;
+    /** Id real (uuid) de la fila en `conversations` cuando `_real`. */
+    _realId?: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -97,6 +113,90 @@ function augmentConversations(raw: ConversationFull[]): AugmentedConversation[] 
         handle: inferHandle(c),
         localMessages: [...c.messages],
     }));
+}
+
+// ── Supabase: detección y mapeo (ADITIVO) ────────────────────────────────────
+
+/** Detecta un id con forma UUID (las conversaciones reales de Supabase). Las
+ *  demo usan ids tipo `convo-1`, así distinguimos REAL vs DEMO por la forma. */
+const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isRealId(id: string | undefined | null): boolean {
+    return typeof id === 'string' && UUID_RE.test(id);
+}
+
+/** Mapea `kind` de Supabase al `ChannelType` de la UI (con fallback seguro). */
+function kindToChannel(kind: string | null | undefined): ChannelType {
+    switch (kind) {
+        case 'dm': return 'dm';
+        case 'ef': return 'ef';
+        case 'community': return 'community';
+        default: return 'group';
+    }
+}
+
+/** Extrae un texto de previsualización del `content` jsonb de un mensaje. */
+function previewOfContent(content: RealMessage['content']): string {
+    if (!content || typeof content !== 'object') return '';
+    if (typeof content.text === 'string' && content.text.trim()) return content.text;
+    switch (content.type) {
+        case 'image': return 'Imagen';
+        case 'file': return content.file?.name ? `Archivo: ${content.file.name}` : 'Archivo';
+        case 'canvas': return content.canvas?.title ? `Lienzo: ${content.canvas.title}` : 'Lienzo';
+        case 'poll': return content.poll?.question ?? 'Encuesta';
+        default: return '';
+    }
+}
+
+/** Convierte una fila `messages` de Supabase en un `LocalMessage` renderizable
+ *  por la UI existente (MessageBubble). El autor es 'Tú' si lo envió el usuario. */
+function realMessageToLocal(m: RealMessage, currentUid: string | null): LocalMessage {
+    const mine = !!currentUid && m.sender === currentUid;
+    const content = (m.content && typeof m.content === 'object'
+        ? m.content
+        : { type: 'text', text: '' }) as LocalMessage['content'];
+    return {
+        id: m.id,
+        author: mine ? 'Tú' : (m.sender ?? 'Miembro'),
+        avatar: 'https://placehold.co/100x100.png',
+        dataAiHint: mine ? 'user avatar' : 'member avatar',
+        timestamp: m.created_at
+            ? new Date(m.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+            : 'ahora',
+        content,
+    };
+}
+
+/** Convierte una conversación real (`conversations`) en `AugmentedConversation`
+ *  para que la lista/Hilo existentes la rendericen SIN cambios estructurales.
+ *  Se etiqueta como "En la red" en la previsualización. */
+function realConversationToAugmented(
+    c: RealConversation,
+    msgs?: RealMessage[],
+    currentUid?: string | null,
+): AugmentedConversation {
+    const channelType = kindToChannel(c.kind);
+    const local = (msgs ?? []).map((m) => realMessageToLocal(m, currentUid ?? null));
+    const last = local.length ? local[local.length - 1] : undefined;
+    return {
+        id: c.id,
+        type: channelType === 'dm' ? 'dm' : 'group',
+        name: c.title || 'Conversación',
+        avatar: 'https://placehold.co/100x100.png',
+        dataAiHint: 'network conversation',
+        unreadCount: 0,
+        lastMessage: last ? previewOfContent(last.content) || 'En la red' : 'En la red',
+        lastMessageTimestamp: c.updated_at
+            ? new Date(c.updated_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+            : 'En la red',
+        pinned: false,
+        messages: [],
+        channelType,
+        handle: undefined,
+        localMessages: local,
+        _real: true,
+        _realId: c.id,
+    };
 }
 
 function relativeTime(raw: string): string {
@@ -264,6 +364,7 @@ function ConversationList({
     folders,
     folderOf,
     onAssignFolder,
+    onNewConversation,
 }: {
     conversations: AugmentedConversation[];
     onConversationSelect: (conv: AugmentedConversation) => void;
@@ -273,6 +374,8 @@ function ConversationList({
     folders?: { id: string; name: string }[];
     folderOf?: (chatId: string) => string | null;
     onAssignFolder?: (chatId: string, folderId: string | null) => void;
+    /** ADITIVO: crea una conversación real ("En la red"). */
+    onNewConversation?: () => void;
 }) {
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<FilterType>('all');
@@ -311,7 +414,13 @@ function ConversationList({
                             <Badge className="h-5 px-1.5 text-xs bg-primary">{totalUnread}</Badge>
                         )}
                     </div>
-                    <Button variant="ghost" size="icon" className="cursor-pointer h-8 w-8">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Nueva conversación (En la red)"
+                        className="cursor-pointer h-8 w-8"
+                        onClick={onNewConversation}
+                    >
                         <PlusCircle className="w-5 h-5" />
                     </Button>
                 </div>
@@ -894,10 +1003,91 @@ export default function MessagesPage() {
     const [isCompositorOpen, setCompositorOpen] = useState(false);
     const [isShareOpen, setShareOpen] = useState(false);
 
-    const selectedConversation = augmented.find(c => c.id === selectedId) ?? augmented[0];
+    // ── Conversaciones REALES de Supabase ("En la red") — ADITIVO ─────────────
+    // Estado separado del demo: nunca tocamos `augmented` (las conversaciones de
+    // ejemplo siguen funcionando igual). Las reales se cargan tras autenticar y
+    // se fusionan PRIMERO en la lista mostrada.
+    const [realConvos, setRealConvos] = useState<AugmentedConversation[]>([]);
+    const [creatingConvo, setCreatingConvo] = useState(false);
+
+    // Carga (o recarga) las conversaciones reales del usuario. Owner-scoped y a
+    // prueba de fallos (degrada a lista vacía si no hay sesión/Supabase).
+    const reloadConversations = useCallback(async () => {
+        const rows = await listConversations();
+        setRealConvos(rows.map((c) => realConversationToAugmented(c, [], userId)));
+    }, [userId]);
+
+    // Carga inicial de conversaciones reales (al montar y cuando cambia el user).
+    useEffect(() => {
+        void reloadConversations();
+    }, [reloadConversations]);
+
+    // Recarga los mensajes de la conversación REAL activa y los inyecta en su
+    // `localMessages` para que el Hilo existente los renderice.
+    const reloadActiveMessages = useCallback(async () => {
+        if (!isRealId(selectedId)) return;
+        const msgs = await listMessages(selectedId);
+        setRealConvos((prev) => prev.map((c) => {
+            if (c._realId !== selectedId) return c;
+            const local = msgs.map((m) => realMessageToLocal(m, userId));
+            const last = local.length ? local[local.length - 1] : undefined;
+            return {
+                ...c,
+                localMessages: local,
+                lastMessage: last ? (previewOfContent(last.content) || 'En la red') : 'En la red',
+            };
+        }));
+    }, [selectedId, userId]);
+
+    // Al abrir una conversación real, cargar sus mensajes desde Supabase.
+    useEffect(() => {
+        if (isRealId(selectedId)) void reloadActiveMessages();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedId]);
+
+    // Realtime: mensajes de la conversación REAL activa → recargar en vivo.
+    const activeRealId = isRealId(selectedId) ? selectedId : undefined;
+    useRealtime(
+        'messages',
+        { filter: activeRealId ? `conversation_id=eq.${activeRealId}` : undefined },
+        () => { void reloadActiveMessages(); },
+    );
+    // Realtime: cambios en `conversations` (nuevas/orden/folder) → recargar lista.
+    useRealtime(
+        'conversations',
+        { filter: userId ? `owner=eq.${userId}` : undefined },
+        () => { void reloadConversations(); },
+    );
+
+    // Lista MOSTRADA = reales primero ("En la red") + demo (ejemplos) después.
+    const displayConversations: AugmentedConversation[] = [...realConvos, ...augmented];
+
+    const selectedConversation =
+        displayConversations.find(c => c.id === selectedId) ?? displayConversations[0];
+
+    // Crear una nueva conversación real y abrirla.
+    const handleCreateConversation = useCallback(async () => {
+        if (creatingConvo) return;
+        setCreatingConvo(true);
+        try {
+            const created = await createConversation({
+                title: 'Nueva conversación',
+                kind: 'group',
+            });
+            if (created) {
+                const aug = realConversationToAugmented(created, [], userId);
+                setRealConvos((prev) => [aug, ...prev]);
+                setSelectedId(created.id);
+                setIsSheetOpen(false);
+                setMobileView('thread');
+            }
+        } finally {
+            setCreatingConvo(false);
+        }
+    }, [creatingConvo, userId]);
 
     // Recuento de chats por carpeta (para los badges del panel de Carpetas).
-    const folderCounts = augmented.reduce<Record<string, number>>((acc, c) => {
+    const folderCounts = displayConversations.reduce<Record<string, number>>((acc, c) => {
         const fid = folderApi.folderOf(c.id);
         if (fid) acc[fid] = (acc[fid] ?? 0) + 1;
         return acc;
@@ -907,9 +1097,33 @@ export default function MessagesPage() {
         setSelectedId(conv.id);
         setIsSheetOpen(false);
         setMobileView('thread');
+        // Conversación REAL → cargar sus mensajes desde Supabase (el efecto sobre
+        // `selectedId` también lo hace; aquí garantizamos carga inmediata).
+        if (conv._real && isRealId(conv.id)) {
+            void listMessages(conv.id).then((msgs) => {
+                setRealConvos((prev) => prev.map((c) => {
+                    if (c._realId !== conv.id) return c;
+                    const local = msgs.map((m) => realMessageToLocal(m, userId));
+                    const last = local.length ? local[local.length - 1] : undefined;
+                    return {
+                        ...c,
+                        localMessages: local,
+                        lastMessage: last ? (previewOfContent(last.content) || 'En la red') : 'En la red',
+                    };
+                }));
+            });
+        }
     };
 
     const handleSendMessage = useCallback((text: string) => {
+        // Conversación REAL → persistir en Supabase (el realtime refresca la UI).
+        if (isRealId(selectedId)) {
+            void sendMessage(selectedId, { type: 'text', text }, 'text').then(() => {
+                void reloadActiveMessages();
+            });
+            return;
+        }
+        // Conversación DEMO → comportamiento local existente (sin cambios).
         setAugmented(prev => prev.map(c => {
             if (c.id !== selectedId) return c;
             const newMsg: LocalMessage = {
@@ -928,7 +1142,7 @@ export default function MessagesPage() {
                 lastMessageTimestamp: 'ahora',
             };
         }));
-    }, [selectedId]);
+    }, [selectedId, reloadActiveMessages]);
 
     // Append genérico: permite cualquier `content` (texto/imagen/archivo/lienzo)
     // reutilizando la misma lógica de estado local que handleSendMessage.
@@ -936,6 +1150,15 @@ export default function MessagesPage() {
         content: LocalMessage['content'],
         preview: string,
     ) => {
+        // Conversación REAL → persistir el `content` (jsonb) en Supabase.
+        if (isRealId(selectedId)) {
+            const type = (content?.type as string) || 'text';
+            void sendMessage(selectedId, content as any, type).then(() => {
+                void reloadActiveMessages();
+            });
+            return;
+        }
+        // Conversación DEMO → comportamiento local existente (sin cambios).
         setAugmented(prev => prev.map(c => {
             if (c.id !== selectedId) return c;
             const newMsg: LocalMessage = {
@@ -954,7 +1177,7 @@ export default function MessagesPage() {
                 lastMessageTimestamp: 'ahora',
             };
         }));
-    }, [selectedId]);
+    }, [selectedId, reloadActiveMessages]);
 
     // Compositor Universal → mapea el formato elegido al modelo de contenido.
     const handleComposedSend = useCallback((payload: UniversalComposePayload) => {
@@ -1082,14 +1305,14 @@ export default function MessagesPage() {
                             activeFolderId={activeFolderId}
                             onSelectFolder={setActiveFolderId}
                             counts={folderCounts}
-                            totalCount={augmented.length}
+                            totalCount={displayConversations.length}
                         />
                     </div>
 
                     {/* Left pane — conversation list */}
                     <div className="w-80 lg:w-96 shrink-0 flex flex-col border-r bg-background/60 backdrop-blur-sm overflow-hidden">
                         <ConversationList
-                            conversations={augmented}
+                            conversations={displayConversations}
                             onConversationSelect={handleSelectConversation}
                             selectedConversationId={selectedId}
                             onShowMainMenu={() => {
@@ -1100,6 +1323,7 @@ export default function MessagesPage() {
                             folders={folderApi.folders}
                             folderOf={folderApi.folderOf}
                             onAssignFolder={folderApi.assignChat}
+                            onNewConversation={handleCreateConversation}
                         />
                     </div>
 
@@ -1144,7 +1368,7 @@ export default function MessagesPage() {
                                         </SheetHeader>
                                         {sheetView === 'conversations' ? (
                                             <ConversationList
-                                                conversations={augmented}
+                                                conversations={displayConversations}
                                                 onConversationSelect={handleSelectConversation}
                                                 selectedConversationId={selectedId}
                                                 onShowMainMenu={() => setSheetView('main_menu')}
@@ -1152,6 +1376,7 @@ export default function MessagesPage() {
                                                 folders={folderApi.folders}
                                                 folderOf={folderApi.folderOf}
                                                 onAssignFolder={folderApi.assignChat}
+                                                onNewConversation={handleCreateConversation}
                                             />
                                         ) : (
                                             <MainMenu onShowConversations={() => setSheetView('conversations')} />
@@ -1168,7 +1393,7 @@ export default function MessagesPage() {
                             {/* Mobile conversation list */}
                             <div className="flex-1 overflow-hidden">
                                 <ConversationList
-                                    conversations={augmented}
+                                    conversations={displayConversations}
                                     onConversationSelect={conv => {
                                         handleSelectConversation(conv);
                                         setMobileView('thread');
@@ -1182,6 +1407,7 @@ export default function MessagesPage() {
                                     folders={folderApi.folders}
                                     folderOf={folderApi.folderOf}
                                     onAssignFolder={folderApi.assignChat}
+                                    onNewConversation={handleCreateConversation}
                                 />
                             </div>
                         </div>
