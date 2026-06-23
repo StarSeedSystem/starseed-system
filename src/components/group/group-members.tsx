@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PermissionGate } from "@/components/governance/permission-gate";
 import { useGovernanceContext } from "@/lib/governance/permissions";
+import { useRealtime } from "@/lib/realtime/realtime";
 
 type Member = {
   group_id: string;
@@ -83,6 +84,12 @@ export function GroupMembers({ groupId }: { groupId: string }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // TIEMPO REAL: refleja altas/bajas/cambios de rol de miembros en vivo,
+  // re-ejecutando el loader cuando cambia `group_members` de este grupo.
+  useRealtime("group_members", { filter: groupId ? `group_id=eq.${groupId}` : undefined }, () => {
+    void load();
+  });
 
   const isMember = !!userId && members.some((m) => m.member === userId);
 
