@@ -395,6 +395,8 @@ function AgentPageInner() {
           <TabsTrigger value="pizarras" className="gap-2"><LayoutDashboard className="w-4 h-4" /> Pizarras</TabsTrigger>
           <TabsTrigger value="apps-ia" className="gap-2"><Code className="w-4 h-4" /> Apps IA</TabsTrigger>
           <TabsTrigger value="habilidades" className="gap-2"><Zap className="w-4 h-4" /> Habilidades</TabsTrigger>
+          <TabsTrigger value="conocimiento" className="gap-2"><BookOpen className="w-4 h-4" /> Conocimiento</TabsTrigger>
+          <TabsTrigger value="sentidos" className="gap-2"><Eye className="w-4 h-4" /> Sentidos</TabsTrigger>
           <TabsTrigger value="decisiones" className="gap-2"><Vote className="w-4 h-4" /> Decisiones</TabsTrigger>
           <TabsTrigger value="mi-actividad" className="gap-2"><Activity className="w-4 h-4" /> Mi actividad</TabsTrigger>
         </TabsList>
@@ -851,6 +853,10 @@ function AgentPageInner() {
         <TabsContent value="apps-ia" className="flex-1 min-h-0 overflow-hidden"><AiAppGenerator /></TabsContent>
 
         <TabsContent value="habilidades" className="flex-1 min-h-0 overflow-y-auto"><AbilitiesHub /></TabsContent>
+
+        <TabsContent value="conocimiento" className="flex-1 min-h-0 overflow-y-auto"><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-fuchsia-500 flex items-center justify-center text-3xl">🌐</div><div className="text-lg font-semibold text-amber-50">Red de Conocimiento</div><p className="text-sm text-white/50 max-w-md">Categorías y temas interconectados con vínculos multi-categoría y 3 vistas (Lista, Mapa 2D, Red 3D).</p><Link href="/conocimiento"><Button className="gap-2 bg-fuchsia-600 hover:bg-fuchsia-500"><BookOpen className="w-4 h-4" /> Abrir Red de Conocimiento</Button></Link></div></TabsContent>
+
+        <TabsContent value="sentidos" className="flex-1 min-h-0 overflow-y-auto"><SensesPanel /></TabsContent>
 
         <TabsContent value="red3d" className="flex-1 min-h-0 overflow-y-auto"><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-cyan-500 flex items-center justify-center text-3xl">🕸️</div><div className="text-lg font-semibold text-cyan-50">Red 3D de interconexión</div><p className="text-sm text-white/50 max-w-md">Visualiza la malla viva de cerebros, servidores, almacenes y baúles con sus enlaces y sincronizaciones, en 3D y con ayuda de Astraura.</p><Link href="/red-3d"><Button className="gap-2 bg-cyan-600 hover:bg-cyan-500"><Network className="w-4 h-4" /> Abrir Red 3D</Button></Link></div></TabsContent>
 
