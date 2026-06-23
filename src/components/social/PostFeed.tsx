@@ -5,6 +5,7 @@ import React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PostCard } from "@/components/social/PostCard";
 import { useCafePosts } from "@/hooks/use-cafe-posts";
+import { useRealtime } from "@/lib/realtime/realtime";
 import { Sparkles } from "lucide-react";
 
 interface PostFeedProps {
@@ -28,12 +29,28 @@ export function PostFeed({
     limit = 30,
     fallbackNotice = "Mostrando publicaciones de ejemplo. Inicia sesión para ver el flujo real de la red.",
 }: PostFeedProps) {
-    const { posts, loading, usingFallback } = useCafePosts({
+    const { posts, loading, usingFallback, refetch } = useCafePosts({
         groupId,
         profileId,
         channelKey,
         limit,
     });
+
+    // TIEMPO REAL: re-cargamos el feed cuando cambia la tabla `posts` para que
+    // nuevas publicaciones y ediciones aparezcan en vivo (el hook ya escucha
+    // `cafe_posts`; esto cubre además la tabla `posts`). SSR-safe vía el hook.
+    useRealtime(
+        "posts",
+        {
+            event: "*",
+            filter: groupId
+                ? `group_id=eq.${groupId}`
+                : profileId
+                  ? `profile_id=eq.${profileId}`
+                  : undefined,
+        },
+        () => refetch(),
+    );
 
     if (loading) {
         return (
