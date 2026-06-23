@@ -70,6 +70,20 @@ import {
   Maximize2,
   Glasses,
   Move,
+  Eye,
+  EyeOff,
+  Lock,
+  Unlock,
+  ArrowUp,
+  ArrowDown,
+  ImagePlus,
+  Sparkles,
+  Wand2,
+  Settings2,
+  MousePointer2,
+  Palette,
+  ListTree,
+  PanelRight,
 } from "lucide-react";
 import {
   BLOCK_KINDS,
@@ -85,9 +99,16 @@ import {
   attachTo,
   listVaults,
   listMemories,
+  getCover,
+  setCover,
+  hasCover,
+  BLOCK_CATEGORY_LABELS,
+  BLOCK_CATEGORY_ORDER,
   type Canvas,
   type CanvasBlock,
   type BlockKind,
+  type BlockCategory,
+  type CanvasCover,
   type VaultRef,
   type MemoryRef,
 } from "@/lib/canvas/canvas";
@@ -121,6 +142,32 @@ function KindIcon({ kind, className }: { kind: BlockKind; className?: string }) 
   const name = blockKindDef(kind)?.icon ?? "LayoutGrid";
   const Cmp = ICONS[name] ?? LayoutGrid;
   return <Cmp className={className} />;
+}
+
+// Ítem genérico de menú desplegable (menú superior: Herramientas / IA / Guardar).
+function MenuItem({
+  icon: Icon,
+  label,
+  onClick,
+  active,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full text-left px-2.5 py-1.5 rounded-md text-[12px] hover:bg-white/5 flex items-center gap-2",
+        active ? "text-amber-200" : "text-white/80",
+      )}
+    >
+      <Icon className="w-3.5 h-3.5 shrink-0 text-fuchsia-300" />
+      <span className="truncate">{label}</span>
+    </button>
+  );
 }
 
 // Metadatos de grupo/carpeta de un bloque (campo opcional `group`). Se modela
@@ -164,6 +211,21 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   const [showXR, setShowXR] = useState(false); // overlay WebXR (lienzo inmersivo)
   const [publishCanvasOpen, setPublishCanvasOpen] = useState(false); // Dialog «Publicar lienzo»
   const [composerInitial, setComposerInitial] = useState<ComposerInitial | null>(null); // Dialog del compositor (peticiones externas)
+
+  // ---- Módulo 5: editor híbrido (menú Insertar + paneles + portada) -------
+  const [selectedId, setSelectedId] = useState<string | null>(null); // elemento seleccionado (Propiedades)
+  const [showInsert, setShowInsert] = useState(false); // menú "Insertar"
+  const [showTools, setShowTools] = useState(false); // menú "Herramientas"
+  const [showAI, setShowAI] = useState(false); // menú "IA"
+  const [showSave, setShowSave] = useState(false); // menú "Guardar"
+  const [showLayers, setShowLayers] = useState(false); // panel lateral "Capas"
+  const [showProps, setShowProps] = useState(true); // panel lateral "Propiedades del Elemento"
+  const [coverOpen, setCoverOpen] = useState(false); // editor de la Tarjeta de Previsualización (portada)
+  const [coverDraft, setCoverDraft] = useState<CanvasCover>({ title: "", subtitle: "", image: "", accent: "#d946ef" });
+  // Cuando la publicación se intentó sin portada, recordamos QUÉ acción
+  // re-disparar (por clave); se reanuda en un efecto cuando la portada existe,
+  // garantizando que el handler vea el lienzo ya actualizado.
+  const pendingPublish = useRef<null | "now" | "compositor" | "democratic">(null);
 
   // Datos de referencia (cargados perezosamente para selectores).
   const [vaults, setVaults] = useState<VaultRef[]>([]);
@@ -229,6 +291,7 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   useEffect(() => {
     setConnectMode(false);
     setConnectFrom(null);
+    setSelectedId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvas.id]);
 
@@ -271,8 +334,13 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   // ---- bloques -------------------------------------------------------------
   function addBlock(kind: BlockKind) {
     setShowAdd(false);
+    setShowInsert(false);
     if (kind === "vault" || kind === "memory") ensureRefData();
-    mutate((c) => ({ ...c, blocks: [...c.blocks, defaultBlock(kind, c.blocks.length)] }));
+    // Creamos el bloque aquí (con id estable) para poder seleccionarlo después.
+    const blk = defaultBlock(kind, contentBlocks.length);
+    mutate((c) => ({ ...c, blocks: [...c.blocks, blk] }));
+    setSelectedId(blk.id);
+    setShowProps(true);
   }
 
   // Añade un bloque `browser` con una URL ya conocida (usado por adjuntos del
@@ -298,6 +366,7 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
     mutate((c) => pruneEdges({ ...c, blocks: c.blocks.filter((b) => b.id !== id) }));
     if (editingId === id) setEditingId(null);
     if (connectFrom === id) setConnectFrom(null);
+    if (selectedId === id) setSelectedId(null);
   }
 
   function updateBlock(id: string, patch: Partial<CanvasBlock>) {
@@ -322,6 +391,130 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
     const group = next.trim() || undefined;
     updateBlock(id, { group } as Partial<CanvasBlock>);
   }
+
+  // ===========================================================================
+  // Módulo 5 · editor híbrido — derivados + operaciones de Capas / Propiedades
+  // ===========================================================================
+
+  // Bloques de CONTENIDO (excluye la portada `cover`, que no se dibuja en la
+  // superficie ni aparece como capa). El orden del array es el z-order.
+  const contentBlocks = useMemo(
+    () => canvas.blocks.filter((b) => b.kind !== "cover"),
+    [canvas.blocks],
+  );
+
+  // Bloques VISIBLES en la superficie: contenido que no esté oculto.
+  const visibleBlocks = useMemo(
+    () => contentBlocks.filter((b) => !b.hidden),
+    [contentBlocks],
+  );
+
+  // Catálogo de "Insertar" agrupado por categoría (texto / medios / red / herramientas).
+  const groupedKinds = useMemo(() => {
+    return BLOCK_CATEGORY_ORDER.map((cat) => ({
+      category: cat,
+      label: BLOCK_CATEGORY_LABELS[cat],
+      kinds: BLOCK_KINDS.filter((k) => k.kind !== "cover" && (k.category ?? "herramientas") === cat),
+    })).filter((g) => g.kinds.length > 0);
+  }, []);
+
+  // Bloque seleccionado (para el panel Propiedades del Elemento).
+  const selectedBlock = useMemo(
+    () => (selectedId ? canvas.blocks.find((b) => b.id === selectedId) ?? null : null),
+    [selectedId, canvas.blocks],
+  );
+
+  function selectBlock(id: string | null) {
+    setSelectedId(id);
+    if (id) setShowProps(true);
+  }
+
+  // ---- Capas: visibilidad / bloqueo / renombrar / reordenar (z-order) -----
+  function toggleHidden(id: string) {
+    const cur = canvas.blocks.find((b) => b.id === id);
+    updateBlock(id, { hidden: !cur?.hidden } as Partial<CanvasBlock>);
+  }
+
+  function toggleLocked(id: string) {
+    const cur = canvas.blocks.find((b) => b.id === id);
+    updateBlock(id, { locked: !cur?.locked } as Partial<CanvasBlock>);
+  }
+
+  function renameLayer(id: string) {
+    const cur = canvas.blocks.find((b) => b.id === id);
+    const next =
+      typeof window !== "undefined"
+        ? window.prompt("Nombre de la capa", cur?.title ?? blockKindDef(cur?.kind ?? "text")?.label ?? "")
+        : null;
+    if (next === null) return;
+    updateBlock(id, { title: next });
+  }
+
+  // Reordena una capa en el z-order (array de `blocks`). Se mueve dentro del
+  // subconjunto de CONTENIDO, preservando la posición del bloque `cover`.
+  function moveLayer(id: string, dir: -1 | 1) {
+    mutate((c) => {
+      const arr = [...c.blocks];
+      const content = arr.filter((b) => b.kind !== "cover");
+      const idx = content.findIndex((b) => b.id === id);
+      if (idx < 0) return c;
+      const target = idx + dir;
+      if (target < 0 || target >= content.length) return c;
+      [content[idx], content[target]] = [content[target], content[idx]];
+      // Reconstruye el array conservando el cover al frente si lo hubiera.
+      const cover = arr.filter((b) => b.kind === "cover");
+      return { ...c, blocks: [...cover, ...content] };
+    });
+  }
+
+  // ---- Tarjeta de Previsualización (portada) ------------------------------
+  function openCoverEditor() {
+    const cur = getCover(canvas);
+    setCoverDraft({
+      title: cur?.title ?? canvas.title ?? "",
+      subtitle: cur?.subtitle ?? "",
+      image: cur?.image ?? "",
+      accent: cur?.accent || "#d946ef",
+    });
+    setCoverOpen(true);
+  }
+
+  function saveCover() {
+    const title = (coverDraft.title || "").trim();
+    if (!title) {
+      toast.error("La portada necesita un título.");
+      return;
+    }
+    mutate((c) => setCover(c, { ...coverDraft, title }));
+    setCoverOpen(false);
+    toast.success("Tarjeta de Previsualización guardada");
+    // La publicación en espera (si la hay) se reanuda en un efecto cuando el
+    // lienzo ya refleja la portada (ver useEffect de pendingPublish).
+  }
+
+  // Gate de publicación: exige portada. Si falta, avisa y abre el editor de
+  // portada, recordando la acción (por clave) para re-disparar al guardar.
+  function requireCover(key: "now" | "compositor" | "democratic"): boolean {
+    if (hasCover(canvas)) {
+      runPublish(key);
+      return true;
+    }
+    pendingPublish.current = key;
+    toast.error("Define la Tarjeta de Previsualización (portada) antes de publicar");
+    openCoverEditor();
+    return false;
+  }
+
+  // Reanuda una publicación que estaba esperando portada, una vez que el lienzo
+  // ya tiene una Tarjeta de Previsualización válida.
+  useEffect(() => {
+    const key = pendingPublish.current;
+    if (key && hasCover(canvas)) {
+      pendingPublish.current = null;
+      runPublish(key);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvas.blocks]);
 
   // ---- conexiones (aristas) -----------------------------------------------
   const edges = useMemo(() => getEdges(canvas), [canvas]);
@@ -443,6 +636,10 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   function onPointerDownBlock(e: React.PointerEvent, b: CanvasBlock, mode: "move" | "resize") {
     e.preventDefault();
     e.stopPropagation();
+    // Seleccionamos el elemento (panel Propiedades) al interactuar con él.
+    setSelectedId(b.id);
+    // Las capas bloqueadas no se arrastran ni redimensionan.
+    if (b.locked) return;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     dragState.current = {
       id: b.id,
@@ -648,6 +845,25 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
     if (typeof window !== "undefined") window.location.href = url;
   }
 
+  // ---- Gate de portada para publicar (Tarjeta de Previsualización OBLIGATORIA)
+  // Cada acción de publicación pasa por requireCover(): si no hay portada,
+  // avisa, recuerda la acción y abre el editor; al guardar la portada un efecto
+  // reanuda la acción (ya con el lienzo actualizado).
+  function runPublish(key: "now" | "compositor" | "democratic") {
+    if (key === "now") void publishNow();
+    else if (key === "compositor") openPublishCanvas();
+    else publishDemocratic();
+  }
+  function publishNowGated() {
+    requireCover("now");
+  }
+  function openPublishCanvasGated() {
+    requireCover("compositor");
+  }
+  function publishDemocraticGated() {
+    requireCover("democratic");
+  }
+
   async function copyAttach() {
     const ref = attachTo(canvas);
     const text = JSON.stringify(ref);
@@ -695,6 +911,164 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
   // ---- render --------------------------------------------------------------
   return (
     <div className="flex flex-col h-full min-h-0">
+      {/* ===================================================================
+          MENÚ SUPERIOR (Módulo 5): Insertar · Herramientas · IA · Guardar
+          + portada (Tarjeta de Previsualización) + toggles de paneles
+          (Capas · Propiedades). Es ADITIVO: reorganiza accesos a acciones que
+          siguen existiendo en las barras de abajo.
+          =================================================================== */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-fuchsia-500/25 bg-gradient-to-r from-fuchsia-950/30 to-amber-950/10 p-1.5 mb-2">
+        {/* Insertar (catálogo agrupado por categoría) */}
+        <div className="relative">
+          <Button
+            size="sm"
+            className="gap-1.5 h-8 bg-fuchsia-600 hover:bg-fuchsia-500 text-white"
+            onClick={() => { setShowInsert((v) => !v); setShowTools(false); setShowAI(false); setShowSave(false); }}
+            title="Insertar elementos en el lienzo"
+          >
+            <Plus className="w-3.5 h-3.5" /> Insertar <ChevronDown className="w-3 h-3" />
+          </Button>
+          {showInsert && (
+            <div className="absolute left-0 top-9 z-40 w-80 rounded-lg border border-white/10 bg-zinc-950/95 backdrop-blur p-2 shadow-2xl max-h-[70vh] overflow-auto">
+              <div className="px-1 pb-1 text-[9px] uppercase tracking-widest text-fuchsia-300/50">Insertar en el lienzo</div>
+              {groupedKinds.map((group) => (
+                <div key={group.category} className="mb-1.5">
+                  <div className="px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-200/60">
+                    {group.label}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {group.kinds.map((k) => (
+                      <button
+                        key={k.kind}
+                        onClick={() => addBlock(k.kind)}
+                        className="text-left px-2 py-1.5 rounded-md hover:bg-white/5 flex items-start gap-2"
+                        title={k.blurb}
+                      >
+                        <KindIcon kind={k.kind} className="w-4 h-4 text-fuchsia-300 mt-0.5 shrink-0" />
+                        <span className="min-w-0">
+                          <span className="block text-[11px] text-white/90 truncate">{k.label}</span>
+                          <span className="block text-[9px] text-white/40 truncate">{k.blurb}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Herramientas de Creación / Edición */}
+        <div className="relative">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8 border-white/15 text-white/80"
+            onClick={() => { setShowTools((v) => !v); setShowInsert(false); setShowAI(false); setShowSave(false); }}
+            title="Herramientas de creación y edición"
+          >
+            <Wand2 className="w-3.5 h-3.5 text-fuchsia-300" /> Herramientas <ChevronDown className="w-3 h-3" />
+          </Button>
+          {showTools && (
+            <div className="absolute left-0 top-9 z-40 w-64 rounded-lg border border-white/10 bg-zinc-950/95 backdrop-blur p-1 shadow-2xl">
+              <MenuItem icon={ViewIcon} label={`Vista: ${VIEW_MODE_LABELS[viewMode]}`} onClick={() => { cycleViewMode(); setShowTools(false); }} />
+              <MenuItem icon={Spline} label={connectMode ? "Conectando… (desactivar)" : "Conectar bloques"} active={connectMode} onClick={() => { toggleConnectMode(); setShowTools(false); }} />
+              <MenuItem icon={Network} label="Reorganizar (radial)" onClick={() => { applyRadialLayout(); setShowTools(false); }} />
+              <div className="my-1 border-t border-white/10" />
+              <MenuItem icon={ZoomIn} label="Acercar" onClick={() => zoomBy(1.2)} />
+              <MenuItem icon={ZoomOut} label="Alejar" onClick={() => zoomBy(1 / 1.2)} />
+              <MenuItem icon={Maximize2} label="Centrar vista" onClick={() => { resetView(); setShowTools(false); }} />
+              <div className="my-1 border-t border-white/10" />
+              <MenuItem icon={Glasses} label="Lienzo inmersivo (VR/AR)" onClick={() => { enterImmersive(); setShowTools(false); }} />
+            </div>
+          )}
+        </div>
+
+        {/* IA */}
+        <div className="relative">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8 border-fuchsia-500/30 text-fuchsia-100"
+            onClick={() => { setShowAI((v) => !v); setShowInsert(false); setShowTools(false); setShowSave(false); }}
+            title="Asistencia de IA"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" /> IA <ChevronDown className="w-3 h-3" />
+          </Button>
+          {showAI && (
+            <div className="absolute left-0 top-9 z-40 w-72 rounded-lg border border-white/10 bg-zinc-950/95 backdrop-blur p-2 shadow-2xl">
+              <div className="px-1 pb-1 text-[9px] uppercase tracking-widest text-fuchsia-300/50">Asistencia de IA</div>
+              <MenuItem icon={Brain} label="Apps con IA (/apps-ia)" onClick={() => { setShowAI(false); if (typeof window !== "undefined") window.location.href = "/apps-ia"; }} />
+              <MenuItem icon={Sparkles} label="Sugerir bloque de texto" onClick={() => { addBlock("text"); setShowAI(false); toast.message("Bloque de texto listo", { description: "Conéctalo a una app de IA para generar contenido." }); }} />
+              <p className="px-1.5 pt-1 text-[10px] text-white/35">La generación con IA se integra desde las apps de IA del sistema.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Guardar (guardado / nuevo / publicar) */}
+        <div className="relative">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8 border-white/15 text-white/80"
+            onClick={() => { setShowSave((v) => !v); setShowInsert(false); setShowTools(false); setShowAI(false); }}
+            title="Guardar y publicar"
+          >
+            <Save className="w-3.5 h-3.5" /> Guardar <ChevronDown className="w-3 h-3" />
+          </Button>
+          {showSave && (
+            <div className="absolute left-0 top-9 z-40 w-64 rounded-lg border border-white/10 bg-zinc-950/95 backdrop-blur p-1 shadow-2xl">
+              <MenuItem icon={Save} label="Guardar ahora" onClick={() => { setShowSave(false); void handleSaveNow(); }} />
+              <MenuItem icon={Plus} label="Nuevo lienzo" onClick={() => { setShowSave(false); void handleNew(); }} />
+              <div className="my-1 border-t border-white/10" />
+              <MenuItem icon={Send} label="Publicar" onClick={() => { setShowSave(false); publishNowGated(); }} />
+              <MenuItem icon={Send} label="Publicar lienzo (compositor)" onClick={() => { setShowSave(false); openPublishCanvasGated(); }} />
+              <MenuItem icon={Vote} label="Publicar (democrático)" onClick={() => { setShowSave(false); publishDemocraticGated(); }} />
+              <div className="my-1 border-t border-white/10" />
+              <MenuItem icon={Share2} label="Adjuntar (copiar referencia)" onClick={() => { setShowSave(false); void copyAttach(); }} />
+            </div>
+          )}
+        </div>
+
+        <div className="mx-1 h-5 w-px bg-white/10" />
+
+        {/* Tarjeta de Previsualización (portada obligatoria) */}
+        <Button
+          size="sm"
+          variant="outline"
+          className={cn(
+            "gap-1.5 h-8",
+            hasCover(canvas) ? "border-emerald-500/40 text-emerald-100" : "border-amber-500/50 text-amber-100",
+          )}
+          onClick={openCoverEditor}
+          title="Tarjeta de Previsualización (portada del Lienzo Universal)"
+        >
+          <ImagePlus className="w-3.5 h-3.5" /> Portada {hasCover(canvas) ? "✓" : "·"}
+        </Button>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          {/* Toggles de paneles laterales: Capas · Propiedades */}
+          <Button
+            size="sm"
+            variant={showLayers ? "default" : "outline"}
+            className={cn("gap-1.5 h-8", showLayers ? "bg-fuchsia-600 hover:bg-fuchsia-500 text-white" : "border-white/15 text-white/80")}
+            onClick={() => setShowLayers((v) => !v)}
+            title="Panel de Capas"
+          >
+            <ListTree className="w-3.5 h-3.5" /> Capas
+          </Button>
+          <Button
+            size="sm"
+            variant={showProps ? "default" : "outline"}
+            className={cn("gap-1.5 h-8", showProps ? "bg-fuchsia-600 hover:bg-fuchsia-500 text-white" : "border-white/15 text-white/80")}
+            onClick={() => setShowProps((v) => !v)}
+            title="Panel de Propiedades del Elemento"
+          >
+            <Settings2 className="w-3.5 h-3.5" /> Propiedades
+          </Button>
+        </div>
+      </div>
+
       {/* Barra de herramientas */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/10 p-2.5 mb-3">
         <div className="flex items-center gap-2 min-w-0">
@@ -720,7 +1094,7 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
             </button>
           )}
           <Badge variant="outline" className="text-[9px] border-fuchsia-500/30 text-fuchsia-200/70 shrink-0">
-            {canvas.blocks.length} bloque{canvas.blocks.length === 1 ? "" : "s"}
+            {contentBlocks.length} bloque{contentBlocks.length === 1 ? "" : "s"}
           </Badge>
           {edges.length > 0 && (
             <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-200/70 shrink-0">
@@ -758,7 +1132,7 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
                     >
                       <Layers className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate flex-1">{c.title}</span>
-                      <span className="text-[9px] text-white/30">{c.blocks?.length ?? 0}</span>
+                      <span className="text-[9px] text-white/30">{(c.blocks ?? []).filter((b) => b.kind !== "cover").length}</span>
                     </button>
                   ))
                 )}
@@ -807,13 +1181,13 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
             <Switch checked={canvas.shared} onCheckedChange={toggleShared} />
           </span>
 
-          <Button size="sm" className="gap-1.5 h-8 bg-amber-600 hover:bg-amber-500 text-white" onClick={publishNow}>
+          <Button size="sm" className="gap-1.5 h-8 bg-amber-600 hover:bg-amber-500 text-white" onClick={publishNowGated}>
             <Send className="w-3.5 h-3.5" /> Publicar
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 h-8 border-amber-500/30 text-amber-100" onClick={openPublishCanvas} title="Publicar el lienzo con el compositor (instantánea)">
+          <Button size="sm" variant="outline" className="gap-1.5 h-8 border-amber-500/30 text-amber-100" onClick={openPublishCanvasGated} title="Publicar el lienzo con el compositor (instantánea)">
             <Send className="w-3.5 h-3.5" /> Publicar lienzo
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 h-8 border-amber-500/30 text-amber-100" onClick={publishDemocratic}>
+          <Button size="sm" variant="outline" className="gap-1.5 h-8 border-amber-500/30 text-amber-100" onClick={publishDemocraticGated}>
             <Vote className="w-3.5 h-3.5" /> Publicar (democrático)
           </Button>
           <Button size="sm" variant="outline" className="gap-1.5 h-8 border-fuchsia-500/30 text-fuchsia-100" onClick={copyAttach}>
@@ -874,9 +1248,93 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
         {connectMode && <span className="text-amber-300/70">· {connectFrom ? "elige destino" : "elige origen"}</span>}
       </div>
 
-      {/* Superficie del lienzo (con pan/zoom infinito) */}
-      <div
-        ref={surfaceRef}
+      {/* ===================================================================
+          ÁREA CENTRAL: panel Capas (izq) · superficie · panel Propiedades (der)
+          =================================================================== */}
+      <div className="flex-1 min-h-0 flex gap-2">
+        {/* Panel lateral · CAPAS (z-order, visibilidad, bloqueo, reordenar) */}
+        {showLayers && (
+          <aside className="w-60 shrink-0 rounded-2xl border border-fuchsia-500/20 bg-zinc-950/50 flex flex-col overflow-hidden">
+            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10 bg-white/5">
+              <ListTree className="w-4 h-4 text-fuchsia-300" />
+              <span className="text-xs font-semibold text-amber-50">Capas</span>
+              <Badge variant="outline" className="ml-auto text-[9px] border-fuchsia-500/30 text-fuchsia-200/70">
+                {contentBlocks.length}
+              </Badge>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto p-1.5 space-y-1">
+              {contentBlocks.length === 0 ? (
+                <p className="px-2 py-3 text-[11px] text-white/35">Sin capas. Usa «Insertar» para añadir elementos.</p>
+              ) : (
+                // El orden visual va de arriba (z mayor) a abajo: invertimos el array.
+                [...contentBlocks].reverse().map((b) => (
+                  <div
+                    key={b.id}
+                    onClick={() => selectBlock(b.id)}
+                    className={cn(
+                      "group flex items-center gap-1 rounded-md px-1.5 py-1 cursor-pointer border",
+                      selectedId === b.id
+                        ? "bg-fuchsia-600/20 border-fuchsia-400/40"
+                        : "border-transparent hover:bg-white/5",
+                      b.hidden ? "opacity-50" : "",
+                    )}
+                  >
+                    <KindIcon kind={b.kind} className="w-3.5 h-3.5 text-fuchsia-300 shrink-0" />
+                    <span className="flex-1 min-w-0 text-[11px] text-white/85 truncate">
+                      {b.title || blockKindDef(b.kind)?.label || b.kind}
+                    </span>
+                    {b.locked && <Lock className="w-3 h-3 text-amber-300/70 shrink-0" />}
+                    {/* Acciones de capa */}
+                    <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); moveLayer(b.id, 1); }}
+                        className="p-0.5 text-white/40 hover:text-fuchsia-300"
+                        title="Subir (z-order)"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); moveLayer(b.id, -1); }}
+                        className="p-0.5 text-white/40 hover:text-fuchsia-300"
+                        title="Bajar (z-order)"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleHidden(b.id); }}
+                        className="p-0.5 text-white/40 hover:text-fuchsia-300"
+                        title={b.hidden ? "Mostrar" : "Ocultar"}
+                      >
+                        {b.hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleLocked(b.id); }}
+                        className="p-0.5 text-white/40 hover:text-amber-300"
+                        title={b.locked ? "Desbloquear" : "Bloquear"}
+                      >
+                        {b.locked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); renameLayer(b.id); }}
+                        className="p-0.5 text-white/40 hover:text-fuchsia-300"
+                        title="Renombrar"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <p className="px-2.5 py-1.5 text-[9px] text-white/30 border-t border-white/10">
+              Arriba = primer plano. Bloqueadas no se mueven ni redimensionan.
+            </p>
+          </aside>
+        )}
+
+        {/* Superficie del lienzo (con pan/zoom infinito) */}
+        <div
+          ref={surfaceRef}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
@@ -888,10 +1346,10 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
           panState.current ? "cursor-grabbing" : "cursor-grab",
         )}
       >
-        {canvas.blocks.length === 0 && (
+        {contentBlocks.length === 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 pointer-events-none">
             <Layers className="w-10 h-10 text-fuchsia-400/40 mb-3" />
-            <p className="text-sm text-white/50">Lienzo vacío. Pulsa <span className="text-fuchsia-200">Añadir bloque</span> para conectar archivos, baúles, memorias, apps, enlaces, widgets o el navegador.</p>
+            <p className="text-sm text-white/50">Lienzo vacío. Pulsa <span className="text-fuchsia-200">Insertar</span> para conectar archivos, baúles, memorias, apps, enlaces, widgets o el navegador.</p>
             <p className="text-[11px] text-white/30 mt-2">Rueda para zoom · arrastra el vacío para mover · «Conectar» para unir bloques.</p>
           </div>
         )}
@@ -937,20 +1395,23 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
             })}
           </svg>
 
-          {canvas.blocks.map((b) => (
+          {visibleBlocks.map((b) => (
             <BlockCard
               key={b.id}
               block={b}
               editing={editingId === b.id}
+              selected={selectedId === b.id}
               vaults={vaults}
               memories={memories}
               connectMode={connectMode}
               connectActive={connectFrom === b.id}
               memoryView={isMemoryView}
+              onSelect={() => selectBlock(b.id)}
               onConnectClick={() => onBlockConnectClick(b.id)}
               onEditToggle={() => {
                 const opening = editingId !== b.id;
                 setEditingId(opening ? b.id : null);
+                selectBlock(b.id);
                 if (opening && (b.kind === "vault" || b.kind === "memory")) ensureRefData();
               }}
               onRemove={() => removeBlock(b.id)}
@@ -963,6 +1424,31 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
             />
           ))}
         </div>
+        </div>
+
+        {/* Panel lateral · PROPIEDADES DEL ELEMENTO (cuando hay selección) */}
+        {showProps && (
+          <aside className="w-72 shrink-0 rounded-2xl border border-fuchsia-500/20 bg-zinc-950/50 flex flex-col overflow-hidden">
+            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10 bg-white/5">
+              <Settings2 className="w-4 h-4 text-fuchsia-300" />
+              <span className="text-xs font-semibold text-amber-50">Propiedades del Elemento</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto p-3">
+              {selectedBlock ? (
+                <PropertiesPanel
+                  block={selectedBlock}
+                  onPatch={(patch) => updateBlock(selectedBlock.id, patch)}
+                  onData={(dataPatch) => updateBlockData(selectedBlock.id, dataPatch)}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center h-full px-3 text-white/35">
+                  <MousePointer2 className="w-7 h-7 mb-2 text-fuchsia-400/40" />
+                  <p className="text-[11px]">Selecciona un elemento del lienzo o una capa para editar sus propiedades.</p>
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
       </div>
 
       {/* Nota de seguridad de iframes */}
@@ -1011,6 +1497,98 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Dialog · Tarjeta de Previsualización (PORTADA obligatoria del Lienzo) */}
+      <Dialog open={coverOpen} onOpenChange={setCoverOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Tarjeta de Previsualización</DialogTitle>
+            <DialogDescription>
+              Portada obligatoria del Lienzo Universal. Es lo que se muestra al compartir la publicación.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {/* Previsualización en vivo */}
+            <div
+              className="rounded-xl border border-white/10 overflow-hidden bg-zinc-900/60"
+              style={{ boxShadow: `inset 0 -3px 0 0 ${coverDraft.accent || "#d946ef"}` }}
+            >
+              {coverDraft.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={coverDraft.image} alt="portada" className="w-full h-32 object-cover" />
+              ) : (
+                <div
+                  className="w-full h-32 flex items-center justify-center"
+                  style={{ background: `linear-gradient(135deg, ${coverDraft.accent || "#d946ef"}33, transparent)` }}
+                >
+                  <ImagePlus className="w-7 h-7 text-white/30" />
+                </div>
+              )}
+              <div className="p-3">
+                <div className="text-sm font-semibold text-amber-50 truncate">
+                  {coverDraft.title || "Título de la portada"}
+                </div>
+                {coverDraft.subtitle && (
+                  <div className="text-[11px] text-white/55 truncate">{coverDraft.subtitle}</div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] text-white/60">Título *</label>
+              <Input
+                value={coverDraft.title}
+                onChange={(e) => setCoverDraft((c) => ({ ...c, title: e.target.value }))}
+                placeholder="Título de la publicación"
+                className="bg-white/5 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] text-white/60">Subtítulo</label>
+              <Input
+                value={coverDraft.subtitle ?? ""}
+                onChange={(e) => setCoverDraft((c) => ({ ...c, subtitle: e.target.value }))}
+                placeholder="Una línea descriptiva (opcional)"
+                className="bg-white/5 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] text-white/60">Imagen (URL)</label>
+              <Input
+                value={coverDraft.image ?? ""}
+                onChange={(e) => setCoverDraft((c) => ({ ...c, image: e.target.value }))}
+                placeholder="https://…/portada.jpg"
+                className="bg-white/5 text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] text-white/60">Acento</label>
+              <input
+                type="color"
+                value={coverDraft.accent || "#d946ef"}
+                onChange={(e) => setCoverDraft((c) => ({ ...c, accent: e.target.value }))}
+                className="h-8 w-12 rounded border border-white/10 bg-transparent cursor-pointer"
+                title="Color de acento"
+              />
+              <Input
+                value={coverDraft.accent || ""}
+                onChange={(e) => setCoverDraft((c) => ({ ...c, accent: e.target.value }))}
+                placeholder="#d946ef"
+                className="bg-white/5 text-xs flex-1"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <Button variant="outline" size="sm" className="border-white/15 text-white/70" onClick={() => setCoverOpen(false)}>
+                Cancelar
+              </Button>
+              <Button size="sm" className="gap-1.5 bg-fuchsia-600 hover:bg-fuchsia-500 text-white" onClick={saveCover}>
+                <ImagePlus className="w-3.5 h-3.5" /> Guardar portada
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1022,11 +1600,13 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
 function BlockCard({
   block,
   editing,
+  selected,
   vaults,
   memories,
   connectMode,
   connectActive,
   memoryView,
+  onSelect,
   onConnectClick,
   onEditToggle,
   onRemove,
@@ -1039,11 +1619,13 @@ function BlockCard({
 }: {
   block: CanvasBlock;
   editing: boolean;
+  selected: boolean;
   vaults: VaultRef[];
   memories: MemoryRef[];
   connectMode: boolean;
   connectActive: boolean;
   memoryView: boolean;
+  onSelect: () => void;
   onConnectClick: () => void;
   onEditToggle: () => void;
   onRemove: () => void;
@@ -1055,31 +1637,44 @@ function BlockCard({
   onPickFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   const def = blockKindDef(block.kind);
+  const locked = !!block.locked;
   return (
     <div
       data-block={block.id}
-      onClick={connectMode ? onConnectClick : undefined}
+      onClick={connectMode ? onConnectClick : onSelect}
       className={cn(
         "absolute rounded-xl border bg-zinc-900/80 backdrop-blur shadow-lg flex flex-col overflow-hidden",
         connectActive
           ? "border-amber-400 ring-2 ring-amber-400/40"
           : connectMode
             ? "border-amber-500/40 hover:border-amber-400 cursor-pointer"
-            : memoryView
-              ? "border-fuchsia-500/30 shadow-[0_0_24px_-6px_rgba(217,70,239,0.45)]"
-              : "border-white/12",
+            : selected
+              ? "border-fuchsia-400 ring-2 ring-fuchsia-400/50"
+              : memoryView
+                ? "border-fuchsia-500/30 shadow-[0_0_24px_-6px_rgba(217,70,239,0.45)]"
+                : "border-white/12",
       )}
-      style={{ left: block.x, top: block.y, width: block.w, height: block.h }}
+      style={{
+        left: block.x,
+        top: block.y,
+        width: block.w,
+        height: block.h,
+        ...(block.accent ? { boxShadow: `inset 4px 0 0 0 ${block.accent}` } : {}),
+      }}
     >
-      {/* Cabecera arrastrable */}
+      {/* Cabecera arrastrable (bloqueada si la capa está locked) */}
       <div
-        onPointerDown={connectMode ? undefined : onPointerDownMove}
+        onPointerDown={connectMode || locked ? undefined : onPointerDownMove}
         className={cn(
           "flex items-center gap-1.5 px-2 py-1.5 bg-white/5 border-b border-white/10 select-none",
-          connectMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+          connectMode ? "cursor-pointer" : locked ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing",
         )}
       >
-        <GripVertical className="w-3.5 h-3.5 text-white/25 shrink-0" />
+        {locked ? (
+          <Lock className="w-3.5 h-3.5 text-amber-300/70 shrink-0" />
+        ) : (
+          <GripVertical className="w-3.5 h-3.5 text-white/25 shrink-0" />
+        )}
         <KindIcon kind={block.kind} className="w-3.5 h-3.5 text-fuchsia-300 shrink-0" />
         <input
           value={block.title ?? def?.label ?? ""}
@@ -1135,17 +1730,19 @@ function BlockCard({
         )}
       </div>
 
-      {/* Manija de redimensión */}
-      <div
-        onPointerDown={connectMode ? undefined : onPointerDownResize}
-        onClick={(e) => e.stopPropagation()}
-        className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize text-white/30 hover:text-fuchsia-300"
-        title="Redimensionar"
-      >
-        <svg viewBox="0 0 10 10" className="w-full h-full">
-          <path d="M9 1 L1 9 M9 5 L5 9" stroke="currentColor" strokeWidth="1" fill="none" />
-        </svg>
-      </div>
+      {/* Manija de redimensión (oculta si la capa está locked) */}
+      {!locked && (
+        <div
+          onPointerDown={connectMode ? undefined : onPointerDownResize}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize text-white/30 hover:text-fuchsia-300"
+          title="Redimensionar"
+        >
+          <svg viewBox="0 0 10 10" className="w-full h-full">
+            <path d="M9 1 L1 9 M9 5 L5 9" stroke="currentColor" strokeWidth="1" fill="none" />
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
@@ -1397,4 +1994,202 @@ function Picker({
       ))}
     </div>
   );
+}
+
+// =============================================================================
+// Panel · Propiedades del Elemento (Módulo 5)
+// Edita posición/tamaño, título, datos según el tipo, acento y grupo del bloque
+// seleccionado. Las mutaciones son en vivo y se persisten (debounce) vía las
+// callbacks onPatch / onData que llegan del tablero.
+// =============================================================================
+function PropertiesPanel({
+  block,
+  onPatch,
+  onData,
+}: {
+  block: CanvasBlock;
+  onPatch: (patch: Partial<CanvasBlock>) => void;
+  onData: (dataPatch: Record<string, any>) => void;
+}) {
+  const def = blockKindDef(block.kind);
+  const d = block.data || {};
+
+  // Campo numérico controlado para x/y/w/h.
+  function NumField({ label, value, min, onChange }: { label: string; value: number; min?: number; onChange: (n: number) => void }) {
+    return (
+      <label className="flex-1 min-w-0">
+        <span className="block text-[10px] text-white/50 mb-0.5">{label}</span>
+        <Input
+          type="number"
+          value={Math.round(value)}
+          min={min}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (!Number.isNaN(n)) onChange(min != null ? Math.max(min, n) : n);
+          }}
+          className="h-8 bg-white/5 text-xs"
+        />
+      </label>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Identidad del elemento */}
+      <div className="flex items-center gap-1.5">
+        <KindIcon kind={block.kind} className="w-4 h-4 text-fuchsia-300 shrink-0" />
+        <span className="text-[11px] text-white/55">{def?.label ?? block.kind}</span>
+      </div>
+
+      {/* Título */}
+      <div className="space-y-1">
+        <label className="text-[10px] text-white/50">Título</label>
+        <Input
+          value={block.title ?? ""}
+          onChange={(e) => onPatch({ title: e.target.value })}
+          placeholder={def?.label ?? "Título"}
+          className="h-8 bg-white/5 text-xs"
+        />
+      </div>
+
+      {/* Posición y tamaño */}
+      <div className="space-y-1">
+        <label className="text-[10px] uppercase tracking-wider text-amber-200/60">Posición y tamaño</label>
+        <div className="flex gap-2">
+          <NumField label="X" value={block.x} min={0} onChange={(n) => onPatch({ x: n })} />
+          <NumField label="Y" value={block.y} min={0} onChange={(n) => onPatch({ y: n })} />
+        </div>
+        <div className="flex gap-2">
+          <NumField label="Ancho" value={block.w} min={160} onChange={(n) => onPatch({ w: n })} />
+          <NumField label="Alto" value={block.h} min={120} onChange={(n) => onPatch({ h: n })} />
+        </div>
+      </div>
+
+      {/* Datos según el tipo */}
+      <div className="space-y-1">
+        <label className="text-[10px] uppercase tracking-wider text-amber-200/60">Contenido</label>
+        <PropertiesData block={block} onData={onData} />
+      </div>
+
+      {/* Acento (color) */}
+      <div className="space-y-1">
+        <label className="text-[10px] text-white/50">Acento</label>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={block.accent || "#d946ef"}
+            onChange={(e) => onPatch({ accent: e.target.value } as Partial<CanvasBlock>)}
+            className="h-8 w-12 rounded border border-white/10 bg-transparent cursor-pointer"
+            title="Color de acento del elemento"
+          />
+          <Input
+            value={block.accent ?? ""}
+            onChange={(e) => onPatch({ accent: e.target.value } as Partial<CanvasBlock>)}
+            placeholder="(sin acento)"
+            className="h-8 bg-white/5 text-xs flex-1"
+          />
+          {block.accent && (
+            <button
+              onClick={() => onPatch({ accent: undefined } as Partial<CanvasBlock>)}
+              className="text-white/40 hover:text-red-400"
+              title="Quitar acento"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Grupo / carpeta */}
+      <div className="space-y-1">
+        <label className="text-[10px] text-white/50">Grupo / carpeta</label>
+        <Input
+          value={block.group ?? ""}
+          onChange={(e) => onPatch({ group: e.target.value.trim() || undefined } as Partial<CanvasBlock>)}
+          placeholder="(sin grupo)"
+          className="h-8 bg-white/5 text-xs"
+        />
+      </div>
+    </div>
+  );
+}
+
+// Editor de datos del bloque dentro de Propiedades, según su tipo.
+function PropertiesData({
+  block,
+  onData,
+}: {
+  block: CanvasBlock;
+  onData: (dataPatch: Record<string, any>) => void;
+}) {
+  const d = block.data || {};
+  switch (block.kind) {
+    case "text":
+      return (
+        <Textarea
+          value={d.text ?? ""}
+          onChange={(e) => onData({ text: e.target.value })}
+          placeholder="Texto / nota / markdown…"
+          className="bg-white/5 text-xs min-h-[90px] resize-none"
+        />
+      );
+    case "image":
+    case "link":
+    case "browser":
+      return (
+        <Input
+          value={d.url ?? ""}
+          onChange={(e) => onData({ url: e.target.value })}
+          placeholder="https://…"
+          className="h-8 bg-white/5 text-xs"
+        />
+      );
+    case "file":
+      return (
+        <div className="space-y-1.5">
+          <Input
+            value={d.fileName ?? ""}
+            onChange={(e) => onData({ fileName: e.target.value })}
+            placeholder="Nombre del archivo"
+            className="h-8 bg-white/5 text-xs"
+          />
+          <Input
+            value={d.url ?? ""}
+            onChange={(e) => onData({ url: e.target.value })}
+            placeholder="URL del archivo"
+            className="h-8 bg-white/5 text-xs"
+          />
+        </div>
+      );
+    case "vault":
+    case "memory":
+      return (
+        <Input
+          value={d.name ?? ""}
+          onChange={(e) => onData({ name: e.target.value })}
+          placeholder={block.kind === "vault" ? "Nombre del baúl" : "Nombre de la memoria"}
+          className="h-8 bg-white/5 text-xs"
+        />
+      );
+    case "app":
+    case "widget":
+      return (
+        <div className="space-y-1.5">
+          <Input
+            value={d.name ?? ""}
+            onChange={(e) => onData({ name: e.target.value })}
+            placeholder={block.kind === "app" ? "Nombre del app/programa" : "Nombre del widget"}
+            className="h-8 bg-white/5 text-xs"
+          />
+          <Textarea
+            value={d.config ?? ""}
+            onChange={(e) => onData({ config: e.target.value })}
+            placeholder="Configuración (ruta, comando, params, JSON…)"
+            className="bg-white/5 text-xs min-h-[60px] resize-none"
+          />
+        </div>
+      );
+    default:
+      return <p className="text-[11px] text-white/35 italic">Sin datos editables para este tipo.</p>;
+  }
 }
