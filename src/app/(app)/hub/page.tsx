@@ -25,6 +25,7 @@ import { slugify } from "@/lib/entity-links";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { useCalendar, LAYER_META, CalendarLayer, CalendarVisibility } from "@/contexts/calendar-context";
 import { StoriesStrip } from "@/components/stories/stories-strip";
+import { UniversalSearchBox } from "@/components/hub/universal-search-box";
 
 // ── TYPES & MOCK DATA FOR CONTRIBUTIONS ──
 interface Volunteer {
@@ -155,6 +156,8 @@ export default function HubPage() {
 
     // ── CONTROLLED TABS & DYNAMIC USER DATA ──
     const [activeTab, setActiveTab] = useState("contributions");
+    // Query del Buscador Universal (la barra del header la alimenta).
+    const [headerQuery, setHeaderQuery] = useState("");
     const [userReputation, setUserReputation] = useState(1842);
     const [completedContributionsCount, setCompletedContributionsCount] = useState(347);
     const [userSeeds, setUserSeeds] = useState(9240);
@@ -602,7 +605,13 @@ export default function HubPage() {
                     <div className="absolute inset-0 bg-primary/10 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity rounded-xl pointer-events-none" />
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors z-10" />
                     <Input
-                        placeholder="Buscar en el Hub..."
+                        value={headerQuery}
+                        onChange={(e) => setHeaderQuery(e.target.value)}
+                        onFocus={() => setActiveTab("buscador")}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") setActiveTab("buscador");
+                        }}
+                        placeholder="Buscar en toda la red..."
                         className="pl-12 h-12 bg-background/40 backdrop-blur-md border-primary/20 focus-visible:ring-1 focus-visible:ring-primary/50 rounded-xl w-full text-base transition-all shadow-inner"
                     />
                 </div>
@@ -610,7 +619,10 @@ export default function HubPage() {
 
             {/* ── MENÚ TABS REORGANIZADO A LA PARTE SUPERIOR (CONSOLIDADOS) ── */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col mt-2">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6 max-w-full lg:max-w-6xl mx-auto h-auto min-h-[50px] gap-2 bg-black/25 p-2 rounded-2xl border border-white/5 shadow-2xl backdrop-blur-md">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 max-w-full lg:max-w-6xl mx-auto h-auto min-h-[50px] gap-2 bg-black/25 p-2 rounded-2xl border border-white/5 shadow-2xl backdrop-blur-md">
+                    <TabsTrigger value="buscador" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
+                        <Search className="w-4 h-4 mr-2 text-primary" />Buscador
+                    </TabsTrigger>
                     <TabsTrigger value="contributions" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
                         <Briefcase className="w-4 h-4 mr-2 text-cyan-400" />Aportaciones
                     </TabsTrigger>
@@ -630,6 +642,24 @@ export default function HubPage() {
                         <Vote className="w-4 h-4 mr-2" />Votos
                     </TabsTrigger>
                 </TabsList>
+
+                {/* ── BUSCADOR UNIVERSAL (búsqueda real e interconectada en toda la red) ── */}
+                <TabsContent value="buscador" className="mt-6 animate-in fade-in-50 duration-500">
+                    <div className="space-y-6">
+                        <div className="flex flex-col gap-1">
+                            <h2 className="text-xl font-black tracking-tight text-foreground/90 flex items-center gap-2">
+                                <Search className="w-5 h-5 text-primary" />
+                                Buscador Universal
+                            </h2>
+                            <p className="text-sm text-muted-foreground max-w-2xl text-balance">
+                                Encuentra y navega cualquier entidad de la red: perfiles, páginas,
+                                publicaciones, conocimiento, memorias, cerebros, apps de IA y lienzos.
+                                Resultados en vivo y enlazados entre sí.
+                            </p>
+                        </div>
+                        <UniversalSearchBox initialQuery={headerQuery} />
+                    </div>
+                </TabsContent>
 
                 {/* ── SECCIÓN DE APORTACIONES COMPLETA ── */}
                 <TabsContent value="contributions" className="mt-6 animate-in fade-in-50 duration-500 space-y-8">
