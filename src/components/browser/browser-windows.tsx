@@ -13,6 +13,16 @@
 // pizarra/publicación. Los sitios no incrustables muestran un botón claro
 // "abrir en pestaña nueva".
 //
+// INTERCONEXIÓN (puente `@/lib/share/bridge`):
+//   · «Adjuntar a pizarra»     → emitAttach({kind:'window', url}) para que una
+//                                pizarra abierta lo materialice como bloque
+//                                `browser`. (También se mantiene el evento propio
+//                                `starseed:attach-window` del lib de navegador.)
+//   · «Adjuntar a publicación» → openComposer({type:'enlace',format:'embed',
+//                                content:{url}}) (lo hospeda la pizarra/board); y
+//                                como FALLBACK local, esta tarjeta monta su propio
+//                                Dialog con <PublicationComposer initial={…}/>.
+//
 // Astraura/Aurora puede conducir la navegación REAL vía la extensión
 // Claude-in-Chrome — se expone una tarjeta explicativa y la acción "Pedir a
 // Astraura que navegue" (emite `starseed:astraura-browse`).
@@ -26,6 +36,15 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
+import PublicationComposer from "@/components/publish/publication-composer";
+import { emitAttach, openComposer } from "@/lib/share/bridge";
 import {
     Globe,
     Plus,
@@ -41,6 +60,7 @@ import {
     Save,
     Share2,
     Paperclip,
+    Send,
     ExternalLink,
     Trash2,
     ChevronDown,
@@ -230,6 +250,9 @@ function WindowCard({
     const [editMeta, setEditMeta] = useState(false);
     const [group, setGroupVal] = useState(w.groupName);
     const [folder, setFolderVal] = useState(w.folder);
+    // Dialog local de publicación (fallback cuando no hay pizarra hospedando el
+    // compositor): se abre al «adjuntar a publicación».
+    const [publishOpen, setPublishOpen] = useState(false);
 
     const host = urlHost(w.url) || w.url;
     const isWidget = w.state.view === "widget";
@@ -304,13 +327,31 @@ function WindowCard({
         );
     }
 
+    // Adjuntar a PIZARRA: emite por el puente compartido `starseed:attach`
+    // ({kind:'window', url}) para que una pizarra abierta lo añada como bloque
+    // `browser`. Mantenemos además el evento propio del navegador
+    // (`starseed:attach-window`) por compatibilidad con otros oyentes.
     function attach() {
-        const ok = emitAttachWindow(w);
-        toast[ok ? "success" : "error"](
-            ok
-                ? "Ventana enviada a la pizarra / publicación"
+        const okBridge = emitAttach({
+            kind: "window",
+            url: w.url,
+            title: w.name,
+            data: { host: urlHost(w.url), group: w.groupName || "", folder: w.folder || "" },
+        });
+        emitAttachWindow(w); // compat: evento heredado del lib de navegador
+        toast[okBridge ? "success" : "error"](
+            okBridge
+                ? "Ventana enviada a la pizarra"
                 : "No disponible en este contexto",
         );
+    }
+
+    // Adjuntar a PUBLICACIÓN: pide abrir el compositor universal vía el puente
+    // (lo hospeda la pizarra/board) y, como fallback, abre un Dialog local con
+    // <PublicationComposer/> prerellenado (tipo `enlace`, formato `embed`).
+    function attachToPublication() {
+        openComposer({ type: "enlace", format: "embed", content: { url: w.url } });
+        setPublishOpen(true);
     }
 
     function askAstraura() {
@@ -446,8 +487,11 @@ function WindowCard({
                 <Button size="sm" variant="ghost" onClick={share} title="Copiar referencia compartible">
                     <Share2 className="h-4 w-4" /> Compartir
                 </Button>
-                <Button size="sm" variant="ghost" onClick={attach} title="Adjuntar a pizarra / publicación">
-                    <Paperclip className="h-4 w-4" /> Adjuntar
+                <Button size="sm" variant="ghost" onClick={attach} title="Adjuntar a la pizarra (añade un bloque navegador)">
+                    <Paperclip className="h-4 w-4" /> Adjuntar a pizarra
+                </Button>
+                <Button size="sm" variant="ghost" onClick={attachToPublication} title="Adjuntar a una publicación (compositor)">
+                    <Send className="h-4 w-4" /> Adjuntar a publicación
                 </Button>
                 <Button size="sm" variant="ghost" onClick={askAstraura} title="Pedir a Astraura que navegue (Claude-in-Chrome)">
                     <Sparkles className="h-4 w-4" /> Astraura
@@ -495,6 +539,25 @@ function WindowCard({
                     </div>
                 </div>
             )}
+
+            {/* Dialog local de publicación (fallback del «adjuntar a publicación») */}
+            <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
+                <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Adjuntar a publicación</DialogTitle>
+                        <DialogDescription>
+                            Publica «{w.name}» como enlace incrustado con el compositor universal.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <PublicationComposer
+                        initial={{ type: "enlace", format: "embed", content: { url: w.url } } as any}
+                        onPublished={() => {
+                            setPublishOpen(false);
+                            toast.success("Publicado");
+                        }}
+                    />
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
