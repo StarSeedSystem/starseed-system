@@ -12,7 +12,8 @@ import {
     Search, Phone, Video, Send, PlusCircle, Sparkles, Library, Edit,
     Image as ImageIcon, File as FileIcon, Vote, Pin, Menu,
     Folder, Check, X, Home, User, Bot, Users, Network, PenSquare, Info,
-    Settings, ArrowLeft, MessageSquare, Globe, Building2, Users2
+    Settings, ArrowLeft, MessageSquare, Globe, Building2, Users2,
+    FolderInput, Share2, PenSquare as PenSquareIcon
 } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,15 @@ import { NotificationCenter } from "@/components/layout/notification-center";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { CanvasEditor } from "@/components/canvas-editor";
+import {
+    useCurrentUserId,
+    useMessagesRealtime,
+    useChatFolders,
+    FoldersPanel,
+    UniversalCompositor,
+    SharePublicationDialog,
+    type UniversalComposePayload,
+} from "@/components/messages/module9-enhancements";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -130,13 +140,17 @@ function ChannelChip({ type }: { type: ChannelType }) {
 // ── Conversation List Item ───────────────────────────────────────────────────
 
 function ConversationListItem({
-    conversation, onSelect, isActive
+    conversation, onSelect, isActive, folders, currentFolderId, onAssignFolder
 }: {
     conversation: AugmentedConversation;
     onSelect: () => void;
     isActive: boolean;
+    folders?: { id: string; name: string }[];
+    currentFolderId?: string | null;
+    onAssignFolder?: (chatId: string, folderId: string | null) => void;
 }) {
     return (
+        <div className="relative group/item">
         <button
             onClick={onSelect}
             className={cn(
@@ -184,6 +198,56 @@ function ConversationListItem({
                 </div>
             </div>
         </button>
+
+        {/* Asignar a carpeta (interconexión de organización) */}
+        {folders && onAssignFolder && (
+            <Popover>
+                <PopoverTrigger asChild>
+                    <button
+                        title="Mover a carpeta"
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute right-1.5 top-1.5 h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover/item:opacity-100 hover:bg-muted hover:text-foreground transition-all cursor-pointer"
+                    >
+                        <FolderInput className="w-3.5 h-3.5" />
+                    </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-52 p-1" align="end" side="right">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 py-1.5">
+                        Mover a carpeta
+                    </p>
+                    <button
+                        onClick={() => onAssignFolder(conversation.id, null)}
+                        className={cn(
+                            "flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left text-sm hover:bg-muted cursor-pointer",
+                            currentFolderId == null && "text-primary font-medium"
+                        )}
+                    >
+                        <Home className="w-3.5 h-3.5" /> Sin carpeta
+                        {currentFolderId == null && <Check className="w-3.5 h-3.5 ml-auto" />}
+                    </button>
+                    {folders.map((f) => (
+                        <button
+                            key={f.id}
+                            onClick={() => onAssignFolder(conversation.id, f.id)}
+                            className={cn(
+                                "flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left text-sm hover:bg-muted cursor-pointer",
+                                currentFolderId === f.id && "text-primary font-medium"
+                            )}
+                        >
+                            <Folder className="w-3.5 h-3.5" />
+                            <span className="truncate flex-1">{f.name}</span>
+                            {currentFolderId === f.id && <Check className="w-3.5 h-3.5" />}
+                        </button>
+                    ))}
+                    {folders.length === 0 && (
+                        <p className="px-2 py-2 text-[11px] text-muted-foreground">
+                            Crea una carpeta primero.
+                        </p>
+                    )}
+                </PopoverContent>
+            </Popover>
+        )}
+        </div>
     );
 }
 
@@ -196,11 +260,19 @@ function ConversationList({
     onConversationSelect,
     selectedConversationId,
     onShowMainMenu,
+    activeFolderId = null,
+    folders,
+    folderOf,
+    onAssignFolder,
 }: {
     conversations: AugmentedConversation[];
     onConversationSelect: (conv: AugmentedConversation) => void;
     selectedConversationId: string;
     onShowMainMenu: () => void;
+    activeFolderId?: string | null;
+    folders?: { id: string; name: string }[];
+    folderOf?: (chatId: string) => string | null;
+    onAssignFolder?: (chatId: string, folderId: string | null) => void;
 }) {
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<FilterType>('all');
@@ -210,7 +282,9 @@ function ConversationList({
             c.name.toLowerCase().includes(search.toLowerCase()) ||
             c.lastMessage.toLowerCase().includes(search.toLowerCase());
         const matchesFilter = filter === 'all' || c.channelType === filter;
-        return matchesSearch && matchesFilter;
+        const matchesFolder =
+            activeFolderId == null || (folderOf ? folderOf(c.id) === activeFolderId : true);
+        return matchesSearch && matchesFilter && matchesFolder;
     });
 
     const pinned = filtered.filter(c => c.pinned);
@@ -295,6 +369,9 @@ function ConversationList({
                                         conversation={convo}
                                         onSelect={() => onConversationSelect(convo)}
                                         isActive={selectedConversationId === convo.id}
+                                        folders={folders}
+                                        currentFolderId={folderOf ? folderOf(convo.id) : null}
+                                        onAssignFolder={onAssignFolder}
                                     />
                                 ))}
                             </div>
@@ -314,6 +391,9 @@ function ConversationList({
                                         conversation={convo}
                                         onSelect={() => onConversationSelect(convo)}
                                         isActive={selectedConversationId === convo.id}
+                                        folders={folders}
+                                        currentFolderId={folderOf ? folderOf(convo.id) : null}
+                                        onAssignFolder={onAssignFolder}
                                     />
                                 ))}
                             </div>
@@ -377,8 +457,25 @@ function MessageBubble({ message }: { message: LocalMessage }) {
 
     const renderContent = () => {
         switch (content.type) {
-            case 'text':
-                return <p className="text-sm leading-relaxed whitespace-pre-wrap">{content.text}</p>;
+            case 'text': {
+                const t = content.text ?? '';
+                const postMatch = t.match(/(\/post\/[A-Za-z0-9_-]+)/);
+                if (postMatch) {
+                    const path = postMatch[1];
+                    const before = t.slice(0, postMatch.index);
+                    const after = t.slice((postMatch.index ?? 0) + path.length);
+                    return (
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                            {before}
+                            <Link href={path} className="inline-flex items-center gap-1 underline underline-offset-2 font-medium hover:opacity-80">
+                                <ImageIcon className="w-3 h-3" />{path}
+                            </Link>
+                            {after}
+                        </p>
+                    );
+                }
+                return <p className="text-sm leading-relaxed whitespace-pre-wrap">{t}</p>;
+            }
             case 'image':
                 return (
                     <Image
@@ -553,6 +650,8 @@ function ThreadView({
     attachmentOptions,
     onOpenCanvasEditor,
     onOpenLibrarySelector,
+    onOpenCompositor,
+    onOpenShare,
 }: {
     conversation: AugmentedConversation;
     onBack?: () => void;
@@ -560,6 +659,8 @@ function ThreadView({
     attachmentOptions: { name: string; icon: React.ReactNode; description: string; action: () => void }[];
     onOpenCanvasEditor: () => void;
     onOpenLibrarySelector: () => void;
+    onOpenCompositor?: () => void;
+    onOpenShare?: () => void;
 }) {
     const [inputValue, setInputValue] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -699,6 +800,32 @@ function ThreadView({
                         </PopoverContent>
                     </Popover>
 
+                    {/* Compositor Universal */}
+                    {onOpenCompositor && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Compositor Universal (elegir formato)"
+                            className="cursor-pointer h-7 w-7 shrink-0 rounded-full hover:bg-primary/10 hover:text-primary text-muted-foreground"
+                            onClick={onOpenCompositor}
+                        >
+                            <PenSquareIcon className="w-4 h-4" />
+                        </Button>
+                    )}
+
+                    {/* Compartir publicación (interconexión) */}
+                    {onOpenShare && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Compartir publicación en el chat"
+                            className="cursor-pointer h-7 w-7 shrink-0 rounded-full hover:bg-primary/10 hover:text-primary text-muted-foreground"
+                            onClick={onOpenShare}
+                        >
+                            <Share2 className="w-4 h-4" />
+                        </Button>
+                    )}
+
                     {/* Text input */}
                     <Input
                         ref={inputRef}
@@ -760,7 +887,21 @@ export default function MessagesPage() {
     const [isCanvasEditorOpen, setCanvasEditorOpen] = useState(false);
     const [isLibrarySelectorOpen, setLibrarySelectorOpen] = useState(false);
 
+    // ── Módulo 9: usuario, carpetas, compositor universal, interconexión ──────
+    const userId = useCurrentUserId();
+    const folderApi = useChatFolders(userId);
+    const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
+    const [isCompositorOpen, setCompositorOpen] = useState(false);
+    const [isShareOpen, setShareOpen] = useState(false);
+
     const selectedConversation = augmented.find(c => c.id === selectedId) ?? augmented[0];
+
+    // Recuento de chats por carpeta (para los badges del panel de Carpetas).
+    const folderCounts = augmented.reduce<Record<string, number>>((acc, c) => {
+        const fid = folderApi.folderOf(c.id);
+        if (fid) acc[fid] = (acc[fid] ?? 0) + 1;
+        return acc;
+    }, {});
 
     const handleSelectConversation = (conv: AugmentedConversation) => {
         setSelectedId(conv.id);
@@ -788,6 +929,87 @@ export default function MessagesPage() {
             };
         }));
     }, [selectedId]);
+
+    // Append genérico: permite cualquier `content` (texto/imagen/archivo/lienzo)
+    // reutilizando la misma lógica de estado local que handleSendMessage.
+    const appendMessage = useCallback((
+        content: LocalMessage['content'],
+        preview: string,
+    ) => {
+        setAugmented(prev => prev.map(c => {
+            if (c.id !== selectedId) return c;
+            const newMsg: LocalMessage = {
+                id: `local-${Date.now()}`,
+                author: 'Tú',
+                avatar: 'https://placehold.co/100x100.png',
+                dataAiHint: 'user avatar',
+                timestamp: 'ahora',
+                content,
+                _local: true,
+            };
+            return {
+                ...c,
+                localMessages: [...c.localMessages, newMsg],
+                lastMessage: preview,
+                lastMessageTimestamp: 'ahora',
+            };
+        }));
+    }, [selectedId]);
+
+    // Compositor Universal → mapea el formato elegido al modelo de contenido.
+    const handleComposedSend = useCallback((payload: UniversalComposePayload) => {
+        const { format, text, url } = payload;
+        switch (format) {
+            case 'texto':
+                if (text) appendMessage({ type: 'text', text }, text);
+                break;
+            case 'galeria':
+                if (url) appendMessage(
+                    { type: 'image', imageUrl: url, imageHint: text || 'imagen compartida' },
+                    text || 'Imagen',
+                );
+                else if (text) appendMessage({ type: 'text', text }, text);
+                break;
+            case 'archivo':
+                appendMessage(
+                    { type: 'file', file: { name: text || url || 'archivo', size: url ? 'enlace' : '—' } },
+                    `Archivo: ${text || url || 'adjunto'}`,
+                );
+                break;
+            case 'audiovideo':
+                appendMessage(
+                    { type: 'file', file: { name: text || 'Audio/Video', size: url ? 'enlace' : 'captura (sentidos)' } },
+                    `Audio/Video: ${text || url || 'captura'}`,
+                );
+                break;
+            case 'lienzo':
+                appendMessage(
+                    { type: 'canvas', canvas: { title: text || 'Lienzo Universal', content: 'Abre el lienzo en /pizarra.' } },
+                    `Lienzo: ${text || 'Universal'}`,
+                );
+                break;
+        }
+    }, [appendMessage]);
+
+    // Interconexión: compartir publicación /post/<id> como mensaje de texto link.
+    const handleSharePost = useCallback((ref: { id: string; path: string }) => {
+        appendMessage(
+            { type: 'text', text: `Compartió una publicación: ${ref.path}` },
+            `Publicación: ${ref.path}`,
+        );
+    }, [appendMessage]);
+
+    // Realtime: nuevos mensajes de `astraura_messages` (filtrados por usuario).
+    // HONESTO: la página usa datos en memoria; al llegar un INSERT lo anexamos al
+    // chat activo si trae texto, conservando todo el comportamiento existente.
+    useMessagesRealtime((payload) => {
+        if (payload?.eventType !== 'INSERT') return;
+        const row: any = payload?.new ?? null;
+        const text = row?.content ?? row?.text ?? row?.body;
+        if (typeof text === 'string' && text.trim()) {
+            appendMessage({ type: 'text', text }, text);
+        }
+    }, userId);
 
     const attachmentOptions = [
         {
@@ -837,8 +1059,33 @@ export default function MessagesPage() {
                     <LibrarySelectorDialog onOpenChange={setLibrarySelectorOpen} />
                 </Dialog>
 
+                {/* Compositor Universal (selector de formato) */}
+                <UniversalCompositor
+                    open={isCompositorOpen}
+                    onOpenChange={setCompositorOpen}
+                    onSend={handleComposedSend}
+                />
+
+                {/* Interconexión: compartir publicación /post/<id> */}
+                <SharePublicationDialog
+                    open={isShareOpen}
+                    onOpenChange={setShareOpen}
+                    onShare={handleSharePost}
+                />
+
                 {/* ── DESKTOP: two-pane layout ── */}
                 <div className="hidden md:flex flex-1 overflow-hidden bg-muted/10">
+                    {/* Carpetas (folders) — panel lateral izquierdo */}
+                    <div className="hidden lg:flex w-52 shrink-0 flex-col border-r bg-background/40 backdrop-blur-sm overflow-hidden">
+                        <FoldersPanel
+                            api={folderApi}
+                            activeFolderId={activeFolderId}
+                            onSelectFolder={setActiveFolderId}
+                            counts={folderCounts}
+                            totalCount={augmented.length}
+                        />
+                    </div>
+
                     {/* Left pane — conversation list */}
                     <div className="w-80 lg:w-96 shrink-0 flex flex-col border-r bg-background/60 backdrop-blur-sm overflow-hidden">
                         <ConversationList
@@ -849,6 +1096,10 @@ export default function MessagesPage() {
                                 setSheetView('main_menu');
                                 setIsSheetOpen(true);
                             }}
+                            activeFolderId={activeFolderId}
+                            folders={folderApi.folders}
+                            folderOf={folderApi.folderOf}
+                            onAssignFolder={folderApi.assignChat}
                         />
                     </div>
 
@@ -861,6 +1112,8 @@ export default function MessagesPage() {
                                 attachmentOptions={attachmentOptions}
                                 onOpenCanvasEditor={() => setCanvasEditorOpen(true)}
                                 onOpenLibrarySelector={() => setLibrarySelectorOpen(true)}
+                                onOpenCompositor={() => setCompositorOpen(true)}
+                                onOpenShare={() => setShareOpen(true)}
                             />
                         ) : (
                             <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -895,6 +1148,10 @@ export default function MessagesPage() {
                                                 onConversationSelect={handleSelectConversation}
                                                 selectedConversationId={selectedId}
                                                 onShowMainMenu={() => setSheetView('main_menu')}
+                                                activeFolderId={activeFolderId}
+                                                folders={folderApi.folders}
+                                                folderOf={folderApi.folderOf}
+                                                onAssignFolder={folderApi.assignChat}
                                             />
                                         ) : (
                                             <MainMenu onShowConversations={() => setSheetView('conversations')} />
@@ -921,6 +1178,10 @@ export default function MessagesPage() {
                                         setSheetView('main_menu');
                                         setIsSheetOpen(true);
                                     }}
+                                    activeFolderId={activeFolderId}
+                                    folders={folderApi.folders}
+                                    folderOf={folderApi.folderOf}
+                                    onAssignFolder={folderApi.assignChat}
                                 />
                             </div>
                         </div>
@@ -934,6 +1195,8 @@ export default function MessagesPage() {
                                 attachmentOptions={attachmentOptions}
                                 onOpenCanvasEditor={() => setCanvasEditorOpen(true)}
                                 onOpenLibrarySelector={() => setLibrarySelectorOpen(true)}
+                                onOpenCompositor={() => setCompositorOpen(true)}
+                                onOpenShare={() => setShareOpen(true)}
                             />
                         )
                     )}
