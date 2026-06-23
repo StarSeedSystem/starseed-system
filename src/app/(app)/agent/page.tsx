@@ -56,6 +56,9 @@ import StoragePanel from "@/components/storage/storage-panel";
 import ConnectionsHub from "@/components/storage/connections-hub";
 import BrainsPanel from "@/components/brains/brains-panel";
 import ServersPanel from "@/components/brains/servers-panel";
+import SecurityPanel from "@/components/security/security-panel";
+import CanvasBoard from "@/components/canvas/canvas-board";
+import BrowserWindows from "@/components/browser/browser-windows";
 import GovernancePanel from "@/components/governance/governance-panel";
 import GovNotifications from "@/components/governance/notifications-panel";
 import MyActivity from "@/components/decisions/my-activity";
@@ -381,6 +384,9 @@ function AgentPageInner() {
           <TabsTrigger value="cerebros" className="gap-2"><BrainCircuit className="w-4 h-4" /> Cerebros</TabsTrigger>
           <TabsTrigger value="servidores" className="gap-2"><Server className="w-4 h-4" /> Servidores</TabsTrigger>
           <TabsTrigger value="red3d" className="gap-2"><Network className="w-4 h-4" /> Red 3D</TabsTrigger>
+          <TabsTrigger value="seguridad" className="gap-2"><Shield className="w-4 h-4" /> Seguridad</TabsTrigger>
+          <TabsTrigger value="pizarra" className="gap-2"><Layers className="w-4 h-4" /> Pizarra</TabsTrigger>
+          <TabsTrigger value="navegador" className="gap-2"><Network className="w-4 h-4" /> Navegador</TabsTrigger>
           <TabsTrigger value="decisiones" className="gap-2"><Vote className="w-4 h-4" /> Decisiones</TabsTrigger>
           <TabsTrigger value="mi-actividad" className="gap-2"><Activity className="w-4 h-4" /> Mi actividad</TabsTrigger>
         </TabsList>
@@ -823,6 +829,12 @@ function AgentPageInner() {
         <TabsContent value="cerebros" className="flex-1 min-h-0 overflow-y-auto"><BrainsPanel /></TabsContent>
 
         <TabsContent value="servidores" className="flex-1 min-h-0 overflow-y-auto"><ServersPanel /></TabsContent>
+
+        <TabsContent value="seguridad" className="flex-1 min-h-0 overflow-y-auto"><SecurityPanel /></TabsContent>
+
+        <TabsContent value="pizarra" className="flex-1 min-h-0 overflow-hidden"><CanvasBoard /></TabsContent>
+
+        <TabsContent value="navegador" className="flex-1 min-h-0 overflow-hidden"><BrowserWindows /></TabsContent>
 
         <TabsContent value="red3d" className="flex-1 min-h-0 overflow-y-auto"><div className="flex flex-col items-center justify-center h-full text-center gap-4 p-8"><div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-cyan-500 flex items-center justify-center text-3xl">🕸️</div><div className="text-lg font-semibold text-cyan-50">Red 3D de interconexión</div><p className="text-sm text-white/50 max-w-md">Visualiza la malla viva de cerebros, servidores, almacenes y baúles con sus enlaces y sincronizaciones, en 3D y con ayuda de Astraura.</p><Link href="/red-3d"><Button className="gap-2 bg-cyan-600 hover:bg-cyan-500"><Network className="w-4 h-4" /> Abrir Red 3D</Button></Link></div></TabsContent>
 
