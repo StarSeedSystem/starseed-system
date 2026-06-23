@@ -21,7 +21,10 @@ export type BlockKind =
   | "link"
   | "widget"
   | "browser"
-  | "image";
+  | "image"
+  // "cover" es un bloque ESPECIAL (no aparece en Insertar): materializa la
+  // Tarjeta de Previsualización (portada obligatoria) del Lienzo Universal.
+  | "cover";
 
 export type CanvasBlock = {
   id: string;
@@ -32,6 +35,11 @@ export type CanvasBlock = {
   h: number;
   data: Record<string, any>;
   title?: string;
+  // ---- Capas / propiedades (Módulo 5, todos opcionales y aditivos) --------
+  group?: string; // carpeta / grupo (Propiedades del Elemento)
+  hidden?: boolean; // visibilidad de la capa (panel Capas)
+  locked?: boolean; // capa bloqueada: no se arrastra ni redimensiona
+  accent?: string; // color/acento del elemento (Propiedades del Elemento)
 };
 
 export type Canvas = {
@@ -60,17 +68,36 @@ export type CanvasShareRef = {
 // ---- Catálogo de tipos de bloque ------------------------------------------
 // Cada entrada describe CÓMO conecta el bloque con el resto del sistema.
 
+// Categoría de un tipo de bloque, para agrupar en el menú "Insertar".
+export type BlockCategory = "texto" | "medios" | "red" | "herramientas";
+
+export const BLOCK_CATEGORY_LABELS: Record<BlockCategory, string> = {
+  texto: "Texto",
+  medios: "Medios",
+  red: "Red / Datos",
+  herramientas: "Herramientas",
+};
+
+export const BLOCK_CATEGORY_ORDER: BlockCategory[] = [
+  "texto",
+  "medios",
+  "red",
+  "herramientas",
+];
+
 export type BlockKindDef = {
   kind: BlockKind;
   label: string;
   icon: string; // nombre de icono lucide-react (resuelto en el componente)
   blurb: string;
   connect: string; // cómo se conecta / configura
+  category?: BlockCategory; // agrupación para el menú "Insertar"
 };
 
 export const BLOCK_KINDS: BlockKindDef[] = [
   {
     kind: "text",
+    category: "texto",
     label: "Texto / Nota",
     icon: "Type",
     blurb: "Escribe ideas, markdown o notas libres directamente en el lienzo.",
@@ -78,6 +105,7 @@ export const BLOCK_KINDS: BlockKindDef[] = [
   },
   {
     kind: "file",
+    category: "medios",
     label: "Archivo",
     icon: "FileText",
     blurb: "Conecta un archivo subido o accesible por URL.",
@@ -85,6 +113,7 @@ export const BLOCK_KINDS: BlockKindDef[] = [
   },
   {
     kind: "vault",
+    category: "red",
     label: "Baúl",
     icon: "Archive",
     blurb: "Enlaza un baúl de memorias y conexiones.",
@@ -92,6 +121,7 @@ export const BLOCK_KINDS: BlockKindDef[] = [
   },
   {
     kind: "memory",
+    category: "red",
     label: "Memoria",
     icon: "Brain",
     blurb: "Trae el contenido de una memoria (soul/memory/dream/skills…).",
@@ -99,6 +129,7 @@ export const BLOCK_KINDS: BlockKindDef[] = [
   },
   {
     kind: "app",
+    category: "herramientas",
     label: "App / Programa",
     icon: "AppWindow",
     blurb: "Conecta una app o programa del sistema con su configuración.",
@@ -106,6 +137,7 @@ export const BLOCK_KINDS: BlockKindDef[] = [
   },
   {
     kind: "link",
+    category: "red",
     label: "Enlace",
     icon: "Link2",
     blurb: "Cualquier enlace interno o externo como tarjeta.",
@@ -113,6 +145,7 @@ export const BLOCK_KINDS: BlockKindDef[] = [
   },
   {
     kind: "widget",
+    category: "herramientas",
     label: "Widget",
     icon: "LayoutGrid",
     blurb: "Inserta un widget del sistema con sus parámetros.",
@@ -120,6 +153,7 @@ export const BLOCK_KINDS: BlockKindDef[] = [
   },
   {
     kind: "browser",
+    category: "medios",
     label: "Navegador",
     icon: "Globe",
     blurb: "Embebe una ventana del navegador (web incrustable) en un iframe.",
@@ -127,6 +161,7 @@ export const BLOCK_KINDS: BlockKindDef[] = [
   },
   {
     kind: "image",
+    category: "medios",
     label: "Imagen",
     icon: "Image",
     blurb: "Muestra una imagen por URL.",
@@ -168,17 +203,90 @@ export function defaultBlock(kind: BlockKind, index = 0): CanvasBlock {
 // Resumen legible de un lienzo (para previews y publicación).
 export function summarizeCanvas(canvas: Canvas): string {
   const counts = new Map<BlockKind, number>();
-  for (const b of canvas.blocks || []) {
+  // El bloque especial `cover` (portada) no cuenta como contenido del lienzo.
+  const content = (canvas.blocks || []).filter((b) => b.kind !== "cover");
+  for (const b of content) {
     counts.set(b.kind, (counts.get(b.kind) ?? 0) + 1);
   }
   const parts = [...counts.entries()].map(([k, n]) => {
     const def = blockKindDef(k);
     return `${n} ${def?.label ?? k}`;
   });
-  const total = canvas.blocks?.length ?? 0;
+  const total = content.length;
   return parts.length
     ? `${total} bloque${total === 1 ? "" : "s"}: ${parts.join(", ")}`
     : "Lienzo vacío";
+}
+
+// ---- Tarjeta de Previsualización (portada obligatoria) --------------------
+// El Lienzo Universal (Módulo 5 · sección D) exige una "Tarjeta de
+// Previsualización" como portada de la publicación. No hay columna dedicada, así
+// que la modelamos como un BLOQUE ESPECIAL de tipo `cover` que vive dentro de
+// `blocks` (jsonb que ya se persiste). Convención: como mucho UN bloque cover
+// por lienzo; no se dibuja en la superficie del lienzo (lo filtra el tablero) y
+// no aparece en el menú "Insertar".
+
+export const COVER_BLOCK_ID = "cover_card";
+
+export type CanvasCover = {
+  title: string;
+  subtitle?: string;
+  image?: string; // URL de imagen de portada
+  accent?: string; // color/acento
+};
+
+// Devuelve el bloque cover (portada) del lienzo, si existe.
+export function getCoverBlock(canvas: Canvas): CanvasBlock | undefined {
+  return (canvas.blocks || []).find((b) => b.kind === "cover");
+}
+
+// Extrae la Tarjeta de Previsualización (portada) del lienzo, o null si no hay.
+export function getCover(canvas: Canvas): CanvasCover | null {
+  const blk = getCoverBlock(canvas);
+  if (!blk) return null;
+  const d = blk.data || {};
+  return {
+    title: typeof d.title === "string" ? d.title : "",
+    subtitle: typeof d.subtitle === "string" ? d.subtitle : "",
+    image: typeof d.image === "string" ? d.image : "",
+    accent: typeof d.accent === "string" ? d.accent : "",
+  };
+}
+
+// ¿Tiene el lienzo una portada VÁLIDA? (al menos un título no vacío). Gate de
+// publicación: sin esto no se permite publicar.
+export function hasCover(canvas: Canvas): boolean {
+  const c = getCover(canvas);
+  return !!c && !!c.title && c.title.trim().length > 0;
+}
+
+// Inserta o actualiza la Tarjeta de Previsualización del lienzo (aditivo,
+// inmutable). El bloque cover se mantiene SIEMPRE como primer elemento del
+// array para una convención estable.
+export function setCover(canvas: Canvas, cover: CanvasCover): Canvas {
+  const rest = (canvas.blocks || []).filter((b) => b.kind !== "cover");
+  const existing = getCoverBlock(canvas);
+  const coverBlock: CanvasBlock = {
+    id: existing?.id || COVER_BLOCK_ID,
+    kind: "cover",
+    x: existing?.x ?? 0,
+    y: existing?.y ?? 0,
+    w: existing?.w ?? 360,
+    h: existing?.h ?? 200,
+    title: "Tarjeta de Previsualización",
+    data: {
+      title: cover.title || "",
+      subtitle: cover.subtitle || "",
+      image: cover.image || "",
+      accent: cover.accent || "",
+    },
+  };
+  return { ...canvas, blocks: [coverBlock, ...rest] };
+}
+
+// Quita la portada del lienzo (raramente necesario; mantenida por simetría).
+export function clearCover(canvas: Canvas): Canvas {
+  return { ...canvas, blocks: (canvas.blocks || []).filter((b) => b.kind !== "cover") };
 }
 
 // ---- CRUD ------------------------------------------------------------------
