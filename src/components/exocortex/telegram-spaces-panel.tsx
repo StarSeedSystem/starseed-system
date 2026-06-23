@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { useRealtime } from "@/lib/realtime/realtime";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Bot, ExternalLink, Link2, MessageSquare, RefreshCw } from "lucide-react";
@@ -60,6 +61,14 @@ export function TelegramSpacesPanel() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // TIEMPO REAL: los chats sincronizados desde Telegram aparecen en vivo cuando
+  // cambia la tabla `astraura_messages` del usuario actual (RLS aplica).
+  useRealtime(
+    "astraura_messages",
+    { filter: userId ? `user_id=eq.${userId}` : undefined },
+    () => load(),
+  );
 
   const connectUrl = userId ? `${BOT}?start=acc_${userId}` : `${BOT}?start=connect`;
 
