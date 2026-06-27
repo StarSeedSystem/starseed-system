@@ -325,7 +325,7 @@ export default function SettingsPage() {
                                                 <div className="relative group cursor-pointer">
                                                     <div className="absolute -inset-1 bg-gradient-to-tr from-primary to-accent rounded-full blur opacity-40 group-hover:opacity-75 transition-opacity" />
                                                     <div className="h-24 w-24 rounded-full overflow-hidden border-2 border-background relative z-10">
-                                                        <img src="https://placehold.co/200x200.png" alt="Profile" className="object-cover w-full h-full" />
+                                                        <div className="flex h-full w-full items-center justify-center bg-muted/40 text-xs text-muted-foreground">Sin avatar</div>
                                                     </div>
                                                     <div className="absolute bottom-0 right-0 bg-background border p-1 rounded-full z-20 shadow-sm">
                                                         <Palette className="w-3 h-3 text-muted-foreground" />
@@ -339,13 +339,13 @@ export default function SettingsPage() {
                                                     <div className="space-y-2">
                                                         <label className="text-sm font-medium">Alias (Handle)</label>
                                                         <input className="w-full flex h-10 rounded-md border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                                            defaultValue="@alex_starseed"
+                                                            placeholder="@tu_alias"
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
                                                         <label className="text-sm font-medium">Nombre Público</label>
                                                         <input className="w-full flex h-10 rounded-md border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                                            defaultValue="Alex"
+                                                            placeholder="Tu nombre público"
                                                         />
                                                     </div>
                                                 </div>
@@ -353,7 +353,7 @@ export default function SettingsPage() {
                                                 <div className="space-y-2">
                                                     <label className="text-sm font-medium">Bio (Manifiesto Personal)</label>
                                                     <textarea className="flex min-h-[80px] w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                                        defaultValue="Arquitecto de realidades y explorador del sistema StarSeed. Buscando la convergencia entre tecnología y naturaleza."
+                                                        placeholder="Escribe tu manifiesto personal…"
                                                     />
                                                 </div>
 
