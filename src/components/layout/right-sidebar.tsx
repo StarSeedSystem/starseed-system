@@ -9,19 +9,13 @@ import { Progress } from "@/components/ui/progress";
 import { useAppearance } from "@/context/appearance-context";
 import { Badge } from "@/components/ui/badge";
 
-const activityFeed = [
-    { id: 1, type: "vote", text: "Tu voto sobre 'Ley de Energía' fue registrado", time: "hace 5m", icon: <Vote className="w-3 h-3 text-primary" /> },
-    { id: 2, type: "connection", text: "Dra. Evelyn Reed se unió a tu constelación", time: "hace 14m", icon: <Users className="w-3 h-3 text-cyan-400" /> },
-    { id: 3, type: "alert", text: "Propuesta urgente pendiente de tu voto", time: "hace 1h", icon: <AlertTriangle className="w-3 h-3 text-amber-400" /> },
-    { id: 4, type: "system", text: "Nodo sincronizado con E.F. Valle Central", time: "hace 2h", icon: <CheckCircle className="w-3 h-3 text-emerald-400" /> },
-    { id: 5, type: "info", text: "Karma aumentó a ×2.4 por contribuciones recientes", time: "hace 3h", icon: <Info className="w-3 h-3 text-blue-400" /> },
-];
+type ActivityItem = { id: number; type: string; text: string; time: string; icon: React.ReactNode };
 
-const exocortexSuggestions = [
-    "Analizar impacto de prop-1 en tu perfil de riesgo",
-    "Sintetizar artículos sobre Física Cuántica (60% completado)",
-    "Planificar próximos pasos en Proyecto de Riego",
-];
+// Sin actividad de ejemplo: el flujo real se poblará desde la red del usuario.
+const activityFeed: ActivityItem[] = [];
+
+// Sin sugerencias de ejemplo: las propondrá el agente con datos reales.
+const exocortexSuggestions: string[] = [];
 
 export function RightSidebar({
     className
@@ -98,6 +92,9 @@ export function RightSidebar({
 
                         <div className="space-y-2">
                             <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Tareas sugeridas</p>
+                            {exocortexSuggestions.length === 0 && (
+                                <p className="text-[11px] text-muted-foreground/70">Aún no hay tareas sugeridas.</p>
+                            )}
                             {exocortexSuggestions.map((suggestion, i) => (
                                 <Button
                                     key={i}
@@ -142,6 +139,9 @@ export function RightSidebar({
                     {/* ── ACTIVITY TAB ── */}
                     <TabsContent value="activity" className="space-y-2">
                         <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2">Flujo de actividad</p>
+                        {activityFeed.length === 0 && (
+                            <p className="text-[11px] text-muted-foreground/70 p-2.5">Aún no hay actividad reciente.</p>
+                        )}
                         {activityFeed.map((item) => (
                             <div key={item.id} className="flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group">
                                 <div className="mt-0.5 w-5 h-5 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0">
