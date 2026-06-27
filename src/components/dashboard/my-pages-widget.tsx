@@ -1,3 +1,4 @@
+import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -6,13 +7,10 @@ import { ChevronDown, Filter, Users, Globe, Vote, GraduationCap } from "lucide-r
 import Link from "next/link";
 import { ScrollArea } from "../ui/scroll-area";
 
-const pages = [
-  { name: "Comunidad de Permacultura", type: "Comunidad", icon: <Users className="w-4 h-4 text-muted-foreground" />, avatar: "https://placehold.co/40x40.png", href: "/profile/comunidad-permacultura" },
-  { name: "E.F. del Valle Central", type: "Entidad Federativa", icon: <Globe className="w-4 h-4 text-muted-foreground" />, avatar: "https://placehold.co/40x40.png", href: "/profile/ef-valle-central" },
-  { name: "Partido Transhumanista", type: "Partido Político", icon: <Vote className="w-4 h-4 text-muted-foreground" />, avatar: "https://placehold.co/40x40.png", href: "/profile/partido-transhumanista" },
-  { name: "Grupo de Estudio de IA", type: "Grupo de Estudio", icon: <GraduationCap className="w-4 h-4 text-muted-foreground" />, avatar: "https://placehold.co/40x40.png", href: "/profile/grupo-de-estudio-ia" },
-  { name: "Artistas por la Singularidad", type: "Comunidad", icon: <Users className="w-4 h-4 text-muted-foreground" />, avatar: "https://placehold.co/40x40.png", href: "/profile/artistas-singularidad" },
-];
+type MyPage = { name: string; type: string; icon: React.ReactNode; avatar: string; href: string };
+
+// Sin páginas de ejemplo: aquí aparecerán las páginas reales del usuario.
+const pages: MyPage[] = [];
 
 export function MyPagesWidget() {
     return (
@@ -41,6 +39,11 @@ export function MyPagesWidget() {
             <CardContent className="flex-1">
                 <ScrollArea className="h-[300px]">
                     <div className="space-y-1 pr-4">
+                        {pages.length === 0 && (
+                            <p className="py-8 text-center text-sm text-muted-foreground">
+                                Aún no sigues ninguna página. Crea o únete a una para verla aquí.
+                            </p>
+                        )}
                         {pages.map(page => (
                             <Link href={page.href} key={page.name} className="flex items-center gap-3 hover:bg-muted/50 p-2 rounded-lg transition-colors -ml-2">
                                 <Avatar className="h-9 w-9">
