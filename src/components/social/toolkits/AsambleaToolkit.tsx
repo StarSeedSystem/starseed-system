@@ -53,7 +53,15 @@ export function AsambleaToolkit({
   name?: string;
 }) {
   const data = getAssembly(slug);
-  const ac = accent ?? data.accent;
+  const ac = accent ?? "#FFBF00";
+
+  if (!data) {
+    return (
+      <EmptyHint>
+        Aún no hay información de esta asamblea. Crea su primera sesión, orden del día y mociones para empezar.
+      </EmptyHint>
+    );
+  }
 
   const quorumReached = data.quorum.reached >= data.quorum.total * 0.5;
   const quorumLabel = quorumReached ? "Quórum alcanzado" : "Quórum pendiente";
