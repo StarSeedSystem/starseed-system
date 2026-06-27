@@ -94,6 +94,10 @@ export default function NetworkPage() {
               [1, 2].map(i => (
                 <div key={i} className="h-48 rounded-2xl bg-muted/20 animate-pulse border border-border/10" />
               ))
+            ) : posts.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/12 p-10 text-center text-sm text-muted-foreground">
+                Aún no hay publicaciones en tu red. ¡Comparte la primera!
+              </div>
             ) : (
               posts.map(post => (
                 <RichPostCard key={post.id} post={post} />
@@ -110,10 +114,10 @@ export default function NetworkPage() {
               <h3 className="section-label mb-4">Red en Vivo</h3>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: "Nodos", value: "8,423", color: "text-cyan-500 dark:text-cyan-400", bg: "bg-cyan-500/10" },
-                  { label: "Sinapsis", value: "47.2k", color: "text-purple-500 dark:text-purple-400", bg: "bg-purple-500/10" },
-                  { label: "Propuestas Activas", value: "12", color: "text-amber-500 dark:text-amber-400", bg: "bg-amber-500/10" },
-                  { label: "Seeds en Flujo", value: "1.2M", color: "text-emerald-500 dark:text-emerald-400", bg: "bg-emerald-500/10" },
+                  { label: "Nodos", value: "—", color: "text-cyan-500 dark:text-cyan-400", bg: "bg-cyan-500/10" },
+                  { label: "Sinapsis", value: "—", color: "text-purple-500 dark:text-purple-400", bg: "bg-purple-500/10" },
+                  { label: "Propuestas Activas", value: "—", color: "text-amber-500 dark:text-amber-400", bg: "bg-amber-500/10" },
+                  { label: "Seeds en Flujo", value: "—", color: "text-emerald-500 dark:text-emerald-400", bg: "bg-emerald-500/10" },
                 ].map(stat => (
                   <div key={stat.label} className={`rounded-xl p-3 text-center ${stat.bg} border border-border/5`}>
                     <div className={`text-xl font-bold font-headline ${stat.color}`}>{stat.value}</div>
@@ -156,11 +160,10 @@ export default function NetworkPage() {
             <div className="p-5 rounded-2xl liquid-glass-panel border-white/10 dark:border-white/5 shadow-lg">
               <h3 className="section-label mb-4">Conexiones Sugeridas</h3>
               <div className="space-y-4">
-                {[
-                  { name: "Dra. Evelyn Reed", handle: "@evelyn", affinity: 94, field: "Filosofía Cuántica" },
-                  { name: "Proyecto Stardust", handle: "@stardust", affinity: 88, field: "Arte Generativo" },
-                  { name: "Alex Duran", handle: "@alex.d", affinity: 82, field: "Gobernanza IA" },
-                ].map(person => (
+                {([] as { name: string; handle: string; affinity: number; field: string }[]).length === 0 && (
+                  <p className="text-sm text-muted-foreground">Aún no hay sugerencias. A medida que crezca tu red aparecerán aquí.</p>
+                )}
+                {([] as { name: string; handle: string; affinity: number; field: string }[]).map(person => (
                   <div key={person.handle} className="flex items-center gap-3 group cursor-pointer p-2 hover:bg-white/5 dark:hover:bg-white/5 rounded-xl transition-colors -mx-2">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center text-sm font-bold text-white flex-shrink-0 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
                       {person.name[0]}
