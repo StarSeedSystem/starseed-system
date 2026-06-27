@@ -8,7 +8,7 @@
  * See: memory/principles.md §2.4 (Exocórtex) and memory/architecture.md.
  */
 
-export type ProviderId = "ollama" | "openai" | "anthropic" | "google" | "openai-compatible" | "deepseek" | "groq";
+export type ProviderId = "starseed" | "ollama" | "openai" | "anthropic" | "google" | "openai-compatible" | "deepseek" | "groq";
 
 export interface ProviderInfo {
   id: ProviderId;
