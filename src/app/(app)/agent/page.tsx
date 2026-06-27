@@ -460,7 +460,7 @@ function AgentPageInner() {
                       {msg.role === 'agent' ? (
                         <AvatarFallback className="bg-primary/20 text-primary"><Bot className="w-4 h-4" /></AvatarFallback>
                       ) : (
-                        <AvatarImage src="https://placehold.co/40x40.png" />
+                        <AvatarFallback className="bg-muted/40 text-xs">Tú</AvatarFallback>
                       )}
                     </Avatar>
                     <div className={`p-3 rounded-2xl max-w-[80%] text-sm shadow-sm whitespace-pre-wrap ${msg.role === 'user'
