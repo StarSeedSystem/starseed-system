@@ -5,7 +5,6 @@ import React from "react";
 import Link from "next/link";
 import {
     sampleProfiles,
-    diceBearAvatar,
     type SystemKey,
 } from "@/data/sample-entities";
 import { profileHref } from "@/lib/entity-links";
@@ -29,26 +28,27 @@ export function MemberAvatars({
     accent: string;
     seed: string;
 }) {
+    // Solo miembros REALES (sin rellenar con miembros ficticios).
     const real = sampleProfiles.filter((p) => p.system === system);
-    // Genera "miembros" extra deterministas para rellenar la cuadrícula.
-    const filler = Array.from({ length: Math.max(0, 9 - real.length) }, (_, i) => ({
-        id: `${seed}-m-${i}`,
-        name: `Miembro ${i + 1}`,
-        handle: "",
-        avatar: diceBearAvatar(`${seed}-member-${i}`, "thumbs"),
-        accent,
-    }));
-
-    const members = [
-        ...real.map((p) => ({
+    const members = real
+        .map((p) => ({
             id: p.id,
             name: p.name,
             handle: p.handle,
             avatar: p.avatar,
             accent: p.accent,
-        })),
-        ...filler,
-    ].slice(0, 9);
+        }))
+        .slice(0, 9);
+
+    if (members.length === 0) {
+        return (
+            <div className="rounded-xl border border-dashed border-white/12 p-6 text-center text-sm text-muted-foreground">
+                {total > 0
+                    ? `${total.toLocaleString("es-ES")} miembros. Inicia sesión para ver el directorio.`
+                    : "Aún no hay miembros. Sé el primero en unirte."}
+            </div>
+        );
+    }
 
     return (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
