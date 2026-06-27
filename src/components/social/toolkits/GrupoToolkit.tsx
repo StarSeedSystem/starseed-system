@@ -270,7 +270,16 @@ export function GrupoToolkit({
   name?: string;
 }) {
   const data = getGroup(slug);
-  const ac = accent ?? data.accent;
+  const ac = accent ?? "#22d3ee";
+
+  if (!data) {
+    return (
+      <EmptyHint>
+        Aún no hay información de este círculo. Crea la primera sesión, tarea o recurso para empezar.
+      </EmptyHint>
+    );
+  }
+
 
   return (
     <div className="space-y-6">
