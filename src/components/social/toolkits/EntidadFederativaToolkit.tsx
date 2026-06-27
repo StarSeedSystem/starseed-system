@@ -66,7 +66,16 @@ export function EntidadFederativaToolkit({
   name?: string;
 }) {
   const data = getFederativeEntity(slug);
-  const ac = accent ?? data.accent;
+  const ac = accent ?? "#007FFF";
+
+  if (!data) {
+    return (
+      <EmptyHint>
+        Aún no hay información de esta Entidad Federativa. Configura su cámara, presupuesto y delegaciones para empezar.
+      </EmptyHint>
+    );
+  }
+
 
   return (
     <div className="space-y-2">
