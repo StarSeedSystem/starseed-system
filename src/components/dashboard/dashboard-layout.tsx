@@ -26,6 +26,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUserContext } from "@/context/user-context";
+import { useAccount } from "@/context/account-context";
 import { useAppearance } from "@/context/appearance-context";
 import { curatedPresets } from "@/lib/themes/curated-presets";
 
@@ -90,11 +91,9 @@ interface UserProfile {
     reputation: number;
 }
 
-const PROFILES: UserProfile[] = [
-    { id: "prof-1", type: "OFFICIAL", displayName: "Alex Bordón Garrigós", handle: "alexbordon", avatarUrl: "https://placehold.co/80x80/007fff/ffffff?text=AB", bio: "Arquitecto de StarSeed OS. Ontócrata ciberdélico.", reputation: 980 },
-    { id: "prof-2", type: "ARTISTIC", displayName: "Aether Wave", handle: "aetherwave", avatarUrl: "https://placehold.co/80x80/10b981/ffffff?text=AW", bio: "Musa generativa del multiverso. Shaders de cristal.", reputation: 720 },
-    { id: "prof-3", type: "ANONYMOUS", displayName: "Agent 404", handle: "agent404", avatarUrl: "https://placehold.co/80x80/DC143C/ffffff?text=404", bio: "Nodo soberano en modo fantasma.", reputation: 350 }
-];
+// Sin perfiles de ejemplo. Los perfiles reales del usuario se derivan de la
+// sesión soberana (useAccount → profiles/cafe_profiles vía Supabase).
+const PROFILES: UserProfile[] = [];
 
 const BUTTON_LABELS: Record<string, string> = {
     profiles: "Selector de Perfiles",
@@ -255,11 +254,54 @@ export function DashboardLayout() {
         localStorage.setItem('starseed_sidebar_config_v1', JSON.stringify(newConfig));
     }, []);
 
-    const [activeProfile, setActiveProfile] = useState<UserProfile>(PROFILES[0]);
+    const [activeProfile, setActiveProfile] = useState<UserProfile | null>(PROFILES[0] ?? null);
     
     // Cognitive memory context integration
     const { memory, addMemory } = useUserContext();
     const { updateConfig, config } = useAppearance();
+
+    // ── Perfiles REALES del usuario (sesión soberana) ───────────────────────────
+    // Construye el perfil OFICIAL a partir de la cuenta logueada en Supabase.
+    // Sin sesión → lista vacía (el selector muestra un estado vacío real).
+    const { user: accountUser, profile: accountProfile } = useAccount();
+    const profiles = useMemo<UserProfile[]>(() => {
+        if (!accountUser) return [];
+        const displayName =
+            (accountProfile?.display_name as string | undefined) ||
+            (accountProfile?.full_name as string | undefined) ||
+            (accountProfile?.handle as string | undefined) ||
+            (accountProfile?.username as string | undefined) ||
+            (accountUser.user_metadata?.full_name as string | undefined) ||
+            (accountUser.email?.split("@")[0] ?? "Cuenta");
+        const handle =
+            (accountProfile?.handle as string | undefined) ||
+            (accountProfile?.username as string | undefined) ||
+            (accountUser.email?.split("@")[0] ?? "");
+        const avatarUrl =
+            (accountProfile?.avatar_url as string | undefined) ||
+            (accountUser.user_metadata?.avatar_url as string | undefined) ||
+            "";
+        return [
+            {
+                id: accountUser.id,
+                type: "OFFICIAL",
+                displayName,
+                handle,
+                avatarUrl,
+                bio: (accountProfile?.bio as string | undefined) ?? "",
+                reputation: 0,
+            },
+        ];
+    }, [accountUser, accountProfile]);
+
+    // Sincroniza el perfil activo con la cuenta real cuando llega/cambia.
+    useEffect(() => {
+        if (profiles.length === 0) {
+            setActiveProfile(null);
+            return;
+        }
+        setActiveProfile((curr) => profiles.find((p) => p.id === curr?.id) ?? profiles[0]);
+    }, [profiles]);
 
     // AI Providers configs
     const [aiProvider, setAiProvider] = useState<"ollama" | "gemini" | "openai">("ollama");
@@ -329,7 +371,7 @@ export function DashboardLayout() {
     useEffect(() => {
         const storedProfile = localStorage.getItem(LS_ACTIVE_PROFILE);
         if (storedProfile) {
-            const found = PROFILES.find(p => p.id === storedProfile);
+            const found = profiles.find(p => p.id === storedProfile);
             if (found) setActiveProfile(found);
         }
 
@@ -1339,13 +1381,18 @@ export function DashboardLayout() {
                                     {/* Profiles Tab Content */}
                                     {activeToolbarTab === "profiles" && (
                                         <div className="space-y-3">
-                                            {PROFILES.map((p) => {
+                                            {profiles.length === 0 && (
+                                                <div className="text-center py-6 text-xs text-white/40">
+                                                    Inicia sesión para ver y gestionar tus perfiles.
+                                                </div>
+                                            )}
+                                            {profiles.map((p) => {
                                                 const colors = {
                                                     OFFICIAL: "border-blue-500 bg-blue-500/10 text-blue-300",
                                                     ARTISTIC: "border-emerald-500 bg-emerald-500/10 text-emerald-300",
                                                     ANONYMOUS: "border-red-500 bg-red-500/10 text-red-300"
                                                 };
-                                                const isActive = activeProfile.id === p.id;
+                                                const isActive = activeProfile?.id === p.id;
                                                 return (
                                                     <div 
                                                         key={p.id}
