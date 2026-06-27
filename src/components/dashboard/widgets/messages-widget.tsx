@@ -32,33 +32,8 @@ const KIND_LABEL: Record<MessageThread["kind"], string> = {
 interface ThreadMessage { from: "tu" | "ellos"; text: string; min: number }
 
 // Transcripciones coherentes por nombre de hilo (es-ES), deterministas.
-const TRANSCRIPTS: Record<string, ThreadMessage[]> = {
-    "Maya Rendón": [
-        { from: "ellos", text: "Oye, ¿viste el excedente solar de ayer?", min: 54 },
-        { from: "tu", text: "Sí, redirigido al vivero. Buen reparto.", min: 50 },
-        { from: "ellos", text: "¿Vienes al taller del sábado?", min: 12 },
-    ],
-    "Junta Oikos": [
-        { from: "ellos", text: "Sesión de reparto de recursos abierta.", min: 88 },
-        { from: "tu", text: "Voto a favor del enrutado al vivero.", min: 80 },
-        { from: "ellos", text: "Excedente enrutado, gracias por el voto.", min: 22 },
-    ],
-    "Sangha Norte": [
-        { from: "ellos", text: "Hemos alcanzado el tamaño óptimo de célula.", min: 130 },
-        { from: "tu", text: "Entonces toca dividir, ¿no?", min: 120 },
-        { from: "ellos", text: "Iniciamos protocolo de mitosis 🌱", min: 33 },
-    ],
-    "Kael Torres": [
-        { from: "ellos", text: "Estoy puliendo la propuesta de agua común.", min: 70 },
-        { from: "tu", text: "Genial, pásamela cuando puedas.", min: 66 },
-        { from: "ellos", text: "Te paso el borrador de la propuesta.", min: 18 },
-    ],
-    "Colectivo Faro": [
-        { from: "ellos", text: "Subimos al cerro a montar el repetidor.", min: 150 },
-        { from: "tu", text: "¿Cobertura LoRa estable?", min: 140 },
-        { from: "ellos", text: "Nodo LoRa levantado en el cerro.", min: 41 },
-    ],
-};
+// Sin transcripciones de ejemplo: los mensajes reales vienen de la red.
+const TRANSCRIPTS: Record<string, ThreadMessage[]> = {};
 
 function transcriptFor(t: MessageThread): ThreadMessage[] {
     const base = TRANSCRIPTS[t.name];
@@ -94,12 +69,8 @@ function convoToThread(c: ConversationFull): MessageThread {
 }
 
 // Profile route for DM conversations (maps known names to handles).
-const NAME_TO_HANDLE: Record<string, string> = {
-    "Brenda": "brenda",
-    "Artista Anónimo": "artista-anonimo",
-    "Maya Rendón": "maya.rendon",
-    "Kael Torres": "kael.torres",
-};
+// Sin mapeos de ejemplo: el handle real se resuelve desde los datos del hilo.
+const NAME_TO_HANDLE: Record<string, string> = {};
 
 function profileLinkForThread(t: MessageThread): string | null {
     if (t.kind !== "directo") return null;
