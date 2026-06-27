@@ -92,16 +92,10 @@ type Audiencia = "publico" | "seguidores" | "entidad";
 
 // ─── Static data ─────────────────────────────────────────────────────────────
 
-const allDestinationsLegacy = [
-    { id: 'dest-1', name: "Mi Perfil", type: "Perfil Oficial", avatar: "https://placehold.co/40x40.png" },
-    { id: 'dest-2', name: "E.F. del Valle Central", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png" },
-    { id: 'dest-3', name: "E.F. del Norte", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png" },
-    { id: 'dest-4', name: "Comunidad de Permacultura", type: "Comunidad", avatar: "https://placehold.co/40x40.png" },
-    { id: 'dest-5', name: "Grupo de Estudio de IA", type: "Grupo de Estudio", avatar: "https://placehold.co/40x40.png" },
-    { id: 'dest-6', name: "Red de Conocimiento Global", type: "Red de Conocimiento", avatar: "https://placehold.co/40x40.png" },
-    { id: 'dest-7', name: "Artistas por la Singularidad", type: "Comunidad", avatar: "https://placehold.co/40x40.png" },
-    { id: 'dest-8', name: "Canal de Eventos Globales", type: "Evento", avatar: "https://placehold.co/40x40.png" },
-    { id: 'dest-9', name: "Partido Transhumanista", type: "Partido Político", avatar: "https://placehold.co/40x40.png" }
+// Solo el destino real "Mi Perfil"; el resto (E.F., partidos, comunidades, grupos)
+// se obtiene en vivo de la red del usuario. Sin destinos de ejemplo.
+const allDestinationsLegacy: { id: string; name: string; type: string; avatar: string }[] = [
+    { id: 'dest-perfil', name: "Mi Perfil", type: "Perfil Oficial", avatar: "" },
 ];
 
 const areaConfig = {
@@ -361,7 +355,7 @@ function buildDestinations(): Destination[] {
             type: "Perfil",
             category: "perfil",
             slug: "mi-perfil",
-            avatar: "https://api.dicebear.com/9.x/glass/svg?seed=miPerfil",
+            avatar: "",
             href: "/profile/mi-perfil",
         },
     ];
@@ -458,11 +452,10 @@ function PreviewCard({ pubType, titulo, body, tags, audiencia, destinos, attachm
             {/* header strip */}
             <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-white/5">
                 <Avatar className="h-9 w-9 ring-1 ring-white/10">
-                    <AvatarImage src="https://api.dicebear.com/9.x/glass/svg?seed=miPerfil" />
                     <AvatarFallback>Yo</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold leading-none truncate">Tu Nombre</p>
+                    <p className="text-sm font-semibold leading-none truncate">Mi Perfil</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                         {format(now, "d MMM yyyy · HH:mm", { locale: es })}
                         {destinos.length > 0 && (
@@ -870,6 +863,9 @@ export default function PublishPage() {
                                         <Input placeholder="Buscar perfiles o páginas..." className="pl-8" />
                                     </div>
                                     <div className="p-2 border rounded-lg h-40 overflow-y-auto space-y-1 bg-muted/20">
+                                        {availableDestinations.length === 0 && (
+                                            <p className="px-1 py-3 text-sm text-muted-foreground">No hay destinos disponibles todavía para esta área.</p>
+                                        )}
                                         {availableDestinations.map(dest => (
                                             <div key={dest.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 text-sm">
                                                 <div className="flex items-center gap-2">
