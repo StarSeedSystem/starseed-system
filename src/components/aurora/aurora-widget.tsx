@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mic, MicOff, Settings2, Sparkles, Volume2, X } from "lucide-react";
+import { Mic, MicOff, Settings2, SlidersHorizontal, Sparkles, Volume2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
+import { AuroraControlPanel } from "./aurora-control-panel";
 
 export function AuroraWidget() {
   const aurora = useAurora();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"voz" | "control">("voz");
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
 
@@ -37,7 +39,7 @@ export function AuroraWidget() {
   };
   const onClick = () => {
     if (longPressed.current) { longPressed.current = false; return; }
-    if (!supported) return;
+    if (!supported) { setOpen((o) => !o); return; }
     toggle();
   };
 
@@ -58,67 +60,95 @@ export function AuroraWidget() {
             <button onClick={() => setOpen(false)} className="text-white/40 hover:text-white"><X className="w-4 h-4" /></button>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-            <span className="text-xs text-white/70">Aurora activa</span>
+          {/* Pestañas: Voz / Control (Aurora + sentidos) */}
+          <div className="flex items-center gap-1 rounded-lg bg-white/5 p-0.5">
             <button
-              role="switch"
-              aria-checked={enabled}
-              onClick={() => setEnabled(!enabled)}
-              className={cn("relative inline-flex h-5 w-9 items-center rounded-full transition", enabled ? "bg-fuchsia-600" : "bg-white/15")}
+              onClick={() => setTab("voz")}
+              className={cn(
+                "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition",
+                tab === "voz" ? "bg-white/10 text-white" : "text-white/55 hover:text-white/80",
+              )}
             >
-              <span className={cn("inline-block h-4 w-4 transform rounded-full bg-white transition", enabled ? "translate-x-4" : "translate-x-0.5")} />
+              <Volume2 className="w-3.5 h-3.5" /> Voz
+            </button>
+            <button
+              onClick={() => setTab("control")}
+              className={cn(
+                "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition",
+                tab === "control" ? "bg-white/10 text-white" : "text-white/55 hover:text-white/80",
+              )}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" /> Control y sentidos
             </button>
           </div>
 
-          {personalities.length > 0 && (
-            <label className="block text-[11px] text-white/50">
-              Personalidad
-              <select
-                value={activePersonality.id || ""}
-                onChange={(e) => {
-                  const p = personalities.find((x) => x.id === e.target.value);
-                  if (p) setActivePersonality(p);
-                }}
-                className="mt-1 w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
-              >
-                {!activePersonality.id && <option value="" className="bg-zinc-900">{activePersonality.name}</option>}
-                {personalities.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-zinc-900">{p.name}</option>
-                ))}
-              </select>
-            </label>
-          )}
+          {tab === "control" ? (
+            <AuroraControlPanel enabled={enabled} onSetEnabled={setEnabled} />
+          ) : (
+            <>
+              <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <span className="text-xs text-white/70">Aurora activa</span>
+                <button
+                  role="switch"
+                  aria-checked={enabled}
+                  onClick={() => setEnabled(!enabled)}
+                  className={cn("relative inline-flex h-5 w-9 items-center rounded-full transition", enabled ? "bg-fuchsia-600" : "bg-white/15")}
+                >
+                  <span className={cn("inline-block h-4 w-4 transform rounded-full bg-white transition", enabled ? "translate-x-4" : "translate-x-0.5")} />
+                </button>
+              </div>
 
-          {(interim || transcript) && (
-            <div className="rounded-lg bg-black/40 border border-white/10 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-widest text-cyan-300/50 mb-0.5">Tú</div>
-              <div className="text-xs text-white/80">{interim || transcript}</div>
-            </div>
-          )}
-          {lastReply && (
-            <div className="rounded-lg bg-fuchsia-950/30 border border-fuchsia-500/20 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-widest text-fuchsia-300/50 mb-0.5">Aurora</div>
-              <div className="text-xs text-fuchsia-50/90">{lastReply}</div>
-            </div>
-          )}
+              {personalities.length > 0 && (
+                <label className="block text-[11px] text-white/50">
+                  Personalidad
+                  <select
+                    value={activePersonality.id || ""}
+                    onChange={(e) => {
+                      const p = personalities.find((x) => x.id === e.target.value);
+                      if (p) setActivePersonality(p);
+                    }}
+                    className="mt-1 w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+                  >
+                    {!activePersonality.id && <option value="" className="bg-zinc-900">{activePersonality.name}</option>}
+                    {personalities.map((p) => (
+                      <option key={p.id} value={p.id} className="bg-zinc-900">{p.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => speak(`Hola, soy ${activePersonality.name}. Estoy aquí para ayudarte en StarSeed.`)}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-100 hover:bg-cyan-500/20 transition"
-            >
-              <Volume2 className="w-3.5 h-3.5" /> Probar voz
-            </button>
-            <button
-              onClick={() => { setOpen(false); try { router.push("/aurora"); } catch { /* */ } }}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
-            >
-              <Settings2 className="w-3.5 h-3.5" /> Configurar Aurora
-            </button>
-          </div>
+              {(interim || transcript) && (
+                <div className="rounded-lg bg-black/40 border border-white/10 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-widest text-cyan-300/50 mb-0.5">Tú</div>
+                  <div className="text-xs text-white/80">{interim || transcript}</div>
+                </div>
+              )}
+              {lastReply && (
+                <div className="rounded-lg bg-fuchsia-950/30 border border-fuchsia-500/20 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-widest text-fuchsia-300/50 mb-0.5">Aurora</div>
+                  <div className="text-xs text-fuchsia-50/90">{lastReply}</div>
+                </div>
+              )}
 
-          {!supported && (
-            <div className="text-[10px] text-amber-300/70 text-center">Tu navegador no soporta voz. Aún puedes configurar personalidades.</div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => speak(`Hola, soy ${activePersonality.name}. Estoy aquí para ayudarte en StarSeed.`)}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-100 hover:bg-cyan-500/20 transition"
+                >
+                  <Volume2 className="w-3.5 h-3.5" /> Probar voz
+                </button>
+                <button
+                  onClick={() => { setOpen(false); try { router.push("/aurora"); } catch { /* */ } }}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 transition"
+                >
+                  <Settings2 className="w-3.5 h-3.5" /> Configurar Aurora
+                </button>
+              </div>
+
+              {!supported && (
+                <div className="text-[10px] text-amber-300/70 text-center">Tu navegador no soporta voz. Aún puedes activar Aurora y gestionar sus sentidos en «Control y sentidos».</div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -131,7 +161,7 @@ export function AuroraWidget() {
         onTouchEnd={endPress}
         onClick={onClick}
         onContextMenu={(e) => { e.preventDefault(); setOpen((o) => !o); }}
-        title={!supported ? "Tu navegador no soporta voz" : listening ? "Escuchando… (clic para parar)" : "Hablar con Aurora (clic) · mantén pulsado para opciones"}
+        title={!supported ? "Tu navegador no soporta voz · clic para opciones y sentidos" : listening ? "Escuchando… (clic para parar)" : "Hablar con Aurora (clic) · mantén pulsado para opciones"}
         aria-label="Aurora"
         className={cn(
           "relative h-14 w-14 rounded-full flex items-center justify-center shadow-xl transition-transform active:scale-95",
@@ -150,7 +180,7 @@ export function AuroraWidget() {
         <span className="relative">
           {!supported ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
         </span>
-        {enabled && supported && (
+        {enabled && (
           <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-zinc-950" />
         )}
       </button>
