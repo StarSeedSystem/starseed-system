@@ -36,6 +36,7 @@ import {
   Loader2,
   ChevronRight,
   ExternalLink,
+  Network,
 } from "lucide-react";
 
 type Pillar = "memoria" | "habilidades" | "contexto";
@@ -115,12 +116,20 @@ export default function CerebroHub() {
           <BrainIcon className="w-5 h-5 text-cyan-300" />
           <h2 className="text-lg font-semibold text-cyan-50">Cerebro</h2>
           <span className="text-sm text-white/45">— Memoria · Habilidades · Contexto</span>
-          <a
-            href="/cerebros"
-            className="ml-auto inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-200 hover:underline"
-          >
-            <ExternalLink className="w-3 h-3" /> Gestión avanzada de cerebros
-          </a>
+          <span className="ml-auto flex items-center gap-3">
+            <a
+              href="/cerebro/mapa"
+              className="inline-flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200 hover:underline"
+            >
+              <Network className="w-3 h-3" /> Mapa mental 3D
+            </a>
+            <a
+              href="/cerebros"
+              className="inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-200 hover:underline"
+            >
+              <ExternalLink className="w-3 h-3" /> Gestión avanzada de cerebros
+            </a>
+          </span>
         </div>
 
         {loading ? (
