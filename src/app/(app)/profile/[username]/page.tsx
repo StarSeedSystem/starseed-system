@@ -19,63 +19,10 @@ import { StoriesStrip } from "@/components/stories/stories-strip";
 import { PostFeed } from "@/components/social/PostFeed";
 import { useState } from "react";
 
-const pageData: { [key: string]: any } = {
-    'starseeduser': {
-        name: "StarSeedUser",
-        handle: "@starseeduser",
-        bio: "Co-creando un futuro ciberdélico. Explorador de la conciencia, constructor de sistemas y creyente en el poder de la inteligencia colectiva.",
-        avatar: "https://placehold.co/100x100.png",
-        cover: "https://placehold.co/1200x400.png",
-        dataAiHint: "user avatar",
-        coverHint: "abstract background",
-        isUser: true,
-        pageType: 'personal',
-    },
-    'comunidad-permacultura': {
-        name: "Comunidad de Permacultura",
-        handle: "@permacultura",
-        bio: "Un espacio para aprender, compartir y practicar los principios de la permacultura. ¡Únete a nosotros para construir un futuro más sostenible!",
-        avatar: "https://placehold.co/100x100.png",
-        cover: "https://placehold.co/1200x400.png",
-        dataAiHint: "community garden",
-        coverHint: "green nature",
-        isUser: false,
-        pageType: 'comunidad',
-    },
-    'ef-valle-central': {
-        name: "E.F. del Valle Central",
-        handle: "@ef-valle-central",
-        bio: "La Entidad Federativa del Valle Central, gobernada por sus ciudadanos para el bienestar colectivo y el desarrollo sostenible.",
-        avatar: "https://placehold.co/100x100.png",
-        cover: "https://placehold.co/1200x400.png",
-        dataAiHint: "government building",
-        coverHint: "city skyline",
-        isUser: false,
-        pageType: 'ef',
-    },
-    'partido-transhumanista': {
-        name: "Partido Transhumanista",
-        handle: "@transhumanistas",
-        bio: "Abogando por el uso ético de la tecnología para mejorar las capacidades humanas y expandir la conciencia.",
-        avatar: "https://placehold.co/100x100.png",
-        cover: "https://placehold.co/1200x400.png",
-        dataAiHint: "futuristic logo",
-        coverHint: "circuit board",
-        isUser: false,
-        pageType: 'partido',
-    },
-    'grupo-de-estudio-ia': {
-        name: "Grupo de Estudio de IA",
-        handle: "@ia-study-group",
-        bio: "Un grupo dedicado a explorar las fronteras de la Inteligencia Artificial, desde la teoría hasta la aplicación práctica.",
-        avatar: "https://placehold.co/100x100.png",
-        cover: "https://placehold.co/1200x400.png",
-        dataAiHint: "brain circuit",
-        coverHint: "code lines",
-        isUser: false,
-        pageType: 'grupo',
-    },
-};
+// Sin perfiles de ejemplo. Los datos del perfil/página se derivan del slug de
+// la URL (nombre legible) y, donde aplica, de la red real. Sin avatares ni
+// portadas de marcador de posición: AvatarFallback muestra las iniciales.
+const pageData: { [key: string]: any } = {};
 
 export default function ProfilePage() {
     const params = useParams();
@@ -87,8 +34,8 @@ export default function ProfilePage() {
         name: username.charAt(0).toUpperCase() + username.slice(1).replace(/-/g, ' '),
         handle: `@${username}`,
         bio: `Página de ${username.replace(/-/g, ' ')}.`,
-        avatar: "https://placehold.co/100x100.png",
-        cover: "https://placehold.co/1200x400.png",
+        avatar: "",
+        cover: "",
         dataAiHint: "profile avatar",
         coverHint: "abstract pattern",
         isUser: false,
@@ -170,6 +117,11 @@ export default function ProfilePage() {
                                     <Link href="/library" className="shrink-0 whitespace-nowrap text-sm text-primary hover:underline cursor-pointer">Ver biblioteca →</Link>
                                 </CardHeader>
                                 <CardContent className="space-y-6">
+                                    {articles.length === 0 && courses.length === 0 && (
+                                        <p className="rounded-xl border border-dashed border-white/12 p-6 text-center text-sm text-muted-foreground">
+                                            Aún no hay artículos ni cursos en esta biblioteca.
+                                        </p>
+                                    )}
                                     <div>
                                         <p className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground"><FileText className="h-3.5 w-3.5" /> Artículos</p>
                                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
