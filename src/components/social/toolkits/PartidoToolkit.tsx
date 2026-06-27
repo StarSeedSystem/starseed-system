@@ -56,7 +56,16 @@ export function PartidoToolkit({
   name?: string;
 }) {
   const data = getPartido(slug);
-  const ac = accent ?? data.accent;
+  const ac = accent ?? "#DC143C";
+
+  if (!data) {
+    return (
+      <EmptyHint>
+        Aún no hay información de este partido. Configura su programa, candidaturas y votaciones para empezar.
+      </EmptyHint>
+    );
+  }
+
 
   return (
     <div className="space-y-2">
