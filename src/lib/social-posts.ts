@@ -164,46 +164,7 @@ export function formatRelativeTime(iso: string): string {
 
 /** Datos de ejemplo elegantes cuando no hay sesión o publicaciones reales. */
 export function getFallbackPosts(): NormalizedPost[] {
-    const now = Date.now();
-    return [
-        {
-            id: "fallback-1",
-            authorName: "Proyecto Stardust",
-            authorHandle: "@stardust",
-            accent: "#22d3ee",
-            body: "Anunciando el Proyecto Constelación: nuestra suite de visualización de datos en tiempo real sobre el núcleo de la Red StarSeed. Más detalles próximamente.",
-            kind: "anuncio",
-            createdAt: new Date(now - 1000 * 60 * 60 * 3).toISOString(),
-            likes: 1200,
-            commentsCount: 24,
-            media: { kind: "image", url: "https://placehold.co/600x400.png" },
-            isFallback: true,
-        },
-        {
-            id: "fallback-2",
-            authorName: "Alex Duran",
-            authorHandle: "@alex",
-            accent: "#a855f7",
-            body: "Acabo de usar el Generador de Apps con IA para crear un rastreador de inventario en 5 minutos. Un cambio de juego para el prototipado rápido. #StarSeedNetwork",
-            kind: "post",
-            createdAt: new Date(now - 1000 * 60 * 60 * 26).toISOString(),
-            likes: 125,
-            commentsCount: 8,
-            media: null,
-            isFallback: true,
-        },
-        {
-            id: "fallback-3",
-            authorName: "Samantha Lee",
-            authorHandle: "@samlee",
-            accent: "#10b981",
-            body: "El resumidor de notificaciones es genial. Mi bandeja era un desastre y ahora recibo un resumen limpio cada mañana. ¡Inbox zero a mi alcance!",
-            kind: "post",
-            createdAt: new Date(now - 1000 * 60 * 60 * 50).toISOString(),
-            likes: 340,
-            commentsCount: 3,
-            media: null,
-            isFallback: true,
-        },
-    ];
+    // Sin publicaciones de ejemplo. Las superficies muestran un estado vacío
+    // real ("Aún no hay publicaciones") cuando no hay datos en Supabase.
+    return [];
 }
