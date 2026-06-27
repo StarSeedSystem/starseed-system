@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/utils/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -85,7 +86,7 @@ import {
 const STEP_NARRATION: Record<number, string> = {
   0: "Hola, soy Astraura. Te doy la bienvenida a StarSeed. Puedo guiarte por voz o seguimos en texto, como prefieras.",
   1: "Vamos a crear tu identidad en la red. Solo necesito tu nombre y un @handle único; lo demás es opcional.",
-  2: "Si quieres, te creo una dirección StarSeed, tu nombre dentro de la red, como algo arroba star punto seed.",
+  2: "Si quieres, te creo tu dirección StarSeed: tu correo dentro de la red, algo arroba star punto seed. Funciona ya entre cuentas, y más tarde puedes vincular correos externos.",
   3: "Configuremos tu recuperación: un correo externo y un teléfono, para que nunca pierdas el acceso.",
   4: "Estos datos son opcionales: un avatar y una breve biografía. Puedes editarlos cuando quieras.",
   5: "Te muestro las áreas de la red: cómo vincular, conectar, crear, publicar y usar cada una.",
@@ -116,6 +117,7 @@ const AREAS: AreaTip[] = [
   { path: "/pizarra", label: "Pizarra", icon: PenSquare, accent: "text-violet-300", tip: "Crear: dibuja y co-crea ideas en un lienzo compartido." },
   { path: "/navegador", label: "Navegador", icon: Globe, accent: "text-sky-300", tip: "Usar: explora la red y descubre contenidos y nodos." },
   { path: "/conexiones", label: "Conexiones", icon: Link2, accent: "text-pink-300", tip: "Vincular: enlaza personas, grupos y servicios externos." },
+  { path: "/correos", label: "Correos · @star.seed", icon: Mail, accent: "text-cyan-300", tip: "Usar: tu correo interno @star.seed y vincula correos externos (DNS/sync)." },
   { path: "/seguridad", label: "Seguridad", icon: Lock, accent: "text-rose-300", tip: "Usar: gestiona claves, recuperación y privacidad." },
 ];
 
@@ -150,6 +152,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
 
   // opcionales
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [coverUrl, setCoverUrl] = useState("");
   const [bio, setBio] = useState("");
 
   // narración por IA
@@ -173,6 +176,27 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
         if (id.recovery?.method) setRecMethod(id.recovery.method);
         if (id.verified) setChannels({ ...id.verified });
       }
+      // Prefill de datos ya guardados en el perfil (datos REALES, owner-scoped).
+      try {
+        const sb = createClient();
+        const { data: au } = await sb.auth.getUser();
+        const me = au?.user;
+        if (me) {
+          const { data: prof } = await sb
+            .from("profiles")
+            .select("display_name,handle,avatar_url,cover_url,bio")
+            .eq("user_id", me.id)
+            .single();
+          if (prof) {
+            const row = prof as Record<string, unknown>;
+            if (row.display_name) setFullName(String(row.display_name));
+            if (row.handle) { setHandle(String(row.handle)); setProfileSaved(true); }
+            if (row.avatar_url) setAvatarUrl(String(row.avatar_url));
+            if (row.cover_url) setCoverUrl(String(row.cover_url));
+            if (row.bio) setBio(String(row.bio));
+          }
+        }
+      } catch { /* prefill best-effort */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -339,18 +363,22 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   }, [pendingCode, codeInput]);
 
   const doSaveOptional = useCallback(async (): Promise<boolean> => {
-    if (!avatarUrl && !bio) return true;
+    if (!avatarUrl && !coverUrl && !bio) return true;
     setBusy(true);
     const res = await claimProfile({
       fullName,
       handle: handle.trim().toLowerCase(),
-      optional: { avatar_url: avatarUrl || undefined, bio: bio || undefined },
+      optional: {
+        avatar_url: avatarUrl || undefined,
+        cover_url: coverUrl || undefined,
+        bio: bio || undefined,
+      },
     });
     setBusy(false);
     if (!res.ok) { toast.error(res.error || "No se pudieron guardar los datos."); return false; }
     toast.success("Datos guardados.");
     return true;
-  }, [avatarUrl, bio, fullName, handle]);
+  }, [avatarUrl, coverUrl, bio, fullName, handle]);
 
   // ── navegación entre pasos (con guardas por paso) ──
   const canAdvance = useMemo(() => {
@@ -487,6 +515,19 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   <p className="text-xs text-white/55">Sigue la guía leyendo. Puedes activar la voz cuando quieras.</p>
                 </button>
               </div>
+              {/* Permisos / qué deja lista esta guía — sin configuración manual */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-left mt-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                  <span className="text-[12px] font-semibold text-white/85">Qué prepara esta guía contigo</span>
+                </div>
+                <ul className="space-y-1.5 text-[12px] text-white/60">
+                  <li className="flex items-start gap-2"><AtSign className="w-3.5 h-3.5 text-fuchsia-300 mt-0.5 shrink-0" /> Tu identidad en la red: nombre y un <b className="text-white/80">@handle</b> único (sugerido, editable).</li>
+                  <li className="flex items-start gap-2"><Mail className="w-3.5 h-3.5 text-cyan-300 mt-0.5 shrink-0" /> Tu dirección interna <b className="text-white/80">@star.seed</b> (opcional, también puedes crearla luego).</li>
+                  <li className="flex items-start gap-2"><ImageIcon className="w-3.5 h-3.5 text-violet-300 mt-0.5 shrink-0" /> Avatar, portada y bio (opcionales, editables cuando quieras).</li>
+                  <li className="flex items-start gap-2"><Lock className="w-3.5 h-3.5 text-rose-300 mt-0.5 shrink-0" /> Solo aceptas y eliges: no hay que configurar nada a mano. Tus datos son tuyos y privados por defecto.</li>
+                </ul>
+              </div>
               {!aurora?.supported && (
                 <p className="text-[11px] text-amber-300/70">Nota: tu navegador podría no soportar voz; en ese caso Astraura narra por texto.</p>
               )}
@@ -554,9 +595,41 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
           {/* 2 · Correo StarSeed */}
           {step === 2 && (
             <div className="space-y-4">
-              <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-3 text-[12px] text-cyan-200/80 flex items-start gap-2">
-                <Mail className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>Tu dirección <b>@star.seed</b> es tu identidad dentro de StarSeed. Es opcional. <i>Honestidad:</i> aún no hay envío/recepción de correo externo; es tu dirección en la red.</span>
+              <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-3.5 space-y-2.5">
+                <div className="flex items-start gap-2 text-[12px] text-cyan-100/90">
+                  <Mail className="w-4 h-4 mt-0.5 shrink-0 text-cyan-300" />
+                  <span>
+                    Tu dirección <b>@star.seed</b> es tu nombre de correo <b>dentro</b> de la red StarSeed.
+                    Funciona ya entre cuentas del ecosistema: el correo interno se enruta directo a tu bandeja,
+                    sin depender de un proveedor externo.
+                  </span>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/80 mb-0.5">
+                      <Network className="w-3.5 h-3.5 text-cyan-300" /> Cómo funciona dentro
+                    </div>
+                    <p className="text-[11px] text-white/55 leading-snug">
+                      Cada dirección tiene su enrutado interno (mx, puertos, routing) con valores por defecto ya listos.
+                      No necesitas tocar nada para enviar y recibir entre cuentas StarSeed.
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/80 mb-0.5">
+                      <Link2 className="w-3.5 h-3.5 text-fuchsia-300" /> Vincular correo externo
+                    </div>
+                    <p className="text-[11px] text-white/55 leading-snug">
+                      Puedes enlazar correos externos (Gmail, etc.) a tu cuenta y activar la sincronización ↔ externo
+                      mediante DNS/proveedor. El interno funciona ya; el externo se conecta cuando lo configures.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  <span className="text-[11px] text-cyan-200/60"><i>Honesto:</i> el envío/recepción externo real requiere DNS + proveedor; el interno @star.seed ya está activo.</span>
+                  <Link href="/correos" className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-300 hover:text-cyan-200 shrink-0">
+                    Gestionar correos <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
               </div>
               {emailVariants.length > 0 && (
                 <div className="space-y-1.5">
@@ -603,7 +676,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   <BadgeCheck className="w-4 h-4" /> {address} reservada.
                 </div>
               )}
-              <p className="text-[11px] text-white/40">Puedes omitir este paso y crear tu dirección más tarde.</p>
+              <p className="text-[11px] text-white/40">Puedes omitir este paso y crear o vincular tu dirección más tarde en <Link href="/correos" className="text-cyan-300/80 hover:text-cyan-200 underline underline-offset-2">/correos</Link>.</p>
             </div>
           )}
 
@@ -695,6 +768,17 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={avatarUrl} alt="avatar" className="w-12 h-12 rounded-full object-cover border border-white/10" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.3"; }} />
                   <span className="text-[11px] text-white/40">Vista previa</span>
+                </div>
+              )}
+              <div className="grid gap-1.5">
+                <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">URL de la portada (opcional)</label>
+                <Input value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} placeholder="https://…/tu-portada.jpg" className="bg-white/5 font-mono text-xs" />
+              </div>
+              {coverUrl && (
+                <div className="space-y-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={coverUrl} alt="portada" className="w-full h-20 rounded-lg object-cover border border-white/10" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.3"; }} />
+                  <span className="text-[11px] text-white/40">Vista previa de la portada</span>
                 </div>
               )}
               <div className="grid gap-1.5">
