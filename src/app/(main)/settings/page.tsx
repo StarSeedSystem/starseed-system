@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { AppearanceEditor } from "@/components/settings/appearance/appearance-editor";
 import { AiProvidersPanel } from "@/components/settings/ai/ai-providers-panel";
+import { TriSourceConfig } from "@/components/services/tri-source-config";
 import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { TrinityFabSettings } from "@/components/settings/trinity/trinity-fab-settings";
 import { TrinityEdgeSettings } from "@/components/settings/trinity/trinity-edge-settings";
@@ -247,6 +248,18 @@ export default function SettingsPage() {
                                     </GlassCard>
                                 </div>
                                 <AiProvidersPanel />
+
+                                {/* Modelo tri-fuente: elige y modula las fuentes de IA */}
+                                <TriSourceConfig
+                                    domain="ai"
+                                    title="Fuentes de IA (propio · StarSeed · externo)"
+                                    description="Más allá de los proveedores de arriba, define qué servidor(es) atienden la IA y cómo se interconectan: tu modelo propio, StarSeed o una API externa, simultáneamente y modulados."
+                                    endpointPlaceholder="https://mi-llm.local/v1"
+                                    paramHints={[
+                                        { key: "model", label: "Modelo", placeholder: "p.ej. llama3.1 / gpt-4o" },
+                                        { key: "temperature", label: "Temperatura", placeholder: "0.7" },
+                                    ]}
+                                />
                             </TabsContent>
 
                             {/* ── Privacidad ─────────────────────────────────── */}
