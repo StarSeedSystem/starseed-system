@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { useUserContext } from "@/context/user-context";
 
 export default function MessagesPage() {
-    const [activeConvoId, setActiveConvoId] = useState<string>(conversations[0].id);
+    const [activeConvoId, setActiveConvoId] = useState<string>(conversations[0]?.id ?? "");
     const [localConversations, setLocalConversations] = useState(conversations);
     const [inputText, setInputText] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -31,7 +31,7 @@ export default function MessagesPage() {
         const newMessage = {
             id: `msg-local-${Date.now()}`,
             author: "Tú",
-            avatar: "https://placehold.co/100x100.png", // User avatar placeholder
+            avatar: "", // sin avatar hasta vincular el perfil real
             dataAiHint: "user avatar",
             timestamp: "Ahora",
             content: { type: 'text' as const, text: inputText }
