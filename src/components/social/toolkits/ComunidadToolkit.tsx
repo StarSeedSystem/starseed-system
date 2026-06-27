@@ -295,7 +295,16 @@ export function ComunidadToolkit({
     name?: string;
 }) {
     const data = getCommunity(slug);
-    const ac = accent ?? data.accent ?? GOLD;
+    const ac = accent ?? GOLD;
+
+    if (!data) {
+        return (
+            <EmptyHint>
+                Aún no hay información de esta comunidad. Crea el primer proyecto, recurso del procomún o mentoría para empezar.
+            </EmptyHint>
+        );
+    }
+
 
     return (
         <div className="space-y-6">
