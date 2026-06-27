@@ -46,13 +46,22 @@ export function setActiveProviderId(id: ProviderId | null): void {
 export function defaultConfigs(): ProviderConfig[] {
   return [
     {
+      id: "starseed",
+      label: PROVIDERS.starseed.info.label,
+      baseUrl: PROVIDERS.starseed.info.defaultBaseUrl,
+      encryptedKey: "",
+      models: [...PROVIDERS.starseed.info.defaultModels],
+      defaultModel: PROVIDERS.starseed.info.defaultModels[0],
+      enabled: true,
+    },
+    {
       id: "ollama",
       label: PROVIDERS.ollama.info.label,
       baseUrl: PROVIDERS.ollama.info.defaultBaseUrl,
       encryptedKey: "",
       models: [...PROVIDERS.ollama.info.defaultModels],
       defaultModel: PROVIDERS.ollama.info.defaultModels[0],
-      enabled: true,
+      enabled: false,
     },
   ];
 }
