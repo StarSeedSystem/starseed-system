@@ -44,73 +44,24 @@ export interface Post {
 
 // --- Mock Data ---
 
+// Identidad local neutra para contenido compuesto por el usuario en esta sesión.
+// Sin datos personales de ejemplo: el nombre real se resuelve en la capa de UI
+// a partir de la sesión soberana (useAccount).
 const CURRENT_USER: User = {
     id: "user-current",
-    name: "Alex",
-    handle: "@alex_starseed",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex",
-    verified: true
+    name: "Tú",
+    handle: "",
+    avatar: "",
 };
 
-const MOCK_USERS: User[] = [
-    { id: "u1", name: "Sarah Connor", handle: "@sarah_c", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah", verified: true },
-    { id: "u2", name: "Neo Anderson", handle: "@the_one", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Neo" },
-    { id: "u3", name: "Trinity", handle: "@trinity_matrix", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Trinity" },
-];
+// Sin usuarios de ejemplo.
+const MOCK_USERS: User[] = [];
 
-const INITIAL_POSTS: Post[] = [
-    {
-        id: "p1",
-        author: MOCK_USERS[0],
-        content: "Just deployed the new Hyper-Glass UI engine. The light refraction calculations are insane! 🌈✨\n\nCheck out the demo video below.",
-        media: [
-            "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop", // Abstract Glass
-            "https://images.unsplash.com/photo-1620641788421-7f1c338e448c?q=80&w=2564&auto=format&fit=crop"  // 3D Shape
-        ],
-        type: "mixed",
-        likes: 1240,
-        commentsCount: 45,
-        shares: 230,
-        createdAt: new Date().toISOString(),
-        likedByMe: false,
-        tags: ["#HyperGlass", "#UI", "#StarSeed"]
-    },
-    {
-        id: "p2",
-        author: MOCK_USERS[1],
-        content: "The interconnection graph is starting to look like a neural network. Every concept is a node. 🧠🔗",
-        media: [],
-        type: "text",
-        likes: 89,
-        commentsCount: 12,
-        shares: 5,
-        createdAt: new Date(Date.now() - 3600000).toISOString(),
-        likedByMe: true,
-        tags: ["#Graph", "#Network"]
-    }
-];
+// Sin publicaciones de ejemplo: el feed inicia vacío (estado vacío real).
+const INITIAL_POSTS: Post[] = [];
 
-const INITIAL_COMMENTS: Record<string, Comment[]> = {
-    "p1": [
-        {
-            id: "c1",
-            postId: "p1",
-            author: MOCK_USERS[1],
-            content: "Can you share the specs? I'm attaching the architecture doc I referenced.",
-            likes: 5,
-            createdAt: new Date().toISOString(),
-            attachments: [
-                {
-                    id: "f1",
-                    name: "Architecture_v2.pdf",
-                    type: "pdf",
-                    size: "2.4 MB",
-                    url: "#"
-                }
-            ]
-        }
-    ]
-};
+// Sin comentarios de ejemplo.
+const INITIAL_COMMENTS: Record<string, Comment[]> = {};
 
 // --- Service ---
 
