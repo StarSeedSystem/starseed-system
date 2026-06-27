@@ -3,6 +3,7 @@
  */
 
 import type { Provider, ProviderId } from "./types";
+import { starseedProvider } from "./starseed";
 import { ollamaProvider } from "./ollama";
 import { openaiProvider } from "./openai";
 import { anthropicProvider } from "./anthropic";
@@ -11,6 +12,7 @@ import { deepseekProvider } from "./deepseek";
 import { groqProvider } from "./groq";
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
+  starseed: starseedProvider,
   ollama: ollamaProvider,
   openai: openaiProvider,
   // OpenAI-compatible reuses the OpenAI adapter with a different base URL.
@@ -23,6 +25,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
 
 /** Ordered for the picker UI: privacy-first first. */
 export const PROVIDER_ORDER: ProviderId[] = [
+  "starseed",
   "ollama",
   "deepseek",
   "groq",
