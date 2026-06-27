@@ -71,64 +71,11 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
     CalendarDays,
 };
 
-// Data Model: Resources (Gift Economy) — DEMO original conservado como ejemplos.
-const resources = [
-    {
-        id: "1",
-        title: "Pack de Shaders Cuánticos",
-        creator: "NeoGraphics Collective",
-        rating: 4.8,
-        reviews: 124,
-        type: "ASSET_3D",
-        image: "https://placehold.co/400x300/4c1d95/e0e7ff.png?text=Quantum+Shaders",
-        description: "Colección de 20 shaders procedurables optimizados para WebGL. Código abierto para todos los creadores.",
-        license: "MIT"
-    },
-    {
-        id: "2",
-        title: "Blueprint: Domo Geodésico",
-        creator: "Arquitectura Viva",
-        rating: 5.0,
-        reviews: 45,
-        type: "BLUEPRINT",
-        image: "https://placehold.co/400x300/065f46/d1fae5.png?text=Geo+Dome+Blueprint",
-        description: "Planos completos para construcción de domo V4. Compartido libremente para fomentar eco-aldeas.",
-        license: "CC BY-SA"
-    },
-    {
-        id: "3",
-        title: "Avatar Rig: Cyber-Monje",
-        creator: "Digital Soul",
-        rating: 4.9,
-        reviews: 12,
-        type: "AVATAR",
-        image: "https://placehold.co/400x300/9f1239/ffe4e6.png?text=Cyber+Monk",
-        description: "Avatar riggeado de alta fidelidad. Disponible para replicación inmediata en tu perfil.",
-        license: "StarSeed Public"
-    },
-    {
-        id: "4",
-        title: "Dataset: Patrones Climáticos",
-        creator: "Observatorio Valle Central",
-        rating: 4.5,
-        reviews: 89,
-        type: "DATASET",
-        image: "https://placehold.co/400x300/0c4a6e/e0f2fe.png?text=Climate+Data",
-        description: "Datos históricos de temperatura y humedad. Bien Común Universal para investigación.",
-        license: "Public Domain"
-    },
-    {
-        id: "5",
-        title: "Kit de IA Ética",
-        creator: "Consejo de Sabios",
-        rating: 5.0,
-        reviews: 8,
-        type: "KNOWLEDGE",
-        image: "https://placehold.co/400x300/78350f/fef3c7.png?text=AI+Ethics",
-        description: "Frameworks y guías para alinear agentes autónomos con los principios de la vida.",
-        license: "Open Source"
-    },
-];
+// Sin items de ejemplo: la tienda muestra únicamente recursos REALES de la red.
+const resources: {
+    id: string; title: string; creator: string; rating: number; reviews: number;
+    type: string; image: string; description: string; license: string;
+}[] = [];
 
 // Imagen determinista de portada para items reales (sin imagen propia).
 function coverFor(item: StoreItem): string {
@@ -386,8 +333,8 @@ export default function ResourceInterchangePage() {
                             </Button>
                         </div>
                     </div>
-                    <div className="w-full md:w-1/3 aspect-video relative rounded-lg overflow-hidden shadow-2xl shadow-emerald-500/20">
-                        <Image src="https://placehold.co/600x400/064e3b/d1fae5.png?text=Open+Source+World" alt="Featured" fill className="object-cover" />
+                    <div className="w-full md:w-1/3 aspect-video relative rounded-lg overflow-hidden shadow-2xl shadow-emerald-500/20 grid place-items-center bg-gradient-to-br from-emerald-500/20 via-teal-500/10 to-transparent border border-emerald-400/20">
+                        <Package className="w-12 h-12 text-emerald-300/70" />
                     </div>
                 </div>
                 {/* Background decoration */}
@@ -555,7 +502,8 @@ export default function ResourceInterchangePage() {
                 )}
             </section>
 
-            {/* ════ DEMO original conservado como Ejemplos ════ */}
+            {/* ════ Sección de ejemplos retirada: sin datos de demostración ════ */}
+            {filteredDemo.length > 0 && (
             <section className="flex flex-col gap-4 mt-4">
                 <div className="flex items-center gap-3">
                     <h2 className="text-xl font-bold text-muted-foreground/80">Ejemplos</h2>
@@ -619,6 +567,7 @@ export default function ResourceInterchangePage() {
                     ))}
                 </div>
             </section>
+            )}
 
             {/* ════ Diálogo: Publicar mis creaciones ════ */}
             <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
