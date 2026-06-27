@@ -3,27 +3,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Link from "next/link";
 import { Users, Globe, Vote } from "lucide-react";
 
-const connectionsData = {
-    personal: {
-        participating: [
-            { name: "Comunidad de Permacultura", type: "Comunidad", avatar: "https://placehold.co/40x40.png", href: "/profile/comunidad-permacultura" },
-            { name: "E.F. del Valle Central", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png", href: "/profile/ef-valle-central" },
-            { name: "Partido Transhumanista", type: "Partido Político", avatar: "https://placehold.co/40x40.png", href: "/profile/partido-transhumanista" },
-        ],
-        common: [
-            { name: "Brenda", avatar: "https://placehold.co/40x40.png", href:"/profile/brenda" },
-            { name: "Alex Duran", avatar: "https://placehold.co/40x40.png", href:"/profile/alex" }
-        ]
-    },
-    comunidad: {
-        participating: [ // Here it means "Members"
-            { name: "StarSeedUser", type: "Usuario", avatar: "https://placehold.co/40x40.png", href: "/profile/starseeduser" },
-            { name: "Brenda", type: "Usuario", avatar: "https://placehold.co/40x40.png", href: "/profile/brenda" },
-            { name: "Alex Duran", type: "Usuario", avatar: "https://placehold.co/40x40.png", href: "/profile/alex" }
-        ],
-        common: [], // Or maybe "Alliances"
-    }
-    // Add other page types if needed
+type ConnectionItem = { name: string; type?: string; avatar: string; href: string };
+type ConnectionGroup = { participating: ConnectionItem[]; common: ConnectionItem[] };
+
+// Sin datos de ejemplo: las conexiones reales se cargarán desde la red del
+// usuario/página. Hasta entonces se muestran estados vacíos reales.
+const connectionsData: Record<string, ConnectionGroup> = {
+    personal: { participating: [], common: [] },
+    comunidad: { participating: [], common: [] },
 }
 
 export function ConnectionsWidget({ pageType = 'personal' }: { pageType: string }) {
@@ -43,6 +30,9 @@ export function ConnectionsWidget({ pageType = 'personal' }: { pageType: string 
                 <div>
                     <h3 className="font-semibold text-sm mb-3">{participatingTitle}</h3>
                     <div className="space-y-3">
+                        {data.participating.length === 0 && (
+                            <p className="text-sm text-muted-foreground">Aún no hay nada que mostrar.</p>
+                        )}
                         {data.participating.map(c => (
                             <Link href={c.href} key={c.name} className="flex items-center gap-3 hover:bg-muted/50 p-2 rounded-lg transition-colors -ml-2">
                                 <Avatar className="h-9 w-9">
