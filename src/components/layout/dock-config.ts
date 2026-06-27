@@ -51,6 +51,7 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'pizarra',       label: 'Pizarra',          iconKey: 'Sparkles',     path: '/pizarra',             color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'seguridad',     label: 'Seguridad',        iconKey: 'Settings',     path: '/seguridad',           color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'funciones',     label: 'Funciones',        iconKey: 'Sparkles',     path: '/funciones',           color: 'purple',  enabled: true,  origin: 'preset' },
+  { id: 'servicios',     label: 'Servicios y Fuentes', iconKey: 'Server',     path: '/servicios',           color: 'cyan',    enabled: false, origin: 'preset' },
   { id: 'decisiones',    label: 'Decisiones',       iconKey: 'Bell',         path: '/decisiones',          color: 'amber',   enabled: true,  origin: 'preset' },
   { id: 'conocimiento',  label: 'Conocimiento',     iconKey: 'BrainCircuit', path: '/conocimiento',        color: 'cyan',    enabled: false, origin: 'preset' },
   { id: 'cerebros',      label: 'Cerebros',         iconKey: 'Brain',        path: '/cerebros',            color: 'purple',  enabled: false, origin: 'preset' },
