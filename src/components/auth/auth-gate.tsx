@@ -5,10 +5,17 @@
 // Si no hay sesión, cubre la app con una pantalla de acceso real (correo
 // existente o crea tu cuenta StarSeed, que recibe su dirección @star.seed y su
 // identidad automáticamente). Tras entrar, OnboardingGate muestra la guía.
+//
+// Diseño unificado StarSeed (baseline del ecosistema OS · Nexus · Café ·
+// Audiomorphic): tarjeta de cristal centrada (~420px), fondo radial oscuro con
+// dos orbes violeta/teal difuminados, wordmark con gradiente violeta→teal
+// (#a78bfa→#34d399), pestañas Entrar / Crear cuenta, botón primario en
+// gradiente, y una nota honesta de una sola cuenta para todo + @star.seed.
+//
 // Fail-open: si el chequeo de sesión falla (red/SSR), no bloquea la app.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 
 function traducir(m: string): string {
@@ -21,6 +28,13 @@ function traducir(m: string): string {
   return m || "No se pudo completar. Intenta de nuevo.";
 }
 
+// Propuesta de valor honesta y breve (se muestra bajo el formulario).
+const VALUE_PROPS: { icon: string; title: string; desc: string }[] = [
+  { icon: "✶", title: "Una sola cuenta", desc: "OS, Nexus, Café y Audiomorphic con un mismo acceso." },
+  { icon: "@", title: "Dirección @star.seed", desc: "Tu identidad interna en la red, lista al crear la cuenta." },
+  { icon: "✦", title: "Aurora te guía", desc: "Una guía inteligente te ayuda a dejar todo listo." },
+];
+
 export function AuthGate() {
   const [sb] = useState(() => createClient());
   const [ready, setReady] = useState(false);
@@ -28,9 +42,11 @@ export function AuthGate() {
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [ok, setOk] = useState("");
+  const emailRef = useRef<HTMLInputElement | null>(null);
 
   const check = useCallback(async () => {
     try {
@@ -48,6 +64,14 @@ export function AuthGate() {
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => setAuthed(!!session));
     return () => sub.subscription.unsubscribe();
   }, [check, sb]);
+
+  // Enfoca el correo cuando aparece la pantalla (accesibilidad/UX).
+  useEffect(() => {
+    if (ready && !authed) {
+      const t = setTimeout(() => emailRef.current?.focus(), 120);
+      return () => clearTimeout(t);
+    }
+  }, [ready, authed]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,41 +95,149 @@ export function AuthGate() {
 
   if (!ready || authed) return null;
 
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    boxSizing: "border-box",
+    background: "rgba(255,255,255,.05)",
+    border: "1px solid rgba(255,255,255,.14)",
+    borderRadius: 12,
+    padding: "12px 13px",
+    color: "#fff",
+    fontSize: 14,
+    outline: "none",
+  };
+
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "radial-gradient(circle at 30% 20%, #1a1030, #05060d 70%)" }}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Acceso a StarSeed"
+      style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "radial-gradient(circle at 30% 20%, #1a1030, #05060d 70%)", overflowY: "auto" }}
+    >
+      <style>{`
+        @keyframes ssAuthIn { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+        @keyframes ssOrbA { 0%,100% { transform: translate(0,0); } 50% { transform: translate(24px,18px); } }
+        @keyframes ssOrbB { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-22px,-16px); } }
+        .ss-auth-card { animation: ssAuthIn .5s cubic-bezier(.22,1,.36,1) both; }
+        .ss-auth-orb-a { animation: ssOrbA 14s ease-in-out infinite; }
+        .ss-auth-orb-b { animation: ssOrbB 16s ease-in-out infinite; }
+        .ss-auth-field:focus { border-color: rgba(167,139,250,.7) !important; box-shadow: 0 0 0 3px rgba(124,92,255,.18); }
+        .ss-auth-primary:hover:not(:disabled) { filter: brightness(1.08); }
+        .ss-auth-primary:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
+        @media (prefers-reduced-motion: reduce) {
+          .ss-auth-card, .ss-auth-orb-a, .ss-auth-orb-b { animation: none !important; }
+        }
+      `}</style>
+
       <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
-        <div style={{ position: "absolute", width: 420, height: 420, left: "-8%", top: "-10%", borderRadius: "50%", background: "radial-gradient(circle,#7c5cff55,transparent 60%)", filter: "blur(40px)" }} />
-        <div style={{ position: "absolute", width: 380, height: 380, right: "-6%", bottom: "-8%", borderRadius: "50%", background: "radial-gradient(circle,#23d5ab44,transparent 60%)", filter: "blur(40px)" }} />
+        <div className="ss-auth-orb-a" style={{ position: "absolute", width: 460, height: 460, left: "-10%", top: "-12%", borderRadius: "50%", background: "radial-gradient(circle,#7c5cff55,transparent 60%)", filter: "blur(46px)" }} />
+        <div className="ss-auth-orb-b" style={{ position: "absolute", width: 400, height: 400, right: "-8%", bottom: "-10%", borderRadius: "50%", background: "radial-gradient(circle,#23d5ab44,transparent 60%)", filter: "blur(46px)" }} />
       </div>
 
-      <div style={{ position: "relative", width: "100%", maxWidth: 420, background: "rgba(12,14,24,.82)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 22, padding: 28, boxShadow: "0 30px 80px rgba(0,0,0,.5)", backdropFilter: "blur(14px)" }}>
-        <div style={{ textAlign: "center", marginBottom: 18 }}>
-          <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: -0.5, background: "linear-gradient(135deg,#a78bfa,#34d399)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>StarSeed OS</div>
-          <p style={{ opacity: .7, fontSize: 13, marginTop: 6 }}>{mode === "in" ? "Inicia sesión para entrar a tu sistema" : "Crea tu cuenta StarSeed — recibirás tu dirección @star.seed"}</p>
+      <div className="ss-auth-card" style={{ position: "relative", width: "100%", maxWidth: 420, background: "rgba(12,14,24,.82)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 24, padding: 30, boxShadow: "0 30px 90px rgba(0,0,0,.55)", backdropFilter: "blur(16px)" }}>
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
+            <span aria-hidden style={{ width: 30, height: 30, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#fff", background: "linear-gradient(135deg,#7c5cff,#23d5ab)", boxShadow: "0 6px 18px rgba(124,92,255,.45)" }}>✶</span>
+            <span style={{ fontSize: 30, fontWeight: 800, letterSpacing: -0.6, lineHeight: 1, background: "linear-gradient(135deg,#a78bfa,#34d399)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>StarSeed OS</span>
+          </div>
+          <p style={{ opacity: .72, fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+            {mode === "in" ? "Inicia sesión para entrar a tu sistema." : "Crea tu cuenta StarSeed — recibirás tu dirección @star.seed."}
+          </p>
         </div>
 
-        <div style={{ display: "flex", gap: 6, background: "rgba(255,255,255,.05)", borderRadius: 12, padding: 4, marginBottom: 16 }}>
+        <div role="tablist" aria-label="Entrar o crear cuenta" style={{ display: "flex", gap: 6, background: "rgba(255,255,255,.05)", borderRadius: 13, padding: 4, marginBottom: 18 }}>
           {(["in", "up"] as const).map((m) => (
-            <button key={m} onClick={() => { setMode(m); setMsg(""); setOk(""); }} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, color: mode === m ? "#fff" : "rgba(255,255,255,.6)", background: mode === m ? "linear-gradient(135deg,#7c5cff,#23d5ab)" : "transparent" }}>
+            <button
+              key={m}
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => { setMode(m); setMsg(""); setOk(""); }}
+              style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, transition: "color .2s, background .2s", color: mode === m ? "#fff" : "rgba(255,255,255,.6)", background: mode === m ? "linear-gradient(135deg,#7c5cff,#23d5ab)" : "transparent" }}
+            >
               {m === "in" ? "Entrar" : "Crear cuenta"}
             </button>
           ))}
         </div>
 
-        <form onSubmit={submit}>
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tucorreo@ejemplo.com" autoComplete="email"
-            style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.14)", borderRadius: 11, padding: "11px 13px", color: "#fff", fontSize: 14, marginBottom: 10 }} />
-          <input type="password" required value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="Contraseña" autoComplete={mode === "in" ? "current-password" : "new-password"}
-            style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.14)", borderRadius: 11, padding: "11px 13px", color: "#fff", fontSize: 14, marginBottom: 12 }} />
-          {msg ? <div style={{ color: "#fca5a5", fontSize: 12, marginBottom: 10 }}>{msg}</div> : null}
-          {ok ? <div style={{ color: "#6ee7b7", fontSize: 12, marginBottom: 10 }}>{ok}</div> : null}
-          <button type="submit" disabled={busy} style={{ width: "100%", border: "none", borderRadius: 12, padding: "12px 0", color: "#fff", fontWeight: 700, fontSize: 15, cursor: busy ? "default" : "pointer", opacity: busy ? .65 : 1, background: "linear-gradient(135deg,#7c5cff,#23d5ab)" }}>
+        <form onSubmit={submit} noValidate>
+          <label htmlFor="ss-auth-email" style={{ display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: ".06em", opacity: .55, marginBottom: 6, fontWeight: 600 }}>Correo</label>
+          <input
+            id="ss-auth-email"
+            ref={emailRef}
+            className="ss-auth-field"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="tucorreo@ejemplo.com"
+            autoComplete="email"
+            style={{ ...inputStyle, marginBottom: 14 }}
+          />
+
+          <label htmlFor="ss-auth-pwd" style={{ display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: ".06em", opacity: .55, marginBottom: 6, fontWeight: 600 }}>Contraseña</label>
+          <div style={{ position: "relative", marginBottom: mode === "up" ? 6 : 14 }}>
+            <input
+              id="ss-auth-pwd"
+              className="ss-auth-field"
+              type={showPwd ? "text" : "password"}
+              required
+              minLength={6}
+              value={pwd}
+              onChange={(e) => setPwd(e.target.value)}
+              placeholder="Tu contraseña"
+              autoComplete={mode === "in" ? "current-password" : "new-password"}
+              style={{ ...inputStyle, paddingRight: 64 }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPwd((v) => !v)}
+              aria-label={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
+              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "rgba(255,255,255,.55)", fontSize: 11, cursor: "pointer", padding: "4px 6px", fontWeight: 600 }}
+            >
+              {showPwd ? "Ocultar" : "Mostrar"}
+            </button>
+          </div>
+          {mode === "up" && (
+            <p style={{ fontSize: 11, opacity: .45, margin: "0 0 12px", lineHeight: 1.4 }}>Mínimo 6 caracteres.</p>
+          )}
+
+          {msg ? <div role="alert" style={{ color: "#fca5a5", fontSize: 12, marginBottom: 12, lineHeight: 1.45 }}>{msg}</div> : null}
+          {ok ? <div role="status" style={{ color: "#6ee7b7", fontSize: 12, marginBottom: 12, lineHeight: 1.45 }}>{ok}</div> : null}
+
+          <button
+            type="submit"
+            className="ss-auth-primary"
+            disabled={busy}
+            aria-busy={busy}
+            style={{ width: "100%", border: "none", borderRadius: 13, padding: "13px 0", color: "#fff", fontWeight: 700, fontSize: 15, cursor: busy ? "default" : "pointer", opacity: busy ? .65 : 1, transition: "filter .15s, opacity .15s", background: "linear-gradient(135deg,#7c5cff,#23d5ab)", boxShadow: "0 10px 28px rgba(124,92,255,.35)" }}
+          >
             {busy ? "Un momento…" : mode === "in" ? "Entrar al sistema" : "Crear mi cuenta StarSeed"}
           </button>
         </form>
 
-        <p style={{ textAlign: "center", fontSize: 11, opacity: .55, marginTop: 16, lineHeight: 1.5 }}>
-          Una sola cuenta para todo el ecosistema StarSeed (OS, Nexus, Café, Audiomorphic).<br />Al crear tu cuenta recibes tu dirección interna <b>@star.seed</b> automáticamente.
+        <button
+          type="button"
+          onClick={() => { setMode(mode === "in" ? "up" : "in"); setMsg(""); setOk(""); }}
+          style={{ width: "100%", background: "transparent", border: "none", color: "rgba(255,255,255,.6)", fontSize: 12, marginTop: 12, cursor: "pointer" }}
+        >
+          {mode === "in" ? "¿No tienes cuenta? Crea una" : "¿Ya tienes cuenta? Inicia sesión"}
+        </button>
+
+        {/* Propuesta de valor breve y honesta */}
+        <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid rgba(255,255,255,.08)", display: "grid", gap: 12 }}>
+          {VALUE_PROPS.map((v) => (
+            <div key={v.title} style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
+              <span aria-hidden style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#c4b5fd", background: "rgba(124,92,255,.14)", border: "1px solid rgba(124,92,255,.25)" }}>{v.icon}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,.88)" }}>{v.title}</div>
+                <div style={{ fontSize: 11.5, opacity: .55, lineHeight: 1.45 }}>{v.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p style={{ textAlign: "center", fontSize: 11, opacity: .5, marginTop: 18, lineHeight: 1.55 }}>
+          Una sola cuenta para todo el ecosistema StarSeed (OS, Nexus, Café, Audiomorphic).<br />Al crear tu cuenta recibes tu dirección interna <b style={{ opacity: .85 }}>@star.seed</b> automáticamente.
         </p>
       </div>
     </div>
