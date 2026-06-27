@@ -23,7 +23,6 @@ function CommentInput() {
             />
             <div className="flex gap-3">
                 <Avatar className="h-8 w-8">
-                    <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="user avatar" />
                     <AvatarFallback>TÚ</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
