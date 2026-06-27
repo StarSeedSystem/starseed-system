@@ -133,13 +133,10 @@ const THEMES: DesignAsset[] = [
   --primary: #9333ea;
   --accent: #0f766e;
 }`,
-    reviews: [
-      { user: "@nova", stars: 5, text: "El cristal líquido sienta de maravilla en el dashboard." },
-      { user: "@kael", stars: 4, text: "Precioso en oscuro; el claro lo uso menos." },
-    ],
+    reviews: [],
     branches: [
       { author: "StarSeed Core", name: "main", note: "Tema base del OS." },
-      { author: "@nova", name: "aurora-soft", note: "Bajada de saturación para lectura larga." },
+      { author: "StarSeed Studio", name: "aurora-soft", note: "Bajada de saturación para lectura larga." },
     ],
     downloads: 1280,
   },
@@ -168,12 +165,10 @@ const THEMES: DesignAsset[] = [
   --primary: #C05C3B;    /* terracota */
   --accent: #3f7a2a;     /* musgo */
 }`,
-    reviews: [
-      { user: "@barista", stars: 5, text: "El oro sobre verde-negro es pura calidez." },
-    ],
+    reviews: [],
     branches: [
       { author: "StarSeed Studio", name: "main", note: "Identidad oficial del Café." },
-      { author: "@gaia", name: "café-amanecer", note: "Variante clara con más bronce." },
+      { author: "StarSeed Studio", name: "café-amanecer", note: "Variante clara con más bronce." },
     ],
     downloads: 940,
   },
@@ -211,9 +206,7 @@ const TOKENS: DesignAsset[] = [
   --ss-neon-cyan: #6FE6D6;
   --ss-neon-coral: #FF8A5C;
 }`,
-    reviews: [
-      { user: "@pixel", stars: 5, text: "Cohesión brutal entre tierras y neones." },
-    ],
+    reviews: [],
     branches: [
       { author: "StarSeed Studio", name: "main", note: "Paleta canónica." },
     ],
@@ -242,9 +235,7 @@ const TOKENS: DesignAsset[] = [
   --ease-glide:   cubic-bezier(.16, 1, .3, 1);
   --dur-fast: 150ms; --dur-base: 220ms; --dur-slow: 300ms;
 }`,
-    reviews: [
-      { user: "@type", stars: 5, text: "Fraunces + Space Mono = elegancia técnica." },
-    ],
+    reviews: [],
     branches: [
       { author: "StarSeed Studio", name: "main", note: "Escala áurea φ=1.618." },
     ],
@@ -268,9 +259,7 @@ const TOKENS: DesignAsset[] = [
   --trinity-logic:   #FFBF00; /* este · control */
   --trinity-anchor:  #DC143C; /* sur · dock/raíz */
 }`,
-    reviews: [
-      { user: "@cardinal", stars: 4, text: "Buen sistema de orientación por color." },
-    ],
+    reviews: [],
     branches: [{ author: "StarSeed Core", name: "main", note: "Cardinales base." }],
     downloads: 388,
   },
@@ -297,9 +286,7 @@ const TOKENS: DesignAsset[] = [
 }
 /* Variantes: --frosted(blur 30) · --holographic(aberración 5px)
    --obsidian(opacidad .85) · --organic(displacement) */`,
-    reviews: [
-      { user: "@glassy", stars: 5, text: "Copio y pego y queda perfecto." },
-    ],
+    reviews: [],
     branches: [{ author: "StarSeed Studio", name: "main", note: "5 variantes." }],
     downloads: 720,
   },
@@ -336,13 +323,10 @@ const BACKGROUNDS: DesignAsset[] = [
     code: `import { LivingBackground } from "@/components/ui/backgrounds/living-background";
 // Variantes: ${livingVariants}
 <LivingBackground /> // lee config.background.living del tema`,
-    reviews: [
-      { user: "@flux", stars: 5, text: "10 variantes y ni un salto de FPS." },
-      { user: "@mira", stars: 5, text: "Mycelium es hipnótico." },
-    ],
+    reviews: [],
     branches: [
       { author: "StarSeed Core", name: "main", note: "10 variantes + auto-cycle." },
-      { author: "@flux", name: "living-lowpower", note: "Modo ahorro para móviles." },
+      { author: "StarSeed Studio", name: "living-lowpower", note: "Modo ahorro para móviles." },
     ],
     downloads: 1540,
   },
@@ -362,9 +346,7 @@ const BACKGROUNDS: DesignAsset[] = [
     externalUrl: "https://spline.design",
     code: `import { SplineBackground } from "@/components/ui/SplineBackground";
 <SplineBackground /> // fallback a Living si la escena falla`,
-    reviews: [
-      { user: "@deep", stars: 4, text: "Espectacular; ojo con el peso en móvil." },
-    ],
+    reviews: [],
     branches: [
       { author: "StarSeed Studio", name: "main", note: "Escena por defecto + fallback." },
     ],
@@ -385,9 +367,7 @@ const BACKGROUNDS: DesignAsset[] = [
     fileRef: "src/components/backgrounds/materia-viva-background.tsx",
     code: `import { MateriaVivaBackground } from "@/components/backgrounds/materia-viva-background";
 <MateriaVivaBackground intensity={0.7} />`,
-    reviews: [
-      { user: "@root", stars: 5, text: "La capa de marca perfecta." },
-    ],
+    reviews: [],
     branches: [
       { author: "StarSeed Studio", name: "main", note: "Acentos oro sobre verde-negro." },
     ],
@@ -409,12 +389,10 @@ const BACKGROUNDS: DesignAsset[] = [
     externalUrl: "https://audiomorphic.vercel.app",
     code: `import { AudiomorphicBackground } from "@/components/ui/backgrounds/audiomorphic-background";
 <AudiomorphicBackground /> // requiere permiso de audio; con fallback estático`,
-    reviews: [
-      { user: "@sound", stars: 5, text: "Reacciona al beat con una belleza absurda." },
-    ],
+    reviews: [],
     branches: [
       { author: "Audiomorphic", name: "main", note: "Geometrías sagradas reactivas." },
-      { author: "@sound", name: "audio-mic", note: "Entrada de micrófono opcional." },
+      { author: "StarSeed Studio", name: "audio-mic", note: "Entrada de micrófono opcional." },
     ],
     downloads: 880,
   },
