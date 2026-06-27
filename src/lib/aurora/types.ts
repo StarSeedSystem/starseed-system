@@ -41,7 +41,7 @@ export type VoiceConfig = {
 export const VOICE_DEFAULT: VoiceConfig = {
   provider: "browser",
   voiceURI: "",
-  lang: "es-ES",
+  lang: "es-MX",
   pitch: 1,
   rate: 1,
 };
