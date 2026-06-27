@@ -54,6 +54,7 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'decisiones',    label: 'Decisiones',       iconKey: 'Bell',         path: '/decisiones',          color: 'amber',   enabled: true,  origin: 'preset' },
   { id: 'conocimiento',  label: 'Conocimiento',     iconKey: 'BrainCircuit', path: '/conocimiento',        color: 'cyan',    enabled: false, origin: 'preset' },
   { id: 'cerebros',      label: 'Cerebros',         iconKey: 'Brain',        path: '/cerebros',            color: 'purple',  enabled: false, origin: 'preset' },
+  { id: 'cerebro',       label: 'Cerebro',          iconKey: 'Brain',        path: '/cerebro',             color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'tienda',        label: 'Tienda',           iconKey: 'Library',      path: '/store',               color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'insignias',     label: 'Insignias',        iconKey: 'Zap',          path: '/insignias',           color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'apps-ia',       label: 'Apps IA',          iconKey: 'Cpu',          path: '/apps-ia',             color: 'emerald', enabled: false, origin: 'preset' },
