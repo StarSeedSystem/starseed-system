@@ -24,14 +24,16 @@ export function ProfileHeader({ profileData }: ProfileHeaderProps) {
         <div className="relative w-full rounded-3xl overflow-hidden border border-white/10 shadow-2xl group pb-6 bg-background/50 backdrop-blur-md">
             {/* Holographic Background Layer */}
             <div className="absolute inset-0 z-0">
-                <Image
-                    src={profileData.cover}
-                    alt="Cover"
-                    fill
-                    className="object-cover opacity-80 group-hover:scale-105 transition-transform duration-700"
-                    priority
-                    data-ai-hint={profileData.coverHint}
-                />
+                {profileData.cover && (
+                    <Image
+                        src={profileData.cover}
+                        alt="Cover"
+                        fill
+                        className="object-cover opacity-80 group-hover:scale-105 transition-transform duration-700"
+                        priority
+                        data-ai-hint={profileData.coverHint}
+                    />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/60 to-background/95" />
                 <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-secondary/10 opacity-30 mix-blend-overlay" />
             </div>
