@@ -113,15 +113,9 @@ const mockMetrics: Adapter<"common.metrics"> = () => {
 };
 
 const mockFeed: Adapter<"common.feed"> = () => {
-    const authors = ["Maya R.", "Nodo Aurora", "Junta Oikos", "Kael T.", "Sangha Sur"];
+    const authors: string[] = [];
     const kinds = ["propuesta", "obra", "misión", "debate", "evento"];
-    const titles = [
-        "Excedente solar redirigido a vivero comunal",
-        "Nueva carta: Resonancia del Equinoccio",
-        "Debate abierto: agua como procomún",
-        "Misión cumplida: alfabetización mesh",
-        "Portal inmersivo 'Jardín Liminal' activo",
-    ];
+    const titles: string[] = [];
     const now = Date.now();
     return titles.map<FeedItem>((title, i) => ({
         id: `feed-${i}`,
@@ -136,13 +130,7 @@ const mockFeed: Adapter<"common.feed"> = () => {
 const mockProposals: Adapter<"politics.proposals"> = () => {
     const stages: LawProposal["stage"][] = ["borrador", "firmas", "debate", "votacion", "ratificada"];
     const scopes: LawProposal["scope"][] = ["vecinal", "municipal", "biorregional", "global"];
-    const data: Array<[string, string]> = [
-        ["Renta básica de recursos", "Garantía de energía, agua y alimento como procomún por defecto."],
-        ["Transparencia algorítmica", "Todo algoritmo que ejerza poder público debe ser auditable."],
-        ["Mitosis de la Sangha Norte", "Dividir la comunidad al alcanzar tamaño óptimo."],
-        ["Moratoria de vigilancia", "Prohibir captura biométrica bruta en espacios comunes."],
-        ["Bóveda semillas abierta", "Banco de semillas libre y replicable entre nodos."],
-    ];
+    const data: Array<[string, string]> = [];
     return data.map<LawProposal>(([title, summary], i) => {
         const support = Math.round(jitter(`prop${i}`, 120, 4800));
         const threshold = 2500 + i * 600;
@@ -165,12 +153,7 @@ const mockProposals: Adapter<"politics.proposals"> = () => {
 };
 
 const mockDelegations: Adapter<"politics.delegations"> = () => {
-    const data: Array<[string, string, Delegation["delegateKind"]]> = [
-        ["Ecología y agua", "Junta Oikos", "junta"],
-        ["Educación", "Maya Rendón", "persona"],
-        ["Infraestructura mesh", "Colectivo Faro", "organizacion"],
-        ["Salud comunitaria", "Dr. Kael Torres", "persona"],
-    ];
+    const data: Array<[string, string, Delegation["delegateKind"]]> = [];
     return data.map<Delegation>(([topic, delegateName, delegateKind], i) => ({
         id: `del-${i}`,
         topic, delegateName, delegateKind,
@@ -337,13 +320,7 @@ const mockWorlds: Adapter<"entertainment.worlds"> = () => {
 };
 
 const mockPosts: Adapter<"social.posts"> = () => {
-    const data: Array<[string, string, string, string[], Post["scope"]]> = [
-        ["Maya Rendón", "maya", "El bancal en espiral ya da su primera cosecha de acelgas — abro taller abierto este sábado para replicarlo en otros nodos.", ["permacultura", "oikos"], "vecinal"],
-        ["Junta Oikos", "oikos", "Excedente solar de hoy: +4.2 kW redirigidos al vivero comunal. El umbral de confort se mantuvo toda la jornada.", ["energía", "procomún"], "biorregional"],
-        ["Kael Torres", "kael", "Nueva propuesta en debate: transparencia algorítmica. Todo algoritmo que ejerza poder público debe ser auditable. ¿Tu voz?", ["gobernanza", "ontocracia"], "global"],
-        ["Sangha Sur", "sanghasur", "Llegamos a 144 miembros activos. Iniciamos protocolo de mitosis: dos células nuevas en lugar de crecimiento canceroso.", ["comunidad", "mitosis"], "biorregional"],
-        ["Aurora N.", "aurora", "Carta sonora 'Resonancia del Equinoccio' disponible en el Multiverso. Entrada libre, intensidad ajustable.", ["arte", "multiverso"], "global"],
-    ];
+    const data: Array<[string, string, string, string[], Post["scope"]]> = [];
     const now = Date.now();
     return data.map<Post>(([author, handle, content, tags, scope], i) => ({
         id: `post-${i}`,
@@ -356,14 +333,7 @@ const mockPosts: Adapter<"social.posts"> = () => {
 };
 
 const mockActivity: Adapter<"common.activity"> = () => {
-    const data: Array<[string, string, string, ActivityEvent["kind"]]> = [
-        ["Tú", "votaste a favor de", "Renta básica de recursos", "vote"],
-        ["Maya R.", "publicó", "Taller de permacultura", "post"],
-        ["Nodo Aurora", "se unió a", "Sangha Norte", "join"],
-        ["Junta Oikos", "completó la misión", "Alfabetización mesh", "mission"],
-        ["Tú", "delegaste", "Ecología y agua → Junta Oikos", "delegation"],
-        ["Colectivo Faro", "liberó recurso", "Bóveda de semillas v2", "resource"],
-    ];
+    const data: Array<[string, string, string, ActivityEvent["kind"]]> = [];
     const now = Date.now();
     return data.map<ActivityEvent>(([actor, action, target, kind], i) => ({
         id: `act-${i}`, actor, action, target, kind,
@@ -372,13 +342,7 @@ const mockActivity: Adapter<"common.activity"> = () => {
 };
 
 const mockPages: Adapter<"social.pages"> = () => {
-    const data: Array<[string, PageRef["kind"], PageRef["role"], string]> = [
-        ["Sangha Norte", "comunidad", "fundador", "#10b981"],
-        ["Perfil Cívico", "perfil", "fundador", "#007FFF"],
-        ["Forja de Widgets", "proyecto", "moderador", "#a855f7"],
-        ["Junta Oikos", "entidad", "miembro", "#f59e0b"],
-        ["Multiverso Liminal", "comunidad", "miembro", "#ec4899"],
-    ];
+    const data: Array<[string, PageRef["kind"], PageRef["role"], string]> = [];
     return data.map<PageRef>(([name, kind, role, accent], i) => ({
         id: `page-${i}`, name, kind, role, accent,
         members: Math.round(jitter(`pgm${i}`, 8, 1240, 40000)),
@@ -387,13 +351,7 @@ const mockPages: Adapter<"social.pages"> = () => {
 };
 
 const mockEntities: Adapter<"social.entities"> = () => {
-    const data: Array<[string, NetworkEntity["kind"], string, string]> = [
-        ["Sangha del Faro", "sangha", "energía regenerativa", "#f59e0b"],
-        ["Colectivo Aurora", "colectivo", "arte y multiverso", "#ec4899"],
-        ["Biorregión del Valle", "biorregion", "agua como procomún", "#38bdf8"],
-        ["Círculo de Paz Sur", "comunidad", "justicia restaurativa", "#10b981"],
-        ["Nodo Cripto-ZK", "colectivo", "voto anónimo verificable", "#a855f7"],
-    ];
+    const data: Array<[string, NetworkEntity["kind"], string, string]> = [];
     return data.map<NetworkEntity>(([name, kind, focus, accent], i) => ({
         id: `ent-${i}`, name, kind, focus, accent,
         momentum: jitter(`emom${i}`, 0.25, 0.99, 7000),
@@ -402,13 +360,7 @@ const mockEntities: Adapter<"social.entities"> = () => {
 };
 
 const mockEvents: Adapter<"social.events"> = () => {
-    const data: Array<[string, string, SocialEvent["kind"]]> = [
-        ["Asamblea Vecinal", "Parque Central", "asamblea"],
-        ["Taller de Permacultura", "Vivero Comunal", "taller"],
-        ["Ritual del Equinoccio", "Domo Liminal", "ritual"],
-        ["Estreno: Mareas de Datos", "Multiverso", "obra"],
-        ["Mercado de Trueque", "Plaza Oikos", "mercado"],
-    ];
+    const data: Array<[string, string, SocialEvent["kind"]]> = [];
     const now = Date.now();
     return data.map<SocialEvent>(([title, place, kind], i) => ({
         id: `evt-${i}`, title, place, kind,
@@ -418,13 +370,7 @@ const mockEvents: Adapter<"social.events"> = () => {
 };
 
 const mockThreads: Adapter<"social.threads"> = () => {
-    const data: Array<[string, string, MessageThread["kind"], string]> = [
-        ["Maya Rendón", "¿Vienes al taller del sábado?", "directo", "#10b981"],
-        ["Junta Oikos", "Excedente enrutado, gracias por el voto.", "junta", "#f59e0b"],
-        ["Sangha Norte", "Iniciamos protocolo de mitosis 🌱", "grupo", "#38bdf8"],
-        ["Kael Torres", "Te paso el borrador de la propuesta.", "directo", "#a855f7"],
-        ["Colectivo Faro", "Nodo LoRa levantado en el cerro.", "grupo", "#ec4899"],
-    ];
+    const data: Array<[string, string, MessageThread["kind"], string]> = [];
     const now = Date.now();
     return data.map<MessageThread>(([name, lastMessage, kind, accent], i) => ({
         id: `th-${i}`, name, lastMessage, kind, accent,
@@ -435,13 +381,7 @@ const mockThreads: Adapter<"social.threads"> = () => {
 };
 
 const mockProjects: Adapter<"productivity.projects"> = () => {
-    const data: Array<[string, Project["status"], string, string]> = [
-        ["Forja de Widgets v2", "activo", "Migrar widgets gen1 al kit adaptativo", "#a855f7"],
-        ["Vivero Comunal", "activo", "Instalar captación de agua", "#10b981"],
-        ["Nodo Mesh del Cerro", "revision", "Auditoría de cobertura LoRa", "#38bdf8"],
-        ["Carta Sonora Equinoccio", "pausado", "Mezcla final en el Multiverso", "#ec4899"],
-        ["Bóveda de Semillas", "completado", "Replicación entre 3 nodos", "#f59e0b"],
-    ];
+    const data: Array<[string, Project["status"], string, string]> = [];
     const now = Date.now();
     return data.map<Project>(([name, status, nextMilestone, accent], i) => ({
         id: `proj-${i}`, name, status, nextMilestone, accent,
@@ -452,12 +392,7 @@ const mockProjects: Adapter<"productivity.projects"> = () => {
 };
 
 const mockPaths: Adapter<"education.paths"> = () => {
-    const data: Array<[string, string, string, string, LearningPath["mentorKind"], string]> = [
-        ["Intro a la Ontocracia", "política", "Voto delegado líquido", "Exocórtex", "ia", "#a855f7"],
-        ["Permacultura Aplicada", "ecología", "Diseño de bancal en espiral", "Maya Rendón", "humano", "#10b981"],
-        ["Redes Mesh Soberanas", "tecnología", "Levanta un nodo LoRa", "Colectivo Faro", "hibrido", "#38bdf8"],
-        ["Criptografía ZK", "tecnología", "Simula un voto anónimo", "Exocórtex", "ia", "#f59e0b"],
-    ];
+    const data: Array<[string, string, string, string, LearningPath["mentorKind"], string]> = [];
     return data.map<LearningPath>(([title, discipline, nextLesson, mentor, mentorKind, accent], i) => ({
         id: `path-${i}`, title, discipline, nextLesson, mentor, mentorKind, accent,
         progress: jitter(`lpr${i}`, 0.1, 0.95, 32000),
@@ -465,13 +400,7 @@ const mockPaths: Adapter<"education.paths"> = () => {
 };
 
 const mockNotifications: Adapter<"common.notifications"> = () => {
-    const data: Array<[string, string, Notification["kind"]]> = [
-        ["Propuesta en votación", "Renta básica de recursos entra en fase de votación. Quedan 2 días.", "governance"],
-        ["Excedente enrutado", "Tu nodo donó 1.8 kW al vivero comunal hoy.", "success"],
-        ["Mención de Maya R.", "Te etiquetó en el taller de permacultura.", "social"],
-        ["Sincronización del Códice", "Indexado completado: 8 entidades nuevas.", "info"],
-        ["Carga cognitiva alta", "Tu Exocórtex sugiere una pausa de 12 min.", "warning"],
-    ];
+    const data: Array<[string, string, Notification["kind"]]> = [];
     const now = Date.now();
     return data.map<Notification>(([title, body, kind], i) => ({
         id: `ntf-${i}`, title, body, kind,
@@ -496,24 +425,7 @@ const mockCoherence: Adapter<"wellness.coherence"> = () => {
 };
 
 const mockInitiatives: Adapter<"politics.initiatives"> = () => {
-    const data: Array<[string, string, string, CivicInitiative["stage"], CivicInitiative["scope"], string | undefined, string[]]> = [
-        ["La calle frente a mi casa está destruida y es peligrosa de noche",
-            "Rehabilitación y alumbrado solar de la Calle del Tejar",
-            "Se propone repavimentar con adoquín drenante y desplegar luminarias solares autónomas en el tramo norte de la Calle del Tejar, priorizando la seguridad peatonal nocturna.",
-            "firmas", "vecinal", "Calle del Tejar, Sangha Norte", ["Ord. Movilidad Suave §4", "Carta del Oikos §12"]],
-        ["No hay sombra en la plaza y en verano nadie puede usarla",
-            "Bosque comestible de sombra en la Plaza Central",
-            "Plantación de un dosel de árboles frutales nativos para generar sombra y alimento libre en la Plaza Central, integrando riego con aguas grises recicladas.",
-            "debate", "municipal", "Plaza Central", ["Ley de Soberanía Alimentaria §7"]],
-        ["El agua del arroyo baja sucia desde el taller del cerro",
-            "Auditoría ecológica del vertido en el Arroyo del Cerro",
-            "Apertura de una investigación comunitaria sobre la calidad del agua y trazabilidad del vertido, con sensores ciudadanos y publicación abierta de resultados.",
-            "redaccion", "biorregional", "Arroyo del Cerro", ["Invariante de Transparencia", "Protocolo de Aguas §3"]],
-        ["Deberíamos poder votar las fiestas desde casa sin ir al centro",
-            "Voto remoto verificable para festividades locales",
-            "Habilitar firma criptográfica de conocimiento cero para decidir el calendario de festividades sin desplazamiento, manteniendo 'una persona, una voz'.",
-            "queja", "municipal", undefined, []],
-    ];
+    const data: Array<[string, string, string, CivicInitiative["stage"], CivicInitiative["scope"], string | undefined, string[]]> = [];
     const now = Date.now();
     return data.map<CivicInitiative>(([rawComplaint, draftedTitle, draftedProposal, stage, scope, place, relatedLaws], i) => ({
         id: `init-${i}`, rawComplaint, draftedTitle, draftedProposal, stage, scope, place, relatedLaws,
@@ -531,14 +443,7 @@ const mockTreasury: Adapter<"politics.treasury"> = () => {
         { id: "ecologia", label: "Regeneración Ecológica", color: "#22c55e", amount: 0 },
         { id: "cultura", label: "Cultura y Arte", color: "#ec4899", amount: 0 },
     ];
-    const allocRaw: Array<[string, string, string, number]> = [
-        ["salud", "Clínica comunitaria del Cerro", "Gremio de Sanación", 48000],
-        ["educacion", "Biblioteca-laboratorio Sangha Norte", "Colectivo Mayéutica", 32000],
-        ["infra", "Captación pluvial + cisternas", "Brigada Hidráulica", 56000],
-        ["ecologia", "Reforestación de la cuenca", "Junta de Biólogos Locales", 41000],
-        ["cultura", "Anfiteatro de frecuencias", "Telar Ciberdélico", 18500],
-        ["infra", "Red mesh LoRa del valle", "Colectivo Faro", 23000],
-    ];
+    const allocRaw: Array<[string, string, string, number]> = [];
     const now = Date.now();
     const allocations = allocRaw.map(([sector, label, contractor, amount], i) => {
         const spent = Math.round(amount * jitter(`spent${i}`, 0.15, 0.95, 40000));
@@ -554,23 +459,14 @@ const mockTreasury: Adapter<"politics.treasury"> = () => {
         period: "Ciclo 2026 · Q2",
         sectors,
         allocations,
-        pendingVotes: [
-            { id: "pv-0", label: "Ampliación del vivero vertical", amount: 27000, deadlineTs: now + 1000 * 60 * 60 * 38 },
-            { id: "pv-1", label: "Flota de drones de reparto", amount: 64000, deadlineTs: now + 1000 * 60 * 60 * 92 },
-        ],
+        pendingVotes: [],
     };
 };
 
 const mockResonance: Adapter<"politics.resonance"> = () => {
-    const topics: Array<[string, ResonanceState["topics"][number]["emotion"], string, string]> = [
-        ["Renta básica de recursos", "esperanza", "La automatización destruirá el incentivo a contribuir si todo es gratuito.", "/network/politics?t=renta"],
-        ["Vertido en el Arroyo del Cerro", "indignacion", "El taller emplea a 30 familias; cerrarlo de golpe causaría más daño social.", "/network/politics?t=arroyo"],
-        ["Calendario de festividades", "consenso", "Demasiadas fiestas reducen la productividad de los gremios esenciales.", "/network/culture?t=fiestas"],
-        ["Moratoria de vigilancia", "urgencia", "Sin cámaras, la respuesta ante emergencias médicas en la calle se ralentiza.", "/network/politics?t=vigilancia"],
-        ["Mitosis de la Sangha Norte", "curiosidad", "Dividir la comunidad podría romper vínculos afectivos ya consolidados.", "/hub?t=mitosis"],
-    ];
+    const topics: Array<[string, ResonanceState["topics"][number]["emotion"], string, string]> = [];
     const emotions: ResonanceState["topics"][number]["emotion"][] = topics.map(t => t[1]);
-    const dominant = emotions[Math.floor(jitter("resdom", 0, emotions.length - 0.01, 24000))];
+    const dominant = emotions.length ? emotions[Math.floor(jitter("resdom", 0, emotions.length - 0.01, 24000))] : "consenso";
     return {
         window: "Últimas 24 h",
         dominantEmotion: dominant,
@@ -590,14 +486,7 @@ const mockResonance: Adapter<"politics.resonance"> = () => {
 };
 
 const mockGifts: Adapter<"oikos.gifts"> = () => {
-    const data: Array<[string, GiftOffer["kind"], GiftOffer["category"], string, GiftOffer["urgency"], string]> = [
-        ["Cestas de tomate y albahaca", "bien", "alimentos", "Huerto del Sur", "alta", "#10b981"],
-        ["Taladro percutor + brocas", "bien", "herramientas", "Taller Comunal", "baja", "#f59e0b"],
-        ["Asesoría en permacultura (2h)", "servicio", "asesoria", "Maya Rendón", "media", "#22c55e"],
-        ["Abrigos de invierno (varios)", "bien", "ropa", "Ropería Libre", "media", "#38bdf8"],
-        ["Mural colaborativo: busco manos", "servicio", "arte", "Telar Ciberdélico", "baja", "#ec4899"],
-        ["Cuidado de niñes esta tarde", "servicio", "tiempo", "Círculo de Crianza", "alta", "#a855f7"],
-    ];
+    const data: Array<[string, GiftOffer["kind"], GiftOffer["category"], string, GiftOffer["urgency"], string]> = [];
     return data.map<GiftOffer>(([title, kind, category, giver, urgency, accent], i) => ({
         id: `gift-${i}`, title, kind, category, giver, urgency, accent,
         distanceKm: Math.round(jitter(`gd${i}`, 0.2, 8.5, 40000) * 10) / 10,
