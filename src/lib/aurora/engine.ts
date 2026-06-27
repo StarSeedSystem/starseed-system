@@ -344,8 +344,11 @@ export function useAuroraEngine(): AuroraEngine {
       reply = reply || "Hecho.";
       setLastReply(reply);
       speak(reply);
-    } catch {
-      const m = "No pude contactar a Astraura ahora mismo. Inténtalo de nuevo.";
+    } catch (e: any) {
+      const d = (e?.message ? String(e.message) : "").trim();
+      const m = d && !/failed to fetch|networkerror|load failed/i.test(d)
+        ? `Astraura: ${d}`
+        : "No pude contactar a Astraura. Revisa tu proveedor de IA en Ajustes → IA & Modelos.";
       setLastReply(m); speak(m);
     }
   }, [router, speak, setEnabled]);
