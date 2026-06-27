@@ -57,16 +57,17 @@ export function useCafePosts(options: UseCafePostsOptions = {}): UseCafePostsRes
             if (!mountedRef.current) return;
 
             if (error || !data || data.length === 0) {
-                setPosts(getFallbackPosts());
-                setUsingFallback(true);
+                // Sin datos reales: estado vacío real (sin datos de ejemplo).
+                setPosts([]);
+                setUsingFallback(false);
             } else {
                 setPosts((data as CafePostRow[]).map(normalizeCafePost));
                 setUsingFallback(false);
             }
         } catch {
             if (!mountedRef.current) return;
-            setPosts(getFallbackPosts());
-            setUsingFallback(true);
+            setPosts([]);
+            setUsingFallback(false);
         } finally {
             if (mountedRef.current) setLoading(false);
         }
