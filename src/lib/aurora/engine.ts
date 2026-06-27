@@ -174,7 +174,7 @@ export function useAuroraEngine(): AuroraEngine {
     try {
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(clean);
-      u.lang = p.voice?.lang || "es-ES";
+      u.lang = p.voice?.lang || "es-MX";
       // Mapear un par de parámetros sobre la entrega.
       const energia = Number(p.params?.energia ?? 60);
       const calidez = Number(p.params?.calidez ?? 70);
@@ -183,7 +183,12 @@ export function useAuroraEngine(): AuroraEngine {
       u.pitch = Math.max(0, Math.min(2, basePitch + (calidez - 50) / 250)); // calidez → +pitch leve
       u.rate = Math.max(0.1, Math.min(2, baseRate + (energia - 50) / 200)); // energía → +rate
       const all = window.speechSynthesis.getVoices() || [];
-      const v = (p.voice?.voiceURI && all.find((x) => x.voiceURI === p.voice.voiceURI)) || all.find((x) => x.lang === u.lang) || null;
+      const v = (p.voice?.voiceURI && all.find((x) => x.voiceURI === p.voice.voiceURI))
+        || all.find((x) => /m[oó]nica/i.test(x.name) && /es[-_]MX/i.test(x.lang))
+        || all.find((x) => /es[-_]MX/i.test(x.lang))
+        || all.find((x) => x.lang === u.lang)
+        || all.find((x) => (x.lang || "").toLowerCase().startsWith("es"))
+        || null;
       if (v) u.voice = v;
       u.onstart = () => setSpeaking(true);
       u.onend = () => setSpeaking(false);
@@ -354,7 +359,7 @@ export function useAuroraEngine(): AuroraEngine {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return null;
     const rec = new SR();
-    rec.lang = activeRef.current.voice?.lang || "es-ES";
+    rec.lang = activeRef.current.voice?.lang || "es-MX";
     rec.interimResults = true;
     rec.continuous = false;
     rec.maxAlternatives = 1;
