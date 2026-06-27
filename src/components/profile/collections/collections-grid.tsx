@@ -8,37 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Folder, PlusCircle, Search, Link2, FileText } from "lucide-react";
 
-const collections = [
-    {
-        id: 'collection-1',
-        name: "Investigación para Artículo de IA",
-        description: "Recursos y borradores para el próximo artículo sobre la conciencia en LLMs.",
-        items: [
-            { id: 'item-1-1', type: 'profile', name: 'Dra. Evelyn Reed', avatar: 'https://placehold.co/40x40.png' },
-            { id: 'item-1-2', type: 'page', name: 'Grupo de Estudio de IA', avatar: 'https://placehold.co/40x40.png' },
-            { id: 'item-1-3', type: 'file', name: 'Borrador del Artículo.docx', icon: <FileText className="w-6 h-6 text-muted-foreground" /> }
-        ]
-    },
-    {
-        id: 'collection-2',
-        name: "Inspiración para Diseño Ciberdélico",
-        description: "Arte generativo, paletas de colores y referencias visuales.",
-        items: [
-            { id: 'item-2-1', type: 'file', name: 'Paleta de Colores Primarios.png', icon: <FileText className="w-6 h-6 text-muted-foreground" /> },
-            { id: 'item-2-2', type: 'file', name: 'Animación de Transición.mp4', icon: <FileText className="w-6 h-6 text-muted-foreground" /> },
-            { id: 'item-2-3', type: 'page', name: 'Artistas por la Singularidad', avatar: 'https://placehold.co/40x40.png' },
-        ]
-    },
-    {
-        id: 'collection-3',
-        name: "Propuestas Políticas a Seguir",
-        description: "Leyes y propuestas importantes en varias E.F.",
-        items: [
-            { id: 'item-3-1', type: 'page', name: 'E.F. del Valle Central', avatar: 'https://placehold.co/40x40.png' },
-            { id: 'item-3-2', type: 'publication', name: 'Ley de Soberanía de Datos Personales', icon: <FileText className="w-6 h-6 text-muted-foreground" /> }
-        ]
-    }
-];
+type CollectionItem = { id: string; type: string; name: string; avatar?: string; icon?: React.ReactNode };
+type Collection = { id: string; name: string; description: string; items: CollectionItem[] };
+
+// Sin colecciones de ejemplo: el usuario crea las suyas. Estado vacío real.
+const collections: Collection[] = [];
 
 export function CollectionsGrid() {
     const [selectedCollection, setSelectedCollection] = useState<(typeof collections)[0] | null>(null);
@@ -69,6 +43,11 @@ export function CollectionsGrid() {
                     Crear Nueva Colección
                 </Button>
             </div>
+            {collections.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-white/12 p-12 text-center text-sm text-muted-foreground">
+                    Aún no tienes colecciones. Crea la primera para organizar perfiles, páginas y archivos.
+                </div>
+            )}
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {collections.map(collection => (
                     <Card key={collection.id} className="hover:shadow-lg transition-shadow flex flex-col group hover:border-primary/30">
