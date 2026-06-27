@@ -228,26 +228,27 @@ export default function EducationPage() {
         </TabsContent>
 
         <TabsContent value="featured" className="mt-6">
-            <div className="flex flex-col gap-8">
-                <div>
-                    <h2 className="text-2xl font-bold font-headline mb-2">Populares en Ciencia</h2>
-                    <p className="text-muted-foreground">Explora cursos y artículos sobre los fundamentos científicos de nuestro universo.</p>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
-                        <CourseCard course={courses.find(c => c.id === 'course-1')!} />
-                        <ArticleCard article={articles.find(a => a.id === 'article-1')!} />
-                        <ArticleCard article={articles.find(a => a.id === 'article-4')!} />
+            {courses.length === 0 && articles.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/12 p-12 text-center">
+                    <BookOpen className="h-10 w-10 text-muted-foreground" />
+                    <h2 className="text-xl font-bold font-headline">Aún no hay contenido destacado</h2>
+                    <p className="max-w-md text-sm text-muted-foreground">
+                        Todavía no se han publicado cursos ni artículos en la red. Crea el primero
+                        o explora las categorías y temas de conocimiento.
+                    </p>
+                </div>
+            ) : (
+                <div className="flex flex-col gap-8">
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {courses.map((c) => (
+                            <CourseCard key={c.id} course={c} />
+                        ))}
+                        {articles.map((a) => (
+                            <ArticleCard key={a.id} article={a} />
+                        ))}
                     </div>
                 </div>
-                <div>
-                    <h2 className="text-2xl font-bold font-headline mb-2">Debates en Sociedad</h2>
-                    <p className="text-muted-foreground">Analiza las estructuras, éticas y tecnologías que moldean nuestra realidad colectiva.</p>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
-                         <CourseCard course={courses.find(c => c.id === 'course-2')!} />
-                        <ArticleCard article={articles.find(a => a.id === 'article-2')!} />
-                        <ArticleCard article={articles.find(a => a.id === 'article-3')!} />
-                    </div>
-                </div>
-            </div>
+            )}
         </TabsContent>
     </Tabs>
 
