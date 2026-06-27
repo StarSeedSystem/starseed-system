@@ -54,90 +54,16 @@ interface ContributionRecommendation {
     calendarItemId?: string; // Reference to calendar event if created
 }
 
-const initialRecommendations: ContributionRecommendation[] = [
-    {
-        id: "rec-1",
-        title: "Optimización de Código en Bóvedas de Datos Personales",
-        source: "Ley de Soberanía de Datos (Democrática)",
-        urgency: "Crítico",
-        urgencyVal: 4,
-        relevance: 98,
-        date: "2026-05-29",
-        description: "Se necesita un auditor de contratos inteligentes y criptógrafo para optimizar la latencia en las transferencias de semillas (Seeds) y resguardo de claves.",
-        potentialBadge: "Criptógrafo de la Red",
-        members: [
-            { name: "Carlos M.", role: "Desarrollador Blockchain", avatar: "https://placehold.co/40x40.png", contributionType: 'code' },
-            { name: "Elena R.", role: "Auditora de Seguridad", avatar: "https://placehold.co/40x40.png", contributionType: 'organization' }
-        ],
-        tags: ["Criptografía", "Contratos", "Seguridad"],
-        aiAppGenerated: false,
-        messagingGroupCreated: true,
-        goalsAchieved: false
-    },
-    {
-        id: "rec-2",
-        title: "Diseño 3D de Domo de Permacultura Central",
-        source: "Comunidad de Permacultura",
-        urgency: "Alto",
-        urgencyVal: 3,
-        relevance: 85,
-        date: "2026-05-27",
-        description: "Requerimos diseñadores 3D o arquitectos para modelar el nuevo domo geodésico regenerativo. Se integrará como Asset 3D en la biblioteca.",
-        potentialBadge: "Arquitecto Bio-Digital",
-        members: [
-            { name: "Sofia T.", role: "Diseñadora 3D", avatar: "https://placehold.co/40x40.png", contributionType: 'design' }
-        ],
-        tags: ["Modelado 3D", "Arquitectura", "Permacultura"],
-        aiAppGenerated: true,
-        aiAppName: "Generador Solar de Domo",
-        messagingGroupCreated: false,
-        goalsAchieved: false
-    },
-    {
-        id: "rec-3",
-        title: "Creación de Contenidos para el Currículo de IA",
-        source: "Consejo Global (Educación)",
-        urgency: "Medio",
-        urgencyVal: 2,
-        relevance: 72,
-        date: "2026-05-28",
-        description: "Redacción de guías prácticas y lecciones interactivas para el nivel de iniciación en Ética de Inteligencia Artificial.",
-        potentialBadge: "Educador de la Red",
-        members: [],
-        tags: ["Educación", "IA", "Ética"],
-        aiAppGenerated: false,
-        messagingGroupCreated: false,
-        goalsAchieved: false
-    }
-];
+const initialRecommendations: ContributionRecommendation[] = [];
 
-const initialParticipations = [
-    { id: "part-1", type: "Propuesta Activa", title: "Ley de Soberanía de Datos Personales", status: "60% completado", href: "/network/politics", icon: <Vote className="w-5 h-5 text-primary" />, urgency: "alta", progress: 60, potentialBadge: "Guardián de Datos" },
-    { id: "part-2", type: "Proyecto Activo", title: "Sistema de Riego Comunitario Inteligente", status: "75% completado", href: "#", icon: <Briefcase className="w-5 h-5 text-emerald-400" />, urgency: "normal", progress: 75, potentialBadge: "Eco-Líder" },
-    { id: "part-3", type: "Caso Judicial", title: "Disputa de Límites - Huerto A vs B", status: "40% completado", href: "/network/politics", icon: <Shield className="w-5 h-5 text-amber-400" />, urgency: "normal", progress: 40, potentialBadge: "Mediador StarSeed" },
-    { id: "part-4", type: "Curso en Curso", title: "Ética en la Inteligencia Artificial", status: "85% completado", href: "#", icon: <BookOpen className="w-5 h-5 text-cyan-400" />, urgency: "normal", progress: 85, potentialBadge: "Sabio de la Red" },
-];
+const initialParticipations: any[] = [];
 
-const initialGoals = [
-    { id: "goal-1", title: "Defensa de Datos", progress: 80, badge: "Insignia Guardián", detail: "800/1000 horas", description: "Auditoría de seguridad y soberanía de datos en redes descentralizadas.", tag: "Seguridad" },
-    { id: "goal-2", title: "Comunidades Verdes", progress: 45, badge: "Insignia Eco-Líder", detail: "5/10 domos", description: "Apoya el diseño 3D y permacultura regenerativa local.", tag: "Permacultura" },
-    { id: "goal-3", title: "Educación de IA", progress: 90, badge: "Insignia Sabio Digital", detail: "9/10 lecciones", description: "Crea guías prácticas de ética y alineación de agentes autónomos.", tag: "Educación" }
-];
+const initialGoals: any[] = [];
 
 
-const myPages = [
-    { name: "E.F. del Valle Central", type: "Entidad Federativa", avatar: "https://placehold.co/40x40.png", members: 2847, href: "/entidad/ef-valle-central", activity: "Alta" },
-    { name: "Comunidad de Permacultura", type: "Comunidad", avatar: "https://placehold.co/40x40.png", members: 128, href: "/profile/comunidad-permacultura", activity: "Media" },
-    { name: "Partido: Coalición Verde", type: "Partido Político", avatar: "https://placehold.co/40x40.png", members: 2890, href: "/partido/coalicion-verde", activity: "Alta" },
-    { name: "Asamblea Local Oikos Norte", type: "Asamblea", avatar: "https://placehold.co/40x40.png", members: 312, href: "/grupo/asamblea-local-oikos-norte", activity: "Alta" },
-    { name: "Sangha Norte", type: "Comunidad", avatar: "https://placehold.co/40x40.png", members: 128, href: "/pagina/sangha-norte", activity: "Media" },
-];
+const myPages: { name: string; type: string; avatar: string; members: number; href: string; activity: string }[] = [];
 
-const voteManagement = [
-    { proposal: "Ley de Soberanía de Datos Personales", ef: "E.F. Valle Central", deadline: "3 días", voted: false, urgency: "Urgente" },
-    { proposal: "Protocolo de Energía Renovable Comunitaria", ef: "E.F. Norte Verde", deadline: "12 días", voted: true, urgency: "Alta" },
-    { proposal: "Currículo Abierto de Educación Universal", ef: "Consejo Global", deadline: "21 días", voted: false, urgency: "Media" },
-];
+const voteManagement: { proposal: string; ef: string; deadline: string; voted: boolean; urgency: string }[] = [];
 
 const urgencyColors: Record<string, string> = {
     "alta": "text-red-400 bg-red-400/10 border-red-400/20",
@@ -177,18 +103,8 @@ export default function HubPage() {
     const [expandedParticipation, setExpandedParticipation] = useState<string | null>(null);
 
     // Interactive messaging group chat state per recommendation
-    const [chats, setChats] = useState<Record<string, { sender: string; text: string; time: string; avatar: string }[]>>({
-        "rec-1": [
-            { sender: "Carlos M.", text: "¡Hola! ¿Cómo vamos con la auditoría de seguridad?", time: "12:15", avatar: "https://placehold.co/40x40.png" },
-            { sender: "Elena R.", text: "Ya optimicé el 40% del contrato de Seeds. ¿Quién revisa las claves?", time: "12:20", avatar: "https://placehold.co/40x40.png" }
-        ],
-        "rec-2": [
-            { sender: "Sofia T.", text: "Terminé el modelo geodésico base en .cif. ¿Les parece bien la altura de 15m?", time: "10:30", avatar: "https://placehold.co/40x40.png" }
-        ],
-        "rec-3": [
-            { sender: "Brenda S.", text: "He preparado el esquema de la Lección 1. ¿Desean que genere las preguntas de validación?", time: "09:00", avatar: "https://placehold.co/40x40.png" }
-        ]
-    });
+    // Sin chats de ejemplo: los canales reales se poblarán con la actividad real.
+    const [chats, setChats] = useState<Record<string, { sender: string; text: string; time: string; avatar: string }[]>>({});
     const [chatInputs, setChatInputs] = useState<Record<string, string>>({});
 
     // Dynamic AI app simulation states
@@ -229,7 +145,7 @@ export default function HubPage() {
 
     // Dynamic Interaction States
     const [joiningId, setJoiningId] = useState<string | null>(null);
-    const [joinName, setJoinName] = useState('Alex Duran');
+    const [joinName, setJoinName] = useState('');
     const [joinRole, setJoinRole] = useState('Auditor de Datos');
     const [joinType, setJoinType] = useState<'code' | 'design' | 'writing' | 'organization' | 'other'>('code');
 
@@ -302,7 +218,7 @@ export default function HubPage() {
         // Initialize chat mock for new recommendation
         setChats(prev => ({
             ...prev,
-            [newRec.id]: [{ sender: "Exocórtex (IA)", text: `Bienvenido al canal coordinado para "${newRec.title}". ¡Postúlate o inicia un test dinámico!`, time: "12:00", avatar: "https://placehold.co/40x40.png" }]
+            [newRec.id]: [{ sender: "Exocórtex (IA)", text: `Bienvenido al canal coordinado para "${newRec.title}". ¡Postúlate o inicia un test dinámico!`, time: "12:00", avatar: "" }]
         }));
 
         // Reset form
@@ -358,7 +274,7 @@ export default function HubPage() {
             if (rec.id === id) {
                 return {
                     ...rec,
-                    members: [...rec.members, { name: joinName, role: joinRole, avatar: "https://placehold.co/40x40.png", contributionType: joinType }],
+                    members: [...rec.members, { name: joinName, role: joinRole, avatar: "", contributionType: joinType }],
                     calendarItemId: calendarId
                 };
             }
@@ -457,10 +373,10 @@ export default function HubPage() {
         if (!text) return;
 
         const newMsg = {
-            sender: "Tú (Alex Duran)",
+            sender: "Tú",
             text: text,
             time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-            avatar: "https://placehold.co/40x40.png"
+            avatar: ""
         };
 
         setChats(prev => ({
@@ -479,7 +395,7 @@ export default function HubPage() {
                 sender: "Exocórtex (IA)",
                 text: `He recibido tu anotación. El nodo local ha sido notificado sobre la contribución de tipo "${text.slice(0, 20)}...".`,
                 time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-                avatar: "https://placehold.co/40x40.png"
+                avatar: ""
             };
             setChats(prev => ({
                 ...prev,
@@ -1850,6 +1766,9 @@ export default function HubPage() {
                             <Plus className="w-4 h-4 mr-1.5" /> Nueva Página
                         </Button>
                     </div>
+                    {myPages.length === 0 && (
+                        <p className="rounded-2xl border border-dashed border-white/12 p-10 text-center text-sm text-muted-foreground">Aún no tienes páginas activas. Crea la primera.</p>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {myPages.map((page, i) => (
                             <Link key={i} href={page.href}>
@@ -1995,6 +1914,9 @@ export default function HubPage() {
                 {/* ── GESTIÓN DE VOTOS ── */}
                 <TabsContent value="vote-management" className="mt-6 animate-in fade-in-50 duration-500">
                     <div className="space-y-4">
+                        {voteManagement.length === 0 && (
+                            <p className="rounded-2xl border border-dashed border-white/12 p-10 text-center text-sm text-muted-foreground">No hay votaciones pendientes ahora mismo.</p>
+                        )}
                         {voteManagement.map((item, i) => (
                             <Card key={i} className="liquid-glass-panel group shadow-lg hover:border-primary/40 transition-all duration-300 p-2 relative overflow-hidden">
                                 <div className={cn("absolute left-0 top-0 bottom-0 w-1",
