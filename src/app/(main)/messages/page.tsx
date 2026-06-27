@@ -158,7 +158,7 @@ function realMessageToLocal(m: RealMessage, currentUid: string | null): LocalMes
     return {
         id: m.id,
         author: mine ? 'Tú' : (m.sender ?? 'Miembro'),
-        avatar: 'https://placehold.co/100x100.png',
+        avatar: '',
         dataAiHint: mine ? 'user avatar' : 'member avatar',
         timestamp: m.created_at
             ? new Date(m.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
@@ -182,7 +182,7 @@ function realConversationToAugmented(
         id: c.id,
         type: channelType === 'dm' ? 'dm' : 'group',
         name: c.title || 'Conversación',
-        avatar: 'https://placehold.co/100x100.png',
+        avatar: '',
         dataAiHint: 'network conversation',
         unreadCount: 0,
         lastMessage: last ? previewOfContent(last.content) || 'En la red' : 'En la red',
@@ -1129,7 +1129,7 @@ export default function MessagesPage() {
             const newMsg: LocalMessage = {
                 id: `local-${Date.now()}`,
                 author: 'Tú',
-                avatar: 'https://placehold.co/100x100.png',
+                avatar: '',
                 dataAiHint: 'user avatar',
                 timestamp: 'ahora',
                 content: { type: 'text', text },
@@ -1164,7 +1164,7 @@ export default function MessagesPage() {
             const newMsg: LocalMessage = {
                 id: `local-${Date.now()}`,
                 author: 'Tú',
-                avatar: 'https://placehold.co/100x100.png',
+                avatar: '',
                 dataAiHint: 'user avatar',
                 timestamp: 'ahora',
                 content,
