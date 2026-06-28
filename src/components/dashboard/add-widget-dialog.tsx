@@ -10,6 +10,7 @@ import {
     Tornado, Globe, MoonStar, Sparkles, Radio, Calculator, ListChecks,
     MessageSquare, BellRing, Zap, Search, Star, ChevronRight, Wallet,
     Music, Waves, AudioWaveform, Satellite, SlidersHorizontal, Orbit,
+    CalendarDays, Users, Globe2, BookMarked, Vault, FolderOpen,
     type LucideIcon
 } from "lucide-react";
 import { useState, useMemo } from "react";
@@ -354,6 +355,63 @@ const AVAILABLE_WIDGETS: WidgetDefinition[] = [
         icon: <Heart className="h-5 w-5 text-red-500" />,
         primaryCategory: 'social', secondaryCategories: ['utilidades'],
         tags: ['bienestar', 'salud', 'coherencia'],
+    },
+    // ── Áreas del SOSD con datos reales en vivo ──
+    {
+        type: 'MY_EVENTS', title: 'Eventos',
+        description: 'Eventos reales próximos de la red, con cuenta atrás. Cada evento abre su página /evento. En vivo.',
+        icon: <CalendarDays className="h-5 w-5 text-amber-400" />,
+        primaryCategory: 'social', secondaryCategories: ['explorador'],
+        tags: ['eventos', 'agenda', 'encuentros', 'asambleas', 'talleres', 'calendario', 'real'], isPopular: true,
+    },
+    {
+        type: 'MY_GROUPS', title: 'Mis Grupos',
+        description: 'Grupos reales (asambleas, círculos, colectivos) y tus membresías. Cada grupo abre /grupo. En vivo.',
+        icon: <Users className="h-5 w-5 text-emerald-400" />,
+        primaryCategory: 'social', secondaryCategories: ['red'],
+        tags: ['grupos', 'colectivos', 'círculos', 'asambleas', 'membresías', 'comunidad', 'real'], isPopular: true,
+    },
+    {
+        type: 'COMMUNITIES', title: 'Comunidades',
+        description: 'Comunidades reales de la red (sanghas, biorregiones). Cada comunidad abre su /pagina. En vivo.',
+        icon: <Globe2 className="h-5 w-5 text-lime-400" />,
+        primaryCategory: 'social', secondaryCategories: ['explorador', 'red'],
+        tags: ['comunidades', 'sanghas', 'biorregiones', 'colectivos', 'red social', 'real'], isPopular: true,
+    },
+    {
+        type: 'FEDERATED_ENTITIES', title: 'Entidades Federativas',
+        description: 'Entidades e instituciones reales de la red. Cada entidad abre su /pagina. En vivo.',
+        icon: <Network className="h-5 w-5 text-purple-400" />,
+        primaryCategory: 'red', secondaryCategories: ['social', 'explorador'],
+        tags: ['entidades', 'instituciones', 'federación', 'proyectos', 'red', 'real'],
+    },
+    {
+        type: 'MEMORIES', title: 'Memorias',
+        description: 'Tus memorias soberanas (Exocórtex). Abre el área de Memorias. En vivo, privado por sesión.',
+        icon: <BookMarked className="h-5 w-5 text-sky-400" />,
+        primaryCategory: 'archivos', secondaryCategories: ['ia'],
+        tags: ['memorias', 'exocortex', 'notas', 'conocimiento', 'personal', 'real'],
+    },
+    {
+        type: 'BRAINS', title: 'Cerebros',
+        description: 'Tus cerebros: contenedores de contexto IA (memorias, baúles, servidores). Abre Cerebros. En vivo.',
+        icon: <BrainCircuit className="h-5 w-5 text-purple-400" />,
+        primaryCategory: 'ia', secondaryCategories: ['sistema'],
+        tags: ['cerebros', 'ia', 'contexto', 'exocortex', 'servidores', 'real'],
+    },
+    {
+        type: 'VAULTS', title: 'Baúles',
+        description: 'Tus baúles de almacenamiento soberano y sus conexiones. Abre Baúles. En vivo, privado por sesión.',
+        icon: <Vault className="h-5 w-5 text-amber-400" />,
+        primaryCategory: 'sistema', secondaryCategories: ['archivos', 'privacidad'],
+        tags: ['baúles', 'almacenamiento', 'soberano', 'conexiones', 'datos', 'real'],
+    },
+    {
+        type: 'DOCUMENTS', title: 'Archivos',
+        description: 'Tus documentos soberanos. Abre Almacenes. En vivo, privado por sesión.',
+        icon: <FolderOpen className="h-5 w-5 text-yellow-400" />,
+        primaryCategory: 'archivos', secondaryCategories: ['sistema'],
+        tags: ['archivos', 'documentos', 'almacenes', 'ficheros', 'real'],
     },
 ];
 
