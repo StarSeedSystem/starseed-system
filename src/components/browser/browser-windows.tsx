@@ -69,6 +69,11 @@ import {
     X,
     RefreshCw,
     AlertTriangle,
+    Glasses,
+    Link2,
+    Settings,
+    ShieldCheck,
+    ArrowUpRight,
 } from "lucide-react";
 import {
     listWindows,
@@ -76,6 +81,7 @@ import {
     saveWindow,
     deleteWindow,
     setSuspended,
+    setVrAr,
     setView,
     setFolder,
     setGroup,
@@ -91,6 +97,19 @@ import {
     type BrowserWindow,
     type WindowView,
 } from "@/lib/browser/browser";
+import {
+    renderUrl,
+    openLink,
+    classifyLink,
+    hasProxyConfigured,
+    normalizeUrl,
+    type LinkKind,
+} from "@/lib/browser/browser";
+import { recordVisit } from "@/lib/browser/browser-settings";
+import { useRealtime } from "@/lib/realtime/realtime";
+import BrowserConfig from "@/components/browser/browser-config";
+import VrArFrame from "@/components/browser/vr-frame";
+import { useRouter } from "next/navigation";
 
 // ── Utilidades de presentación ──
 
@@ -137,7 +156,14 @@ function EmbeddedFrame({
     title: string;
     className?: string;
 }) {
-    const verdict = useMemo(() => isLikelyEmbeddable(url), [url]);
+    // Enruta la carga por el proxy/render tri-fuente del dominio "browser" si hay
+    // uno configurado. Con proxy NO pre-bloqueamos (el proxy puede renderizar
+    // sitios que rechazan el iframe directo).
+    const target = useMemo(() => renderUrl(url), [url]);
+    const verdict = useMemo(
+        () => (target.proxied ? ("try" as const) : isLikelyEmbeddable(url)),
+        [url, target.proxied],
+    );
     const [blocked, setBlocked] = useState(verdict === false);
     const [loaded, setLoaded] = useState(false);
     const [nonce, setNonce] = useState(0);
@@ -145,12 +171,13 @@ function EmbeddedFrame({
 
     // Reinicia el estado cuando cambia la URL o se fuerza recarga.
     useEffect(() => {
-        setBlocked(isLikelyEmbeddable(url) === false);
+        const v = target.proxied ? "try" : isLikelyEmbeddable(url);
+        setBlocked(v === false);
         setLoaded(false);
         if (timer.current) clearTimeout(timer.current);
         // Si en ~6s no hubo onLoad (típico de X-Frame-Options que aborta en silencio),
         // asumimos bloqueo y mostramos el fallback. Solo cuando no era "false" ya.
-        if (isLikelyEmbeddable(url) !== false) {
+        if (v !== false) {
             timer.current = setTimeout(() => {
                 setLoaded((done) => {
                     if (!done) setBlocked(true);
@@ -161,7 +188,7 @@ function EmbeddedFrame({
         return () => {
             if (timer.current) clearTimeout(timer.current);
         };
-    }, [url, nonce]);
+    }, [url, nonce, target.proxied]);
 
     if (!url) {
         return (
@@ -182,11 +209,12 @@ function EmbeddedFrame({
                 <AlertTriangle className="h-6 w-6 text-amber-300/80" />
                 <p className="text-sm text-white/70 max-w-xs">
                     Este sitio no permite incrustarse (bloquea el embebido por seguridad).
+                    {!hasProxyConfigured() && " Configura un servidor de proxy/render para incrustarlo."}
                 </p>
                 <p className="text-[11px] text-white/40 break-all max-w-xs">{url}</p>
                 <div className="flex gap-2">
                     <Button size="sm" variant="secondary" onClick={() => openInTab(url)}>
-                        <ExternalLink className="h-4 w-4" /> Abrir en pestaña nueva
+                        <ExternalLink className="h-4 w-4" /> Abrir en ventana externa
                     </Button>
                     <Button
                         size="sm"
@@ -205,6 +233,11 @@ function EmbeddedFrame({
 
     return (
         <div className={cn("relative", className)}>
+            {target.proxied && (
+                <span className="absolute right-1 top-1 z-10 rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] text-cyan-100">
+                    vía proxy{target.source ? ` · ${target.source}` : ""}
+                </span>
+            )}
             {!loaded && (
                 <div className="absolute inset-0 grid place-items-center text-white/30 text-xs">
                     Cargando…
@@ -212,7 +245,7 @@ function EmbeddedFrame({
             )}
             <iframe
                 key={nonce}
-                src={url}
+                src={target.rendered}
                 title={title}
                 sandbox={SANDBOX}
                 referrerPolicy="no-referrer"
@@ -236,15 +269,18 @@ function WindowCard({
     w,
     onChanged,
     onOpenFull,
+    onOpenVr,
     onToggleMulti,
     inMulti,
 }: {
     w: BrowserWindow;
     onChanged: () => void;
     onOpenFull: (w: BrowserWindow) => void;
+    onOpenVr: (w: BrowserWindow) => void;
     onToggleMulti: (id: string) => void;
     inMulti: boolean;
 }) {
+    const router = useRouter();
     const [open, setOpen] = useState(false);
     const [busy, setBusy] = useState(false);
     const [editMeta, setEditMeta] = useState(false);
@@ -310,6 +346,7 @@ function WindowCard({
                     folder: w.folder,
                     state: w.state,
                     suspended: w.suspended,
+                    vrAr: w.vrAr,
                 }),
             "Ventana guardada",
         );
@@ -363,6 +400,47 @@ function WindowCard({
         );
     }
 
+    // Abre/cierra la vista incrustada y registra la visita real en el historial.
+    function toggleOpen() {
+        setOpen((o) => {
+            const next = !o;
+            if (next && !w.suspended) void recordVisit(w.url, w.name);
+            return next;
+        });
+    }
+
+    // "Abrir enlace" funcional: clasifica el destino y lo abre con el mecanismo
+    // correcto — ruta interna de la OS (router.push), otro sistema StarSeed o URL
+    // externa (window.open nueva ventana/pestaña real). Registra historial.
+    function openExternalLink() {
+        const { kind, opened } = openLink(w.url, { router });
+        if (opened) {
+            void recordVisit(w.url, w.name);
+            const label: Record<LinkKind, string> = {
+                internal: "Abriendo ruta interna de StarSeed",
+                starseed: "Abriendo sistema StarSeed en ventana nueva",
+                external: "Abierto en ventana/pestaña nueva del navegador",
+            };
+            toast.success(label[kind]);
+        } else {
+            toast.error("No disponible en este contexto");
+        }
+    }
+
+    // Abre en pestaña externa real y registra la visita.
+    function openTabTracked() {
+        openInTab(w.url);
+        void recordVisit(w.url, w.name);
+    }
+
+    // Abre la ventana en el marco inmersivo VR/AR.
+    function openVr() {
+        onOpenVr(w);
+        void recordVisit(w.url, w.name);
+    }
+
+    const linkKind = classifyLink(w.url);
+
     return (
         <div
             className={cn(
@@ -388,6 +466,21 @@ function WindowCard({
                         <Badge variant="outline" className="border-white/15 text-white/50">
                             {VIEW_LABEL[w.state.view]}
                         </Badge>
+                        {linkKind === "starseed" && (
+                            <Badge variant="outline" className="border-violet-400/40 text-violet-200/80">
+                                StarSeed
+                            </Badge>
+                        )}
+                        {linkKind === "internal" && (
+                            <Badge variant="outline" className="border-emerald-400/40 text-emerald-200/80">
+                                interno
+                            </Badge>
+                        )}
+                        {w.vrAr && (
+                            <Badge variant="outline" className="border-indigo-400/40 text-indigo-200/80">
+                                VR/AR
+                            </Badge>
+                        )}
                     </div>
                     <p className="truncate text-xs text-white/40">{host}</p>
                     {(w.groupName || w.folder) && (
@@ -431,7 +524,7 @@ function WindowCard({
                 <Button
                     size="sm"
                     variant={open ? "secondary" : "outline"}
-                    onClick={() => setOpen((o) => !o)}
+                    onClick={toggleOpen}
                     disabled={busy}
                 >
                     {open ? <Minimize2 className="h-4 w-4" /> : <Layout className="h-4 w-4" />}
@@ -469,10 +562,37 @@ function WindowCard({
                 <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => openInTab(w.url)}
+                    onClick={openExternalLink}
+                    title={
+                        linkKind === "internal"
+                            ? "Abrir ruta interna de StarSeed"
+                            : linkKind === "starseed"
+                              ? "Abrir sistema StarSeed en ventana nueva"
+                              : "Abrir enlace en ventana/pestaña nueva real"
+                    }
+                >
+                    {linkKind === "internal" ? (
+                        <ArrowUpRight className="h-4 w-4" />
+                    ) : (
+                        <ExternalLink className="h-4 w-4" />
+                    )}
+                    {linkKind === "internal" ? "Ir (interno)" : "Abrir enlace"}
+                </Button>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={openTabTracked}
                     title="Abrir en pestaña nueva del navegador real"
                 >
                     <ExternalLink className="h-4 w-4" /> Pestaña
+                </Button>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={openVr}
+                    title="Abrir en marco inmersivo VR/AR (WebXR)"
+                >
+                    <Glasses className="h-4 w-4" /> VR/AR
                 </Button>
             </div>
 
@@ -495,6 +615,20 @@ function WindowCard({
                 </Button>
                 <Button size="sm" variant="ghost" onClick={askAstraura} title="Pedir a Astraura que navegue (Claude-in-Chrome)">
                     <Sparkles className="h-4 w-4" /> Astraura
+                </Button>
+                <Button
+                    size="sm"
+                    variant={w.vrAr ? "secondary" : "ghost"}
+                    onClick={() =>
+                        guard(
+                            () => setVrAr(w.id, !w.vrAr),
+                            w.vrAr ? "VR/AR desactivado para esta ventana" : "VR/AR activado para esta ventana",
+                        )
+                    }
+                    disabled={busy}
+                    title="Marcar esta ventana para abrirse en VR/AR por defecto"
+                >
+                    <Glasses className="h-4 w-4" /> {w.vrAr ? "VR/AR ✓" : "Marcar VR/AR"}
                 </Button>
                 <Button
                     size="sm"
@@ -700,6 +834,10 @@ export default function BrowserWindows() {
     const [groupBy, setGroupBy] = useState<"group" | "folder">("group");
     const [multi, setMulti] = useState<string[]>([]);
     const [full, setFull] = useState<BrowserWindow | null>(null);
+    const [vrWin, setVrWin] = useState<BrowserWindow | null>(null);
+    const [showConfig, setShowConfig] = useState(false);
+    const [newVr, setNewVr] = useState(false);
+    const router = useRouter();
 
     const refresh = useCallback(async () => {
         setLoading(true);
@@ -715,24 +853,58 @@ export default function BrowserWindows() {
         refresh();
     }, [refresh]);
 
+    // Realtime: las ventanas son owner-scoped (RLS) y la publicación realtime
+    // incluye `browser_windows`; al recibir cualquier cambio propio, recargamos.
+    useRealtime("browser_windows", { event: "*" }, () => {
+        void refresh();
+    });
+
     async function handleCreate(e?: React.FormEvent) {
         e?.preventDefault();
         const value = address.trim();
         if (!value) return;
         setCreating(true);
         try {
-            const r = await newWindow(value);
+            const r = await newWindow(value, undefined, { vrAr: newVr });
             if (r.needsAuth) {
                 toast.error("Inicia sesión para crear y guardar ventanas.");
             } else if (!r.ok) {
                 toast.error(r.error || "No se pudo crear la ventana.");
             } else {
                 toast.success("Ventana creada");
+                if (r.window) {
+                    void recordVisit(r.window.url, r.window.name);
+                    if (newVr) setVrWin(r.window);
+                }
                 setAddress("");
                 await refresh();
             }
         } finally {
             setCreating(false);
+        }
+    }
+
+    // "Abrir enlace" desde la barra: clasifica y abre con el mecanismo correcto
+    // (ruta interna -> router.push; externo / StarSeed -> window.open). No crea
+    // una ventana persistida (eso es "Nueva ventana"); registra historial.
+    function openAddressLink() {
+        const value = address.trim();
+        if (!value) {
+            toast.error("Escribe una URL o ruta para abrir.");
+            return;
+        }
+        const href = value.startsWith("/") ? value : normalizeUrl(value);
+        const { kind, opened } = openLink(href, { router });
+        if (opened) {
+            void recordVisit(href, href);
+            const label: Record<LinkKind, string> = {
+                internal: "Abriendo ruta interna de StarSeed",
+                starseed: "Abriendo sistema StarSeed en ventana nueva",
+                external: "Abierto en ventana/pestaña nueva del navegador",
+            };
+            toast.success(label[kind]);
+        } else {
+            toast.error("No disponible en este contexto");
         }
     }
 
@@ -783,16 +955,57 @@ export default function BrowserWindows() {
                             className="border-0 bg-transparent px-0 focus-visible:ring-0"
                         />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <Button type="submit" disabled={creating}>
                             <Plus className="h-4 w-4" /> Nueva ventana
+                        </Button>
+                        <Button type="button" variant="outline" onClick={openAddressLink}>
+                            <ExternalLink className="h-4 w-4" /> Abrir enlace
                         </Button>
                         <Button type="button" variant="outline" onClick={askAstrauraFromBar}>
                             <Sparkles className="h-4 w-4" /> Astraura
                         </Button>
+                        <Button
+                            type="button"
+                            variant={showConfig ? "secondary" : "outline"}
+                            onClick={() => setShowConfig((c) => !c)}
+                            title="Servidores, VPN, DNS, cookies, caché, historial, VR/AR"
+                        >
+                            <Settings className="h-4 w-4" /> Configuración
+                        </Button>
                     </div>
                 </div>
+                <label className="mt-2 flex w-fit items-center gap-2 text-[11px] text-white/55">
+                    <input
+                        type="checkbox"
+                        checked={newVr}
+                        onChange={(e) => setNewVr(e.target.checked)}
+                        className="h-3.5 w-3.5 accent-indigo-400"
+                    />
+                    <Glasses className="h-3.5 w-3.5 text-indigo-300" /> Crear en modo inmersivo VR/AR
+                </label>
             </form>
+
+            {/* Panel de configuración (servidores tri-fuente + VPN/DNS/cookies/caché/historial/VR-AR) */}
+            {showConfig && (
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/[0.03] p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-cyan-200" />
+                        <h2 className="text-sm font-medium text-amber-50">
+                            Configuración del navegador
+                        </h2>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="ml-auto"
+                            onClick={() => setShowConfig(false)}
+                        >
+                            <X className="h-4 w-4" /> Cerrar
+                        </Button>
+                    </div>
+                    <BrowserConfig />
+                </div>
+            )}
 
             {/* Nota Astraura / Aurora */}
             <div className="rounded-2xl border border-purple-400/20 bg-purple-500/[0.05] p-4">
@@ -817,6 +1030,15 @@ export default function BrowserWindows() {
                                 starseed:astraura-browse
                             </code>
                             ).
+                        </p>
+                        <p className="mt-2 text-white/55">
+                            También puedes activar uno o varios{" "}
+                            <span className="text-white/80">servidores del navegador</span> (personal /
+                            StarSeed / externo) en{" "}
+                            <span className="text-cyan-200">«Configuración»</span>: con un proxy/render
+                            configurado, los sitios que bloquean el iframe se cargan a través de él.
+                            Sin servidor (ni extensión/app de escritorio), el navegador los abre en una{" "}
+                            <span className="text-white/80">ventana externa real</span>.
                         </p>
                     </div>
                 </div>
@@ -897,6 +1119,7 @@ export default function BrowserWindows() {
                                         w={w}
                                         onChanged={refresh}
                                         onOpenFull={setFull}
+                                        onOpenVr={setVrWin}
                                         onToggleMulti={toggleMulti}
                                         inMulti={multi.includes(w.id)}
                                     />
@@ -909,6 +1132,16 @@ export default function BrowserWindows() {
 
             {/* Overlay de pantalla completa */}
             {full && <FullscreenOverlay w={full} onClose={() => setFull(null)} />}
+
+            {/* Marco inmersivo VR/AR */}
+            {vrWin && (
+                <VrArFrame
+                    url={vrWin.url}
+                    title={vrWin.name}
+                    embeddable={isLikelyEmbeddable(vrWin.url)}
+                    onClose={() => setVrWin(null)}
+                />
+            )}
         </div>
     );
 }
