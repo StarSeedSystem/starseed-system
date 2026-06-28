@@ -39,6 +39,7 @@ import {
 import PublicationComposer from "@/components/publish/publication-composer";
 import { onAttach, onOpenComposer, type ComposerInitial } from "@/lib/share/bridge";
 import XRView from "@/components/canvas/xr-view";
+import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -1759,8 +1760,7 @@ function BlockPreview({ block }: { block: CanvasBlock }) {
       );
     case "image":
       return d.url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={d.url} alt={block.title ?? "imagen"} className="max-w-full rounded-md" />
+        <FilePreview file={{ url: d.url, name: block.title ?? d.fileName, type: "imagen" } as FileLike} context="pizarra" />
       ) : (
         <Empty label="Pega una URL de imagen." />
       );
@@ -1778,24 +1778,13 @@ function BlockPreview({ block }: { block: CanvasBlock }) {
       );
     case "link":
       return d.url ? (
-        <a href={d.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-fuchsia-300 hover:underline break-all">
-          <Link2 className="w-3.5 h-3.5 shrink-0" /> {d.url}
-        </a>
+        <FilePreview file={{ url: d.url, name: block.title, type: "enlace" } as FileLike} context="pizarra" />
       ) : (
         <Empty label="Pega un enlace." />
       );
     case "file":
       return d.fileName || d.url ? (
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-1.5 text-white/85">
-            <FileText className="w-3.5 h-3.5 text-amber-300" /> {d.fileName || "archivo"}
-          </div>
-          {d.url && (
-            <a href={d.url} target="_blank" rel="noreferrer" className="block text-[10px] text-fuchsia-300 hover:underline break-all">
-              {d.url}
-            </a>
-          )}
-        </div>
+        <FilePreview file={{ url: d.url, name: d.fileName ?? block.title, size: d.size } as FileLike} context="pizarra" />
       ) : (
         <Empty label="Sube un archivo o pega su URL." />
       );
