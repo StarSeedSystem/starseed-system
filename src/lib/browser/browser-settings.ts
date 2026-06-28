@@ -17,6 +17,7 @@
 
 import { createClient } from "@/utils/supabase/client";
 import { onTableChange, type RealtimePayload } from "@/lib/realtime/realtime";
+import { NEXUS_HOME, type NetMode } from "@/lib/browser/browser";
 
 const TABLE = "browser_settings";
 
@@ -30,6 +31,8 @@ export interface HistoryEntry { id: string; url: string; title: string; ts: stri
 export interface HistoryPrefs { enabled: boolean; entries: HistoryEntry[]; }
 export interface VrArPrefs { enabled: boolean; default_immersive: boolean; }
 export interface ProxyPrefs { prefer: ProxyPrefer; }
+/** Home (página de inicio) global + override por ventana/pestaña (clave = id). */
+export interface HomePrefs { url: string; perWindow: Record<string, string>; }
 
 export interface BrowserSettings {
     vpn: VpnPrefs;
@@ -39,6 +42,10 @@ export interface BrowserSettings {
     history: HistoryPrefs;
     vrAr: VrArPrefs;
     proxy: ProxyPrefs;
+    /** Página de inicio configurable (por defecto StarSeed Nexus). */
+    home: HomePrefs;
+    /** Modo de red: "open" (internet abierto) | "internal" (solo StarSeed). */
+    netMode: NetMode;
     updatedAt?: string;
 }
 
@@ -53,6 +60,8 @@ export function defaultSettings(): BrowserSettings {
         history: { enabled: true, entries: [] },
         vrAr: { enabled: false, default_immersive: false },
         proxy: { prefer: "auto" },
+        home: { url: NEXUS_HOME, perWindow: {} },
+        netMode: "open",
     };
 }
 
@@ -106,6 +115,22 @@ function normalizeProxy(raw: unknown): ProxyPrefs {
     return { prefer };
 }
 
+function normalizeHome(raw: unknown): HomePrefs {
+    const r = (raw && typeof raw === "object" ? raw : {}) as Partial<HomePrefs>;
+    const url = str(r.url) || NEXUS_HOME;
+    const perWindow: Record<string, string> = {};
+    if (r.perWindow && typeof r.perWindow === "object") {
+        for (const [k, v] of Object.entries(r.perWindow as Record<string, unknown>)) {
+            if (typeof v === "string" && v.trim()) perWindow[k] = v.trim();
+        }
+    }
+    return { url, perWindow };
+}
+
+function normalizeNetMode(raw: unknown): NetMode {
+    return raw === "internal" ? "internal" : "open";
+}
+
 interface BrowserSettingsRow {
     owner?: string;
     vpn?: unknown;
@@ -115,6 +140,8 @@ interface BrowserSettingsRow {
     history?: unknown;
     vr_ar?: unknown;
     proxy?: unknown;
+    home?: unknown;
+    net_mode?: unknown;
     updated_at?: string | null;
 }
 
@@ -131,6 +158,8 @@ export function normalizeSettings(raw: unknown): BrowserSettings {
         history: normalizeHistory(r.history),
         vrAr: normalizeVrAr(r.vr_ar),
         proxy: normalizeProxy(r.proxy),
+        home: normalizeHome(r.home),
+        netMode: normalizeNetMode(r.net_mode),
         updatedAt: typeof r.updated_at === "string" ? r.updated_at : undefined,
     };
 }
@@ -155,6 +184,8 @@ function toRow(owner: string, s: BrowserSettings) {
         history: s.history,
         vr_ar: s.vrAr,
         proxy: s.proxy,
+        home: s.home,
+        net_mode: s.netMode,
         updated_at: new Date().toISOString(),
     };
 }
@@ -326,4 +357,70 @@ export function onSettingsChange(cb: (s: BrowserSettings) => void): () => void {
         }
         cb(normalizeSettings(payload?.new ?? null));
     });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Setters granulares de home / modo de red (upsert por owner). SSR-safe.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Persiste el modo de red (open | internal). */
+export async function setNetMode(mode: NetMode): Promise<SettingsResult> {
+    const owner = await uid();
+    if (!owner) return { ok: false, needsAuth: true };
+    try {
+        const sb = createClient();
+        const { error } = await sb.from(TABLE).upsert(
+            { owner, net_mode: mode, updated_at: new Date().toISOString() },
+            { onConflict: "owner" },
+        );
+        if (error) return { ok: false, error: error.message };
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, error: (e as Error)?.message };
+    }
+}
+
+/** Persiste la home global (url). Vacío → se interpretará como Nexus al leer. */
+export async function setHomeUrl(url: string): Promise<SettingsResult> {
+    const owner = await uid();
+    if (!owner) return { ok: false, needsAuth: true };
+    try {
+        const sb = createClient();
+        const { data: cur } = await sb.from(TABLE).select("home").eq("owner", owner).maybeSingle();
+        const home = normalizeHome((cur as { home?: unknown } | null)?.home);
+        const { error } = await sb.from(TABLE).upsert(
+            {
+                owner,
+                home: { url: url.trim() || NEXUS_HOME, perWindow: home.perWindow },
+                updated_at: new Date().toISOString(),
+            },
+            { onConflict: "owner" },
+        );
+        if (error) return { ok: false, error: error.message };
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, error: (e as Error)?.message };
+    }
+}
+
+/** Establece (o limpia con "") la home específica de una ventana/pestaña. */
+export async function setWindowHome(windowId: string, url: string): Promise<SettingsResult> {
+    const owner = await uid();
+    if (!owner) return { ok: false, needsAuth: true };
+    try {
+        const sb = createClient();
+        const { data: cur } = await sb.from(TABLE).select("home").eq("owner", owner).maybeSingle();
+        const home = normalizeHome((cur as { home?: unknown } | null)?.home);
+        const perWindow = { ...home.perWindow };
+        if (url.trim()) perWindow[windowId] = url.trim();
+        else delete perWindow[windowId];
+        const { error } = await sb.from(TABLE).upsert(
+            { owner, home: { url: home.url, perWindow }, updated_at: new Date().toISOString() },
+            { onConflict: "owner" },
+        );
+        if (error) return { ok: false, error: error.message };
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, error: (e as Error)?.message };
+    }
 }
