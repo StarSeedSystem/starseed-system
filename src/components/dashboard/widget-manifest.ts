@@ -119,6 +119,16 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
 
     // ── VR/AR ────────────────────────────────────────────────────
     IMMERSIVE: { label: "Espacio Inmersivo", category: "ciberdelia", w: 4, h: 5, minW: 3, minH: 4, relevance: 92 },
+
+    // ── Áreas del SOSD con datos reales en vivo ──────────────────
+    MY_EVENTS: { label: "Eventos", category: "social", w: 3, h: 5, minW: 2, minH: 3, relevance: 86 },
+    MY_GROUPS: { label: "Mis Grupos", category: "social", w: 3, h: 5, minW: 2, minH: 3, relevance: 85 },
+    COMMUNITIES: { label: "Comunidades", category: "social", w: 3, h: 5, minW: 2, minH: 3, relevance: 84 },
+    FEDERATED_ENTITIES: { label: "Entidades Federativas", category: "red", w: 3, h: 5, minW: 2, minH: 3, relevance: 76 },
+    MEMORIES: { label: "Memorias", category: "archivos", w: 3, h: 5, minW: 2, minH: 3, relevance: 80 },
+    BRAINS: { label: "Cerebros", category: "ia", w: 3, h: 5, minW: 2, minH: 3, relevance: 82 },
+    VAULTS: { label: "Baúles", category: "sistema", w: 3, h: 5, minW: 2, minH: 3, relevance: 74 },
+    DOCUMENTS: { label: "Archivos", category: "archivos", w: 3, h: 5, minW: 2, minH: 3, relevance: 78 },
 };
 
 export function getManifest(type: WidgetType): WidgetManifestEntry | undefined {
