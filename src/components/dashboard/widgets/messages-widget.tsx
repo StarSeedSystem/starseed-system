@@ -1,213 +1,118 @@
 'use client';
 
+// ════════════════════════════════════════════════════════════════
+// MessagesWidget — Enlace Neural: conversaciones REALES del usuario.
+// ----------------------------------------------------------------
+// Datos reales con alcance al propietario (owner = uid) EN VIVO vía
+// useMyConversations (tabla conversations, realtime). Buscador funcional,
+// estados por tipo (directo/grupo/EF/comunidad), navegación a /messages.
+// Estados: cargando, sin sesión, vacío (CTA para iniciar la primera
+// conversación). NUNCA inyecta datos: si aún no hay tabla/filas, estado
+// vacío limpio (honest-stub que se enciende solo al existir datos).
+// ════════════════════════════════════════════════════════════════
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { MessageSquare, Users, Landmark, User, ChevronRight, ChevronLeft, Search, Send, CheckCheck, type LucideIcon } from "lucide-react";
+import {
+    MessageSquare, Users, Landmark, User, Globe2, ChevronRight, Search,
+    Plus, LogIn, type LucideIcon,
+} from "lucide-react";
 import { WidgetShell, MiniList, timeAgo } from "../kit";
-import { useWidgetData } from "@/lib/widget-data";
-import type { MessageThread } from "@/lib/widget-data";
-import { conversations as staticConversations } from "@/lib/data";
-import type { ConversationFull } from "@/lib/data";
+import { useMyConversations, tsOf, type ConversationRow } from "@/lib/widget-data/os-live";
 
-// ════════════════════════════════════════════════════════════════
-// MessagesWidget — enlace neural: hilos directos, grupos y juntas.
-// ----------------------------------------------------------------
-// PROFUNDIZACIÓN (esta versión):
-//   • Buscador filtrante funcional (nombre + último mensaje).
-//   • Estados visibles: en línea (punto), no leído (contador).
-//   • Vista de hilo al pulpar una conversación (estado local): cabecera
-//     con avatar/estado, transcripción coherente en español y compositor.
-//   • Marcar como leído: al abrir un hilo el contador se pone a 0
-//     (estado local, no destructivo de los datos en vivo).
-//   Mensajes de ejemplo DETERMINISTAS por hilo (sin Math.random).
-// ════════════════════════════════════════════════════════════════
+const ACCENT = "#0ea5e9";
 
-const KIND_ICON: Record<MessageThread["kind"], LucideIcon> = {
-    directo: User, grupo: Users, junta: Landmark,
+const KIND_META: Record<string, { icon: LucideIcon; label: string; color: string }> = {
+    dm:        { icon: User,    label: "Directo",   color: "#0ea5e9" },
+    group:     { icon: Users,   label: "Grupo",     color: "#6366f1" },
+    ef:        { icon: Landmark,label: "E.F.",      color: "#a855f7" },
+    community: { icon: Globe2,  label: "Comunidad", color: "#10b981" },
 };
-const KIND_LABEL: Record<MessageThread["kind"], string> = {
-    directo: "Directo", grupo: "Grupo", junta: "Junta",
-};
-
-interface ThreadMessage { from: "tu" | "ellos"; text: string; min: number }
-
-// Transcripciones coherentes por nombre de hilo (es-ES), deterministas.
-// Sin transcripciones de ejemplo: los mensajes reales vienen de la red.
-const TRANSCRIPTS: Record<string, ThreadMessage[]> = {};
-
-function transcriptFor(t: MessageThread): ThreadMessage[] {
-    const base = TRANSCRIPTS[t.name];
-    if (base) return base;
-    return [
-        { from: "ellos", text: t.lastMessage, min: 10 },
-    ];
+function kindMeta(kind: string | null) {
+    return KIND_META[(kind ?? "").toLowerCase()] ?? { icon: MessageSquare, label: kind || "Hilo", color: ACCENT };
 }
 
-// Converts a ConversationFull from /lib/data into the MessageThread widget shape.
-// Accent colors keyed by conversation id for determinism.
-const CONVO_ACCENTS: Record<string, string> = {
-    "convo-1": "#0ea5e9",
-    "convo-2": "#6366f1",
-    "convo-3": "#10b981",
-    "convo-4": "#DC143C",
-};
-
-function convoToThread(c: ConversationFull): MessageThread {
-    return {
-        id: c.id,
-        name: c.name,
-        lastMessage: c.lastMessage,
-        ts: Date.now() - (c.lastMessageTimestamp.includes("5m") ? 5 * 60_000
-            : c.lastMessageTimestamp.includes("1h") ? 60 * 60_000
-            : c.lastMessageTimestamp.includes("3h") ? 3 * 3600_000
-            : 8 * 3600_000),
-        unread: c.unreadCount,
-        online: c.pinned,
-        kind: c.type === "dm" ? "directo" : c.name.toLowerCase().includes("e.f.") || c.name.toLowerCase().includes("junta") ? "junta" : "grupo",
-        accent: CONVO_ACCENTS[c.id] ?? "#0ea5e9",
-    };
-}
-
-// Profile route for DM conversations (maps known names to handles).
-// Sin mapeos de ejemplo: el handle real se resuelve desde los datos del hilo.
-const NAME_TO_HANDLE: Record<string, string> = {};
-
-function profileLinkForThread(t: MessageThread): string | null {
-    if (t.kind !== "directo") return null;
-    const handle = NAME_TO_HANDLE[t.name];
-    return handle ? `/profile/${handle}` : null;
+function memberCount(c: ConversationRow): number {
+    return Array.isArray(c.members) ? c.members.length : 0;
 }
 
 export function MessagesWidget() {
-    const { data, loading } = useWidgetData("social.threads", { refreshMs: 6000 });
+    const { rows, loading, authPending, needsAuth } = useMyConversations();
     const [query, setQuery] = useState("");
-    const [openId, setOpenId] = useState<string | null>(null);
-    // Hilos marcados como leídos localmente (al abrirlos).
-    const [readLocal, setReadLocal] = useState<Set<string>>(() => new Set());
-    const [draft, setDraft] = useState("");
 
-    // Merge live widget threads with static conversations from /lib/data
-    const threads = useMemo<MessageThread[]>(() => {
-        const staticThreads = staticConversations.map(convoToThread);
-        const widgetThreads = (data ?? []).filter(t =>
-            !staticThreads.some(s => s.id === t.id)
-        );
-        const merged = [...staticThreads, ...widgetThreads];
-        return merged
-            .map(t => readLocal.has(t.id) ? { ...t, unread: 0 } : t)
-            .sort((a, b) => (b.unread - a.unread) || (b.ts - a.ts));
-    }, [data, readLocal]);
+    const threads = useMemo(
+        () => [...rows].sort((a, b) => tsOf(b.updated_at) - tsOf(a.updated_at)),
+        [rows],
+    );
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         if (!q) return threads;
-        return threads.filter((t) =>
-            t.name.toLowerCase().includes(q) || t.lastMessage.toLowerCase().includes(q)
-        );
+        return threads.filter((t) => (t.title ?? "").toLowerCase().includes(q));
     }, [threads, query]);
-
-    const openThread = useMemo(() => threads.find((t) => t.id === openId) ?? null, [threads, openId]);
-    const totalUnread = threads.reduce((s, t) => s + t.unread, 0);
-
-    function open(t: MessageThread) {
-        setOpenId(t.id);
-        setReadLocal((prev) => {
-            if (prev.has(t.id)) return prev;
-            const next = new Set(prev);
-            next.add(t.id);
-            return next;
-        });
-    }
 
     return (
         <WidgetShell
             title="Enlace Neural"
             subtitle="Mensajes y juntas"
             icon={MessageSquare}
-            accent="#0ea5e9"
-            connections={[{ label: "Mensajes", href: "/messages", color: "#0ea5e9" }, { label: "Comunidades", href: "/hub", color: "#9FE870" }, { label: "Gráfica Viva", href: "/network/graph", color: "#6366f1" }, { label: "Perfil", href: "/profile", color: "#7FB8FF" }]}
+            accent={ACCENT}
             live
+            connections={[
+                { label: "Mensajes", href: "/messages", color: "#0ea5e9" },
+                { label: "Comunidades", href: "/hub", color: "#9FE870" },
+                { label: "Conexiones", href: "/conexiones", color: "#6366f1" },
+            ]}
             actions={
-                openThread ? (
-                    <button type="button" onClick={() => setOpenId(null)}
-                        className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
-                        <ChevronLeft className="size-3" /> Hilos
-                    </button>
-                ) : (
+                <>
                     <Link href="/messages" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors inline-flex items-center gap-0.5 cursor-pointer">
                         Todos <ChevronRight className="size-3" />
                     </Link>
-                )
+                    <Link href="/messages" className="inline-flex items-center gap-1 rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-sky-300 hover:bg-sky-500/20 transition-colors cursor-pointer">
+                        <Plus className="size-3" /> Nuevo
+                    </Link>
+                </>
             }
         >
             {(size) => {
-                if (loading || !data) return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
-                const micro = size.tier === "micro" || size.vTier === "micro";
+                if (authPending || (loading && rows.length === 0 && !needsAuth)) {
+                    return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
+                }
 
-                // ── Vista de hilo abierto ──
-                if (openThread) {
-                    const KindIcon = KIND_ICON[openThread.kind];
-                    const msgs = transcriptFor(openThread);
+                if (needsAuth) {
                     return (
-                        <div className="flex flex-col h-full pt-1 gap-2">
-                            {/* Cabecera del hilo */}
-                            <div className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.03] px-2.5 py-2 shrink-0">
-                                <span className="relative grid place-items-center size-8 rounded-xl border text-white font-black text-xs shrink-0"
-                                    style={{ background: `linear-gradient(135deg, ${openThread.accent}, ${openThread.accent}66)`, borderColor: `${openThread.accent}55` }}>
-                                    {openThread.name.charAt(0)}
-                                    {openThread.online && <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-400 ring-2 ring-background" />}
-                                </span>
-                                <div className="min-w-0 flex-1">
-                                    <div className="inline-flex items-center gap-1 text-xs font-bold truncate">
-                                        <KindIcon className="size-3 shrink-0 opacity-60" /> {openThread.name}
-                                    </div>
-                                    <span className={`text-[10px] font-bold ${openThread.online ? "text-emerald-400" : "text-muted-foreground/50"}`}>
-                                        {openThread.online ? "En línea" : `Activo ${timeAgo(openThread.ts)}`} · {KIND_LABEL[openThread.kind]}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Transcripción */}
-                            <div className="flex-1 min-h-0 overflow-auto custom-scrollbar flex flex-col gap-1.5 pr-0.5">
-                                {msgs.map((msg, i) => {
-                                    const mine = msg.from === "tu";
-                                    return (
-                                        <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                                            <div className={`max-w-[82%] rounded-2xl px-3 py-1.5 text-[11px] leading-snug ${mine ? "rounded-br-sm text-white" : "rounded-bl-sm bg-white/[0.05] border border-border/40 text-foreground"}`}
-                                                style={mine ? { background: openThread.accent } : undefined}>
-                                                {msg.text}
-                                                <span className={`block text-[8px] mt-0.5 tabular-nums ${mine ? "text-white/70 text-right" : "text-muted-foreground/50"}`}>
-                                                    hace {msg.min}m {mine && <CheckCheck className="inline size-2.5 -mt-0.5" />}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Compositor (UI real, local) */}
-                            <form
-                                onSubmit={(e) => { e.preventDefault(); setDraft(""); }}
-                                className="shrink-0 flex items-center gap-1.5 rounded-xl border border-border/40 bg-white/[0.03] px-2 py-1"
-                            >
-                                <input
-                                    value={draft}
-                                    onChange={(e) => setDraft(e.target.value)}
-                                    placeholder="Escribe un mensaje…"
-                                    className="flex-1 min-w-0 bg-transparent text-[11px] outline-none placeholder:text-muted-foreground/40 py-1"
-                                />
-                                <button type="submit" disabled={!draft.trim()} aria-label="Enviar"
-                                    className="grid place-items-center size-7 rounded-lg text-white transition-opacity disabled:opacity-30 cursor-pointer"
-                                    style={{ background: openThread.accent }}>
-                                    <Send className="size-3.5" />
-                                </button>
-                            </form>
+                        <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-3">
+                            <span className="grid place-items-center size-12 rounded-2xl border border-sky-400/30 bg-sky-500/10">
+                                <LogIn className="size-6 text-sky-300/70" strokeWidth={1.5} />
+                            </span>
+                            <p className="text-[11px] text-muted-foreground/70">Entra para ver tus conversaciones.</p>
+                            <Link href="/login" className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/40 bg-sky-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-sky-300 hover:bg-sky-500/25 transition-colors cursor-pointer">
+                                <LogIn className="size-3.5" /> Entrar
+                            </Link>
                         </div>
                     );
                 }
 
-                // ── Vista de lista (con buscador) ──
+                if (rows.length === 0) {
+                    return (
+                        <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-3">
+                            <span className="grid place-items-center size-12 rounded-2xl border border-sky-400/30 bg-sky-500/10">
+                                <MessageSquare className="size-6 text-sky-300/70" strokeWidth={1.5} />
+                            </span>
+                            <div>
+                                <p className="text-sm font-bold text-foreground/90">Aún no hay mensajes</p>
+                                <p className="text-[11px] text-muted-foreground/60 mt-0.5">Inicia la primera conversación de la red.</p>
+                            </div>
+                            <Link href="/messages" className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/40 bg-sky-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-sky-300 hover:bg-sky-500/25 transition-colors cursor-pointer">
+                                <Plus className="size-3.5" /> Nueva conversación
+                            </Link>
+                        </div>
+                    );
+                }
+
+                const micro = size.tier === "micro" || size.vTier === "micro";
                 const max = micro ? 3 : size.vTier === "expanded" ? 6 : 4;
+
                 return (
                     <div className="pt-1 h-full flex flex-col gap-2">
                         {!micro && (
@@ -219,70 +124,42 @@ export function MessagesWidget() {
                                     placeholder="Buscar conversación…"
                                     className="flex-1 min-w-0 bg-transparent text-[11px] outline-none placeholder:text-muted-foreground/40"
                                 />
-                                {totalUnread > 0 ? (
-                                    <span className="shrink-0 grid place-items-center h-5 px-2 rounded-full text-[10px] font-black text-white" style={{ background: "#0ea5e9" }}>
-                                        {totalUnread}
-                                    </span>
-                                ) : null}
-                                <Link href="/messages" aria-label="Ver todos los mensajes"
-                                    className="shrink-0 grid place-items-center size-5 rounded-lg text-muted-foreground/60 hover:text-primary transition-colors cursor-pointer">
-                                    <ChevronRight className="size-3.5" />
-                                </Link>
+                                <span className="shrink-0 text-[9px] text-muted-foreground/50 font-bold tabular-nums">{threads.length}</span>
                             </div>
                         )}
                         <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
                             <MiniList
                                 items={filtered}
                                 max={max}
-                                empty={query ? "Sin coincidencias" : "Sin mensajes"}
+                                empty={query ? "Sin coincidencias" : "Sin conversaciones"}
                                 render={(t) => {
-                                    const KindIcon = KIND_ICON[t.kind];
-                                    const profileHref = profileLinkForThread(t);
+                                    const meta = kindMeta(t.kind);
+                                    const KindIcon = meta.icon;
+                                    const title = t.title?.trim() || "Conversación";
                                     return (
-                                        <div className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-sky-500/30 hover:bg-white/[0.04] transition-colors">
-                                            {/* Avatar: links to profile for DMs, else opens thread */}
-                                            {profileHref ? (
-                                                <Link href={profileHref} onClick={(ev) => ev.stopPropagation()}
-                                                    className="relative shrink-0 grid place-items-center size-8 rounded-xl border text-white font-black text-xs cursor-pointer hover:opacity-80 transition-opacity"
-                                                    style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accent}66)`, borderColor: `${t.accent}55` }}>
-                                                    {t.name.charAt(0)}
-                                                    {t.online && <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-400 ring-2 ring-background" />}
-                                                </Link>
-                                            ) : (
-                                                <span className="relative shrink-0 grid place-items-center size-8 rounded-xl border text-white font-black text-xs"
-                                                    style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accent}66)`, borderColor: `${t.accent}55` }}>
-                                                    {t.name.charAt(0)}
-                                                    {t.online && <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-400 ring-2 ring-background" />}
-                                                </span>
-                                            )}
-                                            <button
-                                                type="button"
-                                                onClick={() => open(t)}
-                                                className="min-w-0 flex-1 text-left cursor-pointer"
-                                            >
+                                        <Link href="/messages" className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-2 hover:border-sky-500/30 hover:bg-white/[0.04] transition-colors cursor-pointer">
+                                            <span className="relative shrink-0 grid place-items-center size-8 rounded-xl border text-white font-black text-xs"
+                                                style={{ background: `linear-gradient(135deg, ${meta.color}, ${meta.color}66)`, borderColor: `${meta.color}55` }}>
+                                                {title.charAt(0).toUpperCase()}
+                                            </span>
+                                            <div className="min-w-0 flex-1">
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="inline-flex items-center gap-1 text-[11px] @sm:text-xs font-bold truncate">
-                                                        <KindIcon className="size-3 shrink-0 opacity-60" /> {t.name}
+                                                        <KindIcon className="size-3 shrink-0 opacity-60" /> {title}
                                                     </span>
-                                                    {!micro && <span className="text-[10px] text-muted-foreground/50 font-bold shrink-0 tabular-nums">{timeAgo(t.ts)}</span>}
+                                                    {!micro && <span className="text-[10px] text-muted-foreground/50 font-bold shrink-0 tabular-nums">{t.updated_at ? timeAgo(tsOf(t.updated_at)) : ""}</span>}
                                                 </div>
                                                 {!micro && (
-                                                    <p className={`text-[10px] leading-snug truncate ${t.unread > 0 ? "text-foreground/90 font-semibold" : "text-muted-foreground/60"}`}>
-                                                        {t.lastMessage}
+                                                    <p className="text-[10px] leading-snug truncate text-muted-foreground/60">
+                                                        {meta.label}{memberCount(t) > 0 ? ` · ${memberCount(t)} miembros` : ""}{t.folder ? ` · ${t.folder}` : ""}
                                                     </p>
                                                 )}
-                                            </button>
-                                            {t.unread > 0 && (
-                                                <span className="shrink-0 grid place-items-center min-w-5 h-5 px-1.5 rounded-full text-[10px] font-black text-white" style={{ background: t.accent }}>
-                                                    {t.unread}
-                                                </span>
-                                            )}
-                                        </div>
+                                            </div>
+                                        </Link>
                                     );
                                 }}
                             />
                         </div>
-                        {/* Footer: link to full messages page */}
                         {!micro && size.vTier !== "micro" && (
                             <Link href="/messages"
                                 className="shrink-0 flex items-center justify-center gap-1 rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-sky-400 hover:bg-sky-500/10 transition-colors cursor-pointer">
