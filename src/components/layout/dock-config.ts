@@ -64,7 +64,6 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'pizarra',       label: 'Pizarra',             iconKey: 'PenLine',         path: '/pizarra',               color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'seguridad',     label: 'Seguridad',           iconKey: 'ShieldCheck',     path: '/seguridad',             color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'funciones',     label: 'Funciones',           iconKey: 'LayoutGrid',      path: '/funciones',             color: 'purple',  enabled: true,  origin: 'preset' },
-  { id: 'recordatorios', label: 'Recordatorios',       iconKey: 'CalendarClock',   path: '/recordatorios',         color: 'amber',   enabled: true,  origin: 'preset' },
   { id: 'servicios',     label: 'Servicios y Fuentes', iconKey: 'Server',          path: '/servicios',             color: 'cyan',    enabled: false, origin: 'preset' },
   { id: 'decisiones',    label: 'Decisiones',          iconKey: 'Vote',            path: '/decisiones',            color: 'amber',   enabled: true,  origin: 'preset' },
   { id: 'conocimiento',  label: 'Conocimiento',        iconKey: 'Lightbulb',       path: '/conocimiento',          color: 'cyan',    enabled: false, origin: 'preset' },
@@ -73,6 +72,7 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'tienda',        label: 'Tienda',              iconKey: 'ShoppingBag',     path: '/store',                 color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'insignias',     label: 'Insignias',           iconKey: 'Award',           path: '/insignias',             color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'apps-ia',       label: 'Apps IA',             iconKey: 'AppWindow',       path: '/apps-ia',               color: 'emerald', enabled: false, origin: 'preset' },
+  { id: 'xr-hub',        label: 'Red 3D / VR · AR',    iconKey: 'AppWindow',       path: '/xr',                    color: 'purple',  enabled: true,  origin: 'preset' },
   // ── Opciones extra disponibles desde el editor (no visibles por defecto) ──
   { id: 'sincrometro',   label: 'Sincrómetro',         iconKey: 'CalendarClock',   path: '/hub?tab=calendar',      color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'hermes-graph',  label: 'Grafo Cerebro',       iconKey: 'GitBranch',       path: '/network/graph',         color: 'purple',  enabled: false, origin: 'preset' },
