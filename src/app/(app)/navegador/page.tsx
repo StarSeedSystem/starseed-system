@@ -10,13 +10,16 @@ export default function NavegadorPage() {
                     Navegador · Ventanas de StarSeed
                 </h1>
                 <p className="mt-1 mb-6 text-sm text-white/50">
-                    Gestiona ventanas y pestañas de la red: ábrelas con enlaces funcionales
-                    (URLs externas en ventana nueva, rutas internas de la OS y otros sistemas
-                    StarSeed), agrúpalas en grupos y carpetas, suspéndelas, y ábrelas en modo
-                    widget, multivista, pantalla completa o inmersivo VR/AR. Configura los
-                    servidores del navegador (personal · StarSeed · externo) para proxy/render,
-                    y tu VPN, DNS, cookies, caché e historial. Astraura/Aurora pueden conducir la
-                    navegación real vía Claude-in-Chrome.
+                    Gestiona ventanas y pestañas de la red: previsualiza las páginas dentro del
+                    sistema (iframe con estado de carga real y diálogo «Abrir con…» cuando un sitio
+                    bloquea el embebido), ábrelas como vista COMPLETA dentro de la OS —con pestañas,
+                    vistas divididas y Ajustes embebidos, sin perder los menús ni el dock—, como
+                    widget flotante, multivista o inmersivo VR/AR, y adjúntalas a una pizarra o
+                    publicación. La página de inicio es configurable (por defecto StarSeed Nexus) y
+                    puedes elegir entre internet abierto o limitar la navegación a servidores
+                    internos de StarSeed. Configura los servidores del navegador (personal · StarSeed
+                    · externo) para proxy/render, y tu VPN, DNS, cookies, caché e historial.
+                    Astraura/Aurora pueden conducir la navegación real vía Claude-in-Chrome.
                 </p>
                 <BrowserWindows />
             </div>
