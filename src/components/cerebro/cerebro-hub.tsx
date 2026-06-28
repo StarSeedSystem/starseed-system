@@ -27,6 +27,7 @@ import { useRealtimeRows } from "@/lib/realtime/realtime";
 import MemoriaPanel from "@/components/cerebro/memoria-panel";
 import HabilidadesPanel from "@/components/cerebro/habilidades-panel";
 import ContextoPanel from "@/components/cerebro/contexto-panel";
+import EgoBrainPanel from "@/components/aurora/ego-brain-panel";
 import {
   Brain as BrainIcon,
   FileText,
@@ -39,7 +40,7 @@ import {
   Network,
 } from "lucide-react";
 
-type Pillar = "memoria" | "habilidades" | "contexto";
+type Pillar = "memoria" | "habilidades" | "contexto" | "egos";
 
 const PILLARS: {
   id: Pillar;
@@ -68,6 +69,13 @@ const PILLARS: {
     icon: Sparkles,
     blurb: "Los sentidos de Aurora: proveedor por sentido, externos y emociones.",
     accent: "amber",
+  },
+  {
+    id: "egos",
+    label: "Egos de Aurora",
+    icon: Sparkles,
+    blurb: "Agentes ego.md: conecta identidades portables de Aurora a este cerebro.",
+    accent: "fuchsia",
   },
 ];
 
@@ -173,7 +181,7 @@ export default function CerebroHub() {
       </div>
 
       {/* ── Pilares (3 interconexiones) ─────────────────────── */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {PILLARS.map((p) => {
           const Icon = p.icon;
           const active = pillar === p.id;
@@ -195,6 +203,7 @@ export default function CerebroHub() {
                     p.accent === "cyan" && "bg-cyan-500/15 text-cyan-300",
                     p.accent === "violet" && "bg-violet-500/15 text-violet-300",
                     p.accent === "amber" && "bg-amber-500/15 text-amber-300",
+                    p.accent === "fuchsia" && "bg-fuchsia-500/15 text-fuchsia-300",
                   )}
                 >
                   <Icon className="w-5 h-5" />
@@ -231,6 +240,9 @@ export default function CerebroHub() {
             <HabilidadesPanel brainId={activeBrainId} brainName={activeBrain?.name} />
           )}
           {pillar === "contexto" && <ContextoPanel />}
+          {pillar === "egos" && (
+            <EgoBrainPanel brainId={activeBrainId} brainName={activeBrain?.name} />
+          )}
         </div>
       )}
     </div>
