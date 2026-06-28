@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { feedItems } from "@/lib/data";
 import Link from "next/link";
+import { FilePreview, type FileLike } from "@/components/files/file-preview";
 
 const postsData = {
     personal: {
@@ -37,12 +38,34 @@ export function RecentPostsWidget({ pageType = 'personal' }: { pageType: string 
                 <CardDescription>{data.description}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                {data.posts.map(item => (
-                    <Link href="#" key={item.id} className="block p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                        <p className="text-sm font-medium truncate">{item.content}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{item.timestamp}</p>
-                    </Link>
-                ))}
+                {data.posts.map((item) => {
+                    // Algunos posts traen un medio adjunto; lo previsualizamos con
+                    // FilePreview FUERA del <Link> (no anidar interactivos en <a>).
+                    const anyItem = item as any;
+                    const mediaUrl: string | undefined =
+                        anyItem.imageUrl || anyItem.media_url || anyItem.mediaUrl || anyItem.fileUrl || anyItem.url;
+                    const file: FileLike | null = mediaUrl
+                        ? {
+                            url: mediaUrl,
+                            name: anyItem.fileName || anyItem.title || undefined,
+                            type: anyItem.mediaType || anyItem.type || undefined,
+                            thumbnail: anyItem.thumbnail || anyItem.imageUrl || undefined,
+                        }
+                        : null;
+                    return (
+                        <div key={item.id} className="rounded-lg border hover:bg-muted/50 transition-colors">
+                            <Link href={anyItem.href || "#"} className="block p-3">
+                                <p className="text-sm font-medium truncate">{item.content}</p>
+                                <p className="text-xs text-muted-foreground mt-1">{item.timestamp}</p>
+                            </Link>
+                            {file && (
+                                <div className="px-3 pb-3">
+                                    <FilePreview file={file} context="post" compact actions={false} />
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
                  <Link href="#" className="text-sm font-semibold text-primary hover:underline">
                     Ver todas las publicaciones...
                 </Link>
