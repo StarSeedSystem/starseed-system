@@ -4,8 +4,24 @@
 // StarSeed · Pizarra — Lienzo universal de creación. Tablero que conecta
 // archivos, baúles, memorias, apps, enlaces, widgets y el navegador, con
 // publicación democrática o inmediata.
+//
+// Aurora · acción `abrir_pizarra {id}`: la URL puede traer `?canvas=<id>` para
+// abrir un lienzo concreto. Se lee con useSearchParams() (envuelto en Suspense
+// para evitar el bailout de prerender estático) y se pasa como `canvasId` a
+// <CanvasBoard/>.
 
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import CanvasBoard from "@/components/canvas/canvas-board";
+
+// Evita el bailout de prerender estático (este árbol lee Supabase en cliente).
+export const dynamic = "force-dynamic";
+
+function PizarraBoard() {
+  const params = useSearchParams();
+  const canvasId = params.get("canvas") ?? undefined;
+  return <CanvasBoard canvasId={canvasId} />;
+}
 
 export default function PizarraPage() {
   return (
@@ -17,7 +33,9 @@ export default function PizarraPage() {
         </p>
       </div>
       <div className="flex-1 min-h-0">
-        <CanvasBoard />
+        <Suspense fallback={<div className="h-full w-full" />}>
+          <PizarraBoard />
+        </Suspense>
       </div>
     </main>
   );
