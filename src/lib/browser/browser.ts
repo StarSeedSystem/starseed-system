@@ -27,6 +27,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient } from "@/utils/supabase/client";
+import { resolveRoute, type ServiceSource } from "@/lib/services/service-routes";
 
 // ── Tipos del dominio ──
 
@@ -61,6 +62,8 @@ export interface BrowserWindow {
     url: string;
     state: WindowState;
     suspended: boolean;
+    /** Si true, la ventana se abre por defecto en el marco inmersivo VR/AR. */
+    vrAr: boolean;
     createdAt: string;
     updatedAt: string;
     /** true si proviene de datos locales/ejemplo (no de Supabase). */
@@ -77,6 +80,8 @@ interface BrowserWindowRow {
     url?: string | null;
     state?: Partial<WindowState> | null;
     suspended?: boolean | null;
+    vr_ar?: boolean | null;
+    settings?: Record<string, unknown> | null;
     created_at?: string | null;
     updated_at?: string | null;
 }
@@ -123,6 +128,7 @@ function normalizeWindow(row: BrowserWindowRow): BrowserWindow {
         url: row.url || "",
         state: normalizeState(row.state),
         suspended: !!row.suspended,
+        vrAr: !!row.vr_ar,
         createdAt: row.created_at || new Date().toISOString(),
         updatedAt: row.updated_at || new Date().toISOString(),
     };
@@ -402,6 +408,7 @@ export async function saveWindow(
             url: w.url,
             state: normalizeState(w.state),
             suspended: !!w.suspended,
+            vr_ar: !!w.vrAr,
             updated_at: new Date().toISOString(),
         };
         const query = w.id
@@ -416,7 +423,11 @@ export async function saveWindow(
 }
 
 /** Crea una ventana nueva a partir de una URL/búsqueda cruda. */
-export async function newWindow(input: string, name?: string): Promise<MutationResult> {
+export async function newWindow(
+    input: string,
+    name?: string,
+    opts?: { vrAr?: boolean },
+): Promise<MutationResult> {
     const url = normalizeUrl(input);
     if (!url) return { ok: false, error: "URL vacía" };
     // Escalona ligeramente la posición para no apilar ventanas exactamente.
@@ -430,6 +441,7 @@ export async function newWindow(input: string, name?: string): Promise<MutationR
         url,
         name: name?.trim() || urlHost(url) || url,
         state,
+        vrAr: !!opts?.vrAr,
     });
 }
 
@@ -454,6 +466,11 @@ export async function deleteWindow(id: string): Promise<MutationResult> {
 /** Marca/desmarca una ventana como suspendida (libera el iframe). */
 export async function setSuspended(id: string, value: boolean): Promise<MutationResult> {
     return patchWindow(id, { suspended: value });
+}
+
+/** Marca/desmarca la ventana para abrirse en modo inmersivo VR/AR. */
+export async function setVrAr(id: string, value: boolean): Promise<MutationResult> {
+    return patchWindow(id, { vr_ar: value });
 }
 
 /** Cambia el modo de vista (window/widget/fullscreen/tab) dentro de `state`. */
@@ -487,6 +504,7 @@ interface RowPatch {
     folder?: string;
     url?: string;
     suspended?: boolean;
+    vr_ar?: boolean;
 }
 
 async function patchWindow(id: string, patch: RowPatch): Promise<MutationResult> {
@@ -585,4 +603,137 @@ export function emitAttachWindow(w: BrowserWindow): boolean {
         new CustomEvent<WindowShareRef>(ATTACH_WINDOW_EVENT, { detail: shareRef(w) }),
     );
     return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Servidores del navegador (tri-fuente) + proxy/render de paginas
+// ─────────────────────────────────────────────────────────────────────────────
+// El navegador puede enrutar la carga/render de cualquier sitio http a traves de
+// un SERVIDOR de render/proxy configurado en el modelo tri-fuente (dominio
+// "browser"): Servidor personal / Servidor StarSeed / Servidor externo, las tres
+// activables a la vez. Con un endpoint de proxy configurado, los sitios que
+// bloquean el iframe pueden incrustarse via proxy; sin endpoint, caemos a
+// window.open. HONESTIDAD: el proxying real SOLO funciona con un servidor
+// configurado (o la extension/app de escritorio). Config en `service_routes`
+// (dominio "browser") via TriSourceConfig.
+
+
+/** Dominio tri-fuente del navegador (para <TriSourceConfig domain={BROWSER_DOMAIN} />). */
+export const BROWSER_DOMAIN = "browser";
+
+/** Clave de `config` por fuente: endpoint del proxy de render. */
+export const PROXY_ENDPOINT_KEY = "proxy_endpoint";
+/** Clave de `config` por fuente: como se pasa la URL ("query" | "path"). */
+export const PROXY_MODE_KEY = "proxy_mode";
+/** Clave de `config` por fuente: nombre del parametro de query (def. "url"). */
+export const PROXY_PARAM_KEY = "proxy_param";
+
+export interface ProxyTarget {
+    rendered: string;
+    proxied: boolean;
+    source?: ServiceSource["kind"];
+}
+
+/**
+ * Construye la URL de carga segun la config tri-fuente del dominio "browser".
+ * Si la fuente activa primaria tiene endpoint de proxy, envuelve la URL destino
+ * (query: `${endpoint}?url=<enc>` o path: `${endpoint}/<enc>`). Sin proxy
+ * devuelve la URL original (proxied:false). SSR-safe.
+ */
+export function renderUrl(url: string): ProxyTarget {
+    if (!url) return { rendered: url, proxied: false };
+    try {
+        const { participants } = resolveRoute(BROWSER_DOMAIN);
+        for (const s of participants) {
+            const cfg = (s.config || {}) as Record<string, unknown>;
+            const endpoint = (
+                typeof cfg[PROXY_ENDPOINT_KEY] === "string"
+                    ? (cfg[PROXY_ENDPOINT_KEY] as string)
+                    : s.endpoint || ""
+            ).trim();
+            if (!endpoint) continue;
+            const mode = cfg[PROXY_MODE_KEY] === "path" ? "path" : "query";
+            const param =
+                typeof cfg[PROXY_PARAM_KEY] === "string" && cfg[PROXY_PARAM_KEY]
+                    ? (cfg[PROXY_PARAM_KEY] as string)
+                    : "url";
+            const enc = encodeURIComponent(url);
+            const rendered =
+                mode === "path"
+                    ? `${endpoint.replace(/\/+$/, "")}/${enc}`
+                    : `${endpoint}${endpoint.includes("?") ? "&" : "?"}${param}=${enc}`;
+            return { rendered, proxied: true, source: s.kind };
+        }
+    } catch {
+        /* sin proxy / sin window */
+    }
+    return { rendered: url, proxied: false };
+}
+
+/** true si hay al menos una fuente del navegador con endpoint de proxy. */
+export function hasProxyConfigured(): boolean {
+    try {
+        const { participants } = resolveRoute(BROWSER_DOMAIN);
+        return participants.some((s) => {
+            const cfg = (s.config || {}) as Record<string, unknown>;
+            const ep =
+                typeof cfg[PROXY_ENDPOINT_KEY] === "string"
+                    ? (cfg[PROXY_ENDPOINT_KEY] as string)
+                    : s.endpoint;
+            return !!(ep && ep.trim());
+        });
+    } catch {
+        return false;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tipo de enlace: externo / interno (ruta OS) / sistema StarSeed
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type LinkKind = "internal" | "external" | "starseed";
+
+/** Otros sistemas StarSeed conocidos (Nexus / Cafe / Audiomorphic ...). */
+export const STARSEED_SYSTEM_SUFFIXES = [
+    "starseed.systems",
+    "starseed.system",
+    "nexus.starseed.systems",
+    "cafe.starseed.systems",
+    "audiomorphic.starseed.systems",
+    "audiomorphic.com",
+];
+
+/** Clasifica un destino: internal | starseed | external. SSR-safe. */
+export function classifyLink(target: string): LinkKind {
+    const t = (target || "").trim();
+    if (!t) return "external";
+    if (t.startsWith("/") && !t.startsWith("//")) return "internal";
+    const host = urlHost(t);
+    if (typeof window !== "undefined") {
+        try {
+            if (new URL(t, window.location.href).origin === window.location.origin) {
+                return "internal";
+            }
+        } catch {
+            /* noop */
+        }
+    }
+    if (hostMatches(host, STARSEED_SYSTEM_SUFFIXES)) return "starseed";
+    return "external";
+}
+
+/** Abre un destino: interno via router.push/location, externo/starseed via window.open. */
+export function openLink(
+    target: string,
+    opts?: { router?: { push: (href: string) => void } },
+): { kind: LinkKind; opened: boolean } {
+    const kind = classifyLink(target);
+    if (typeof window === "undefined") return { kind, opened: false };
+    if (kind === "internal") {
+        if (opts?.router) opts.router.push(target);
+        else window.location.assign(target);
+        return { kind, opened: true };
+    }
+    window.open(target, "_blank", "noopener,noreferrer");
+    return { kind, opened: true };
 }
