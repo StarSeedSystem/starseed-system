@@ -5,8 +5,10 @@ import { Sparkles, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AuroraStudio from "@/components/aurora/aurora-studio";
 import AuroraEgoPanel from "@/components/aurora/ego-panel";
+import ChatConnectionsPanel from "@/components/messaging/chat-connections-panel";
+import { MessageSquare } from "lucide-react";
 
-type Section = "estudio" | "ego";
+type Section = "estudio" | "ego" | "chats";
 
 export default function AuroraPage() {
   const [section, setSection] = useState<Section>("estudio");
@@ -45,9 +47,20 @@ export default function AuroraPage() {
           >
             <Sparkles className="w-3.5 h-3.5" /> Ego (ego.md)
           </button>
+          <button
+            onClick={() => setSection("chats")}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition border",
+              section === "chats"
+                ? "bg-fuchsia-600/30 border-fuchsia-400/50 text-white"
+                : "bg-white/5 border-white/10 text-white/60 hover:border-fuchsia-400/30",
+            )}
+          >
+            <MessageSquare className="w-3.5 h-3.5" /> Conexiones de chat
+          </button>
         </div>
 
-        {section === "estudio" ? <AuroraStudio /> : <AuroraEgoPanel />}
+        {section === "estudio" ? <AuroraStudio /> : section === "ego" ? <AuroraEgoPanel /> : <ChatConnectionsPanel />}
       </div>
     </main>
   );
