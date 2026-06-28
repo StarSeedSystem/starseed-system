@@ -37,6 +37,8 @@ import { Separator } from "@/components/ui/separator";
 import { CanvasEditor } from "@/components/canvas-editor";
 import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listFederativeEntities, listPartidos } from "@/data/sample-governance";
+import EgoContextOption from "@/components/aurora/ego-context-option";
+import { createEgoForContext, type EgoContextKind } from "@/lib/aurora/ego";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -548,6 +550,9 @@ export default function PublishPage() {
     const [showPreview, setShowPreview] = useState(false);
     const [published, setPublished] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+    // ── Aditivo · Agente Aurora (ego.md) para esta publicación ──
+    const [egoForContext, setEgoForContext] = useState(false);
+    const [egoName, setEgoName] = useState("");
 
     // ── Attachments state ──
     const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -763,6 +768,44 @@ export default function PublishPage() {
             }
             if (res.ok) {
                 setPublished(true);
+                // Aditivo: crear un Agente Aurora (ego.md) para el/los destino(s).
+                if (egoForContext) {
+                    try {
+                        const baseName = (egoName || titulo || "Aurora").trim();
+                        const mapKind = (t: string): EgoContextKind =>
+                            t === "grupo" || t === "group"
+                                ? "grupo"
+                                : t === "comunidad"
+                                  ? "comunidad"
+                                  : t === "pagina" || t === "page"
+                                    ? "pagina"
+                                    : t === "perfil" || t === "profile"
+                                      ? "perfil"
+                                      : t === "evento" || t === "event"
+                                        ? "evento"
+                                        : t === "entidad_federativa"
+                                          ? "entidad_federativa"
+                                          : "publicacion";
+                        if (destinos.length > 0) {
+                            for (const d of destinos) {
+                                await createEgoForContext({
+                                    name: `Agente · ${baseName}`,
+                                    summary: `Agente Aurora (ego.md) para ${d.name}. Integración Aurora <-> Astraura.`,
+                                    attachment: { kind: mapKind(d.type), ref: d.slug || d.id, label: d.name },
+                                });
+                            }
+                        } else {
+                            await createEgoForContext({
+                                name: `Agente · ${baseName}`,
+                                summary: "Agente Aurora (ego.md) para esta publicacion. Integracion Aurora <-> Astraura.",
+                                attachment: { kind: "publicacion", label: baseName },
+                            });
+                        }
+                        toast({ title: "Agente Aurora creado", description: "Se creo un ego.md para el contexto." });
+                    } catch {
+                        /* no bloquea la publicacion */
+                    }
+                }
                 toast({
                     title: "¡Publicado!",
                     description: destinos.length > 0
@@ -1579,6 +1622,16 @@ export default function PublishPage() {
 
                             {/* 8. Vote config for "propuesta" type */}
                             {showVoto && <LegislativeVoteConfig />}
+
+                            {/* Aditivo · Agente Aurora (ego.md) para esta publicación */}
+                            <EgoContextOption
+                                contextLabel="esta publicación"
+                                kind="publicacion"
+                                value={egoForContext}
+                                onChange={setEgoForContext}
+                                egoName={egoName}
+                                onEgoName={setEgoName}
+                            />
 
                             {/* Publish actions */}
                             <div className="flex gap-3 justify-end pt-1">
