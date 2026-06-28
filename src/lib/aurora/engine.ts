@@ -27,6 +27,16 @@ import {
   saveSettings,
   searchMemories,
 } from "@/lib/aurora/personalities";
+import {
+  actionsSystemPromptSection,
+  runDirectivesFromText,
+  parseDirectives,
+  stripDirectives,
+  executeDirective,
+  type AuroraActionContext,
+  type AuroraActionResult,
+  type AuroraDirective,
+} from "@/lib/aurora/actions";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -76,6 +86,12 @@ export interface AuroraEngine {
   toggle: () => void;
   speak: (text: string) => void;
   runCommand: (transcript: string) => Promise<void>;
+  /** Lo que Aurora está haciendo ahora mismo ("Abriendo Pizarras…"), o "". */
+  actionStatus: string;
+  /** Ejecuta directivas [[ACCION:...]] desde un texto (p. ej. una extensión). */
+  runDirectives: (text: string) => Promise<AuroraActionResult[]>;
+  /** Ejecuta una acción por nombre + args (puente para la extensión). */
+  runAction: (name: string, args?: Record<string, unknown>) => Promise<AuroraActionResult>;
   setActivePersonality: (p: Personality) => void;
   setEnabled: (v: boolean) => void;
   reloadPersonalities: () => Promise<void>;
@@ -90,6 +106,7 @@ export function useAuroraEngine(): AuroraEngine {
   const [transcript, setTranscript] = useState("");
   const [interim, setInterim] = useState("");
   const [lastReply, setLastReply] = useState("");
+  const [actionStatus, setActionStatus] = useState("");
   const [settings, setSettings] = useState<AuroraSettings>({ ...DEFAULT_SETTINGS });
   const [personalities, setPersonalities] = useState<Personality[]>([]);
   const [activePersonality, setActivePersonalityState] = useState<Personality>({ ...DEFAULT_PERSONALITY });
@@ -98,6 +115,7 @@ export function useAuroraEngine(): AuroraEngine {
   const recognitionRef = useRef<any>(null);
   const activeRef = useRef<Personality>(activePersonality);
   const enabledRef = useRef<boolean>(enabled);
+  const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => { activeRef.current = activePersonality; }, [activePersonality]);
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
 
@@ -214,6 +232,44 @@ export function useAuroraEngine(): AuroraEngine {
     }
   }, []);
 
+  // ── acciones (control del OS) ──
+  // Muestra un estado efímero de lo que Aurora hace ("Abriendo Pizarras…").
+  const setStatus = useCallback((status: string) => {
+    setActionStatus(status || "");
+    if (statusTimer.current) clearTimeout(statusTimer.current);
+    if (status) {
+      statusTimer.current = setTimeout(() => setActionStatus(""), 4000);
+    }
+  }, []);
+
+  // Construye el contexto que reciben los ejecutores de acción.
+  const buildActionCtx = useCallback((): AuroraActionContext => ({
+    router: {
+      push: (href: string) => { try { router.push(href); } catch { /* */ } },
+      replace: (href: string) => { try { router.replace(href); } catch { /* */ } },
+      back: () => { try { router.back(); } catch { /* */ } },
+      forward: () => { try { router.forward(); } catch { /* */ } },
+    },
+    onStatus: (status: string) => setStatus(status),
+  }), [router, setStatus]);
+
+  // Ejecuta todas las directivas [[ACCION:...]] de un texto (devuelve resultados).
+  const runDirectives = useCallback(async (text: string): Promise<AuroraActionResult[]> => {
+    const { results } = await runDirectivesFromText(text, buildActionCtx());
+    return results;
+  }, [buildActionCtx]);
+
+  // Ejecuta una acción por nombre + args (puente directo para la extensión).
+  const runAction = useCallback(async (
+    name: string,
+    args: Record<string, unknown> = {},
+  ): Promise<AuroraActionResult> => {
+    const directive: AuroraDirective = { name: (name || "").toLowerCase(), args, raw: "" };
+    const res = await executeDirective(directive, buildActionCtx());
+    if (res.message) { setLastReply(res.message); speak(res.message); }
+    return res;
+  }, [buildActionCtx, speak]);
+
   // ── enrutado de comandos ──
   const runCommand = useCallback(async (raw: string) => {
     const text = (raw || "").trim();
@@ -328,20 +384,36 @@ export function useAuroraEngine(): AuroraEngine {
         const m = "No tengo un proveedor de IA activo. Configúralo en Proveedor para que pueda conversar contigo.";
         setLastReply(m); speak(m); return;
       }
+      const system = buildSystemPrompt(activeRef.current) + "\n\n" + actionsSystemPromptSection();
       const messages: ChatMessage[] = [
-        { role: "system", content: buildSystemPrompt(activeRef.current) },
+        { role: "system", content: system },
         { role: "user", content: text },
       ];
       const temperature = 0.4 + (Number(activeRef.current.params?.creatividad ?? 60) / 100) * 0.6;
       const res = await chat({ messages, temperature });
       let reply = (res?.text || "").trim();
-      // directiva de navegación [[goto:/ruta]]
+
+      // 1) Directivas de ACCIÓN [[ACCION: nombre {json}]] — el control real del OS.
+      //    Las extraemos, las quitamos del discurso, y las ejecutamos.
+      const directives = parseDirectives(reply);
+      reply = stripDirectives(reply);
+      const ctx = buildActionCtx();
+      const actionMsgs: string[] = [];
+      for (const d of directives) {
+        const r = await executeDirective(d, ctx);
+        if (r.message) actionMsgs.push(r.message);
+      }
+
+      // 2) Compatibilidad: directiva antigua de navegación [[goto:/ruta]].
       const goto = reply.match(/\[\[goto:\s*(\/[^\]\s]+)\s*\]\]/i);
       if (goto) {
         try { router.push(goto[1]); } catch { /* */ }
         reply = reply.replace(/\[\[goto:[^\]]+\]\]/i, "").trim();
       }
-      reply = reply || "Hecho.";
+
+      // El discurso final: lo que dijo el modelo (ya sin directivas) o, si solo
+      // emitió acciones, el resumen honesto de lo que Aurora hizo.
+      reply = reply.trim() || actionMsgs.join(" ") || "Hecho.";
       setLastReply(reply);
       speak(reply);
     } catch (e: any) {
@@ -351,7 +423,7 @@ export function useAuroraEngine(): AuroraEngine {
         : "No pude contactar a Astraura. Revisa tu proveedor de IA en Ajustes → IA & Modelos.";
       setLastReply(m); speak(m);
     }
-  }, [router, speak, setEnabled]);
+  }, [router, speak, setEnabled, buildActionCtx]);
 
   const runCommandRef = useRef(runCommand);
   useEffect(() => { runCommandRef.current = runCommand; }, [runCommand]);
@@ -416,6 +488,7 @@ export function useAuroraEngine(): AuroraEngine {
       transcript,
       interim,
       lastReply,
+      actionStatus,
       activePersonality,
       settings,
       voices: listVoicesNow(),
@@ -425,14 +498,16 @@ export function useAuroraEngine(): AuroraEngine {
       toggle,
       speak,
       runCommand,
+      runDirectives,
+      runAction,
       setActivePersonality,
       setEnabled,
       reloadPersonalities,
     }),
     [
-      supported, enabled, listening, speaking, transcript, interim, lastReply,
+      supported, enabled, listening, speaking, transcript, interim, lastReply, actionStatus,
       activePersonality, settings, listVoicesNow, personalities,
-      start, stop, toggle, speak, runCommand, setActivePersonality, setEnabled, reloadPersonalities,
+      start, stop, toggle, speak, runCommand, runDirectives, runAction, setActivePersonality, setEnabled, reloadPersonalities,
     ]
   );
 }
