@@ -7,6 +7,7 @@ import { ThumbsUp, MessageCircle, Share2, Bookmark } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { CommentSystem } from "@/components/comment-system";
+import { FilePreview, type FileLike } from "@/components/files/file-preview";
 // Assuming feedItems type structure or importing it if it's a shared type
 // For now, defining loose or looking for shared import.
 // Using 'any' briefly to decouple, but ideally should import type.
@@ -30,11 +31,26 @@ export function FeedPostCard({ item }: { item: any }) {
             </CardHeader>
             <CardContent>
                 <p className="text-muted-foreground whitespace-pre-wrap">{item.content}</p>
-                {item.imageUrl && (
-                    <div className="relative aspect-video rounded-lg overflow-hidden mt-4 border border-border/50">
-                        <Image src={item.imageUrl} alt="Post image" layout="fill" objectFit="cover" data-ai-hint={item.imageHint} />
-                    </div>
-                )}
+                {/* Media universal: previsualización rica + acciones (embeder / abrir
+                    ventana / abrir en pizarra / insertar en publicación). Mapea el
+                    campo de medios del item a la forma FileLike. */}
+                {(() => {
+                    const mediaUrl: string | undefined =
+                        item.imageUrl || item.media_url || item.mediaUrl || item.fileUrl || item.file?.url || item.url;
+                    if (!mediaUrl) return null;
+                    const file: FileLike = {
+                        url: mediaUrl,
+                        name: item.fileName || item.title || undefined,
+                        type: item.mediaType || item.fileType || item.type || undefined,
+                        mime: item.mime || item.file?.mime || undefined,
+                        thumbnail: item.thumbnail || item.imageUrl || undefined,
+                    };
+                    return (
+                        <div className="mt-4">
+                            <FilePreview file={file} context="post" compact />
+                        </div>
+                    );
+                })()}
             </CardContent>
             <CardFooter className="flex-col items-stretch">
                 <div className="flex justify-between items-center text-muted-foreground border-t pt-2">
