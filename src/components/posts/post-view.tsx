@@ -28,6 +28,7 @@ import {
     commentTree, addComment, subscribe,
     type PostEntity, type CommentNode, type VotingConfig,
 } from "@/lib/posts/post-entity";
+import { FilePreview, type FileLike } from "@/components/files/file-preview";
 
 // ----------------------------- Helpers UI -----------------------------------
 
@@ -71,6 +72,8 @@ function PostContent({ post }: { post: PostEntity }) {
     const image: string | undefined = c.image ?? c.cover;
     const link: string | undefined = c.link ?? c.url;
     const canvas = c.canvas; // resumen de lienzo: { blocks?: n, summary?: string }
+    const media: string | undefined = c.media ?? c.media_url ?? c.mediaUrl ?? c.video ?? c.audio ?? c.pdf;
+    const file = c.file as Record<string, unknown> | undefined; // { url, name, format, mime, size }
 
     return (
         <div className="space-y-3">
@@ -81,22 +84,28 @@ function PostContent({ post }: { post: PostEntity }) {
             )}
 
             {image && (
-                <div className="overflow-hidden rounded-xl border border-white/10 bg-black/30">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={image} alt={title || "Imagen de la publicación"} className="w-full object-cover" />
-                </div>
+                <FilePreview file={{ url: image, name: title, type: "imagen" } as FileLike} context="post" />
+            )}
+
+            {media && (
+                <FilePreview file={{ url: media } as FileLike} context="post" />
+            )}
+
+            {file?.url && (
+                <FilePreview
+                    file={{
+                        url: file.url as string,
+                        name: (file.name as string) ?? title,
+                        type: (file.format as string) ?? undefined,
+                        mime: (file.mime as string) ?? undefined,
+                        size: (file.size as number | string) ?? undefined,
+                    } as FileLike}
+                    context="post"
+                />
             )}
 
             {link && (
-                <a
-                    href={link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-cyan-300 transition-colors hover:bg-white/10"
-                >
-                    <LinkIcon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{safeDomain(link)}</span>
-                </a>
+                <FilePreview file={{ url: link, type: "enlace" } as FileLike} context="post" />
             )}
 
             {canvas && (
@@ -113,7 +122,7 @@ function PostContent({ post }: { post: PostEntity }) {
                 </div>
             )}
 
-            {!text && !image && !link && !canvas && !title && (
+            {!text && !image && !media && !file?.url && !link && !canvas && !title && (
                 <p className="text-sm italic text-white/40">Esta publicación no tiene contenido visible.</p>
             )}
         </div>
