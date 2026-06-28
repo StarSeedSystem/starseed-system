@@ -26,6 +26,8 @@ import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { useCalendar, LAYER_META, CalendarLayer, CalendarVisibility } from "@/contexts/calendar-context";
 import { StoriesStrip } from "@/components/stories/stories-strip";
 import { UniversalSearchBox } from "@/components/hub/universal-search-box";
+import EgoContextOption from "@/components/aurora/ego-context-option";
+import { createEgoForContext } from "@/lib/aurora/ego";
 
 // ── TYPES & MOCK DATA FOR CONTRIBUTIONS ──
 interface Volunteer {
@@ -94,6 +96,9 @@ export default function HubPage() {
     const [participations, setParticipations] = useState(initialParticipations);
     const [sortBy, setSortBy] = useState<'urgency' | 'relevance' | 'date'>('urgency');
     const [showPublishForm, setShowPublishForm] = useState(false);
+    // ── Aditivo · Agente Aurora (ego.md) para esta solicitud/contexto ──
+    const [egoForContext, setEgoForContext] = useState(false);
+    const [egoName, setEgoName] = useState("");
     const [myBadges, setMyBadges] = useState(userBadges.slice(0, 5));
 
     // ── INTERACTIVE GOALS & FILTERS ──
@@ -190,7 +195,7 @@ export default function HubPage() {
     };
 
     // Handle publishing a new request
-    const handlePublish = (e: React.FormEvent) => {
+    const handlePublish = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formTitle || !formDescription) return;
 
@@ -214,6 +219,21 @@ export default function HubPage() {
         setRecommendations([newRec, ...recommendations]);
         setShowPublishForm(false);
         setToastMessage(`¡Nueva solicitud publicada con éxito en ${newRec.source}!`);
+
+        // Aditivo: crear un Agente Aurora (ego.md) para esta solicitud/contexto.
+        if (egoForContext) {
+            try {
+                await createEgoForContext({
+                    name: `Agente · ${(egoName || formTitle || "Aurora").trim()}`,
+                    summary: `Agente Aurora (ego.md) para "${formTitle}". Integracion Aurora <-> Astraura.`,
+                    attachment: { kind: "publicacion", ref: newRec.id, label: formTitle },
+                });
+            } catch {
+                /* no bloquea la publicacion */
+            }
+            setEgoForContext(false);
+            setEgoName("");
+        }
 
         // Initialize chat mock for new recommendation
         setChats(prev => ({
@@ -1251,6 +1271,16 @@ export default function HubPage() {
                             className="h-10 bg-black/40 border-white/10 rounded-xl text-xs text-center focus-visible:ring-cyan-500/50 w-full"
                         />
                     </div>
+
+                    {/* Aditivo · Agente Aurora (ego.md) para esta solicitud */}
+                    <EgoContextOption
+                        contextLabel="esta solicitud"
+                        kind="publicacion"
+                        value={egoForContext}
+                        onChange={setEgoForContext}
+                        egoName={egoName}
+                        onEgoName={setEgoName}
+                    />
 
                     <Button 
                         type="submit" 
