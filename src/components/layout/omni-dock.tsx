@@ -6,9 +6,13 @@ import { usePerimeter } from "@/context/perimeter-context";
 import { useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-    Home, User, MessageSquare, Bell, Users, Book, Library, Network, Settings,
-    Plus, BrainCircuit, Brain, Sparkles, Wrench, Zap, Eye, Cpu, Server,
-    Database, CalendarDays, Pencil, Check, RotateCcw, X, ArrowLeft, ArrowRight,
+    // ── Iconos de secciones del dock (uno único por concepto) ──
+    LayoutDashboard, CircleUser, MessagesSquare, Bell, Users, BookOpen, Library,
+    Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
+    Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
+    CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive,
+    // ── Controles del propio dock / editor ──
+    Plus, Pencil, Check, RotateCcw, X, ArrowLeft, ArrowRight,
     ChevronLeft, ChevronRight,
 } from "lucide-react";
 
@@ -23,11 +27,20 @@ import {
     type DockIconKey,
 } from "./dock-config";
 
+/**
+ * Mapa iconKey → componente de icono. Cada DockIconKey tiene su propio icono
+ * de lucide-react, sin repeticiones, cubriendo TODAS las claves del union
+ * (no se depende de ningún fallback genérico).
+ */
 const ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?: string }>> = {
-    Home, User, MessageSquare, Bell, Users, Book, Library, Network, Settings,
-    BrainCircuit, Brain, Sparkles, Wrench, Zap, Eye, Cpu, Server, Database,
-    CalendarDays, Plus,
+    LayoutDashboard, CircleUser, MessagesSquare, Bell, Users, BookOpen, Library,
+    Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
+    Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
+    CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive,
 };
+
+/** Icono de respaldo defensivo (jamás debería usarse: ICON_MAP es total). */
+const FALLBACK_ICON = LayoutGrid;
 
 export function OmniDock() {
     const { activeEdge } = usePerimeter();
@@ -180,7 +193,7 @@ export function OmniDock() {
                             className="omni-dock-strip flex items-end gap-1.5 lg:gap-4"
                         >
                             {visibleItems.map((item) => {
-                                const Icon = ICON_MAP[item.iconKey] ?? Home;
+                                const Icon = ICON_MAP[item.iconKey] ?? FALLBACK_ICON;
                                 return (
                                     <DockItem
                                         key={item.id}
@@ -291,7 +304,7 @@ function DockEditor({
             </p>
             <div className="grid sm:grid-cols-2 gap-1.5 max-h-72 overflow-y-auto">
                 {items.map((it) => {
-                    const Icon = ICON_MAP[it.iconKey] ?? Home;
+                    const Icon = ICON_MAP[it.iconKey] ?? FALLBACK_ICON;
                     return (
                         <div
                             key={it.id}
