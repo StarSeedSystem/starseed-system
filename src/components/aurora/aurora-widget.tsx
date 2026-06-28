@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mic, MicOff, Settings2, SlidersHorizontal, Sparkles, Volume2, X } from "lucide-react";
+import { Mic, MicOff, Settings2, SlidersHorizontal, Sparkles, Volume2, Wand2, Puzzle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
 import { AuroraControlPanel } from "./aurora-control-panel";
@@ -26,7 +26,7 @@ export function AuroraWidget() {
   if (!aurora) return null;
 
   const {
-    supported, enabled, listening, speaking, transcript, interim, lastReply,
+    supported, enabled, listening, speaking, transcript, interim, lastReply, actionStatus,
     activePersonality, personalities, toggle, speak, setEnabled, setActivePersonality,
   } = aurora;
 
@@ -82,6 +82,14 @@ export function AuroraWidget() {
             </button>
           </div>
 
+          {/* Feedback de acción: qué está haciendo Aurora ahora mismo. */}
+          {actionStatus && (
+            <div className="flex items-center gap-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2">
+              <Wand2 className="w-3.5 h-3.5 text-cyan-200 animate-pulse shrink-0" />
+              <span className="text-xs text-cyan-50">{actionStatus}</span>
+            </div>
+          )}
+
           {tab === "control" ? (
             <AuroraControlPanel enabled={enabled} onSetEnabled={setEnabled} />
           ) : (
@@ -130,6 +138,14 @@ export function AuroraWidget() {
                 </div>
               )}
 
+              {/* Pista de lo que Aurora puede hacer (control real del OS). */}
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                <div className="text-[10px] uppercase tracking-widest text-white/35 mb-1">Aurora puede actuar</div>
+                <div className="text-[11px] leading-relaxed text-white/55">
+                  «Abre mis pizarras», «pon el clima en mi tablero», «crea una pizarra», «abre el mapa mental», «busca en mis memorias», «abre el Café»…
+                </div>
+              </div>
+
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => speak(`Hola, soy ${activePersonality.name}. Estoy aquí para ayudarte en StarSeed.`)}
@@ -145,11 +161,27 @@ export function AuroraWidget() {
                 </button>
               </div>
 
+              {/* Nota: extensión de navegador (próximamente) para control directo. */}
+              <div className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
+                <Puzzle className="w-3.5 h-3.5 text-white/35 mt-0.5 shrink-0" />
+                <div className="text-[10px] leading-relaxed text-white/45">
+                  Extensión de navegador (próximamente) para control directo de la página y el navegador. Hoy Aurora ya controla todo el OS desde aquí, sin extensión.
+                </div>
+              </div>
+
               {!supported && (
                 <div className="text-[10px] text-amber-300/70 text-center">Tu navegador no soporta voz. Aún puedes activar Aurora y gestionar sus sentidos en «Control y sentidos».</div>
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Píldora de acción flotante (visible aunque el panel esté cerrado). */}
+      {!open && actionStatus && (
+        <div className="flex items-center gap-2 rounded-full border border-cyan-400/30 bg-zinc-950/90 backdrop-blur-xl px-3 py-1.5 shadow-lg shadow-cyan-900/20">
+          <Wand2 className="w-3.5 h-3.5 text-cyan-200 animate-pulse" />
+          <span className="text-[11px] text-cyan-50 max-w-[60vw] truncate">{actionStatus}</span>
         </div>
       )}
 
@@ -169,6 +201,7 @@ export function AuroraWidget() {
           !supported && "opacity-50 grayscale",
           state === "listening" && "ring-4 ring-fuchsia-400/40",
           state === "speaking" && "ring-4 ring-cyan-400/40",
+          actionStatus && "ring-4 ring-cyan-300/50",
         )}
       >
         {(state === "listening" || state === "speaking") && (
