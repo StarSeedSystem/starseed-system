@@ -42,6 +42,14 @@ import { CulturalFeedWidget } from "@/components/dashboard/widgets/cultural-feed
 import { CalculatorWidget } from "@/components/dashboard/widgets/calculator-widget";
 import { RelevantPostsWidget } from "@/components/dashboard/widgets/relevant-posts-widget";
 import { MessagesWidget } from "@/components/dashboard/widgets/messages-widget";
+import { MyEventsWidget } from "@/components/dashboard/widgets/my-events-widget";
+import { MyGroupsWidget } from "@/components/dashboard/widgets/my-groups-widget";
+import { CommunitiesWidget } from "@/components/dashboard/widgets/communities-widget";
+import { FederatedEntitiesWidget } from "@/components/dashboard/widgets/federated-entities-widget";
+import { MemoriesWidget } from "@/components/dashboard/widgets/memories-widget";
+import { BrainsWidget } from "@/components/dashboard/widgets/brains-widget";
+import { VaultsWidget } from "@/components/dashboard/widgets/vaults-widget";
+import { DocumentsWidget } from "@/components/dashboard/widgets/documents-widget";
 import { NotificationsWidget } from "@/components/dashboard/widgets/notifications-widget";
 import { AiGeneratedWidget } from "@/components/dashboard/widgets/ai-generated-widget";
 import { AppLauncherWidget } from "@/components/dashboard/widgets/app-launcher-widget";
@@ -201,6 +209,24 @@ export function WidgetRegistry({ widget }: WidgetProps) {
             return <RelevantPostsWidget />;
         case 'MESSAGES':
             return <MessagesWidget />;
+
+        // ── Áreas del SOSD con datos reales en vivo ──
+        case 'MY_EVENTS':
+            return <MyEventsWidget />;
+        case 'MY_GROUPS':
+            return <MyGroupsWidget />;
+        case 'COMMUNITIES':
+            return <CommunitiesWidget />;
+        case 'FEDERATED_ENTITIES':
+            return <FederatedEntitiesWidget />;
+        case 'MEMORIES':
+            return <MemoriesWidget />;
+        case 'BRAINS':
+            return <BrainsWidget />;
+        case 'VAULTS':
+            return <VaultsWidget />;
+        case 'DOCUMENTS':
+            return <DocumentsWidget />;
         case 'NOTIFICATIONS':
             return <NotificationsWidget />;
         case 'LIVE_DATA':
