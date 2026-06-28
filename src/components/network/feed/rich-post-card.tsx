@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/carousel";
 import { Heart, MessageCircle, Share2, MoreHorizontal, Link as LinkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FilePreview, type FileLike } from "@/components/files/file-preview";
 
 interface RichPostCardProps {
     post: Post;
@@ -71,13 +72,29 @@ export function RichPostCard({ post }: RichPostCardProps) {
                         <div className="relative rounded-xl overflow-hidden border border-white/10 shadow-inner bg-black/50">
                             <Carousel className="w-full">
                                 <CarouselContent>
-                                    {post.media.map((url, idx) => (
-                                        <CarouselItem key={idx}>
-                                            <div className="relative aspect-video w-full overflow-hidden">
-                                                <img src={url} alt="Post content" className="object-cover w-full h-full hover:scale-105 transition-transform duration-700" />
-                                            </div>
-                                        </CarouselItem>
-                                    ))}
+                                    {post.media.map((media, idx) => {
+                                        // El medio puede llegar como URL (string) o como objeto
+                                        // con metadatos; mapeamos a la forma FileLike y dejamos
+                                        // que FilePreview elija el renderizador (imagen / vídeo /
+                                        // pdf / 3D / enlace…) y exponga sus acciones.
+                                        const file: FileLike =
+                                            typeof media === "string"
+                                                ? { url: media }
+                                                : {
+                                                    url: (media as any)?.url ?? undefined,
+                                                    name: (media as any)?.name ?? undefined,
+                                                    type: (media as any)?.type ?? undefined,
+                                                    mime: (media as any)?.mime ?? undefined,
+                                                    thumbnail: (media as any)?.thumbnail ?? undefined,
+                                                };
+                                        return (
+                                            <CarouselItem key={idx}>
+                                                <div className="w-full overflow-hidden p-2">
+                                                    <FilePreview file={file} context="post" compact />
+                                                </div>
+                                            </CarouselItem>
+                                        );
+                                    })}
                                 </CarouselContent>
                                 {post.media.length > 1 && (
                                     <>
