@@ -27,6 +27,7 @@ import { NotificationCenter } from "@/components/layout/notification-center";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { CanvasEditor } from "@/components/canvas-editor";
+import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import {
     useCurrentUserId,
     useMessagesRealtime,
@@ -587,24 +588,14 @@ function MessageBubble({ message }: { message: LocalMessage }) {
             }
             case 'image':
                 return (
-                    <Image
-                        src={content.imageUrl!}
-                        alt={content.imageHint!}
-                        width={320} height={240}
-                        className="rounded-xl object-cover"
-                        data-ai-hint={content.imageHint}
-                    />
+                    <div className="w-[min(320px,72vw)]">
+                        <FilePreview file={{ url: content.imageUrl!, name: content.imageHint ?? undefined, type: "imagen" } as FileLike} context="message" compact />
+                    </div>
                 );
             case 'file':
                 return (
-                    <div className="flex items-center gap-3 p-3 rounded-xl border bg-background/40 backdrop-blur-sm min-w-48">
-                        <div className="h-9 w-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                            <FileIcon className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="font-semibold text-sm truncate">{content.file!.name}</p>
-                            <p className="text-xs text-muted-foreground">{content.file!.size}</p>
-                        </div>
+                    <div className="w-[min(320px,72vw)]">
+                        <FilePreview file={{ name: content.file!.name, size: content.file!.size } as FileLike} context="message" compact />
                     </div>
                 );
             case 'poll':
