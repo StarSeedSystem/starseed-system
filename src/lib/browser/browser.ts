@@ -701,6 +701,19 @@ export const STARSEED_SYSTEM_SUFFIXES = [
     "cafe.starseed.systems",
     "audiomorphic.starseed.systems",
     "audiomorphic.com",
+    // Apps de la red StarSeed alojadas en Vercel (incluida la home por defecto).
+    "starseed-nexus.vercel.app",
+    "starseed-system.vercel.app",
+];
+
+/**
+ * Sufijos que cuentan como "red StarSeed" para el modo de red (internet abierto
+ * vs solo interno). Incluye los sistemas StarSeed conocidos. Una ruta interna de
+ * la OS ("/...") o el mismo origen son SIEMPRE internos (ver isExternalTarget).
+ */
+export const STARSEED_NET_SUFFIXES = [
+    ...STARSEED_SYSTEM_SUFFIXES,
+    "starseed",
 ];
 
 /** Clasifica un destino: internal | starseed | external. SSR-safe. */
@@ -736,4 +749,182 @@ export function openLink(
     }
     window.open(target, "_blank", "noopener,noreferrer");
     return { kind, opened: true };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Home (página de inicio configurable) — por defecto StarSeed Nexus
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Home por defecto del navegador: StarSeed Nexus. */
+export const NEXUS_HOME = "https://starseed-nexus.vercel.app";
+
+/**
+ * Resuelve la home efectiva para una ventana/pestaña dada. `perWindow[id]`
+ * (si existe y no está vacío) tiene prioridad sobre la home global; ésta cae a
+ * Nexus si está vacía. Acepta rutas internas ("/...") o URLs. SSR-safe.
+ */
+export function resolveHome(
+    home: { url?: string; perWindow?: Record<string, string> } | null | undefined,
+    windowId?: string,
+): string {
+    const per = (windowId && home?.perWindow?.[windowId]) || "";
+    const candidate = (per || home?.url || "").trim();
+    if (!candidate) return NEXUS_HOME;
+    if (candidate.startsWith("/")) return candidate; // ruta interna de la OS
+    return normalizeUrl(candidate);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Modo de red: internet abierto vs solo servidores internos (StarSeed)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type NetMode = "open" | "internal";
+
+/**
+ * ¿El destino es EXTERNO a la red StarSeed? Internos: rutas de la OS ("/..."),
+ * mismo origen, o cualquier host de la red StarSeed (STARSEED_NET_SUFFIXES).
+ * Todo lo demás es externo (internet abierto). SSR-safe.
+ */
+export function isExternalTarget(target: string): boolean {
+    const t = (target || "").trim();
+    if (!t) return false;
+    if (t.startsWith("/") && !t.startsWith("//")) return false; // ruta interna OS
+    if (typeof window !== "undefined") {
+        try {
+            if (new URL(t, window.location.href).origin === window.location.origin) {
+                return false;
+            }
+        } catch {
+            /* noop */
+        }
+    }
+    const host = urlHost(t);
+    if (hostMatches(host, STARSEED_NET_SUFFIXES)) return false;
+    return true;
+}
+
+/**
+ * Aplica el modo de red a un destino. En modo "internal" se BLOQUEA cualquier
+ * destino externo a StarSeed; en "open" se permite todo. Devuelve si está
+ * permitido y, si no, el motivo. Pura (sin efectos).
+ */
+export function enforceNetMode(
+    target: string,
+    mode: NetMode,
+): { allowed: boolean; external: boolean; reason?: string } {
+    const external = isExternalTarget(target);
+    if (mode === "internal" && external) {
+        return {
+            allowed: false,
+            external,
+            reason:
+                "Modo «solo interno» activo: este destino es de internet abierto y está bloqueado. " +
+                "Cambia a «internet abierto» en Ajustes para permitirlo.",
+        };
+    }
+    return { allowed: true, external };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Abrir en otro navegador externo (Chrome / Opera / Ecosia / predeterminado)
+// ─────────────────────────────────────────────────────────────────────────────
+// HONESTIDAD: una web NO puede forzar QUÉ navegador del sistema abre una URL.
+// `window.open` abre en el navegador actual (otra pestaña/ventana). Cuando un
+// navegador expone un esquema/URL conocido para "abrir con", lo usamos de forma
+// best-effort; si no, abrimos honestamente una pestaña nueva y etiquetamos la
+// opción para que el usuario sepa qué pasa de verdad.
+
+export type ExternalBrowser = "chrome" | "opera" | "ecosia" | "default";
+
+export const EXTERNAL_BROWSER_LABEL: Record<ExternalBrowser, string> = {
+    chrome: "Google Chrome",
+    opera: "Opera",
+    ecosia: "Ecosia",
+    default: "Navegador predeterminado",
+};
+
+/**
+ * Intenta abrir `url` en el navegador externo elegido. Devuelve `{ opened,
+ * honest }`: `honest=false` cuando se usó un esquema específico del navegador
+ * (puede no estar instalado), `true` cuando se abrió una pestaña nueva normal.
+ * SSR-safe.
+ */
+export function openInExternalBrowser(
+    url: string,
+    browser: ExternalBrowser,
+): { opened: boolean; honest: boolean } {
+    if (typeof window === "undefined" || !url) return { opened: false, honest: true };
+    const u = url.startsWith("/")
+        ? new URL(url, window.location.href).toString()
+        : normalizeUrl(url);
+
+    // Esquemas "abrir con" conocidos (sólo móvil/algunas plataformas; best-effort).
+    // En desktop estos esquemas no existen de forma estándar, así que caemos a
+    // window.open. Detectamos móvil de forma laxa por el user agent.
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+    const isAndroid = /Android/i.test(ua);
+    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+    try {
+        if (browser === "chrome") {
+            if (isIOS) {
+                // Chrome iOS: esquema googlechrome(s)://
+                const scheme = u.replace(/^https?/i, (m) =>
+                    m.toLowerCase() === "https" ? "googlechromes" : "googlechrome",
+                );
+                window.open(scheme, "_blank");
+                return { opened: true, honest: false };
+            }
+            if (isAndroid) {
+                // Intent de Android hacia Chrome.
+                const intent =
+                    "intent://" +
+                    u.replace(/^https?:\/\//i, "") +
+                    "#Intent;scheme=https;package=com.android.chrome;end";
+                window.open(intent, "_blank");
+                return { opened: true, honest: false };
+            }
+        }
+        if (browser === "opera") {
+            if (isAndroid) {
+                const intent =
+                    "intent://" +
+                    u.replace(/^https?:\/\//i, "") +
+                    "#Intent;scheme=https;package=com.opera.browser;end";
+                window.open(intent, "_blank");
+                return { opened: true, honest: false };
+            }
+            if (isIOS) {
+                // Opera Touch iOS: esquema touch-http(s)://
+                const scheme = u.replace(/^https?/i, (m) =>
+                    m.toLowerCase() === "https" ? "touch-https" : "touch-http",
+                );
+                window.open(scheme, "_blank");
+                return { opened: true, honest: false };
+            }
+        }
+        if (browser === "ecosia") {
+            // Ecosia no expone un esquema fiable: abrimos la URL directamente
+            // (en Ecosia si es el navegador del usuario; si no, una pestaña nueva)
+            // o, como alternativa, una búsqueda en Ecosia del propio destino.
+            window.open(u, "_blank", "noopener,noreferrer");
+            return { opened: true, honest: true };
+        }
+    } catch {
+        /* cae a window.open honesto */
+    }
+
+    // Predeterminado / desktop / fallback: abrir honestamente una pestaña nueva.
+    window.open(u, "_blank", "noopener,noreferrer");
+    return { opened: true, honest: true };
+}
+
+/**
+ * Construye la URL para abrir un destino "vía otro servidor" (el proxy/render
+ * tri-fuente del dominio "browser"), o null si no hay proxy configurado. Útil
+ * en el diálogo de sitio bloqueado para la opción «otro servidor».
+ */
+export function proxiedUrlOrNull(url: string): string | null {
+    const t = renderUrl(url);
+    return t.proxied ? t.rendered : null;
 }
