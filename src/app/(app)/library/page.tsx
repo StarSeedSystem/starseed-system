@@ -65,6 +65,7 @@ import { samplePages } from "@/data/sample-entities";
 // invocar recursos guardados en lienzo / publicación / mensaje.
 import { useSavedLibrary, type SavedResource } from "@/lib/library-store";
 import { emitAttach, openComposer } from "@/lib/share/bridge";
+import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import { toast } from "sonner";
 
 // --- Types ---
@@ -391,6 +392,18 @@ function SavedResourceCard({
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Previsualización del recurso (imagen / vídeo / pdf / 3D / enlace / código…).
+          Sin barra de acciones propia: la tarjeta ya ofrece sus acciones de
+          interconexión (lienzo / publicación / mensaje) más abajo. */}
+      {url && (
+        <FilePreview
+          file={{ url, name: title, type: resource.kind } as FileLike}
+          context="library"
+          actions={false}
+          compact
+        />
+      )}
 
       {/* Acciones de interconexión */}
       <div className="flex flex-wrap items-center gap-2 mt-auto">
