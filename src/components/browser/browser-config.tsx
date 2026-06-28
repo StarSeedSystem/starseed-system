@@ -38,11 +38,14 @@ import {
     Lock,
     Server,
     ExternalLink,
+    Home as HomeIcon,
+    Globe,
 } from "lucide-react";
 import TriSourceConfig from "@/components/services/tri-source-config";
 import {
     BROWSER_DOMAIN,
     PROXY_ENDPOINT_KEY,
+    NEXUS_HOME,
 } from "@/lib/browser/browser";
 import {
     loadSettings,
@@ -204,6 +207,87 @@ export default function BrowserConfig() {
                     externa real (window.open).
                 </HonestNote>
             </section>
+
+            {!loading && (
+                <div className="grid gap-3 lg:grid-cols-2">
+                    {/* Página de inicio (home) configurable */}
+                    <Card className="border-white/10 bg-white/[0.03]">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-sm">
+                                <HomeIcon className="h-4 w-4 text-cyan-300" /> Página de inicio
+                            </CardTitle>
+                            <CardDescription>
+                                La home que abre cada ventana/pestaña nueva. Por defecto, StarSeed Nexus.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <Input
+                                value={s.home.url}
+                                onChange={(e) => patch({ home: { ...s.home, url: e.target.value } })}
+                                placeholder={NEXUS_HOME}
+                                className="h-8 text-xs"
+                            />
+                            <div className="flex flex-wrap gap-1.5">
+                                <Pill
+                                    active={s.home.url === NEXUS_HOME || !s.home.url}
+                                    onClick={() => patch({ home: { ...s.home, url: NEXUS_HOME } })}
+                                >
+                                    StarSeed Nexus
+                                </Pill>
+                                <Pill
+                                    active={s.home.url === "/dashboard"}
+                                    onClick={() => patch({ home: { ...s.home, url: "/dashboard" } })}
+                                >
+                                    Panel (interno)
+                                </Pill>
+                                <Pill
+                                    active={s.home.url === "https://duckduckgo.com"}
+                                    onClick={() => patch({ home: { ...s.home, url: "https://duckduckgo.com" } })}
+                                >
+                                    DuckDuckGo
+                                </Pill>
+                            </div>
+                            <HonestNote>
+                                Acepta una URL (https://…) o una ruta interna de la OS («/…»). Cada
+                                ventana puede sobrescribir su propia home desde su vista completa.
+                            </HonestNote>
+                        </CardContent>
+                    </Card>
+
+                    {/* Modo de red: internet abierto vs solo interno */}
+                    <Card className="border-white/10 bg-white/[0.03]">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-sm">
+                                {s.netMode === "internal" ? (
+                                    <Lock className="h-4 w-4 text-amber-300" />
+                                ) : (
+                                    <Globe className="h-4 w-4 text-emerald-300" />
+                                )}
+                                Modo de red
+                            </CardTitle>
+                            <CardDescription>
+                                Permite sitios de internet abierto o limita la navegación a servidores
+                                internos de StarSeed.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <div className="flex flex-wrap gap-1.5">
+                                <Pill active={s.netMode === "open"} onClick={() => patch({ netMode: "open" })}>
+                                    Internet abierto
+                                </Pill>
+                                <Pill active={s.netMode === "internal"} onClick={() => patch({ netMode: "internal" })}>
+                                    Solo interno (StarSeed)
+                                </Pill>
+                            </div>
+                            <HonestNote>
+                                En «solo interno» el navegador BLOQUEA cualquier destino externo a la red
+                                StarSeed (rutas de la OS, mismo origen y dominios StarSeed siguen
+                                permitidos). En «internet abierto» se permite todo.
+                            </HonestNote>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
 
             {loading ? (
                 <div className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 p-8 text-sm text-white/50">
