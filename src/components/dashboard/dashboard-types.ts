@@ -91,6 +91,15 @@ export type WidgetType =
     | 'OFFICIAL_DATA'         // Descubrimientos — fuentes oficiales en vivo (clima, espacio, sismos)
     | 'SPACE_WEATHER'         // Astronomía — clima espacial NOAA SWPC en tiempo real (reactivo)
     | 'IMMERSIVE'             // Ciberdelia — espacio inmersivo VR/AR (WebXR) con portales de apps
+    // ── Áreas del SOSD con DATOS REALES en vivo (os_* + owner-scoped) ──
+    | 'MY_EVENTS'             // Social — eventos reales próximos (os_events)
+    | 'MY_GROUPS'             // Social — grupos reales + mis membresías (os_groups/os_memberships)
+    | 'COMMUNITIES'           // Social — comunidades reales (os_pages kind=comunidad)
+    | 'FEDERATED_ENTITIES'    // Red — entidades federativas reales (os_pages)
+    | 'MEMORIES'              // Archivos/IA — memorias del usuario (tabla memories)
+    | 'BRAINS'                // IA — cerebros del usuario (tabla brains)
+    | 'VAULTS'                // Sistema — baúles del usuario (tabla vaults)
+    | 'DOCUMENTS'             // Archivos — documentos del usuario (tabla documents)
     | 'AI_GENERATED';         // 🔮 La Fragua de Interfaces — Custom AI-forged widgets
 
 export interface Dashboard {
