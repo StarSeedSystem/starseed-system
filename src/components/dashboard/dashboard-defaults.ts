@@ -72,6 +72,8 @@ export const WIDGET_CATEGORY_MAP: WidgetCategoryMapping[] = [
     { type: 'SOCIAL_RADAR', primaryCategory: 'social', secondaryCategories: ['ubicacion'], tags: ['eventos', 'amigos', 'calendario'] },
     { type: 'MESSAGES', primaryCategory: 'social', secondaryCategories: ['ia'], tags: ['mensajes', 'chat', 'comunicación'], isPopular: true },
     { type: 'NOTIFICATIONS', primaryCategory: 'utilidades', secondaryCategories: ['social', 'sistema'], tags: ['alertas', 'notificaciones', 'avisos'] },
+    { type: 'QUICK_ACCESS', primaryCategory: 'utilidades', secondaryCategories: ['sistema', 'social', 'productividad'], tags: ['accesos', 'rapidos', 'lanzadera', 'atajos', 'navegacion', 'inicio'], isPopular: true },
+    { type: 'ACTIVITY_SUMMARY', primaryCategory: 'productividad', secondaryCategories: ['social', 'sistema'], tags: ['actividad', 'resumen', 'metricas', 'pulso', 'estadisticas', 'agregados'], isPopular: true },
 
     // ── Political ──
     { type: 'POLITICAL_SUMMARY', primaryCategory: 'politica', secondaryCategories: ['parlamento'], tags: ['propuestas', 'legislación', 'gobernanza'], isPopular: true },
@@ -182,6 +184,8 @@ const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
             { type: 'MY_PAGES', w: 4, h: 3, x: 0, y: 7 },
             { type: 'SOCIAL_RADAR', w: 4, h: 3, x: 4, y: 7 },
             { type: 'NOTIFICATIONS', w: 4, h: 3, x: 8, y: 7 },
+            { type: 'ACTIVITY_SUMMARY', w: 5, h: 4, x: 0, y: 28 },
+            { type: 'QUICK_ACCESS', w: 7, h: 4, x: 5, y: 28 },
             // Muestras funcionales (abridor universal + media center + datos oficiales) en el inicio
             { type: 'UNIVERSAL_OPENER', w: 4, h: 5, x: 0, y: 10 },
             { type: 'MUSIC_PLAYER', w: 4, h: 5, x: 4, y: 10 },
@@ -272,6 +276,7 @@ const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
             { type: 'COLLAB_PROJECTS', w: 4, h: 5, x: 8, y: 0 },
             { type: 'ACTIVE_PROJECTS', w: 4, h: 4, x: 0, y: 5 },
             { type: 'RECENT_ACTIVITY', w: 4, h: 4, x: 4, y: 5 },
+            { type: 'ACTIVITY_SUMMARY', w: 4, h: 4, x: 0, y: 9 },
             { type: 'CALCULATOR', w: 4, h: 4, x: 8, y: 5 },
         ],
     },
@@ -291,9 +296,10 @@ const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         categoryId: 'utilidades',
         name: 'Utilidades',
         widgets: [
-            { type: 'CALCULATOR', w: 4, h: 4, x: 0, y: 0 },
-            { type: 'NOTIFICATIONS', w: 4, h: 4, x: 4, y: 0 },
-            { type: 'SYSTEM_STATUS', w: 4, h: 4, x: 8, y: 0 },
+            { type: 'QUICK_ACCESS', w: 12, h: 4, x: 0, y: 0 },
+            { type: 'CALCULATOR', w: 4, h: 4, x: 0, y: 4 },
+            { type: 'NOTIFICATIONS', w: 4, h: 4, x: 4, y: 4 },
+            { type: 'SYSTEM_STATUS', w: 4, h: 4, x: 8, y: 4 },
         ],
     },
     // ─── 10. Arte ────────────────────────────────────────────
