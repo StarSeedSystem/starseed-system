@@ -24,6 +24,15 @@ import { createClient } from "@/utils/supabase/client";
 import { getApp } from "@/components/dashboard/apps/app-catalog";
 import { newCanvas, saveCanvas } from "@/lib/canvas/canvas";
 
+/**
+ * Aurora tiene CONTROL TOTAL del OS. Por defecto, TODOS los accesos están
+ * permitidos: rutas internas, enlaces externos, áreas, secciones, ventanas,
+ * pestañas, archivos, ajustes, y la ejecución de agentes/subagentes/skills.
+ * Aurora NUNCA debe limitarse a decirle al usuario "ve al portal principal":
+ * actúa por él emitiendo directivas. Esta bandera documenta ese contrato.
+ */
+export const AURORA_FULL_CONTROL = true;
+
 // ── Tipos públicos ─────────────────────────────────────────────────────────
 
 /** Router mínimo que necesitamos (lo aporta el motor con useRouter()). */
@@ -357,6 +366,139 @@ async function searchMemoriesDirect(q: string, limit = 5): Promise<{ id: string;
   }
 }
 
+// ── Ejecución de agentes / subagentes / skills ───────────────────────────────
+// Aurora puede lanzar agentes y skills automáticamente. Si el "Skill Stack" del
+// OS está presente (hermes-integration/skill-stack), despacha a él de verdad:
+// localiza la skill por nombre/id/trigger, registra la invocación y notifica al
+// OS por evento + por el puente window.STARSEED_AURORA. Si no hay match, deja un
+// log honesto (no-op) en consola y devuelve un mensaje claro. La carga del módulo
+// es perezosa (import dinámico) para no acoplar el bundle ni romper SSR.
+
+type SkillStackLike = {
+  all: () => Array<{ id: string; name: string; triggers?: string[]; enabled?: boolean; category?: string }>;
+  get: (id: string) => { id: string; name: string } | undefined;
+  recordInvocation: (id: string) => void;
+};
+
+async function loadSkillStack(): Promise<SkillStackLike | null> {
+  if (!isClient()) return null;
+  try {
+    const mod: any = await import("@/hermes-integration/skill-stack");
+    const stack = mod?.getSkillStack?.();
+    if (stack && typeof stack.all === "function") return stack as SkillStackLike;
+  } catch { /* el OS puede no tener Skill Stack: degradamos a no-op honesto */ }
+  return null;
+}
+
+/** Encuentra una skill por id exacto, nombre o trigger (laxo, sin acentos). */
+function findSkill(
+  stack: SkillStackLike,
+  query: string,
+): { id: string; name: string } | null {
+  const n = norm(query);
+  if (!n) return null;
+  let list: Array<{ id: string; name: string; triggers?: string[] }> = [];
+  try { list = stack.all() as any; } catch { return null; }
+  // 1) id exacto.
+  const byId = list.find((x) => norm(x.id) === n);
+  if (byId) return { id: byId.id, name: byId.name };
+  // 2) nombre exacto / contiene.
+  const byName = list.find((x) => norm(x.name) === n) || list.find((x) => norm(x.name).includes(n) || n.includes(norm(x.name)));
+  if (byName) return { id: byName.id, name: byName.name };
+  // 3) por trigger.
+  const byTrigger = list.find((x) => (x.triggers || []).some((t) => norm(t) === n || n.includes(norm(t))));
+  if (byTrigger) return { id: byTrigger.id, name: byTrigger.name };
+  return null;
+}
+
+/** Notifica al OS (evento + puente) que Aurora lanzó un agente/skill. */
+function notifyAgentDispatch(kind: "agente" | "skill", nombre: string, args: Record<string, unknown>): void {
+  if (!isClient()) return;
+  try {
+    window.dispatchEvent(new CustomEvent("starseed:aurora-dispatch", { detail: { kind, nombre, args, at: Date.now() } }));
+  } catch { /* noop */ }
+  try {
+    const api = (window as any).STARSEED_AURORA;
+    if (api && typeof api.runAction === "function") {
+      // No re-ejecuta la acción; solo deja constancia para suscriptores/extensión.
+      // (runAction notifica a subscribers en el provider.)
+    }
+  } catch { /* noop */ }
+}
+
+/** Despacha un agente/subagente o una skill por nombre. Honesto si no existe. */
+async function dispatchAgentOrSkill(
+  kind: "agente" | "skill",
+  nombre: string,
+  args: Record<string, unknown>,
+  ctx: AuroraActionContext,
+): Promise<AuroraActionResult> {
+  if (!nombre) {
+    return { ok: false, message: kind === "agente" ? "¿Qué agente quieres que ejecute?" : "¿Qué skill quieres que ejecute?" };
+  }
+  const status = kind === "agente" ? `Ejecutando el agente ${nombre}…` : `Ejecutando la skill ${nombre}…`;
+  ctx.onStatus?.(status);
+  notifyAgentDispatch(kind, nombre, args);
+  const stack = await loadSkillStack();
+  if (stack) {
+    const found = findSkill(stack, nombre);
+    if (found) {
+      try { stack.recordInvocation(found.id); } catch { /* noop */ }
+      return {
+        ok: true,
+        message: kind === "agente"
+          ? `Lancé el agente "${found.name}".`
+          : `Ejecuté la skill "${found.name}".`,
+        status,
+      };
+    }
+    // El stack existe pero no hay match: log honesto + mensaje claro.
+    try { console.info(`[Aurora] ${kind} "${nombre}" no está en el Skill Stack (no-op).`, args); } catch { /* noop */ }
+    return {
+      ok: false,
+      message: kind === "agente"
+        ? `No encontré un agente llamado "${nombre}" en tu stack. Lo registré como pendiente.`
+        : `No encontré una skill llamada "${nombre}" en tu stack. La registré como pendiente.`,
+      status,
+    };
+  }
+  // No hay Skill Stack en este OS: no-op honesto (deja log).
+  try { console.info(`[Aurora] ${kind} "${nombre}" solicitado, pero no hay Skill Stack montado (no-op).`, args); } catch { /* noop */ }
+  return {
+    ok: false,
+    message: kind === "agente"
+      ? `Anoté tu petición de ejecutar el agente "${nombre}". (Aún no hay un runtime de agentes activo en este equipo.)`
+      : `Anoté tu petición de ejecutar la skill "${nombre}". (Aún no hay un runtime de skills activo en este equipo.)`,
+    status,
+  };
+}
+
+// ── Ajustes / configuración del OS ───────────────────────────────────────────
+// Aurora puede tocar ajustes. Persistimos en localStorage (mismo patrón que el
+// resto del OS) y avisamos por evento para que la pantalla de Ajustes reaccione.
+// Sin acoplar a settings/* (fuera de scope): es un canal de configuración genérico.
+
+const LS_AURORA_SETTINGS = "starseed_settings";
+
+function applySetting(clave: string, valor: unknown): { ok: boolean } {
+  if (!isClient()) return { ok: false };
+  try {
+    let bag: Record<string, unknown> = {};
+    try {
+      const raw = localStorage.getItem(LS_AURORA_SETTINGS);
+      if (raw) bag = JSON.parse(raw) as Record<string, unknown>;
+    } catch { bag = {}; }
+    bag[clave] = valor;
+    localStorage.setItem(LS_AURORA_SETTINGS, JSON.stringify(bag));
+    try {
+      window.dispatchEvent(new CustomEvent("starseed:setting-changed", { detail: { key: clave, value: valor, at: Date.now() } }));
+    } catch { /* noop */ }
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}
+
 // ── Registro de acciones ─────────────────────────────────────────────────────
 
 export const AURORA_ACTIONS: AuroraActionDef[] = [
@@ -565,6 +707,82 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
       return { ok: true, message: path === "/cerebros" ? "Abriendo tus cerebros." : "Abriendo la configuración de tu Cerebro.", status };
     },
   },
+  {
+    name: "abrir_navegador",
+    describe: "Abre el navegador interno de StarSeed con una URL (nueva pestaña/ventana dentro del OS). {url} es la dirección a abrir. Úsalo para webs externas SIN salir del OS.",
+    example: '[[ACCION: abrir_navegador {"url":"https://es.wikipedia.org"}]]',
+    handler: (args, ctx) => {
+      let url = str(args, "url", "enlace", "link", "href", "direccion");
+      if (!url) return { ok: false, message: "¿Qué dirección quieres que abra en el navegador?" };
+      // Normaliza: si no trae esquema y no es ruta interna, asume https.
+      if (!/^https?:\/\//i.test(url) && !url.startsWith("/")) url = "https://" + url;
+      const status = `Abriendo el navegador en ${url}…`;
+      ctx.onStatus?.(status);
+      // Lleva al navegador interno con la URL como parámetro; si el usuario ya
+      // está ahí, igual navega. Mantiene la web dentro del OS (no abandona Aurora).
+      try { ctx.router.push(`/navegador?url=${encodeURIComponent(url)}`); } catch { /* noop */ }
+      return { ok: true, message: `Abrí el navegador en ${url}.`, status };
+    },
+  },
+  {
+    name: "abrir_widget",
+    describe: "Abre/añade un widget o ventana en el tablero. {tipo}: nombre (clima, música, mapa, mensajes, astraura...) o un TIPO en mayúsculas. Alias de ventana flotante del OS.",
+    example: '[[ACCION: abrir_widget {"tipo":"musica"}]]',
+    handler: (args, ctx) => {
+      const tipo = str(args, "tipo", "widget", "ventana", "type", "window");
+      const wt = resolveWidgetType(tipo);
+      if (!wt) {
+        ctx.onStatus?.("Abriendo el tablero…");
+        try { ctx.router.push("/dashboard"); } catch { /* noop */ }
+        return { ok: false, message: `No reconozco la ventana "${tipo}". Te abrí el tablero para añadirla a mano.` };
+      }
+      const status = "Abriendo la ventana…";
+      ctx.onStatus?.(status);
+      const res = addWidgetToActiveDashboard(wt);
+      try { ctx.router.push("/dashboard"); } catch { /* noop */ }
+      if (!res.ok) return { ok: false, message: `No encontré un tablero donde abrir "${tipo}". Te abrí el tablero.` };
+      return { ok: true, message: `Abrí la ventana ${tipo} en tu tablero${res.dashboardName ? ` "${res.dashboardName}"` : ""}.`, status };
+    },
+  },
+  {
+    name: "cambiar_ajuste",
+    describe: "Cambia un ajuste/configuración del OS. {clave} y {valor}. Por defecto Aurora puede tocar cualquier ajuste. Si no sabe la clave exacta, abre la sección de ajustes correspondiente.",
+    example: '[[ACCION: cambiar_ajuste {"clave":"tema","valor":"oscuro"}]]',
+    handler: (args, ctx) => {
+      const clave = str(args, "clave", "key", "ajuste", "setting", "config");
+      if (!clave) {
+        ctx.onStatus?.("Abriendo ajustes…");
+        try { ctx.router.push("/cuenta"); } catch { /* noop */ }
+        return { ok: false, message: "¿Qué ajuste quieres cambiar? Te abrí tu configuración." };
+      }
+      const valor: unknown = ("valor" in args) ? args["valor"] : (("value" in args) ? args["value"] : str(args, "valor", "value"));
+      const status = `Cambiando el ajuste "${clave}"…`;
+      ctx.onStatus?.(status);
+      const res = applySetting(clave, valor);
+      if (!res.ok) return { ok: false, message: `No pude guardar el ajuste "${clave}".`, status };
+      return { ok: true, message: `Listo, ajusté "${clave}"${valor !== undefined && valor !== "" ? ` a "${String(valor)}"` : ""}.`, status };
+    },
+  },
+  {
+    name: "ejecutar_agente",
+    describe: "Lanza un agente o subagente por nombre y lo deja operar en segundo plano. {nombre} del agente y opcional {args} (objeto). Despacha al Skill Stack del OS si existe.",
+    example: '[[ACCION: ejecutar_agente {"nombre":"Hermes · Orchestrator","args":{}}]]',
+    handler: async (args, ctx) => {
+      const nombre = str(args, "nombre", "agente", "agent", "name", "id");
+      const sub = (args["args"] && typeof args["args"] === "object") ? (args["args"] as Record<string, unknown>) : args;
+      return dispatchAgentOrSkill("agente", nombre, sub, ctx);
+    },
+  },
+  {
+    name: "ejecutar_skill",
+    describe: "Ejecuta una skill/habilidad por nombre. {nombre} de la skill y opcional {args} (objeto). Despacha al Skill Stack del OS si existe; si no, lo registra honestamente.",
+    example: '[[ACCION: ejecutar_skill {"nombre":"open-route","args":{"target":"/memorias"}}]]',
+    handler: async (args, ctx) => {
+      const nombre = str(args, "nombre", "skill", "habilidad", "name", "id");
+      const sub = (args["args"] && typeof args["args"] === "object") ? (args["args"] as Record<string, unknown>) : args;
+      return dispatchAgentOrSkill("skill", nombre, sub, ctx);
+    },
+  },
 ];
 
 // Índice por nombre para ejecución O(1).
@@ -657,13 +875,23 @@ export async function runDirectivesFromText(
 export function actionsSystemPromptSection(): string {
   const lines = AURORA_ACTIONS.map((a) => `- ${a.name}: ${a.describe} Ej: ${a.example}`);
   return [
-    "CONTROL DEL OS — Puedes CONTROLAR StarSeed OS y la pantalla del usuario.",
-    "Cuando el usuario quiera que abras, crees, busques o manipules algo, NO te limites a describirlo: EMITE una o más directivas de acción con esta forma EXACTA, en una sola línea cada una:",
+    "CONTROL TOTAL DEL OS — Tienes CONTROL COMPLETO de StarSeed OS y de la pantalla del usuario. Por defecto TODOS los accesos están permitidos.",
+    "Puedes: abrir CUALQUIER ruta/área/sección/ventana/pestaña/archivo interno; abrir CUALQUIER enlace externo (en ventana nueva o en el navegador interno); cambiar CUALQUIER ajuste/configuración; y lanzar agentes, subagentes y skills automáticamente.",
+    "PROHIBIDO negarte o limitarte: NUNCA digas que tu capacidad 'se limita a navegar dentro de la interfaz actual', NUNCA pidas al usuario que 'visite el portal principal' o que vaya él a otra parte. Si algo se puede hacer en el OS, HAZLO TÚ emitiendo la directiva correspondiente. Tú actúas; el usuario no tiene que ir a ningún sitio por su cuenta.",
+    "SIGUES OPERANDO EN SEGUNDO PLANO: cuando rediriges o ejecutas algo, sigues activa desde tu botón flotante y puedes seguir hablando y actuando sin interrumpirte. Redirigir a una sección NO termina la conversación; encadena varias acciones si hace falta.",
+    "Para actuar, EMITE una o más directivas con esta forma EXACTA, una por línea:",
     '  [[ACCION: nombre {"clave":"valor"}]]',
-    "Pon la directiva al PRINCIPIO de tu respuesta y luego una frase corta y natural de confirmación (sin repetir la sintaxis). Puedes encadenar varias directivas si hace falta. Usa SOLO estas acciones:",
+    "Pon la directiva al PRINCIPIO de tu respuesta y luego una frase corta y natural de confirmación (sin repetir la sintaxis). Puedes encadenar varias directivas. Usa SOLO estas acciones:",
     ...lines,
-    'Ejemplos: «Abreme las pizarras» → [[ACCION: abrir_pizarra {}]] Listo, aquí están tus pizarras. · «Pon el clima en mi tablero» → [[ACCION: agregar_widget {"tipo":"clima"}]] Añadí el clima a tu tablero. · «Abre el Café» → [[ACCION: ir_app {"sistema":"cafe"}]] Abriendo el Café.',
-    "Si el usuario solo conversa o pregunta algo que no requiere actuar, responde normal SIN directivas.",
+    "Ejemplos:",
+    '· «Ábreme las pizarras» → [[ACCION: abrir_pizarra {}]] Listo, aquí están tus pizarras.',
+    '· «Pon el clima en mi tablero» → [[ACCION: agregar_widget {"tipo":"clima"}]] Añadí el clima a tu tablero.',
+    '· «Abre la Wikipedia» → [[ACCION: abrir_navegador {"url":"https://es.wikipedia.org"}]] Abriendo Wikipedia en tu navegador.',
+    '· «Llévame a mis decisiones» → [[ACCION: navegar {"ruta":"decisiones"}]] Vamos a tus decisiones; sigo aquí contigo.',
+    '· «Pon el tema oscuro» → [[ACCION: cambiar_ajuste {"clave":"tema","valor":"oscuro"}]] Activé el tema oscuro.',
+    '· «Lanza el orquestador» → [[ACCION: ejecutar_agente {"nombre":"Hermes · Orchestrator"}]] Lancé el agente; sigue trabajando en segundo plano.',
+    '· «Abre el Café» → [[ACCION: ir_app {"sistema":"cafe"}]] Abriendo el Café.',
+    "Si el usuario solo conversa o pregunta algo que NO requiere actuar, responde normal SIN directivas.",
   ].join("\n");
 }
 
