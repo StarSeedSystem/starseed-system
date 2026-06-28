@@ -12,12 +12,31 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
-import { FolderOpen, Plus, ChevronRight, FileText, LogIn, HardDrive } from "lucide-react";
+import { FolderOpen, Plus, ChevronRight, FileText, FileImage, FileVideo, FileAudio, FileCode2, FileType2, Box, LogIn, HardDrive, type LucideIcon } from "lucide-react";
+import { detectFormat, type FileFormat } from "@/components/files/file-preview";
 import { WidgetShell, timeAgo } from "../kit";
 import { useAppearance } from "@/context/appearance-context";
 import { useMyDocuments, tsOf, type DocumentRow } from "@/lib/widget-data/os-live";
 
 const ACCENT = "#eab308";
+
+// Mapa de formato → icono/color para dar jerarquía visual por tipo de archivo.
+const FMT_META: Record<FileFormat, { icon: LucideIcon; color: string; label: string }> = {
+    image:    { icon: FileImage, color: "#38bdf8", label: "IMG" },
+    video:    { icon: FileVideo, color: "#f472b6", label: "VID" },
+    audio:    { icon: FileAudio, color: "#a78bfa", label: "AUD" },
+    pdf:      { icon: FileType2, color: "#fb7185", label: "PDF" },
+    markdown: { icon: FileText,  color: "#34d399", label: "MD" },
+    code:     { icon: FileCode2, color: "#facc15", label: "CODE" },
+    link:     { icon: ChevronRight, color: "#22d3ee", label: "URL" },
+    model3d:  { icon: Box,       color: "#c084fc", label: "3D" },
+    app:      { icon: FolderOpen, color: "#fbbf24", label: "APP" },
+    generic:  { icon: FileText,  color: "#eab308", label: "DOC" },
+};
+function fmtOf(name: string | null | undefined): { icon: LucideIcon; color: string; label: string } {
+    const f = detectFormat({ name: name ?? undefined });
+    return FMT_META[f] ?? FMT_META.generic;
+}
 
 export function DocumentsWidget() {
     const { config } = useAppearance();
@@ -123,8 +142,13 @@ export function DocumentsWidget() {
                                         transition={{ duration: animate ? 0.25 : 0, delay: animate ? idx * 0.04 : 0 }}
                                         className="rounded-lg border border-border/40 bg-white/[0.02]">
                                         <Link href="/almacenes" className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer">
-                                            <FileText className="size-3.5 shrink-0" style={{ color: ACCENT }} />
+                                            {(() => { const m = fmtOf(d.name); const I = m.icon; return (
+                                                <span className="grid size-6 shrink-0 place-items-center rounded-md border" style={{ color: m.color, borderColor: `${m.color}40`, background: `${m.color}1a` }}>
+                                                    <I className="size-3.5" />
+                                                </span>
+                                            ); })()}
                                             <span className="text-[11px] font-semibold truncate min-w-0 flex-1">{d.name || "Documento"}</span>
+                                            <span className="shrink-0 rounded px-1 py-0.5 text-[8px] font-black uppercase tracking-wider" style={{ color: fmtOf(d.name).color, background: `${fmtOf(d.name).color}1a` }}>{fmtOf(d.name).label}</span>
                                             {d.updated_at && <span className="text-[9px] text-muted-foreground/50 tabular-nums shrink-0">{timeAgo(tsOf(d.updated_at))}</span>}
                                         </Link>
                                     </motion.div>
