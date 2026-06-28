@@ -124,6 +124,16 @@ export const WIDGET_CATEGORY_MAP: WidgetCategoryMapping[] = [
 
     // ── Wellness ──
     { type: 'WELLNESS', primaryCategory: 'social', secondaryCategories: ['utilidades'], tags: ['bienestar', 'salud', 'coherencia'] },
+
+    // ── Áreas del SOSD con datos reales en vivo ──
+    { type: 'MY_EVENTS', primaryCategory: 'social', secondaryCategories: ['explorador'], tags: ['eventos', 'agenda', 'encuentros', 'asambleas', 'talleres', 'calendario', 'real'], isPopular: true },
+    { type: 'MY_GROUPS', primaryCategory: 'social', secondaryCategories: ['red'], tags: ['grupos', 'colectivos', 'círculos', 'asambleas', 'membresías', 'comunidad', 'real'], isPopular: true },
+    { type: 'COMMUNITIES', primaryCategory: 'social', secondaryCategories: ['explorador', 'red'], tags: ['comunidades', 'sanghas', 'biorregiones', 'colectivos', 'red social', 'real'], isPopular: true },
+    { type: 'FEDERATED_ENTITIES', primaryCategory: 'red', secondaryCategories: ['social', 'explorador'], tags: ['entidades', 'instituciones', 'federación', 'proyectos', 'red', 'real'] },
+    { type: 'MEMORIES', primaryCategory: 'archivos', secondaryCategories: ['ia'], tags: ['memorias', 'exocortex', 'notas', 'conocimiento', 'personal', 'real'] },
+    { type: 'BRAINS', primaryCategory: 'ia', secondaryCategories: ['sistema'], tags: ['cerebros', 'ia', 'contexto', 'exocortex', 'servidores', 'real'] },
+    { type: 'VAULTS', primaryCategory: 'sistema', secondaryCategories: ['archivos', 'privacidad'], tags: ['baúles', 'almacenamiento', 'soberano', 'conexiones', 'datos', 'real'] },
+    { type: 'DOCUMENTS', primaryCategory: 'archivos', secondaryCategories: ['sistema'], tags: ['archivos', 'documentos', 'almacenes', 'ficheros', 'real'] },
 ];
 
 // ── Helper functions ─────────────────────────────────────────────
