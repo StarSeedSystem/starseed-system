@@ -52,8 +52,9 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
 
         const name = eng.activePersonality?.name || "Aurora";
         const greeting =
-          `Hola, soy ${name}. Puedo abrir y controlar todo StarSeed por ti: ` +
-          `tus pizarras, tu tablero, memorias, el mapa mental o publicar algo. Solo dime qué quieres hacer.`;
+          `Hola, soy ${name}. Tengo control total de StarSeed y sigo activa en segundo plano: ` +
+          `puedo abrir cualquier sección, ventana, archivo o enlace, cambiar ajustes y lanzar agentes por ti, ` +
+          `sin dejar de hablarte mientras lo hago. Solo dime qué quieres hacer.`;
         markGreeted();
         // Voz suave; si no hay soporte de voz, no pasa nada (degrada en silencio).
         try { eng.speak(greeting); } catch { /* */ }
@@ -99,13 +100,25 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       runDirectives: async (text: string) => engineRef.current?.runDirectives(text),
       /** Envía texto como si el usuario hablara (rutea comandos + Astraura). */
       runCommand: async (text: string) => engineRef.current?.runCommand(text),
+      /** Envía texto al chat de Aurora (alias de runCommand). */
+      send: async (text: string) => engineRef.current?.send(text),
+      /** Transporte de voz: pausa la síntesis sin perder la sesión. */
+      pauseSpeech: () => engineRef.current?.pauseSpeech(),
+      /** Transporte de voz: reanuda la síntesis. */
+      resumeSpeech: () => engineRef.current?.resumeSpeech(),
+      /** Transporte de voz: adelanta a la respuesta siguiente del historial. */
+      skipForward: () => engineRef.current?.skipForward(),
+      /** Transporte de voz: retrocede a la respuesta anterior del historial. */
+      skipBack: () => engineRef.current?.skipBack(),
+      /** Interrumpe de inmediato lo que Aurora está diciendo. */
+      interrupt: () => engineRef.current?.interrupt(),
       /** Registra un listener de acciones. Devuelve una función para quitarlo. */
       onAction: (cb: (name: string, args: Record<string, unknown>) => void) => {
         subscribers.add(cb);
         return () => subscribers.delete(cb);
       },
       /** Versión del puente, para que la extensión negocie compatibilidad. */
-      version: 1 as const,
+      version: 2 as const,
     };
 
     try {
@@ -122,11 +135,17 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
             reply(d.requestId, { ok: true, results });
             return;
           }
-          if (d.type === "runCommand" && typeof d.text === "string") {
+          if ((d.type === "runCommand" || d.type === "send") && typeof d.text === "string") {
             await api.runCommand(d.text);
             reply(d.requestId, { ok: true });
             return;
           }
+          // Transporte de voz desde la extensión.
+          if (d.type === "pauseSpeech") { api.pauseSpeech(); reply(d.requestId, { ok: true }); return; }
+          if (d.type === "resumeSpeech") { api.resumeSpeech(); reply(d.requestId, { ok: true }); return; }
+          if (d.type === "skipForward") { api.skipForward(); reply(d.requestId, { ok: true }); return; }
+          if (d.type === "skipBack") { api.skipBack(); reply(d.requestId, { ok: true }); return; }
+          if (d.type === "interrupt") { api.interrupt(); reply(d.requestId, { ok: true }); return; }
           const name = d.action || d.name;
           if (name) {
             const res = await api.runAction(name, d.args || {});
