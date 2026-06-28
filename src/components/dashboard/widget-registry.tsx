@@ -10,6 +10,8 @@ import { PoliticalSummaryWidget } from "@/components/dashboard/widgets/political
 import { SystemStatusWidget } from "@/components/dashboard/widgets/system-status-widget";
 import { RecentActivityWidget } from "@/components/dashboard/widgets/recent-activity-widget";
 import { NexusQuickAccessWidget } from "@/components/dashboard/widgets/nexus-quick-access-widget";
+import { QuickAccessWidget } from "@/components/dashboard/widgets/quick-access-widget";
+import { ActivitySummaryWidget } from "@/components/dashboard/widgets/activity-summary-widget";
 import { ThemeManagerWidget } from "@/components/dashboard/widgets/theme-manager-widget";
 import { MentalCoherenceWidget } from "@/components/dashboard/widgets/mental-coherence-widget";
 import { ActiveProjectsWidget } from "@/components/dashboard/widgets/active-projects-widget";
@@ -143,6 +145,10 @@ export function WidgetRegistry({ widget }: WidgetProps) {
 
         case 'NEXUS_QUICK_ACCESS':
             return <NexusQuickAccessWidget />;
+        case 'QUICK_ACCESS':
+            return <QuickAccessWidget />;
+        case 'ACTIVITY_SUMMARY':
+            return <ActivitySummaryWidget />;
         case 'LEARNING_PATH':
             return <LearningPathWidget />;
         case 'SOCIAL_RADAR':
