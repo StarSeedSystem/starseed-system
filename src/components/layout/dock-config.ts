@@ -64,6 +64,7 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'pizarra',       label: 'Pizarra',             iconKey: 'PenLine',         path: '/pizarra',               color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'seguridad',     label: 'Seguridad',           iconKey: 'ShieldCheck',     path: '/seguridad',             color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'funciones',     label: 'Funciones',           iconKey: 'LayoutGrid',      path: '/funciones',             color: 'purple',  enabled: true,  origin: 'preset' },
+  { id: 'recordatorios', label: 'Recordatorios',       iconKey: 'CalendarClock',   path: '/recordatorios',         color: 'amber',   enabled: true,  origin: 'preset' },
   { id: 'servicios',     label: 'Servicios y Fuentes', iconKey: 'Server',          path: '/servicios',             color: 'cyan',    enabled: false, origin: 'preset' },
   { id: 'decisiones',    label: 'Decisiones',          iconKey: 'Vote',            path: '/decisiones',            color: 'amber',   enabled: true,  origin: 'preset' },
   { id: 'conocimiento',  label: 'Conocimiento',        iconKey: 'Lightbulb',       path: '/conocimiento',          color: 'cyan',    enabled: false, origin: 'preset' },
