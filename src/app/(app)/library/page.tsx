@@ -298,6 +298,7 @@ const SAVED_KIND_LABEL: Record<string, string> = {
   app: "App",
   diseno: "Diseño",
   pagina: "Página",
+  ego: "Ego de Aurora",
 };
 
 function savedKindLabel(kind: string): string {
