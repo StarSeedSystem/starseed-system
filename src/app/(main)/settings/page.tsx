@@ -9,6 +9,7 @@ import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { TrinityFabSettings } from "@/components/settings/trinity/trinity-fab-settings";
 import { TrinityEdgeSettings } from "@/components/settings/trinity/trinity-edge-settings";
 import { AccountSyncPanel } from "@/components/settings/account/account-sync-panel";
+import { ProfileIdentityPanel } from "@/components/settings/profile/profile-identity-panel";
 import { ProfileSwitcher } from "@/components/profile/profile-switcher";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,11 @@ import {
     Plug2,
     Globe,
     ArrowRight,
+    Mail,
+    Ear,
+    Bell,
+    Server,
+    ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -53,49 +59,76 @@ function TabIntro({
     );
 }
 
-/* ── Acceso rápido: tiles de navegación ─────────────────────────────────────── */
-interface QuickTile {
+/* ── Tarjeta de enlace a una página dedicada ────────────────────────────────── */
+function LinkCard({
+    href,
+    icon: Icon,
+    label,
+    description,
+    accentText = "text-primary",
+    accentBg = "bg-primary/10 border-primary/20",
+}: {
     href: string;
     icon: React.ComponentType<{ className?: string }>;
     label: string;
     description: string;
+    accentText?: string;
+    accentBg?: string;
+}) {
+    return (
+        <Link
+            href={href}
+            className="flex items-center gap-3 p-3.5 rounded-xl border border-border/50 bg-card/40 hover:bg-card/70 transition-colors cursor-pointer group h-full"
+        >
+            <span className={cn("grid place-items-center w-9 h-9 rounded-lg border shrink-0", accentBg, accentText)}>
+                <Icon className="w-4 h-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold leading-tight">{label}</p>
+                <p className="text-[11px] text-muted-foreground leading-snug truncate">{description}</p>
+            </div>
+            <ExternalLink className="w-4 h-4 text-muted-foreground shrink-0 opacity-50 group-hover:opacity-90 transition-opacity" />
+        </Link>
+    );
+}
+
+/* ── Acceso rápido: tiles de navegación interna ─────────────────────────────── */
+interface QuickTile {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    description: string;
     accent: string;
-    tab?: string; // si apunta a una pestaña interna
-    external?: boolean;
+    tab: string;
 }
 
 const QUICK_TILES: QuickTile[] = [
     {
-        href: "#",
-        icon: Brain,
-        label: "Memoria local",
-        description: "Exocórtex personal",
+        icon: User,
+        label: "Perfil & Cuenta",
+        description: "Identidad · correos",
         accent: "text-primary border-primary/20 bg-primary/5 hover:bg-primary/10",
-        tab: "ai",
+        tab: "profile",
     },
     {
-        href: "#",
         icon: Cpu,
-        label: "Servicio de IA",
-        description: "Local · API · Modelo",
+        label: "IA & Modelos",
+        description: "Local · API · Fuentes",
         accent: "text-[#FFBF00] border-[#FFBF00]/20 bg-[#FFBF00]/5 hover:bg-[#FFBF00]/10",
         tab: "ai",
     },
     {
-        href: "#",
-        icon: Plug2,
-        label: "Conexiones",
-        description: "Servicios vinculados",
+        icon: Sparkles,
+        label: "Aurora & Sentidos",
+        description: "Asistente · percepción",
         accent: "text-[#39FF14] border-[#39FF14]/20 bg-[#39FF14]/5 hover:bg-[#39FF14]/10",
-        tab: "security",
+        tab: "experience",
     },
     {
-        href: "#",
-        icon: Globe,
-        label: "Red & Privacidad",
-        description: "VPN · Nodos · Fediverso",
+        icon: Shield,
+        label: "Seguridad",
+        description: "Privacidad · conexiones",
         accent: "text-[#007FFF] border-[#007FFF]/20 bg-[#007FFF]/5 hover:bg-[#007FFF]/10",
-        tab: "privacy",
+        tab: "security",
     },
 ];
 
@@ -104,38 +137,26 @@ function QuickAccessTiles({ onTabChange }: { onTabChange: (tab: string) => void 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {QUICK_TILES.map((tile) => {
                 const Icon = tile.icon;
-                const inner = (
-                    <div
-                        className={cn(
-                            "flex flex-col gap-1.5 p-3 rounded-xl border transition-all duration-200 cursor-pointer group h-full",
-                            tile.accent,
-                        )}
-                    >
-                        <div className="flex items-center justify-between">
-                            <Icon className="w-4 h-4" />
-                            <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
-                        </div>
-                        <p className="text-xs font-semibold leading-tight">{tile.label}</p>
-                        <p className="text-[10px] text-muted-foreground leading-snug">{tile.description}</p>
-                    </div>
-                );
-
-                if (tile.tab) {
-                    return (
-                        <button
-                            key={tile.label}
-                            className="text-left h-full cursor-pointer"
-                            onClick={() => onTabChange(tile.tab!)}
-                        >
-                            {inner}
-                        </button>
-                    );
-                }
-
                 return (
-                    <Link key={tile.label} href={tile.href} className="h-full cursor-pointer">
-                        {inner}
-                    </Link>
+                    <button
+                        key={tile.label}
+                        className="text-left h-full cursor-pointer"
+                        onClick={() => onTabChange(tile.tab)}
+                    >
+                        <div
+                            className={cn(
+                                "flex flex-col gap-1.5 p-3 rounded-xl border transition-all duration-200 cursor-pointer group h-full",
+                                tile.accent,
+                            )}
+                        >
+                            <div className="flex items-center justify-between">
+                                <Icon className="w-4 h-4" />
+                                <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                            </div>
+                            <p className="text-xs font-semibold leading-tight">{tile.label}</p>
+                            <p className="text-[10px] text-muted-foreground leading-snug">{tile.description}</p>
+                        </div>
+                    </button>
                 );
             })}
         </div>
@@ -152,13 +173,13 @@ export default function SettingsPage() {
             <div className="flex flex-col gap-[clamp(0.5rem,1vw,1rem)] text-center md:text-left items-center md:items-start w-full">
                 <h1 className="page-title w-full text-center md:text-left">Configuración</h1>
                 <p className="text-[clamp(0.9rem,1.2vw,1.2rem)] text-muted-foreground max-w-2xl text-balance w-full text-center md:text-left">
-                    Gestiona tus preferencias, apariencia y seguridad.
+                    Gestiona tu identidad, apariencia, IA, sentidos y seguridad. Todo sincronizado con tu cuenta soberana.
                 </p>
             </div>
 
-            {/* ── Panel superior: Perfiles + Acceso rápido ─────────── */}
+            {/* ── Panel superior: Cuenta real + Acceso rápido ─────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-start">
-                {/* ProfileSwitcher — Dualidad Cuenta/Perfil */}
+                {/* ProfileSwitcher — Cuenta soberana REAL */}
                 <ProfileSwitcher />
 
                 {/* Acceso rápido a secciones clave */}
@@ -179,17 +200,17 @@ export default function SettingsPage() {
                                 <TabsTrigger value="appearance" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
                                     <Palette className="h-4 w-4" /> <span className="hidden sm:inline">Diseño</span>
                                 </TabsTrigger>
-                                <TabsTrigger value="trinity" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
-                                    <Compass className="h-4 w-4" /> <span className="hidden sm:inline">Trinity</span>
+                                <TabsTrigger value="profile" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
+                                    <User className="h-4 w-4" /> <span className="hidden sm:inline">Perfil</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
                                     <Sparkles className="h-4 w-4" /> <span className="hidden sm:inline">IA & Modelos</span>
                                 </TabsTrigger>
+                                <TabsTrigger value="experience" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
+                                    <Compass className="h-4 w-4" /> <span className="hidden sm:inline">Experiencia</span>
+                                </TabsTrigger>
                                 <TabsTrigger value="privacy" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
                                     <ShieldCheck className="h-4 w-4" /> <span className="hidden sm:inline">Privacidad</span>
-                                </TabsTrigger>
-                                <TabsTrigger value="profile" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
-                                    <User className="h-4 w-4" /> <span className="hidden sm:inline">Perfil</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
                                     <Shield className="h-4 w-4" /> <span className="hidden sm:inline">Seguridad</span>
@@ -208,15 +229,37 @@ export default function SettingsPage() {
                                 <AppearanceEditor />
                             </TabsContent>
 
-                            {/* ── Trinity ────────────────────────────────────── */}
-                            <TabsContent value="trinity" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {/* ── Perfil e identidad (REAL) ──────────────────── */}
+                            <TabsContent value="profile" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <TabIntro
-                                    icon={Compass}
-                                    title="Navegación Trinity"
-                                    description="Configura el acceso a los 4 nodos cardinales: botón flotante en móvil y gestos desde los bordes de la pantalla."
+                                    icon={User}
+                                    title="Perfil e identidad"
+                                    description="Tu identidad soberana sincronizada con tu cuenta StarSeed. Edita nombre, @, avatar y bio; gestiona tus correos."
                                 />
-                                <TrinityFabSettings />
-                                <TrinityEdgeSettings />
+
+                                {/* Edición de perfil REAL contra Supabase */}
+                                <ProfileIdentityPanel />
+
+                                {/* Cuenta & correos @star.seed */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <LinkCard
+                                        href="/cuenta"
+                                        icon={ShieldCheck}
+                                        label="Cuenta e identidad StarSeed"
+                                        description="Dirección @star.seed · recuperación · verificación"
+                                    />
+                                    <LinkCard
+                                        href="/correos"
+                                        icon={Mail}
+                                        label="Correos & buzones"
+                                        description="Correos @star.seed y externos vinculados"
+                                        accentText="text-[#39FF14]"
+                                        accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
+                                    />
+                                </div>
+
+                                {/* Sincronización de preferencias con la cuenta */}
+                                <AccountSyncPanel />
                             </TabsContent>
 
                             {/* ── IA & Modelos ───────────────────────────────── */}
@@ -260,6 +303,77 @@ export default function SettingsPage() {
                                         { key: "temperature", label: "Temperatura", placeholder: "0.7" },
                                     ]}
                                 />
+
+                                {/* Enlaces a páginas dedicadas de IA / servicios */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <LinkCard
+                                        href="/ai-setup"
+                                        icon={Brain}
+                                        label="Asistente de configuración de IA"
+                                        description="Pon en marcha tu Exocórtex paso a paso"
+                                        accentText="text-[#FFBF00]"
+                                        accentBg="bg-[#FFBF00]/10 border-[#FFBF00]/20"
+                                    />
+                                    <LinkCard
+                                        href="/servicios"
+                                        icon={Plug2}
+                                        label="Servicios & fuentes"
+                                        description="Modelos, almacenamiento y servidores conectados"
+                                        accentText="text-[#39FF14]"
+                                        accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
+                                    />
+                                </div>
+                            </TabsContent>
+
+                            {/* ── Experiencia: Aurora / Astraura · Sentidos · Notificaciones ── */}
+                            <TabsContent value="experience" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={Compass}
+                                    title="Experiencia inmersiva"
+                                    description="Tu asistente Aurora/Astraura, la percepción sensorial del sistema, la navegación Trinity y tus notificaciones."
+                                />
+
+                                {/* Aurora / Astraura + Sentidos + Notificaciones (páginas dedicadas) */}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <LinkCard
+                                        href="/aurora"
+                                        icon={Sparkles}
+                                        label="Aurora / Astraura"
+                                        description="Asistente · personalidad · palabra de activación"
+                                    />
+                                    <LinkCard
+                                        href="/sentidos"
+                                        icon={Ear}
+                                        label="Sentidos"
+                                        description="Percepción ambiental y multimodal del OS"
+                                        accentText="text-[#39FF14]"
+                                        accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
+                                    />
+                                    <LinkCard
+                                        href="/notifications"
+                                        icon={Bell}
+                                        label="Notificaciones"
+                                        description="Avisos del sistema y de la red"
+                                        accentText="text-[#FFBF00]"
+                                        accentBg="bg-[#FFBF00]/10 border-[#FFBF00]/20"
+                                    />
+                                </div>
+
+                                {/* Navegación Trinity (se configura aquí) */}
+                                <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Compass className="w-5 h-5 text-primary" /> Navegación Trinity
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Configura el acceso a los 4 nodos cardinales: botón flotante en móvil y gestos desde los bordes de la pantalla.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-5">
+                                        <TrinityFabSettings />
+                                        <TrinityEdgeSettings />
+                                    </CardContent>
+                                </Card>
                             </TabsContent>
 
                             {/* ── Privacidad ─────────────────────────────────── */}
@@ -269,114 +383,16 @@ export default function SettingsPage() {
                                     title="Privacidad"
                                     description="Controla qué datos compartes y cómo aparece tu actividad en el grafo público."
                                 />
-                                {/* Tiles de red y privacidad */}
-                                <GlassCard intensity="low" className="p-4 flex items-center gap-3">
-                                    <span className="grid place-items-center w-9 h-9 rounded-lg bg-[#007FFF]/10 border border-[#007FFF]/20 text-[#007FFF] shrink-0">
-                                        <Globe className="w-4 h-4" />
-                                    </span>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold">Servidores de internet</p>
-                                        <p className="text-[11px] text-muted-foreground">VPN · Nodos de red · Conexión al Fediverso</p>
-                                    </div>
-                                    <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                                </GlassCard>
-                                <PrivacyPanel />
-                            </TabsContent>
-
-                            {/* ── Perfil e identidad ─────────────────────────── */}
-                            <TabsContent value="profile" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <TabIntro
-                                    icon={User}
-                                    title="Perfil e identidad"
-                                    description="Tu identidad soberana, credenciales verificables y la sincronización con tu cuenta StarSeed."
+                                {/* Enlaces de red y privacidad */}
+                                <LinkCard
+                                    href="/servidores"
+                                    icon={Globe}
+                                    label="Servidores de internet"
+                                    description="VPN · Nodos de red · Conexión al Fediverso"
+                                    accentText="text-[#007FFF]"
+                                    accentBg="bg-[#007FFF]/10 border-[#007FFF]/20"
                                 />
-
-                                {/* Acceso rápido al perfil público */}
-                                <GlassCard intensity="low" className="p-4 flex items-center justify-between gap-3">
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <span className="grid place-items-center w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 text-primary shrink-0">
-                                            <User className="w-4 h-4" />
-                                        </span>
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-semibold">Ver mi perfil público</p>
-                                            <p className="text-[11px] text-muted-foreground truncate">starseed-os.vercel.app/profile/alex_starseed</p>
-                                        </div>
-                                    </div>
-                                    <Link href="/profile/alex_starseed" className="cursor-pointer shrink-0">
-                                        <span className="flex items-center gap-1 text-xs text-primary hover:underline cursor-pointer">
-                                            Abrir <ArrowRight className="w-3 h-3" />
-                                        </span>
-                                    </Link>
-                                </GlassCard>
-
-                                <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <User className="w-5 h-5 text-primary" />
-                                            Identidad Soberana
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Tu representación en el Grafo Vivo. Estos datos están anclados en IPFS.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-6">
-                                        <div className="flex flex-col md:flex-row gap-6 items-start">
-                                            <div className="flex flex-col items-center gap-3">
-                                                <div className="relative group cursor-pointer">
-                                                    <div className="absolute -inset-1 bg-gradient-to-tr from-primary to-accent rounded-full blur opacity-40 group-hover:opacity-75 transition-opacity" />
-                                                    <div className="h-24 w-24 rounded-full overflow-hidden border-2 border-background relative z-10">
-                                                        <div className="flex h-full w-full items-center justify-center bg-muted/40 text-xs text-muted-foreground">Sin avatar</div>
-                                                    </div>
-                                                    <div className="absolute bottom-0 right-0 bg-background border p-1 rounded-full z-20 shadow-sm">
-                                                        <Palette className="w-3 h-3 text-muted-foreground" />
-                                                    </div>
-                                                </div>
-                                                <button className="text-xs text-primary hover:underline cursor-pointer">Cambiar Avatar NFT</button>
-                                            </div>
-
-                                            <div className="flex-1 space-y-4 w-full">
-                                                <div className="grid md:grid-cols-2 gap-4">
-                                                    <div className="space-y-2">
-                                                        <label className="text-sm font-medium">Alias (Handle)</label>
-                                                        <input className="w-full flex h-10 rounded-md border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                                            placeholder="@tu_alias"
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <label className="text-sm font-medium">Nombre Público</label>
-                                                        <input className="w-full flex h-10 rounded-md border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                                            placeholder="Tu nombre público"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <label className="text-sm font-medium">Bio (Manifiesto Personal)</label>
-                                                    <textarea className="flex min-h-[80px] w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                                        placeholder="Escribe tu manifiesto personal…"
-                                                    />
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <label className="text-sm font-medium">Credenciales Verificables (Claims)</label>
-                                                    <div className="flex flex-wrap gap-2 p-3 bg-muted/20 rounded-lg border border-dashed">
-                                                        <div className="px-2 py-1 rounded-full bg-primary/10 text-primary text-xs border border-primary/20 flex items-center gap-1">
-                                                            <span>Permacultor Nivel 3</span>
-                                                        </div>
-                                                        <div className="px-2 py-1 rounded-full bg-primary/10 text-primary text-xs border border-primary/20 flex items-center gap-1">
-                                                            <span>Humano Verificado</span>
-                                                        </div>
-                                                        <div className="px-2 py-1 rounded-full bg-muted text-muted-foreground text-xs border flex items-center gap-1 opacity-50 cursor-not-allowed">
-                                                            <span>+ Vincular Nueva Credencial</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                <AccountSyncPanel />
+                                <PrivacyPanel />
                             </TabsContent>
 
                             {/* ── Seguridad ──────────────────────────────────── */}
@@ -384,76 +400,55 @@ export default function SettingsPage() {
                                 <TabIntro
                                     icon={Shield}
                                     title="Seguridad y soberanía"
-                                    description="Gestiona tus llaves criptográficas, el respaldo biométrico y la fragmentación segura de tus datos (MPC)."
+                                    description="Gestiona tus llaves, conexiones autorizadas y la fragmentación segura de tus datos desde el Centro de Seguridad."
                                 />
 
-                                {/* Tile de conexiones de servicios */}
-                                <GlassCard intensity="low" className="p-4 flex items-center gap-3">
-                                    <span className="grid place-items-center w-9 h-9 rounded-lg bg-[#39FF14]/10 border border-[#39FF14]/20 text-[#39FF14] shrink-0">
-                                        <Plug2 className="w-4 h-4" />
-                                    </span>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold">Conexiones de servicios</p>
-                                        <p className="text-[11px] text-muted-foreground">OAuth · Wallets · Aplicaciones externas autorizadas</p>
-                                    </div>
-                                    <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                                </GlassCard>
+                                {/* Accesos a páginas dedicadas de seguridad/conexiones */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <LinkCard
+                                        href="/seguridad"
+                                        icon={Shield}
+                                        label="Centro de Seguridad"
+                                        description="Llaves, respaldo y fragmentación (MPC)"
+                                    />
+                                    <LinkCard
+                                        href="/conexiones"
+                                        icon={Plug2}
+                                        label="Conexiones de servicios"
+                                        description="OAuth · Wallets · Apps externas autorizadas"
+                                        accentText="text-[#39FF14]"
+                                        accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
+                                    />
+                                </div>
 
                                 <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2">
                                             <Shield className="w-5 h-5 text-primary" />
-                                            Soberanía y Seguridad MPC
+                                            Soberanía y seguridad MPC
                                         </CardTitle>
                                         <CardDescription>
-                                            Gestiona tus llaves criptográficas y la fragmentación de datos (Multi-Party Computation).
+                                            La gestión avanzada de llaves criptográficas y la fragmentación de datos (Multi-Party Computation) vive en el Centro de Seguridad.
                                         </CardDescription>
                                     </CardHeader>
-                                    <CardContent className="space-y-6">
-
-                                        <div className="p-4 rounded-lg bg-muted/30 border border-primary/10">
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div>
-                                                    <h3 className="font-semibold text-sm">Estado de Fragmentación (Shards)</h3>
-                                                    <p className="text-xs text-muted-foreground">Tus llaves privadas están divididas en 3 nodos seguros.</p>
-                                                </div>
-                                                <div className="flex gap-1">
-                                                    <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" title="Nodo Alpha: Activo" />
-                                                    <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse delay-75" title="Nodo Beta: Activo" />
-                                                    <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse delay-150" title="Nodo Gamma: Activo" />
-                                                </div>
-                                            </div>
-                                            <div className="h-2 w-full bg-secondary/20 rounded-full overflow-hidden">
-                                                <div className="h-full bg-primary w-[100%] animate-[shimmer_2s_infinite]" />
-                                            </div>
-                                            <div className="mt-2 flex justify-between text-xs font-mono opacity-70">
-                                                <span>Integridad: 100%</span>
-                                                <span>Protocolo: Shamir's Secret Sharing</span>
+                                    <CardContent className="space-y-4">
+                                        <div className="p-4 rounded-lg bg-muted/30 border border-border/40 flex items-start gap-3">
+                                            <span className="grid place-items-center w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 text-primary shrink-0">
+                                                <Server className="w-4 h-4" />
+                                            </span>
+                                            <div className="min-w-0">
+                                                <h3 className="font-semibold text-sm">Fragmentación de llaves (Shamir / MPC)</h3>
+                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                    Aún no has configurado la fragmentación de tus llaves. Hazlo desde el Centro de Seguridad para dividirlas en nodos y habilitar el respaldo biométrico.
+                                                </p>
+                                                <Link
+                                                    href="/seguridad"
+                                                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2 cursor-pointer"
+                                                >
+                                                    Abrir Centro de Seguridad <ArrowRight className="w-3 h-3" />
+                                                </Link>
                                             </div>
                                         </div>
-
-                                        <div className="grid md:grid-cols-2 gap-4">
-                                            <div className="p-4 rounded-lg border bg-card/50 hover:bg-card/80 transition-colors cursor-pointer group">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="font-medium text-sm">Respaldo Biométrico</span>
-                                                    <div className="w-8 h-4 rounded-full bg-primary/20 p-0.5 group-hover:bg-primary/30 transition-colors">
-                                                        <div className="w-3 h-3 rounded-full bg-primary translate-x-4 transition-transform" />
-                                                    </div>
-                                                </div>
-                                                <p className="text-xs text-muted-foreground">Usar FaceID/TouchID para regenerar fragmentos locales.</p>
-                                            </div>
-
-                                            <div className="p-4 rounded-lg border bg-card/50 hover:bg-card/80 transition-colors cursor-pointer group">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="font-medium text-sm">Modo Fantasma</span>
-                                                    <div className="w-8 h-4 rounded-full bg-muted p-0.5 group-hover:bg-muted/80 transition-colors">
-                                                        <div className="w-3 h-3 rounded-full bg-muted-foreground/50 transition-transform" />
-                                                    </div>
-                                                </div>
-                                                <p className="text-xs text-muted-foreground">Ocultar actividad en el grafo público (ActivityPub).</p>
-                                            </div>
-                                        </div>
-
                                     </CardContent>
                                 </Card>
                             </TabsContent>
