@@ -2,9 +2,15 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AuthGate — el inicio de sesión es lo PRIMERO del sistema StarSeed OS.
-// Si no hay sesión, cubre la app con una pantalla de acceso real (correo
-// existente o crea tu cuenta StarSeed, que recibe su dirección @star.seed y su
-// identidad automáticamente). Tras entrar, OnboardingGate muestra la guía.
+// Si no hay sesión, cubre la app con una pantalla de acceso real. Trae a paridad
+// las opciones del login del Café, adaptadas al look del OS (violeta→teal):
+//
+//   • Entrar (correo + contraseña)
+//   • Crear cuenta (recibe su dirección @star.seed e identidad automáticamente)
+//   • Entrar con código por correo (sin contraseña)  →  Supabase OTP
+//   • Explorar sin cuenta  →  sesión anónima (signInAnonymously)
+//
+// Tras entrar (cuenta o invitado), OnboardingGate lanza la guía con Astraura.
 //
 // Diseño unificado StarSeed (baseline del ecosistema OS · Nexus · Café ·
 // Audiomorphic): tarjeta de cristal centrada (~420px), fondo radial oscuro con
@@ -13,6 +19,7 @@
 // gradiente, y una nota honesta de una sola cuenta para todo + @star.seed.
 //
 // Fail-open: si el chequeo de sesión falla (red/SSR), no bloquea la app.
+// Login-first: mientras no haya sesión, la app queda cubierta.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,6 +31,8 @@ function traducir(m: string): string {
   if (s.includes("already registered") || s.includes("already been registered")) return "Ese correo ya tiene cuenta. Inicia sesión.";
   if (s.includes("password should be") || s.includes("at least")) return "La contraseña debe tener al menos 6 caracteres.";
   if (s.includes("unable to validate email") || s.includes("invalid email")) return "Escribe un correo válido.";
+  if (s.includes("anonymous") && s.includes("disabled")) return "El modo invitado no está disponible ahora mismo.";
+  if (s.includes("signups not allowed") || s.includes("signup is disabled")) return "El registro está deshabilitado por ahora.";
   if (s.includes("rate limit")) return "Demasiados intentos. Espera un momento.";
   return m || "No se pudo completar. Intenta de nuevo.";
 }
@@ -44,6 +53,8 @@ export function AuthGate() {
   const [pwd, setPwd] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [busy, setBusy] = useState(false);
+  // qué acción está en curso, para no bloquear todos los botones a la vez.
+  const [pending, setPending] = useState<"" | "form" | "otp" | "guest">("");
   const [msg, setMsg] = useState("");
   const [ok, setOk] = useState("");
   const emailRef = useRef<HTMLInputElement | null>(null);
@@ -75,7 +86,7 @@ export function AuthGate() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true); setMsg(""); setOk("");
+    setBusy(true); setPending("form"); setMsg(""); setOk("");
     try {
       if (mode === "in") {
         const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pwd });
@@ -84,12 +95,55 @@ export function AuthGate() {
         const { data, error } = await sb.auth.signUp({ email: email.trim(), password: pwd });
         if (error) setMsg(traducir(error.message));
         else if (data.user && !data.session) setOk("Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.");
-        else setOk("¡Cuenta creada! Entrando…");
+        else setOk("¡Cuenta creada! Te lleva la guía de Astraura…");
       }
     } catch (err: any) {
       setMsg(traducir(err?.message || ""));
     } finally {
-      setBusy(false);
+      setBusy(false); setPending("");
+    }
+  };
+
+  // ── Entrar con código por correo (sin contraseña) — Supabase OTP ──
+  // Envía un enlace/código mágico al correo. Al volver, Supabase crea la sesión.
+  const sendMagicLink = async () => {
+    const addr = email.trim();
+    if (!addr) {
+      setMsg("Escribe tu correo para enviarte el código.");
+      emailRef.current?.focus();
+      return;
+    }
+    setBusy(true); setPending("otp"); setMsg(""); setOk("");
+    try {
+      const emailRedirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
+      const { error } = await sb.auth.signInWithOtp({
+        email: addr,
+        options: { shouldCreateUser: true, emailRedirectTo },
+      });
+      if (error) setMsg(traducir(error.message));
+      else setOk(`Te enviamos un enlace/código a ${addr}. Ábrelo en este dispositivo para entrar.`);
+    } catch (err: any) {
+      setMsg(traducir(err?.message || ""));
+    } finally {
+      setBusy(false); setPending("");
+    }
+  };
+
+  // ── Explorar sin cuenta — sesión anónima ──
+  // Crea una sesión anónima real; OnboardingGate lanzará la guía, donde el
+  // invitado podrá más tarde añadir un correo para convertirse en cuenta plena.
+  const exploreAsGuest = async () => {
+    setBusy(true); setPending("guest"); setMsg(""); setOk("");
+    try {
+      const { error } = await sb.auth.signInAnonymously();
+      if (error) { setMsg(traducir(error.message)); return; }
+      // La guía detecta al invitado (sin perfil) y arranca sola; además avisamos.
+      try { window.dispatchEvent(new Event("starseed:open-onboarding")); } catch { /* */ }
+      // onAuthStateChange marcará authed=true y desmontará esta pantalla.
+    } catch (err: any) {
+      setMsg(traducir(err?.message || ""));
+    } finally {
+      setBusy(false); setPending("");
     }
   };
 
@@ -124,6 +178,10 @@ export function AuthGate() {
         .ss-auth-field:focus { border-color: rgba(167,139,250,.7) !important; box-shadow: 0 0 0 3px rgba(124,92,255,.18); }
         .ss-auth-primary:hover:not(:disabled) { filter: brightness(1.08); }
         .ss-auth-primary:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
+        .ss-auth-soft:hover:not(:disabled) { background: rgba(255,255,255,.08) !important; border-color: rgba(255,255,255,.28) !important; }
+        .ss-auth-soft:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
+        .ss-auth-ghostlink:hover:not(:disabled) { color: rgba(255,255,255,.9) !important; }
+        .ss-auth-ghostlink:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; border-radius: 8px; }
         @media (prefers-reduced-motion: reduce) {
           .ss-auth-card, .ss-auth-orb-a, .ss-auth-orb-b { animation: none !important; }
         }
@@ -208,23 +266,60 @@ export function AuthGate() {
             type="submit"
             className="ss-auth-primary"
             disabled={busy}
-            aria-busy={busy}
-            style={{ width: "100%", border: "none", borderRadius: 13, padding: "13px 0", color: "#fff", fontWeight: 700, fontSize: 15, cursor: busy ? "default" : "pointer", opacity: busy ? .65 : 1, transition: "filter .15s, opacity .15s", background: "linear-gradient(135deg,#7c5cff,#23d5ab)", boxShadow: "0 10px 28px rgba(124,92,255,.35)" }}
+            aria-busy={busy && pending === "form"}
+            style={{ width: "100%", border: "none", borderRadius: 13, padding: "13px 0", color: "#fff", fontWeight: 700, fontSize: 15, cursor: busy ? "default" : "pointer", opacity: busy && pending !== "form" ? .6 : busy ? .8 : 1, transition: "filter .15s, opacity .15s", background: "linear-gradient(135deg,#7c5cff,#23d5ab)", boxShadow: "0 10px 28px rgba(124,92,255,.35)" }}
           >
-            {busy ? "Un momento…" : mode === "in" ? "Entrar al sistema" : "Crear mi cuenta StarSeed"}
+            {pending === "form" ? "Un momento…" : mode === "in" ? "Entrar al sistema" : "Crear mi cuenta StarSeed"}
           </button>
         </form>
 
+        {/* Entrar con código por correo (sin contraseña) — OTP */}
         <button
           type="button"
+          className="ss-auth-soft"
+          onClick={sendMagicLink}
+          disabled={busy}
+          aria-busy={busy && pending === "otp"}
+          style={{ width: "100%", marginTop: 10, border: "1px solid rgba(255,255,255,.16)", borderRadius: 13, padding: "11px 0", color: "rgba(255,255,255,.92)", fontWeight: 600, fontSize: 13.5, cursor: busy ? "default" : "pointer", opacity: busy && pending !== "otp" ? .6 : 1, transition: "background .15s, border-color .15s, opacity .15s", background: "rgba(255,255,255,.04)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+        >
+          <span aria-hidden>✉️</span>
+          {pending === "otp" ? "Enviando código…" : "Entrar con código por correo (sin contraseña)"}
+        </button>
+
+        {/* separador */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0 12px" }}>
+          <span style={{ flex: 1, height: 1, background: "rgba(255,255,255,.1)" }} />
+          <span style={{ fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", opacity: .4 }}>o</span>
+          <span style={{ flex: 1, height: 1, background: "rgba(255,255,255,.1)" }} />
+        </div>
+
+        {/* Explorar sin cuenta — sesión anónima */}
+        <button
+          type="button"
+          className="ss-auth-soft"
+          onClick={exploreAsGuest}
+          disabled={busy}
+          aria-busy={busy && pending === "guest"}
+          style={{ width: "100%", border: "1px solid rgba(255,255,255,.16)", borderRadius: 13, padding: "12px 0", color: "rgba(255,255,255,.95)", fontWeight: 600, fontSize: 14, cursor: busy ? "default" : "pointer", opacity: busy && pending !== "guest" ? .6 : 1, transition: "background .15s, border-color .15s, opacity .15s", background: "rgba(255,255,255,.04)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+        >
+          <span aria-hidden>🚀</span>
+          {pending === "guest" ? "Entrando como invitado…" : "Explorar sin cuenta"}
+        </button>
+        <p style={{ textAlign: "center", fontSize: 10.5, opacity: .45, margin: "7px 0 0", lineHeight: 1.45 }}>
+          Entras como invitado y exploras al instante. Luego, desde la guía, puedes añadir un correo y conservar todo.
+        </p>
+
+        <button
+          type="button"
+          className="ss-auth-ghostlink"
           onClick={() => { setMode(mode === "in" ? "up" : "in"); setMsg(""); setOk(""); }}
-          style={{ width: "100%", background: "transparent", border: "none", color: "rgba(255,255,255,.6)", fontSize: 12, marginTop: 12, cursor: "pointer" }}
+          style={{ width: "100%", background: "transparent", border: "none", color: "rgba(255,255,255,.6)", fontSize: 12, marginTop: 14, cursor: "pointer", transition: "color .15s" }}
         >
           {mode === "in" ? "¿No tienes cuenta? Crea una" : "¿Ya tienes cuenta? Inicia sesión"}
         </button>
 
         {/* Propuesta de valor breve y honesta */}
-        <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid rgba(255,255,255,.08)", display: "grid", gap: 12 }}>
+        <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid rgba(255,255,255,.08)", display: "grid", gap: 12 }}>
           {VALUE_PROPS.map((v) => (
             <div key={v.title} style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
               <span aria-hidden style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#c4b5fd", background: "rgba(124,92,255,.14)", border: "1px solid rgba(124,92,255,.25)" }}>{v.icon}</span>
