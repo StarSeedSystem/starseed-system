@@ -68,12 +68,13 @@ import {
     Sparkles,
     X,
     RefreshCw,
-    AlertTriangle,
     Glasses,
     Link2,
     Settings,
     ShieldCheck,
     ArrowUpRight,
+    Home as HomeIcon,
+    Lock,
 } from "lucide-react";
 import {
     listWindows,
@@ -98,17 +99,27 @@ import {
     type WindowView,
 } from "@/lib/browser/browser";
 import {
-    renderUrl,
     openLink,
     classifyLink,
-    hasProxyConfigured,
     normalizeUrl,
     type LinkKind,
+    type NetMode,
 } from "@/lib/browser/browser";
-import { recordVisit } from "@/lib/browser/browser-settings";
+import {
+    recordVisit,
+    loadSettings,
+    onSettingsChange,
+    setNetMode,
+    defaultSettings,
+    type BrowserSettings,
+} from "@/lib/browser/browser-settings";
 import { useRealtime } from "@/lib/realtime/realtime";
 import BrowserConfig from "@/components/browser/browser-config";
 import VrArFrame from "@/components/browser/vr-frame";
+import FullWindow, { type FullTab } from "@/components/browser/full-window";
+import FloatingWidget, { type FloatingWidgetData } from "@/components/browser/floating-widget";
+import { WebFrame } from "@/components/browser/web-frame";
+import { resolveHome, enforceNetMode } from "@/lib/browser/browser";
 import { useRouter } from "next/navigation";
 
 // ── Utilidades de presentación ──
@@ -119,8 +130,6 @@ const VIEW_LABEL: Record<WindowView, string> = {
     fullscreen: "Pantalla completa",
     tab: "Pestaña",
 };
-
-const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups";
 
 function openInTab(url: string) {
     if (typeof window === "undefined" || !url) return;
@@ -140,125 +149,21 @@ async function copyToClipboard(text: string): Promise<boolean> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Iframe con detección de fallback
 // ─────────────────────────────────────────────────────────────────────────────
+// Delegamos en el marco compartido <WebFrame/> (carga real + detección de bloqueo
+// X-Frame-Options/CSP + diálogo «Abrir con…» + aplicación del modo de red).
 
-/**
- * Renderiza un iframe sandbox. Si el host es conocido-bloqueante, o si la carga
- * falla / no completa en el plazo, muestra el aviso de fallback con el botón
- * "abrir en pestaña nueva". No podemos leer las cabeceras del servidor desde el
- * cliente (CORS), así que combinamos heurística + evento onLoad + timeout.
- */
 function EmbeddedFrame({
     url,
     title,
     className,
+    netMode = "open",
 }: {
     url: string;
     title: string;
     className?: string;
+    netMode?: NetMode;
 }) {
-    // Enruta la carga por el proxy/render tri-fuente del dominio "browser" si hay
-    // uno configurado. Con proxy NO pre-bloqueamos (el proxy puede renderizar
-    // sitios que rechazan el iframe directo).
-    const target = useMemo(() => renderUrl(url), [url]);
-    const verdict = useMemo(
-        () => (target.proxied ? ("try" as const) : isLikelyEmbeddable(url)),
-        [url, target.proxied],
-    );
-    const [blocked, setBlocked] = useState(verdict === false);
-    const [loaded, setLoaded] = useState(false);
-    const [nonce, setNonce] = useState(0);
-    const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // Reinicia el estado cuando cambia la URL o se fuerza recarga.
-    useEffect(() => {
-        const v = target.proxied ? "try" : isLikelyEmbeddable(url);
-        setBlocked(v === false);
-        setLoaded(false);
-        if (timer.current) clearTimeout(timer.current);
-        // Si en ~6s no hubo onLoad (típico de X-Frame-Options que aborta en silencio),
-        // asumimos bloqueo y mostramos el fallback. Solo cuando no era "false" ya.
-        if (v !== false) {
-            timer.current = setTimeout(() => {
-                setLoaded((done) => {
-                    if (!done) setBlocked(true);
-                    return done;
-                });
-            }, 6000);
-        }
-        return () => {
-            if (timer.current) clearTimeout(timer.current);
-        };
-    }, [url, nonce, target.proxied]);
-
-    if (!url) {
-        return (
-            <div className={cn("grid place-items-center text-white/40 text-sm", className)}>
-                Sin URL
-            </div>
-        );
-    }
-
-    if (blocked) {
-        return (
-            <div
-                className={cn(
-                    "flex flex-col items-center justify-center gap-3 p-6 text-center",
-                    className,
-                )}
-            >
-                <AlertTriangle className="h-6 w-6 text-amber-300/80" />
-                <p className="text-sm text-white/70 max-w-xs">
-                    Este sitio no permite incrustarse (bloquea el embebido por seguridad).
-                    {!hasProxyConfigured() && " Configura un servidor de proxy/render para incrustarlo."}
-                </p>
-                <p className="text-[11px] text-white/40 break-all max-w-xs">{url}</p>
-                <div className="flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => openInTab(url)}>
-                        <ExternalLink className="h-4 w-4" /> Abrir en ventana externa
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                            setBlocked(false);
-                            setNonce((n) => n + 1);
-                        }}
-                    >
-                        <RefreshCw className="h-4 w-4" /> Reintentar
-                    </Button>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className={cn("relative", className)}>
-            {target.proxied && (
-                <span className="absolute right-1 top-1 z-10 rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] text-cyan-100">
-                    vía proxy{target.source ? ` · ${target.source}` : ""}
-                </span>
-            )}
-            {!loaded && (
-                <div className="absolute inset-0 grid place-items-center text-white/30 text-xs">
-                    Cargando…
-                </div>
-            )}
-            <iframe
-                key={nonce}
-                src={target.rendered}
-                title={title}
-                sandbox={SANDBOX}
-                referrerPolicy="no-referrer"
-                loading="lazy"
-                className="h-full w-full rounded-lg border-0 bg-white/[0.02]"
-                onLoad={() => {
-                    setLoaded(true);
-                    if (timer.current) clearTimeout(timer.current);
-                }}
-                onError={() => setBlocked(true)}
-            />
-        </div>
-    );
+    return <WebFrame url={url} title={title} className={className} netMode={netMode} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -272,6 +177,7 @@ function WindowCard({
     onOpenVr,
     onToggleMulti,
     inMulti,
+    netMode,
 }: {
     w: BrowserWindow;
     onChanged: () => void;
@@ -279,6 +185,7 @@ function WindowCard({
     onOpenVr: (w: BrowserWindow) => void;
     onToggleMulti: (id: string) => void;
     inMulti: boolean;
+    netMode: NetMode;
 }) {
     const router = useRouter();
     const [open, setOpen] = useState(false);
@@ -506,6 +413,7 @@ function WindowCard({
                     <EmbeddedFrame
                         url={w.url}
                         title={w.name}
+                        netMode={netMode}
                         className={cn(
                             "w-full overflow-hidden rounded-lg bg-black/20",
                             isWidget ? "h-40" : "h-72",
@@ -743,39 +651,6 @@ function CollapsibleSection({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Overlay de pantalla completa
-// ─────────────────────────────────────────────────────────────────────────────
-
-function FullscreenOverlay({ w, onClose }: { w: BrowserWindow; onClose: () => void }) {
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [onClose]);
-
-    return (
-        <div className="fixed inset-0 z-[120] flex flex-col bg-black/90 backdrop-blur-sm">
-            <div className="flex items-center gap-3 border-b border-white/10 px-4 py-2">
-                <Globe className="h-4 w-4 text-cyan-200" />
-                <p className="truncate text-sm text-amber-50">{w.name}</p>
-                <span className="truncate text-xs text-white/40">{urlHost(w.url)}</span>
-                <div className="ml-auto flex gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => openInTab(w.url)}>
-                        <ExternalLink className="h-4 w-4" /> Pestaña
-                    </Button>
-                    <Button size="sm" variant="secondary" onClick={onClose}>
-                        <X className="h-4 w-4" /> Cerrar
-                    </Button>
-                </div>
-            </div>
-            <EmbeddedFrame url={w.url} title={w.name} className="flex-1" />
-        </div>
-    );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Multivista (mosaico de iframes)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -783,10 +658,12 @@ function MultiView({
     windows,
     onClose,
     onRemove,
+    netMode,
 }: {
     windows: BrowserWindow[];
     onClose: () => void;
     onRemove: (id: string) => void;
+    netMode: NetMode;
 }) {
     return (
         <section className="rounded-2xl border border-cyan-400/30 bg-cyan-500/[0.03] p-3">
@@ -814,7 +691,7 @@ function MultiView({
                                 <X className="h-3.5 w-3.5" />
                             </Button>
                         </div>
-                        <EmbeddedFrame url={w.url} title={w.name} className="h-56 w-full" />
+                        <EmbeddedFrame url={w.url} title={w.name} netMode={netMode} className="h-56 w-full" />
                     </div>
                 ))}
             </div>
@@ -837,7 +714,25 @@ export default function BrowserWindows() {
     const [vrWin, setVrWin] = useState<BrowserWindow | null>(null);
     const [showConfig, setShowConfig] = useState(false);
     const [newVr, setNewVr] = useState(false);
+    const [settings, setSettings] = useState<BrowserSettings>(() => defaultSettings());
+    const [floats, setFloats] = useState<FloatingWidgetData[]>([]);
     const router = useRouter();
+
+    const netMode = settings.netMode;
+    const homeUrl = resolveHome(settings.home);
+
+    // Carga la configuración del navegador (home + modo de red) y la mantiene viva.
+    useEffect(() => {
+        let alive = true;
+        loadSettings().then((next) => {
+            if (alive) setSettings(next);
+        });
+        const unsub = onSettingsChange((next) => setSettings(next));
+        return () => {
+            alive = false;
+            unsub();
+        };
+    }, []);
 
     const refresh = useCallback(async () => {
         setLoading(true);
@@ -861,10 +756,18 @@ export default function BrowserWindows() {
 
     async function handleCreate(e?: React.FormEvent) {
         e?.preventDefault();
-        const value = address.trim();
-        if (!value) return;
+        // Sin texto: la "Nueva ventana" abre la home configurada (por defecto Nexus).
+        const value = address.trim() || homeUrl;
         setCreating(true);
         try {
+            // Modo de red: en "solo interno" no se crean ventanas a internet abierto.
+            const candidate = value.startsWith("/") ? value : normalizeUrl(value);
+            const net = enforceNetMode(candidate, netMode);
+            if (!net.allowed) {
+                toast.error(net.reason || "Destino bloqueado por el modo de red (solo interno).");
+                setCreating(false);
+                return;
+            }
             const r = await newWindow(value, undefined, { vrAr: newVr });
             if (r.needsAuth) {
                 toast.error("Inicia sesión para crear y guardar ventanas.");
@@ -894,6 +797,11 @@ export default function BrowserWindows() {
             return;
         }
         const href = value.startsWith("/") ? value : normalizeUrl(value);
+        const net = enforceNetMode(href, netMode);
+        if (!net.allowed) {
+            toast.error(net.reason || "Destino bloqueado por el modo de red (solo interno).");
+            return;
+        }
         const { kind, opened } = openLink(href, { router });
         if (opened) {
             void recordVisit(href, href);
@@ -905,6 +813,52 @@ export default function BrowserWindows() {
             toast.success(label[kind]);
         } else {
             toast.error("No disponible en este contexto");
+        }
+    }
+
+    // Abre la home configurada (por defecto Nexus) como una ventana completa.
+    function openHome() {
+        setFull({
+            id: "home",
+            name: "Inicio · StarSeed Nexus",
+            groupName: "",
+            folder: "",
+            url: homeUrl,
+            state: { x: 40, y: 40, w: 480, h: 360, view: "fullscreen", z: 1 },
+            suspended: false,
+            vrAr: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        });
+    }
+
+    // Pop de una pestaña a widget flotante encima de la pantalla.
+    function floatTab(tab: FullTab) {
+        setFloats((cur) => {
+            if (cur.some((f) => f.id === tab.id)) return cur;
+            return [...cur, { id: tab.id, url: tab.url, title: tab.title }];
+        });
+    }
+
+    function closeFloat(id: string) {
+        setFloats((cur) => cur.filter((f) => f.id !== id));
+    }
+
+    // Alterna el modo de red (internet abierto ↔ solo interno) y lo persiste.
+    async function toggleNetMode() {
+        const next: NetMode = netMode === "open" ? "internal" : "open";
+        setSettings((prev) => ({ ...prev, netMode: next })); // optimista
+        const r = await setNetMode(next);
+        if (r.needsAuth) {
+            toast.error("Inicia sesión para guardar el modo de red.");
+        } else if (!r.ok) {
+            toast.error(r.error || "No se pudo cambiar el modo de red.");
+        } else {
+            toast.success(
+                next === "internal"
+                    ? "Modo «solo interno»: se bloquean sitios de internet abierto."
+                    : "Modo «internet abierto»: se permiten sitios externos.",
+            );
         }
     }
 
@@ -959,6 +913,14 @@ export default function BrowserWindows() {
                         <Button type="submit" disabled={creating}>
                             <Plus className="h-4 w-4" /> Nueva ventana
                         </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={openHome}
+                            title={`Abrir Inicio a pantalla completa (${urlHost(homeUrl) || homeUrl})`}
+                        >
+                            <HomeIcon className="h-4 w-4" /> Inicio
+                        </Button>
                         <Button type="button" variant="outline" onClick={openAddressLink}>
                             <ExternalLink className="h-4 w-4" /> Abrir enlace
                         </Button>
@@ -969,21 +931,48 @@ export default function BrowserWindows() {
                             type="button"
                             variant={showConfig ? "secondary" : "outline"}
                             onClick={() => setShowConfig((c) => !c)}
-                            title="Servidores, VPN, DNS, cookies, caché, historial, VR/AR"
+                            title="Servidores, VPN, DNS, cookies, caché, historial, VR/AR, home, modo de red"
                         >
                             <Settings className="h-4 w-4" /> Configuración
                         </Button>
                     </div>
                 </div>
-                <label className="mt-2 flex w-fit items-center gap-2 text-[11px] text-white/55">
-                    <input
-                        type="checkbox"
-                        checked={newVr}
-                        onChange={(e) => setNewVr(e.target.checked)}
-                        className="h-3.5 w-3.5 accent-indigo-400"
-                    />
-                    <Glasses className="h-3.5 w-3.5 text-indigo-300" /> Crear en modo inmersivo VR/AR
-                </label>
+                <div className="mt-2 flex flex-wrap items-center gap-4">
+                    <label className="flex w-fit items-center gap-2 text-[11px] text-white/55">
+                        <input
+                            type="checkbox"
+                            checked={newVr}
+                            onChange={(e) => setNewVr(e.target.checked)}
+                            className="h-3.5 w-3.5 accent-indigo-400"
+                        />
+                        <Glasses className="h-3.5 w-3.5 text-indigo-300" /> Crear en modo inmersivo VR/AR
+                    </label>
+                    {/* Modo de red: internet abierto ↔ solo interno (StarSeed). */}
+                    <button
+                        type="button"
+                        onClick={toggleNetMode}
+                        className={cn(
+                            "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] transition-colors",
+                            netMode === "internal"
+                                ? "border-amber-400/40 bg-amber-500/10 text-amber-200/90"
+                                : "border-emerald-400/40 bg-emerald-500/10 text-emerald-200/90",
+                        )}
+                        title="Alternar entre internet abierto y solo servidores internos de StarSeed"
+                    >
+                        {netMode === "internal" ? (
+                            <>
+                                <Lock className="h-3.5 w-3.5" /> Solo interno (StarSeed)
+                            </>
+                        ) : (
+                            <>
+                                <Globe className="h-3.5 w-3.5" /> Internet abierto
+                            </>
+                        )}
+                    </button>
+                    <span className="text-[10px] text-white/35">
+                        Inicio: {urlHost(homeUrl) || homeUrl}
+                    </span>
+                </div>
             </form>
 
             {/* Panel de configuración (servidores tri-fuente + VPN/DNS/cookies/caché/historial/VR-AR) */}
@@ -1084,6 +1073,7 @@ export default function BrowserWindows() {
                     windows={multiWindows}
                     onClose={() => setMulti([])}
                     onRemove={toggleMulti}
+                    netMode={netMode}
                 />
             )}
 
@@ -1122,6 +1112,7 @@ export default function BrowserWindows() {
                                         onOpenVr={setVrWin}
                                         onToggleMulti={toggleMulti}
                                         inMulti={multi.includes(w.id)}
+                                        netMode={netMode}
                                     />
                                 ))}
                             </div>
@@ -1130,8 +1121,45 @@ export default function BrowserWindows() {
                 </div>
             )}
 
-            {/* Overlay de pantalla completa */}
-            {full && <FullscreenOverlay w={full} onClose={() => setFull(null)} />}
+            {/* Ventana COMPLETA en-sistema (mantiene menús/dock; pestañas + split +
+                ajustes + widget flotante + adjuntar). z-index < dock → OS usable. */}
+            {full && (
+                <FullWindow
+                    initialUrl={full.url}
+                    initialTitle={full.name}
+                    windowId={full.id}
+                    home={settings.home}
+                    netMode={netMode}
+                    onClose={() => setFull(null)}
+                    onFloatWidget={floatTab}
+                />
+            )}
+
+            {/* Widgets flotantes encima de la pantalla (varios coexistentes). */}
+            {floats.map((f, i) => (
+                <FloatingWidget
+                    key={f.id}
+                    data={f}
+                    index={i}
+                    netMode={netMode}
+                    onClose={() => closeFloat(f.id)}
+                    onExpand={() => {
+                        closeFloat(f.id);
+                        setFull({
+                            id: f.id,
+                            name: f.title,
+                            groupName: "",
+                            folder: "",
+                            url: f.url,
+                            state: { x: 40, y: 40, w: 480, h: 360, view: "fullscreen", z: 1 },
+                            suspended: false,
+                            vrAr: false,
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString(),
+                        });
+                    }}
+                />
+            ))}
 
             {/* Marco inmersivo VR/AR */}
             {vrWin && (
