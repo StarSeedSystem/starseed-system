@@ -1,16 +1,23 @@
 "use client";
 
 /**
- * OnboardingWizard — guía de primera ejecución de StarSeed OS, narrada por
+ * OnboardingWizard — guía de creación de cuenta de StarSeed OS, narrada por
  * Astraura (la voz de Aurora). Multi-paso, en español, visual y amable.
+ *
+ * Es una guía DINÁMICA: el usuario solo acepta permisos y elige opciones; no
+ * hay configuración manual obligatoria (los valores por defecto ya vienen
+ * listos). Funciona para cuentas con correo, para inicios sin contraseña (OTP)
+ * y para INVITADOS anónimos (sin correo). Un invitado puede, desde aquí, añadir
+ * un correo para convertir su sesión en una cuenta plena conservando todo.
  *
  * Pasos: Bienvenida (voz/texto) → Identidad (@handle único) → Correo StarSeed
  * → Recuperación → Datos opcionales → Guía de la red.
  *
- * Usa la capa de datos de @/lib/onboarding/onboarding y, si el usuario activa
- * la voz, narra cada paso con Aurora (useAurora().speak). La narración de texto
- * ("explícame este paso") se apoya en @/ai/client/chat con la personalidad de
- * Aurora si hay un proveedor de IA activo; si no, degrada con elegancia.
+ * Usa la capa de datos de @/lib/onboarding/onboarding (RLS por owner/user, así
+ * que vale igual para invitados, que tienen un user.id real). Si el usuario
+ * activa la voz, narra cada paso con Aurora (useAurora().speak). La narración de
+ * texto ("explícame este paso") se apoya en @/ai/client/chat con la personalidad
+ * de Aurora si hay un proveedor de IA activo; si no, degrada con elegancia.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -80,12 +87,14 @@ import {
   Globe,
   Link2,
   Lock,
+  UserPlus,
+  Volume2,
 } from "lucide-react";
 
 // ── narraciones de Astraura por paso ─────────────────────────────────────
 const STEP_NARRATION: Record<number, string> = {
-  0: "Hola, soy Astraura. Te doy la bienvenida a StarSeed. Puedo guiarte por voz o seguimos en texto, como prefieras.",
-  1: "Vamos a crear tu identidad en la red. Solo necesito tu nombre y un @handle único; lo demás es opcional.",
+  0: "Hola, soy Astraura. Te doy la bienvenida a StarSeed. Voy a guiarte para dejar tu cuenta lista: solo aceptas y eliges, yo me encargo del resto. Puedo acompañarte por voz o seguimos en texto, como prefieras.",
+  1: "Vamos a crear tu identidad en la red. Solo necesito tu nombre y un @handle único; te propongo opciones y lo demás es opcional.",
   2: "Si quieres, te creo tu dirección StarSeed: tu correo dentro de la red, algo arroba star punto seed. Funciona ya entre cuentas, y más tarde puedes vincular correos externos.",
   3: "Configuremos tu recuperación: un correo externo y un teléfono, para que nunca pierdas el acceso.",
   4: "Estos datos son opcionales: un avatar y una breve biografía. Puedes editarlos cuando quieras.",
@@ -128,6 +137,12 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   const [open, setOpen] = useState(true);
   const [step, setStep] = useState(0);
   const [voiceStarted, setVoiceStarted] = useState(false);
+
+  // invitado (sesión anónima) → puede convertir a cuenta plena añadiendo correo
+  const [isGuest, setIsGuest] = useState(false);
+  const [upgradeEmail, setUpgradeEmail] = useState("");
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
+  const [upgradeSent, setUpgradeSent] = useState(false);
 
   // identidad
   const [fullName, setFullName] = useState("");
@@ -182,6 +197,8 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
         const { data: au } = await sb.auth.getUser();
         const me = au?.user;
         if (me) {
+          // ¿Es invitado anónimo? Entonces ofrecemos convertir a cuenta plena.
+          setIsGuest(!!(me as { is_anonymous?: boolean }).is_anonymous && !me.email);
           const { data: prof } = await sb
             .from("profiles")
             .select("display_name,handle,avatar_url,cover_url,bio")
@@ -267,6 +284,15 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     }
   }, [aurora]);
 
+  // ── volver a leer en voz alta el texto actual de Astraura ──
+  const speakCurrent = useCallback(() => {
+    if (!aurora?.speak) {
+      toast.message("Voz no disponible", { description: "Tu navegador no soporta la voz de Aurora." });
+      return;
+    }
+    try { aurora.setEnabled?.(true); aurora.speak(astrauraText); setVoiceStarted(true); } catch { /* */ }
+  }, [aurora, astrauraText]);
+
   // ── "explícame este paso" (chat-powered, con fallback) ──
   const explainStep = useCallback(async () => {
     setThinking(true);
@@ -279,12 +305,15 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
         return;
       }
       const stepLabel = STEPS[step]?.label || "este paso";
+      const guestCtx = isGuest
+        ? " El usuario entró como invitado (sin cuenta); anímale con calidez a que, si quiere, añada un correo para conservar todo, pero deja claro que es opcional."
+        : "";
       const res = await chat({
         messages: [
           { role: "system", content: buildSystemPrompt(aurora?.activePersonality || DEFAULT_PERSONALITY) },
           {
             role: "user",
-            content: `Eres Astraura, guía de StarSeed. Explica de forma breve, cálida y clara (2-3 frases, español, para leer en voz alta) el paso de onboarding "${stepLabel}". No uses listas ni markdown.`,
+            content: `Eres Astraura, guía de StarSeed. Explica de forma breve, cálida y clara (2-3 frases, español, para leer en voz alta) el paso de onboarding "${stepLabel}". El usuario solo acepta y elige; no hay que configurar nada a mano.${guestCtx} No uses listas ni markdown.`,
           },
         ],
         temperature: 0.6,
@@ -298,7 +327,38 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     } finally {
       setThinking(false);
     }
-  }, [step, voiceStarted, aurora]);
+  }, [step, voiceStarted, aurora, isGuest]);
+
+  // ── invitado → cuenta plena: añade un correo a la sesión anónima ──
+  // Supabase enlaza el correo al MISMO usuario (mismo user.id), así que el
+  // invitado conserva su identidad, @handle y datos al confirmar el enlace.
+  const upgradeGuest = useCallback(async () => {
+    const addr = upgradeEmail.trim();
+    if (!addr) { toast.error("Escribe un correo para tu cuenta."); return; }
+    setUpgradeBusy(true);
+    try {
+      const sb = createClient();
+      const emailRedirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
+      const { error } = await sb.auth.updateUser(
+        { email: addr },
+        emailRedirectTo ? { emailRedirectTo } : undefined,
+      );
+      if (error) {
+        const m = (error.message || "").toLowerCase();
+        if (m.includes("already")) toast.error("Ese correo ya tiene cuenta. Inicia sesión con él.");
+        else toast.error(error.message || "No se pudo añadir el correo.");
+        return;
+      }
+      setUpgradeSent(true);
+      // Prefill útil: usa ese correo también como recuperación.
+      if (!recEmail) setRecEmail(addr);
+      toast.success("Te enviamos un enlace para confirmar tu correo.");
+    } catch (e) {
+      toast.error((e as Error)?.message || "No se pudo añadir el correo.");
+    } finally {
+      setUpgradeBusy(false);
+    }
+  }, [upgradeEmail, recEmail]);
 
   // ── acciones por paso ──
   const doClaimProfile = useCallback(async (): Promise<boolean> => {
@@ -428,6 +488,41 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   const progress = Math.round(((step + 1) / STEPS.length) * 100);
   const StepIcon = STEPS[step].icon;
 
+  // Bloque reutilizable: "convertir invitado en cuenta plena" (correo opcional).
+  const GuestUpgrade = (
+    <div className="rounded-2xl border border-fuchsia-500/25 bg-fuchsia-950/15 p-3.5 text-left space-y-2">
+      <div className="flex items-center gap-2">
+        <UserPlus className="w-4 h-4 text-fuchsia-300" />
+        <span className="text-[12px] font-semibold text-white/90">Estás explorando como invitado</span>
+        <Badge variant="outline" className="text-[9px] border-fuchsia-400/40 text-fuchsia-200">invitado</Badge>
+      </div>
+      <p className="text-[11.5px] text-white/60 leading-snug">
+        Puedes usar todo ya mismo. Si quieres <b className="text-white/85">conservar tu cuenta</b> y entrar desde otros dispositivos,
+        añade un correo: enlazaremos tu sesión actual (misma identidad y datos) a una cuenta plena.
+      </p>
+      {upgradeSent ? (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/10 px-3 py-2 text-[12px] text-emerald-300 flex items-center gap-2">
+          <BadgeCheck className="w-4 h-4 shrink-0" /> Te enviamos un enlace a {upgradeEmail}. Ábrelo para confirmar tu cuenta.
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <Input
+            type="email"
+            value={upgradeEmail}
+            onChange={(e) => setUpgradeEmail(e.target.value)}
+            placeholder="tu@correo.com"
+            className="bg-white/5"
+          />
+          <Button size="sm" disabled={upgradeBusy || !upgradeEmail} onClick={upgradeGuest} className="shrink-0 gap-1 bg-gradient-to-r from-fuchsia-600 to-cyan-600 hover:from-fuchsia-500 hover:to-cyan-500 text-white">
+            {upgradeBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            Guardar cuenta
+          </Button>
+        </div>
+      )}
+      <p className="text-[10.5px] text-white/40">Es opcional: puedes seguir como invitado y añadir el correo cuando quieras.</p>
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) skip(); setOpen(v); }}>
       <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
@@ -469,14 +564,24 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
               {voiceStarted && <Badge variant="outline" className="text-[9px] border-fuchsia-400/40 text-fuchsia-200">voz activa</Badge>}
             </div>
             <p className="text-sm text-white/85 leading-snug">{astrauraText}</p>
-            <button
-              onClick={explainStep}
-              disabled={thinking}
-              className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-cyan-300/80 hover:text-cyan-200 disabled:opacity-50"
-            >
-              {thinking ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageCircle className="w-3 h-3" />}
-              Explícame este paso
-            </button>
+            <div className="mt-1.5 flex items-center gap-3 flex-wrap">
+              <button
+                onClick={explainStep}
+                disabled={thinking}
+                className="inline-flex items-center gap-1 text-[11px] text-cyan-300/80 hover:text-cyan-200 disabled:opacity-50"
+              >
+                {thinking ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageCircle className="w-3 h-3" />}
+                Explícame este paso
+              </button>
+              {aurora?.supported && (
+                <button
+                  onClick={speakCurrent}
+                  className="inline-flex items-center gap-1 text-[11px] text-fuchsia-300/80 hover:text-fuchsia-200"
+                >
+                  <Volume2 className="w-3 h-3" /> Escuchar
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -489,7 +594,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                 Te damos la bienvenida a StarSeed
               </h2>
               <p className="text-sm text-white/60 max-w-md mx-auto">
-                Una red abierta y segura. Astraura te acompañará área por área. ¿Cómo prefieres empezar?
+                Una red abierta y segura. Astraura te acompañará paso a paso: solo aceptas y eliges, sin configurar nada a mano. ¿Cómo prefieres empezar?
               </p>
               <div className="grid sm:grid-cols-2 gap-3 mt-4">
                 <button
@@ -515,6 +620,10 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   <p className="text-xs text-white/55">Sigue la guía leyendo. Puedes activar la voz cuando quieras.</p>
                 </button>
               </div>
+
+              {/* Invitado: convertir a cuenta plena (opcional) */}
+              {isGuest && GuestUpgrade}
+
               {/* Permisos / qué deja lista esta guía — sin configuración manual */}
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-left mt-2">
                 <div className="flex items-center gap-2 mb-2">
@@ -683,6 +792,8 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
           {/* 3 · Recuperación */}
           {step === 3 && (
             <div className="space-y-4">
+              {/* Para invitados, este correo también convierte la sesión en cuenta plena. */}
+              {isGuest && GuestUpgrade}
               <div className="grid gap-1.5">
                 <label className="text-[11px] uppercase tracking-wider text-white/50 font-semibold">Correo externo (recuperación)</label>
                 <div className="flex gap-2">
@@ -795,6 +906,12 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
               <p className="text-sm text-white/60">
                 Estas son las áreas de StarSeed. Cada tarjeta te dice cómo vincular, conectar, crear, publicar o usar. Ábrelas cuando quieras.
               </p>
+              {isGuest && !upgradeSent && (
+                <div className="rounded-xl border border-fuchsia-500/25 bg-fuchsia-950/15 p-3 text-[12px] text-fuchsia-100/85 flex items-start gap-2">
+                  <UserPlus className="w-4 h-4 shrink-0 mt-0.5 text-fuchsia-300" />
+                  <span>Sigues como invitado. Cuando quieras conservar tu cuenta para siempre, añade un correo en <Link href="/seguridad" className="underline underline-offset-2 text-fuchsia-200 hover:text-white">/seguridad</Link> o vuelve a esta guía.</span>
+                </div>
+              )}
               <div className="grid sm:grid-cols-2 gap-2">
                 {AREAS.map((a) => {
                   const Icon = a.icon;
