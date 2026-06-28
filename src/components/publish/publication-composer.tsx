@@ -104,6 +104,8 @@ import {
     type PostKindId,
     type VotingConfig,
 } from "@/lib/publish/publish";
+import EgoContextOption from "@/components/aurora/ego-context-option";
+import { createEgoForContext, type EgoContextKind } from "@/lib/aurora/ego";
 
 // ── Resolución de iconos (string → componente de lucide) ──
 
@@ -138,6 +140,56 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
 function Icon({ name, className }: { name: string; className?: string }) {
     const C = ICONS[name] || Sparkles;
     return <C className={className} />;
+}
+
+// ── Aditivo · mapea un destino de publicación al tipo de contexto del ego ──
+const DEST_TO_EGO_KIND: Record<string, EgoContextKind> = {
+    pagina: "pagina",
+    perfil: "perfil",
+    grupo: "grupo",
+    comunidad: "comunidad",
+    entidad_federativa: "entidad_federativa",
+    mensaje: "mensaje",
+    chat_ia: "mensaje",
+    red: "publicacion",
+    biblioteca: "publicacion",
+    carpeta: "publicacion",
+};
+
+/**
+ * Crea un Agente Aurora (ego.md) por cada destino entregado, adjunto a ese
+ * contexto (página, grupo, comunidad, publicación…). Tolerante a fallos.
+ */
+async function createEgosForDelivered(
+    results: DestinationResult[],
+    name: string,
+    content: PublishContent,
+): Promise<void> {
+    const delivered = results.filter((r) => r.ok);
+    if (delivered.length === 0) return;
+    const baseName =
+        (name || "").trim() ||
+        (content?.title || "").trim() ||
+        "Aurora";
+    let created = 0;
+    for (const r of delivered) {
+        const kind = DEST_TO_EGO_KIND[r.kind] ?? "publicacion";
+        const ref = r.recordId || r.id;
+        const label = r.label || r.kind;
+        const ego = await createEgoForContext({
+            name: `Agente · ${baseName}`,
+            summary: `Agente Aurora (ego.md) para ${label}. Integración Aurora <-> Astraura.`,
+            attachment: { kind, ref, label },
+        });
+        if (ego) created += 1;
+    }
+    if (created > 0) {
+        toast.success(
+            created === 1
+                ? "Agente Aurora (ego.md) creado para el contexto."
+                : `${created} agentes Aurora (ego.md) creados para los contextos.`,
+        );
+    }
 }
 
 // ── Props del componente ──
@@ -264,6 +316,11 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
     const [publishing, setPublishing] = useState(false);
     const [results, setResults] = useState<DestinationResult[] | null>(null);
     const [fullOpen, setFullOpen] = useState(false);
+
+    // ── Aditivo · Agente Aurora (ego.md) para este contexto ──
+    // Si se activa, tras publicar se crea un ego.md adjunto a cada destino.
+    const [egoForContext, setEgoForContext] = useState(false);
+    const [egoName, setEgoName] = useState("");
 
     const area: Area | null = useMemo(
         () => (areaId ? AREAS.find((a) => a.id === areaId) ?? null : null),
@@ -473,6 +530,10 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                         : "Publicado en " + delivered + " destinos.",
                 );
                 onPublished?.(res.results);
+                // Aditivo: crear un Agente Aurora (ego.md) para el contexto.
+                if (egoForContext) {
+                    await createEgosForDelivered(res.results, egoName, content);
+                }
             } else {
                 toast.error("No se pudo publicar en ningún destino.");
             }
@@ -593,6 +654,20 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                     />
                 )}
             </div>
+
+            {/* Aditivo · Agente Aurora (ego.md) para este contexto */}
+            {isLast && (
+                <div className="mt-6">
+                    <EgoContextOption
+                        contextLabel="esta publicación / contexto"
+                        kind="publicacion"
+                        value={egoForContext}
+                        onChange={setEgoForContext}
+                        egoName={egoName}
+                        onEgoName={setEgoName}
+                    />
+                </div>
+            )}
 
             {/* Barra de navegación */}
             <div className="mt-6 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
