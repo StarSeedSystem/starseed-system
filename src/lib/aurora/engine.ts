@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { chat } from "@/ai/client/chat";
 import { loadConfigs } from "@/ai/client/providerStore";
@@ -33,12 +33,31 @@ import {
   parseDirectives,
   stripDirectives,
   executeDirective,
+  OS_ROUTES,
   type AuroraActionContext,
   type AuroraActionResult,
   type AuroraDirective,
 } from "@/lib/aurora/actions";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
+
+/** Una entrada del historial de conversación (para el chat-widget). */
+export interface ConversationEntry {
+  role: "user" | "aurora";
+  text: string;
+  at: number;
+}
+
+/** Una entrada del registro de acciones ejecutadas por Aurora. */
+export interface ActionLogEntry {
+  name: string;
+  ok: boolean;
+  message: string;
+  at: number;
+}
+
+/** Cuántas respuestas/entradas guardamos como mucho (ring buffer). */
+const HISTORY_LIMIT = 50;
 
 const ROUTES: { keys: string[]; path: string }[] = [
   { keys: ["memorias 3d", "memoria 3d", "mapa 3d", "mapa tridimensional", "grafo 3d"], path: "/memorias-3d" },
@@ -86,6 +105,28 @@ export interface AuroraEngine {
   toggle: () => void;
   speak: (text: string) => void;
   runCommand: (transcript: string) => Promise<void>;
+  /** ¿La síntesis de voz está pausada (transporte)? */
+  paused: boolean;
+  /** Pausa la voz de Aurora (TTS) sin perder la sesión. */
+  pauseSpeech: () => void;
+  /** Reanuda la voz de Aurora (TTS) tras una pausa. */
+  resumeSpeech: () => void;
+  /** Reproduce/pausa la voz (toggle del transporte). */
+  toggleSpeech: () => void;
+  /** Adelanta: vuelve a leer la respuesta siguiente del historial. */
+  skipForward: () => void;
+  /** Retrocede: vuelve a leer la respuesta anterior del historial. */
+  skipBack: () => void;
+  /** Interrumpe de inmediato lo que Aurora está diciendo. */
+  interrupt: () => void;
+  /** Historial de respuestas de Aurora (para el transporte y el chat). */
+  replyHistory: string[];
+  /** Historial completo de la conversación (tú / Aurora). */
+  conversation: ConversationEntry[];
+  /** Envía texto al motor como si el usuario hablara (chat por escrito). */
+  send: (text: string) => Promise<void>;
+  /** Registro de acciones ejecutadas por Aurora (para el panel del chat). */
+  actionLog: ActionLogEntry[];
   /** Lo que Aurora está haciendo ahora mismo ("Abriendo Pizarras…"), o "". */
   actionStatus: string;
   /** Ejecuta directivas [[ACCION:...]] desde un texto (p. ej. una extensión). */
@@ -99,6 +140,7 @@ export interface AuroraEngine {
 
 export function useAuroraEngine(): AuroraEngine {
   const router = useRouter();
+  const pathname = usePathname();
   const [supported, setSupported] = useState(false);
   const [enabled, setEnabledState] = useState<boolean>(DEFAULT_SETTINGS.enabled);
   const [listening, setListening] = useState(false);
@@ -111,13 +153,27 @@ export function useAuroraEngine(): AuroraEngine {
   const [personalities, setPersonalities] = useState<Personality[]>([]);
   const [activePersonality, setActivePersonalityState] = useState<Personality>({ ...DEFAULT_PERSONALITY });
   const [voices, setVoices] = useState<Voice[]>([]);
+  const [paused, setPaused] = useState(false);
+  const [replyHistory, setReplyHistory] = useState<string[]>([]);
+  const [conversation, setConversation] = useState<ConversationEntry[]>([]);
+  const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
 
   const recognitionRef = useRef<any>(null);
   const activeRef = useRef<Personality>(activePersonality);
   const enabledRef = useRef<boolean>(enabled);
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Mantener-vivo: si está activo, el reconocimiento se reinicia solo al terminar
+  // (clave para que la voz NO se corte al navegar entre rutas/secciones del OS).
+  const keepAliveRef = useRef<boolean>(false);
+  // Índice del historial para Adelantar/Retroceder (-1 = última respuesta).
+  const historyIndexRef = useRef<number>(-1);
+  // Espejo del historial de respuestas, para el transporte sin depender del render.
+  const replyHistoryRef = useRef<string[]>([]);
+  // Ruta/contexto actual, para que Aurora sepa dónde está el usuario.
+  const pathnameRef = useRef<string>("");
   useEffect(() => { activeRef.current = activePersonality; }, [activePersonality]);
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
+  useEffect(() => { pathnameRef.current = pathname || ""; }, [pathname]);
 
   // ── feature detection + carga inicial (SSR-safe) ──
   useEffect(() => {
@@ -149,6 +205,7 @@ export function useAuroraEngine(): AuroraEngine {
     })();
 
     return () => {
+      keepAliveRef.current = false; // desmontaje real: no reanudar el reconocimiento
       try { recognitionRef.current?.stop?.(); } catch { /* */ }
       try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
     };
@@ -208,14 +265,93 @@ export function useAuroraEngine(): AuroraEngine {
         || all.find((x) => (x.lang || "").toLowerCase().startsWith("es"))
         || null;
       if (v) u.voice = v;
-      u.onstart = () => setSpeaking(true);
+      u.onstart = () => { setSpeaking(true); setPaused(false); };
       u.onend = () => setSpeaking(false);
       u.onerror = () => setSpeaking(false);
       window.speechSynthesis.speak(u);
+      setPaused(false);
     } catch {
       setSpeaking(false);
     }
   }, [speakPremium]);
+
+  // ── historial de respuestas + conversación ──
+  // Registra una respuesta de Aurora en el historial (para el transporte y el chat).
+  const pushReply = useCallback((text: string) => {
+    const t = (text || "").trim();
+    if (!t) return;
+    setLastReply(t);
+    setReplyHistory((prev) => {
+      const next = [...prev, t].slice(-HISTORY_LIMIT);
+      replyHistoryRef.current = next;
+      return next;
+    });
+    historyIndexRef.current = -1; // -1 = al final (última respuesta)
+    setConversation((prev) => [...prev, { role: "aurora", text: t, at: Date.now() }].slice(-HISTORY_LIMIT));
+  }, []);
+
+  // Registra lo que el usuario dijo/escribió.
+  const pushUser = useCallback((text: string) => {
+    const t = (text || "").trim();
+    if (!t) return;
+    setConversation((prev) => [...prev, { role: "user", text: t, at: Date.now() }].slice(-HISTORY_LIMIT));
+  }, []);
+
+  // Registra una acción ejecutada (para el panel del chat).
+  const pushAction = useCallback((entry: ActionLogEntry) => {
+    setActionLog((prev) => [...prev, entry].slice(-HISTORY_LIMIT));
+  }, []);
+
+  // ── transporte de voz (Reproducir / Pausar / Adelantar / Retroceder) ──
+  const pauseSpeech = useCallback(() => {
+    if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
+    try { window.speechSynthesis.pause(); setPaused(true); } catch { /* */ }
+  }, []);
+
+  const resumeSpeech = useCallback(() => {
+    if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
+    try { window.speechSynthesis.resume(); setPaused(false); } catch { /* */ }
+  }, []);
+
+  const interrupt = useCallback(() => {
+    if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
+    try { window.speechSynthesis.cancel(); } catch { /* */ }
+    setSpeaking(false);
+    setPaused(false);
+  }, []);
+
+  const toggleSpeech = useCallback(() => {
+    // Si está hablando y no pausada → pausa; si está pausada → reanuda;
+    // si no hay nada en curso → vuelve a leer la última respuesta.
+    if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
+    if (paused) { resumeSpeech(); return; }
+    if (window.speechSynthesis.speaking) { pauseSpeech(); return; }
+    const hist = replyHistoryRef.current;
+    if (hist.length) speak(hist[hist.length - 1]);
+  }, [paused, pauseSpeech, resumeSpeech, speak]);
+
+  // Re-lee la respuesta del historial en la posición dada (clamp + lectura).
+  const speakAtIndex = useCallback((idx: number) => {
+    const hist = replyHistoryRef.current;
+    if (!hist.length) return;
+    const clamped = Math.max(0, Math.min(hist.length - 1, idx));
+    historyIndexRef.current = clamped;
+    speak(hist[clamped]);
+  }, [speak]);
+
+  const skipBack = useCallback(() => {
+    const hist = replyHistoryRef.current;
+    if (!hist.length) return;
+    const cur = historyIndexRef.current === -1 ? hist.length - 1 : historyIndexRef.current;
+    speakAtIndex(cur - 1);
+  }, [speakAtIndex]);
+
+  const skipForward = useCallback(() => {
+    const hist = replyHistoryRef.current;
+    if (!hist.length) return;
+    const cur = historyIndexRef.current === -1 ? hist.length - 1 : historyIndexRef.current;
+    speakAtIndex(cur + 1);
+  }, [speakAtIndex]);
 
   // ── persistir enabled / active_personality ──
   const setEnabled = useCallback((v: boolean) => {
@@ -264,17 +400,29 @@ export function useAuroraEngine(): AuroraEngine {
     name: string,
     args: Record<string, unknown> = {},
   ): Promise<AuroraActionResult> => {
-    const directive: AuroraDirective = { name: (name || "").toLowerCase(), args, raw: "" };
+    const nm = (name || "").toLowerCase();
+    const directive: AuroraDirective = { name: nm, args, raw: "" };
     const res = await executeDirective(directive, buildActionCtx());
-    if (res.message) { setLastReply(res.message); speak(res.message); }
+    pushAction({ name: nm, ok: !!res.ok, message: res.message || "", at: Date.now() });
+    if (res.message) { pushReply(res.message); speak(res.message); }
     return res;
-  }, [buildActionCtx, speak]);
+  }, [buildActionCtx, speak, pushAction, pushReply]);
+
+  // ── contexto de la ruta actual (para que Aurora sepa dónde está el usuario) ──
+  const routeContext = useCallback((): string => {
+    const path = pathnameRef.current || "/";
+    const label = OS_ROUTES.find((r) => r.path === path)?.label
+      || OS_ROUTES.find((r) => path.startsWith(r.path) && r.path !== "/")?.label
+      || null;
+    return label ? `${label} (${path})` : path;
+  }, []);
 
   // ── enrutado de comandos ──
   const runCommand = useCallback(async (raw: string) => {
     const text = (raw || "").trim();
     if (!text) return;
     setTranscript(text);
+    pushUser(text);
     const n = norm(text);
 
     // navegación directa
@@ -283,7 +431,7 @@ export function useAuroraEngine(): AuroraEngine {
       if (path) {
         try { router.push(path); } catch { /* */ }
         const msg = `Abriendo ${path.replace("/", "") || "inicio"}.`;
-        setLastReply(msg);
+        pushReply(msg);
         speak(msg);
         return;
       }
@@ -296,7 +444,7 @@ export function useAuroraEngine(): AuroraEngine {
         content = (document.querySelector("main") as HTMLElement | null)?.innerText || document.body?.innerText || "";
       }
       const trimmed = content.replace(/\s+/g, " ").trim().slice(0, 600) || "No hay contenido visible para leer.";
-      setLastReply(trimmed);
+      pushReply(trimmed);
       speak(trimmed);
       return;
     }
@@ -304,8 +452,8 @@ export function useAuroraEngine(): AuroraEngine {
     // ayuda
     if (n.includes("que puedes hacer") || n.includes("qué puedes hacer") || n.includes("ayuda") || n.includes("comandos")) {
       const help =
-        "Puedo abrir memorias, baúles, wiki, proveedor, agentes, sincronización o el mapa 3D. Puedo leer la pantalla, buscar memorias, crear memorias, y hablar contigo a través de Astraura. Solo dímelo.";
-      setLastReply(help);
+        "Tengo control total del OS: puedo abrir cualquier área, sección, ventana, archivo o enlace, cambiar ajustes y lanzar agentes y skills por ti. Sigo activa en segundo plano mientras navego y te hablo. Solo dime qué quieres hacer.";
+      pushReply(help);
       speak(help);
       return;
     }
@@ -314,11 +462,11 @@ export function useAuroraEngine(): AuroraEngine {
     if (/(activa|enciende|activar).*(aurora)/.test(n)) {
       setEnabled(true);
       const m = "Aurora activada.";
-      setLastReply(m); speak(m); return;
+      pushReply(m); speak(m); return;
     }
     if (/(desactiva|apaga|desactivar|silencia).*(aurora)/.test(n)) {
       const m = "Aurora desactivada.";
-      setLastReply(m); speak(m);
+      pushReply(m); speak(m);
       setEnabled(false);
       return;
     }
@@ -332,7 +480,7 @@ export function useAuroraEngine(): AuroraEngine {
       const m = res.length
         ? `Encontré ${res.length} memoria${res.length === 1 ? "" : "s"}: ${names}.`
         : `No encontré memorias para "${q}".`;
-      setLastReply(m); speak(m); return;
+      pushReply(m); speak(m); return;
     }
 
     // crear memoria
@@ -341,7 +489,7 @@ export function useAuroraEngine(): AuroraEngine {
       const name = crea[1].trim();
       const ok = await createQuickMemory(name);
       const m = ok ? `Memoria "${name}" creada.` : `No pude crear la memoria "${name}".`;
-      setLastReply(m); speak(m);
+      pushReply(m); speak(m);
       return;
     }
 
@@ -354,7 +502,7 @@ export function useAuroraEngine(): AuroraEngine {
     ) {
       try { router.push("/decisiones"); } catch { /* */ }
       const m = "Abriendo tus decisiones pendientes.";
-      setLastReply(m); speak(m); return;
+      pushReply(m); speak(m); return;
     }
     // crear / proponer una propuesta
     if (
@@ -364,7 +512,7 @@ export function useAuroraEngine(): AuroraEngine {
     ) {
       try { router.push("/decisiones"); } catch { /* */ }
       const m = "Abriendo decisiones.";
-      setLastReply(m); speak(m); return;
+      pushReply(m); speak(m); return;
     }
     // decisiones / propuestas / votaciones / ontocracia
     if (
@@ -375,16 +523,25 @@ export function useAuroraEngine(): AuroraEngine {
     ) {
       try { router.push("/decisiones"); } catch { /* */ }
       const m = "Abriendo decisiones.";
-      setLastReply(m); speak(m); return;
+      pushReply(m); speak(m); return;
     }
 
     // ── fallback: Astraura ──
     try {
       if (!loadConfigs().some((c) => c.enabled)) {
         const m = "No tengo un proveedor de IA activo. Configúralo en Proveedor para que pueda conversar contigo.";
-        setLastReply(m); speak(m); return;
+        pushReply(m); speak(m); return;
       }
-      const system = buildSystemPrompt(activeRef.current) + "\n\n" + actionsSystemPromptSection();
+      // Inyectamos el contexto de ruta + reafirmamos el control total para que
+      // Aurora NUNCA se niegue a navegar/operar y entienda dónde está el usuario.
+      const contextNote =
+        `CONTEXTO ACTUAL — El usuario está en: ${routeContext()}. ` +
+        "Sigues activa en segundo plano desde tu botón flotante: navegar/operar NO te detiene. " +
+        "Recuerda tu control total: si algo se hace en el OS, hazlo tú con [[ACCION:...]]; nunca le pidas que vaya él a otra parte.";
+      const system =
+        buildSystemPrompt(activeRef.current) + "\n\n" +
+        actionsSystemPromptSection() + "\n\n" +
+        contextNote;
       const messages: ChatMessage[] = [
         { role: "system", content: system },
         { role: "user", content: text },
@@ -401,6 +558,7 @@ export function useAuroraEngine(): AuroraEngine {
       const actionMsgs: string[] = [];
       for (const d of directives) {
         const r = await executeDirective(d, ctx);
+        pushAction({ name: d.name, ok: !!r.ok, message: r.message || "", at: Date.now() });
         if (r.message) actionMsgs.push(r.message);
       }
 
@@ -414,21 +572,26 @@ export function useAuroraEngine(): AuroraEngine {
       // El discurso final: lo que dijo el modelo (ya sin directivas) o, si solo
       // emitió acciones, el resumen honesto de lo que Aurora hizo.
       reply = reply.trim() || actionMsgs.join(" ") || "Hecho.";
-      setLastReply(reply);
+      pushReply(reply);
       speak(reply);
     } catch (e: any) {
       const d = (e?.message ? String(e.message) : "").trim();
       const m = d && !/failed to fetch|networkerror|load failed/i.test(d)
         ? `Astraura: ${d}`
         : "No pude contactar a Astraura. Revisa tu proveedor de IA en Ajustes → IA & Modelos.";
-      setLastReply(m); speak(m);
+      pushReply(m); speak(m);
     }
-  }, [router, speak, setEnabled, buildActionCtx]);
+  }, [router, speak, setEnabled, buildActionCtx, pushUser, pushReply, pushAction, routeContext]);
 
   const runCommandRef = useRef(runCommand);
   useEffect(() => { runCommandRef.current = runCommand; }, [runCommand]);
 
-  // ── STT ──
+  // ── STT (con operación en SEGUNDO PLANO) ──
+  // `continuous = true` + auto-reinicio en `onend` mantienen el micrófono vivo
+  // de forma continua. Como el motor vive en el layout global, navegar entre
+  // rutas/secciones NO desmonta el reconocimiento: Aurora sigue escuchando y
+  // hablando mientras opera. `keepAliveRef` distingue una parada deliberada
+  // (stop) de un fin natural de sesión (que reanudamos).
   const buildRecognition = useCallback(() => {
     if (typeof window === "undefined") return null;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -436,11 +599,34 @@ export function useAuroraEngine(): AuroraEngine {
     const rec = new SR();
     rec.lang = activeRef.current.voice?.lang || "es-MX";
     rec.interimResults = true;
-    rec.continuous = false;
+    rec.continuous = true;
     rec.maxAlternatives = 1;
     rec.onstart = () => { setListening(true); setInterim(""); };
-    rec.onerror = () => { setListening(false); };
-    rec.onend = () => { setListening(false); setInterim(""); };
+    rec.onerror = (e: any) => {
+      // 'no-speech' / 'aborted' son transitorios: si seguimos vivos, reanudamos.
+      const err = e?.error;
+      if (keepAliveRef.current && err !== "not-allowed" && err !== "service-not-allowed") {
+        // Deja que onend gestione el reinicio.
+        return;
+      }
+      setListening(false);
+    };
+    rec.onend = () => {
+      setInterim("");
+      // Reinicio automático si Aurora debe seguir escuchando (segundo plano).
+      if (keepAliveRef.current && typeof window !== "undefined") {
+        try {
+          const next = buildRecognition();
+          if (next) {
+            recognitionRef.current = next;
+            // Pequeño respiro para evitar bucles de error inmediato.
+            setTimeout(() => { try { next.start(); } catch { /* */ } }, 250);
+            return;
+          }
+        } catch { /* */ }
+      }
+      setListening(false);
+    };
     rec.onresult = (e: any) => {
       let finalText = "";
       let interimText = "";
@@ -462,6 +648,7 @@ export function useAuroraEngine(): AuroraEngine {
     if (typeof window === "undefined") return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { toast.error("Tu navegador no soporta reconocimiento de voz."); return; }
+    keepAliveRef.current = true; // mantener vivo a través de la navegación
     try { recognitionRef.current?.stop?.(); } catch { /* */ }
     const rec = buildRecognition();
     if (!rec) return;
@@ -470,14 +657,25 @@ export function useAuroraEngine(): AuroraEngine {
   }, [buildRecognition]);
 
   const stop = useCallback(() => {
+    keepAliveRef.current = false; // parada deliberada: no reanudar
     try { recognitionRef.current?.stop?.(); } catch { /* */ }
     setListening(false);
   }, []);
 
   const toggle = useCallback(() => {
+    // Si Aurora está hablando, un toque la interrumpe (botón = activar/pausar/interrumpir).
+    if (typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined" && window.speechSynthesis.speaking) {
+      interrupt();
+      return;
+    }
     if (listening) stop();
     else start();
-  }, [listening, start, stop]);
+  }, [listening, start, stop, interrupt]);
+
+  // Envía texto al motor como si el usuario hablara (para el chat por escrito).
+  const send = useCallback(async (text: string) => {
+    await runCommandRef.current(text);
+  }, []);
 
   return useMemo(
     () => ({
@@ -503,11 +701,25 @@ export function useAuroraEngine(): AuroraEngine {
       setActivePersonality,
       setEnabled,
       reloadPersonalities,
+      // transporte de voz + segundo plano + historial
+      paused,
+      pauseSpeech,
+      resumeSpeech,
+      toggleSpeech,
+      skipForward,
+      skipBack,
+      interrupt,
+      replyHistory,
+      conversation,
+      send,
+      actionLog,
     }),
     [
       supported, enabled, listening, speaking, transcript, interim, lastReply, actionStatus,
       activePersonality, settings, listVoicesNow, personalities,
       start, stop, toggle, speak, runCommand, runDirectives, runAction, setActivePersonality, setEnabled, reloadPersonalities,
+      paused, pauseSpeech, resumeSpeech, toggleSpeech, skipForward, skipBack, interrupt,
+      replyHistory, conversation, send, actionLog,
     ]
   );
 }
