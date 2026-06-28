@@ -15,6 +15,7 @@
 
 import dynamic from 'next/dynamic';
 import { Loader2 } from 'lucide-react';
+import { XREntryButton } from '@/components/xr/xr-entry-button';
 
 const ImmersiveSpace = dynamic(
     () => import('@/components/dashboard/apps/immersive/immersive-space').then((m) => m.ImmersiveSpace),
@@ -36,6 +37,8 @@ export default function ImmersivePage() {
     return (
         <div className="relative h-[calc(100vh-7rem)] min-h-[28rem] overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
             <ImmersiveSpace />
+            {/* Acceso aditivo al Hub 3D / VR / AR unificado (red real en 3D) */}
+            <XREntryButton label="Ver mi red en 3D / VR / AR" />
         </div>
     );
 }
