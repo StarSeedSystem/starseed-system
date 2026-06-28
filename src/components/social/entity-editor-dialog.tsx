@@ -43,6 +43,8 @@ import {
 import { useEntityMutations } from "@/hooks/use-os-entities";
 import type { OsPage, OsGroup, OsEvent } from "@/lib/os-social";
 import { uploadEntityMedia } from "@/lib/os-social";
+import EgoContextOption from "@/components/aurora/ego-context-option";
+import { createEgoForContext, type EgoContextKind } from "@/lib/aurora/ego";
 import { Lock, Loader2, Upload, X, ImageIcon } from "lucide-react";
 
 // ── Tipos del editor ──
@@ -331,6 +333,10 @@ export function EntityEditorDialog({
     const editType: EntityEditorType | undefined = entity?.type;
 
     // En edición el tipo es fijo (no se cambia el tipo de una entidad existente).
+    // ── Aditivo · Agente Aurora (ego.md) para esta entidad ──
+    const [egoForContext, setEgoForContext] = React.useState(false);
+    const [egoName, setEgoName] = React.useState("");
+
     const [type, setType] = React.useState<EntityEditorType>(
         isEdit && editType ? editType : defaultType,
     );
@@ -525,6 +531,28 @@ export function EntityEditorDialog({
         }
 
         const savedSlug = res.slug ?? (isEdit && entity ? entity.data.slug : "");
+
+        // Aditivo: crear un Agente Aurora (ego.md) para la entidad recién creada.
+        if (!isEdit && egoForContext && savedSlug) {
+            try {
+                const egoKind: EgoContextKind =
+                    type === "group"
+                        ? "grupo"
+                        : type === "event"
+                          ? "evento"
+                          : kind === "comunidad"
+                            ? "comunidad"
+                            : "pagina";
+                await createEgoForContext({
+                    name: `Agente · ${trimmedName}`,
+                    summary: `Agente Aurora (ego.md) para ${trimmedName}. Integración Aurora <-> Astraura.`,
+                    attachment: { kind: egoKind, ref: savedSlug, label: trimmedName },
+                });
+            } catch {
+                /* no bloquea la creación de la entidad */
+            }
+        }
+
         onOpenChange(false);
 
         if (onSaved && savedSlug) {
@@ -578,6 +606,24 @@ export function EntityEditorDialog({
                                 </SelectContent>
                             </Select>
                         </div>
+                    )}
+
+                    {/* Aditivo · Agente Aurora (ego.md) para esta entidad */}
+                    {!isEdit && (
+                        <EgoContextOption
+                            contextLabel={
+                                type === "group"
+                                    ? "este grupo"
+                                    : type === "event"
+                                      ? "este evento"
+                                      : "esta página"
+                            }
+                            kind={type === "group" ? "grupo" : type === "event" ? "evento" : "pagina"}
+                            value={egoForContext}
+                            onChange={setEgoForContext}
+                            egoName={egoName}
+                            onEgoName={setEgoName}
+                        />
                     )}
 
                     {/* Nombre / Título */}
