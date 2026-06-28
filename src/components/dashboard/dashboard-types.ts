@@ -10,6 +10,8 @@ export type WidgetType =
     | 'LIVE_DATA'
     | 'SYSTEM_STATUS'
     | 'RECENT_ACTIVITY'
+    | 'QUICK_ACCESS'           // Utilidades — Accesos rapidos (lanzadera de areas)
+    | 'ACTIVITY_SUMMARY'       // Productividad/Social — Resumen de actividad (agregados reales)
     | 'NEXUS_QUICK_ACCESS'
     | 'THEME_MANAGER'
     | 'WEATHER_BASIC'         // Mixed Minimal
