@@ -5,9 +5,10 @@
 > Sync: local ↔ Drive ↔ Telegram (🧠 Exocórtex & IA). _Última actualización: 2026-06-29_
 
 ## 🔥 En curso
-- [ ] **OS #85** — Unificar perfil duplicado (`AccountChip` + `UserNav`) + quitar datos falsos.
-- [ ] **OS #86** — Quitar/redirigir botón **"Decisiones"** → **Hub de Conexiones**.
-- [ ] **OS #87** — Limpiar dock Trinidad + renombrar **"AI Studio" → "Astraura AI"**.
+- [x] **OS #85** — Perfil unificado en un solo control real (chip + dropdown/logout) ✅ `main` (`71b97c4`)
+- [x] **OS #86** — "Decisiones" oculto del dock por defecto (Hub permanece) ✅ `main`
+- [x] **OS #87** — "AI Studio" → "Astraura AI" (18 archivos; excepto ref. a Google) ✅ `main`
+- [ ] **⚠️ Deploy OS** — Vercel (proyecto `starseed-os`) NO auto-despliega desde `4740637a`; los commits (serie *navegador* + estos) están en `main` pero **no en vivo**. Reconectar/disparar el deploy.
 - [ ] **Mem · Sistema de Memoria** (#98/#99)
   - [x] Mem-1 — Bundle local + taxonomía + manifiesto
   - [x] Mem-2 — Espejo en Google Drive (*My Drive/StarSeed_Memory_Root*, auto-sync) ✅ 2026-06-29

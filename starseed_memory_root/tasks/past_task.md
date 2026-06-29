@@ -45,3 +45,10 @@
 - [x] Liberar ~12 GB en el Mac de forma segura (Ollama + cachés)
 - [x] Sincronizar repo OS a `origin/main` (estaba 382 commits atrás)
 - [x] Mem-1 · Bundle de memoria portátil (Soul/Ego/Skills/Style/Memory/Dream/Accounts/Tasks + manifiesto)
+
+
+## OS UI (2026-06-29) — código en `main`, deploy pendiente (pipeline Vercel)
+- [x] #85 Unificar el botón de perfil del header en un solo control real (chip + dropdown/logout; sin datos falsos)
+- [x] #86 Ocultar "Decisiones" del dock por defecto (Hub de Conexiones permanece)
+- [x] #87 Renombrar "AI Studio" → "Astraura AI" (18 archivos; excepto la referencia a *Google* AI Studio)
+> Commits `c117a1a` + `71b97c4` en `origin/main`. Pendiente sólo el **deploy** (pipeline Vercel `starseed-os` detenido — ver `tasks.md`).

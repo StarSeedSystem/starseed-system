@@ -19,3 +19,7 @@
 - (memoria) **Drive:** espejo en `My Drive/StarSeed_Memory_Root` vía mount (auto-sync). **Escritorio:** enlace `~/Desktop/StarSeed_Memory_Root`.
 - (memoria) Destinos de vínculo definidos: 🧠 cerebros · 🖥️ servidores internos/StarSeed/externos · ☁️ VMs en línea · 🔌 servicios/plugins/conexiones (servidor+almacén). ⚠️ Sin conectar a cuenta (prueba futura: *Ester*).
 - (pendiente) Telegram digest (🧠 Exocórtex & IA, `-1004444519617`) requiere **token del bot**.
+
+## 2026-06-29 (OS #85/#86/#87 + hallazgo de deploy)
+- (os) **#85** perfil unificado: `UserNav` real con chip (avatar + @handle) + dropdown/logout; `AccountChip` retirado del header (+ fix de referencia rota). **#86** dock `Decisiones` → `enabled:false`. **#87** `AI Studio`→`Astraura AI` (18 archivos; `google.ts` excluido por ser referencia a *Google* AI Studio). Commits `c117a1a` + `71b97c4` en `main`; verificado en `origin`.
+- (deploy) ⚠️ El proyecto Vercel **`starseed-os`** (repo `starseed-system`) **NO auto-despliega desde `4740637a`**: ni la serie *navegador* ni estos commits llegaron a producción. El backend **`starseed-neurocortex`** sí despliega. Acción pendiente: reconectar la integración Git o re-disparar el deploy del OS.
