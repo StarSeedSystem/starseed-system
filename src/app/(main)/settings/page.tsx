@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { AppearanceEditor } from "@/components/settings/appearance/appearance-editor";
 import { AiProvidersPanel } from "@/components/settings/ai/ai-providers-panel";
+import { AuroraChannelsPanel } from "@/components/settings/ai/aurora-channels-panel";
 import { TriSourceConfig } from "@/components/services/tri-source-config";
 import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { TrinityFabSettings } from "@/components/settings/trinity/trinity-fab-settings";
@@ -291,6 +292,9 @@ export default function SettingsPage() {
                                     </GlassCard>
                                 </div>
                                 <AiProvidersPanel />
+
+                                {/* Canales de Aurora: por dónde habla (interno + Telegram/Google Chat/API) */}
+                                <AuroraChannelsPanel />
 
                                 {/* Modelo tri-fuente: elige y modula las fuentes de IA */}
                                 <TriSourceConfig
