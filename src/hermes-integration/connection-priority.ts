@@ -9,7 +9,7 @@
  *   5. OpenRouter / Groq (free tier)
  *
  * Configurable: el usuario puede reordenar o forzar uno específico.
- * Las decisiones quedan loggeadas para el AI Studio.
+ * Las decisiones quedan loggeadas para el Astraura AI.
  */
 
 export type ProviderTier = 'local-free' | 'skill-free' | 'byok' | 'free-tier' | 'paid';

@@ -338,7 +338,7 @@ export default function OKFPanel() {
       return;
     }
     if (!aiReady) {
-      setStatus({ kind: "err", msg: "Configura tu IA en AI Studio (Ajustes → IA & Modelos) para que Astraura redacte." });
+      setStatus({ kind: "err", msg: "Configura tu IA en Astraura AI (Ajustes → IA & Modelos) para que Astraura redacte." });
       return;
     }
     setBusy("ingest");
@@ -420,7 +420,7 @@ export default function OKFPanel() {
       return;
     }
     if (!aiReady) {
-      setStatus({ kind: "err", msg: "Configura tu IA en AI Studio para consultar la wiki." });
+      setStatus({ kind: "err", msg: "Configura tu IA en Astraura AI para consultar la wiki." });
       return;
     }
     setBusy("query");
@@ -463,7 +463,7 @@ export default function OKFPanel() {
   // ── Lint ─────────────────────────────────────────────────────────────────
   async function doLint() {
     if (!aiReady) {
-      setStatus({ kind: "err", msg: "Configura tu IA en AI Studio para la revisión." });
+      setStatus({ kind: "err", msg: "Configura tu IA en Astraura AI para la revisión." });
       return;
     }
     setBusy("lint");

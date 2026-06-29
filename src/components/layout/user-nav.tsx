@@ -76,12 +76,17 @@ export function UserNav() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
+        <button
+          type="button"
+          title={displayName}
+          className="inline-flex items-center gap-2 rounded-full border border-border/40 bg-background/60 py-1 pl-1 pr-3 transition-colors hover:bg-white/10 cursor-pointer"
+        >
+          <Avatar className="h-6 w-6">
             {avatarUrl && <AvatarImage src={avatarUrl} alt={displayName} data-ai-hint="user avatar" />}
-            <AvatarFallback>{initialsOf(displayName)}</AvatarFallback>
+            <AvatarFallback className="text-[10px] font-bold">{initialsOf(displayName)}</AvatarFallback>
           </Avatar>
-        </Button>
+          <span className="hidden max-w-[10rem] truncate text-xs font-bold sm:inline">{handle ? `@${handle}` : displayName}</span>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">

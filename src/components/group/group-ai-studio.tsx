@@ -166,7 +166,7 @@ export function GroupAIStudio({ groupId, groupName }: { groupId: string; groupNa
       <div className="rounded-lg border border-cyan-400/20 bg-cyan-500/5 p-3 flex items-start gap-2">
         <Info className="w-4 h-4 text-cyan-300 mt-0.5 shrink-0" />
         <div className="text-xs text-white/70 leading-relaxed">
-          <span className="inline-flex items-center gap-2 flex-wrap"><span className="text-cyan-200 font-medium">AI Studio del grupo</span><GovernanceModeBadge scope="group" scopeRef={groupId} /></span> — configuración gestionada
+          <span className="inline-flex items-center gap-2 flex-wrap"><span className="text-cyan-200 font-medium">Astraura AI del grupo</span><GovernanceModeBadge scope="group" scopeRef={groupId} /></span> — configuración gestionada
           según el modo de gobernanza del grupo. En modo democrático los cambios se deciden
           mediante propuestas y votos; en modo jerárquico un admin puede aplicarlos directamente,
           pero la opción democrática siempre está disponible.

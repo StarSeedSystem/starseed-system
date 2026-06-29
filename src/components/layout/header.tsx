@@ -5,7 +5,6 @@ import NextImage from "next/image";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { UserNav } from "./user-nav";
-import { AccountChip } from "./account-chip";
 import { NotificationCenter } from "./notification-center";
 
 export function AppHeader() {

@@ -178,7 +178,7 @@ export function AiOverlay() {
       { match: /\b(dashboard|inicio|tablero)\b/, path: '/dashboard', label: 'Dashboard' },
       { match: /\bhub\b/, path: '/hub', label: 'Hub' },
       { match: /\b(cerebro|grafica viva|memoria viva)\b/, path: '/network/graph', label: 'Cerebro' },
-      { match: /\b(ai studio|estudio.*ia|pagina.*ia|agente)\b/, path: '/agent', label: 'AI Studio' },
+      { match: /\b(ai studio|estudio.*ia|pagina.*ia|agente)\b/, path: '/agent', label: 'Astraura AI' },
       { match: /\b(ajustes|configuracion|settings)\b/, path: '/settings', label: 'Ajustes' },
       { match: /\b(biblioteca|library)\b/, path: '/library', label: 'Biblioteca' },
       { match: /\b(notificaciones|notificacion)\b/, path: '/notifications', label: 'Notificaciones' },

@@ -790,7 +790,7 @@ function AstrauraPanel({
           {
             role: "ai",
             content:
-              "Configura tu IA en AI Studio (Ajustes → IA & Modelos) y vuelve. Mientras tanto puedo mostrarte tus cerebros, servidores y almacenes en el mapa.",
+              "Configura tu IA en Astraura AI (Ajustes → IA & Modelos) y vuelve. Mientras tanto puedo mostrarte tus cerebros, servidores y almacenes en el mapa.",
           },
         ]);
         return;
@@ -880,7 +880,7 @@ function AstrauraPanel({
             <strong className="text-white/80">explique</strong> tu red de cerebros, servidores y datos.
             {hasProvider === false && (
               <div className="mt-2 rounded-md border border-amber-400/30 bg-amber-400/10 p-2 text-amber-200">
-                Configura tu IA en AI Studio para activar las respuestas.
+                Configura tu IA en Astraura AI para activar las respuestas.
               </div>
             )}
           </div>

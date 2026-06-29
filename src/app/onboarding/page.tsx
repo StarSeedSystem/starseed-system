@@ -95,7 +95,7 @@ const WALKTHROUGH_PAGES = [
   { path: '/hub',            label: 'Hub',           icon: Users,    desc: 'Punto de encuentro: actividad social, política y colaborativa.' },
   { path: '/network',        label: 'La Red',        icon: Sparkles, desc: 'Latido vivo de gobernanza, educación y cultura.' },
   { path: '/network/graph',  label: 'Cerebro',       icon: Brain,    desc: 'Memoria unificada + skills + tools + agentes.' },
-  { path: '/agent',          label: 'AI Studio',     icon: Cpu,      desc: 'Configura tu IA personal y todas sus capacidades.' },
+  { path: '/agent',          label: 'Astraura AI',     icon: Cpu,      desc: 'Configura tu IA personal y todas sus capacidades.' },
 ];
 
 export default function OnboardingPage() {
@@ -400,7 +400,7 @@ function StepAiGuide({ onNext }: any) {
         <FeatureCard icon={Brain}    label="Cerebro"      desc="Visualización geométrica de tu memoria y conexiones." />
       </div>
       <div className="text-center pt-2 flex gap-2 justify-center">
-        <Link href="/agent" target="_blank"><Button variant="outline" size="sm">Abrir AI Studio</Button></Link>
+        <Link href="/agent" target="_blank"><Button variant="outline" size="sm">Abrir Astraura AI</Button></Link>
         <Button onClick={onNext}>Continuar <ArrowRight className="w-3 h-3 ml-1" /></Button>
       </div>
     </div>

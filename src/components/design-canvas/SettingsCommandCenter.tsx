@@ -22,7 +22,7 @@ interface SearchableSetting {
 // Registry of all searchable settings
 const SETTINGS_REGISTRY: SearchableSetting[] = [
     // Generative
-    { id: "ai-prompt", label: "AI Prompt", category: "AI Studio", icon: Sparkles, tab: "generative", keywords: ["generate", "magic"] },
+    { id: "ai-prompt", label: "AI Prompt", category: "Astraura AI", icon: Sparkles, tab: "generative", keywords: ["generate", "magic"] },
 
     // Colors
     { id: "palette-primary", label: "Color Primario", category: "Colores", icon: Palette, tab: "colors", keywords: ["main", "brand"] },

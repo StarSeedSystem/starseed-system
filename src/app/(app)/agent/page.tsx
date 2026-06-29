@@ -335,7 +335,7 @@ function AgentPageInner() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-3">
           <BrainCircuit className="w-8 h-8 text-primary" />
-          AI Studio & Orchestration
+          Astraura AI & Orchestration
         </h1>
         <div className="flex items-center gap-2 flex-wrap">
           {activeProviderConfig ? (

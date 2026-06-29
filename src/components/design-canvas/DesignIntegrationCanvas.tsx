@@ -379,7 +379,7 @@ export function DesignIntegrationCanvas() {
     }, []);
 
     const tabs = [
-        { id: "generative", label: "AI Studio", icon: Bot, color: "text-cyan-400" },
+        { id: "generative", label: "Astraura AI", icon: Bot, color: "text-cyan-400" },
         { id: "trinity", label: "Sistema Trinity", icon: Wand2, color: "text-purple-400" },
         { id: "spline", label: "Spline 3D", icon: Wand2, color: "text-emerald-400" },
         { id: "colors", label: "Paleta Neural", icon: Palette, color: "text-blue-400" },

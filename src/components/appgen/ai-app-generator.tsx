@@ -736,7 +736,7 @@ export default function AiAppGenerator() {
           <div className="mt-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
             <Info className="mr-1 inline h-3.5 w-3.5" />
             No hay ningún proveedor de IA activado. Ve a{" "}
-            <span className="font-semibold">Ajustes → IA &amp; Modelos</span> (AI Studio) y activa
+            <span className="font-semibold">Ajustes → IA &amp; Modelos</span> (Astraura AI) y activa
             uno (Ollama local o tu API). Mientras tanto puedes editar archivos y ver la vista previa.
           </div>
         )}

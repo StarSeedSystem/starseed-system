@@ -40,7 +40,7 @@ const STORAGE_KEY = 'starseed.dock.items.v2';
 
 /**
  * Catálogo base. Por defecto el dock muestra solo secciones del sistema +
- * UN solo botón de IA (AI Studio). El resto de superficies IA (Cerebro,
+ * UN solo botón de IA (Astraura AI). El resto de superficies IA (Cerebro,
  * Skills, Tools, MCPs, Sentidos, Setup) están disponibles desde el editor
  * para añadir si el usuario quiere accesos rápidos extra.
  *
@@ -58,14 +58,14 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'netlib',        label: 'Librería Global',     iconKey: 'Library',         path: '/library?view=global',   color: 'cyan',    enabled: true,  origin: 'preset' },
   { id: 'nodes',         label: 'Nodos',               iconKey: 'Network',         path: '/network',               color: 'crimson', enabled: true,  origin: 'preset' },
   // ── IA: UN solo botón a la página principal por defecto ──
-  { id: 'ai-studio',     label: 'AI Studio',           iconKey: 'BrainCircuit',    path: '/agent',                 color: 'purple',  enabled: true,  origin: 'preset' },
+  { id: 'ai-studio',     label: 'Astraura AI',           iconKey: 'BrainCircuit',    path: '/agent',                 color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'settings',      label: 'Ajustes',             iconKey: 'Settings',        path: '/settings',              color: 'neutral', enabled: true,  origin: 'preset' },
   { id: 'navegador',     label: 'Navegador',           iconKey: 'Compass',         path: '/navegador',             color: 'cyan',    enabled: true,  origin: 'preset' },
   { id: 'pizarra',       label: 'Pizarra',             iconKey: 'PenLine',         path: '/pizarra',               color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'seguridad',     label: 'Seguridad',           iconKey: 'ShieldCheck',     path: '/seguridad',             color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'funciones',     label: 'Funciones',           iconKey: 'LayoutGrid',      path: '/funciones',             color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'servicios',     label: 'Servicios y Fuentes', iconKey: 'Server',          path: '/servicios',             color: 'cyan',    enabled: false, origin: 'preset' },
-  { id: 'decisiones',    label: 'Decisiones',          iconKey: 'Vote',            path: '/decisiones',            color: 'amber',   enabled: true,  origin: 'preset' },
+  { id: 'decisiones',    label: 'Decisiones',          iconKey: 'Vote',            path: '/decisiones',            color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'conocimiento',  label: 'Conocimiento',        iconKey: 'Lightbulb',       path: '/conocimiento',          color: 'cyan',    enabled: false, origin: 'preset' },
   { id: 'cerebros',      label: 'Cerebros',            iconKey: 'Cpu',             path: '/cerebros',              color: 'purple',  enabled: false, origin: 'preset' },
   { id: 'cerebro',       label: 'Cerebro',             iconKey: 'Brain',           path: '/cerebro',               color: 'purple',  enabled: true,  origin: 'preset' },

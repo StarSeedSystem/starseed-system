@@ -47,7 +47,7 @@ export default function NetworkPage() {
 
   return (
     <div className="w-full px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] space-y-[clamp(1.5rem,3vw,3rem)] animate-in fade-in duration-500 pb-24">
-      {/* El "Cerebro" (gráfica viva) se trasladó al Exocórtex / AI Studio (/agent → pestaña Cerebro). */}
+      {/* El "Cerebro" (gráfica viva) se trasladó al Exocórtex / Astraura AI (/agent → pestaña Cerebro). */}
 
       {/* Feed Section */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-[clamp(1rem,2vw,2rem)] relative z-10">

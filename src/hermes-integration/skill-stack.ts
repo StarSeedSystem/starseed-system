@@ -41,7 +41,7 @@ export interface SkillEntry {
   selfReplicating?: boolean;
   enabled: boolean;
   version: string;
-  /** Métricas de uso para mostrar gráficas en AI Studio. */
+  /** Métricas de uso para mostrar gráficas en Astraura AI. */
   invocations?: number;
   lastUsedAt?: string;
 }
@@ -250,7 +250,7 @@ export async function run({ name, description, category = 'agent', code, trigger
   {
     id: 'meta-agent-generator',
     name: 'Meta · Agent Generator',
-    description: 'Crea agentes nuevos con persona, reglas, skills y memoria propios. El agente resultante se guarda en el AI Studio.',
+    description: 'Crea agentes nuevos con persona, reglas, skills y memoria propios. El agente resultante se guarda en el Astraura AI.',
     origin: 'starseed',
     category: 'meta',
     requiredTools: ['memory'],
@@ -412,7 +412,7 @@ class SkillStack {
     }
   }
 
-  /** Estadísticas para AI Studio. */
+  /** Estadísticas para Astraura AI. */
   stats() {
     this.load();
     const byOrigin: Record<string, number> = {};

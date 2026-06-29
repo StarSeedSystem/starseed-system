@@ -2,7 +2,7 @@
 'use client';
 
 /**
- * AI Studio Dashboard — gráficas dinámicas del ecosistema IA del usuario:
+ * Astraura AI Dashboard — gráficas dinámicas del ecosistema IA del usuario:
  *   - Uso por proveedor (donut)
  *   - Skills/agentes/tools/MCPs (barras)
  *   - Latencia y tasa de éxito de batch jobs

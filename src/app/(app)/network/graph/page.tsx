@@ -1,6 +1,6 @@
 'use client';
 
-// El "Cerebro" (antes "Gráfica Viva") se trasladó al Exocórtex / AI Studio.
+// El "Cerebro" (antes "Gráfica Viva") se trasladó al Exocórtex / Astraura AI.
 // Esta ruta ahora redirige a /agent (pestaña Cerebro) para no romper enlaces
 // antiguos del dashboard, onboarding, Trinity y widgets.
 
@@ -23,7 +23,7 @@ export default function GraphRedirectPage() {
             <div>
                 <h2 className="text-lg font-bold">El Cerebro vive ahora en tu Exocórtex</h2>
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                    La visualización 3D de tu memoria se trasladó al AI Studio. Te estamos llevando allí…
+                    La visualización 3D de tu memoria se trasladó al Astraura AI. Te estamos llevando allí…
                 </p>
             </div>
             <Link

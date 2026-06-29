@@ -944,7 +944,7 @@ function AstrauraPanel({ summary, onClose }: { summary: string; onClose: () => v
           {
             role: "ai",
             content:
-              "Configura tu IA en AI Studio (Ajustes → IA & Modelos) para activar las explicaciones. Mientras tanto puedes explorar la red en las vistas Lista, Mapa 2D y Red 3D.",
+              "Configura tu IA en Astraura AI (Ajustes → IA & Modelos) para activar las explicaciones. Mientras tanto puedes explorar la red en las vistas Lista, Mapa 2D y Red 3D.",
           },
         ]);
         return;
@@ -1032,7 +1032,7 @@ function AstrauraPanel({ summary, onClose }: { summary: string; onClose: () => v
             <strong className="text-white/80">red</strong>, o que sugiera cómo organizarla mejor.
             {hasProvider === false && (
               <div className="mt-2 rounded-md border border-amber-400/30 bg-amber-400/10 p-2 text-amber-200">
-                Configura tu IA en AI Studio para activar las respuestas.
+                Configura tu IA en Astraura AI para activar las respuestas.
               </div>
             )}
           </div>
