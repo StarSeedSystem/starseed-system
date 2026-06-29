@@ -1,5 +1,7 @@
 "use client";
 
+import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
+
 /**
  * ServersPanel — Registro de servidores de cerebros + enlaces MUCHOS-A-MUCHOS.
  *
@@ -1004,6 +1006,11 @@ export default function ServersPanel() {
           Para generar, registra el servicio como un servidor de tipo «Servicio conectado integrado» (o «Cerebro local»
           para Ollama/ComfyUI locales) y enlázalo a tus cerebros.
         </p>
+      </div>
+      {/* Catálogo de código abierto: almacenamiento + runtimes para cerebros */}
+      <div className="mt-4 space-y-4">
+        <OssLibraryBrowser category="storage" />
+        <OssLibraryBrowser category="runtime" />
       </div>
     </div>
   );

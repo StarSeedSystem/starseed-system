@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { OssLibraryBrowser } from "./oss-library-browser";
 import { PROVIDERS, PROVIDER_ORDER, type ProviderId } from "@/ai/providers";
 import type { ProviderConfig } from "@/ai/providers/types";
 import {
@@ -471,6 +472,19 @@ export function AiProvidersPanel() {
           );
         })}
       </div>
+
+      {/* Catálogo de código abierto: modelos, runtimes y frameworks */}
+      <Card className="bg-background/40 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Explora la librería de código abierto</CardTitle>
+          <CardDescription>Modelos abiertos, runtimes locales y frameworks de agentes que puedes conectar como proveedor o motor.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <OssLibraryBrowser category="llm" />
+          <OssLibraryBrowser category="runtime" />
+          <OssLibraryBrowser category="agent-framework" />
+        </CardContent>
+      </Card>
 
       {/* Footer: principios */}
       <Card className="bg-background/20 border-white/5">

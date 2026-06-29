@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Radio, Send, Plus, Trash2, ShieldCheck, MessageSquare, Globe, Lock, Sparkles, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { TG_SPACES } from "@/lib/telegram-spaces";
+import { OssLibraryBrowser } from "./oss-library-browser";
 
 export type ChannelPermission = "read" | "notify" | "full";
 export type ChannelKind = "aurora" | "telegram" | "googlechat" | "custom";
@@ -201,6 +202,17 @@ export function AuroraChannelsPanel() {
           </Card>
         ))}
       </div>
+
+      {/* Catálogo de código abierto: plataformas de chat self-host */}
+      <Card className="bg-background/40 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Plataformas de chat de código abierto</CardTitle>
+          <CardDescription>Self-host para tus propios canales (además de Telegram / Google Chat).</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <OssLibraryBrowser category="chat-channel" />
+        </CardContent>
+      </Card>
 
       {/* Footer */}
       <Card className="bg-background/20 border-white/5">

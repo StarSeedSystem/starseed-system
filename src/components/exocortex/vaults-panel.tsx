@@ -1,5 +1,7 @@
 "use client";
 
+import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
+
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -177,6 +179,10 @@ export function VaultsPanel() {
           })}
         </div>
       )}
+      {/* Catálogo de código abierto: bases vectoriales / memoria */}
+      <div className="mt-4">
+        <OssLibraryBrowser category="vector-memory" />
+      </div>
     </div>
   );
 }
