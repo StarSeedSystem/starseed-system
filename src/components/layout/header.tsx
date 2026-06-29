@@ -47,7 +47,6 @@ export function AppHeader() {
       {/* Acciones del lado derecho */}
       <div className="flex items-center gap-[clamp(0.25rem,0.5vw,0.5rem)]">
         <NotificationCenter />
-        <AccountChip />
         <UserNav />
       </div>
     </header>
