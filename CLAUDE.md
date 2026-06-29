@@ -197,3 +197,17 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 ---
 
 *Última actualización del archivo: 2026-05-25*
+
+
+---
+
+## 🧠 Sistema de Memoria (memory root)
+
+La memoria viva del proyecto vive en **`starseed_memory_root/`** — un *memory root*
+portátil con **raíz + ramas**: `soul/ ego/ skills/ style/ memory/ dream/ accounts/
+tasks/ logs/` + `index.md` + `sync.md` + `memory.manifest.json`.
+
+- **Lee `starseed_memory_root/index.md` al iniciar.** Toda petición nueva → `tasks/tasks.md`; al completar → `tasks/past_task.md`; eventos → `logs/logs.md`.
+- Espejo en Google Drive (*My Drive/StarSeed_Memory_Root*) + enlace en el Escritorio.
+- Vinculable a cerebros/servidores/VMs (ver `sync.md` + `architecture/memoria-cerebros-sync.md`). ⚠️ No conectado a cuenta aún (prueba futura: *Ester*).
+- La **memoria profunda** (architecture/principles/glossary/roadmap/state) sigue en `memory/`.

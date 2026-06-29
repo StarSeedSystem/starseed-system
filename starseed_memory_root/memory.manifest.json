@@ -1,0 +1,38 @@
+{
+  "name": "starseed_memory_root",
+  "kind": "memory_root",
+  "version": "1.1.0",
+  "owner": "alexbordongarrigos@gmail.com",
+  "structure": "root+branches",
+  "rootNameConvention": "<nombre>_memory_root",
+  "portable": true,
+  "accountConnected": false,
+  "note": "No conectar a la cuenta StarSeed todavia. Prueba futura con la cuenta Ester ('conecta esta carpeta de memorias').",
+  "linkTargets": [
+    "cerebros",
+    "servidores_internos",
+    "servidores_starseed",
+    "servidores_externos",
+    "vms_online",
+    "servicios_plugins_conexiones"
+  ],
+  "sync": {
+    "local": { "path": "starseed_memory_root/", "active": true },
+    "drive": { "folder": "Sistema de Memoria StarSeed", "active": true },
+    "desktopLink": { "active": true },
+    "telegram": { "channel": "Exocortex & IA", "chatId": "-1004444519617", "active": false, "requires": "BOT_TOKEN" },
+    "starseedBrains": { "active": false, "spec": "architecture/memoria-cerebros-sync.md" }
+  },
+  "branches": [
+    { "rama": "soul",     "tipo": "soul",     "archivo": "soul/soul.md",        "scope": "global" },
+    { "rama": "ego",      "tipo": "aurora",   "archivo": "ego/ego.md",          "scope": "global" },
+    { "rama": "skills",   "tipo": "skill",    "archivo": "skills/skills.md",    "scope": "global" },
+    { "rama": "style",    "tipo": "style",    "archivo": "style/style.md",      "scope": "global" },
+    { "rama": "memory",   "tipo": "memory",   "archivo": "memory/memory.md",    "scope": "global" },
+    { "rama": "dream",    "tipo": "dream",    "archivo": "dream/dream.md",      "scope": "global" },
+    { "rama": "accounts", "tipo": "accounts", "archivo": "accounts/accounts.md","scope": "privado" },
+    { "rama": "tasks",    "tipo": "task",     "archivo": "tasks/tasks.md",      "scope": "operativo" },
+    { "rama": "tasks",    "tipo": "task",     "archivo": "tasks/past_task.md",  "scope": "historico" },
+    { "rama": "logs",     "tipo": "log",      "archivo": "logs/logs.md",        "scope": "operativo" }
+  ]
+}
