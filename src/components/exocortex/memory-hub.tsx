@@ -15,6 +15,9 @@ import Link from "next/link";
 import { routeAndStore } from "@/lib/storage/route-memory";
 import { getPolicy } from "@/lib/storage/backends";
 import type { StoragePolicy } from "@/lib/storage/backends";
+// NUEVO (aditivo): conectar una carpeta de memorias (memory root) en modo
+// vista previa, sin tocar la cuenta. Ver architecture/memoria-cerebros-sync.md.
+import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connect";
 
 // El PAT ya NO se guarda en config: vive cifrado en la bóveda (api/vault).
 type GithubConfig = { repo?: string; branch?: string; path?: string };
@@ -341,6 +344,10 @@ export function MemoryHub() {
           <Button size="sm" className="gap-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white" onClick={() => setCreating((c) => !c)}><Plus className="w-4 h-4" /> Crear memoria</Button>
         </div>
       </div>
+
+      {/* NUEVO (aditivo): Conectar carpeta de memorias (memory root → cerebro/baúl),
+          modo vista previa, sin conexión a la cuenta. */}
+      <MemoryFolderConnect />
 
       <div>
         <div className="text-[11px] uppercase tracking-widest text-fuchsia-300/50 mb-2 flex items-center gap-1"><Wand2 className="w-3 h-3" /> Empieza fácil — elige un tipo</div>

@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
-import { chat } from "@/ai/client/chat";
+import { chat, chatSmart } from "@/ai/client/chat";
 import { loadConfigs } from "@/ai/client/providerStore";
 import type { ChatMessage } from "@/ai/providers/types";
 import { Button } from "@/components/ui/button";
@@ -541,7 +541,7 @@ Cerebros actuales del usuario:
 ${summary || "(ninguno todavía)"}
 Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cerebros conviene tener, qué incluir en cada uno, qué servidores conectar y qué cerebro usar en cada contexto. Máximo 8 líneas.`;
       const messages: ChatMessage[] = [{ role: "user", content }];
-      const r = await chat({ messages, temperature: 0.5 });
+      const r = await chatSmart({ messages, temperature: 0.5 });
       setSuggestion(r.text);
     } catch {
       toast.error("Astraura no pudo responder. Revisa tu proveedor de IA.");

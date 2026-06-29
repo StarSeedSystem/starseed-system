@@ -69,7 +69,7 @@ import MyActivity from "@/components/decisions/my-activity";
 import { ChatConnectionsPanel } from "@/components/messaging/chat-connections-panel";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 
-import { chat } from "@/ai/client/chat";
+import { chat, chatSmart } from "@/ai/client/chat";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS, type ProviderId } from "@/ai/providers";
 import type { ProviderConfig, ChatMessage } from "@/ai/providers/types";
@@ -287,7 +287,7 @@ function AgentPageInner() {
     abortRef.current = new AbortController();
     setStreaming(true);
     try {
-      await chat({
+      await chatSmart({
         messages: history,
         temperature: activeAgent.temperature,
         passphrase,
