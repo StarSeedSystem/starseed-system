@@ -67,6 +67,7 @@ import GovernancePanel from "@/components/governance/governance-panel";
 import GovNotifications from "@/components/governance/notifications-panel";
 import MyActivity from "@/components/decisions/my-activity";
 import { ChatConnectionsPanel } from "@/components/messaging/chat-connections-panel";
+import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 
 import { chat } from "@/ai/client/chat";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
@@ -738,8 +739,8 @@ function AgentPageInner() {
         </TabsContent>
 
         {/* --- TAB: TOOLS --- */}
-        <TabsContent value="tools" className="flex-1 min-h-0 overflow-y-auto">
-          <Card className="border-white/10 bg-black/20 h-full">
+        <TabsContent value="tools" className="flex-1 min-h-0 overflow-y-auto space-y-4">
+          <Card className="border-white/10 bg-black/20">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2"><Wrench className="w-5 h-5 text-emerald-400" /> Tools del Sistema</CardTitle>
@@ -803,6 +804,21 @@ function AgentPageInner() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Librería de código abierto · Plugins & tools (catálogo OSS) */}
+          <Card className="border-white/10 bg-black/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Wrench className="w-4 h-4 text-cyan-400" /> Librería de código abierto · Plugins & tools
+              </CardTitle>
+              <CardDescription>
+                Estándares e interoperabilidad de código abierto (MCP, OpenAPI…) para conectar herramientas y datos a tus agentes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <OssLibraryBrowser category="plugin-standard" />
             </CardContent>
           </Card>
         </TabsContent>

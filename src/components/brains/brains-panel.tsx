@@ -51,6 +51,9 @@ import {
   Link2,
   Network,
   Image as ImageIcon,
+  Bot,
+  GitBranch,
+  Workflow,
 } from "lucide-react";
 import {
   SERVER_KINDS,
@@ -100,6 +103,9 @@ import {
   type GenAdapter,
 } from "@/lib/brains/adapters";
 import { useRealtime } from "@/lib/realtime/realtime";
+import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
+import type { MoaMode } from "@/components/settings/ai/mixture-of-agents-panel";
+import { findOption } from "@/lib/oss-library";
 
 const BOT_BASE = "https://starseed-neurocortex.vercel.app";
 
@@ -1184,6 +1190,9 @@ function BrainEditor(props: {
         </label>
       </div>
 
+      {/* Sistema multi-agente (este cerebro) */}
+      <BrainMoaSection brainId={draft.id} isNew={isNew} />
+
       {/* Permisos */}
       <div className="rounded-lg border border-white/10 bg-black/20 p-2">
         <div className="mb-2 flex items-center gap-1.5 text-xs text-white/70">
@@ -1367,6 +1376,173 @@ function BrainEditor(props: {
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ====================================================================== */
+/* Sistema multi-agente por cerebro (override de la config global Aurora)   */
+/* ====================================================================== */
+
+/**
+ * Configuración multi-agente específica de UN cerebro. Por defecto usa la
+ * configuración GLOBAL de Aurora (`starseed.moa.config.v1`), de modo que los
+ * cerebros existentes no se ven afectados. Si el usuario personaliza, el
+ * override se guarda en `starseed.brain.<id>.moa`.
+ */
+interface BrainMoaOverride {
+  useGlobal: boolean;
+  mode: MoaMode;
+  autoSelect: boolean;
+  engineId: string | null;
+}
+
+const DEFAULT_BRAIN_MOA: BrainMoaOverride = {
+  useGlobal: true,
+  mode: "router",
+  autoSelect: true,
+  engineId: "together-moa",
+};
+
+function brainMoaKey(brainId: string) {
+  return `starseed.brain.${brainId}.moa`;
+}
+
+function loadBrainMoa(brainId: string): BrainMoaOverride {
+  if (typeof window === "undefined" || !brainId) return DEFAULT_BRAIN_MOA;
+  try {
+    const raw = window.localStorage.getItem(brainMoaKey(brainId));
+    if (raw) return { ...DEFAULT_BRAIN_MOA, ...JSON.parse(raw) } as BrainMoaOverride;
+  } catch {
+    /* noop */
+  }
+  return DEFAULT_BRAIN_MOA;
+}
+
+function saveBrainMoa(brainId: string, cfg: BrainMoaOverride) {
+  if (typeof window === "undefined" || !brainId) return;
+  try {
+    window.localStorage.setItem(brainMoaKey(brainId), JSON.stringify(cfg));
+  } catch {
+    /* noop */
+  }
+}
+
+const BRAIN_MOA_MODES: { id: MoaMode; label: string; icon: typeof Cpu }[] = [
+  { id: "single", label: "Único", icon: Cpu },
+  { id: "router", label: "Router inteligente", icon: GitBranch },
+  { id: "moa", label: "Mixture of Agents", icon: Layers },
+  { id: "crew", label: "Crew", icon: Workflow },
+];
+
+function BrainMoaSection({ brainId, isNew }: { brainId: string; isNew: boolean }) {
+  const [cfg, setCfg] = useState<BrainMoaOverride>(DEFAULT_BRAIN_MOA);
+
+  useEffect(() => {
+    setCfg(loadBrainMoa(brainId));
+  }, [brainId]);
+
+  function update(patch: Partial<BrainMoaOverride>) {
+    const next = { ...cfg, ...patch };
+    setCfg(next);
+    saveBrainMoa(brainId, next);
+  }
+
+  const engine = cfg.engineId ? findOption(cfg.engineId) : undefined;
+
+  return (
+    <div className="space-y-3 rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-3">
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-cyan-300/60">
+        <Layers className="h-3.5 w-3.5" /> Sistema multi-agente (este cerebro)
+      </div>
+
+      {/* Usar global vs personalizar */}
+      <label className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+        <div className="flex flex-col">
+          <span className="text-xs font-medium text-cyan-50">
+            {cfg.useGlobal ? "Usar configuración global de Aurora" : "Personalizar para este cerebro"}
+          </span>
+          <span className="text-[10px] text-white/40">
+            Por defecto, este cerebro hereda el sistema multi-agente global. Desactiva para darle su propia combinación.
+          </span>
+        </div>
+        <Switch checked={cfg.useGlobal} onCheckedChange={(v) => update({ useGlobal: v })} />
+      </label>
+
+      {!isNew ? null : (
+        <p className="text-[10px] text-amber-300/70">
+          Guarda el cerebro para conservar su configuración multi-agente personalizada.
+        </p>
+      )}
+
+      {/* Override: modo + auto-selección + motor */}
+      {!cfg.useGlobal && (
+        <div className="space-y-3">
+          {/* Modo de combinación */}
+          <div className="space-y-1.5">
+            <span className="flex items-center gap-1.5 text-[11px] text-white/55">
+              <Bot className="h-3.5 w-3.5 text-cyan-300" /> Modo de combinación
+            </span>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              {BRAIN_MOA_MODES.map((m) => {
+                const active = cfg.mode === m.id;
+                const Icon = m.icon;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => update({ mode: m.id })}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left text-[11px] transition",
+                      active
+                        ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-50"
+                        : "border-white/10 text-white/55 hover:border-cyan-400/30",
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5 text-cyan-300" />
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Auto-selección por contexto */}
+          <label className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+            <div className="flex items-start gap-2">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <div className="flex flex-col">
+                <span className="text-xs font-medium text-white/85">Auto-selección por contexto</span>
+                <span className="text-[10px] text-white/40">
+                  Aurora elige IA, skills y memorias adecuadas para cada solicitud en este cerebro.
+                </span>
+              </div>
+            </div>
+            <Switch checked={cfg.autoSelect} onCheckedChange={(v) => update({ autoSelect: v })} />
+          </label>
+
+          {/* Motor multi-agente (catálogo OSS) */}
+          <div className="space-y-1.5">
+            <span className="flex items-center gap-1.5 text-[11px] text-white/55">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" /> Motor multi-agente
+              {engine && <span className="text-white/40">· {engine.name}</span>}
+            </span>
+            <OssLibraryBrowser
+              category="moa"
+              onAdd={(o) => {
+                update({ engineId: o.id });
+                toast.success(`Motor: ${o.name}`);
+              }}
+              addedIds={cfg.engineId ? [cfg.engineId] : []}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Nota: canales y memorias también pueden ser por cerebro */}
+      <p className="text-[10px] text-white/40">
+        Los <strong className="text-white/55">canales</strong> y las{" "}
+        <strong className="text-white/55">memorias</strong> también pueden configurarse por cerebro (heredan lo global por defecto).
+      </p>
     </div>
   );
 }
