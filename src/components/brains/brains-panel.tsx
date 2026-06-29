@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -1193,6 +1194,12 @@ function BrainEditor(props: {
       {/* Sistema multi-agente (este cerebro) */}
       <BrainMoaSection brainId={draft.id} isNew={isNew} />
 
+      {/* Canales (este cerebro) */}
+      <BrainChannelsSection brainId={draft.id} isNew={isNew} />
+
+      {/* Memorias (este cerebro) */}
+      <BrainMemoriesSection brainId={draft.id} isNew={isNew} />
+
       {/* Permisos */}
       <div className="rounded-lg border border-white/10 bg-black/20 p-2">
         <div className="mb-2 flex items-center gap-1.5 text-xs text-white/70">
@@ -1543,6 +1550,301 @@ function BrainMoaSection({ brainId, isNew }: { brainId: string; isNew: boolean }
         Los <strong className="text-white/55">canales</strong> y las{" "}
         <strong className="text-white/55">memorias</strong> también pueden configurarse por cerebro (heredan lo global por defecto).
       </p>
+    </div>
+  );
+}
+
+/* ====================================================================== */
+/* Canales por cerebro (override de los canales globales de Aurora)        */
+/* ====================================================================== */
+
+/**
+ * Forma mínima de un canal global de Aurora, leída de
+ * `starseed.aurora.channels.v1` (la misma que define `AuroraChannelsPanel`).
+ * Se lee de forma defensiva: sólo consumimos los campos que necesitamos.
+ */
+interface GlobalChannelLite {
+  id: string;
+  kind?: string;
+  label?: string;
+  enabled?: boolean;
+  permission?: string;
+  target?: string;
+}
+
+/**
+ * Override de canales específico de UN cerebro. Por defecto usa los canales
+ * GLOBALES de Aurora, de modo que los cerebros existentes no se ven afectados.
+ * Si el usuario personaliza, se guarda en `starseed.brain.<id>.channels`.
+ */
+interface BrainChannelsOverride {
+  useGlobal: boolean;
+  channelIds: string[];
+}
+
+const DEFAULT_BRAIN_CHANNELS: BrainChannelsOverride = {
+  useGlobal: true,
+  channelIds: [],
+};
+
+function brainChannelsKey(brainId: string) {
+  return `starseed.brain.${brainId}.channels`;
+}
+
+function loadGlobalChannels(): GlobalChannelLite[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem("starseed.aurora.channels.v1");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((c): c is GlobalChannelLite => !!c && typeof c.id === "string");
+  } catch {
+    return [];
+  }
+}
+
+function loadBrainChannels(brainId: string): BrainChannelsOverride {
+  if (typeof window === "undefined" || !brainId) return DEFAULT_BRAIN_CHANNELS;
+  try {
+    const raw = window.localStorage.getItem(brainChannelsKey(brainId));
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<BrainChannelsOverride>;
+      return {
+        useGlobal: typeof parsed.useGlobal === "boolean" ? parsed.useGlobal : true,
+        channelIds: Array.isArray(parsed.channelIds)
+          ? parsed.channelIds.filter((x): x is string => typeof x === "string")
+          : [],
+      };
+    }
+  } catch {
+    /* noop */
+  }
+  return DEFAULT_BRAIN_CHANNELS;
+}
+
+function saveBrainChannels(brainId: string, cfg: BrainChannelsOverride) {
+  if (typeof window === "undefined" || !brainId) return;
+  try {
+    window.localStorage.setItem(brainChannelsKey(brainId), JSON.stringify(cfg));
+  } catch {
+    /* noop */
+  }
+}
+
+function BrainChannelsSection({ brainId, isNew }: { brainId: string; isNew: boolean }) {
+  const [cfg, setCfg] = useState<BrainChannelsOverride>(DEFAULT_BRAIN_CHANNELS);
+  const [channels, setChannels] = useState<GlobalChannelLite[]>([]);
+
+  useEffect(() => {
+    setCfg(loadBrainChannels(brainId));
+    setChannels(loadGlobalChannels());
+  }, [brainId]);
+
+  function update(patch: Partial<BrainChannelsOverride>) {
+    const next = { ...cfg, ...patch };
+    setCfg(next);
+    saveBrainChannels(brainId, next);
+  }
+
+  function toggleChannel(id: string, on: boolean) {
+    const set = new Set(cfg.channelIds);
+    if (on) set.add(id);
+    else set.delete(id);
+    update({ channelIds: Array.from(set) });
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-3">
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-cyan-300/60">
+        <Network className="h-3.5 w-3.5" /> Canales (este cerebro)
+      </div>
+
+      {/* Usar global vs personalizar */}
+      <label className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+        <div className="flex flex-col">
+          <span className="text-xs font-medium text-cyan-50">
+            {cfg.useGlobal ? "Usar canales globales de Aurora" : "Personalizar para este cerebro"}
+          </span>
+          <span className="text-[10px] text-white/40">
+            Por defecto, este cerebro hereda los canales globales de Aurora. Desactiva para elegir cuáles usa.
+          </span>
+        </div>
+        <Switch checked={cfg.useGlobal} onCheckedChange={(v) => update({ useGlobal: v })} />
+      </label>
+
+      {!isNew ? null : (
+        <p className="text-[10px] text-amber-300/70">
+          Guarda el cerebro para conservar su configuración de canales personalizada.
+        </p>
+      )}
+
+      {/* Override: lista de canales globales como checkboxes */}
+      {!cfg.useGlobal && (
+        <div className="space-y-1.5">
+          <span className="flex items-center gap-1.5 text-[11px] text-white/55">
+            <Network className="h-3.5 w-3.5 text-cyan-300" /> Canales para este cerebro
+          </span>
+          {channels.length === 0 ? (
+            <p className="text-[10px] text-white/40">
+              No hay canales globales. Configúralos en{" "}
+              <strong className="text-white/55">Ajustes → IA → Canales de Aurora</strong>.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {channels.map((c) => {
+                const checked = cfg.channelIds.includes(c.id);
+                return (
+                  <label
+                    key={c.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-1.5"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(v) => toggleChannel(c.id, v === true)}
+                    />
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-[11px] text-white/85">
+                        {c.label || c.id}
+                      </span>
+                      {(c.kind || c.permission) && (
+                        <span className="truncate text-[10px] text-white/35">
+                          {[c.kind, c.permission].filter(Boolean).join(" · ")}
+                          {c.enabled === false ? " · (desactivado)" : ""}
+                        </span>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ====================================================================== */
+/* Memorias por cerebro (vincula memory roots conectados a este cerebro)   */
+/* ====================================================================== */
+
+/**
+ * Forma mínima de un memory root conectado, leída de
+ * `starseed.memory.roots.v1` (la misma que define `memory-sync/connect.ts`).
+ * Se lee de forma defensiva: sólo consumimos los campos que necesitamos.
+ */
+interface MemoryRootLite {
+  id: string;
+  name?: string;
+  branches?: unknown[];
+}
+
+function brainMemoryRootsKey(brainId: string) {
+  return `starseed.brain.${brainId}.memoryRoots`;
+}
+
+function loadMemoryRoots(): MemoryRootLite[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem("starseed.memory.roots.v1");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((r): r is MemoryRootLite => !!r && typeof r.id === "string");
+  } catch {
+    return [];
+  }
+}
+
+function loadBrainMemoryRoots(brainId: string): string[] {
+  if (typeof window === "undefined" || !brainId) return [];
+  try {
+    const raw = window.localStorage.getItem(brainMemoryRootsKey(brainId));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.filter((x): x is string => typeof x === "string");
+    }
+  } catch {
+    /* noop */
+  }
+  return [];
+}
+
+function saveBrainMemoryRoots(brainId: string, ids: string[]) {
+  if (typeof window === "undefined" || !brainId) return;
+  try {
+    window.localStorage.setItem(brainMemoryRootsKey(brainId), JSON.stringify(ids));
+  } catch {
+    /* noop */
+  }
+}
+
+function BrainMemoriesSection({ brainId, isNew }: { brainId: string; isNew: boolean }) {
+  const [roots, setRoots] = useState<MemoryRootLite[]>([]);
+  const [linked, setLinked] = useState<string[]>([]);
+
+  useEffect(() => {
+    setRoots(loadMemoryRoots());
+    setLinked(loadBrainMemoryRoots(brainId));
+  }, [brainId]);
+
+  function toggleRoot(id: string, on: boolean) {
+    const set = new Set(linked);
+    if (on) set.add(id);
+    else set.delete(id);
+    const next = Array.from(set);
+    setLinked(next);
+    saveBrainMemoryRoots(brainId, next);
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-3">
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-cyan-300/60">
+        <BookOpen className="h-3.5 w-3.5" /> Memorias (este cerebro)
+      </div>
+
+      {!isNew ? null : (
+        <p className="text-[10px] text-amber-300/70">
+          Guarda el cerebro para conservar las memorias vinculadas.
+        </p>
+      )}
+
+      {roots.length === 0 ? (
+        <p className="text-[10px] text-white/40">
+          No hay memorias conectadas. Conéctalas en{" "}
+          <strong className="text-white/55">Exocórtex → Memorias → Conectar carpeta de memorias</strong>.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          <span className="flex items-center gap-1.5 text-[11px] text-white/55">
+            <BookOpen className="h-3.5 w-3.5 text-cyan-300" /> Vincular memorias a este cerebro
+          </span>
+          <div className="space-y-1">
+            {roots.map((r) => {
+              const checked = linked.includes(r.id);
+              const branchCount = Array.isArray(r.branches) ? r.branches.length : 0;
+              return (
+                <label
+                  key={r.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-1.5"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(v) => toggleRoot(r.id, v === true)}
+                  />
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate text-[11px] text-white/85">{r.name || r.id}</span>
+                    <span className="truncate text-[10px] text-white/35">
+                      {branchCount} {branchCount === 1 ? "rama" : "ramas"}
+                    </span>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

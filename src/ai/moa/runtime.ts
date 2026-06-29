@@ -125,6 +125,156 @@ export function resolveMoaConfig(brainId?: string): MoaConfig {
   }
 }
 
+// ── Memory context injection (account-DISCONNECTED local preview) ─────────────
+//
+// PURELY LOCAL. When runMoA is called WITH a brainId, we may prepend a tiny
+// "memory context" system message summarizing the memory roots the user linked
+// to that brain, so every provider call below sees it. This reads ONLY from
+// localStorage (the same preview keys the memory-sync UI writes) and NEVER
+// contacts any account/network. If anything is missing, empty, or fails, we
+// inject NOTHING and the message array is returned UNCHANGED — so brains with
+// no linked memory behave byte-for-byte as before.
+
+/** Max length of the injected memory-context system message (hard cap). */
+const MEMORY_CONTEXT_MAX_CHARS = 1500;
+
+/** localStorage key holding the array of connected memory roots (preview). */
+const MEMORY_ROOTS_KEY = "starseed.memory.roots.v1";
+
+/** Per-brain key holding the linked root ids (a JSON string[]). */
+function brainMemoryRootsKey(brainId: string): string {
+  return `starseed.brain.${brainId}.memoryRoots`;
+}
+
+/** Per-brain key holding the channels selection (optional, JSON object). */
+function brainChannelsKey(brainId: string): string {
+  return `starseed.brain.${brainId}.channels`;
+}
+
+/** A linked memory root, read defensively from localStorage (subset we use). */
+interface LinkedRoot {
+  id?: string;
+  name?: string;
+  branches?: Array<{ rama?: string; tipo?: string; scope?: string; archivo?: string }>;
+}
+
+/** Read+parse a JSON localStorage value; null on any miss/error. */
+function readJson<T>(key: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** Summarize a root's branches as a short, de-duplicated list of tipos/ramas. */
+function summarizeBranches(root: LinkedRoot): string {
+  try {
+    const branches = Array.isArray(root.branches) ? root.branches : [];
+    const labels: string[] = [];
+    const seen = new Set<string>();
+    for (const b of branches) {
+      const label = String(b?.tipo || b?.rama || "").trim();
+      if (!label || seen.has(label)) continue;
+      seen.add(label);
+      labels.push(label);
+    }
+    return labels.join(", ");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Build the compact memory-context system message for a brain, or null.
+ *
+ * Returns null (→ inject nothing) when: no brainId, the keys are absent/empty,
+ * no roots are linked, or any error occurs. NEVER throws. NEVER hits network.
+ */
+function buildMemoryContextMessage(brainId?: string): ChatMessage | null {
+  try {
+    if (!brainId) return null;
+    if (typeof window === "undefined") return null;
+
+    // 1) Which root ids did the user link to this brain? (JSON string[])
+    const linkedIds = readJson<unknown>(brainMemoryRootsKey(brainId));
+    if (!Array.isArray(linkedIds) || linkedIds.length === 0) return null;
+    const idSet = new Set(linkedIds.filter((x): x is string => typeof x === "string"));
+    if (idSet.size === 0) return null;
+
+    // 2) The connected roots payload (JSON array of roots).
+    const allRoots = readJson<unknown>(MEMORY_ROOTS_KEY);
+    if (!Array.isArray(allRoots) || allRoots.length === 0) return null;
+
+    // 3) Keep only the linked roots, in the order they appear in the store.
+    const linkedRoots: LinkedRoot[] = [];
+    for (const r of allRoots) {
+      if (!r || typeof r !== "object") continue;
+      const root = r as LinkedRoot;
+      if (typeof root.id === "string" && idSet.has(root.id)) linkedRoots.push(root);
+    }
+    if (linkedRoots.length === 0) return null;
+
+    // 4) Build the lines: "- <name>: ramas <a, b, c>".
+    const lines: string[] = [];
+    for (const root of linkedRoots) {
+      const name = String(root.name || root.id || "").trim();
+      if (!name) continue;
+      const branchSummary = summarizeBranches(root);
+      lines.push(branchSummary ? `- ${name}: ramas ${branchSummary}` : `- ${name}`);
+    }
+    if (lines.length === 0) return null;
+
+    let content = "Contexto de memorias del cerebro:\n" + lines.join("\n");
+
+    // 5) Optional one-line note about active channels (purely informational).
+    try {
+      const channels = readJson<{ useGlobal?: boolean; channelIds?: unknown }>(
+        brainChannelsKey(brainId)
+      );
+      if (channels) {
+        const ids = Array.isArray(channels.channelIds)
+          ? channels.channelIds.filter((x): x is string => typeof x === "string")
+          : [];
+        if (channels.useGlobal) {
+          content += `\nCanales activos: globales${ids.length ? ` + ${ids.length}` : ""}.`;
+        } else if (ids.length > 0) {
+          content += `\nCanales activos: ${ids.length}.`;
+        }
+      }
+    } catch {
+      /* channels are optional — ignore any failure */
+    }
+
+    // 6) Hard length cap (keep the head, mark truncation succinctly).
+    if (content.length > MEMORY_CONTEXT_MAX_CHARS) {
+      content = content.slice(0, MEMORY_CONTEXT_MAX_CHARS - 1).trimEnd() + "…";
+    }
+
+    return { role: "system", content };
+  } catch {
+    return null; // ANY failure → inject nothing.
+  }
+}
+
+/**
+ * Return `messages` with the memory-context system message PREPENDED when a
+ * brain has linked memory, otherwise return the SAME array reference unchanged.
+ * This keeps the no-memory / no-brain path byte-for-byte identical to before.
+ */
+function withMemoryContext(messages: ChatMessage[], opts: RunMoaOptions): ChatMessage[] {
+  try {
+    const memMsg = buildMemoryContextMessage(opts.brainId);
+    if (!memMsg) return messages; // unchanged: zero behaviour change.
+    return [memMsg, ...messages];
+  } catch {
+    return messages;
+  }
+}
+
 // ── Usable-provider detection (single source of truth = what chat.ts uses) ────
 
 /** A provider config we have verified is usable as-is by chat(). */
@@ -479,6 +629,12 @@ export async function runMoA(messages: ChatMessage[], opts: RunMoaOptions = {}):
   // Everything below is defensive: ANY failure path returns the single-provider
   // answer, which itself is the unmodified production code path.
   try {
+    // Prepend the brain's linked-memory context ONCE, here at the top, so it
+    // flows into EVERY path below (single, router, moa, crew) and their
+    // fallbacks. When the brain has no linked memory (or no brainId), this is
+    // the SAME array reference — guaranteeing zero behaviour change.
+    messages = withMemoryContext(messages, opts);
+
     const cfg = resolveMoaConfig(opts.brainId);
 
     // Fast path: mode 'single' → no behaviour change whatsoever.
