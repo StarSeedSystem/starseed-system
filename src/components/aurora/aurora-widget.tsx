@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Mic, MicOff, Settings2, SlidersHorizontal, Sparkles, Volume2, Wand2, Puzzle, X,
-  Play, Pause, SkipForward, SkipBack, Square, Send, History, ListChecks, MessageSquare,
+  Play, Pause, SkipForward, SkipBack, Square, Send, History, ListChecks, MessageSquare, Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
 import { AuroraControlPanel } from "./aurora-control-panel";
+import { AuroraMultichatPanel } from "./aurora-multichat-panel";
 
-type WidgetTab = "chat" | "voz" | "control";
+type WidgetTab = "chat" | "chats" | "voz" | "control";
 
 export function AuroraWidget() {
   const aurora = useAurora();
@@ -137,7 +138,7 @@ export function AuroraWidget() {
             <button onClick={() => setOpen(false)} className="text-white/40 hover:text-white"><X className="w-4 h-4" /></button>
           </div>
 
-          {/* Pestañas: Chat (historial) / Voz / Control */}
+          {/* Pestañas: Chat (voz) / Chats (multiagente) / Voz / Control */}
           <div className="flex items-center gap-1 rounded-lg bg-white/5 p-0.5">
             <button
               onClick={() => setTab("chat")}
@@ -147,6 +148,16 @@ export function AuroraWidget() {
               )}
             >
               <MessageSquare className="w-3.5 h-3.5" /> Chat
+            </button>
+            <button
+              onClick={() => setTab("chats")}
+              className={cn(
+                "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition",
+                tab === "chats" ? "bg-white/10 text-white" : "text-white/55 hover:text-white/80",
+              )}
+              title="Sesiones paralelas con su propio proveedor de IA"
+            >
+              <Layers className="w-3.5 h-3.5" /> Chats
             </button>
             <button
               onClick={() => setTab("voz")}
@@ -178,6 +189,8 @@ export function AuroraWidget() {
 
           {tab === "control" ? (
             <AuroraControlPanel enabled={enabled} onSetEnabled={setEnabled} />
+          ) : tab === "chats" ? (
+            <AuroraMultichatPanel />
           ) : tab === "chat" ? (
             <>
               {/* Transporte de voz siempre visible en el chat. */}

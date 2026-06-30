@@ -20,7 +20,7 @@
 
 "use client";
 
-import { chat, type ChatRequest } from "../client/chat";
+import { chat, type ChatRequest, type ChatProviderOverride } from "../client/chat";
 import { getProvider, type ChatMessage, type ChatResponse, type ProviderId } from "../providers";
 import { loadConfigs, getActiveProviderId } from "../client/providerStore";
 
@@ -60,6 +60,8 @@ export interface RunMoaOptions {
   /** Model override forwarded to the single-provider path / proposers. */
   model?: string;
   maxTokens?: number;
+  /** Sampling temperature forwarded verbatim to chat(). */
+  temperature?: number;
   /** Passphrase to decrypt provider keys (forwarded verbatim to chat()). */
   passphrase?: string;
   /** AbortSignal forwarded to every underlying chat() call. */
@@ -68,6 +70,23 @@ export interface RunMoaOptions {
   onChunk?: (delta: string) => void;
   /** Optional progress breadcrumbs for debugging/telemetry (never user-facing). */
   onProgress?: (stage: string, detail?: string) => void;
+  /**
+   * OPTIONAL ad-hoc provider+endpoint+key. When present AND the effective mode
+   * is 'single' (or no MoA is applicable), we route the single-provider answer
+   * through this exact provider via chat()'s own override path. This is how a
+   * per-chat session pins a specific provider (custom Ollama / custom API).
+   */
+  providerOverride?: ChatProviderOverride;
+  /**
+   * OPTIONAL explicit mode that takes precedence over the resolved config for
+   * THIS call only. Absent → resolve from brain/global config as before.
+   */
+  moaModeOverride?: MoaMode;
+  /**
+   * OPTIONAL explicit memory-root ids to inject as context, independent of any
+   * brain. Reuses the same compact injection as brains' linked memory.
+   */
+  memoryRootIds?: string[];
 }
 
 // ── Config resolution ────────────────────────────────────────────────────────
@@ -189,18 +208,25 @@ function summarizeBranches(root: LinkedRoot): string {
 }
 
 /**
- * Build the compact memory-context system message for a brain, or null.
+ * Build the compact memory-context system message for a brain (or for an
+ * explicit list of memory-root ids), or null.
  *
- * Returns null (→ inject nothing) when: no brainId, the keys are absent/empty,
- * no roots are linked, or any error occurs. NEVER throws. NEVER hits network.
+ * Returns null (→ inject nothing) when: no brainId AND no explicit ids, the
+ * keys are absent/empty, no roots are linked, or any error occurs. NEVER
+ * throws. NEVER hits network.
  */
-function buildMemoryContextMessage(brainId?: string): ChatMessage | null {
+function buildMemoryContextMessage(brainId?: string, explicitIds?: string[]): ChatMessage | null {
   try {
-    if (!brainId) return null;
     if (typeof window === "undefined") return null;
 
-    // 1) Which root ids did the user link to this brain? (JSON string[])
-    const linkedIds = readJson<unknown>(brainMemoryRootsKey(brainId));
+    // 1) Which root ids? Explicit ids (per-chat) take precedence; otherwise the
+    //    brain's linked ids (JSON string[]).
+    let linkedIds: unknown =
+      Array.isArray(explicitIds) && explicitIds.length > 0
+        ? explicitIds
+        : brainId
+          ? readJson<unknown>(brainMemoryRootsKey(brainId))
+          : null;
     if (!Array.isArray(linkedIds) || linkedIds.length === 0) return null;
     const idSet = new Set(linkedIds.filter((x): x is string => typeof x === "string"));
     if (idSet.size === 0) return null;
@@ -231,10 +257,11 @@ function buildMemoryContextMessage(brainId?: string): ChatMessage | null {
     let content = "Contexto de memorias del cerebro:\n" + lines.join("\n");
 
     // 5) Optional one-line note about active channels (purely informational).
+    //    Only meaningful for a brain; skipped for the per-chat explicit path.
     try {
-      const channels = readJson<{ useGlobal?: boolean; channelIds?: unknown }>(
-        brainChannelsKey(brainId)
-      );
+      const channels = brainId
+        ? readJson<{ useGlobal?: boolean; channelIds?: unknown }>(brainChannelsKey(brainId))
+        : null;
       if (channels) {
         const ids = Array.isArray(channels.channelIds)
           ? channels.channelIds.filter((x): x is string => typeof x === "string")
@@ -267,7 +294,7 @@ function buildMemoryContextMessage(brainId?: string): ChatMessage | null {
  */
 function withMemoryContext(messages: ChatMessage[], opts: RunMoaOptions): ChatMessage[] {
   try {
-    const memMsg = buildMemoryContextMessage(opts.brainId);
+    const memMsg = buildMemoryContextMessage(opts.brainId, opts.memoryRootIds);
     if (!memMsg) return messages; // unchanged: zero behaviour change.
     return [memMsg, ...messages];
   } catch {
@@ -347,14 +374,21 @@ async function askProvider(
   model?: string,
   stream = false
 ): Promise<ChatResponse> {
+  // When the caller pinned an ad-hoc provider override AND this call is for the
+  // "default" provider (no explicit providerId chosen by MoA internals), route
+  // through chat()'s override path. Explicit MoA picks (providerId set) still
+  // resolve from stored configs so multi-provider modes behave as designed.
+  const useOverride = !!opts.providerOverride && providerId === undefined;
   const req: ChatRequest = {
     messages,
     providerId, // undefined → chat() uses the active provider (same as today).
     model: model ?? opts.model,
+    temperature: opts.temperature,
     maxTokens: opts.maxTokens,
     passphrase: opts.passphrase,
     signal: opts.signal,
     onChunk: stream ? opts.onChunk : undefined,
+    providerOverride: useOverride ? opts.providerOverride : undefined,
   };
   return chat(req);
 }
@@ -637,8 +671,13 @@ export async function runMoA(messages: ChatMessage[], opts: RunMoaOptions = {}):
 
     const cfg = resolveMoaConfig(opts.brainId);
 
-    // Fast path: mode 'single' → no behaviour change whatsoever.
-    if (!cfg || cfg.mode === "single") {
+    // A per-call explicit mode (e.g. a per-chat selector) wins over the resolved
+    // brain/global config for THIS request only. Absent → use the resolved cfg.
+    const effectiveMode: MoaMode = opts.moaModeOverride ?? (cfg ? cfg.mode : "single");
+
+    // Fast path: mode 'single' → no behaviour change whatsoever. If the caller
+    // pinned a providerOverride, singleProviderAnswer routes through it.
+    if (effectiveMode === "single") {
       return await singleProviderAnswer(messages, opts);
     }
 
@@ -648,7 +687,7 @@ export async function runMoA(messages: ChatMessage[], opts: RunMoaOptions = {}):
       return await singleProviderAnswer(messages, opts);
     }
 
-    switch (cfg.mode) {
+    switch (effectiveMode) {
       case "router":
         return await runRouter(messages, usable, opts);
       case "moa":

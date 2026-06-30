@@ -13,7 +13,7 @@ import {
     Image as ImageIcon, File as FileIcon, Vote, Pin, Menu,
     Folder, Check, X, Home, User, Bot, Users, Network, PenSquare, Info,
     Settings, ArrowLeft, MessageSquare, Globe, Building2, Users2,
-    FolderInput, Share2, PenSquare as PenSquareIcon
+    FolderInput, Share2, PenSquare as PenSquareIcon, Mail
 } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,8 @@ import {
     SharePublicationDialog,
     type UniversalComposePayload,
 } from "@/components/messages/module9-enhancements";
+// ── Correos (buzón interno @star.seed) unificado con los chats — ADITIVO ──────
+import { CorreosPanel } from "@/components/messages/correos-panel";
 // ── Mensajes "En la red" (Supabase, ADITIVO) ────────────────────────────────
 import { useRealtime } from "@/lib/realtime/realtime";
 import {
@@ -223,6 +225,58 @@ const mainNavItems = [
     { href: "/info", icon: <Info className="h-5 w-5" />, label: "Información" },
     { href: "/settings", icon: <Settings className="h-5 w-5" />, label: "Configuración" },
 ];
+
+// ── Surface switch (Mensajes ↔ Correos) ──────────────────────────────────────
+// Conmutador aditivo entre los chats (Mensajes) y el buzón interno (Correos).
+// No altera el comportamiento de los chats: sólo elige qué superficie se muestra.
+
+type MessagesSurface = 'chats' | 'mail';
+
+function SurfaceSwitch({
+    surface,
+    onChange,
+    className,
+}: {
+    surface: MessagesSurface;
+    onChange: (s: MessagesSurface) => void;
+    className?: string;
+}) {
+    return (
+        <div
+            className={cn(
+                "inline-flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40 p-0.5",
+                className,
+            )}
+        >
+            <button
+                onClick={() => onChange('chats')}
+                className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all cursor-pointer",
+                    surface === 'chats'
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                )}
+                title="Conversaciones"
+            >
+                <MessageSquare className="w-3.5 h-3.5" />
+                Mensajes
+            </button>
+            <button
+                onClick={() => onChange('mail')}
+                className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all cursor-pointer",
+                    surface === 'mail'
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                )}
+                title="Correos (@star.seed)"
+            >
+                <Mail className="w-3.5 h-3.5" />
+                Correos
+            </button>
+        </div>
+    );
+}
 
 // ── Channel chip ─────────────────────────────────────────────────────────────
 
@@ -982,6 +1036,10 @@ export default function MessagesPage() {
     // Mobile: show list or thread
     const [mobileView, setMobileView] = useState<'list' | 'thread'>('list');
 
+    // ── Superficie activa: chats (Mensajes) o buzón interno (Correos) ─────────
+    // ADITIVO: por defecto 'chats' para no alterar el flujo existente.
+    const [surface, setSurface] = useState<MessagesSurface>('chats');
+
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [sheetView, setSheetView] = useState<'conversations' | 'main_menu'>('conversations');
     const [isCanvasEditorOpen, setCanvasEditorOpen] = useState(false);
@@ -1289,61 +1347,100 @@ export default function MessagesPage() {
 
                 {/* ── DESKTOP: two-pane layout ── */}
                 <div className="hidden md:flex flex-1 overflow-hidden bg-muted/10">
-                    {/* Carpetas (folders) — panel lateral izquierdo */}
-                    <div className="hidden lg:flex w-52 shrink-0 flex-col border-r bg-background/40 backdrop-blur-sm overflow-hidden">
-                        <FoldersPanel
-                            api={folderApi}
-                            activeFolderId={activeFolderId}
-                            onSelectFolder={setActiveFolderId}
-                            counts={folderCounts}
-                            totalCount={displayConversations.length}
-                        />
-                    </div>
+                    {surface === 'chats' ? (
+                        <>
+                            {/* Carpetas (folders) — panel lateral izquierdo */}
+                            <div className="hidden lg:flex w-52 shrink-0 flex-col border-r bg-background/40 backdrop-blur-sm overflow-hidden">
+                                <div className="px-3 py-2.5 border-b shrink-0">
+                                    <SurfaceSwitch surface={surface} onChange={setSurface} className="w-full justify-center" />
+                                </div>
+                                <FoldersPanel
+                                    api={folderApi}
+                                    activeFolderId={activeFolderId}
+                                    onSelectFolder={setActiveFolderId}
+                                    counts={folderCounts}
+                                    totalCount={displayConversations.length}
+                                />
+                            </div>
 
-                    {/* Left pane — conversation list */}
-                    <div className="w-80 lg:w-96 shrink-0 flex flex-col border-r bg-background/60 backdrop-blur-sm overflow-hidden">
-                        <ConversationList
-                            conversations={displayConversations}
-                            onConversationSelect={handleSelectConversation}
-                            selectedConversationId={selectedId}
-                            onShowMainMenu={() => {
-                                setSheetView('main_menu');
-                                setIsSheetOpen(true);
-                            }}
-                            activeFolderId={activeFolderId}
-                            folders={folderApi.folders}
-                            folderOf={folderApi.folderOf}
-                            onAssignFolder={folderApi.assignChat}
-                            onNewConversation={handleCreateConversation}
-                        />
-                    </div>
+                            {/* Left pane — conversation list */}
+                            <div className="w-80 lg:w-96 shrink-0 flex flex-col border-r bg-background/60 backdrop-blur-sm overflow-hidden">
+                                {/* Conmutador visible también sin la columna de Carpetas (md) */}
+                                <div className="lg:hidden px-3 py-2 border-b shrink-0">
+                                    <SurfaceSwitch surface={surface} onChange={setSurface} />
+                                </div>
+                                <ConversationList
+                                    conversations={displayConversations}
+                                    onConversationSelect={handleSelectConversation}
+                                    selectedConversationId={selectedId}
+                                    onShowMainMenu={() => {
+                                        setSheetView('main_menu');
+                                        setIsSheetOpen(true);
+                                    }}
+                                    activeFolderId={activeFolderId}
+                                    folders={folderApi.folders}
+                                    folderOf={folderApi.folderOf}
+                                    onAssignFolder={folderApi.assignChat}
+                                    onNewConversation={handleCreateConversation}
+                                />
+                            </div>
 
-                    {/* Right pane — thread */}
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                        {selectedConversation ? (
-                            <ThreadView
-                                conversation={selectedConversation}
-                                onSendMessage={handleSendMessage}
-                                attachmentOptions={attachmentOptions}
-                                onOpenCanvasEditor={() => setCanvasEditorOpen(true)}
-                                onOpenLibrarySelector={() => setLibrarySelectorOpen(true)}
-                                onOpenCompositor={() => setCompositorOpen(true)}
-                                onOpenShare={() => setShareOpen(true)}
-                            />
-                        ) : (
-                            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                                <div className="text-center">
-                                    <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                                    <p className="text-sm">Selecciona una conversación</p>
+                            {/* Right pane — thread */}
+                            <div className="flex-1 flex flex-col overflow-hidden">
+                                {selectedConversation ? (
+                                    <ThreadView
+                                        conversation={selectedConversation}
+                                        onSendMessage={handleSendMessage}
+                                        attachmentOptions={attachmentOptions}
+                                        onOpenCanvasEditor={() => setCanvasEditorOpen(true)}
+                                        onOpenLibrarySelector={() => setLibrarySelectorOpen(true)}
+                                        onOpenCompositor={() => setCompositorOpen(true)}
+                                        onOpenShare={() => setShareOpen(true)}
+                                    />
+                                ) : (
+                                    <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                                        <div className="text-center">
+                                            <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                            <p className="text-sm">Selecciona una conversación</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        /* ── Superficie CORREOS (buzón interno @star.seed) ── */
+                        <div className="flex-1 flex flex-col overflow-hidden">
+                            <div className="px-4 py-2.5 border-b bg-background/60 backdrop-blur-sm shrink-0 flex items-center justify-between gap-3">
+                                <SurfaceSwitch surface={surface} onChange={setSurface} />
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <NotificationCenter />
+                                    <UserNav />
                                 </div>
                             </div>
-                        )}
-                    </div>
+                            <div className="flex-1 overflow-hidden mx-auto w-full max-w-3xl">
+                                <CorreosPanel userId={userId} />
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* ── MOBILE: single-pane with sheet ── */}
                 <div className="flex md:hidden flex-1 flex-col overflow-hidden">
-                    {mobileView === 'list' ? (
+                    {surface === 'mail' ? (
+                        /* Mobile: superficie CORREOS */
+                        <div className="flex flex-col h-full">
+                            <header className="flex items-center justify-between px-4 py-2.5 border-b bg-background/80 backdrop-blur-xl shrink-0">
+                                <SurfaceSwitch surface={surface} onChange={setSurface} />
+                                <div className="flex items-center gap-1">
+                                    <NotificationCenter />
+                                    <UserNav />
+                                </div>
+                            </header>
+                            <div className="flex-1 overflow-hidden">
+                                <CorreosPanel userId={userId} />
+                            </div>
+                        </div>
+                    ) : mobileView === 'list' ? (
                         <div className="flex flex-col h-full">
                             {/* Mobile top bar */}
                             <header className="flex items-center justify-between px-4 py-3 border-b bg-background/80 backdrop-blur-xl shrink-0">
@@ -1374,7 +1471,7 @@ export default function MessagesPage() {
                                         )}
                                     </SheetContent>
                                 </Sheet>
-                                <h1 className="text-base font-bold font-headline">Mensajes</h1>
+                                <SurfaceSwitch surface={surface} onChange={setSurface} />
                                 <div className="flex items-center gap-1">
                                     <NotificationCenter />
                                     <UserNav />
