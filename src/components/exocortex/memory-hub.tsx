@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRealtime } from "@/lib/realtime/realtime";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,9 @@ import type { StoragePolicy } from "@/lib/storage/backends";
 // NUEVO (aditivo): conectar una carpeta de memorias (memory root) en modo
 // vista previa, sin tocar la cuenta. Ver architecture/memoria-cerebros-sync.md.
 import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connect";
+// Exocórtex × Aurora: lanzador compacto que abre la Aurora GLOBAL con el
+// contexto de las memorias del usuario (sin instanciar una segunda Aurora).
+import { AuroraMemoryPanel } from "@/components/exocortex/aurora-memory-panel";
 
 // El PAT ya NO se guarda en config: vive cifrado en la bóveda (api/vault).
 type GithubConfig = { repo?: string; branch?: string; path?: string };
@@ -115,6 +118,21 @@ export function MemoryHub() {
   );
   // Carga la política de almacenamiento (umbral starseedMaxMb, destino preferido…).
   useEffect(() => { getPolicy().then(setPolicy).catch(() => setPolicy({})); }, [userId]);
+
+  // Contexto compacto de las memorias reales del usuario para pasárselo a la
+  // Aurora global (para que pueda buscar/leer/actuar sobre ellas).
+  const memoryContext = useMemo(() => {
+    try {
+      if (!items.length) return undefined;
+      const lines = items
+        .slice(0, 30)
+        .map((m) => `- ${m.name} (${(m.kinds || []).join(", ") || "memoria"}) · ${(m.storage || []).map(storageLabel).join("/") || "StarSeed"}`)
+        .join("\n");
+      return `Mis memorias en StarSeed (${items.length}):\n${lines}`;
+    } catch {
+      return undefined;
+    }
+  }, [items]);
 
   // ── enrutar y guardar una memoria en el mejor almacén (router multi-fuente) ──
   async function storeToBackend(m: Memory, contentOverride?: string) {
@@ -340,6 +358,7 @@ export function MemoryHub() {
           <div className="text-[11px] text-fuchsia-300/60">Crea, configura y sincroniza tus memorias por contexto. Astraura te guía.</div>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <AuroraMemoryPanel compact memoryContext={memoryContext} />
           <Link href="/wiki" className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 transition hover:bg-cyan-500/20" title="Abrir la wiki OKF de tus baúles"><BookOpen className="w-3.5 h-3.5" /> Abrir wiki (OKF)</Link>
           <Button size="sm" className="gap-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white" onClick={() => setCreating((c) => !c)}><Plus className="w-4 h-4" /> Crear memoria</Button>
         </div>

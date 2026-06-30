@@ -4,21 +4,15 @@ import React, { useState, useEffect } from "react";
 import { usePerimeter } from "@/context/perimeter-context";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-    Menu,
     X,
-    Sparkles, // AI
-    Layout, // Creation
-    Settings2, // Logic
-    Home, // Dashboard
-    User, // Profile
-    Users, // Hub
-    Network, // Network
-    MessageSquare, // Messages
-    Globe, // Explorer
-    Info, // Info
-    PenSquare, // Publish
-    LogOut, // Logout/Back
-    LayoutDashboard // Dashboard alt
+    Sparkles, // Ecosistema IA
+    Layout, // Horizon · Creación
+    Settings2, // Logic · Control
+    Home, // Inicio
+    User, // Perfil
+    Network, // Gráfica viva
+    PenSquare, // Publicar
+    Bot, // Agente IA (Zenith)
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -121,8 +115,53 @@ export function TrinityFloatingInterface() {
                             drag={mode === 'floating'}
                             dragConstraints={constraints}
                             dragElastic={0.1}
-                            className="relative pointer-events-auto"
+                            className="relative pointer-events-auto flex flex-col items-center gap-2"
                         >
+                            {/* ── Riel de las TRES FACETAS Trinity (propósito claro) ──
+                                Zenith = guía IA · Horizon = creación · Logic = control.
+                                Togglean el MISMO perímetro que los sensores/FAB/atajos. */}
+                            <AnimatePresence>
+                                {isExpanded && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 14, scale: 0.92 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 14, scale: 0.92 }}
+                                        transition={{ type: "spring", stiffness: 320, damping: 26 }}
+                                        className="flex items-center gap-1.5 rounded-2xl border border-white/10 bg-black/55 backdrop-blur-xl px-2 py-1.5 shadow-xl"
+                                        role="group"
+                                        aria-label="Facetas Trinity: Zenith, Horizon y Logic"
+                                    >
+                                        <FacetChip
+                                            label="Zenith"
+                                            sub="Guía IA"
+                                            icon={<Sparkles className="w-3.5 h-3.5" />}
+                                            color="cyan"
+                                            active={activeEdge === 'zenith'}
+                                            onClick={handleAIAssistant}
+                                            showLabel={showLabels}
+                                        />
+                                        <FacetChip
+                                            label="Horizon"
+                                            sub="Creación"
+                                            icon={<Layout className="w-3.5 h-3.5" />}
+                                            color="emerald"
+                                            active={activeEdge === 'horizon'}
+                                            onClick={handleCreation}
+                                            showLabel={showLabels}
+                                        />
+                                        <FacetChip
+                                            label="Logic"
+                                            sub="Control"
+                                            icon={<Settings2 className="w-3.5 h-3.5" />}
+                                            color="amber"
+                                            active={activeEdge === 'logic'}
+                                            onClick={handleLogic}
+                                            showLabel={showLabels}
+                                        />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
                             {/* Filter Layer */}
                             <div
                                 className={cn(
@@ -183,10 +222,13 @@ export function TrinityFloatingInterface() {
                                     ]}
                                 </AnimatePresence>
 
-                                {/* CENTER (The Anchor/Nucleus) */}
+                                {/* CENTER (El Núcleo Trinity) — sigil cardinal como
+                                    identidad del lanzador principal del OS. */}
                                 <FloatingButton
                                     onClick={() => setExpanded(!isExpanded)}
-                                    icon={isExpanded ? <X className="w-8 h-8" /> : <Menu className="w-8 h-8" />}
+                                    icon={isExpanded ? <X className="w-8 h-8" /> : <TrinitySigil />}
+                                    label={isExpanded ? "Cerrar Trinity" : "Abrir Trinity"}
+                                    showLabel={false}
                                     color="neutral"
                                     size="large" // Main trigger is larger
                                     className="z-50 mx-4"
@@ -305,5 +347,85 @@ function FloatingButton({ onClick, icon, label, isActive, delay = 0, color = "ne
                 </span>
             )}
         </motion.div>
+    );
+}
+
+// ------------------------------------------------------------------
+// FacetChip — una de las tres facetas Trinity (Zenith/Horizon/Logic).
+// Pastilla compacta y legible que togglea su perímetro. Cohesiona el
+// propósito del lanzador: las 3 facetas siempre visibles y etiquetadas.
+// ------------------------------------------------------------------
+
+interface FacetChipProps {
+    label: string;
+    sub: string;
+    icon: React.ReactNode;
+    color: "cyan" | "emerald" | "amber";
+    active?: boolean;
+    onClick: () => void;
+    showLabel?: boolean;
+}
+
+function FacetChip({ label, sub, icon, color, active, onClick, showLabel = true }: FacetChipProps) {
+    const palette = {
+        cyan: {
+            on: "bg-cyan-500/25 border-cyan-400/50 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.35)]",
+            off: "border-cyan-400/15 text-cyan-200/70 hover:bg-cyan-500/15 hover:text-cyan-100",
+            dot: "bg-cyan-400",
+        },
+        emerald: {
+            on: "bg-emerald-500/25 border-emerald-400/50 text-emerald-100 shadow-[0_0_18px_rgba(52,211,153,0.35)]",
+            off: "border-emerald-400/15 text-emerald-200/70 hover:bg-emerald-500/15 hover:text-emerald-100",
+            dot: "bg-emerald-400",
+        },
+        amber: {
+            on: "bg-amber-500/25 border-amber-400/50 text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.35)]",
+            off: "border-amber-400/15 text-amber-200/70 hover:bg-amber-500/15 hover:text-amber-100",
+            dot: "bg-amber-400",
+        },
+    }[color];
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={!!active}
+            title={`${label} · ${sub}`}
+            className={cn(
+                "group/facet relative inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 transition-all duration-300 cursor-pointer",
+                active ? palette.on : cn("bg-white/[0.03]", palette.off),
+                active && "scale-[1.03]"
+            )}
+        >
+            <span className="relative inline-flex">
+                {icon}
+                {active && (
+                    <span className={cn("absolute -top-1 -right-1 h-1.5 w-1.5 rounded-full animate-pulse", palette.dot)} />
+                )}
+            </span>
+            {showLabel && (
+                <span className="flex flex-col items-start leading-none">
+                    <span className="text-[11px] font-semibold tracking-tight">{label}</span>
+                    <span className="text-[8px] uppercase tracking-[0.12em] opacity-60">{sub}</span>
+                </span>
+            )}
+        </button>
+    );
+}
+
+// ------------------------------------------------------------------
+// TrinitySigil — identidad del núcleo: 4 gemas cardinales en cruz.
+// Coherente con el sigil del TrinityFab (mismos colores cardinales).
+// ------------------------------------------------------------------
+
+function TrinitySigil() {
+    return (
+        <svg className="w-8 h-8" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="4.6" r="3" fill="#007FFF" />
+            <circle cx="19.4" cy="12" r="3" fill="#FFBF00" />
+            <circle cx="12" cy="19.4" r="3" fill="#DC143C" />
+            <circle cx="4.6" cy="12" r="3" fill="#39FF14" />
+            <circle cx="12" cy="12" r="1.6" fill="rgba(255,255,255,0.9)" />
+        </svg>
     );
 }

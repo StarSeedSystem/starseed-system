@@ -74,6 +74,7 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'apps-ia',       label: 'Apps IA',             iconKey: 'AppWindow',       path: '/apps-ia',               color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'xr-hub',        label: 'Red 3D / VR · AR',    iconKey: 'AppWindow',       path: '/xr',                    color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'recordatorios', label: 'Clima y recordatorios', iconKey: 'CalendarClock',  path: '/clima',                 color: 'cyan',    enabled: true,  origin: 'preset' },
+  { id: 'terminal',      label: 'Terminal',            iconKey: 'Server',          path: '/terminal',              color: 'emerald', enabled: true,  origin: 'preset' },
   // ── Opciones extra disponibles desde el editor (no visibles por defecto) ──
   { id: 'sincrometro',   label: 'Sincrómetro',         iconKey: 'CalendarClock',   path: '/hub?tab=calendar',      color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'hermes-graph',  label: 'Grafo Cerebro',       iconKey: 'GitBranch',       path: '/network/graph',         color: 'purple',  enabled: false, origin: 'preset' },

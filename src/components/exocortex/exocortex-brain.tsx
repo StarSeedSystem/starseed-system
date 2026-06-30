@@ -7,7 +7,7 @@
  * con IA real (misma capa que el Chat Neural de /agent).
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,9 @@ import {
   type MemoryNode,
 } from "./memory-graph-data";
 import { chat } from "@/ai/client/chat";
+// Exocórtex × Aurora: entrada para abrir la Aurora GLOBAL con el contexto del
+// grafo de memoria (no instancia una segunda Aurora; usa el puente openAurora).
+import { AuroraMemoryPanel } from "@/components/exocortex/aurora-memory-panel";
 import { loadConfigs, getActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS, type ProviderId } from "@/ai/providers";
 import type { ProviderConfig } from "@/ai/providers/types";
@@ -259,12 +262,27 @@ export function ExocortexBrain({ className }: { className?: string }) {
   // --- Secciones colapsables ---
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     stats: true,
+    aurora: true,
     ia: true,
     buscar: true,
     capas: false,
     red: false,
     ajustes: false,
   });
+
+  // Resumen compacto del grafo de memoria que se pasa a la Aurora global como
+  // contexto, para que pueda razonar/actuar sobre el Exocórtex.
+  const graphContext = useMemo(() => {
+    try {
+      const nodes = memoryGraph.nodes
+        .slice(0, 40)
+        .map((n) => `- [${n.type}] ${n.label}${n.summary ? `: ${n.summary}` : ""}`)
+        .join("\n");
+      return `Grafo del Exocórtex (${totalNodes} nodos, ${totalEdges} conexiones).\nNodos clave:\n${nodes}`;
+    } catch {
+      return undefined;
+    }
+  }, [totalNodes, totalEdges]);
 
   // --- HarmonicGraph3D (importado dinámico para SSR-safety) ---
   const [Graph3D, setGraph3D] = useState<React.ComponentType | null>(null);
@@ -488,6 +506,37 @@ Responde siempre haciendo referencia al grafo cuando sea relevante.`;
               <p className="text-[10px] text-muted-foreground/50 font-mono">
                 v{memoryGraph.meta.version} · {memoryGraph.meta.generated}
               </p>
+            </div>
+          )}
+        </GlassCard>
+
+        {/* ---- 1.5 Aurora (asistente global del OS sobre tus memorias) ---- */}
+        <GlassCard>
+          <button
+            className="w-full flex items-center justify-between p-4 cursor-pointer text-left"
+            onClick={() => toggleSection("aurora")}
+          >
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-fuchsia-400" />
+              <span className="font-semibold text-sm">Aurora</span>
+            </div>
+            {openSections.aurora ? (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            )}
+          </button>
+          {openSections.aurora && (
+            <div className="px-4 pb-4">
+              <AuroraMemoryPanel
+                memoryContext={graphContext}
+                hint="Lanza a la Aurora global con el contexto de tu grafo Exocórtex para que actúe sobre tus memorias."
+                suggestions={[
+                  "Resume el grafo de mi Exocórtex",
+                  "¿Qué nodos están vivos y por qué?",
+                  "Busca en mis memorias y abre lo relevante",
+                ]}
+              />
             </div>
           )}
         </GlassCard>
