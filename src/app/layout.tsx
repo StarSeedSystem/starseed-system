@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk, Source_Code_Pro, Roboto, Outfit } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -34,6 +34,7 @@ import { MediaMiniDock } from "@/components/dashboard/apps/media/media-mini-dock
 import { SovereignSyncMount } from "@/components/system/sovereign-sync-mount";
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
 import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
+import { RegisterSW } from "@/components/pwa/register-sw";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -64,6 +65,13 @@ const fontCode = Source_Code_Pro({
 export const metadata: Metadata = {
   title: "StarSeed System",
   description: "Sistema operativo social para la regeneración global",
+  applicationName: "StarSeed OS",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "StarSeed",
+  },
   icons: {
     icon: [
       { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
@@ -72,6 +80,11 @@ export const metadata: Metadata = {
     shortcut: "/favicon-48.png",
     apple: "/apple-icon.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0A0712",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
@@ -92,6 +105,9 @@ export default function RootLayout({
           fontCode.variable
         )}
       >
+        {/* Registro del Service Worker (PWA): instalable + shell offline.
+            Defensivo y sin UI; se omite en dev salvo NEXT_PUBLIC_ENABLE_SW=1. */}
+        <RegisterSW />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

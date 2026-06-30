@@ -23,9 +23,17 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Radio, Send, Plus, Trash2, ShieldCheck, MessageSquare, Globe, Lock, Sparkles, Bot } from "lucide-react";
+import { Radio, Send, Plus, Trash2, ShieldCheck, MessageSquare, Globe, Lock, Sparkles, Bot, Loader2, CheckCircle2, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { TG_SPACES } from "@/lib/telegram-spaces";
+import {
+  loadTelegramUserConfig,
+  saveTelegramUserConfig,
+  testTelegram,
+  sendTelegram,
+  type TelegramUserConfig,
+  type TelegramDiscoveredChat,
+} from "@/lib/channels/telegram";
 import { OssLibraryBrowser } from "./oss-library-browser";
 
 export type ChannelPermission = "read" | "notify" | "full";
@@ -66,6 +74,176 @@ function kindIcon(kind: ChannelKind) {
   if (kind === "telegram") return <Send className="h-4 w-4 text-sky-400" />;
   if (kind === "googlechat") return <MessageSquare className="h-4 w-4 text-emerald-400" />;
   return <Globe className="h-4 w-4 text-amber-400" />;
+}
+
+// ════════════════════════════════════════════════════════════════
+// TelegramUserConfigBlock — config REAL y POR USUARIO de Telegram
+// ----------------------------------------------------------------
+// "Una opción más": cada usuario crea su bot con @BotFather, pega SU
+// token y SU chat id, lo prueba y lo activa. El token/chat id se
+// guardan en una clave companion (`starseed.telegram.user.v1`), NO en
+// `starseed.aurora.channels.v1` (que NO debe llevar secretos en claro).
+// Off por defecto.
+// ════════════════════════════════════════════════════════════════
+function TelegramUserConfigBlock({
+  /** chatId heredado del canal StarSeed (target), como sugerencia inicial. */
+  suggestedChatId,
+}: {
+  suggestedChatId?: string;
+}) {
+  const [cfg, setCfg] = useState<TelegramUserConfig | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [botName, setBotName] = useState<string | null>(null);
+  const [chats, setChats] = useState<TelegramDiscoveredChat[]>([]);
+
+  useEffect(() => {
+    const loaded = loadTelegramUserConfig();
+    // Sugerimos el chatId del canal StarSeed si el usuario aún no tiene uno.
+    if (!loaded.chatId && suggestedChatId) loaded.chatId = suggestedChatId;
+    setCfg(loaded);
+  }, [suggestedChatId]);
+
+  if (!cfg) return null;
+
+  function patch(next: Partial<TelegramUserConfig>) {
+    setCfg((prev) => {
+      const merged = { ...(prev as TelegramUserConfig), ...next };
+      saveTelegramUserConfig(merged);
+      return merged;
+    });
+  }
+
+  async function handleTest() {
+    const current = cfg as TelegramUserConfig;
+    if (!current.botToken.trim()) {
+      toast.error("Pega primero el token de tu bot (de @BotFather).");
+      return;
+    }
+    setTesting(true);
+    setBotName(null);
+    setChats([]);
+    try {
+      const res = await testTelegram(current.botToken.trim(), true);
+      if (!res.ok) {
+        toast.error(res.error || "No se pudo verificar el bot.");
+        return;
+      }
+      const name = res.bot?.username ? `@${res.bot.username}` : res.bot?.name || "tu bot";
+      setBotName(name);
+      setChats(res.chats ?? []);
+      toast.success(`Bot verificado: ${name}`);
+
+      // Si ya hay chat id, enviamos un mensaje de prueba.
+      if (current.chatId.trim()) {
+        const sent = await sendTelegram({
+          botToken: current.botToken.trim(),
+          chatId: current.chatId.trim(),
+          text: "✅ StarSeed OS conectado a tu Telegram. Esto es un mensaje de prueba.",
+        });
+        if (sent.ok) toast.success("Mensaje de prueba enviado a tu Telegram.");
+        else toast.message(`Bot OK, pero no se pudo enviar al chat: ${sent.error ?? ""}`);
+      } else if ((res.chats?.length ?? 0) === 0) {
+        toast.message("Bot OK. Escríbele algo a tu bot y pulsa 'Probar' para detectar tu chat id.");
+      }
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  const canEnable = Boolean(cfg.botToken.trim() && cfg.chatId.trim());
+
+  return (
+    <div className="rounded-xl border border-sky-400/20 bg-sky-400/5 p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium flex items-center gap-1.5 text-sky-300">
+          <KeyRound className="h-3.5 w-3.5" /> Tu bot de Telegram (privado · sólo tú)
+        </p>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase text-muted-foreground">Activar</span>
+          <Switch
+            checked={cfg.enabled}
+            disabled={!canEnable}
+            onCheckedChange={(v) => {
+              if (v && !canEnable) {
+                toast.error("Pega tu token y chat id antes de activar.");
+                return;
+              }
+              patch({ enabled: v });
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-[10px] uppercase text-muted-foreground">Token del bot</label>
+          <Input
+            type="password"
+            value={cfg.botToken}
+            onChange={(e) => patch({ botToken: e.target.value })}
+            className="bg-background/60 border-white/10 font-mono text-xs"
+            placeholder="123456789:ABCdef..."
+            autoComplete="off"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] uppercase text-muted-foreground">Chat id (o @usuario)</label>
+          <Input
+            value={cfg.chatId}
+            onChange={(e) => patch({ chatId: e.target.value })}
+            className="bg-background/60 border-white/10 font-mono text-xs"
+            placeholder="-100... · 123456789 · @usuario"
+          />
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        Crea tu bot con <strong>@BotFather</strong> y pega tu token; usa <strong>@userinfobot</strong> o el botón
+        <strong> Probar</strong> para tu chat id. El token se guarda sólo en tu navegador y se envía únicamente para
+        publicar en tu Telegram.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={handleTest} disabled={testing} className="gap-2 cursor-pointer">
+          {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+          Probar
+        </Button>
+        {botName && (
+          <span className="text-[11px] text-emerald-300 flex items-center gap-1">
+            <CheckCircle2 className="h-3.5 w-3.5" /> {botName}
+          </span>
+        )}
+      </div>
+
+      {chats.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase text-muted-foreground">Chats detectados (pulsa para usar el id)</p>
+          <div className="flex flex-wrap gap-1.5">
+            {chats.map((ch) => {
+              const idStr = String(ch.id);
+              const label = ch.title || (ch.username ? `@${ch.username}` : ch.firstName || ch.type || idStr);
+              return (
+                <button
+                  key={idStr}
+                  type="button"
+                  onClick={() => patch({ chatId: idStr })}
+                  className="text-[11px] rounded-full border border-white/10 bg-black/20 hover:border-sky-400/50 hover:bg-sky-400/5 px-2.5 py-1 transition cursor-pointer font-mono"
+                  title={`Usar ${idStr}`}
+                >
+                  {label} · {idStr}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <label className="flex items-center justify-between gap-2 pt-1 border-t border-white/5">
+        <span className="text-[11px] text-muted-foreground">Enviar novedades a mi Telegram (memoria · notificaciones)</span>
+        <Switch checked={cfg.notifyMemory} onCheckedChange={(v) => patch({ notifyMemory: v })} />
+      </label>
+    </div>
+  );
 }
 
 export function AuroraChannelsPanel() {
@@ -179,6 +357,7 @@ export function AuroraChannelsPanel() {
                   </div>
                 </div>
               )}
+              {c.kind === "telegram" && <TelegramUserConfigBlock suggestedChatId={c.target} />}
               <div className="space-y-2">
                 <div className="space-y-1 max-w-xs">
                   <label className="text-[10px] uppercase text-muted-foreground">Permiso en el cerebro</label>

@@ -42,6 +42,7 @@ import {
   type AttachTarget,
   type TargetScope,
 } from "@/lib/abilities/abilities";
+import IntegrationsSkills from "@/components/abilities/integrations-skills";
 
 const KIND_ORDER: AbilityKind[] = ["skill", "tool", "mcp", "connection", "server", "api", "plugin"];
 
@@ -292,6 +293,9 @@ export default function AbilitiesHub() {
           </pre>
         )}
       </div>
+
+      {/* Integraciones OSS como skills instalables (tools de Aurora) */}
+      <IntegrationsSkills />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">

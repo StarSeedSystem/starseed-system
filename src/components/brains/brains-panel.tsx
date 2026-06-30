@@ -118,6 +118,7 @@ import {
 import { useRealtime } from "@/lib/realtime/realtime";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 import AutoUpdatePanel from "@/components/brains/auto-update-panel";
+import IntegrationsPanel from "@/components/integrations/integrations-panel";
 import type { MoaMode } from "@/components/settings/ai/mixture-of-agents-panel";
 import { findOption, type OssCategory } from "@/lib/oss-library";
 
@@ -1210,6 +1211,9 @@ function BrainEditor(props: {
       {/* Catálogo OSS por cerebro: AGENTS/Apps, Runtimes, Servidores, Almacenamiento */}
       <BrainOssCatalogSection brainId={draft.id} isNew={isNew} />
 
+      {/* Integraciones funcionales por cerebro (override de la config global) */}
+      <BrainIntegrationsSection brainId={draft.id} isNew={isNew} />
+
       {/* Canales (este cerebro) */}
       <BrainChannelsSection brainId={draft.id} isNew={isNew} />
 
@@ -1946,6 +1950,55 @@ function BrainOssCatalogSection({ brainId, isNew }: { brainId: string; isNew: bo
         Las <strong className="text-white/55">memorias / vectores</strong> se configuran en la sección «Memorias» de
         abajo (heredan lo global por defecto).
       </p>
+    </div>
+  );
+}
+
+/* ====================================================================== */
+/* Integraciones funcionales por cerebro (override de la config global)     */
+/* ====================================================================== */
+
+/**
+ * Sección colapsable que monta el panel de integraciones OSS para ESTE cerebro.
+ * Por defecto está plegada y hereda la configuración global (el registro hace
+ * fallback global→cerebro). Al desplegar, el usuario puede dar a este cerebro
+ * sus propios endpoints/claves para cada herramienta. Mismo estilo de tarjeta
+ * que las demás secciones por-cerebro (BrainMoaSection / BrainOssCatalogSection).
+ */
+function BrainIntegrationsSection({ brainId, isNew }: { brainId: string; isNew: boolean }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="space-y-3 rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 text-left text-[11px] uppercase tracking-widest text-cyan-300/60"
+      >
+        <Plug className="h-3.5 w-3.5" /> Integraciones del cerebro
+        <Badge variant="outline" className="border-emerald-400/30 text-[9px] normal-case text-emerald-200">
+          hereda global
+        </Badge>
+        <span className="ml-auto text-cyan-300/50">
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </span>
+      </button>
+
+      {!open ? (
+        <p className="text-[10px] text-white/40">
+          Conecta este cerebro a herramientas OSS (rastreo, apps IA, runtimes, automatización). Despliega para
+          personalizar; si no, usa la configuración global por defecto.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {isNew && (
+            <p className="text-[10px] text-amber-300/70">
+              Guarda el cerebro para conservar sus integraciones específicas.
+            </p>
+          )}
+          <IntegrationsPanel brainId={brainId} />
+        </div>
+      )}
     </div>
   );
 }

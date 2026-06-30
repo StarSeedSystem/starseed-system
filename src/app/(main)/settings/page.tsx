@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { AppearanceEditor } from "@/components/settings/appearance/appearance-editor";
+import IntegrationsPanel from "@/components/integrations/integrations-panel";
 import { AiProvidersPanel } from "@/components/settings/ai/ai-providers-panel";
 import { AuroraChannelsPanel } from "@/components/settings/ai/aurora-channels-panel";
 import { MixtureOfAgentsPanel } from "@/components/settings/ai/mixture-of-agents-panel";
@@ -198,7 +199,7 @@ export default function SettingsPage() {
                 <div className="backdrop-blur-xl bg-background/30 border rounded-xl overflow-hidden shadow-2xl">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <div className="border-b bg-muted/20 p-4">
-                            <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 max-w-3xl mx-auto gap-1">
+                            <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 max-w-4xl mx-auto gap-1">
                                 <TabsTrigger value="appearance" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
                                     <Palette className="h-4 w-4" /> <span className="hidden sm:inline">Diseño</span>
                                 </TabsTrigger>
@@ -207,6 +208,9 @@ export default function SettingsPage() {
                                 </TabsTrigger>
                                 <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
                                     <Sparkles className="h-4 w-4" /> <span className="hidden sm:inline">IA & Modelos</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="integrations" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
+                                    <Plug2 className="h-4 w-4" /> <span className="hidden sm:inline">Integraciones</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="experience" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
                                     <Compass className="h-4 w-4" /> <span className="hidden sm:inline">Experiencia</span>
@@ -331,6 +335,17 @@ export default function SettingsPage() {
                                         accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
                                     />
                                 </div>
+                            </TabsContent>
+
+                            {/* ── Integraciones (conectores OSS funcionales) ── */}
+                            <TabsContent value="integrations" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={Plug2}
+                                    title="Integraciones de herramientas"
+                                    description="Conecta tu OS a herramientas de código abierto (rastreo, apps IA, runtimes locales, automatización). Por defecto se usan los servicios de StarSeed; configura tu propio endpoint para usar el tuyo."
+                                />
+                                {/* Configuración GLOBAL (sin brainId). Cada cerebro puede sobrescribirla. */}
+                                <IntegrationsPanel />
                             </TabsContent>
 
                             {/* ── Experiencia: Aurora / Astraura · Sentidos · Notificaciones ── */}

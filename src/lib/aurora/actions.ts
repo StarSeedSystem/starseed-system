@@ -43,6 +43,13 @@ export interface AuroraActionContext {
   router: AuroraRouter;
   /** Notifica a la UI lo que Aurora está haciendo ("Abriendo Pizarras…"). */
   onStatus?: (status: string) => void;
+  /**
+   * (Opcional, ADITIVO) Cerebro activo para resolver las HERRAMIENTAS DE
+   * INTEGRACIÓN (crawl, PDF, flows, automatizaciones, búsqueda web, chat local…).
+   * Si está presente, las tools se resuelven con la config de ESE cerebro;
+   * si no, se usa la config global. Ausente → comportamiento idéntico al previo.
+   */
+  brainId?: string;
 }
 
 /** Resultado honesto de ejecutar una acción. */
@@ -836,6 +843,80 @@ function looseArgs(s: string): Record<string, unknown> {
   return o;
 }
 
+// ── Puente con las HERRAMIENTAS DE INTEGRACIÓN (OSS self-host) ────────────────
+// ADITIVO + DEFENSIVO: además de sus acciones nativas, Aurora puede invocar las
+// tools del adaptador de integraciones (src/lib/integrations/aurora-tools) por
+// su NOMBRE (crawl_url, web_search, pdf_merge, run_flow, run_automation…). Solo
+// se ofrecen/ejecutan las que estén CONFIGURADAS y disponibles para el cerebro
+// activo. La carga del módulo es perezosa (import dinámico) para no acoplar el
+// bundle ni romper SSR, y NUNCA lanza: si algo falla, devuelve null (→ Aurora
+// trata la directiva como "acción desconocida", como antes).
+
+/** Resumen legible y corto del resultado de una tool, para leer en voz alta. */
+function summarizeToolResult(name: string, res: { ok: boolean; data?: unknown; error?: string }): string {
+  if (!res.ok) {
+    return res.error ? `La herramienta «${name}» falló: ${res.error}` : `La herramienta «${name}» no pudo completarse.`;
+  }
+  const d: any = res.data;
+  // Heurísticas suaves para extraer algo decible sin volcar payloads enormes.
+  let text = "";
+  try {
+    if (typeof d === "string") text = d;
+    else if (d && typeof d === "object") {
+      text =
+        (typeof d.markdown === "string" && d.markdown) ||
+        (typeof d.text === "string" && d.text) ||
+        (typeof d.answer === "string" && d.answer) ||
+        (typeof d.output === "string" && d.output) ||
+        (typeof d.result === "string" && d.result) ||
+        (typeof d.content === "string" && d.content) ||
+        "";
+    }
+  } catch { /* noop */ }
+  text = String(text || "").replace(/\s+/g, " ").trim();
+  if (text) return `Listo con «${name}». ${text.slice(0, 600)}`;
+  return `Listo: ejecuté la herramienta «${name}».`;
+}
+
+/**
+ * Intenta ejecutar `name` como una TOOL DE INTEGRACIÓN. Devuelve:
+ *  - AuroraActionResult  si `name` es una tool disponible (ejecutada de verdad),
+ *  - un resultado honesto si la tool existe pero NO está configurada/disponible,
+ *  - null                si `name` NO es una tool de integración (para que el
+ *                        llamador siga su camino habitual: "acción desconocida").
+ */
+async function tryRunIntegrationTool(
+  name: string,
+  args: Record<string, unknown>,
+  ctx: AuroraActionContext,
+): Promise<AuroraActionResult | null> {
+  if (!isClient()) return null;
+  try {
+    const mod: any = await import("@/lib/integrations/aurora-tools");
+    const tool = mod?.getAuroraTool?.(name);
+    if (!tool) return null; // No es una tool de integración → que siga el flujo normal.
+    // ¿Está configurada/disponible para el cerebro activo?
+    const available = mod?.isAuroraToolAvailable?.(name, ctx.brainId) ?? false;
+    if (!available) {
+      return {
+        ok: false,
+        message: `La herramienta «${name}» no está configurada o activada en este cerebro. Actívala en el Hub de Habilidades o en Conexiones.`,
+      };
+    }
+    const status = `Usando la herramienta ${name}…`;
+    ctx.onStatus?.(status);
+    const res = await mod.runAuroraTool(name, args, { brainId: ctx.brainId });
+    return {
+      ok: !!(res && res.ok),
+      message: summarizeToolResult(name, res || { ok: false, error: "sin respuesta" }),
+      status,
+    };
+  } catch {
+    // El módulo de integraciones puede no existir o fallar: degradamos sin romper.
+    return null;
+  }
+}
+
 // ── Ejecución ────────────────────────────────────────────────────────────────
 
 /** Ejecuta una directiva concreta. Honesto: si la acción no existe, lo dice. */
@@ -844,7 +925,12 @@ export async function executeDirective(
   ctx: AuroraActionContext,
 ): Promise<AuroraActionResult> {
   const def = ACTION_INDEX[d.name];
-  if (!def) return { ok: false, message: `No tengo una acción llamada "${d.name}".` };
+  if (!def) {
+    // No es una acción nativa: ¿será una HERRAMIENTA DE INTEGRACIÓN? (aditivo)
+    const tool = await tryRunIntegrationTool(d.name, d.args, ctx);
+    if (tool) return tool;
+    return { ok: false, message: `No tengo una acción llamada "${d.name}".` };
+  }
   try {
     return await def.handler(d.args, ctx);
   } catch {
@@ -898,4 +984,39 @@ export function actionsSystemPromptSection(): string {
 /** Tipos de acción disponibles (para UI/documentación). */
 export function listActionNames(): string[] {
   return AURORA_ACTIONS.map((a) => a.name);
+}
+
+/**
+ * Fragmento ADITIVO para el system prompt con las HERRAMIENTAS DE INTEGRACIÓN
+ * disponibles (configuradas) para el cerebro activo. Le dice al modelo que,
+ * además de las acciones nativas, puede INVOCAR esas tools por su nombre usando
+ * la MISMA sintaxis de directiva `[[ACCION: nombre {json_de_entrada}]]`.
+ *
+ * - Es async porque la disponibilidad se resuelve con import dinámico del
+ *   adaptador de integraciones (defensivo: si no hay integraciones o algo falla,
+ *   devuelve "" y Aurora se comporta EXACTAMENTE igual que antes).
+ * - Nunca lanza. Cadena vacía ⇒ no se ofrece ninguna tool.
+ */
+export async function auroraToolsActionPromptSection(brainId?: string): Promise<string> {
+  if (!isClient()) return "";
+  try {
+    const mod: any = await import("@/lib/integrations/aurora-tools");
+    const tools = (mod?.listAvailableAuroraTools?.(brainId) ?? []) as Array<{ name: string; description: string }>;
+    if (!Array.isArray(tools) || tools.length === 0) return "";
+    const lines = tools.map((t) => `- ${t.name}: ${t.description}`);
+    return [
+      "HERRAMIENTAS EXTERNAS (integraciones del usuario, ya configuradas) — además de tus acciones nativas, puedes EJECUTAR estas herramientas de servicios self-host del usuario.",
+      "Invócalas con la MISMA sintaxis de directiva, usando el nombre de la herramienta como acción y su entrada como JSON:",
+      '  [[ACCION: nombre_de_herramienta {"clave":"valor"}]]',
+      "Herramientas disponibles ahora mismo:",
+      ...lines,
+      "Ejemplos:",
+      '· «Rastrea esta web» → [[ACCION: crawl_url {"url":"https://ejemplo.com"}]] Rastreando la página.',
+      '· «Busca en la web X» → [[ACCION: web_search {"q":"X"}]] Buscando.',
+      '· «Lanza mi automatización» → [[ACCION: run_automation {"evento":"hola"}]] Disparando la automatización.',
+      "Usa una herramienta SOLO cuando aporte (datos externos, PDF, flujo, automatización…). Si no hace falta, responde normal sin directivas.",
+    ].join("\n");
+  } catch {
+    return "";
+  }
 }

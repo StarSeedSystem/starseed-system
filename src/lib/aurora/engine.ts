@@ -29,6 +29,7 @@ import {
 } from "@/lib/aurora/personalities";
 import {
   actionsSystemPromptSection,
+  auroraToolsActionPromptSection,
   runDirectivesFromText,
   parseDirectives,
   stripDirectives,
@@ -171,6 +172,9 @@ export function useAuroraEngine(): AuroraEngine {
   const replyHistoryRef = useRef<string[]>([]);
   // Ruta/contexto actual, para que Aurora sepa dónde está el usuario.
   const pathnameRef = useRef<string>("");
+  // Cerebro activo para resolver las HERRAMIENTAS DE INTEGRACIÓN (aditivo).
+  // undefined ⇒ se usa la config global de integraciones (comportamiento neutro).
+  const brainIdRef = useRef<string | undefined>(undefined);
   useEffect(() => { activeRef.current = activePersonality; }, [activePersonality]);
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
   useEffect(() => { pathnameRef.current = pathname || ""; }, [pathname]);
@@ -202,6 +206,17 @@ export function useAuroraEngine(): AuroraEngine {
       setPersonalities(ps);
       const act = (s.active_personality && ps.find((p) => p.id === s.active_personality)) || ps[0] || { ...DEFAULT_PERSONALITY };
       setActivePersonalityState(act);
+    })();
+
+    // Resolución DEFENSIVA del cerebro activo (para las tools de integración).
+    // Import dinámico: si no hay sesión / falla, deja brainId = undefined (config
+    // global). Nunca bloquea ni rompe nada del motor de voz.
+    (async () => {
+      try {
+        const mod: any = await import("@/lib/brains/brains");
+        const sel = (await mod?.getSelection?.("aurora", "")) as { brain_id?: string } | null;
+        if (sel?.brain_id) brainIdRef.current = sel.brain_id;
+      } catch { /* sin cerebro activo: usamos la config global */ }
     })();
 
     return () => {
@@ -387,6 +402,8 @@ export function useAuroraEngine(): AuroraEngine {
       forward: () => { try { router.forward(); } catch { /* */ } },
     },
     onStatus: (status: string) => setStatus(status),
+    // Cerebro activo (si lo hay) para resolver las tools de integración.
+    brainId: brainIdRef.current,
   }), [router, setStatus]);
 
   // Ejecuta todas las directivas [[ACCION:...]] de un texto (devuelve resultados).
@@ -538,9 +555,14 @@ export function useAuroraEngine(): AuroraEngine {
         `CONTEXTO ACTUAL — El usuario está en: ${routeContext()}. ` +
         "Sigues activa en segundo plano desde tu botón flotante: navegar/operar NO te detiene. " +
         "Recuerda tu control total: si algo se hace en el OS, hazlo tú con [[ACCION:...]]; nunca le pidas que vaya él a otra parte.";
+      // Sección ADITIVA con las herramientas de integración disponibles para el
+      // cerebro activo (vacía si no hay ninguna configurada → prompt idéntico).
+      let toolsSection = "";
+      try { toolsSection = await auroraToolsActionPromptSection(brainIdRef.current); } catch { toolsSection = ""; }
       const system =
         buildSystemPrompt(activeRef.current) + "\n\n" +
-        actionsSystemPromptSection() + "\n\n" +
+        actionsSystemPromptSection() +
+        (toolsSection ? "\n\n" + toolsSection : "") + "\n\n" +
         contextNote;
       const messages: ChatMessage[] = [
         { role: "system", content: system },
