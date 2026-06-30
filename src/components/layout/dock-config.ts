@@ -37,6 +37,84 @@ export type DockIconKey =
   | 'Zap' | 'Wrench' | 'Plug' | 'Eye' | 'HardDrive';
 
 const STORAGE_KEY = 'starseed.dock.items.v2';
+const FOLDERS_KEY = 'starseed.dock.folders.v1';
+const FOLDER_STATE_KEY = 'starseed.dock.folders.open.v1';
+
+/**
+ * Carpeta del dock: agrupa varios items (por id) bajo una sola entrada que,
+ * al pulsarse, se expande para revelar sus accesos directos hijos y se vuelve
+ * a colapsar. Es ADITIVO: los items siguen existiendo en el catálogo; una
+ * carpeta solo decide cuáles se muestran agrupados. El estado abierto/cerrado
+ * se persiste aparte (FOLDER_STATE_KEY) para no ensuciar la definición.
+ */
+export interface DockFolderConfig {
+  id: string;
+  label: string;
+  iconKey: DockIconKey;
+  color: DockColor;
+  /** ids de DockItemConfig contenidos en la carpeta, en orden. */
+  itemIds: string[];
+  /** Visible en el dock. */
+  enabled: boolean;
+}
+
+/** Carpetas por defecto: ninguna (el usuario las crea desde el editor). */
+export const DOCK_FOLDER_PRESETS: DockFolderConfig[] = [];
+
+export function loadDockFolders(): DockFolderConfig[] {
+  if (typeof window === 'undefined') return DOCK_FOLDER_PRESETS;
+  try {
+    const raw = window.localStorage.getItem(FOLDERS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        // Defensivo: normaliza cada carpeta y descarta entradas corruptas.
+        return parsed
+          .filter((f) => f && typeof f.id === 'string' && Array.isArray(f.itemIds))
+          .map((f) => ({
+            id: String(f.id),
+            label: String(f.label ?? 'Carpeta'),
+            iconKey: (f.iconKey ?? 'LayoutGrid') as DockIconKey,
+            color: (f.color ?? 'neutral') as DockColor,
+            itemIds: (f.itemIds as unknown[]).map((x) => String(x)),
+            enabled: f.enabled !== false,
+          }));
+      }
+    }
+  } catch { /* noop */ }
+  return DOCK_FOLDER_PRESETS;
+}
+
+export function saveDockFolders(folders: DockFolderConfig[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
+  } catch { /* noop */ }
+}
+
+export function resetDockFolders() {
+  saveDockFolders(DOCK_FOLDER_PRESETS);
+}
+
+/** Estado abierto/cerrado de cada carpeta (id → boolean). Persistido. */
+export function loadDockFolderOpenState(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(FOLDER_STATE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed as Record<string, boolean>;
+    }
+  } catch { /* noop */ }
+  return {};
+}
+
+export function saveDockFolderOpenState(state: Record<string, boolean>) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(FOLDER_STATE_KEY, JSON.stringify(state));
+  } catch { /* noop */ }
+}
 
 /**
  * Catálogo base. Por defecto el dock muestra solo secciones del sistema +

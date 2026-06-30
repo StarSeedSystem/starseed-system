@@ -1445,6 +1445,13 @@ const BRAIN_MOA_MODES: { id: MoaMode; label: string; icon: typeof Cpu }[] = [
 function BrainMoaSection({ brainId, isNew }: { brainId: string; isNew: boolean }) {
   const [cfg, setCfg] = useState<BrainMoaOverride>(DEFAULT_BRAIN_MOA);
 
+  // Prueba en vivo: ejecuta una solicitud corta a TRAVÉS de chatSmart({ brainId })
+  // para que la config multi-agente de ESTE cerebro se resuelva y ejecute de
+  // verdad en runMoA (single/router/moa/crew + memorias vinculadas).
+  const [testing, setTesting] = useState(false);
+  const [testOut, setTestOut] = useState("");
+  const [testProgress, setTestProgress] = useState("");
+
   useEffect(() => {
     setCfg(loadBrainMoa(brainId));
   }, [brainId]);
@@ -1453,6 +1460,53 @@ function BrainMoaSection({ brainId, isNew }: { brainId: string; isNew: boolean }
     const next = { ...cfg, ...patch };
     setCfg(next);
     saveBrainMoa(brainId, next);
+  }
+
+  async function runTest() {
+    if (!brainId) {
+      toast.error("Guarda el cerebro antes de probar su sistema multi-agente.");
+      return;
+    }
+    const hasProvider = (() => {
+      try {
+        return loadConfigs().some((c) => c.enabled);
+      } catch {
+        return false;
+      }
+    })();
+    if (!hasProvider) {
+      toast.error("Activa un proveedor de IA en Ajustes → IA & Modelos.");
+      return;
+    }
+    setTesting(true);
+    setTestOut("");
+    setTestProgress("");
+    try {
+      const messages: ChatMessage[] = [
+        {
+          role: "user",
+          content:
+            "Preséntate en una frase como el sistema de IA de este cerebro y di qué modo multi-agente estás usando.",
+        },
+      ];
+      // brainId hace que runMoA resuelva el override por cerebro (modo + motor)
+      // e inyecte las memorias vinculadas a este cerebro.
+      const r = await chatSmart({
+        messages,
+        brainId,
+        temperature: 0.4,
+        onChunk: (delta) => setTestOut((acc) => acc + delta),
+        // Migas de progreso del runtime (no intrusivas): muestran qué ruta tomó.
+        onProgress: (stage, detail) => setTestProgress(detail ? `${stage} · ${detail}` : stage),
+      });
+      const text = (r?.text || "").trim();
+      // Si el proveedor no hizo streaming (onChunk), usamos el texto final.
+      if (text) setTestOut((acc) => (acc.trim() ? acc : text));
+    } catch {
+      toast.error("No se pudo probar. Revisa tu proveedor de IA.");
+    } finally {
+      setTesting(false);
+    }
   }
 
   const engine = cfg.engineId ? findOption(cfg.engineId) : undefined;
@@ -1542,8 +1596,47 @@ function BrainMoaSection({ brainId, isNew }: { brainId: string; isNew: boolean }
               addedIds={cfg.engineId ? [cfg.engineId] : []}
             />
           </div>
+
+          {/* Plugins & skills (tools) por cerebro — catálogo OSS */}
+          <div className="space-y-1.5">
+            <span className="flex items-center gap-1.5 text-[11px] text-white/55">
+              <Plug className="h-3.5 w-3.5 text-cyan-300" /> Plugins & skills (tools) de este cerebro
+            </span>
+            <OssLibraryBrowser category="plugin-standard" initial={4} />
+          </div>
         </div>
       )}
+
+      {/* Probar el sistema multi-agente de ESTE cerebro (chatSmart({ brainId })) */}
+      <div className="space-y-2 rounded-lg border border-white/10 bg-black/20 p-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="flex items-center gap-1.5 text-[11px] text-white/65">
+            <Play className="h-3.5 w-3.5 text-emerald-300" /> Probar este cerebro
+          </span>
+          <span className="text-[10px] text-white/40">
+            Ejecuta una solicitud corta con la configuración multi-agente (y memorias) de este cerebro.
+          </span>
+          <Button
+            size="sm"
+            className="ml-auto h-7 gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500"
+            disabled={testing || isNew || !brainId}
+            onClick={runTest}
+          >
+            <Play className={cn("h-3.5 w-3.5", testing && "animate-pulse")} /> {testing ? "Probando…" : "Probar"}
+          </Button>
+        </div>
+        {isNew && (
+          <p className="text-[10px] text-amber-300/70">Guarda el cerebro para poder probarlo.</p>
+        )}
+        {testProgress && (
+          <p className="font-mono text-[10px] text-cyan-300/70">↳ {testProgress}</p>
+        )}
+        {testOut && (
+          <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-md border border-emerald-500/20 bg-black/40 p-2 text-[11px] leading-relaxed text-emerald-100/90">
+            {testOut}
+          </pre>
+        )}
+      </div>
 
       {/* Nota: canales y memorias también pueden ser por cerebro */}
       <p className="text-[10px] text-white/40">

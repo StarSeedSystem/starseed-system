@@ -156,6 +156,13 @@ export interface ChatSmartRequest extends ChatRequest {
    * brains. Absent → no extra context (identical to before).
    */
   memoryRootIds?: string[];
+  /**
+   * OPTIONAL progress breadcrumbs from the MoA runtime (mode chosen, proposer
+   * counts, aggregation, fallbacks). Purely informational for the caller's UI/
+   * telemetry. Absent → no-op (identical to before). Never user-facing by
+   * default; the runtime keeps the final streamed answer on `onChunk`.
+   */
+  onProgress?: (stage: string, detail?: string) => void;
 }
 
 export async function chatSmart(req: ChatSmartRequest): Promise<ChatResponse> {
@@ -172,6 +179,7 @@ export async function chatSmart(req: ChatSmartRequest): Promise<ChatResponse> {
       moaModeOverride: req.moaMode,
       memoryRootIds: req.memoryRootIds,
       temperature: req.temperature,
+      onProgress: req.onProgress,
     });
   } catch {
     // Runtime unavailable or threw before its own guards — use the existing

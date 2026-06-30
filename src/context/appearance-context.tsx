@@ -174,6 +174,15 @@ export interface AppearanceConfig {
          * autoguarda en el dashboard (localStorage) y en el perfil (settings-sync).
          */
         designMode?: "theme" | "original";
+        /**
+         * Modo compacto de los widgets: densidad mayor (padding reducido,
+         * tipografía menor, contenido condensado) para ver más en menos espacio.
+         * Opcional → configs guardadas siguen siendo válidas (deepMerge). El modo
+         * cómodo (false) es el valor por defecto; compacto es opt-in. Se autoguarda
+         * en localStorage (appearance-config-v2) y en el perfil (settings-sync),
+         * igual que el resto de preferencias de widgets.
+         */
+        compact?: boolean;
         dashboardTemplate: "standard" | "analyst" | "creative" | "strategic";
         bgStyle: "glass" | "solid" | "cyber" | "mesh";
         borderStyle: "none" | "thin" | "glow" | "neon";
@@ -468,6 +477,7 @@ const defaultConfig: AppearanceConfig = {
     },
     widgets: {
         designMode: "theme",
+        compact: false,
         dashboardTemplate: "standard",
         bgStyle: "glass",
         borderStyle: "thin",

@@ -498,9 +498,16 @@ async function runMoaClassic(
   cfg: MoaConfig,
   opts: RunMoaOptions
 ): Promise<ChatResponse> {
-  const proposers = usable.slice(0, 3); // up to 3 proposers
-  const aggregator = usable[usable.length - 1]; // last usable acts as aggregator
+  // Proposers draft answers; an aggregator synthesizes them. When we have >= 3
+  // usable providers, dedicate the LAST one as a distinct aggregator (so it is
+  // not also a proposer) for a cleaner mixture. With exactly 2 providers, both
+  // propose and the stronger/primary (usable[0]) aggregates — still a real MoA.
+  const distinctAggregator = usable.length >= 3;
+  const proposers = distinctAggregator ? usable.slice(0, Math.min(3, usable.length - 1)) : usable.slice(0, 2);
+  const aggregator = distinctAggregator ? usable[usable.length - 1] : usable[0];
   const rounds = Math.max(1, Math.min(2, Number(cfg.layers) || 1)); // cap <= 2
+
+  opts.onProgress?.("moa:start", `${proposers.length} proponentes → 1 agregador (${aggregator.id})`);
 
   const originalUser = lastUserContent(messages);
   let proposals: string[] = [];
@@ -533,6 +540,7 @@ async function runMoaClassic(
         if (t) next.push(t);
       }
     }
+    opts.onProgress?.("moa:proposals", `${next.length}/${proposers.length} ok (capa ${round + 1})`);
     if (next.length > 0) proposals = next; // keep last successful round only
   }
 
@@ -540,6 +548,18 @@ async function runMoaClassic(
   if (proposals.length === 0) {
     opts.onProgress?.("moa:no-proposals-fallback");
     return singleProviderAnswer(messages, opts);
+  }
+
+  // Exactly one proposal → no synthesis needed. Stream it back verbatim so the
+  // UX (onChunk) is preserved without paying for an extra aggregator round.
+  if (proposals.length === 1) {
+    opts.onProgress?.("moa:single-proposal", aggregator.id);
+    try {
+      opts.onChunk?.(proposals[0]);
+    } catch {
+      /* streaming is best-effort */
+    }
+    return { text: proposals[0] };
   }
 
   // Aggregation step — synthesize the final answer, streaming to the user.
@@ -684,8 +704,11 @@ export async function runMoA(messages: ChatMessage[], opts: RunMoaOptions = {}):
     // Need >= 2 usable providers to do anything multi-agent; else behave single.
     const usable = orderByActiveFirst(getUsableProviders());
     if (usable.length < 2) {
+      opts.onProgress?.("single-fallback", `modo ${effectiveMode}, ${usable.length} proveedor(es) usable(s)`);
       return await singleProviderAnswer(messages, opts);
     }
+
+    opts.onProgress?.("mode", `${effectiveMode} · ${usable.length} proveedores`);
 
     switch (effectiveMode) {
       case "router":

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Layers, Sparkles, GitBranch, Workflow, Bot, Cpu } from "lucide-react";
+import { Layers, Sparkles, GitBranch, Workflow, Bot, Cpu, Plug } from "lucide-react";
 import { toast } from "sonner";
 import { OssLibraryBrowser } from "./oss-library-browser";
 import { findOption } from "@/lib/oss-library";
@@ -143,6 +143,19 @@ export function MixtureOfAgentsPanel() {
         </CardHeader>
         <CardContent>
           <OssLibraryBrowser category="moa" onAdd={(o) => { update({ engineId: o.id }); toast.success(`Motor: ${o.name}`); }} addedIds={cfg.engineId ? [cfg.engineId] : []} />
+        </CardContent>
+      </Card>
+
+      {/* Plugins & skills (interoperabilidad de tools) — catálogo OSS */}
+      <Card className="bg-background/40 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Plug className="h-4 w-4 text-cyan-400" /> Plugins & skills (tools)</CardTitle>
+          <CardDescription>
+            Estándares de código abierto (MCP, OpenAPI…) para conectar herramientas, datos y habilidades a los agentes que Aurora orquesta.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <OssLibraryBrowser category="plugin-standard" />
         </CardContent>
       </Card>
 

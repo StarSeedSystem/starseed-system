@@ -126,8 +126,11 @@ export function WidgetShell({
     // Modo de diseño efectivo: prop del widget > global > "theme".
     const effectiveMode: "theme" | "original" = designMode ?? w.designMode ?? "theme";
     const isOriginal = effectiveMode === "original";
-    const showSubtitle = !!subtitle && size.tier !== "micro" && size.vTier !== "micro";
-    const compactHeader = size.tier === "micro" || size.vTier === "micro";
+    // Modo compacto global (Ajustes → Apariencia → Diseño de los widgets):
+    // densidad mayor (padding/typografía reducidos). Por defecto desactivado.
+    const compact = w.compact === true;
+    const showSubtitle = !!subtitle && size.tier !== "micro" && size.vTier !== "micro" && !compact;
+    const compactHeader = size.tier === "micro" || size.vTier === "micro" || compact;
 
     const resolvedChildren = typeof children === "function" ? children(size) : children;
     const resolvedFooter = typeof footer === "function" ? footer(size) : footer;
@@ -214,7 +217,10 @@ export function WidgetShell({
             {!bare && (
                 <header
                     className={cn(
-                        "shrink-0 z-10 flex items-center gap-2.5 px-3 pt-3 pb-2.5 @sm:px-4 @sm:pt-4",
+                        "shrink-0 z-10 flex items-center",
+                        compact
+                            ? "gap-2 px-2.5 pt-2 pb-1.5 @sm:px-3 @sm:pt-2.5"
+                            : "gap-2.5 px-3 pt-3 pb-2.5 @sm:px-4 @sm:pt-4",
                         w.headerStyle === "underlined" && "border-b border-border/40",
                         w.headerStyle === "accented" && "rounded-t-3xl"
                     )}
@@ -227,10 +233,13 @@ export function WidgetShell({
                     {Icon && (
                         <motion.div
                             whileHover={config.animations.hover ? { scale: 1.08, rotate: -4 } : undefined}
-                            className="shrink-0 grid place-items-center rounded-2xl size-9 @sm:size-10 border border-white/15 shadow-lg"
+                            className={cn(
+                                "shrink-0 grid place-items-center rounded-2xl border border-white/15 shadow-lg",
+                                compact ? "size-7 @sm:size-8 rounded-xl" : "size-9 @sm:size-10"
+                            )}
                             style={{ background: `linear-gradient(135deg, ${accentColor}, color-mix(in srgb, ${accentColor} 40%, transparent))` }}
                         >
-                            <Icon className="size-4 @sm:size-5 text-white drop-shadow" strokeWidth={2} />
+                            <Icon className={cn("text-white drop-shadow", compact ? "size-3.5 @sm:size-4" : "size-4 @sm:size-5")} strokeWidth={2} />
                         </motion.div>
                     )}
 
@@ -275,7 +284,8 @@ export function WidgetShell({
             )}
 
             <div className={cn(
-                "relative z-10 flex-1 min-h-0 overflow-auto custom-scrollbar px-3 pb-3 @sm:px-4",
+                "relative z-10 flex-1 min-h-0 overflow-auto custom-scrollbar",
+                compact ? "px-2.5 pb-2.5 @sm:px-3 text-[0.92em]" : "px-3 pb-3 @sm:px-4",
                 bare && "p-0",
                 bodyClassName
             )}>
@@ -283,7 +293,10 @@ export function WidgetShell({
             </div>
 
             {(resolvedFooter || connChips) && (
-                <footer className="shrink-0 z-10 px-3 pb-3 pt-1.5 @sm:px-4 border-t border-border/30 space-y-1.5">
+                <footer className={cn(
+                    "shrink-0 z-10 border-t border-border/30",
+                    compact ? "px-2.5 pb-2 pt-1 @sm:px-3 space-y-1" : "px-3 pb-3 pt-1.5 @sm:px-4 space-y-1.5"
+                )}>
                     {resolvedFooter}
                     {connChips}
                 </footer>

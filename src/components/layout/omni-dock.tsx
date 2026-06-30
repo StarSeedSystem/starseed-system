@@ -14,6 +14,8 @@ import {
     // ── Controles del propio dock / editor ──
     Plus, Pencil, Check, RotateCcw, X, ArrowLeft, ArrowRight,
     ChevronLeft, ChevronRight,
+    // ── Carpetas expandibles ──
+    Folder, FolderOpen, FolderPlus, Trash2, ChevronDown,
 } from "lucide-react";
 
 import { useAppearance } from "@/context/appearance-context";
@@ -23,8 +25,14 @@ import {
     saveDockConfig,
     resetDockConfig,
     DOCK_PRESETS,
+    loadDockFolders,
+    saveDockFolders,
+    resetDockFolders,
+    loadDockFolderOpenState,
+    saveDockFolderOpenState,
     type DockItemConfig,
     type DockIconKey,
+    type DockFolderConfig,
 } from "./dock-config";
 
 /**
@@ -64,6 +72,10 @@ export function OmniDock() {
     const [items, setItems] = useState<DockItemConfig[]>(DOCK_PRESETS);
     const [editMode, setEditMode] = useState(false);
 
+    // ── Carpetas expandibles del dock ──
+    const [folders, setFolders] = useState<DockFolderConfig[]>([]);
+    const [folderOpen, setFolderOpen] = useState<Record<string, boolean>>({});
+
     // Sombras de scroll del dock: indican que hay MÁS opciones al deslizar.
     const stripRef = useRef<HTMLDivElement | null>(null);
     const [shadow, setShadow] = useState<{ l: boolean; r: boolean }>({ l: false, r: false });
@@ -74,7 +86,11 @@ export function OmniDock() {
         setShadow({ l: el.scrollLeft > 4, r: el.scrollLeft < max - 4 });
     }, []);
 
-    useEffect(() => { setItems(loadDockConfig()); }, []);
+    useEffect(() => {
+        setItems(loadDockConfig());
+        setFolders(loadDockFolders());
+        setFolderOpen(loadDockFolderOpenState());
+    }, []);
 
     // Recalcula las sombras al abrir el dock, cambiar items o redimensionar.
     useEffect(() => {
@@ -108,10 +124,122 @@ export function OmniDock() {
         if (confirm('¿Restablecer el dock a su configuración por defecto?')) {
             resetDockConfig();
             setItems(DOCK_PRESETS);
+            resetDockFolders();
+            setFolders([]);
+            saveDockFolderOpenState({});
+            setFolderOpen({});
         }
     };
 
-    const visibleItems = useMemo(() => items.filter((it) => it.enabled), [items]);
+    // ── Persistencia de carpetas ──
+    const persistFolders = (next: DockFolderConfig[]) => {
+        setFolders(next);
+        saveDockFolders(next);
+    };
+
+    // Abre/cierra una carpeta (estado persistido aparte de su definición).
+    const toggleFolderOpen = (id: string) => {
+        setFolderOpen((prev) => {
+            const next = { ...prev, [id]: !prev[id] };
+            saveDockFolderOpenState(next);
+            return next;
+        });
+    };
+
+    const addFolder = () => {
+        const id = `folder-${Date.now().toString(36)}`;
+        const next: DockFolderConfig = {
+            id,
+            label: 'Nueva carpeta',
+            iconKey: 'LayoutGrid',
+            color: 'neutral',
+            itemIds: [],
+            enabled: true,
+        };
+        persistFolders([...folders, next]);
+    };
+
+    const renameFolder = (id: string, label: string) => {
+        persistFolders(folders.map((f) => (f.id === id ? { ...f, label } : f)));
+    };
+
+    const removeFolder = (id: string) => {
+        persistFolders(folders.filter((f) => f.id !== id));
+        setFolderOpen((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            saveDockFolderOpenState(next);
+            return next;
+        });
+    };
+
+    // Añade/quita un item de una carpeta (un item solo puede estar en una carpeta).
+    const toggleItemInFolder = (folderId: string, itemId: string) => {
+        persistFolders(
+            folders.map((f) => {
+                if (f.id === folderId) {
+                    const has = f.itemIds.includes(itemId);
+                    return { ...f, itemIds: has ? f.itemIds.filter((x) => x !== itemId) : [...f.itemIds, itemId] };
+                }
+                // Garantiza exclusividad: el item sale de cualquier otra carpeta.
+                return f.itemIds.includes(itemId) ? { ...f, itemIds: f.itemIds.filter((x) => x !== itemId) } : f;
+            })
+        );
+    };
+
+    // Items habilitados, indexados por id (para resolver el contenido de carpetas).
+    const itemById = useMemo(() => {
+        const map = new Map<string, DockItemConfig>();
+        items.forEach((it) => map.set(it.id, it));
+        return map;
+    }, [items]);
+
+    // Carpetas activas y los ids de item que "consumen" (sacándolos del strip raíz).
+    const activeFolders = useMemo(() => folders.filter((f) => f.enabled), [folders]);
+    const foldedItemIds = useMemo(() => {
+        const s = new Set<string>();
+        activeFolders.forEach((f) => f.itemIds.forEach((id) => s.add(id)));
+        return s;
+    }, [activeFolders]);
+
+    // Estructura de render del strip: cada entrada es un item suelto o una carpeta.
+    // Mantiene el orden de `items` para los sueltos; las carpetas se intercalan en
+    // la posición de su PRIMER item, de modo que el orden general se respeta.
+    type DockEntry =
+        | { kind: 'item'; item: DockItemConfig }
+        | { kind: 'folder'; folder: DockFolderConfig; children: DockItemConfig[] };
+
+    const dockEntries = useMemo<DockEntry[]>(() => {
+        const entries: DockEntry[] = [];
+        const placedFolders = new Set<string>();
+        for (const it of items) {
+            if (!it.enabled) continue;
+            // ¿Pertenece a una carpeta activa? → coloca la carpeta en la posición
+            // de su primer item presente y no añadas el item suelto.
+            if (foldedItemIds.has(it.id)) {
+                const owner = activeFolders.find((f) => f.itemIds.includes(it.id));
+                if (owner && !placedFolders.has(owner.id)) {
+                    placedFolders.add(owner.id);
+                    const children = owner.itemIds
+                        .map((id) => itemById.get(id))
+                        .filter((x): x is DockItemConfig => !!x && x.enabled);
+                    entries.push({ kind: 'folder', folder: owner, children });
+                }
+                continue;
+            }
+            entries.push({ kind: 'item', item: it });
+        }
+        // Carpetas activas cuyos items no están presentes igualmente se muestran
+        // (vacías o con hijos deshabilitados) al final, para poder gestionarlas.
+        for (const f of activeFolders) {
+            if (placedFolders.has(f.id)) continue;
+            const children = f.itemIds
+                .map((id) => itemById.get(id))
+                .filter((x): x is DockItemConfig => !!x && x.enabled);
+            entries.push({ kind: 'folder', folder: f, children });
+        }
+        return entries;
+    }, [items, activeFolders, foldedItemIds, itemById]);
 
     return (
         <>
@@ -132,10 +260,15 @@ export function OmniDock() {
                         <div className="pointer-events-auto mb-3 w-full max-w-3xl px-4">
                             <DockEditor
                                 items={items}
+                                folders={folders}
                                 onToggle={toggleEnabled}
                                 onMove={move}
                                 onReset={reset}
                                 onClose={() => setEditMode(false)}
+                                onAddFolder={addFolder}
+                                onRenameFolder={renameFolder}
+                                onRemoveFolder={removeFolder}
+                                onToggleItemInFolder={toggleItemInFolder}
                             />
                         </div>
                     )}
@@ -192,17 +325,72 @@ export function OmniDock() {
                             onScroll={updateShadows}
                             className="omni-dock-strip flex items-end gap-1.5 lg:gap-4"
                         >
-                            {visibleItems.map((item) => {
-                                const Icon = ICON_MAP[item.iconKey] ?? FALLBACK_ICON;
+                            {dockEntries.map((entry) => {
+                                if (entry.kind === 'item') {
+                                    const item = entry.item;
+                                    const Icon = ICON_MAP[item.iconKey] ?? FALLBACK_ICON;
+                                    return (
+                                        <DockItem
+                                            key={item.id}
+                                            icon={<Icon className="w-5 h-5 lg:w-7 lg:h-7" />}
+                                            label={item.label}
+                                            color={item.color}
+                                            active={isActivePath(item.path)}
+                                            onClick={() => router.push(item.path)}
+                                        />
+                                    );
+                                }
+                                // Carpeta expandible: el tile la abre/cierra; al estar
+                                // abierta, sus hijos aparecen en línea a continuación.
+                                const f = entry.folder;
+                                const isOpen = !!folderOpen[f.id];
+                                const FolderIcon = isOpen ? FolderOpen : (ICON_MAP[f.iconKey] ?? Folder);
+                                const anyChildActive = entry.children.some((c) => isActivePath(c.path));
                                 return (
-                                    <DockItem
-                                        key={item.id}
-                                        icon={<Icon className="w-5 h-5 lg:w-7 lg:h-7" />}
-                                        label={item.label}
-                                        color={item.color}
-                                        active={isActivePath(item.path)}
-                                        onClick={() => router.push(item.path)}
-                                    />
+                                    <React.Fragment key={f.id}>
+                                        <DockItem
+                                            icon={<FolderIcon className="w-5 h-5 lg:w-7 lg:h-7" />}
+                                            label={f.label}
+                                            color={f.color}
+                                            active={anyChildActive}
+                                            badge={isOpen ? undefined : entry.children.length || undefined}
+                                            indicator={
+                                                <ChevronDown
+                                                    className={cn(
+                                                        "w-3 h-3 transition-transform duration-300",
+                                                        isOpen ? "rotate-180" : "rotate-0"
+                                                    )}
+                                                />
+                                            }
+                                            onClick={() => toggleFolderOpen(f.id)}
+                                        />
+                                        <AnimatePresence initial={false}>
+                                            {isOpen && entry.children.length > 0 && (
+                                                <motion.div
+                                                    key={`${f.id}-children`}
+                                                    initial={{ opacity: 0, width: 0 }}
+                                                    animate={{ opacity: 1, width: "auto" }}
+                                                    exit={{ opacity: 0, width: 0 }}
+                                                    transition={{ type: "spring", stiffness: 320, damping: 32 }}
+                                                    className="flex items-end gap-1.5 lg:gap-4 overflow-hidden rounded-2xl px-1.5 lg:px-2 bg-foreground/[0.04] ring-1 ring-inset ring-foreground/10"
+                                                >
+                                                    {entry.children.map((child) => {
+                                                        const CIcon = ICON_MAP[child.iconKey] ?? FALLBACK_ICON;
+                                                        return (
+                                                            <DockItem
+                                                                key={child.id}
+                                                                icon={<CIcon className="w-5 h-5 lg:w-7 lg:h-7" />}
+                                                                label={child.label}
+                                                                color={child.color}
+                                                                active={isActivePath(child.path)}
+                                                                onClick={() => router.push(child.path)}
+                                                            />
+                                                        );
+                                                    })}
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </React.Fragment>
                                 );
                             })}
 
@@ -234,12 +422,16 @@ const DOCK_PALETTE: Record<DockColor, { text: string; ring: string; glow: string
     purple: { text: "text-purple-300", ring: "ring-purple-400/70", glow: "shadow-[0_0_18px_rgba(168,85,247,0.45)]", bg: "from-purple-500/15 to-purple-500/0", activeBg: "from-purple-500/30 to-purple-500/5" },
 };
 
-function DockItem({ icon, label, onClick, color = "neutral", active = false }: {
+function DockItem({ icon, label, onClick, color = "neutral", active = false, badge, indicator }: {
     icon: React.ReactNode;
     label: string;
     onClick: () => void;
     color?: DockColor;
     active?: boolean;
+    /** Contador opcional (p.ej. nº de accesos dentro de una carpeta cerrada). */
+    badge?: number;
+    /** Indicador opcional bajo el icono (p.ej. chevron de carpeta). */
+    indicator?: React.ReactNode;
 }) {
     const p = DOCK_PALETTE[color];
 
@@ -262,6 +454,19 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false }: {
                 {active && (
                     <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" aria-hidden />
                 )}
+                {typeof badge === "number" && badge > 0 && (
+                    <span
+                        aria-hidden
+                        className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 grid place-items-center rounded-full bg-foreground/85 text-background text-[9px] font-bold tabular-nums shadow"
+                    >
+                        {badge}
+                    </span>
+                )}
+                {indicator && (
+                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-current/70" aria-hidden>
+                        {indicator}
+                    </span>
+                )}
             </button>
             <span
                 className={cn(
@@ -276,14 +481,23 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false }: {
 }
 
 function DockEditor({
-    items, onToggle, onMove, onReset, onClose,
+    items, folders, onToggle, onMove, onReset, onClose,
+    onAddFolder, onRenameFolder, onRemoveFolder, onToggleItemInFolder,
 }: {
     items: DockItemConfig[];
+    folders: DockFolderConfig[];
     onToggle: (id: string) => void;
     onMove: (id: string, direction: -1 | 1) => void;
     onReset: () => void;
     onClose: () => void;
+    onAddFolder: () => void;
+    onRenameFolder: (id: string, label: string) => void;
+    onRemoveFolder: (id: string) => void;
+    onToggleItemInFolder: (folderId: string, itemId: string) => void;
 }) {
+    // ¿En qué carpeta está cada item? (para mostrarlo en su fila).
+    const folderOfItem = (itemId: string) => folders.find((f) => f.itemIds.includes(itemId));
+
     return (
         <div className="bg-card/60 backdrop-blur-2xl border border-foreground/15 rounded-3xl p-4 shadow-2xl">
             <div className="flex items-center justify-between mb-3">
@@ -300,11 +514,70 @@ function DockEditor({
                 </div>
             </div>
             <p className="text-[10px] text-muted-foreground mb-3">
-                Activa o desactiva los iconos y reordénalos. Los items "Hermes" (Agente, Cerebro, Skills, Tools, Sentidos, MCPs) son opciones predeterminadas que puedes mostrar u ocultar.
+                Activa o desactiva los iconos y reordénalos. Agrúpalos en carpetas expandibles: en el dock, una carpeta se toca para desplegar sus accesos y se vuelve a plegar. Los items "Hermes" (Agente, Cerebro, Skills, Tools, Sentidos, MCPs) son opciones predeterminadas que puedes mostrar u ocultar.
             </p>
+
+            {/* ── Carpetas expandibles ── */}
+            <div className="mb-3 rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-2.5">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-foreground/70 flex items-center gap-1.5">
+                        <Folder className="w-3.5 h-3.5" /> Carpetas
+                    </span>
+                    <button
+                        onClick={onAddFolder}
+                        className="text-[10px] flex items-center gap-1 px-2 py-1 rounded-full border border-foreground/10 hover:bg-foreground/5"
+                    >
+                        <FolderPlus className="w-3 h-3" /> Nueva carpeta
+                    </button>
+                </div>
+                {folders.length === 0 ? (
+                    <p className="text-[10px] text-muted-foreground/70 px-1 py-1">
+                        Aún no tienes carpetas. Crea una y asigna accesos a ella desde la lista de abajo para agruparlos.
+                    </p>
+                ) : (
+                    <div className="space-y-2">
+                        {folders.map((f) => {
+                            const FIcon = ICON_MAP[f.iconKey] ?? Folder;
+                            const childLabels = f.itemIds
+                                .map((id) => items.find((it) => it.id === id)?.label)
+                                .filter(Boolean) as string[];
+                            return (
+                                <div key={f.id} className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-2">
+                                    <div className="flex items-center gap-2">
+                                        <FIcon className="w-4 h-4 shrink-0 text-foreground/70" />
+                                        <input
+                                            value={f.label}
+                                            onChange={(e) => onRenameFolder(f.id, e.target.value)}
+                                            className="flex-1 min-w-0 bg-transparent border-b border-foreground/15 focus:border-foreground/40 outline-none text-xs font-medium px-0.5 py-0.5"
+                                            placeholder="Nombre de la carpeta"
+                                        />
+                                        <span className="text-[9px] text-muted-foreground/60 tabular-nums">{childLabels.length}</span>
+                                        <button
+                                            onClick={() => onRemoveFolder(f.id)}
+                                            title="Eliminar carpeta (sus accesos vuelven al dock)"
+                                            className="p-1 hover:bg-rose-500/15 hover:text-rose-300 rounded"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                    {childLabels.length > 0 && (
+                                        <div className="mt-1.5 flex flex-wrap gap-1">
+                                            {childLabels.map((l, i) => (
+                                                <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-foreground/10 text-foreground/70">{l}</span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
             <div className="grid sm:grid-cols-2 gap-1.5 max-h-72 overflow-y-auto">
                 {items.map((it) => {
                     const Icon = ICON_MAP[it.iconKey] ?? FALLBACK_ICON;
+                    const inFolder = folderOfItem(it.id);
                     return (
                         <div
                             key={it.id}
@@ -316,7 +589,36 @@ function DockEditor({
                             )}
                         >
                             <Icon className="w-4 h-4 shrink-0" />
-                            <span className="flex-1 truncate font-medium">{it.label}</span>
+                            <span className="flex-1 truncate font-medium">
+                                {it.label}
+                                {inFolder && (
+                                    <span className="ml-1 inline-flex items-center gap-0.5 text-[8px] text-muted-foreground/70 align-middle">
+                                        <Folder className="w-2.5 h-2.5" />{inFolder.label}
+                                    </span>
+                                )}
+                            </span>
+                            {/* Asignar a carpeta (si hay carpetas). */}
+                            {folders.length > 0 && (
+                                <select
+                                    value={inFolder?.id ?? ''}
+                                    onChange={(e) => {
+                                        const target = e.target.value;
+                                        if (!target) {
+                                            // Quitar de su carpeta actual (si la hay).
+                                            if (inFolder) onToggleItemInFolder(inFolder.id, it.id);
+                                        } else {
+                                            onToggleItemInFolder(target, it.id);
+                                        }
+                                    }}
+                                    title="Asignar este acceso a una carpeta"
+                                    className="max-w-[84px] bg-foreground/5 border border-foreground/10 rounded px-1 py-0.5 text-[9px] text-foreground/80 outline-none"
+                                >
+                                    <option value="">Sin carpeta</option>
+                                    {folders.map((f) => (
+                                        <option key={f.id} value={f.id}>{f.label}</option>
+                                    ))}
+                                </select>
+                            )}
                             <button onClick={() => onMove(it.id, -1)} className="p-1 hover:bg-foreground/10 rounded">
                                 <ArrowLeft className="w-3 h-3" />
                             </button>

@@ -77,6 +77,11 @@ export function AuroraWidget() {
 
   const state = !supported ? "off" : speaking ? "speaking" : listening ? "listening" : "idle";
 
+  // ── Glow "estilo Café": halo cálido (solar/ámbar + lima) reactivo a la voz ──
+  // Pulsa/intensifica cuando Aurora habla o escucha; respiración suave en reposo.
+  // Aditivo y puramente visual: no altera el comportamiento de Aurora.
+  const active = state === "speaking" || state === "listening";
+
   // Controles de transporte de voz (reutilizados en el chat y en la pestaña Voz).
   const Transport = () => (
     <div className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-2 py-2">
@@ -123,6 +128,77 @@ export function AuroraWidget() {
 
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2 select-none">
+      {/* Estilos del glow "estilo Café" (warm solar/amber + lime). Inyectados
+          como <style> plano (clases/keyframes con prefijo único `aurora-*`),
+          aditivo y reversible; respeta prefers-reduced-motion. */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes aurora-breathe {
+          0%, 100% { opacity: 0.55; transform: scale(0.96); }
+          50%      { opacity: 0.9;  transform: scale(1.04); }
+        }
+        @keyframes aurora-breathe-strong {
+          0%, 100% { opacity: 0.85; transform: scale(1); }
+          50%      { opacity: 1;    transform: scale(1.12); }
+        }
+        @keyframes aurora-ripple {
+          0%   { opacity: 0.7; transform: scale(0.85); }
+          70%  { opacity: 0;   transform: scale(1.55); }
+          100% { opacity: 0;   transform: scale(1.55); }
+        }
+        .aurora-glow-halo {
+          z-index: 0;
+          /* Resplandor cálido solar/ámbar con un toque de lima. */
+          background:
+            radial-gradient(circle at 50% 50%,
+              rgba(250, 204, 21, 0.55) 0%,
+              rgba(245, 158, 11, 0.40) 35%,
+              rgba(132, 204, 22, 0.22) 60%,
+              transparent 72%);
+          filter: blur(7px);
+          will-change: transform, opacity;
+          animation: aurora-breathe 4.2s ease-in-out infinite;
+        }
+        .aurora-fab--active .aurora-glow-halo {
+          background:
+            radial-gradient(circle at 50% 50%,
+              rgba(253, 224, 71, 0.85) 0%,
+              rgba(251, 146, 60, 0.6) 30%,
+              rgba(163, 230, 53, 0.4) 58%,
+              transparent 74%);
+          filter: blur(10px);
+          animation: aurora-breathe-strong 1.5s ease-in-out infinite;
+        }
+        .aurora-glow-pulse {
+          z-index: 0;
+          background:
+            radial-gradient(circle at 50% 50%,
+              rgba(250, 204, 21, 0.5) 0%,
+              rgba(132, 204, 22, 0.28) 55%,
+              transparent 70%);
+          will-change: transform, opacity;
+          animation: aurora-ripple 1.5s ease-out infinite;
+        }
+        .aurora-fab--glow {
+          /* Resplandor cálido proyectado (sombra) que acompaña al halo. */
+          box-shadow:
+            0 0 18px rgba(245, 158, 11, 0.35),
+            0 8px 30px rgba(0, 0, 0, 0.45);
+          transition: box-shadow 320ms ease;
+        }
+        .aurora-fab--glow.aurora-fab--active {
+          box-shadow:
+            0 0 26px rgba(250, 204, 21, 0.6),
+            0 0 48px rgba(132, 204, 22, 0.35),
+            0 8px 34px rgba(0, 0, 0, 0.5);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .aurora-glow-halo,
+          .aurora-fab--active .aurora-glow-halo,
+          .aurora-glow-pulse {
+            animation: none;
+          }
+        }
+      ` }} />
       {open && (
         <div className="w-[22rem] max-w-[92vw] rounded-2xl border border-white/10 bg-zinc-950/95 backdrop-blur-xl shadow-2xl shadow-fuchsia-900/20 p-4 space-y-3">
           <div className="flex items-center gap-2">
@@ -406,15 +482,39 @@ export function AuroraWidget() {
               ? "Escuchando… (clic para parar) · mantén pulsado para el chat"
               : "Hablar con Aurora (clic) · mantén pulsado para el chat e historial"}
         aria-label="Aurora"
+        data-aurora-state={state}
         className={cn(
-          "relative h-14 w-14 rounded-full flex items-center justify-center shadow-xl transition-transform active:scale-95",
+          "aurora-fab relative h-14 w-14 rounded-full flex items-center justify-center shadow-xl transition-transform active:scale-95",
           "bg-gradient-to-tr from-fuchsia-600 to-cyan-500",
           !supported && "opacity-50 grayscale",
+          // Anillos finos existentes (acentos del OS) — se conservan.
           state === "listening" && "ring-4 ring-fuchsia-400/40",
           state === "speaking" && "ring-4 ring-cyan-400/40",
           actionStatus && "ring-4 ring-cyan-300/50",
+          // Glow cálido "estilo Café" siempre activo (respira en reposo,
+          // se intensifica al hablar/escuchar). Solo si hay soporte de voz.
+          supported && "aurora-fab--glow",
+          supported && active && "aurora-fab--active",
         )}
       >
+        {/* ── Halo cálido "estilo Café" (solar/ámbar + lima) ──
+            Capas puramente decorativas (z bajo, sin punteros): un resplandor
+            base que respira y, al hablar/escuchar, una onda expansiva. */}
+        {supported && (
+          <>
+            <span
+              aria-hidden
+              className="aurora-glow-halo pointer-events-none absolute -inset-2 rounded-full"
+            />
+            {active && (
+              <span
+                aria-hidden
+                className="aurora-glow-pulse pointer-events-none absolute -inset-1 rounded-full"
+              />
+            )}
+          </>
+        )}
+        {/* Onda original del OS (se conserva bajo el halo cálido). */}
         {(state === "listening" || state === "speaking") && (
           <span className={cn(
             "absolute inset-0 rounded-full animate-ping",
