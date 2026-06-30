@@ -27,6 +27,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
+import { onTableChange, type RealtimePayload } from "@/lib/realtime/realtime";
 
 // ── Perfil unificado (subconjunto tolerante de cafe_profiles/profiles) ──
 export interface AccountProfile {
@@ -134,6 +135,71 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             sub.subscription.unsubscribe();
         };
     }, [supabase]);
+
+    // ── Realtime: propaga cambios de perfil EN VIVO a toda la UI ──────────────
+    // Suscripción aditiva y defensiva: NO toca la carga inicial de arriba. Cuando
+    // la fila de perfil del usuario cambia (UPDATE) en Supabase, fusionamos los
+    // campos nuevos en el estado `profile` en memoria, de modo que el chip de
+    // cuenta, el menú de usuario, la página de perfil y cualquier consumidor de
+    // useAccount() se actualicen sin recargar. Reutilizamos la primitiva común
+    // `onTableChange` (SSR-safe, envuelta en try/catch; no-op si realtime falla).
+    //
+    // Esquema tolerante: distintas áreas escriben `profiles` filtrando por
+    // `user_id` (cuenta/ajustes) mientras que la carga aquí también prueba `id`.
+    // Nos suscribimos a AMBOS filtros y, además, a `cafe_profiles` (tabla que
+    // loadProfile intenta primero), para captar el cambio venga de donde venga.
+    const userId = user?.id ?? null;
+    useEffect(() => {
+        if (typeof window === "undefined" || !userId) return;
+
+        // Fusiona en memoria la fila nueva del payload sobre el perfil actual.
+        const mergeProfileRow = (payload: RealtimePayload<AccountProfile>) => {
+            const next = payload?.new;
+            if (!next || typeof next !== "object") return;
+            setProfile((prev) => ({ ...(prev ?? {}), ...(next as AccountProfile) }));
+        };
+
+        // Limpiadores de cada suscripción (best-effort, tolerantes a fallos).
+        const unsubs: Array<() => void> = [];
+        try {
+            // profiles filtrada por user_id (patrón de escritura cuenta/ajustes)
+            unsubs.push(
+                onTableChange<AccountProfile>(
+                    "profiles",
+                    { event: "UPDATE", filter: `user_id=eq.${userId}` },
+                    mergeProfileRow,
+                ),
+            );
+            // profiles filtrada por id (patrón típico de la tabla profiles)
+            unsubs.push(
+                onTableChange<AccountProfile>(
+                    "profiles",
+                    { event: "UPDATE", filter: `id=eq.${userId}` },
+                    mergeProfileRow,
+                ),
+            );
+            // cafe_profiles filtrada por user_id (tabla preferente del ecosistema)
+            unsubs.push(
+                onTableChange<AccountProfile>(
+                    "cafe_profiles",
+                    { event: "UPDATE", filter: `user_id=eq.${userId}` },
+                    mergeProfileRow,
+                ),
+            );
+        } catch {
+            // Si algo falla al suscribir, degradamos a comportamiento previo.
+        }
+
+        return () => {
+            for (const unsub of unsubs) {
+                try {
+                    unsub();
+                } catch {
+                    /* limpieza best-effort */
+                }
+            }
+        };
+    }, [userId]);
 
     const signOut = async () => {
         try {
