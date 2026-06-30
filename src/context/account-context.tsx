@@ -28,6 +28,7 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
 import { onTableChange, type RealtimePayload } from "@/lib/realtime/realtime";
+import { ensureDefaultBrain } from "@/lib/brains/brains";
 
 // ── Perfil unificado (subconjunto tolerante de cafe_profiles/profiles) ──
 export interface AccountProfile {
@@ -104,6 +105,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                 } catch {
                     if (active) setProfile(null);
                 }
+                // Auto-crea un Cerebro StarSeed por defecto si el usuario no tiene
+                // ninguno. NO bloquea el login: fire-and-forget, idempotente y
+                // tolerante a fallos (ensureDefaultBrain ya envuelve todo en
+                // try/catch y es no-op si ya existe un cerebro o si falla).
+                void ensureDefaultBrain().catch(() => {
+                    /* nunca bloquea ni rompe el alta/login */
+                });
             } else if (active) {
                 setProfile(null);
             }

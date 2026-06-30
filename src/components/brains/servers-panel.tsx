@@ -1007,8 +1007,9 @@ export default function ServersPanel() {
           para Ollama/ComfyUI locales) y enlázalo a tus cerebros.
         </p>
       </div>
-      {/* Catálogo de código abierto: almacenamiento + runtimes para cerebros */}
+      {/* Catálogo de código abierto: despliegue + almacenamiento + runtimes para cerebros */}
       <div className="mt-4 space-y-4">
+        <OssLibraryBrowser category="devops" />
         <OssLibraryBrowser category="storage" />
         <OssLibraryBrowser category="runtime" />
       </div>

@@ -179,9 +179,11 @@ export function VaultsPanel() {
           })}
         </div>
       )}
-      {/* Catálogo de código abierto: bases vectoriales / memoria */}
-      <div className="mt-4">
+      {/* Catálogo de código abierto: memoria/vectores + almacenamiento + backend/BaaS */}
+      <div className="mt-4 space-y-4">
         <OssLibraryBrowser category="vector-memory" />
+        <OssLibraryBrowser category="storage" />
+        <OssLibraryBrowser category="backend" />
       </div>
     </div>
   );

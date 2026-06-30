@@ -14,6 +14,8 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { OSS_LIBRARY, type OssCategory } from "@/lib/oss-library";
+import { withDefaultBrainSkills } from "@/lib/brain-skills/default-skills";
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                               */
@@ -801,4 +803,177 @@ export function brainFromTemplate(t: BrainTemplate): Partial<Brain> {
       notes: s.notes,
     })),
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Configuración por defecto StarSeed (catálogo OSS + orígenes)         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Orígenes posibles para servidores y almacenamiento de un cerebro. Por defecto
+ * se usa StarSeed (gestionado por la red); también puede ser local (este equipo)
+ * o externo (endpoint/config propios). Convención compartida por los selectores
+ * de la UI y por la siembra de cerebros por defecto.
+ */
+export type BrainSourceOrigin = "local" | "starseed" | "external";
+
+/**
+ * Devuelve los ids de opciones del catálogo OSS marcadas como
+ * `defaultIntegrated` (las que el sistema habilita por defecto) para una
+ * categoría. Lectura pura sobre `OSS_LIBRARY`; nunca lanza.
+ */
+export function getDefaultIntegratedIds(category: OssCategory): string[] {
+  try {
+    return OSS_LIBRARY.filter((o) => o.category === category && o.defaultIntegrated === true).map(
+      (o) => o.id,
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Forma de la selección por cerebro que persiste la UI del editor en las claves
+ * `starseed.brain.<id>.{apps,runtimes,servers,storage}`. `source` sólo aplica a
+ * servers/storage (local/StarSeed/externo). Compatible hacia atrás: cualquier
+ * campo ausente se trata como vacío / valor por defecto.
+ */
+export interface BrainOssSelection {
+  /** Ids del catálogo OSS activados (por categoría agrupada). */
+  ids: string[];
+  /** Origen del recurso (sólo servers/storage). */
+  source?: BrainSourceOrigin;
+  /** Endpoint/config para origen externo (sólo servers/storage). */
+  endpoint?: string;
+}
+
+/** Claves localStorage por cerebro para las nuevas secciones del catálogo. */
+export function brainAppsKey(brainId: string): string {
+  return `starseed.brain.${brainId}.apps`;
+}
+export function brainRuntimesKey(brainId: string): string {
+  return `starseed.brain.${brainId}.runtimes`;
+}
+export function brainServersCfgKey(brainId: string): string {
+  return `starseed.brain.${brainId}.servers`;
+}
+export function brainStorageKey(brainId: string): string {
+  return `starseed.brain.${brainId}.storage`;
+}
+/** Clave por cerebro con los ids de skills instaladas (vista previa local). */
+export function brainSkillsKey(brainId: string): string {
+  return `starseed.brain.${brainId}.skills`;
+}
+
+/**
+ * Construye la configuración StarSeed POR DEFECTO de un cerebro: opciones nativas
+ * de StarSeed preseleccionadas y todas las opciones `defaultIntegrated` del
+ * catálogo activadas. Servidor y almacenamiento usan el origen StarSeed.
+ *
+ * - apps:     `moa` + `agent-framework` + `app-platform` + `automation`
+ * - runtimes: `runtime`
+ * - servers:  `devops` (origen StarSeed)
+ * - storage:  `storage` + `backend` (origen StarSeed)
+ */
+export function defaultBrainSelections(): {
+  apps: BrainOssSelection;
+  runtimes: BrainOssSelection;
+  servers: BrainOssSelection;
+  storage: BrainOssSelection;
+} {
+  const dedup = (xs: string[]) => Array.from(new Set(xs));
+  return {
+    apps: {
+      ids: dedup([
+        ...getDefaultIntegratedIds("moa"),
+        ...getDefaultIntegratedIds("agent-framework"),
+        ...getDefaultIntegratedIds("app-platform"),
+        ...getDefaultIntegratedIds("automation"),
+      ]),
+    },
+    runtimes: { ids: dedup([...getDefaultIntegratedIds("runtime")]) },
+    servers: { ids: dedup([...getDefaultIntegratedIds("devops")]), source: "starseed" },
+    storage: {
+      ids: dedup([...getDefaultIntegratedIds("storage"), ...getDefaultIntegratedIds("backend")]),
+      source: "starseed",
+    },
+  };
+}
+
+/**
+ * Siembra (sólo si faltan) las claves localStorage por cerebro con la config
+ * StarSeed por defecto + las skills por defecto. Defensiva y NO destructiva:
+ * nunca sobrescribe una clave ya existente, va con guardas `typeof window` y
+ * try/catch, y nunca lanza. Útil al crear un cerebro nuevo.
+ */
+export function seedBrainDefaults(brainId: string): void {
+  if (typeof window === "undefined" || !brainId) return;
+  const setIfAbsent = (key: string, value: unknown) => {
+    try {
+      if (window.localStorage.getItem(key) == null) {
+        window.localStorage.setItem(key, JSON.stringify(value));
+      }
+    } catch {
+      /* cuota / modo privado: degradamos en silencio */
+    }
+  };
+  try {
+    const sel = defaultBrainSelections();
+    setIfAbsent(brainAppsKey(brainId), sel.apps);
+    setIfAbsent(brainRuntimesKey(brainId), sel.runtimes);
+    setIfAbsent(brainServersCfgKey(brainId), sel.servers);
+    setIfAbsent(brainStorageKey(brainId), sel.storage);
+    // Skills por defecto (incluye "starseed-auto-update").
+    setIfAbsent(brainSkillsKey(brainId), withDefaultBrainSkills([]));
+  } catch {
+    /* no-op defensivo */
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Cerebro StarSeed por defecto (auto-creación en alta de cuenta)       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Crea de forma DEFENSIVA un cerebro StarSeed por defecto si el usuario aún no
+ * tiene ninguno. No bloquea el login: cualquier fallo se traga (try/catch),
+ * es no-op si ya existe algún cerebro o si no hay sesión, y siembra las claves
+ * localStorage por defecto (selecciones del catálogo + skills) para el cerebro
+ * recién creado. Devuelve el cerebro creado, el primero existente, o null.
+ */
+export async function ensureDefaultBrain(): Promise<Brain | null> {
+  try {
+    const owner = await uid();
+    if (!owner) return null;
+    const existing = await listBrains();
+    if (existing.length > 0) {
+      // Ya tiene cerebros: no creamos nada (idempotente).
+      return existing[0] ?? null;
+    }
+    // El servidor StarSeed gestionado como ancla del cerebro por defecto.
+    const starseedServer: BrainServer = {
+      id: newServerId(),
+      kind: "starseed",
+      name: serverKindById("starseed")?.label || "Servidor StarSeed",
+      status: "pendiente",
+    };
+    const created = await saveBrain({
+      name: "Cerebro StarSeed",
+      scope: "account",
+      scope_ref: null,
+      description:
+        "Cerebro por defecto de StarSeed: empaqueta tu contexto de cuenta con los servicios nativos de la red y el catálogo integrado por defecto.",
+      config: { template: "starseed-default", starseedDefault: true },
+      includes: { ...emptyIncludes(), bindScope: true },
+      servers: [starseedServer],
+    });
+    if (created?.id) {
+      // Siembra selecciones por defecto + skills (incl. starseed-auto-update).
+      seedBrainDefaults(created.id);
+    }
+    return created;
+  } catch {
+    // Nunca bloquea el alta/login.
+    return null;
+  }
 }

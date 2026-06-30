@@ -55,6 +55,11 @@ import {
   Bot,
   GitBranch,
   Workflow,
+  Rocket,
+  HardDrive,
+  Database,
+  Laptop,
+  Globe2,
 } from "lucide-react";
 import {
   SERVER_KINDS,
@@ -74,12 +79,19 @@ import {
   loadBrainCatalog,
   brainFromTemplate,
   BRAIN_TEMPLATES,
+  brainAppsKey,
+  brainRuntimesKey,
+  brainServersCfgKey,
+  brainStorageKey,
+  defaultBrainSelections,
   type Brain,
   type BrainServer,
   type BrainIncludes,
   type BrainCatalog,
   type BrainPermission,
   type BrainSelection,
+  type BrainOssSelection,
+  type BrainSourceOrigin,
   type NamedRef,
 } from "@/lib/brains/brains";
 import {
@@ -105,8 +117,9 @@ import {
 } from "@/lib/brains/adapters";
 import { useRealtime } from "@/lib/realtime/realtime";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
+import AutoUpdatePanel from "@/components/brains/auto-update-panel";
 import type { MoaMode } from "@/components/settings/ai/mixture-of-agents-panel";
-import { findOption } from "@/lib/oss-library";
+import { findOption, type OssCategory } from "@/lib/oss-library";
 
 const BOT_BASE = "https://starseed-neurocortex.vercel.app";
 
@@ -1194,11 +1207,17 @@ function BrainEditor(props: {
       {/* Sistema multi-agente (este cerebro) */}
       <BrainMoaSection brainId={draft.id} isNew={isNew} />
 
+      {/* Catálogo OSS por cerebro: AGENTS/Apps, Runtimes, Servidores, Almacenamiento */}
+      <BrainOssCatalogSection brainId={draft.id} isNew={isNew} />
+
       {/* Canales (este cerebro) */}
       <BrainChannelsSection brainId={draft.id} isNew={isNew} />
 
       {/* Memorias (este cerebro) */}
       <BrainMemoriesSection brainId={draft.id} isNew={isNew} />
+
+      {/* Auto-actualización + Recomendaciones (skill por defecto del cerebro) */}
+      <AutoUpdatePanel brainId={draft.id} isNew={isNew} />
 
       {/* Permisos */}
       <div className="rounded-lg border border-white/10 bg-black/20 p-2">
@@ -1642,6 +1661,290 @@ function BrainMoaSection({ brainId, isNew }: { brainId: string; isNew: boolean }
       <p className="text-[10px] text-white/40">
         Los <strong className="text-white/55">canales</strong> y las{" "}
         <strong className="text-white/55">memorias</strong> también pueden configurarse por cerebro (heredan lo global por defecto).
+      </p>
+    </div>
+  );
+}
+
+/* ====================================================================== */
+/* Catálogo OSS por cerebro: Apps, Runtimes, Servidores, Almacenamiento     */
+/* ====================================================================== */
+
+/**
+ * Secciones por cerebro que exponen el catálogo OSS ampliado y persisten la
+ * selección en localStorage con la convención `starseed.brain.<id>.{apps,
+ * runtimes,servers,storage}`. Por defecto (sin config guardada) muestra activas
+ * las opciones nativas de StarSeed + las `defaultIntegrated`, con origen
+ * StarSeed en servidores y almacenamiento.
+ *
+ * - apps:     `moa` · `agent-framework` · `app-platform` · `automation`
+ * - runtimes: `runtime`
+ * - servers:  `devops` (+ origen Local/StarSeed/Externo)
+ * - storage:  `storage` · `backend` (+ origen Local/StarSeed/Externo)
+ *
+ * Aditiva y defensiva: SSR-guard, try/catch, no rompe la carga/guardado del
+ * cerebro. Compatible hacia atrás (claves nuevas, valores por defecto seguros).
+ */
+type OssSlot = "apps" | "runtimes" | "servers" | "storage";
+
+function ossSlotKey(slot: OssSlot, brainId: string): string {
+  switch (slot) {
+    case "apps":
+      return brainAppsKey(brainId);
+    case "runtimes":
+      return brainRuntimesKey(brainId);
+    case "servers":
+      return brainServersCfgKey(brainId);
+    case "storage":
+      return brainStorageKey(brainId);
+  }
+}
+
+/** Categorías OSS que alimentan cada hueco (slot). */
+const OSS_SLOT_CATEGORIES: Record<OssSlot, OssCategory[]> = {
+  apps: ["moa", "agent-framework", "app-platform", "automation"],
+  runtimes: ["runtime"],
+  servers: ["devops"],
+  storage: ["storage", "backend"],
+};
+
+/** Default seguro para un slot (lo que se muestra activo si no hay config). */
+function defaultSlotSelection(slot: OssSlot): BrainOssSelection {
+  const d = defaultBrainSelections();
+  return d[slot];
+}
+
+function loadOssSlot(slot: OssSlot, brainId: string): BrainOssSelection {
+  const fallback = defaultSlotSelection(slot);
+  if (typeof window === "undefined" || !brainId) return fallback;
+  try {
+    const raw = window.localStorage.getItem(ossSlotKey(slot, brainId));
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as Partial<BrainOssSelection>;
+    return {
+      ids: Array.isArray(parsed.ids) ? parsed.ids.filter((x): x is string => typeof x === "string") : [],
+      source: (parsed.source as BrainSourceOrigin) ?? fallback.source,
+      endpoint: typeof parsed.endpoint === "string" ? parsed.endpoint : undefined,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function saveOssSlot(slot: OssSlot, brainId: string, sel: BrainOssSelection) {
+  if (typeof window === "undefined" || !brainId) return;
+  try {
+    window.localStorage.setItem(ossSlotKey(slot, brainId), JSON.stringify(sel));
+  } catch {
+    /* noop */
+  }
+}
+
+const SOURCE_OPTIONS: { id: BrainSourceOrigin; label: string; icon: typeof Laptop }[] = [
+  { id: "local", label: "Local", icon: Laptop },
+  { id: "starseed", label: "StarSeed", icon: Sparkles },
+  { id: "external", label: "Externo", icon: Globe2 },
+];
+
+function BrainOssCatalogSection({ brainId, isNew }: { brainId: string; isNew: boolean }) {
+  const [apps, setApps] = useState<BrainOssSelection>(() => defaultSlotSelection("apps"));
+  const [runtimes, setRuntimes] = useState<BrainOssSelection>(() => defaultSlotSelection("runtimes"));
+  const [servers, setServers] = useState<BrainOssSelection>(() => defaultSlotSelection("servers"));
+  const [storage, setStorage] = useState<BrainOssSelection>(() => defaultSlotSelection("storage"));
+
+  useEffect(() => {
+    setApps(loadOssSlot("apps", brainId));
+    setRuntimes(loadOssSlot("runtimes", brainId));
+    setServers(loadOssSlot("servers", brainId));
+    setStorage(loadOssSlot("storage", brainId));
+  }, [brainId]);
+
+  const setters: Record<OssSlot, (s: BrainOssSelection) => void> = {
+    apps: setApps,
+    runtimes: setRuntimes,
+    servers: setServers,
+    storage: setStorage,
+  };
+  const values: Record<OssSlot, BrainOssSelection> = { apps, runtimes, servers, storage };
+
+  function toggleId(slot: OssSlot, id: string) {
+    const cur = values[slot];
+    const has = cur.ids.includes(id);
+    const next: BrainOssSelection = {
+      ...cur,
+      ids: has ? cur.ids.filter((x) => x !== id) : [...cur.ids, id],
+    };
+    setters[slot](next);
+    saveOssSlot(slot, brainId, next);
+  }
+
+  function setSource(slot: OssSlot, source: BrainSourceOrigin) {
+    const next: BrainOssSelection = { ...values[slot], source };
+    setters[slot](next);
+    saveOssSlot(slot, brainId, next);
+  }
+
+  function setEndpoint(slot: OssSlot, endpoint: string) {
+    const next: BrainOssSelection = { ...values[slot], endpoint };
+    setters[slot](next);
+    saveOssSlot(slot, brainId, next);
+  }
+
+  /** Restaura un slot a la configuración StarSeed por defecto. */
+  function resetSlot(slot: OssSlot) {
+    const def = defaultSlotSelection(slot);
+    setters[slot](def);
+    saveOssSlot(slot, brainId, def);
+    toast.success("Restaurado a los valores StarSeed por defecto.");
+  }
+
+  // Render de un grupo de categorías como navegadores OSS, persistiendo en el slot.
+  const renderBrowsers = (slot: OssSlot) =>
+    OSS_SLOT_CATEGORIES[slot].map((cat) => (
+      <OssLibraryBrowser
+        key={cat}
+        category={cat}
+        initial={4}
+        addedIds={values[slot].ids}
+        onAdd={(o) => {
+          toggleId(slot, o.id);
+        }}
+      />
+    ));
+
+  // Selector de origen Local/StarSeed/Externo (sólo servers + storage).
+  const renderSource = (slot: OssSlot) => {
+    const cur = values[slot];
+    return (
+      <div className="space-y-1.5 rounded-lg border border-white/10 bg-black/20 p-2">
+        <span className="flex items-center gap-1.5 text-[11px] text-white/55">
+          <Server className="h-3.5 w-3.5 text-cyan-300" /> Origen
+          <span className="ml-auto text-[10px] text-white/35">
+            {SOURCE_OPTIONS.find((s) => s.id === (cur.source ?? "starseed"))?.label}
+          </span>
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          {SOURCE_OPTIONS.map((s) => {
+            const active = (cur.source ?? "starseed") === s.id;
+            const Icon = s.icon;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setSource(slot, s.id)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition",
+                  active
+                    ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-100"
+                    : "border-white/10 text-white/50 hover:text-white/80",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" /> {s.label}
+              </button>
+            );
+          })}
+        </div>
+        {cur.source === "local" && (
+          <p className="text-[10px] text-white/35">
+            Local: este equipo aloja el recurso (se contacta directo desde el navegador).
+          </p>
+        )}
+        {cur.source === "starseed" && (
+          <p className="text-[10px] text-emerald-200/60">
+            StarSeed (por defecto): gestionado por la red. Tus datos, tu soberanía.
+          </p>
+        )}
+        {cur.source === "external" && (
+          <Input
+            value={cur.endpoint ?? ""}
+            onChange={(e) => setEndpoint(slot, e.target.value)}
+            placeholder="Endpoint / config externa (p.ej. https://mi-servidor:puerto)"
+            className="h-8 border-white/15 bg-black/30 text-white placeholder:text-white/30"
+          />
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4 rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-3">
+      <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-widest text-cyan-300/60">
+        <Rocket className="h-3.5 w-3.5" /> Catálogo OSS (este cerebro)
+        <Badge variant="outline" className="border-emerald-400/30 text-[9px] normal-case text-emerald-200">
+          StarSeed por defecto
+        </Badge>
+      </div>
+      <p className="text-[10px] text-white/40">
+        Elige apps, runtimes, servidores y almacenamiento del catálogo de código abierto. Sin configuración guardada se
+        muestran activas las opciones nativas de StarSeed e integradas por defecto. Se guarda por cerebro.
+      </p>
+      {isNew && (
+        <p className="text-[10px] text-amber-300/70">
+          Guarda el cerebro para conservar estas selecciones de catálogo.
+        </p>
+      )}
+
+      {/* AGENTS / Apps */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 text-[11px] text-white/65">
+          <Bot className="h-3.5 w-3.5 text-cyan-300" /> AGENTS / Apps
+          <Badge variant="outline" className="ml-auto border-white/15 text-[9px] text-white/45">
+            {apps.ids.length} activas
+          </Badge>
+          <button onClick={() => resetSlot("apps")} className="text-[10px] text-cyan-300/70 hover:text-cyan-200">
+            por defecto
+          </button>
+        </div>
+        {renderBrowsers("apps")}
+      </div>
+
+      {/* Runtimes */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 text-[11px] text-white/65">
+          <Cpu className="h-3.5 w-3.5 text-cyan-300" /> Runtimes
+          <Badge variant="outline" className="ml-auto border-white/15 text-[9px] text-white/45">
+            {runtimes.ids.length} activos
+          </Badge>
+          <button onClick={() => resetSlot("runtimes")} className="text-[10px] text-cyan-300/70 hover:text-cyan-200">
+            por defecto
+          </button>
+        </div>
+        {renderBrowsers("runtimes")}
+      </div>
+
+      {/* Servidores / Despliegue */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 text-[11px] text-white/65">
+          <HardDrive className="h-3.5 w-3.5 text-cyan-300" /> Servidores / Despliegue
+          <Badge variant="outline" className="ml-auto border-white/15 text-[9px] text-white/45">
+            {servers.ids.length} activos
+          </Badge>
+          <button onClick={() => resetSlot("servers")} className="text-[10px] text-cyan-300/70 hover:text-cyan-200">
+            por defecto
+          </button>
+        </div>
+        {renderSource("servers")}
+        {renderBrowsers("servers")}
+      </div>
+
+      {/* Almacenamiento */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 text-[11px] text-white/65">
+          <Database className="h-3.5 w-3.5 text-cyan-300" /> Almacenamiento
+          <Badge variant="outline" className="ml-auto border-white/15 text-[9px] text-white/45">
+            {storage.ids.length} activos
+          </Badge>
+          <button onClick={() => resetSlot("storage")} className="text-[10px] text-cyan-300/70 hover:text-cyan-200">
+            por defecto
+          </button>
+        </div>
+        {renderSource("storage")}
+        {renderBrowsers("storage")}
+      </div>
+
+      {/* Memorias: se gestionan en su propia sección (vector-memory) */}
+      <p className="text-[10px] text-white/40">
+        Las <strong className="text-white/55">memorias / vectores</strong> se configuran en la sección «Memorias» de
+        abajo (heredan lo global por defecto).
       </p>
     </div>
   );

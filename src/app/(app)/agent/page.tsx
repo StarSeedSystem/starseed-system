@@ -37,6 +37,7 @@ import {
   Zap,
   Wrench,
   BookOpen,
+  BookMarked,
   CheckCircle2,
   Database,
   Vote,
@@ -68,6 +69,7 @@ import GovNotifications from "@/components/governance/notifications-panel";
 import MyActivity from "@/components/decisions/my-activity";
 import { ChatConnectionsPanel } from "@/components/messaging/chat-connections-panel";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
+import { LibrarySourcesPanel } from "@/components/library/library-sources-panel";
 
 import { chat, chatSmart } from "@/ai/client/chat";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
@@ -159,6 +161,7 @@ function AgentPageInner() {
   const initialTab =
     tabParam === 'skills' ? 'skills' :
     tabParam === 'tools' ? 'tools' :
+    tabParam === 'fuentes' ? 'fuentes' :
     tabParam === 'mcp' ? 'mcp' :
     tabParam === 'senses' ? 'senses' :
     tabParam === 'foundry' ? 'foundry' :
@@ -372,6 +375,7 @@ function AgentPageInner() {
           <TabsTrigger value="workflows" className="gap-2"><Workflow className="w-4 h-4" /> Workflows</TabsTrigger>
           <TabsTrigger value="skills" className="gap-2"><BookOpen className="w-4 h-4" /> Skills</TabsTrigger>
           <TabsTrigger value="tools" className="gap-2"><Wrench className="w-4 h-4" /> Tools</TabsTrigger>
+          <TabsTrigger value="fuentes" className="gap-2"><BookMarked className="w-4 h-4" /> Fuentes</TabsTrigger>
           <TabsTrigger value="mcp" className="gap-2"><Server className="w-4 h-4" /> MCPs</TabsTrigger>
           <TabsTrigger value="senses" className="gap-2"><Eye className="w-4 h-4" /> Sentidos</TabsTrigger>
           <TabsTrigger value="batch" className="gap-2"><Layers className="w-4 h-4" /> Batch</TabsTrigger>
@@ -819,6 +823,25 @@ function AgentPageInner() {
             </CardHeader>
             <CardContent>
               <OssLibraryBrowser category="plugin-standard" />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* --- TAB: FUENTES / LIBRERÍA --- */}
+        <TabsContent value="fuentes" className="flex-1 min-h-0 overflow-y-auto space-y-4">
+          <Card className="border-white/10 bg-black/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BookMarked className="w-4 h-4 text-cyan-400" /> Fuentes de la Librería
+              </CardTitle>
+              <CardDescription>
+                Gestiona los orígenes de la librería (código, componentes, diseño, MCP, modelos, apps…): actívalos,
+                instálalos en un cerebro con permisos, comparte enlaces de instalación y actualiza skills desde sus
+                repos originales.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <LibrarySourcesPanel />
             </CardContent>
           </Card>
         </TabsContent>
