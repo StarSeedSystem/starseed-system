@@ -122,7 +122,11 @@ export function WidgetShell({
     const w = config.widgets;
     const { ref, size } = useElementSize<HTMLDivElement>();
 
-    const accentColor = accent ?? "hsl(var(--primary))";
+    // Acento efectivo: si el widget pasa uno explícito, manda; si no, hereda el
+    // acento por FUNCIÓN que el registro inyecta como --w-fn-accent (y, en último
+    // término, el primary del tema). Así el look "habla por la función" sin que
+    // cada widget tenga que declararlo, y sin romper los que sí lo declaran.
+    const accentColor = accent ?? "var(--w-fn-accent, hsl(var(--primary)))";
     // Modo de diseño efectivo: prop del widget > global > "theme".
     const effectiveMode: "theme" | "original" = designMode ?? w.designMode ?? "theme";
     const isOriginal = effectiveMode === "original";

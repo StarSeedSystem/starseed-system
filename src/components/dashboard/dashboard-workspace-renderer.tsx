@@ -9,7 +9,7 @@ import { DashboardPanelHeader } from "./dashboard-panel-header";
 import { GridArea } from "./grid-area";
 import { AddWidgetDialog } from "./add-widget-dialog";
 import { DashboardAiSuggestions } from "./dashboard-ai-suggestions";
-import { DashboardWidget, WidgetType } from "./dashboard-types";
+import { DashboardWidget, WidgetType, DeviceType } from "./dashboard-types";
 import { cn } from "@/lib/utils";
 import { 
     DropdownMenu, 
@@ -32,6 +32,12 @@ interface WorkspaceRendererProps {
     onDeleteDashboard?: (id: string) => void;
     onRenameDashboard?: (id: string) => void;
     onCreateFromTemplate?: (categoryId: string, name: string) => void;
+    /** Tipo de dispositivo actual (resalta tableros afines en la barra). */
+    currentDevice?: DeviceType;
+    /** Etiqueta un tablero por tipo de dispositivo (agrupación por dispositivo). */
+    onSetDeviceTags?: (id: string, tags: DeviceType[]) => void;
+    /** Abre el gestor de dispositivos y sincronización. */
+    onOpenDeviceManager?: () => void;
 }
 
 export function DashboardWorkspaceRenderer(props: WorkspaceRendererProps) {
@@ -105,7 +111,7 @@ function NodeRenderer({ node, ...props }: { node: WorkspaceNode } & WorkspaceRen
     return null;
 }
 
-function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, onPinWidget, onAddWidget, onForgeOpen, onCreateDashboard, onDeleteDashboard, onRenameDashboard, onCreateFromTemplate }: { node: PanelNode } & WorkspaceRendererProps) {
+function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, onPinWidget, onAddWidget, onForgeOpen, onCreateDashboard, onDeleteDashboard, onRenameDashboard, onCreateFromTemplate, currentDevice, onSetDeviceTags, onOpenDeviceManager }: { node: PanelNode } & WorkspaceRendererProps) {
     const { activeDashboardId, dashboardIds } = node;
     const activeDashboard = dashboards.find(d => d.id === activeDashboardId);
     const panelDashboards = dashboards.filter(d => dashboardIds.includes(d.id));
@@ -202,9 +208,12 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
                     widgetCounts={Object.fromEntries(
                         panelDashboards.map((d) => [d.id, (widgetsMap[d.id] || []).length])
                     )}
+                    currentDevice={currentDevice}
                     onCreateDashboard={onCreateDashboard}
                     onDeleteDashboard={onDeleteDashboard}
                     onRenameDashboard={onRenameDashboard}
+                    onSetDeviceTags={onSetDeviceTags}
+                    onOpenDeviceManager={onOpenDeviceManager}
                 />
             </div>
             {/* Zona-pista para revelar la barra cuando está oculta (hover/tap arriba) */}

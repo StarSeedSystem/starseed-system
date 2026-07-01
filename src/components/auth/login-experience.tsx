@@ -40,11 +40,17 @@ export function LoginExperience() {
       {/* Bienvenida/especificaciones ANTES del acceso (solo sin sesión). */}
       <WelcomeGate />
 
-      {/* Columna compacta y centrada (máx. ~380px, estilo Café). */}
+      {/* Columna compacta y centrada (máx. ~380px, estilo Café). En pantallas
+          cortas hace SCROLL INTERNO (max-height ligada a 100dvh) para no cortar
+          el logo/formulario por arriba ni por abajo. */}
       <div
+        className="ss-login-col"
         style={{
           width: "100%",
           maxWidth: 380,
+          maxHeight: "100dvh",
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",

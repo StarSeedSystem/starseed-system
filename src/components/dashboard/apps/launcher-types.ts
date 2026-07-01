@@ -62,6 +62,21 @@ export type LauncherVariant = "folder" | "single";
 export type LauncherDensity = "comfortable" | "compact";
 export type LauncherCollection = "starseed" | "sistema" | "media" | "custom";
 
+/**
+ * Grupo de apps dentro de una carpeta (categorización). Cada grupo referencia
+ * apps por id (Lienzo Universal: no copia, referencia). Permite organizar una
+ * carpeta grande en secciones plegables ("Comunicación", "Media", "Sistema"…).
+ */
+export interface LauncherGroup {
+    id: string;
+    label: string;
+    appIds: string[];
+    /** Acento opcional del grupo (token CSS o hex). */
+    accent?: string;
+    /** Estado plegado del grupo (persistente). */
+    collapsed?: boolean;
+}
+
 /** Estado persistido de una instancia de launcher (en DashboardWidget.settings). */
 export interface AppLauncherSettings {
     variant: LauncherVariant;
@@ -77,6 +92,23 @@ export interface AppLauncherSettings {
     showLabels?: boolean;
     /** Anula open.primary de cada app (modo de apertura global de la carpeta). */
     defaultOpen?: OpenMode;
+    // ── Carpeta compacta + expandible (pantalla de inicio tipo móvil/tablet) ──
+    /**
+     * Carpeta COMPACTA: rejilla densa de iconos (4–8 por hilera según ancho),
+     * pensada para ocupar poco y agrupar apps como en un teléfono. Por defecto
+     * true cuando la variante es 'folder' (una carpeta clásica del OS). Se puede
+     * desactivar para volver a la rejilla amplia con etiquetas grandes.
+     */
+    compactFolder?: boolean;
+    /** Estado expandido/plegado de la carpeta (persistente). Default: false. */
+    expanded?: boolean;
+    /**
+     * Grupos/categorías de apps dentro de la carpeta. Si hay grupos, la carpeta
+     * los muestra como secciones plegables (las apps sin grupo van a "General").
+     */
+    groups?: LauncherGroup[];
+    /** Mostrar la carpeta agrupada por categorías (usa `groups`). Default: false. */
+    grouped?: boolean;
 }
 
 export const DEFAULT_LAUNCHER_SETTINGS: AppLauncherSettings = {
@@ -89,7 +121,28 @@ export const DEFAULT_LAUNCHER_SETTINGS: AppLauncherSettings = {
     iconStyle: "glass",
     density: "comfortable",
     showLabels: true,
+    // Por defecto una carpeta es compacta y plegada (como en un teléfono): ocupa
+    // poco espacio y se expande al tocarla. Aditivo — instancias existentes sin
+    // estos campos heredan estos valores.
+    compactFolder: true,
+    expanded: false,
+    grouped: false,
+    groups: [],
 };
+
+/**
+ * Número de columnas para una carpeta COMPACTA según el ancho disponible (px).
+ * Objetivo del OS adaptativo: 4–8 iconos por hilera (móvil → escritorio), sin
+ * desperdiciar espacio ni recortar. Se usa cuando `columns` es 0 (auto).
+ */
+export function compactFolderColumns(width: number): number {
+    if (!width || width <= 0) return 4;
+    if (width < 220) return 4;
+    if (width < 300) return 5;
+    if (width < 400) return 6;
+    if (width < 520) return 7;
+    return 8;
+}
 
 /** Clase Tailwind de radio por forma de icono (hex se completa con clip-path inline). */
 export const ICON_SHAPE_CLASS: Record<IconShape, string> = {

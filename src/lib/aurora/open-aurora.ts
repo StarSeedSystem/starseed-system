@@ -14,11 +14,42 @@
  * nada. Es seguro llamarlo desde cualquier handler de cliente.
  */
 
+/**
+ * Instantánea del estado reactivo de Aurora que el puente expone (v3+), para que
+ * el Exocórtex muestre voz/chat en vivo sin instanciar otro motor.
+ */
+export interface AuroraStateSnapshot {
+  supported: boolean;
+  enabled: boolean;
+  listening: boolean;
+  speaking: boolean;
+  paused: boolean;
+  interim: string;
+  transcript: string;
+  lastReply: string;
+  actionStatus: string;
+  conversation: Array<{ role: "user" | "aurora"; text: string; at: number }>;
+  actionLog: Array<{ name: string; ok: boolean; message: string }>;
+  activePersonality: { id?: string; name: string };
+  personalities: Array<{ id?: string; name: string }>;
+}
+
 type AuroraBridge = {
   send?: (text: string) => Promise<unknown> | unknown;
   runCommand?: (text: string) => Promise<unknown> | unknown;
   runAction?: (name: string, args?: Record<string, unknown>) => Promise<unknown> | unknown;
   speak?: (text: string) => void;
+  toggle?: () => void;
+  start?: () => void;
+  stop?: () => void;
+  setEnabled?: (v: boolean) => void;
+  pauseSpeech?: () => void;
+  resumeSpeech?: () => void;
+  skipForward?: () => void;
+  skipBack?: () => void;
+  interrupt?: () => void;
+  getState?: () => AuroraStateSnapshot | null;
+  subscribe?: (cb: () => void) => () => void;
   version?: number;
 };
 
@@ -126,3 +157,87 @@ export async function askAuroraAboutMemory(
     : ask || "Ayúdame con mis memorias del Exocórtex.";
   return openAurora({ prompt: framed, reveal: true });
 }
+
+// ── Estado en vivo + control (para el Chat de Aurora en el Exocórtex) ─────────
+
+/** Lee la instantánea del estado de Aurora, o `null` si el puente no está listo. */
+export function getAuroraState(): AuroraStateSnapshot | null {
+  const api = getAuroraBridge();
+  try {
+    return api?.getState ? api.getState() ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Suscribe a cambios del estado de Aurora. Devuelve la baja. Si el puente aún no
+ * está montado, hace polling ligero hasta que aparece y entonces se re-suscribe.
+ */
+export function subscribeAurora(cb: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  let off: (() => void) | null = null;
+  let poll: ReturnType<typeof setInterval> | null = null;
+
+  const attach = () => {
+    const api = getAuroraBridge();
+    if (api?.subscribe) {
+      off = api.subscribe(cb);
+      if (poll) { clearInterval(poll); poll = null; }
+      cb(); // primer refresco inmediato
+      return true;
+    }
+    return false;
+  };
+
+  if (!attach()) {
+    poll = setInterval(() => { attach(); }, 1000);
+  }
+  return () => {
+    if (off) off();
+    if (poll) clearInterval(poll);
+  };
+}
+
+/** Enciende/apaga Aurora globalmente desde cualquier superficie. */
+export function setAuroraEnabled(v: boolean): void {
+  try { getAuroraBridge()?.setEnabled?.(v); } catch { /* */ }
+}
+
+/** Activa/pausa la voz (mismo gesto que el tap del orbe). */
+export function toggleAuroraVoice(): void {
+  try { getAuroraBridge()?.toggle?.(); } catch { /* */ }
+}
+
+/** Hace hablar a Aurora con un texto (TTS). */
+export function speakAurora(text: string): void {
+  try { getAuroraBridge()?.speak?.(text); } catch { /* */ }
+}
+
+/** Envía texto al chat de Aurora (equivalente a escribir en el widget). */
+export async function sendToAurora(text: string): Promise<boolean> {
+  const api = getAuroraBridge();
+  const t = (text ?? "").trim();
+  if (!api || !t) return false;
+  try {
+    if (typeof api.send === "function") { await api.send(t); return true; }
+    if (typeof api.runCommand === "function") { await api.runCommand(t); return true; }
+  } catch { /* */ }
+  return false;
+}
+
+/** Transporte de voz (passthrough al puente). */
+export const auroraTransport = {
+  pause: () => { try { getAuroraBridge()?.pauseSpeech?.(); } catch { /* */ } },
+  resume: () => { try { getAuroraBridge()?.resumeSpeech?.(); } catch { /* */ } },
+  skipForward: () => { try { getAuroraBridge()?.skipForward?.(); } catch { /* */ } },
+  skipBack: () => { try { getAuroraBridge()?.skipBack?.(); } catch { /* */ } },
+  interrupt: () => { try { getAuroraBridge()?.interrupt?.(); } catch { /* */ } },
+};
+
+// ── Reactivación del orbe (cuando se ocultó arrastrándolo al descarte) ────────
+export {
+  readOrbHidden as isAuroraOrbHidden,
+  setOrbHidden as setAuroraOrbHidden,
+  subscribeOrbVisibility as subscribeAuroraOrbVisibility,
+} from "@/lib/aurora/aurora-orb-bus";

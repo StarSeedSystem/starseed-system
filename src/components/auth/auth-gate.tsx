@@ -172,13 +172,18 @@ export function AuthGate() {
       role="dialog"
       aria-modal="true"
       aria-label="Acceso a StarSeed"
-      style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "radial-gradient(circle at 30% 20%, #1a1030, #05060d 70%)", overflowY: "auto" }}
+      // Anti-overflow: 100dvh + padding compacto por clamp. El centrado no corta
+      // porque la tarjeta interior tiene su propio max-height y scroll (abajo).
+      style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "clamp(0.5rem, 2.5vw, 1.25rem)", height: "100dvh", background: "radial-gradient(circle at 30% 20%, #1a1030, #05060d 70%)", overflowY: "auto", WebkitOverflowScrolling: "touch" }}
     >
       <style>{`
         @keyframes ssAuthIn { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
         @keyframes ssOrbA { 0%,100% { transform: translate(0,0); } 50% { transform: translate(24px,18px); } }
         @keyframes ssOrbB { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-22px,-16px); } }
         .ss-auth-card { animation: ssAuthIn .5s cubic-bezier(.22,1,.36,1) both; }
+        .ss-auth-scroll::-webkit-scrollbar { width: 8px; }
+        .ss-auth-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 8px; }
+        .ss-auth-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) transparent; }
         .ss-auth-orb-a { animation: ssOrbA 14s ease-in-out infinite; }
         .ss-auth-orb-b { animation: ssOrbB 16s ease-in-out infinite; }
         .ss-auth-field:focus { border-color: rgba(167,139,250,.7) !important; box-shadow: 0 0 0 3px rgba(124,92,255,.18); }
@@ -198,7 +203,11 @@ export function AuthGate() {
         <div className="ss-auth-orb-b" style={{ position: "absolute", width: 400, height: 400, right: "-8%", bottom: "-10%", borderRadius: "50%", background: "radial-gradient(circle,#23d5ab44,transparent 60%)", filter: "blur(46px)" }} />
       </div>
 
-      <div className="ss-auth-card" style={{ position: "relative", width: "100%", maxWidth: 420, background: "rgba(12,14,24,.82)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 24, padding: 30, boxShadow: "0 30px 90px rgba(0,0,0,.55)", backdropFilter: "blur(16px)" }}>
+      {/* Tarjeta con SCROLL INTERNO: en pantallas cortas (~560px de alto) el
+          contenido (logo, pestañas, formulario, OTP, invitado y propuesta de
+          valor) hace scroll DENTRO de la tarjeta en lugar de recortarse por
+          arriba/abajo. max-height ligada a 100dvh y padding compacto por clamp. */}
+      <div className="ss-auth-card ss-auth-scroll" style={{ position: "relative", width: "100%", maxWidth: 420, maxHeight: "calc(100dvh - clamp(1rem, 5vw, 2.5rem))", overflowY: "auto", WebkitOverflowScrolling: "touch", background: "rgba(12,14,24,.82)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 24, padding: "clamp(20px, 4vw, 30px)", boxShadow: "0 30px 90px rgba(0,0,0,.55)", backdropFilter: "blur(16px)" }}>
         <div style={{ textAlign: "center", marginBottom: 20 }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
             <span aria-hidden style={{ width: 30, height: 30, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#fff", background: "linear-gradient(135deg,#7c5cff,#23d5ab)", boxShadow: "0 6px 18px rgba(124,92,255,.45)" }}>✶</span>

@@ -172,31 +172,41 @@ const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
     // ─── 1. Dashboards / Inicio (DEFAULT) ────────────────────
     {
         categoryId: 'social',
-        name: 'Dashboards',
+        name: 'Inicio',
         isDefault: true,
         widgets: [
-            // Carpeta de apps StarSeed por defecto (pantalla de inicio): Nexus, Café,
-            // Audiomorphic, Omnifrecuencias + módulos del sistema. Settings vacío →
-            // el widget resuelve la colección 'starseed' (ver app-catalog.ts).
-            { type: 'APP_LAUNCHER', w: 12, h: 3, x: 0, y: 0 },
-            { type: 'EXPLORE_NETWORK', w: 7, h: 4, x: 0, y: 3 },
-            { type: 'MESSAGES', w: 5, h: 4, x: 7, y: 3 },
-            { type: 'MY_PAGES', w: 4, h: 3, x: 0, y: 7 },
-            { type: 'SOCIAL_RADAR', w: 4, h: 3, x: 4, y: 7 },
-            { type: 'NOTIFICATIONS', w: 4, h: 3, x: 8, y: 7 },
-            { type: 'ACTIVITY_SUMMARY', w: 5, h: 4, x: 0, y: 28 },
-            { type: 'QUICK_ACCESS', w: 7, h: 4, x: 5, y: 28 },
-            // Muestras funcionales (abridor universal + media center + datos oficiales) en el inicio
-            { type: 'UNIVERSAL_OPENER', w: 4, h: 5, x: 0, y: 10 },
-            { type: 'MUSIC_PLAYER', w: 4, h: 5, x: 4, y: 10 },
-            { type: 'OFFICIAL_DATA', w: 4, h: 5, x: 8, y: 10 },
-            { type: 'OMNIFRECUENCIAS', w: 4, h: 5, x: 0, y: 15 },
-            { type: 'RADIO_LIVE', w: 4, h: 4, x: 4, y: 15 },
-            { type: 'AUDIOMORPHIC_BG', w: 4, h: 5, x: 8, y: 15 },
-            // Variaciones del launcher: tile único (circle) + carpeta de colección media (hex/gradient)
-            { type: 'APP_LAUNCHER', w: 4, h: 4, x: 0, y: 20, settings: { variant: 'single', appIds: ['audiomorphic'], iconShape: 'circle', label: 'Audiomorphic' } },
-            { type: 'APP_LAUNCHER', w: 8, h: 4, x: 4, y: 20, settings: { variant: 'folder', collection: 'media', label: 'Media', iconShape: 'hex', iconStyle: 'gradient' } },
-            { type: 'MEDIA_CONTROL', w: 4, h: 6, x: 0, y: 24 },
+            // ── Pantalla principal adaptativa (tipo Android/iOS/tablet/desktop) ──
+            // Orden por FUNCIÓN y utilidad de un vistazo:
+            //  1) Carpeta-dock de apps StarSeed COMPACTA (poca altura, expandible).
+            //     Es lo primero: lanzar apps es la acción más frecuente en un inicio.
+            //  2) Fila de datos vivos glanceables: resumen de actividad + accesos
+            //     rápidos (agregados reales; el widget muestra estado vacío honesto).
+            //  3) Comunicación (mensajes) + notificaciones (contexto en tiempo real).
+            //  4) Descubrimiento (explorar red) + radar social + mis páginas.
+            //  5) Muestras funcionales compactas (abridor universal + datos oficiales
+            //     + control de medios) para tener herramientas útiles sin saturar.
+            // Carpeta principal de apps (compacta): Nexus, Café, Audiomorphic, Omni…
+            { type: 'APP_LAUNCHER', w: 12, h: 3, x: 0, y: 0, settings: { variant: 'folder', collection: 'starseed', label: 'Apps StarSeed', compactFolder: true } },
+
+            // Datos vivos de un vistazo (arriba, alta prioridad visual).
+            { type: 'ACTIVITY_SUMMARY', w: 6, h: 4, x: 0, y: 3 },
+            { type: 'QUICK_ACCESS', w: 6, h: 4, x: 6, y: 3 },
+
+            // Comunicación + contexto en tiempo real.
+            { type: 'MESSAGES', w: 5, h: 5, x: 0, y: 7 },
+            { type: 'NOTIFICATIONS', w: 3, h: 5, x: 5, y: 7 },
+            { type: 'OFFICIAL_DATA', w: 4, h: 5, x: 8, y: 7 },
+
+            // Descubrimiento y red social.
+            { type: 'EXPLORE_NETWORK', w: 6, h: 4, x: 0, y: 12 },
+            { type: 'MY_PAGES', w: 3, h: 4, x: 6, y: 12 },
+            { type: 'SOCIAL_RADAR', w: 3, h: 4, x: 9, y: 12 },
+
+            // Herramientas funcionales compactas (abridor + media) — carpeta media
+            // como categoría aparte para demostrar la agrupación por función.
+            { type: 'UNIVERSAL_OPENER', w: 4, h: 5, x: 0, y: 16 },
+            { type: 'MEDIA_CONTROL', w: 4, h: 5, x: 4, y: 16 },
+            { type: 'APP_LAUNCHER', w: 4, h: 5, x: 8, y: 16, settings: { variant: 'folder', collection: 'media', label: 'Media', compactFolder: true, grouped: true, iconStyle: 'gradient' } },
         ],
     },
     // ─── 2. Política ─────────────────────────────────────────

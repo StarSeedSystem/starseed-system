@@ -54,7 +54,7 @@ export function NavigationBar({ position = "top" }: { position?: "top" | "bottom
                 <NavItem href="/messages" icon={MessageSquare} labelOnly title="Mensajes" />
                 <NavItem href="/ai-setup" icon={Sparkles} labelOnly title="Ecosistema IA" />
                 <NavItem href="/settings" icon={Settings} labelOnly title="Ajustes" />
-                <NavItem href="/profile/starseeduser" icon={User} labelOnly title="Perfil" />
+                <NavItem href="/profile" icon={User} labelOnly title="Perfil" />
             </div>
         </div>
     );

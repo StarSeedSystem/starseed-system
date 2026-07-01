@@ -245,18 +245,29 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 )}
                 style={{ touchAction: "pan-y" }}
             >
-                {/* Rejilla fluida: 1 col en móvil, 2 en tablet, 3 en pantallas anchas.
-                    Tarjetas más limpias con separación uniforme y sin recortes. */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4" style={{ touchAction: "pan-y" }}>
+                {/* Rejilla fluida tipo pantalla de inicio (móvil/tablet/desktop):
+                    2 widgets por hilera en móvil (aprovecha el ancho sin desperdiciar),
+                    3 en tablet y 4 en pantallas anchas. Los widgets anchos (footprint
+                    ≥ 10/12 en el grid, p. ej. la carpeta-dock de apps o accesos rápidos)
+                    ocupan la hilera completa. Sin recortes: box-border + separación
+                    uniforme. */}
+                <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2.5 sm:gap-3.5 box-border" style={{ touchAction: "pan-y" }}>
                     {ordered.map((widget, idx) => {
                         const h = Math.max(widget.layout.h, 3);
                         const cardHeight = h * ROW + (h - 1) * GAP;
+                        // Widgets anchos (ocupaban casi toda la fila del grid de 12) o
+                        // carpetas/lanzaderas de apps → hilera completa también en la
+                        // rejilla táctil, para que respiren y no queden aplastados.
+                        const spanFull = widget.layout.w >= 10
+                            || widget.widget_type === "APP_LAUNCHER"
+                            || widget.widget_type === "QUICK_ACCESS";
                         return (
                             <div
                                 key={widget.layout.i || widget.id}
                                 data-widget-key={widget.layout.i || widget.id}
                                 className={cn(
-                                    "relative rounded-3xl overflow-hidden bg-transparent transition-all",
+                                    "relative rounded-3xl overflow-hidden bg-transparent transition-all box-border",
+                                    spanFull && "col-span-2 md:col-span-3 2xl:col-span-4",
                                     isEditMode && "ring-2 ring-primary/20"
                                 )}
                                 style={{ height: cardHeight, touchAction: "pan-y" }}

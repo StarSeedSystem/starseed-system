@@ -3,6 +3,7 @@
 import { DashboardWidget } from "./dashboard-types";
 import dynamic from "next/dynamic";
 import { useAppearance } from "@/context/appearance-context";
+import { getWidgetFunctionStyle } from "./widget-function-style";
 import { ThemeSelectorWidget } from "@/components/dashboard/widgets/theme-selector-widget";
 import { ExploreNetworkWidget } from "@/components/dashboard/widgets/explore-network-widget";
 import { MyPagesWidget } from "@/components/dashboard/widgets/my-pages-widget";
@@ -129,6 +130,24 @@ interface WidgetProps {
 }
 
 export function WidgetRegistry({ widget }: WidgetProps) {
+    // Estilo por FUNCIÓN: teñimos el contenedor con el acento de la familia del
+    // widget como variable CSS de respaldo (--w-fn-accent) y marcamos data-widget-fn.
+    // Aditivo y no intrusivo: el WidgetShell y sus acentos explícitos siguen mandando;
+    // esto da coherencia visual "que habla por sí misma" y un hook para estilos futuros.
+    const fn = getWidgetFunctionStyle(widget.widget_type);
+    return (
+        <div
+            className="h-full w-full"
+            data-widget-fn={fn.kind}
+            data-widget-weight={fn.weight}
+            style={{ ["--w-fn-accent" as string]: fn.accent }}
+        >
+            <WidgetRegistryInner widget={widget} />
+        </div>
+    );
+}
+
+function WidgetRegistryInner({ widget }: WidgetProps) {
     const { config } = useAppearance();
 
     switch (widget.widget_type) {

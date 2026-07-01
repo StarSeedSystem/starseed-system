@@ -15,16 +15,19 @@
 
 import React, { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { LayoutGrid, MoreVertical, Settings2, Check, X } from "lucide-react";
-import { WidgetShell } from "../kit";
+import { LayoutGrid, MoreVertical, Settings2, Check, X, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { WidgetShell, useElementSize } from "../kit";
 import { cn } from "@/lib/utils";
 import type { DashboardWidget } from "../dashboard-types";
 import {
     resolveLauncherSettings,
+    compactFolderColumns,
     ICON_SHAPE_CLASS,
     HEX_CLIP_PATH,
     OPEN_MODE_LABEL,
     type AppLauncherSettings,
+    type LauncherGroup,
     type IconShape,
     type IconStyle,
     type OpenMode,
@@ -33,7 +36,7 @@ import {
     type LauncherDensity,
     type StarseedApp,
 } from "../apps/launcher-types";
-import { resolveApps, APP_CATALOG, APP_COLLECTIONS } from "../apps/app-catalog";
+import { resolveApps, APP_CATALOG, APP_COLLECTIONS, getApp } from "../apps/app-catalog";
 import { useAppLauncher } from "../apps/app-launch";
 
 function iconStyleProps(style: IconStyle, accent: string): { className: string; style: React.CSSProperties } {
@@ -154,6 +157,84 @@ function AppTile({ app, settings, big, onOpen, onMenu }: {
     );
 }
 
+// ── MiniTile: icono compacto de app (carpeta densa tipo móvil) ────
+// Icono pequeño con etiqueta minúscula opcional. Pensado para rejillas de
+// 4–8 por hilera. box-border + min-w-0 → nunca recorta ni desborda.
+function MiniTile({ app, settings, onOpen, onMenu }: {
+    app: StarseedApp;
+    settings: AppLauncherSettings;
+    onOpen: () => void;
+    onMenu: (e: React.MouseEvent) => void;
+}) {
+    const Icon = app.icon;
+    const shape = settings.iconShape ?? "squircle";
+    const { className: isCls, style: isStyle } = iconStyleProps(settings.iconStyle ?? "glass", app.accent);
+    const hexStyle = shape === "hex" ? { clipPath: HEX_CLIP_PATH } : undefined;
+    return (
+        <div className="group relative flex min-w-0 flex-col items-center gap-1">
+            <button
+                type="button"
+                onClick={onOpen}
+                onContextMenu={onMenu}
+                title={`${app.name} — ${app.description}`}
+                className={cn(
+                    "grid place-items-center overflow-hidden transition-transform hover:-translate-y-0.5 active:scale-95 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 box-border size-10 @sm:size-12",
+                    ICON_SHAPE_CLASS[shape],
+                    isCls,
+                )}
+                style={{ ...isStyle, ...hexStyle }}
+            >
+                {app.iconUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={app.iconUrl} alt="" draggable={false} className="size-full object-cover" />
+                ) : (
+                    <Icon className="size-5" strokeWidth={2} />
+                )}
+            </button>
+            {app.status === "soon" && (
+                <span className="pointer-events-none absolute -top-1 -right-1 size-2 rounded-full bg-amber-500/90 shadow" title="Próximamente" />
+            )}
+            {/* Menú de modos: botón oculto que aparece al hover (esquina) */}
+            <button
+                type="button"
+                onClick={onMenu}
+                title="Modo de apertura"
+                aria-label={`Modo de apertura de ${app.name}`}
+                className="absolute -top-1 -left-1 grid place-items-center size-4 rounded-full bg-card/90 border border-border/60 text-muted-foreground/70 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground transition-opacity cursor-pointer"
+            >
+                <MoreVertical className="size-2.5" />
+            </button>
+            {settings.showLabels !== false && (
+                <span className="w-full text-center leading-tight text-[9px] font-semibold text-muted-foreground/85 truncate px-0.5">
+                    {app.short ?? app.name}
+                </span>
+            )}
+        </div>
+    );
+}
+
+// ── Rejilla compacta de apps (columnas responsivas 4–8) ───────────
+function CompactAppGrid({ apps, settings, cols, onOpen, onMenu }: {
+    apps: StarseedApp[];
+    settings: AppLauncherSettings;
+    cols: number;
+    onOpen: (a: StarseedApp) => void;
+    onMenu: (a: StarseedApp, e: React.MouseEvent) => void;
+}) {
+    const columns = settings.columns && settings.columns > 0 ? settings.columns : cols;
+    return (
+        <div
+            className="grid gap-2 @sm:gap-2.5 py-1 box-border"
+            style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        >
+            {apps.map((app) => (
+                <MiniTile key={app.id} app={app} settings={settings}
+                    onOpen={() => onOpen(app)} onMenu={(e) => onMenu(app, e)} />
+            ))}
+        </div>
+    );
+}
+
 // ── Panel de ajustes del launcher (portado a body) ───────────────
 const VARIANTS: { v: LauncherVariant; label: string }[] = [{ v: "folder", label: "Carpeta" }, { v: "single", label: "Tile" }];
 const COLLECTIONS: { c: LauncherCollection; label: string }[] = [{ c: "starseed", label: "StarSeed" }, { c: "sistema", label: "Sistema" }, { c: "media", label: "Media" }, { c: "custom", label: "Propia" }];
@@ -213,6 +294,14 @@ function LauncherSettingsPanel({ settings, patch, onClose }: { settings: AppLaun
                 </SettingsRow>
                 <SettingsRow label="Densidad">
                     {DENSITIES.map((d) => <Seg key={d} active={(settings.density ?? "comfortable") === d} onClick={() => patch({ density: d })}>{d === "comfortable" ? "Cómoda" : "Compacta"}</Seg>)}
+                </SettingsRow>
+                <SettingsRow label="Estilo de carpeta">
+                    <Seg active={settings.compactFolder !== false} onClick={() => patch({ compactFolder: true })}>Compacta (móvil)</Seg>
+                    <Seg active={settings.compactFolder === false} onClick={() => patch({ compactFolder: false })}>Amplia</Seg>
+                </SettingsRow>
+                <SettingsRow label="Agrupar por categorías">
+                    <Seg active={settings.grouped === true} onClick={() => patch({ grouped: true })}>Sí</Seg>
+                    <Seg active={settings.grouped !== true} onClick={() => patch({ grouped: false })}>No</Seg>
                 </SettingsRow>
                 <SettingsRow label={`Columnas: ${settings.columns && settings.columns > 0 ? settings.columns : "auto"}`}>
                     <input type="range" min={0} max={8} value={settings.columns ?? 0} onChange={(e) => patch({ columns: Number(e.target.value) })} className="w-full cursor-pointer" aria-label="Columnas" />
@@ -310,26 +399,202 @@ export function AppLauncherWidget({ widget }: { widget: DashboardWidget }) {
         );
     }
 
-    // ── Variante folder: grid de apps ──
-    return (
-        <WidgetShell title={settings.label ?? "Apps"} subtitle={`${apps.length} apps`} icon={LayoutGrid} accent="#39FF14" actions={gear}>
-            <div className="grid gap-3 py-1" style={{ gridTemplateColumns: gridCols }}>
-                {apps.map((app) => (
-                    <AppTile key={app.id} app={app} settings={settings}
-                        onOpen={() => openApp(app)} onMenu={(e) => openMenu(app, e)} />
-                ))}
-            </div>
-            {apps.length === 0 && (
-                <div className="h-full grid place-items-center">
-                    <p className="text-sm text-muted-foreground">Carpeta vacía.</p>
+    // ── Variante folder ──
+    // Carpeta COMPACTA (por defecto): rejilla densa de iconos + cabecera con
+    // contador y chevron para expandir/plegar (como una carpeta de móvil). Al
+    // expandir muestra TODAS las apps; plegada muestra un adelanto. Puede
+    // agruparse por categorías (secciones plegables). La carpeta "amplia"
+    // (compactFolder=false) conserva el comportamiento clásico con etiquetas.
+    const isCompact = settings.compactFolder !== false;
+
+    if (!isCompact) {
+        // Carpeta amplia clásica (tiles grandes con etiqueta) — sin cambios de UX.
+        return (
+            <WidgetShell title={settings.label ?? "Apps"} subtitle={`${apps.length} apps`} icon={LayoutGrid} accent="#39FF14" actions={gear}>
+                <div className="grid gap-3 py-1" style={{ gridTemplateColumns: gridCols }}>
+                    {apps.map((app) => (
+                        <AppTile key={app.id} app={app} settings={settings}
+                            onOpen={() => openApp(app)} onMenu={(e) => openMenu(app, e)} />
+                    ))}
                 </div>
-            )}
+                {apps.length === 0 && (
+                    <div className="h-full grid place-items-center">
+                        <p className="text-sm text-muted-foreground">Carpeta vacía.</p>
+                    </div>
+                )}
+                {mounted && menu && (
+                    <ModeMenu app={menu.app} x={menu.x} y={menu.y}
+                        onPick={(m) => launch(menu.app, m)} onClose={() => setMenu(null)} />
+                )}
+                {panel}
+                {windowEl}
+            </WidgetShell>
+        );
+    }
+
+    return (
+        <CompactFolder
+            settings={settings}
+            apps={apps}
+            gear={gear}
+            onOpen={openApp}
+            onMenu={openMenu}
+            onToggleExpanded={() => patch({ expanded: !settings.expanded })}
+            onToggleGroup={(gid, collapsed) => {
+                const groups = (settings.groups ?? []).map((g) => g.id === gid ? { ...g, collapsed } : g);
+                patch({ groups });
+            }}
+        >
             {mounted && menu && (
                 <ModeMenu app={menu.app} x={menu.x} y={menu.y}
                     onPick={(m) => launch(menu.app, m)} onClose={() => setMenu(null)} />
             )}
             {panel}
             {windowEl}
+        </CompactFolder>
+    );
+}
+
+// ── Carpeta compacta y expandible ────────────────────────────────
+// Cabecera con icono, etiqueta, contador y chevron. Plegada: adelanto denso
+// (una o dos hileras). Expandida: todas las apps, con animación suave. Puede
+// mostrarse agrupada por categorías (secciones plegables independientes).
+// Columnas 4–8 según el ancho real medido (useElementSize) → aprovecha el
+// espacio sin recortar en cualquier pantalla (móvil → escritorio, VR/AR).
+function CompactFolder({
+    settings, apps, gear, onOpen, onMenu, onToggleExpanded, onToggleGroup, children,
+}: {
+    settings: AppLauncherSettings;
+    apps: StarseedApp[];
+    gear: React.ReactNode;
+    onOpen: (a: StarseedApp) => void;
+    onMenu: (a: StarseedApp, e: React.MouseEvent) => void;
+    onToggleExpanded: () => void;
+    onToggleGroup: (groupId: string, collapsed: boolean) => void;
+    children?: React.ReactNode;
+}) {
+    const { ref, size } = useElementSize<HTMLDivElement>();
+    const cols = compactFolderColumns(size.width);
+    const expanded = !!settings.expanded;
+
+    // Agrupación por categorías. Usa `groups` si existen; si no, agrupa por la
+    // categoría declarada de cada app (fallback automático, sin config previa).
+    const groups: LauncherGroup[] = useMemo(() => {
+        if (!settings.grouped) return [];
+        if (settings.groups && settings.groups.length > 0) {
+            const known = new Set(settings.groups.flatMap((g) => g.appIds));
+            const rest = apps.filter((a) => !known.has(a.id)).map((a) => a.id);
+            const base = settings.groups.map((g) => ({
+                ...g,
+                appIds: g.appIds.filter((id) => apps.some((a) => a.id === id)),
+            }));
+            if (rest.length) base.push({ id: "__general", label: "General", appIds: rest });
+            return base.filter((g) => g.appIds.length > 0);
+        }
+        // Fallback: agrupa por categoría de la app.
+        const byCat = new Map<string, string[]>();
+        for (const a of apps) {
+            const k = a.category || "otros";
+            if (!byCat.has(k)) byCat.set(k, []);
+            byCat.get(k)!.push(a.id);
+        }
+        const LABELS: Record<string, string> = {
+            starseed: "StarSeed", sistema: "Sistema", media: "Media",
+            utilidad: "Utilidades", creacion: "Creación", otros: "Otras",
+        };
+        return Array.from(byCat.entries()).map(([k, ids]) => ({ id: k, label: LABELS[k] ?? k, appIds: ids }));
+    }, [settings.grouped, settings.groups, apps]);
+
+    // En plegado sin agrupar, mostramos un adelanto: 2 hileras (cols*2).
+    const previewCount = Math.max(cols * 2, 8);
+    const shownApps = expanded || settings.grouped ? apps : apps.slice(0, previewCount);
+    const hiddenCount = apps.length - shownApps.length;
+
+    return (
+        <WidgetShell
+            title={settings.label ?? "Apps"}
+            subtitle={`${apps.length} apps`}
+            icon={FolderOpen}
+            accent="#39FF14"
+            actions={
+                <div className="flex items-center gap-1">
+                    {gear}
+                    <button
+                        type="button"
+                        onClick={onToggleExpanded}
+                        title={expanded ? "Plegar carpeta" : "Expandir carpeta"}
+                        aria-label={expanded ? "Plegar carpeta" : "Expandir carpeta"}
+                        aria-expanded={expanded}
+                        className="grid place-items-center size-7 rounded-full text-muted-foreground/70 hover:text-foreground hover:bg-white/10 transition-colors cursor-pointer"
+                    >
+                        <motion.span animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.22 }}>
+                            <ChevronDown className="size-4" />
+                        </motion.span>
+                    </button>
+                </div>
+            }
+        >
+            <div ref={ref} className="box-border w-full">
+                {apps.length === 0 ? (
+                    <div className="grid place-items-center py-6">
+                        <p className="text-sm text-muted-foreground">Carpeta vacía.</p>
+                    </div>
+                ) : settings.grouped ? (
+                    <div className="space-y-2.5">
+                        {groups.map((g) => {
+                            const gApps = g.appIds.map(getApp).filter((a): a is StarseedApp => Boolean(a));
+                            const collapsed = !!g.collapsed;
+                            return (
+                                <div key={g.id} className="rounded-2xl border border-border/30 bg-white/[0.02] p-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => onToggleGroup(g.id, !collapsed)}
+                                        className="flex w-full items-center gap-1.5 px-1 py-0.5 text-left cursor-pointer group/gh"
+                                        aria-expanded={!collapsed}
+                                    >
+                                        <motion.span animate={{ rotate: collapsed ? 0 : 90 }} transition={{ duration: 0.2 }}>
+                                            <ChevronRight className="size-3.5 text-muted-foreground/70" />
+                                        </motion.span>
+                                        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/80 group-hover/gh:text-foreground">
+                                            {g.label}
+                                        </span>
+                                        <span className="ml-auto text-[9px] font-bold tabular-nums text-muted-foreground/50">{gApps.length}</span>
+                                    </button>
+                                    <AnimatePresence initial={false}>
+                                        {!collapsed && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: "auto", opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                transition={{ duration: 0.24, ease: "easeInOut" }}
+                                                className="overflow-hidden"
+                                            >
+                                                <div className="pt-1.5">
+                                                    <CompactAppGrid apps={gApps} settings={settings} cols={cols} onOpen={onOpen} onMenu={onMenu} />
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <>
+                        <CompactAppGrid apps={shownApps} settings={settings} cols={cols} onOpen={onOpen} onMenu={onMenu} />
+                        {!expanded && hiddenCount > 0 && (
+                            <button
+                                type="button"
+                                onClick={onToggleExpanded}
+                                className="mt-2 w-full rounded-xl border border-border/40 bg-white/[0.02] py-1.5 text-[11px] font-semibold text-muted-foreground/80 hover:text-foreground hover:bg-white/[0.05] transition-colors cursor-pointer"
+                            >
+                                Mostrar {hiddenCount} más
+                            </button>
+                        )}
+                    </>
+                )}
+            </div>
+            {children}
         </WidgetShell>
     );
 }

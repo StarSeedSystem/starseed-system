@@ -132,7 +132,7 @@ export function AppSidebar({
             isHorizontal && "flex items-center justify-center w-full gap-2 md:gap-4 lg:gap-6 mx-auto"
           )}>
             <NavItem href="/dashboard" icon={Home} label="Dashboard" />
-            <NavItem href="/profile/starseeduser" icon={User} label="Perfil" />
+            <NavItem href="/profile" icon={User} label="Perfil" />
             <NavItem href="/agent" icon={Bot} label="IA" />
             <NavItem href="/messages" icon={MessageSquare} label="Mensajes" />
             <NavItem href="/hub" icon={Users} label="Hub" />

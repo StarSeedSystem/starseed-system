@@ -12,7 +12,7 @@ export function SystemTab() {
 
     const menuItems = [
         { label: "Configuración", icon: Settings, path: "/settings", color: "text-blue-400", border: "hover:border-blue-500/50" },
-        { label: "Perfil", icon: User, path: "/profile/starseeduser", color: "text-purple-400", border: "hover:border-purple-500/50" },
+        { label: "Perfil", icon: User, path: "/profile", color: "text-purple-400", border: "hover:border-purple-500/50" },
         { label: "Privacidad", icon: Shield, path: "/settings/privacy", color: "text-emerald-400", border: "hover:border-emerald-500/50" },
         { label: "Almacenamiento", icon: HardDrive, path: "/settings/storage", color: "text-amber-400", border: "hover:border-amber-500/50" },
         { label: "Sistema", icon: Cpu, path: "/settings/system", color: "text-cyan-400", border: "hover:border-cyan-500/50" },

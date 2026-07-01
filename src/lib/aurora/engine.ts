@@ -39,6 +39,9 @@ import {
   type AuroraActionResult,
   type AuroraDirective,
 } from "@/lib/aurora/actions";
+// Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
+// eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
+import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -280,13 +283,16 @@ export function useAuroraEngine(): AuroraEngine {
         || all.find((x) => (x.lang || "").toLowerCase().startsWith("es"))
         || null;
       if (v) u.voice = v;
-      u.onstart = () => { setSpeaking(true); setPaused(false); };
-      u.onend = () => setSpeaking(false);
-      u.onerror = () => setSpeaking(false);
+      u.onstart = () => { setSpeaking(true); setPaused(false); emitAuroraSpeak("start"); };
+      // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
+      u.onboundary = () => emitAuroraSpeak("boundary");
+      u.onend = () => { setSpeaking(false); emitAuroraSpeak("end"); };
+      u.onerror = () => { setSpeaking(false); emitAuroraSpeak("end"); };
       window.speechSynthesis.speak(u);
       setPaused(false);
     } catch {
       setSpeaking(false);
+      emitAuroraSpeak("end");
     }
   }, [speakPremium]);
 

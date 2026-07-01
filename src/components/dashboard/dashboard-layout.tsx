@@ -34,6 +34,18 @@ import { WorkspaceProvider } from "./dashboard-workspace-context";
 import { DashboardWorkspaceRenderer } from "./dashboard-workspace-renderer";
 import { DashboardAiSuggestions } from "./dashboard-ai-suggestions";
 
+// ── Dispositivos y sincronización (pantalla principal adaptativa) ──
+import type { DeviceType } from "./dashboard-types";
+import {
+    DEVICE_TYPES,
+    detectCurrentDeviceType,
+    loadDevices,
+    loadSyncOptions,
+    saveSyncOptions,
+    type UserDevice,
+    type DeviceSyncOptions,
+} from "./dashboard-devices";
+
 // ── Sincronización ENTRE DISPOSITIVOS (Supabase, aditiva sobre localStorage) ──
 // localStorage sigue siendo la caché/fallback; Supabase añade sync multi-dispositivo
 // + realtime. Si no hay sesión/red, todo degrada en silencio a la ruta local.
@@ -54,7 +66,7 @@ const LS_INITIALIZED = 'starseed_dashboards_initialized';
 // el acomodo/los widgets por defecto para que las instalaciones existentes
 // re-siembren los tableros predeterminados (preservando los tableros propios).
 const LS_DEFAULTS_VERSION = 'starseed_defaults_version';
-const DEFAULTS_VERSION = 'gen8-2026-06-20-apps-media-datos';
+const DEFAULTS_VERSION = 'gen9-2026-07-01-inicio-adaptativo-carpetas';
 const LS_ACTIVE_PROFILE = 'starseed_active_profile_v1';
 const LS_AI_PROVIDER = 'starseed_ai_provider_v1';
 const LS_SERVERS = 'starseed_internet_servers_v1';
@@ -336,6 +348,14 @@ export function DashboardLayout() {
     // Renombrar dashboard (rellena la opción "Renombrar Dashboard" del menú de panel).
     const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState("");
+
+    // ── Dispositivos y sincronización (pantalla principal adaptativa) ──
+    // currentDevice: tipo detectado del entorno (resalta tableros afines y permite
+    // filtrar/adaptar). devices/syncOpts: estado del gestor (localStorage, aditivo).
+    const [currentDevice, setCurrentDevice] = useState<DeviceType>("desktop");
+    const [devices, setDevices] = useState<UserDevice[]>([]);
+    const [syncOpts, setSyncOpts] = useState<DeviceSyncOptions>(loadSyncOptions());
+    const [isDeviceManagerOpen, setIsDeviceManagerOpen] = useState(false);
 
     const { toast } = useToast();
 
@@ -970,6 +990,39 @@ export function DashboardLayout() {
         setRenameTargetId(null);
         setRenameValue("");
     };
+
+    // ── Dispositivos: detección del entorno + carga del gestor (SSR-safe) ──
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            setCurrentDevice(detectCurrentDeviceType());
+            setDevices(loadDevices());
+        } catch { /* degradación silenciosa */ }
+        // Re-detecta al cambiar el tamaño (p. ej. rotación / ventana redimensionada).
+        const onResize = () => { try { setCurrentDevice(detectCurrentDeviceType()); } catch {} };
+        window.addEventListener("resize", onResize, { passive: true });
+        return () => window.removeEventListener("resize", onResize);
+    }, []);
+
+    // Etiqueta un tablero por tipo(s) de dispositivo (agrupación por dispositivo).
+    // Persiste en localStorage vía saveDashboards (write-through a Supabase incluido).
+    const handleSetDeviceTags = useCallback((id: string, tags: DeviceType[]) => {
+        const now = new Date().toISOString();
+        setDashboards((prev) => {
+            const updated = prev.map((d) => (d.id === id ? { ...d, deviceTags: tags, updated_at: now } : d));
+            saveDashboards(updated);
+            return updated;
+        });
+    }, []);
+
+    // Persiste cambios en las opciones de sincronización.
+    const handleUpdateSyncOpts = useCallback((patch: Partial<DeviceSyncOptions>) => {
+        setSyncOpts((prev) => {
+            const next = { ...prev, ...patch };
+            saveSyncOptions(next);
+            return next;
+        });
+    }, []);
 
     // Change profile helper
     const handleProfileChange = (profile: UserProfile) => {
@@ -1918,6 +1971,9 @@ export function DashboardLayout() {
                                 onDeleteDashboard={handleDeleteDashboard}
                                 onRenameDashboard={handleOpenRename}
                                 onCreateFromTemplate={handleCreateDashboardFromTemplate}
+                                currentDevice={currentDevice}
+                                onSetDeviceTags={handleSetDeviceTags}
+                                onOpenDeviceManager={() => setIsDeviceManagerOpen(true)}
                             />
                         </WorkspaceProvider>
                     </div>
@@ -2020,6 +2076,91 @@ export function DashboardLayout() {
                             <DialogFooter className="gap-2 sm:justify-end">
                                 <Button variant="ghost" onClick={() => { setRenameTargetId(null); setRenameValue(""); }}>Cancelar</Button>
                                 <Button onClick={handleRenameDashboard} disabled={!renameValue.trim()} className="min-w-[120px]">Guardar</Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Device & Sync Manager Dialog (agrupación por dispositivo + sync) */}
+                    <Dialog open={isDeviceManagerOpen} onOpenChange={setIsDeviceManagerOpen}>
+                        <DialogContent className="w-[92vw] max-w-[560px] max-h-[85vh] overflow-y-auto custom-scrollbar p-6">
+                            <DialogHeader>
+                                <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                                    <Wifi className="w-5 h-5 text-emerald-400" />
+                                    Dispositivos y sincronización
+                                </DialogTitle>
+                                <DialogDescription className="text-sm">
+                                    Adapta la pantalla principal a cada dispositivo y mantén todo en sincronía entre tus equipos, cerebros y servidores.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            {/* Dispositivo actual detectado */}
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 flex items-center gap-3">
+                                {(() => {
+                                    const def = DEVICE_TYPES.find(d => d.id === currentDevice);
+                                    const Icon = def?.icon ?? Cpu;
+                                    return (
+                                        <>
+                                            <div className="grid place-items-center size-10 rounded-xl border border-white/15" style={{ background: `color-mix(in srgb, ${def?.accent ?? '#22D3EE'} 18%, transparent)`, color: def?.accent ?? '#22D3EE' }}>
+                                                <Icon className="w-5 h-5" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="text-xs uppercase tracking-wider text-white/40 font-mono">Dispositivo actual</div>
+                                                <div className="text-sm font-semibold text-white/90">{def?.label ?? "Escritorio"}</div>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
+                            </div>
+
+                            {/* Dispositivos asociados (cuenta / cerebros / servidores) */}
+                            <div className="space-y-2">
+                                <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Dispositivos asociados</Label>
+                                <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+                                    {devices.length === 0 ? (
+                                        <p className="text-xs text-white/40 py-2">Sin dispositivos aún. Se detectará automáticamente este equipo; conecta cerebros o servidores para añadir más.</p>
+                                    ) : devices.map((dev) => {
+                                        const def = DEVICE_TYPES.find(d => d.id === dev.type);
+                                        const Icon = def?.icon ?? Cpu;
+                                        return (
+                                            <div key={dev.id} className="flex items-center gap-2.5 rounded-xl border border-white/5 bg-white/[0.02] px-2.5 py-2">
+                                                <Icon className="w-4 h-4 shrink-0" style={{ color: def?.accent ?? '#94a3b8' }} />
+                                                <span className="text-xs text-white/80 flex-1 truncate">{dev.name}</span>
+                                                <span className="text-[9px] uppercase tracking-wider text-white/35 font-mono">{def?.label ?? dev.type}</span>
+                                                <span className={cn("size-2 rounded-full shrink-0", dev.online ? "bg-emerald-400" : "bg-white/20")} title={dev.online ? "En línea" : "Fuera de línea"} />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Opciones de sincronización (automáticas + configurables) */}
+                            <div className="space-y-2">
+                                <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Sincronización</Label>
+                                <div className="space-y-1.5">
+                                    {([
+                                        { key: "auto", label: "Sincronización automática", desc: "Mantén tus dispositivos al día sin intervención." },
+                                        { key: "dashboards", label: "Sincronizar tableros", desc: "Paneles y pestañas entre dispositivos." },
+                                        { key: "widgets", label: "Sincronizar widgets", desc: "Disposición y ajustes de cada widget." },
+                                        { key: "appearance", label: "Sincronizar apariencia", desc: "Tema y estilo visual." },
+                                        { key: "adaptToDevice", label: "Adaptar al dispositivo", desc: "Muestra el tablero afín al equipo actual." },
+                                        { key: "preferBrains", label: "Preferir cerebros/servidores", desc: "Usa tus cerebros como fuente del estado." },
+                                    ] as const).map((opt) => (
+                                        <div key={opt.key} className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
+                                            <div className="min-w-0">
+                                                <div className="text-xs font-medium text-white/85">{opt.label}</div>
+                                                <div className="text-[10px] text-white/40">{opt.desc}</div>
+                                            </div>
+                                            <Switch
+                                                checked={syncOpts[opt.key]}
+                                                onCheckedChange={(v) => handleUpdateSyncOpts({ [opt.key]: v } as Partial<DeviceSyncOptions>)}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <DialogFooter className="mt-2">
+                                <Button onClick={() => setIsDeviceManagerOpen(false)} className="min-w-[120px]">Listo</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>

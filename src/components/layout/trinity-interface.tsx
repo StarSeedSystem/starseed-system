@@ -187,7 +187,7 @@ export function TrinityFloatingInterface() {
                                         />,
                                         <FloatingButton
                                             key="profile"
-                                            onClick={() => router.push("/profile/starseeduser")}
+                                            onClick={() => router.push("/profile")}
                                             icon={<User className="w-6 h-6" />}
                                             label="Perfil"
                                             color="neutral"

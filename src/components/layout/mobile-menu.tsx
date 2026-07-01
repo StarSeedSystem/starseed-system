@@ -71,7 +71,7 @@ export function MobileMenu({ onClose }: MobileMenuProps) {
 
     const mainNavItems = [
         { href: "/dashboard", icon: Home, label: "Dashboard", description: "Centro de mando" },
-        { href: "/profile/starseeduser", icon: User, label: "Perfil", description: "Tu identidad soberana" },
+        { href: "/profile", icon: User, label: "Perfil", description: "Tu identidad soberana" },
         { href: "/agent", icon: Bot, label: "Asistente IA", description: "Agente personal" },
         { href: "/messages", icon: MessageSquare, label: "Mensajes", description: "Comunicación directa" },
     ];

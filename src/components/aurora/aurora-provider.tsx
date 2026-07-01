@@ -6,6 +6,13 @@ import { useAuroraEngine, type AuroraEngine } from "@/lib/aurora/engine";
 
 const AuroraContext = createContext<AuroraEngine | null>(null);
 
+/**
+ * Evento global emitido cuando cambia el estado reactivo de Aurora, para que
+ * superficies fuera del árbol de AuroraProvider (Exocórtex del menú Zenith) se
+ * refresquen vía el puente `window.STARSEED_AURORA.subscribe()`.
+ */
+export const AURORA_STATE_EVENT = "starseed:aurora-state";
+
 // Marca de localStorage para no repetir el saludo de bienvenida en cada carga.
 const GREETED_KEY = "starseed_aurora_greeted_at";
 // Repite el saludo como mucho una vez cada 12 horas.
@@ -112,13 +119,56 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       skipBack: () => engineRef.current?.skipBack(),
       /** Interrumpe de inmediato lo que Aurora está diciendo. */
       interrupt: () => engineRef.current?.interrupt(),
+      /** Hace hablar a Aurora (TTS) con un texto dado. */
+      speak: (text: string) => engineRef.current?.speak(text),
+      /** Activa/pausa/interrumpe la voz (mismo gesto que el tap del orbe). */
+      toggle: () => engineRef.current?.toggle(),
+      /** Enciende/inicia la escucha continua de Aurora. */
+      start: () => engineRef.current?.start(),
+      /** Detiene la escucha de Aurora. */
+      stop: () => engineRef.current?.stop(),
+      /** Enciende/apaga Aurora globalmente (persistido). */
+      setEnabled: (v: boolean) => engineRef.current?.setEnabled(v),
+      /**
+       * Instantánea del estado reactivo de Aurora, para que superficies FUERA del
+       * árbol de AuroraProvider (p. ej. el Exocórtex del menú Zenith) muestren su
+       * estado sin instanciar otro motor. Se combina con `subscribe`.
+       */
+      getState: () => {
+        const e = engineRef.current;
+        if (!e) return null;
+        return {
+          supported: e.supported,
+          enabled: e.enabled,
+          listening: e.listening,
+          speaking: e.speaking,
+          paused: e.paused,
+          interim: e.interim,
+          transcript: e.transcript,
+          lastReply: e.lastReply,
+          actionStatus: e.actionStatus,
+          conversation: e.conversation,
+          actionLog: e.actionLog,
+          activePersonality: e.activePersonality,
+          personalities: e.personalities,
+        };
+      },
+      /**
+       * Suscribe a los cambios de estado de Aurora (evento `starseed:aurora-state`).
+       * Devuelve la función de baja. Úsalo junto con `getState()` para re-leer.
+       */
+      subscribe: (cb: () => void) => {
+        const on = () => { try { cb(); } catch { /* */ } };
+        window.addEventListener(AURORA_STATE_EVENT, on);
+        return () => window.removeEventListener(AURORA_STATE_EVENT, on);
+      },
       /** Registra un listener de acciones. Devuelve una función para quitarlo. */
       onAction: (cb: (name: string, args: Record<string, unknown>) => void) => {
         subscribers.add(cb);
         return () => subscribers.delete(cb);
       },
       /** Versión del puente, para que la extensión negocie compatibilidad. */
-      version: 2 as const,
+      version: 3 as const,
     };
 
     try {
@@ -174,6 +224,18 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       try { delete (window as any).STARSEED_AURORA; } catch { /* */ }
     };
   }, []);
+
+  // Emite `starseed:aurora-state` cuando cambia el estado reactivo de Aurora.
+  // Permite que el Exocórtex (fuera del árbol del provider) refleje la voz/chat
+  // en vivo vía el puente, sin instanciar otro motor. Barato: sólo un evento.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try { window.dispatchEvent(new CustomEvent(AURORA_STATE_EVENT)); } catch { /* */ }
+  }, [
+    engine.supported, engine.enabled, engine.listening, engine.speaking, engine.paused,
+    engine.interim, engine.transcript, engine.lastReply, engine.actionStatus,
+    engine.conversation, engine.actionLog, engine.activePersonality, engine.personalities,
+  ]);
 
   return <AuroraContext.Provider value={engine}>{children}</AuroraContext.Provider>;
 }

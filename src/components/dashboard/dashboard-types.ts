@@ -104,6 +104,13 @@ export type WidgetType =
     | 'DOCUMENTS'             // Archivos — documentos del usuario (tabla documents)
     | 'AI_GENERATED';         // 🔮 La Fragua de Interfaces — Custom AI-forged widgets
 
+/**
+ * Tipo de dispositivo objetivo de un tablero (pantalla principal adaptativa).
+ * Permite etiquetar una pestaña para ciertos dispositivos y agrupar varios
+ * asociados (cuenta/cerebros/servidores). 'all' = universal (por defecto).
+ */
+export type DeviceType = "all" | "phone" | "tablet" | "desktop" | "tv" | "vr" | "watch" | "car" | "iot";
+
 export interface Dashboard {
     id: string;
     profile_id: string;
@@ -112,6 +119,13 @@ export interface Dashboard {
     category?: string;  // Links to WidgetCategory id
     created_at: string;
     updated_at: string;
+    // ── Agrupación por dispositivo (pantalla principal adaptativa) ──
+    /** Tipos de dispositivo para los que este tablero está pensado. Vacío/ausente = 'all'. */
+    deviceTags?: DeviceType[];
+    /** Ids de dispositivos concretos asociados (de la cuenta/cerebros/servidores). */
+    deviceIds?: string[];
+    /** Id del grupo de dispositivos asociado (varios dispositivos afines). Opcional. */
+    deviceGroupId?: string;
 }
 
 export interface AiWidgetSettings {

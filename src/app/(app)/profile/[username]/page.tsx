@@ -28,7 +28,9 @@ export default function ProfilePage() {
     const params = useParams();
     // Safe param extraction
     const usernameParam = params?.username;
-    const username = Array.isArray(usernameParam) ? usernameParam[0] : (usernameParam || 'starseeduser'); // Fallback to avoid undefined
+    // Fallback neutral para evitar undefined; NUNCA un handle de ejemplo
+    // ("starseeduser" y similares están prohibidos como identidad real).
+    const username = Array.isArray(usernameParam) ? usernameParam[0] : (usernameParam || 'me');
 
     const profileData = pageData[username] || {
         name: username.charAt(0).toUpperCase() + username.slice(1).replace(/-/g, ' '),

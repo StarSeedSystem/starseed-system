@@ -19,6 +19,7 @@ import { UniversalEditor } from "@/components/layout/universal-editor";
 import { Switch } from "@/components/ui/switch";
 import { useAppearance } from "@/context/appearance-context";
 import { MemoryBrain3D } from "@/components/exocortex/memory-brain-3d";
+import { AuroraChatSection } from "@/components/exocortex/aurora-chat-section";
 
 type Domain = 'ALL' | 'POLITICS' | 'EDUCATION' | 'CULTURE' | 'SYSTEM';
 
@@ -120,8 +121,9 @@ export function ZenithCurtain() {
     const [senses, setSenses] = useState<AISense[]>(DEFAULT_SENSES);
     const [connections, setConnections] = useState<AIConnection[]>(DEFAULT_CONNECTIONS);
     const [sensesTab, setSensesTab] = useState<"senses" | "connections" | "topology">("senses");
-    // Vista principal del Exocórtex: buscador universal o el Cerebro 3D (con chat IA).
-    const [mainView, setMainView] = useState<"buscar" | "cerebro">("buscar");
+    // Vista principal del Exocórtex: buscador universal, el Cerebro 3D (con chat
+    // IA) o el Chat de Aurora (voz + multichat + configuraciones del widget).
+    const [mainView, setMainView] = useState<"buscar" | "cerebro" | "aurora">("buscar");
 
     const toggleSense = (id: string) => {
         setSenses(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
@@ -192,6 +194,23 @@ export function ZenithCurtain() {
                                         >
                                             <BrainCircuit className="w-3.5 h-3.5" />
                                             <span className="hidden sm:inline text-xs uppercase tracking-wider">Cerebro</span>
+                                        </Button>
+
+                                        {/* Chat de Aurora (voz + multichat + configuraciones del widget) */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setMainView(mainView === "aurora" ? "buscar" : "aurora")}
+                                            className={cn(
+                                                "gap-2 rounded-full px-4 transition-all",
+                                                mainView === "aurora"
+                                                    ? "border-fuchsia-400/60 text-fuchsia-100 bg-fuchsia-500/25 shadow-[0_0_15px_rgba(232,121,249,0.35)]"
+                                                    : "border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/15 hover:text-fuchsia-100"
+                                            )}
+                                            title="Chat completo de Aurora: voz, sesiones paralelas, sentidos y configuraciones"
+                                        >
+                                            <Sparkles className="w-3.5 h-3.5" />
+                                            <span className="hidden sm:inline text-xs uppercase tracking-wider">Aurora</span>
                                         </Button>
 
                                         {/* AI Senses Toggle */}
@@ -287,7 +306,7 @@ export function ZenithCurtain() {
                                 <div className={cn(
                                     "flex-1 flex flex-col min-h-0 min-w-0 transition-all duration-300",
                                     showSensesPanel && "hidden md:flex",
-                                    mainView === "cerebro" && "hidden"
+                                    mainView !== "buscar" && "hidden"
                                 )}>
                                     {/* Search Bar + Domains */}
                                     <div className="px-5 md:px-8 py-4 shrink-0 border-b border-cyan-500/10 bg-black/10">
@@ -401,6 +420,16 @@ export function ZenithCurtain() {
                                 {mainView === "cerebro" && (
                                     <div className="flex-1 flex flex-col min-h-0 min-w-0">
                                         <MemoryBrain3D compact showChat className="flex-1 min-h-0" />
+                                    </div>
+                                )}
+
+                                {/* Chat de Aurora — chat completo del widget (voz + multichat +
+                                    sentidos + reactivación del orbe) integrado en el Exocórtex. */}
+                                {mainView === "aurora" && (
+                                    <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto custom-scrollbar">
+                                        <div className="mx-auto w-full max-w-2xl px-4 md:px-6 py-5">
+                                            <AuroraChatSection />
+                                        </div>
                                     </div>
                                 )}
 
