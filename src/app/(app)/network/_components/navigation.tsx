@@ -4,7 +4,6 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Scale, School, Palette } from 'lucide-react';
 
 const navItems = [
     { href: '/network', label: 'Panorama' },

@@ -1,8 +1,9 @@
 // src/app/(app)/network/layout.tsx
 'use client';
 import { ReactNode } from "react";
+import Link from "next/link";
 import { NetworkNavigation } from "./_components/navigation";
-import { Sparkles } from "lucide-react";
+import { Sparkles, ChevronLeft } from "lucide-react";
 
 /**
  * Cabecera compacta y estética de La Red.
@@ -14,6 +15,14 @@ import { Sparkles } from "lucide-react";
 export default function NetworkLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-col gap-4">
+      {/* Migaja: La Red vive dentro del Hub de Conexiones (sección "Red"). */}
+      <Link
+        href="/hub?tab=red"
+        className="group inline-flex w-fit items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:border-cyan-500/30 hover:text-cyan-300"
+      >
+        <ChevronLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
+        Hub · Red
+      </Link>
       <header className="flex items-center gap-3 flex-wrap">
         <div className="relative inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.03] backdrop-blur px-4 py-1.5 shadow-[0_0_30px_rgba(168,85,247,0.08)]">
           <span className="relative flex w-2 h-2">

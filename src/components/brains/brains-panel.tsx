@@ -60,6 +60,8 @@ import {
   Database,
   Laptop,
   Globe2,
+  Library,
+  FolderSync,
 } from "lucide-react";
 import {
   SERVER_KINDS,
@@ -125,6 +127,18 @@ import TerminalConsole from "@/components/terminal/terminal-console";
 import DevicesPanel from "@/components/terminal/devices-panel";
 import type { MoaMode } from "@/components/settings/ai/mixture-of-agents-panel";
 import { findOption, type OssCategory } from "@/lib/oss-library";
+// Contrato COMPARTIDO Librería↔Cerebros (owned por el agente de Librería). Lo
+// CONSUMIMOS aquí para configurar, por cerebro, su acceso/sync a las bibliotecas.
+import {
+  getLibraryBrainLink,
+  setLibraryBrainLink,
+  loadLibraryStorageConfig,
+  subscribeLibraryLinks,
+  LIBRARY_BRAIN_ACCESS_META,
+  LIBRARY_STORAGE_META,
+  type LibraryBrainAccess,
+  type LibraryStorageConfig,
+} from "@/lib/library/brain-links";
 
 const BOT_BASE = "https://starseed-neurocortex.vercel.app";
 
@@ -1294,6 +1308,9 @@ function BrainEditor(props: {
       {/* Memorias (este cerebro) */}
       <BrainMemoriesSection brainId={draft.id} isNew={isNew} />
 
+      {/* Bibliotecas (acceso + sync + administrar) por cerebro */}
+      <BrainLibrariesSection brainId={draft.id} isNew={isNew} />
+
       {/* Auto-actualización + Recomendaciones (skill por defecto del cerebro) */}
       <AutoUpdatePanel brainId={draft.id} isNew={isNew} />
 
@@ -2368,6 +2385,321 @@ function BrainMemoriesSection({ brainId, isNew }: { brainId: string; isNew: bool
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ====================================================================== */
+/* Bibliotecas por cerebro (acceso + sync + administrar sincronizaciones)  */
+/* ====================================================================== */
+
+/**
+ * Estado de SINCRONIZACIÓN por cerebro para las bibliotecas. Es estado de UI
+ * PROPIO del panel de Cerebros (auto-sync y marca de tiempo del último sync);
+ * NO forma parte del contrato compartido `brain-links.ts` (ahí sólo vive el
+ * `sync: boolean` que decide SI se sincroniza). Se persiste con la convención
+ * `starseed.brain.<id>.library` como el resto de secciones por cerebro.
+ */
+interface BrainLibrarySyncState {
+  /** Sincronización automática (además del interruptor `sync` del contrato). */
+  autoSync: boolean;
+  /** Epoch ms del último "sincronizar ahora" (0 = nunca). */
+  lastSyncAt: number;
+  /** Estado del último intento: reposo/ok/sincronizando. */
+  status: "idle" | "syncing" | "ok";
+}
+
+const DEFAULT_BRAIN_LIBRARY_SYNC: BrainLibrarySyncState = {
+  autoSync: false,
+  lastSyncAt: 0,
+  status: "idle",
+};
+
+function brainLibrarySyncKey(brainId: string) {
+  return `starseed.brain.${brainId}.library`;
+}
+
+function loadBrainLibrarySync(brainId: string): BrainLibrarySyncState {
+  if (typeof window === "undefined" || !brainId) return DEFAULT_BRAIN_LIBRARY_SYNC;
+  try {
+    const raw = window.localStorage.getItem(brainLibrarySyncKey(brainId));
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<BrainLibrarySyncState>;
+      return {
+        autoSync: typeof parsed.autoSync === "boolean" ? parsed.autoSync : false,
+        lastSyncAt: typeof parsed.lastSyncAt === "number" ? parsed.lastSyncAt : 0,
+        // El estado nunca se persiste como "syncing" de forma útil: al recargar
+        // lo tratamos como reposo/ok según haya sync previo.
+        status: parsed.lastSyncAt ? "ok" : "idle",
+      };
+    }
+  } catch {
+    /* noop */
+  }
+  return DEFAULT_BRAIN_LIBRARY_SYNC;
+}
+
+function saveBrainLibrarySync(brainId: string, state: BrainLibrarySyncState) {
+  if (typeof window === "undefined" || !brainId) return;
+  try {
+    window.localStorage.setItem(brainLibrarySyncKey(brainId), JSON.stringify(state));
+  } catch {
+    /* noop */
+  }
+}
+
+const LIB_ACCESS_LEVELS: LibraryBrainAccess[] = ["none", "read", "write"];
+
+/** Formatea una marca de tiempo relativa breve en español (defensivo). */
+function formatWhen(ms: number): string {
+  if (!ms) return "nunca";
+  try {
+    const diff = Date.now() - ms;
+    if (diff < 60_000) return "hace instantes";
+    if (diff < 3_600_000) return `hace ${Math.floor(diff / 60_000)} min`;
+    if (diff < 86_400_000) return `hace ${Math.floor(diff / 3_600_000)} h`;
+    return new Date(ms).toLocaleDateString();
+  } catch {
+    return "—";
+  }
+}
+
+/**
+ * BrainLibrariesSection — configura, PARA ESTE CEREBRO, su relación con las
+ * bibliotecas de la Librería unificada:
+ *   • Acceso: none / read / write (persistido en el contrato `brain-links.ts`).
+ *   • Sincronización: si el cerebro sincroniza el contenido (contrato `sync`).
+ *   • Administrar sincronizaciones: estado + «sincronizar ahora» + auto-sync
+ *     (estado de UI local por cerebro).
+ *
+ * Aditiva y defensiva: guardas typeof window, try/catch y sin dependencias
+ * duras de red. Reacciona en vivo a cambios del vínculo (otro panel / pestaña).
+ */
+function BrainLibrariesSection({
+  brainId,
+  isNew,
+}: {
+  brainId: string;
+  isNew: boolean;
+}) {
+  const [access, setAccess] = useState<LibraryBrainAccess>("none");
+  const [sync, setSync] = useState(false);
+  const [syncState, setSyncState] = useState<BrainLibrarySyncState>(DEFAULT_BRAIN_LIBRARY_SYNC);
+  const [storageCfg, setStorageCfg] = useState<LibraryStorageConfig | null>(null);
+
+  // Carga inicial + resync cuando cambia el cerebro.
+  useEffect(() => {
+    const link = getLibraryBrainLink(brainId);
+    setAccess(link?.access ?? "none");
+    setSync(link?.sync ?? false);
+    setSyncState(loadBrainLibrarySync(brainId));
+    setStorageCfg(loadLibraryStorageConfig());
+  }, [brainId]);
+
+  // TIEMPO REAL: si el vínculo cambia en otra superficie/pestaña, refléjalo.
+  useEffect(() => {
+    const unsub = subscribeLibraryLinks(() => {
+      const link = getLibraryBrainLink(brainId);
+      setAccess(link?.access ?? "none");
+      setSync(link?.sync ?? false);
+      setStorageCfg(loadLibraryStorageConfig());
+    });
+    return unsub;
+  }, [brainId]);
+
+  const linked = access !== "none";
+
+  function changeAccess(next: LibraryBrainAccess) {
+    setAccess(next);
+    // El contrato: access "none" desvincula por completo (y limpia sync).
+    if (next === "none") {
+      setSync(false);
+      setLibraryBrainLink(brainId, { access: "none" });
+      toast.message("Este cerebro ya no accede a las bibliotecas.");
+      return;
+    }
+    setLibraryBrainLink(brainId, { access: next, sync });
+    toast.success(`Acceso a bibliotecas: ${LIBRARY_BRAIN_ACCESS_META[next].label.toLowerCase()}.`);
+  }
+
+  function changeSync(on: boolean) {
+    setSync(on);
+    // Sólo tiene sentido con acceso; si no hay, activarlo implica lectura mínima.
+    const effectiveAccess: LibraryBrainAccess = access === "none" ? "read" : access;
+    if (access === "none" && on) setAccess("read");
+    setLibraryBrainLink(brainId, { access: effectiveAccess, sync: on });
+  }
+
+  function updateSyncState(patch: Partial<BrainLibrarySyncState>) {
+    setSyncState((s) => {
+      const next = { ...s, ...patch };
+      saveBrainLibrarySync(brainId, next);
+      return next;
+    });
+  }
+
+  function syncNow() {
+    if (!brainId) {
+      toast.error("Guarda el cerebro antes de sincronizar sus bibliotecas.");
+      return;
+    }
+    if (!linked) {
+      toast.error("Da acceso a las bibliotecas antes de sincronizar.");
+      return;
+    }
+    // Sincronización local (vista previa): registra el estado y la marca de
+    // tiempo. La sincronización real de fondo se conecta más adelante, igual
+    // que en otras secciones por cerebro (canales/auto-update).
+    updateSyncState({ status: "syncing" });
+    try {
+      // Aseguramos que el contrato refleje que este cerebro sincroniza.
+      if (!sync) {
+        setSync(true);
+        setLibraryBrainLink(brainId, { access: (access as string) === "none" ? "read" : access, sync: true });
+      }
+      window.setTimeout(() => {
+        updateSyncState({ status: "ok", lastSyncAt: Date.now() });
+        toast.success("Bibliotecas sincronizadas con este cerebro.");
+      }, 350);
+    } catch {
+      updateSyncState({ status: "idle" });
+      toast.error("No se pudo sincronizar.");
+    }
+  }
+
+  const storageMethod = storageCfg?.storage ?? "starseed";
+  const storageMeta = LIBRARY_STORAGE_META[storageMethod];
+
+  return (
+    <div className="space-y-3 rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-3">
+      <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-widest text-cyan-300/60">
+        <Library className="h-3.5 w-3.5" /> Bibliotecas (este cerebro)
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[9px] normal-case",
+            linked ? "border-emerald-400/30 text-emerald-200" : "border-white/15 text-white/45",
+          )}
+        >
+          {linked ? LIBRARY_BRAIN_ACCESS_META[access].label : "sin acceso"}
+        </Badge>
+      </div>
+      <p className="text-[10px] text-white/40">
+        Configura el acceso de este cerebro a la Librería (bibliotecas, baúles y colecciones), si sincroniza su contenido
+        y administra sus sincronizaciones. Se guarda en el vínculo compartido Librería↔Cerebros.
+      </p>
+
+      {isNew && (
+        <p className="text-[10px] text-amber-300/70">
+          Guarda el cerebro para conservar su acceso y sincronización de bibliotecas.
+        </p>
+      )}
+
+      {/* Acceso a bibliotecas (none / read / write) */}
+      <div className="space-y-1.5">
+        <span className="flex items-center gap-1.5 text-[11px] text-white/55">
+          <ShieldCheck className="h-3.5 w-3.5 text-cyan-300" /> Acceso a las bibliotecas
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          {LIB_ACCESS_LEVELS.map((lvl) => {
+            const on = access === lvl;
+            return (
+              <button
+                key={lvl}
+                onClick={() => changeAccess(lvl)}
+                title={LIBRARY_BRAIN_ACCESS_META[lvl].hint}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition",
+                  on
+                    ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-100"
+                    : "border-white/10 text-white/50 hover:text-white/80",
+                )}
+              >
+                {on && <Check className="h-3 w-3" />} {LIBRARY_BRAIN_ACCESS_META[lvl].label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[10px] text-white/35">{LIBRARY_BRAIN_ACCESS_META[access].hint}</p>
+      </div>
+
+      {/* Sincroniza (contrato) */}
+      <label className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+        <div className="flex items-start gap-2">
+          <FolderSync className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" />
+          <div className="flex flex-col">
+            <span className="text-xs font-medium text-cyan-50">Sincronizar bibliotecas con este cerebro</span>
+            <span className="text-[10px] text-white/40">
+              Mantiene el contenido de las bibliotecas disponible para este cerebro. Requiere acceso.
+            </span>
+          </div>
+        </div>
+        <Switch checked={sync} onCheckedChange={changeSync} disabled={!linked} />
+      </label>
+
+      {/* Administrar sincronizaciones */}
+      <div className="space-y-2 rounded-lg border border-white/10 bg-black/20 p-2.5">
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/65">
+          <RefreshCw className={cn("h-3.5 w-3.5 text-cyan-300", syncState.status === "syncing" && "animate-spin")} />
+          Administrar sincronizaciones
+          <Badge
+            variant="outline"
+            className={cn(
+              "ml-auto text-[9px]",
+              syncState.status === "syncing"
+                ? "border-cyan-400/40 text-cyan-300"
+                : syncState.status === "ok"
+                  ? "border-emerald-400/40 text-emerald-300"
+                  : "border-white/15 text-white/45",
+            )}
+          >
+            {syncState.status === "syncing" ? "sincronizando…" : syncState.status === "ok" ? "al día" : "en reposo"}
+          </Badge>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/40">
+          <span>Último sync: {formatWhen(syncState.lastSyncAt)}</span>
+          <span className="text-white/25">·</span>
+          <span className="inline-flex items-center gap-1">
+            <Database className="h-3 w-3" /> {storageMeta?.emoji} {storageMeta?.label ?? "StarSeed (soberano)"}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            className="h-7 gap-1.5 bg-cyan-600 text-white hover:bg-cyan-500"
+            disabled={!linked || isNew || syncState.status === "syncing"}
+            onClick={syncNow}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", syncState.status === "syncing" && "animate-spin")} /> Sincronizar
+            ahora
+          </Button>
+          <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5">
+            <Switch
+              checked={syncState.autoSync}
+              onCheckedChange={(v) => updateSyncState({ autoSync: v })}
+              disabled={!linked}
+            />
+            <span className="text-[11px] text-white/70">Auto-sincronizar</span>
+          </label>
+          <Link
+            href="/library"
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-[11px] text-white/70 hover:bg-white/5"
+          >
+            <Library className="h-3.5 w-3.5" /> Abrir Librería
+          </Link>
+        </div>
+
+        {!linked && (
+          <p className="text-[10px] text-white/35">
+            Da acceso (lectura o escritura) para habilitar la sincronización de este cerebro con las bibliotecas.
+          </p>
+        )}
+        {isNew && linked && (
+          <p className="text-[10px] text-amber-300/70">Guarda el cerebro para poder sincronizar.</p>
+        )}
+      </div>
     </div>
   );
 }

@@ -132,9 +132,9 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'messages',      label: 'Mensajes',            iconKey: 'MessagesSquare',  path: '/messages',              color: 'crimson', enabled: true,  origin: 'preset' },
   { id: 'notifications', label: 'Notificaciones',      iconKey: 'Bell',            path: '/notifications',         color: 'amber',   enabled: true,  origin: 'preset' },
   { id: 'hub',           label: 'Hub',                 iconKey: 'Users',           path: '/hub',                   color: 'emerald', enabled: true,  origin: 'preset' },
-  { id: 'mylib',         label: 'Mi Biblioteca',       iconKey: 'BookOpen',        path: '/library?view=personal', color: 'cyan',    enabled: true,  origin: 'preset' },
-  { id: 'netlib',        label: 'Librería Global',     iconKey: 'Library',         path: '/library?view=global',   color: 'cyan',    enabled: true,  origin: 'preset' },
-  { id: 'nodes',         label: 'Nodos',               iconKey: 'Network',         path: '/network',               color: 'crimson', enabled: true,  origin: 'preset' },
+  { id: 'mylib',         label: 'Librería · Biblioteca', iconKey: 'Library',        path: '/library',               color: 'cyan',    enabled: true,  origin: 'preset' },
+  { id: 'netlib',        label: 'Librería Global',     iconKey: 'Library',         path: '/library?tab=explorar',  color: 'cyan',    enabled: false, origin: 'preset' },
+  { id: 'nodes',         label: 'Red · Nodos',        iconKey: 'Network',         path: '/hub?tab=red',           color: 'crimson', enabled: true,  origin: 'preset' },
   // ── IA: UN solo botón a la página principal por defecto ──
   { id: 'ai-studio',     label: 'Astraura AI',           iconKey: 'BrainCircuit',    path: '/agent',                 color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'settings',      label: 'Ajustes',             iconKey: 'Settings',        path: '/settings',              color: 'neutral', enabled: true,  origin: 'preset' },

@@ -22,7 +22,13 @@
 //    devuelve una lista heurística local útil. Nunca lanza a sus llamadores.
 // ════════════════════════════════════════════════════════════════
 
-import { OSS_LIBRARY, LIBRARY_SOURCES, OSS_CATEGORY_META, type OssOption } from "@/lib/oss-library";
+import {
+  OSS_LIBRARY,
+  LIBRARY_SOURCES,
+  OSS_CATEGORY_META,
+  type OssOption,
+  type OssCategory,
+} from "@/lib/oss-library";
 
 // ── Identidad estable de la skill ────────────────────────────────
 
@@ -476,6 +482,13 @@ export interface GetRecommendationsResult {
   viaAurora: boolean;
   /** Resumen breve en prosa (de Aurora si está disponible). */
   summary: string;
+  /**
+   * ADITIVO (opcional, compat. hacia atrás): mejores alternativas propuestas
+   * para lo que el cerebro ya tiene instalado (misma categoría, mantenida,
+   * mayor relevancia). Sólo se rellena si se pide `includeAlternatives`.
+   * Los llamadores existentes que no lo lean siguen funcionando igual.
+   */
+  alternatives?: BetterAlternative[];
 }
 
 /** Construye el conjunto de candidatos (catálogo OSS + fuentes del usuario). */
@@ -537,19 +550,47 @@ function localHeuristicRanking(cfg: AutoUpdateConfig, limit: number): Recommenda
  * @param brainId  Cerebro cuyo contexto/fuentes se usan.
  * @param opts.limit  Máximo de recomendaciones (por defecto 8).
  * @param opts.passphrase  Passphrase para descifrar la clave del proveedor.
+ * @param opts.includeAlternatives  ADITIVO: si true, adjunta `alternatives`
+ *   (mejores alternativas OSS para lo ya instalado). Off por defecto → los
+ *   llamadores existentes obtienen exactamente el mismo resultado que antes.
+ * @param opts.installedIds  ADITIVO: ids OSS instalados a considerar. Si se
+ *   omite, se leen de forma defensiva desde localStorage del cerebro.
  */
 export async function getRecommendations(
   brainId: string,
-  opts: { limit?: number; passphrase?: string; signal?: AbortSignal } = {},
+  opts: {
+    limit?: number;
+    passphrase?: string;
+    signal?: AbortSignal;
+    includeAlternatives?: boolean;
+    installedIds?: string[];
+  } = {},
 ): Promise<GetRecommendationsResult> {
   const limit = Math.max(1, Math.min(20, opts.limit ?? 8));
   const cfg = loadAutoUpdateConfig(brainId);
   const candidates = buildCandidates(cfg);
   const localRanking = localHeuristicRanking(cfg, limit);
 
-  // Sin candidatos → nada que recomendar.
+  // ADITIVO: si el llamador pide alternativas, las calculamos (siempre local,
+  // defensivo). Aurora podrá afinarlas dentro de findBetterAlternatives. Sólo
+  // adjuntamos el array de alternativas (el campo del resultado es BetterAlternative[]).
+  let alternatives: BetterAlternative[] | undefined;
+  if (opts.includeAlternatives) {
+    try {
+      const alt = await findBetterAlternatives(brainId, {
+        installedIds: opts.installedIds,
+        passphrase: opts.passphrase,
+        signal: opts.signal,
+      });
+      alternatives = alt.alternatives;
+    } catch {
+      alternatives = [];
+    }
+  }
+
+  // Sin candidatos → nada que recomendar (pero devolvemos alternatives si se pidió).
   if (candidates.length === 0) {
-    return { recommendations: [], viaAurora: false, summary: "" };
+    return { recommendations: [], viaAurora: false, summary: "", ...(alternatives ? { alternatives } : {}) };
   }
 
   // ¿Hay algún proveedor de IA activo? Si no, devolvemos la heurística local.
@@ -565,6 +606,7 @@ export async function getRecommendations(
       recommendations: localRanking,
       viaAurora: false,
       summary: "Recomendaciones locales (activa un proveedor de IA para que Aurora las afine).",
+      ...(alternatives ? { alternatives } : {}),
     };
   }
 
@@ -601,13 +643,14 @@ Usa como máximo ${limit} items, ordenados de más a menos relevante.`;
 
     const parsed = parseAuroraRecommendations(res?.text ?? "", candidates, limit);
     if (parsed && parsed.recommendations.length > 0) {
-      return { ...parsed, viaAurora: true };
+      return { ...parsed, viaAurora: true, ...(alternatives ? { alternatives } : {}) };
     }
     // Aurora respondió pero no pudimos parsear → heurística local.
     return {
       recommendations: localRanking,
       viaAurora: false,
       summary: "Recomendaciones locales (no se pudo interpretar la respuesta de Aurora).",
+      ...(alternatives ? { alternatives } : {}),
     };
   } catch {
     // Cualquier fallo (sin clave, red, parseo) → heurística local.
@@ -615,6 +658,7 @@ Usa como máximo ${limit} items, ordenados de más a menos relevante.`;
       recommendations: localRanking,
       viaAurora: false,
       summary: "Recomendaciones locales (Aurora no estuvo disponible).",
+      ...(alternatives ? { alternatives } : {}),
     };
   }
 }
@@ -664,4 +708,346 @@ function parseAuroraRecommendations(
   }
   if (recommendations.length === 0) return null;
   return { recommendations, summary };
+}
+
+// ════════════════════════════════════════════════════════════════
+// ADITIVO · "Mejores alternativas" (Actualizaciones inteligentes)
+// ----------------------------------------------------------------
+// Dado lo que un cerebro ya tiene instalado (opciones OSS de apps, runtimes,
+// servidores y almacenamiento — más, opcionalmente, integraciones y ficheros),
+// propone para CADA contexto opciones más nuevas/mejores del catálogo
+// (`OSS_LIBRARY`): misma categoría, mantenidas y de mayor relevancia.
+//
+// Todo es LOCAL-FIRST y DEFENSIVO (guardas typeof window, try/catch, sin red
+// dura). Aurora (`chatSmart`) es OPCIONAL: sólo afina las razones/orden si hay
+// proveedor activo. Nunca lanza a sus llamadores. La Librería (sección de
+// Actualizaciones) puede llamar `findBetterAlternatives(brainId)` directamente.
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Claves por cerebro de las selecciones OSS instaladas (misma convención que
+ * `@/lib/brains/brains`: `starseed.brain.<id>.{apps,runtimes,servers,storage}`).
+ * Se definen aquí en local para leerlas de forma defensiva SIN acoplar este
+ * módulo a brains.ts (evitamos ciclos de import y dependencias duras).
+ */
+const OSS_SLOT_SUFFIXES = ["apps", "runtimes", "servers", "storage"] as const;
+
+function brainOssSlotKey(brainId: string, slot: (typeof OSS_SLOT_SUFFIXES)[number]): string {
+  return `starseed.brain.${brainId}.${slot}`;
+}
+
+/**
+ * Lee los ids de opciones OSS instaladas en un cerebro desde los cuatro huecos
+ * (apps/runtimes/servers/storage). Acepta la forma `{ ids: string[] }` que guarda
+ * BrainOssCatalogSection y, defensivamente, un `string[]` plano. Si no hay
+ * config guardada para un hueco, se omite (no inventamos instalados).
+ */
+export function readInstalledOssIds(brainId: string): string[] {
+  if (!brainId) return [];
+  const ids = new Set<string>();
+  for (const slot of OSS_SLOT_SUFFIXES) {
+    const raw = readJson<unknown>(brainOssSlotKey(brainId, slot));
+    if (!raw) continue;
+    const arr: unknown = Array.isArray(raw)
+      ? raw
+      : raw && typeof raw === "object" && Array.isArray((raw as { ids?: unknown }).ids)
+        ? (raw as { ids: unknown[] }).ids
+        : [];
+    for (const item of arr as unknown[]) {
+      if (typeof item === "string" && item) ids.add(item);
+    }
+  }
+  return Array.from(ids);
+}
+
+/** Una mejor alternativa propuesta para un elemento ya instalado. */
+export interface BetterAlternative {
+  /** Id OSS de la opción instalada que se puede mejorar/reemplazar. */
+  forId: string;
+  /** Nombre legible de la opción instalada. */
+  forName: string;
+  /** Categoría (contexto) compartida entre instalada y alternativa. */
+  category: OssCategory;
+  /** Etiqueta legible de la categoría (contexto). */
+  categoryLabel: string;
+  /** Id OSS de la alternativa sugerida. */
+  refId: string;
+  /** Nombre de la alternativa sugerida. */
+  title: string;
+  /** Por qué es mejor / relevante (1 frase, español). */
+  reason: string;
+  /** URL de la alternativa (repo), si la hay. */
+  url?: string;
+}
+
+export interface FindBetterAlternativesResult {
+  /** Alternativas propuestas, agrupables por `forId`/categoría. */
+  alternatives: BetterAlternative[];
+  /** Recomendaciones relevantes adicionales del catálogo (misma-categoría, mantenidas) aunque no reemplacen a nada instalado. */
+  recommendations: Recommendation[];
+  /** ¿Aurora afinó razones/orden? (false = heurística local). */
+  viaAurora: boolean;
+  /** Resumen breve (de Aurora si está disponible). */
+  summary: string;
+  /** Ids OSS instalados considerados (para depurar/mostrar). */
+  installedIds: string[];
+}
+
+/**
+ * Puntúa cuánto "mejor" es una alternativa `cand` frente a la opción instalada
+ * `inst` (ambas de la misma categoría). Heurística local, determinista:
+ *  - mantenida vs no-mantenida (lo más importante),
+ *  - OSI-approved (`oss`) frente a open-weight/otra licencia,
+ *  - MoA nativo si aplica,
+ *  - integrada por defecto (señal de relevancia curada).
+ * Devuelve 0 o negativo si no aporta mejora clara (se descarta).
+ */
+function alternativeScore(inst: OssOption, cand: OssOption): number {
+  let s = 0;
+  if (cand.maintained && !inst.maintained) s += 50; // reemplazo claro: lo tuyo está sin mantener
+  else if (cand.maintained) s += 8; // ambas mantenidas: leve preferencia por opciones vivas
+  if (cand.oss && !inst.oss) s += 15; // más abierto que lo instalado
+  if (cand.moaNative && !inst.moaNative) s += 6;
+  if (cand.defaultIntegrated) s += 4; // curada/integrada por la red
+  return s;
+}
+
+/** Construye las alternativas locales (sin IA) para un conjunto de instalados. */
+function buildLocalAlternatives(installed: OssOption[], perContext: number): BetterAlternative[] {
+  const out: BetterAlternative[] = [];
+  const installedIds = new Set(installed.map((o) => o.id));
+  for (const inst of installed) {
+    const meta = OSS_CATEGORY_META[inst.category];
+    const sameCat = OSS_LIBRARY.filter(
+      (o) => o.category === inst.category && o.id !== inst.id && !installedIds.has(o.id) && o.maintained,
+    );
+    const ranked = sameCat
+      .map((cand) => ({ cand, s: alternativeScore(inst, cand) }))
+      .filter((x) => x.s > 0)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, Math.max(1, perContext));
+    for (const { cand } of ranked) {
+      const better = !inst.maintained && cand.maintained;
+      const moreOpen = cand.oss && !inst.oss;
+      const reason = better
+        ? `Alternativa mantenida a ${inst.name} (que está en mantenimiento).`
+        : moreOpen
+          ? `Más abierta que ${inst.name} (${cand.license}), mismo contexto ${meta?.label ?? inst.category}.`
+          : `Alternativa vigente en ${meta?.label ?? inst.category} a considerar frente a ${inst.name}.`;
+      out.push({
+        forId: inst.id,
+        forName: inst.name,
+        category: inst.category,
+        categoryLabel: meta?.label ?? inst.category,
+        refId: cand.id,
+        title: cand.name,
+        reason,
+        url: cand.url,
+      });
+    }
+  }
+  return out;
+}
+
+/** Recomendaciones adicionales del catálogo por contexto (mantenidas), sin duplicar instaladas. */
+function buildContextRecommendations(installed: OssOption[], limit: number): Recommendation[] {
+  const out: Recommendation[] = [];
+  const installedIds = new Set(installed.map((o) => o.id));
+  const categories = Array.from(new Set(installed.map((o) => o.category)));
+  const seen = new Set<string>();
+  for (const cat of categories) {
+    const meta = OSS_CATEGORY_META[cat];
+    const options = OSS_LIBRARY.filter(
+      (o) => o.category === cat && !installedIds.has(o.id) && o.maintained,
+    )
+      .sort((a, b) => Number(b.defaultIntegrated ?? false) - Number(a.defaultIntegrated ?? false))
+      .slice(0, 3);
+    for (const o of options) {
+      if (seen.has(o.id)) continue;
+      seen.add(o.id);
+      out.push({
+        refId: o.id,
+        title: o.name,
+        reason: `${meta?.label ?? cat} · ${o.license}${o.defaultIntegrated ? " · integrada" : ""}`,
+        url: o.url,
+        origin: "oss",
+      });
+    }
+  }
+  return out.slice(0, limit);
+}
+
+/**
+ * Propone MEJORES ALTERNATIVAS para lo que un cerebro ya tiene instalado.
+ *
+ * Estrategia: local-first + Aurora opcional (igual patrón que getRecommendations).
+ * 1) Lee los ids OSS instalados (o usa `opts.installedIds`).
+ * 2) Por cada instalado, busca en su misma categoría opciones mantenidas y de
+ *    mayor relevancia (heurística determinista) → alternativas.
+ * 3) Añade recomendaciones de contexto (misma categoría, mantenidas).
+ * 4) Si hay proveedor de IA, deja que Aurora reordene/afine las RAZONES; si no,
+ *    devuelve el ranking local. Nunca lanza.
+ *
+ * @param brainId  Cerebro a analizar.
+ * @param opts.installedIds  Ids OSS instalados (si se omite, se leen del cerebro).
+ * @param opts.perContext  Máx. alternativas por elemento instalado (def. 2).
+ * @param opts.limit  Máx. recomendaciones de contexto (def. 8).
+ * @param opts.passphrase / opts.signal  Para el intento opcional con Aurora.
+ */
+export async function findBetterAlternatives(
+  brainId: string,
+  opts: {
+    installedIds?: string[];
+    perContext?: number;
+    limit?: number;
+    passphrase?: string;
+    signal?: AbortSignal;
+  } = {},
+): Promise<FindBetterAlternativesResult> {
+  const perContext = Math.max(1, Math.min(5, opts.perContext ?? 2));
+  const limit = Math.max(1, Math.min(20, opts.limit ?? 8));
+
+  try {
+    const installedIds = Array.isArray(opts.installedIds)
+      ? opts.installedIds.filter((x): x is string => typeof x === "string" && !!x)
+      : readInstalledOssIds(brainId);
+
+    // Mapear a opciones OSS conocidas (ignoramos ids desconocidos con seguridad).
+    const installed = installedIds
+      .map((id) => OSS_LIBRARY.find((o) => o.id === id))
+      .filter((o): o is OssOption => !!o);
+
+    // Sin instalados reconocibles → nada que comparar (defensivo, no inventamos).
+    if (installed.length === 0) {
+      return {
+        alternatives: [],
+        recommendations: [],
+        viaAurora: false,
+        summary:
+          "Sin opciones instaladas reconocibles en este cerebro. Añade apps, runtimes, servidores o almacenamiento del catálogo para recibir mejores alternativas.",
+        installedIds,
+      };
+    }
+
+    const localAlternatives = buildLocalAlternatives(installed, perContext);
+    const contextRecs = buildContextRecommendations(installed, limit);
+
+    // ¿Hay proveedor de IA? Si no, devolvemos el ranking local.
+    let hasProvider = false;
+    try {
+      const { loadConfigs } = await import("@/ai/client/providerStore");
+      hasProvider = loadConfigs().some((c) => c.enabled);
+    } catch {
+      hasProvider = false;
+    }
+    if (!hasProvider || localAlternatives.length === 0) {
+      return {
+        alternatives: localAlternatives,
+        recommendations: contextRecs,
+        viaAurora: false,
+        summary: localAlternatives.length
+          ? "Mejores alternativas locales (activa un proveedor de IA para que Aurora las afine)."
+          : "No se encontraron mejores alternativas claras para lo instalado (todo parece vigente).",
+        installedIds,
+      };
+    }
+
+    // Intento con Aurora: reordena/afina RAZONES sobre las alternativas locales.
+    try {
+      const { chatSmart } = await import("@/ai/client/chat");
+      const menu = localAlternatives
+        .slice(0, 40)
+        .map(
+          (a, i) =>
+            `${i}: [${a.categoryLabel}] instalada «${a.forName}» → alternativa «${a.title}» — ${a.reason}${
+              a.url ? ` (${a.url})` : ""
+            }`,
+        )
+        .join("\n");
+
+      const content = `Eres Aurora, el sistema de IA de un cerebro de StarSeed OS. El usuario ya tiene instaladas ciertas opciones de software libre; abajo tienes propuestas de MEJORES ALTERNATIVAS (misma categoría/contexto, mantenidas). Elige y ORDENA hasta ${limit} de las MÁS convenientes de reemplazar/añadir y afina en una frase por qué cada una es mejor para su contexto.
+
+Lista de propuestas (instalada → alternativa):
+${menu}
+
+Responde ÚNICAMENTE con JSON válido, sin texto extra, con esta forma exacta:
+{"summary":"<resumen breve en español, 1-2 frases>","items":[{"index":<número de la lista>,"reason":"<por qué es mejor, en español, 1 frase>"}]}
+Usa como máximo ${limit} items, ordenados de más a menos relevante.`;
+
+      const res = await chatSmart({
+        brainId,
+        messages: [{ role: "user", content }],
+        temperature: 0.3,
+        passphrase: opts.passphrase,
+        signal: opts.signal,
+      });
+
+      const refined = parseAuroraAlternatives(res?.text ?? "", localAlternatives, limit);
+      if (refined && refined.alternatives.length > 0) {
+        return {
+          alternatives: refined.alternatives,
+          recommendations: contextRecs,
+          viaAurora: true,
+          summary: refined.summary || "Mejores alternativas afinadas por Aurora.",
+          installedIds,
+        };
+      }
+      // Aurora respondió pero no se pudo interpretar → ranking local.
+      return {
+        alternatives: localAlternatives,
+        recommendations: contextRecs,
+        viaAurora: false,
+        summary: "Mejores alternativas locales (no se pudo interpretar la respuesta de Aurora).",
+        installedIds,
+      };
+    } catch {
+      return {
+        alternatives: localAlternatives,
+        recommendations: contextRecs,
+        viaAurora: false,
+        summary: "Mejores alternativas locales (Aurora no estuvo disponible).",
+        installedIds,
+      };
+    }
+  } catch {
+    // Cualquier fallo inesperado → resultado vacío seguro.
+    return { alternatives: [], recommendations: [], viaAurora: false, summary: "", installedIds: [] };
+  }
+}
+
+/** Interpreta la respuesta JSON de Aurora y reordena/afina las alternativas locales. */
+function parseAuroraAlternatives(
+  text: string,
+  base: BetterAlternative[],
+  limit: number,
+): { alternatives: BetterAlternative[]; summary: string } | null {
+  const block = extractJsonBlock(text);
+  if (!block) return null;
+  let obj: unknown;
+  try {
+    obj = JSON.parse(block);
+  } catch {
+    return null;
+  }
+  if (!obj || typeof obj !== "object") return null;
+  const o = obj as { summary?: unknown; items?: unknown };
+  const summary = typeof o.summary === "string" ? o.summary.trim() : "";
+  const items = Array.isArray(o.items) ? o.items : [];
+  const alternatives: BetterAlternative[] = [];
+  const seen = new Set<number>();
+  for (const it of items) {
+    if (!it || typeof it !== "object") continue;
+    const idxRaw = (it as { index?: unknown }).index;
+    const idx = typeof idxRaw === "number" ? idxRaw : Number(idxRaw);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= base.length || seen.has(idx)) continue;
+    seen.add(idx);
+    const reason =
+      typeof (it as { reason?: unknown }).reason === "string"
+        ? ((it as { reason: string }).reason).trim()
+        : base[idx].reason;
+    alternatives.push({ ...base[idx], reason: reason || base[idx].reason });
+    if (alternatives.length >= limit) break;
+  }
+  if (alternatives.length === 0) return null;
+  return { alternatives, summary };
 }

@@ -16,7 +16,7 @@ import {
     Activity, Award, Shield, Flame, MessageSquare, Cpu,
     Sparkles, Send, TrendingUp, BarChart3, Library, Terminal,
     Users2, AlertCircle, ChevronDown, Check, PlusCircle, Calendar,
-    Scale, HelpCircle, ArrowUpRight, Play, CheckSquare
+    Scale, HelpCircle, ArrowUpRight, Play, CheckSquare, Network
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,10 @@ import { StoriesStrip } from "@/components/stories/stories-strip";
 import { UniversalSearchBox } from "@/components/hub/universal-search-box";
 import EgoContextOption from "@/components/aurora/ego-context-option";
 import { createEgoForContext } from "@/lib/aurora/ego";
+import { HubRedSection } from "./red-section";
+
+// Pestañas válidas del Hub (para deep-linking `?tab=` desde el dock / enlaces).
+const HUB_TABS = ["buscador", "contributions", "red", "my-pages", "groups", "calendar", "parties", "vote-management"] as const;
 
 // ── TYPES & MOCK DATA FOR CONTRIBUTIONS ──
 interface Volunteer {
@@ -84,6 +88,17 @@ export default function HubPage() {
 
     // ── CONTROLLED TABS & DYNAMIC USER DATA ──
     const [activeTab, setActiveTab] = useState("contributions");
+
+    // Deep-linking por `?tab=` (p.ej. /hub?tab=red, /hub?tab=calendar) desde el
+    // dock, la Red y otros enlaces. Lee window.location en cliente (SSR-safe:
+    // no requiere Suspense como useSearchParams). Abre la pestaña indicada.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const requested = new URLSearchParams(window.location.search).get("tab");
+        if (requested && (HUB_TABS as readonly string[]).includes(requested)) {
+            setActiveTab(requested);
+        }
+    }, []);
     // Query del Buscador Universal (la barra del header la alimenta).
     const [headerQuery, setHeaderQuery] = useState("");
     const [userReputation, setUserReputation] = useState(1842);
@@ -555,12 +570,15 @@ export default function HubPage() {
 
             {/* ── MENÚ TABS REORGANIZADO A LA PARTE SUPERIOR (CONSOLIDADOS) ── */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col mt-2">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 max-w-full lg:max-w-6xl mx-auto h-auto min-h-[50px] gap-2 bg-black/25 p-2 rounded-2xl border border-white/5 shadow-2xl backdrop-blur-md">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-8 max-w-full lg:max-w-6xl mx-auto h-auto min-h-[50px] gap-2 bg-black/25 p-2 rounded-2xl border border-white/5 shadow-2xl backdrop-blur-md">
                     <TabsTrigger value="buscador" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
                         <Search className="w-4 h-4 mr-2 text-primary" />Buscador
                     </TabsTrigger>
                     <TabsTrigger value="contributions" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
                         <Briefcase className="w-4 h-4 mr-2 text-cyan-400" />Aportaciones
+                    </TabsTrigger>
+                    <TabsTrigger value="red" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
+                        <Network className="w-4 h-4 mr-2 text-cyan-400" />Red
                     </TabsTrigger>
                     <TabsTrigger value="my-pages" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
                         <Globe className="w-4 h-4 mr-2" />Mis Páginas
@@ -1788,6 +1806,11 @@ export default function HubPage() {
             </div>
         </TabsContent>
 
+                {/* ── RED · NODOS (fusión del apartado "Nodos" dentro del Hub) ── */}
+                <TabsContent value="red" className="mt-6 animate-in fade-in-50 duration-500">
+                    <HubRedSection />
+                </TabsContent>
+
                 {/* ── MIS PÁGINAS ── */}
                 <TabsContent value="my-pages" className="mt-6 animate-in fade-in-50 duration-500">
                     <div className="flex justify-between items-center mb-4 px-1">
@@ -1870,7 +1893,7 @@ export default function HubPage() {
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap gap-2 mt-auto">
-                                        {group.tags.map(tag => (
+                                        {group.tags.map((tag: string) => (
                                             <span key={tag} className="text-[10px] font-medium text-muted-foreground bg-white/5 border border-white/10 px-2.5 py-1 rounded-full">{tag}</span>
                                         ))}
                                     </div>
