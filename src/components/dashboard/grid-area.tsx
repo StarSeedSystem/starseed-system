@@ -239,12 +239,15 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 id={`grid-container-${dashboardId}`}
                 ref={containerRef}
                 className={cn(
-                    "relative min-h-[300px] w-full rounded-[clamp(1rem,2vw,2rem)] p-[clamp(0.5rem,1.5vw,1rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-300",
+                    // box-border: el padding no desborda el ancho en táctil (móvil).
+                    "box-border relative min-h-[300px] w-full rounded-[clamp(1rem,2vw,2rem)] p-[clamp(0.4rem,1.25vw,0.85rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-300",
                     isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-transparent"
                 )}
                 style={{ touchAction: "pan-y" }}
             >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ touchAction: "pan-y" }}>
+                {/* Rejilla fluida: 1 col en móvil, 2 en tablet, 3 en pantallas anchas.
+                    Tarjetas más limpias con separación uniforme y sin recortes. */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4" style={{ touchAction: "pan-y" }}>
                     {ordered.map((widget, idx) => {
                         const h = Math.max(widget.layout.h, 3);
                         const cardHeight = h * ROW + (h - 1) * GAP;
@@ -346,8 +349,12 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 // padding fluido (clamp) + holgura inferior para dock/FAB y safe-area:
                 // legible y usable de 320px a ultrawide, en táctil y escritorio.
                 // overflow-visible: el scroll lo gestiona el contenedor del panel.
-                "relative min-h-[500px] flex-1 w-full rounded-[clamp(1rem,2vw,2rem)] overflow-visible p-[clamp(0.5rem,1.5vw,1rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-500 ease-out backdrop-blur-sm",
-                isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-transparent border border-white/5"
+                // box-border: el padding cuenta DENTRO del ancho → el lienzo no se
+                // desborda ni "encoge" la pantalla. Sin borde propio en reposo (el
+                // marco del workspace ya lo aporta): evita el doble borde que robaba
+                // espacio visible; solo el modo edición dibuja su guía punteada.
+                "box-border relative min-h-[500px] flex-1 w-full rounded-[clamp(1rem,2vw,2rem)] overflow-visible p-[clamp(0.5rem,1.25vw,0.85rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-300 ease-out backdrop-blur-sm",
+                isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-transparent border-0"
             )}
             // touch-action pan-y SIEMPRE: el dedo scrollea vertical; nada arrastra.
             style={{ touchAction: "pan-y" }}

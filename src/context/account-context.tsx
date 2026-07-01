@@ -47,10 +47,74 @@ interface AccountContextType {
     user: User | null;
     profile: AccountProfile | null;
     loading: boolean;
+    /**
+     * true solo cuando el perfil tiene datos REALES mínimos (un @handle y un
+     * nombre visible reales, no placeholders demo). Si es false y hay sesión,
+     * la UI debe pedir completar el perfil real (ver onboarding / ajustes).
+     */
+    profileComplete: boolean;
     signOut: () => Promise<void>;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
+
+// ── De-mock: valores genéricos/demo que NO deben tratarse como identidad real ──
+// (avatares y nombres de ejemplo históricos del proyecto). Si un perfil llega con
+// alguno de estos, los neutralizamos para no mostrar datos falsos por defecto.
+const FAKE_HANDLES = new Set([
+    "starseeduser",
+    "starseed_user",
+    "starseeduser0",
+    "usuario",
+    "user",
+    "demo",
+    "guest",
+    "invitado",
+    "anon",
+    "anonymous",
+]);
+const FAKE_NAMES = new Set([
+    "starseed user",
+    "usuario starseed",
+    "usuario",
+    "user",
+    "demo user",
+    "guest",
+    "invitado",
+    "nuevo usuario",
+]);
+
+function isFakeHandle(v: unknown): boolean {
+    return typeof v === "string" && FAKE_HANDLES.has(v.trim().toLowerCase());
+}
+function isFakeName(v: unknown): boolean {
+    return typeof v === "string" && FAKE_NAMES.has(v.trim().toLowerCase());
+}
+
+/**
+ * Limpia un perfil de placeholders demo para que la app nunca muestre datos
+ * falsos como si fueran reales. Los campos con valores de ejemplo se anulan
+ * (quedan vacíos → la UI degrada con honestidad y pide completarlos).
+ */
+function sanitizeProfile(p: AccountProfile | null): AccountProfile | null {
+    if (!p) return p;
+    const out: AccountProfile = { ...p };
+    if (isFakeHandle(out.handle)) out.handle = null;
+    if (isFakeHandle(out.username)) out.username = null;
+    if (isFakeName(out.display_name)) out.display_name = null;
+    if (isFakeName(out.full_name)) out.full_name = null;
+    return out;
+}
+
+/** ¿El perfil tiene datos reales mínimos (handle + nombre, sin placeholders)? */
+export function isProfileComplete(p: AccountProfile | null): boolean {
+    if (!p) return false;
+    const handle = (p.handle ?? p.username ?? null) as string | null;
+    const name = (p.display_name ?? p.full_name ?? null) as string | null;
+    const handleOk = !!handle && handle.trim().length > 0 && !isFakeHandle(handle);
+    const nameOk = !!name && name.trim().length > 0 && !isFakeName(name);
+    return handleOk && nameOk;
+}
 
 // ── Carga del perfil: cafe_profiles primero, profiles como fallback ──
 async function loadProfile(
@@ -101,7 +165,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             if (nextUser) {
                 try {
                     const p = await loadProfile(supabase, nextUser.id);
-                    if (active) setProfile(p);
+                    // De-mock: nunca dejar pasar placeholders demo como identidad real.
+                    if (active) setProfile(sanitizeProfile(p));
                 } catch {
                     if (active) setProfile(null);
                 }
@@ -164,7 +229,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         const mergeProfileRow = (payload: RealtimePayload<AccountProfile>) => {
             const next = payload?.new;
             if (!next || typeof next !== "object") return;
-            setProfile((prev) => ({ ...(prev ?? {}), ...(next as AccountProfile) }));
+            // Fusiona y sanea: los placeholders demo entrantes tampoco cuentan.
+            setProfile((prev) => sanitizeProfile({ ...(prev ?? {}), ...(next as AccountProfile) }));
         };
 
         // Limpiadores de cada suscripción (best-effort, tolerantes a fallos).
@@ -221,7 +287,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     };
 
     const value = useMemo<AccountContextType>(
-        () => ({ session, user, profile, loading, signOut }),
+        () => ({
+            session,
+            user,
+            profile,
+            loading,
+            profileComplete: isProfileComplete(profile),
+            signOut,
+        }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [session, user, profile, loading],
     );

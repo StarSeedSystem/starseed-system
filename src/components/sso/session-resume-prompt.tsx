@@ -40,6 +40,13 @@ export interface SessionResumePromptProps {
     className?: string;
 }
 
+// De-mock: handles demo históricos que NO deben mostrarse como identidad real.
+const FAKE_HANDLES = new Set(["starseeduser", "starseed_user", "usuario", "user", "demo", "guest", "invitado", "anon", "anonymous"]);
+function isFakeHandle(v: string | null | undefined): boolean {
+    if (!v) return false;
+    return FAKE_HANDLES.has(v.replace(/^@/, "").trim().toLowerCase());
+}
+
 // Iniciales para el fallback del avatar (defensivo).
 function initialsFrom(identity: DetectedIdentity | null): string {
     const base =
@@ -153,7 +160,11 @@ export function SessionResumePrompt({
     // No renderizar hasta saber, ni si no hay sesión o el usuario la descartó.
     if (!ready || dismissed || !identity) return null;
 
-    const label = identityLabel(identity);
+    // De-mock: si el handle detectado es un placeholder demo, no lo mostramos como
+    // identidad real; usamos el correo real (o el genérico honesto) en su lugar.
+    const label = isFakeHandle(identity.handle)
+        ? identity.email || "tu cuenta StarSeed"
+        : identityLabel(identity);
     const sub = isStarSeedEmail(identity.email)
         ? identity.email
         : identity.email || "Sesión StarSeed activa en este dispositivo";

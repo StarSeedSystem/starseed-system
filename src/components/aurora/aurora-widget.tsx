@@ -1,35 +1,92 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Mic, MicOff, Settings2, SlidersHorizontal, Sparkles, Volume2, Wand2, Puzzle, X,
   Play, Pause, SkipForward, SkipBack, Square, Send, History, ListChecks, MessageSquare, Layers,
+  Layout, LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
 import { AuroraControlPanel } from "./aurora-control-panel";
 import { AuroraMultichatPanel } from "./aurora-multichat-panel";
+import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
+import { AURORA_TRINITY_FLAG, AURORA_TRINITY_EVENT } from "@/components/layout/trinity-fab";
 
 type WidgetTab = "chat" | "chats" | "voz" | "control";
+
+/**
+ * Nodos cardinales Trinity para el Orbe unificado. Mismos edges/colores que el
+ * TrinityFab (Zenith/Horizon/Logic/Anchor) — no se inventa nada nuevo: cada
+ * pétalo togglea el MISMO `usePerimeter().setActiveEdge` que el resto del OS.
+ * Se disponen en un cuarto de arco hacia arriba-izquierda para no chocar con el
+ * borde inferior-derecho ni con el panel de Aurora.
+ */
+const TRINITY_NODES: Array<{
+  edge: Exclude<PerimeterEdge, null>;
+  label: string;
+  sub: string;
+  color: string;
+  Icon: ComponentType<{ className?: string }>;
+  /** Desplazamiento del pétalo respecto al centro del orbe (px). */
+  x: number;
+  y: number;
+}> = [
+  { edge: "zenith",  label: "Zenith",  sub: "Guía IA",   color: "#007FFF", Icon: Sparkles,   x: 0,   y: -86 },
+  { edge: "logic",   label: "Logic",   sub: "Control",   color: "#FFBF00", Icon: Settings2,  x: -50, y: -70 },
+  { edge: "horizon", label: "Horizon", sub: "Creación",  color: "#39FF14", Icon: Layout,     x: -78, y: -30 },
+  { edge: "anchor",  label: "Anchor",  sub: "Dock",      color: "#DC143C", Icon: LayoutGrid, x: -86, y: 18 },
+];
 
 export function AuroraWidget() {
   const aurora = useAurora();
   const router = useRouter();
+  const { activeEdge, setActiveEdge } = usePerimeter();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<WidgetTab>("chat");
   const [draft, setDraft] = useState("");
+  // Orbe unificado: despliegue de los 4 nodos cardinales Trinity.
+  const [trinityOpen, setTrinityOpen] = useState(false);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Cierra el popover al pulsar Escape.
+  // Cierra el popover / los pétalos Trinity al pulsar Escape.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); setTrinityOpen(false); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Señaliza globalmente que el Orbe unificado Aurora + Trinidad está montado,
+  // para que el TrinityFab independiente CEDA (no duplicar el lanzador Trinity).
+  // Al desmontar, retira el flag y avisa para que el FAB reaparezca donde toque.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      (window as unknown as Record<string, unknown>)[AURORA_TRINITY_FLAG] = true;
+      window.dispatchEvent(new CustomEvent(AURORA_TRINITY_EVENT));
+    } catch { /* */ }
+    return () => {
+      try {
+        (window as unknown as Record<string, unknown>)[AURORA_TRINITY_FLAG] = false;
+        window.dispatchEvent(new CustomEvent(AURORA_TRINITY_EVENT));
+      } catch { /* */ }
+    };
+  }, []);
+
+  // Al abrir el chat de Aurora, cierra los pétalos Trinity (y viceversa) para
+  // que el orbe no muestre dos superficies a la vez.
+  useEffect(() => { if (open) setTrinityOpen(false); }, [open]);
+
+  // Toggle de un nodo cardinal: MISMA API que sensores/FAB/atajos.
+  const toggleEdge = (edge: Exclude<PerimeterEdge, null>) => {
+    setActiveEdge(activeEdge === edge ? null : edge);
+    setTrinityOpen(false);
+  };
 
   // Auto-scroll del historial de chat al fondo cuando llegan mensajes.
   const convoLen = aurora?.conversation?.length ?? 0;
@@ -466,6 +523,107 @@ export function AuroraWidget() {
         </div>
       )}
 
+      {/* ══════════════════════════════════════════════════════════════════
+          ORBE UNIFICADO Aurora + Trinidad
+          ------------------------------------------------------------------
+          Un solo control (ancla/orbe) que reúne DOS superficies sin perder
+          ninguna función:
+            (a) Aurora — voz/chat con su glow cálido reactivo (el núcleo).
+            (b) Trinidad — los 4 nodos cardinales (Zenith/Horizon/Logic/
+                Anchor) que togglean el MISMO perímetro que el resto del OS.
+          Lenguaje visual «Crystal Liquid Glass» + colores cardinales Trinity,
+          animado con framer-motion. El núcleo mantiene TODOS los gestos de
+          Aurora (tap = voz, mantener/clic derecho = chat).
+      ══════════════════════════════════════════════════════════════════ */}
+      <div className="relative flex items-center justify-center">
+        {/* Scrim para cerrar los pétalos tocando fuera (no bloquea al orbe). */}
+        <AnimatePresence>
+          {trinityOpen && (
+            <motion.button
+              type="button"
+              aria-label="Cerrar menú Trinidad"
+              onClick={() => setTrinityOpen(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 -z-10 cursor-default bg-transparent"
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Pétalos cardinales Trinity (cuarto de arco arriba-izquierda). */}
+        <AnimatePresence>
+          {trinityOpen &&
+            TRINITY_NODES.map((n, i) => {
+              const isActive = activeEdge === n.edge;
+              return (
+                <motion.button
+                  key={n.edge}
+                  type="button"
+                  title={`${n.label} · ${n.sub}`}
+                  aria-label={`${n.label} · ${n.sub}`}
+                  onClick={() => toggleEdge(n.edge)}
+                  initial={{ opacity: 0, scale: 0.3, x: 0, y: 0 }}
+                  animate={{ opacity: 1, scale: 1, x: n.x, y: n.y }}
+                  exit={{ opacity: 0, scale: 0.3, x: 0, y: 0 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 26, delay: i * 0.04 }}
+                  className={cn(
+                    "absolute z-20 grid h-11 w-11 place-items-center rounded-full cursor-pointer",
+                    "border backdrop-blur-xl transition-shadow duration-200",
+                    isActive ? "ring-2 ring-white/40" : "ring-0",
+                  )}
+                  style={{
+                    color: n.color,
+                    borderColor: `color-mix(in srgb, ${n.color} 55%, transparent)`,
+                    background: `radial-gradient(120% 95% at 30% 18%, rgba(255,255,255,0.20), transparent 55%), color-mix(in srgb, ${n.color} ${isActive ? 30 : 16}%, rgba(8,12,18,0.66))`,
+                    boxShadow: isActive
+                      ? `0 10px 24px rgba(0,0,0,0.45), 0 0 22px color-mix(in srgb, ${n.color} 65%, transparent)`
+                      : `0 8px 20px rgba(0,0,0,0.4), 0 0 14px color-mix(in srgb, ${n.color} 35%, transparent)`,
+                  }}
+                >
+                  <n.Icon className="h-5 w-5" />
+                  {isActive && (
+                    <span
+                      aria-hidden
+                      className="absolute -top-1 -right-1 h-2 w-2 animate-pulse rounded-full"
+                      style={{ background: n.color }}
+                    />
+                  )}
+                </motion.button>
+              );
+            })}
+        </AnimatePresence>
+
+        {/* Satélite «Trinidad»: abre/cierra los pétalos cardinales. Anclado al
+            orbe (arriba-izquierda), con el sigil de 4 gemas cardinales. */}
+        <button
+          type="button"
+          onClick={() => { setOpen(false); setTrinityOpen((v) => !v); }}
+          aria-expanded={trinityOpen}
+          aria-label={trinityOpen ? "Cerrar menú Trinidad" : "Abrir menú Trinidad"}
+          title="Trinidad · Zenith · Horizon · Logic · Anchor"
+          className={cn(
+            "absolute -top-1 -left-1 z-30 grid h-7 w-7 place-items-center rounded-full cursor-pointer",
+            "border border-white/20 bg-zinc-950/80 backdrop-blur-md shadow-lg",
+            "transition-transform duration-200 hover:scale-110 active:scale-95",
+            (trinityOpen || !!activeEdge) && "ring-2 ring-white/30",
+          )}
+        >
+          <motion.svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            aria-hidden
+            animate={{ rotate: trinityOpen ? 45 : 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          >
+            <circle cx="12" cy="4.6" r="3" fill="#007FFF" />
+            <circle cx="19.4" cy="12" r="3" fill="#FFBF00" />
+            <circle cx="12" cy="19.4" r="3" fill="#DC143C" />
+            <circle cx="4.6" cy="12" r="3" fill="#39FF14" />
+            <circle cx="12" cy="12" r="1.6" fill="rgba(255,255,255,0.9)" />
+          </motion.svg>
+        </button>
+
       <button
         onMouseDown={startPress}
         onMouseUp={endPress}
@@ -532,6 +690,7 @@ export function AuroraWidget() {
           <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-zinc-950" />
         )}
       </button>
+      </div>
     </div>
   );
 }

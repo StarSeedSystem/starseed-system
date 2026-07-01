@@ -51,6 +51,24 @@ export function trinityFabAutoEligible(): boolean {
     return coarse || window.innerWidth <= 1024;
 }
 
+/**
+ * Flag global: el Orbe unificado Aurora + Trinidad (aurora-widget) YA ofrece el
+ * acceso a los 4 nodos cardinales. Donde ese orbe está montado (páginas dentro
+ * de `(app)`), este FAB independiente CEDE para no duplicar el lanzador Trinity.
+ * Fuera de `(app)` (sin Aurora), el FAB sigue funcionando como antes.
+ */
+export const AURORA_TRINITY_FLAG = "__STARSEED_AURORA_TRINITY_MOUNTED__";
+export const AURORA_TRINITY_EVENT = "starseed:aurora-trinity-mounted";
+
+function auroraTrinityMounted(): boolean {
+    if (typeof window === "undefined") return false;
+    try {
+        return !!(window as unknown as Record<string, unknown>)[AURORA_TRINITY_FLAG];
+    } catch {
+        return false;
+    }
+}
+
 interface FabPosition {
     side: "left" | "right";
     bottom: number; // px sobre el safe-area
@@ -91,6 +109,8 @@ export function TrinityFab() {
     const [mounted, setMounted] = useState(false);
     const [pref, setPref] = useState<TrinityFabPref>("auto");
     const [autoEligible, setAutoEligible] = useState(false);
+    // ¿Está montado el Orbe unificado Aurora + Trinidad? Si sí, este FAB cede.
+    const [supersededByAurora, setSupersededByAurora] = useState(false);
     const [open, setOpen] = useState(false);
     const [pos, setPos] = useState<FabPosition>(DEFAULT_POS);
     const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number } | null>(null);
@@ -113,6 +133,10 @@ export function TrinityFab() {
         const evalAuto = () => setAutoEligible(trinityFabAutoEligible());
         evalAuto();
 
+        // Estado inicial del flag del Orbe unificado + escucha de cambios.
+        setSupersededByAurora(auroraTrinityMounted());
+        const onAuroraTrinity = () => setSupersededByAurora(auroraTrinityMounted());
+
         const mq = window.matchMedia("(pointer: coarse)");
         const onPref = (e: Event) => {
             const d = (e as CustomEvent).detail;
@@ -125,11 +149,13 @@ export function TrinityFab() {
         window.addEventListener("resize", evalAuto);
         try { mq.addEventListener("change", evalAuto); } catch { }
         window.addEventListener(TRINITY_FAB_PREF_EVENT, onPref);
+        window.addEventListener(AURORA_TRINITY_EVENT, onAuroraTrinity);
         window.addEventListener("storage", onStorage);
         return () => {
             window.removeEventListener("resize", evalAuto);
             try { mq.removeEventListener("change", evalAuto); } catch { }
             window.removeEventListener(TRINITY_FAB_PREF_EVENT, onPref);
+            window.removeEventListener(AURORA_TRINITY_EVENT, onAuroraTrinity);
             window.removeEventListener("storage", onStorage);
         };
     }, []);
@@ -195,7 +221,12 @@ export function TrinityFab() {
         setOpen(false);
     }, [activeEdge, setActiveEdge]);
 
-    const visible = mounted && pref !== "off" && (pref === "on" || autoEligible);
+    // Cede ante el Orbe unificado Aurora + Trinidad si está presente, salvo que
+    // el usuario haya FORZADO el FAB a "on" (respeta la preferencia explícita).
+    const visible =
+        mounted &&
+        pref !== "off" &&
+        (pref === "on" || (autoEligible && !supersededByAurora));
     if (!visible) return null;
 
     // Al abrir la flor anclada a un borde, desplaza el núcleo hacia el centro

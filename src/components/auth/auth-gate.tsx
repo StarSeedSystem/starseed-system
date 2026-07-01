@@ -24,6 +24,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { WelcomeGate } from "@/components/welcome/welcome-gate";
 
 function traducir(m: string): string {
   const s = (m || "").toLowerCase();
@@ -162,6 +163,11 @@ export function AuthGate() {
   };
 
   return (
+    <>
+    {/* Bienvenida/especificaciones ANTES del acceso (solo sin sesión). Se
+        muestra por encima (z-index 210) y, al pulsar "Continuar", revela este
+        AuthGate. Se autogestiona: no aparece si ya hay sesión ni si ya se vio. */}
+    <WelcomeGate />
     <div
       role="dialog"
       aria-modal="true"
@@ -336,6 +342,7 @@ export function AuthGate() {
         </p>
       </div>
     </div>
+    </>
   );
 }
 

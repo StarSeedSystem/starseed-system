@@ -199,6 +199,9 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
                     activeId={activeDashboardId}
                     allDashboards={dashboards}
                     isEditMode={isEditMode}
+                    widgetCounts={Object.fromEntries(
+                        panelDashboards.map((d) => [d.id, (widgetsMap[d.id] || []).length])
+                    )}
                     onCreateDashboard={onCreateDashboard}
                     onDeleteDashboard={onDeleteDashboard}
                     onRenameDashboard={onRenameDashboard}
@@ -217,7 +220,11 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
                 </button>
             )}
 
-            <div ref={scrollRef} onScroll={onScroll} style={{ touchAction: "pan-y" }} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar relative p-4">
+            {/* box-border + padding reducido: el scroll interno del panel ya no
+                duplica el padding del lienzo (GridArea aporta el suyo), devolviendo
+                ancho útil a los widgets. overflow-x-hidden evita barras horizontales
+                accidentales por hijos que se salgan durante una animación. */}
+            <div ref={scrollRef} onScroll={onScroll} style={{ touchAction: "pan-y" }} className="box-border flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar relative px-1.5 py-2 sm:px-2">
                 <GridArea
                     dashboardId={activeDashboard.id}
                     widgets={activeWidgets}

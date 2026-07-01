@@ -220,8 +220,14 @@ export function WidgetShell({
                         "shrink-0 z-10 flex items-center",
                         compact
                             ? "gap-2 px-2.5 pt-2 pb-1.5 @sm:px-3 @sm:pt-2.5"
-                            : "gap-2.5 px-3 pt-3 pb-2.5 @sm:px-4 @sm:pt-4",
-                        w.headerStyle === "underlined" && "border-b border-border/40",
+                            : "gap-2.5 px-3 pt-3 pb-2.5 @sm:px-4 @sm:pt-3.5",
+                        // Hairline sutil bajo la cabecera SIEMPRE (salvo cabecera
+                        // "acentuada", que ya tiñe el fondo): separa el título del
+                        // cuerpo con más claridad y da un aire de tarjeta más limpio,
+                        // sin depender de que el tema active "underlined".
+                        w.headerStyle === "underlined"
+                            ? "border-b border-border/40"
+                            : w.headerStyle !== "accented" && "border-b border-border/20",
                         w.headerStyle === "accented" && "rounded-t-3xl"
                     )}
                     style={
@@ -234,10 +240,15 @@ export function WidgetShell({
                         <motion.div
                             whileHover={config.animations.hover ? { scale: 1.08, rotate: -4 } : undefined}
                             className={cn(
-                                "shrink-0 grid place-items-center rounded-2xl border border-white/15 shadow-lg",
+                                // ring + halo teñido del acento: el ícono se lee como una
+                                // "gema" nítida y consistente en todos los widgets.
+                                "shrink-0 grid place-items-center rounded-2xl border border-white/15 shadow-lg ring-1 ring-inset ring-white/10",
                                 compact ? "size-7 @sm:size-8 rounded-xl" : "size-9 @sm:size-10"
                             )}
-                            style={{ background: `linear-gradient(135deg, ${accentColor}, color-mix(in srgb, ${accentColor} 40%, transparent))` }}
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}, color-mix(in srgb, ${accentColor} 40%, transparent))`,
+                                boxShadow: `0 6px 16px -6px color-mix(in srgb, ${accentColor} 70%, transparent)`,
+                            }}
                         >
                             <Icon className={cn("text-white drop-shadow", compact ? "size-3.5 @sm:size-4" : "size-4 @sm:size-5")} strokeWidth={2} />
                         </motion.div>

@@ -19,7 +19,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
-import { useAccount } from "@/context/account-context";
+import { useAccount, isProfileComplete } from "@/context/account-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,6 +51,20 @@ interface ProfileForm {
 }
 
 const EMPTY_FORM: ProfileForm = { handle: "", display_name: "", bio: "", avatar_url: "", cover_url: "" };
+
+// ── De-mock local: valores demo históricos que NO deben poblar el formulario ──
+// como si fueran datos reales del usuario. Si la fila trae alguno, lo tratamos
+// como vacío para que el usuario introduzca sus datos REALES.
+const FAKE_HANDLES = new Set(["starseeduser", "starseed_user", "usuario", "user", "demo", "guest", "invitado", "anon", "anonymous"]);
+const FAKE_NAMES = new Set(["starseed user", "usuario starseed", "usuario", "user", "demo user", "guest", "invitado", "nuevo usuario"]);
+function cleanHandle(v: unknown): string {
+    const s = typeof v === "string" ? v.trim() : "";
+    return s && !FAKE_HANDLES.has(s.toLowerCase()) ? s : "";
+}
+function cleanName(v: unknown): string {
+    const s = typeof v === "string" ? v.trim() : "";
+    return s && !FAKE_NAMES.has(s.toLowerCase()) ? s : "";
+}
 
 function initialsOf(label: string): string {
     const parts = (label || "").trim().split(/\s+/).filter(Boolean);
@@ -119,8 +133,10 @@ export function ProfileIdentityPanel() {
     const hydrate = useCallback((row: Row | null) => {
         setProfileRow(row);
         setForm({
-            handle: (row?.handle as string) ?? "",
-            display_name: (row?.display_name as string) ?? (row?.full_name as string) ?? (row?.name as string) ?? "",
+            // De-mock: los placeholders demo se muestran vacíos → el usuario pone lo real.
+            handle: cleanHandle(row?.handle),
+            display_name:
+                cleanName(row?.display_name) || cleanName(row?.full_name) || cleanName(row?.name),
             bio: (row?.bio as string) ?? "",
             avatar_url: (row?.avatar_url as string) ?? "",
             cover_url: (row?.cover_url as string) ?? "",
@@ -279,6 +295,15 @@ export function ProfileIdentityPanel() {
 
     const isLoading = loading || accountLoading;
 
+    // Perfil incompleto = faltan datos REALES (handle o nombre) o hay placeholders.
+    // Se calcula sobre lo que hay en el formulario/perfil (sin inventar nada).
+    const incomplete =
+        !isLoading &&
+        !isProfileComplete({
+            handle: form.handle || previewHandle,
+            display_name: form.display_name || previewName,
+        });
+
     return (
         <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
             <CardHeader>
@@ -290,6 +315,18 @@ export function ProfileIdentityPanel() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+                {incomplete && (
+                    <div className="flex items-start gap-3 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10">
+                        <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                            <p className="text-sm font-semibold text-amber-100">Completa tu perfil real</p>
+                            <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                                Aún faltan tus datos reales. Elige un <b>@ único</b> y tu <b>nombre visible</b> para
+                                activar tu identidad soberana. No usamos datos genéricos por defecto.
+                            </p>
+                        </div>
+                    </div>
+                )}
                 <div className="flex flex-col md:flex-row gap-6 items-start">
                     {/* ── Avatar real + vista previa ── */}
                     <div className="flex flex-col items-center gap-3 shrink-0">

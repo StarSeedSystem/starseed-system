@@ -150,9 +150,17 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'tienda',        label: 'Tienda',              iconKey: 'ShoppingBag',     path: '/store',                 color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'insignias',     label: 'Insignias',           iconKey: 'Award',           path: '/insignias',             color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'apps-ia',       label: 'Apps IA',             iconKey: 'AppWindow',       path: '/apps-ia',               color: 'emerald', enabled: false, origin: 'preset' },
-  { id: 'xr-hub',        label: 'Red 3D / VR · AR',    iconKey: 'AppWindow',       path: '/xr',                    color: 'purple',  enabled: true,  origin: 'preset' },
+  // AR/VR es ahora una función AUTOMÁTICA/contextual del OS (se activa donde
+  // corresponde: espacio inmersivo, hub XR contextual y acciones de Aurora),
+  // no un botón del dock. Se mantiene disponible en el catálogo (enabled:false)
+  // por si el usuario quiere un acceso rápido opcional, pero ya no se muestra.
+  { id: 'xr-hub',        label: 'Red 3D / VR · AR',    iconKey: 'AppWindow',       path: '/xr',                    color: 'purple',  enabled: false, origin: 'preset' },
   { id: 'recordatorios', label: 'Clima y recordatorios', iconKey: 'CalendarClock',  path: '/clima',                 color: 'cyan',    enabled: true,  origin: 'preset' },
-  { id: 'terminal',      label: 'Terminal',            iconKey: 'Server',          path: '/terminal',              color: 'emerald', enabled: true,  origin: 'preset' },
+  // La Terminal ya NO es un botón suelto del dock: sus funciones (consola
+  // integrada + dispositivos como servidores) viven DENTRO de Cerebros
+  // (brains-panel → sección «Terminal y dispositivos»). La ruta /terminal
+  // sigue existiendo pero ya no se ofrece como acceso propio del dock.
+  { id: 'terminal',      label: 'Terminal',            iconKey: 'Server',          path: '/cerebros#terminal',     color: 'emerald', enabled: false, origin: 'preset' },
   // ── Opciones extra disponibles desde el editor (no visibles por defecto) ──
   { id: 'sincrometro',   label: 'Sincrómetro',         iconKey: 'CalendarClock',   path: '/hub?tab=calendar',      color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'hermes-graph',  label: 'Grafo Cerebro',       iconKey: 'GitBranch',       path: '/network/graph',         color: 'purple',  enabled: false, origin: 'preset' },
@@ -164,6 +172,43 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'memoria',       label: 'Memoria',             iconKey: 'HardDrive',       path: '/network/graph',         color: 'cyan',    enabled: false, origin: 'preset' },
 ];
 
+/**
+ * Migraciones one-shot sobre la config guardada del usuario.
+ * ADITIVO y defensivo: sólo retira del dock funciones que dejaron de ser
+ * botones (AR/VR pasó a automática; la Terminal vive dentro de Cerebros),
+ * sin tocar el resto de las elecciones del usuario ni su orden. Se aplica
+ * como mucho una vez por navegador (marca en localStorage).
+ */
+const DOCK_MIGRATION_KEY = 'starseed.dock.items.migrated.v3';
+/** Ids que ya no deben renderizarse como botón suelto del dock. */
+const RETIRED_FROM_DOCK = new Set<string>(['xr-hub', 'terminal']);
+
+function applyOneShotMigration(parsed: DockItemConfig[]): DockItemConfig[] {
+  if (typeof window === 'undefined') return parsed;
+  try {
+    if (window.localStorage.getItem(DOCK_MIGRATION_KEY)) return parsed;
+  } catch {
+    return parsed;
+  }
+  const migrated = parsed.map((it) => {
+    if (RETIRED_FROM_DOCK.has(it.id) && it.enabled) {
+      // Los desactivamos como botón visible; siguen en el catálogo por si el
+      // usuario los quiere de vuelta manualmente.
+      return { ...it, enabled: false };
+    }
+    // La Terminal, si sigue presente, reapunta a la sección de Cerebros.
+    if (it.id === 'terminal' && it.path === '/terminal') {
+      return { ...it, path: '/cerebros#terminal' };
+    }
+    return it;
+  });
+  try {
+    window.localStorage.setItem(DOCK_MIGRATION_KEY, '1');
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+  } catch { /* noop */ }
+  return migrated;
+}
+
 export function loadDockConfig(): DockItemConfig[] {
   if (typeof window === 'undefined') return DOCK_PRESETS;
   try {
@@ -173,7 +218,7 @@ export function loadDockConfig(): DockItemConfig[] {
       // Asegurar que cualquier preset nuevo se añada al final como deshabilitado
       const known = new Set(parsed.map((i) => i.id));
       const missing = DOCK_PRESETS.filter((p) => !known.has(p.id)).map((p) => ({ ...p, enabled: false }));
-      return [...parsed, ...missing];
+      return applyOneShotMigration([...parsed, ...missing]);
     }
   } catch { /* noop */ }
   return DOCK_PRESETS;

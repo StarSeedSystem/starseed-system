@@ -442,14 +442,25 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                 aria-current={active ? "page" : undefined}
                 title={label}
                 className={cn(
-                    "relative flex items-center justify-center w-12 h-12 lg:w-16 lg:h-16 rounded-2xl transition-all duration-300 active:scale-95 group-hover:scale-105",
+                    "relative flex items-center justify-center w-12 h-12 lg:w-16 lg:h-16 rounded-2xl cursor-pointer",
+                    // Transiciones 150–300ms (guía de diseño): micro-interacción viva.
+                    "transition-[transform,box-shadow,background-color,border-color] duration-200 ease-out",
+                    "active:scale-95 group-hover:scale-105 group-hover:-translate-y-0.5",
+                    // Foco accesible por teclado.
+                    "outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-white/60",
                     "bg-gradient-to-br ring-1 ring-inset",
                     p.text,
                     active
                         ? cn(p.activeBg, "ring-2", p.ring, p.glow, "scale-105")
-                        : cn(p.bg, "ring-white/10 hover:ring-white/25"),
+                        // Hover más claro: sube el brillo del acento y el anillo.
+                        : cn(p.bg, "ring-white/10 group-hover:ring-white/30 group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.35)]"),
                 )}
             >
+                {/* Brillo de cristal sutil que aparece al pasar el cursor (Liquid Glass). */}
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-t from-transparent via-white/0 to-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                />
                 {icon}
                 {active && (
                     <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" aria-hidden />

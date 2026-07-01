@@ -11,7 +11,11 @@ import { useEffect } from "react";
 import { hermes } from "@/hermes-integration";
 import { AuroraProvider } from "@/components/aurora/aurora-provider";
 import { AuroraWidget } from "@/components/aurora/aurora-widget";
-import { DecisionsBell } from "@/components/decisions/decisions-bell";
+// DecisionsBell retirado: el botón flotante de «Decisiones» (abajo-izquierda)
+// se elimina para despejar esa esquina. Las decisiones siguen accesibles desde
+// /decisiones y desde el sistema de notificaciones; el componente se conserva
+// en el repo por si se reubica dentro de una sección más adelante.
+// import { DecisionsBell } from "@/components/decisions/decisions-bell";
 import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 import { AuthGate } from "@/components/auth/auth-gate";
 // AiOverlay retirado: el botón flotante del bot de IA se elimina; la función de
@@ -40,7 +44,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 <AuroraProvider>
                   {children}
                   <AuroraWidget />
-                  <DecisionsBell />
                   <AuthGate />
           <OnboardingGate />
                 </AuroraProvider>

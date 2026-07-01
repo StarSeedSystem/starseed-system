@@ -119,6 +119,10 @@ import { useRealtime } from "@/lib/realtime/realtime";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 import AutoUpdatePanel from "@/components/brains/auto-update-panel";
 import IntegrationsPanel from "@/components/integrations/integrations-panel";
+// Terminal integrada + dispositivos como servidores: antes eran una página/botón
+// suelto (/terminal). Ahora viven DENTRO de Cerebros como una sección propia.
+import TerminalConsole from "@/components/terminal/terminal-console";
+import DevicesPanel from "@/components/terminal/devices-panel";
 import type { MoaMode } from "@/components/settings/ai/mixture-of-agents-panel";
 import { findOption, type OssCategory } from "@/lib/oss-library";
 
@@ -905,6 +909,9 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
         </div>
       </div>
 
+      {/* Terminal y dispositivos (integrada dentro de Cerebros) */}
+      <BrainsTerminalSection />
+
       {/* Astraura */}
       <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/10 p-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -927,6 +934,73 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
         )}
       </div>
     </div>
+  );
+}
+
+/* ====================================================================== */
+/* Terminal integrada + dispositivos (dentro de Cerebros)                  */
+/* ====================================================================== */
+
+/**
+ * BrainsTerminalSection — monta la Terminal integrada del OS (consola sandbox
+ * sobre memorias/cerebros/dispositivos) y el panel de Dispositivos como
+ * servidores, ANTES accesibles desde la ruta/botón suelto «/terminal». Ahora
+ * viven aquí, dentro de Cerebros, como una sección plegable propia.
+ *
+ * El ancla `id="terminal"` permite enlazar directamente con `/cerebros#terminal`.
+ * Por defecto arranca plegada para no cargar la consola hasta que se pida; al
+ * abrirla (o si el hash apunta aquí) se monta su contenido.
+ */
+function BrainsTerminalSection() {
+  const [open, setOpen] = useState(false);
+
+  // Si la URL apunta a #terminal, abre y desplaza suavemente hasta la sección.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const focus = () => {
+      if (window.location.hash === "#terminal") {
+        setOpen(true);
+        try {
+          document.getElementById("terminal")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        } catch {
+          /* noop */
+        }
+      }
+    };
+    focus();
+    window.addEventListener("hashchange", focus);
+    return () => window.removeEventListener("hashchange", focus);
+  }, []);
+
+  return (
+    <section id="terminal" className="scroll-mt-24 rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full cursor-pointer flex-wrap items-center gap-2 text-left transition-colors hover:text-emerald-100"
+      >
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-emerald-500 to-cyan-500">
+          <Terminal className="h-4 w-4 text-white" />
+        </div>
+        <span className="text-sm font-semibold text-emerald-50">Terminal y dispositivos</span>
+        <span className="hidden text-[11px] text-emerald-300/70 sm:inline">
+          Consola integrada del OS (sandbox) + tus dispositivos online como servidores.
+        </span>
+        <span className="ml-auto text-emerald-200/70">
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-4 grid grid-cols-1 gap-6">
+          {/* Terminal integrada (consola sandbox sobre el propio OS). */}
+          <TerminalConsole />
+          {/* Dispositivos como servidores (presencia en vivo). */}
+          <DevicesPanel />
+        </div>
+      )}
+    </section>
   );
 }
 
