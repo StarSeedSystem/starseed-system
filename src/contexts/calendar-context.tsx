@@ -259,63 +259,11 @@ const typeToLayer = (type: string): CalendarLayer => {
 };
 
 // ── Seed ────────────────────────────────────────────────────────────────────
-const seedItems: CalendarItem[] = [
-  // Eventos de comunidad importados del dataset existente
-  ...communityEvents.map((e): CalendarItem => ({
-    id: e.id,
-    title: e.title,
-    date: e.date,
-    time: e.time,
-    durationMin: 90,
-    layer: typeToLayer(e.type),
-    visibility: 'publico',
-    location: e.location,
-    attendees: e.attendees,
-    capacity: e.capacity,
-    urgent: e.urgent,
-    recurrence: 'none',
-    sourceRef: e.id,
-  })),
-  // Recordatorios y alarmas semilla
-  {
-    id: 'rem-1',
-    title: 'Cerrar voto: Ley de Soberanía de Datos',
-    date: '2026-05-29',
-    time: '17:00',
-    layer: 'recordatorios',
-    visibility: 'privado',
-    description: 'No olvides emitir tu voto antes del cierre.',
-    aiHighlight: true,
-  },
-  {
-    id: 'alm-1',
-    title: 'Alarma — Asamblea General',
-    date: '2026-06-20',
-    time: '17:45',
-    layer: 'alarmas',
-    visibility: 'privado',
-    description: '15 minutos antes del comienzo.',
-  },
-  // Logs del sistema
-  {
-    id: 'sys-1',
-    title: 'Sincronización Fediverso completada',
-    date: '2026-05-26',
-    time: '04:12',
-    layer: 'sistema',
-    visibility: 'privado',
-    description: 'Nodo replicado a 12 instancias federadas.',
-  },
-  {
-    id: 'sys-2',
-    title: 'Despliegue del nodo de gobernanza v2.1',
-    date: '2026-05-27',
-    time: '09:00',
-    layer: 'sistema',
-    visibility: 'red',
-    description: 'Actualización del módulo de Democracia Líquida.',
-  },
-];
+// Sin semillas de ejemplo: los eventos, recordatorios, alarmas y logs provienen
+// SIEMPRE de fuentes reales (Supabase, entradas del usuario, gobernanza).
+// Petición explícita del usuario (2026-07-01): ningún dato falso de
+// reuniones/eventos en ningún perfil ni cuenta del sistema.
+const seedItems: CalendarItem[] = [];
 
 // ── Contexto ────────────────────────────────────────────────────────────────
 const CalendarContext = createContext<CalendarContextValue | null>(null);

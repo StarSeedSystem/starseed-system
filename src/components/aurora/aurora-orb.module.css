@@ -1,0 +1,226 @@
+/* ============================================================================
+   AuroraOrb — lenguaje visual del botón del Café StarSeed (.ssx-fab de
+   StarSeed-Nexus/app/assets/css/exocortex.css) trasladado al Orbe de Aurora:
+
+     · esfera-joya con ARO aurora en conic-gradient (paleta café + Trinity)
+       girando lento (GPU-friendly: transform en su propia capa);
+     · núcleo de CRISTAL OSCURO con highlight especular;
+     · respiración ~5.6s (saturate/brightness, como ssx-breathe);
+     · anillo "ping" ~3.2s (como ssx-ping, inset -4px);
+     · hover con morph orgánico del border-radius + elevación;
+     · glow reactivo a la voz vía CSS vars actualizadas por rAF (sin re-render):
+         --aurora-energy : 0..1 (energía de voz/micrófono/latido)
+         --aurora-rgb    : "r g b" (color dominante del momento)
+
+   prefers-reduced-motion → versión calmada (sin giro/ping/respiración).
+   ============================================================================ */
+
+.root {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
+}
+
+/* Elevación al hover (como .ssx-fab:hover). El "active" lo aporta el botón. */
+.root:hover {
+  transform: translateY(-3px) scale(1.06);
+}
+
+/* Halo exterior: respira con la energía de la voz (opacidad + escala). */
+.halo {
+  position: absolute;
+  inset: -40%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    rgb(var(--aurora-rgb, 159 232 112) / 0.34) 0%,
+    rgb(var(--aurora-rgb, 159 232 112) / 0.12) 46%,
+    transparent 72%
+  );
+  opacity: calc(0.35 + var(--aurora-energy, 0) * 0.65);
+  transform: scale(calc(0.94 + var(--aurora-energy, 0) * 0.22));
+  will-change: transform, opacity;
+}
+
+/* Esfera: contiene el aro cónico giratorio; morph orgánico al hover.
+   La sombra-glow exterior respira con la energía (blur escala con la voz). */
+.sphere {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow:
+    0 10px 34px rgba(0, 0, 0, 0.45),
+    0 0 calc(14px + var(--aurora-energy, 0) * 26px)
+      rgb(var(--aurora-rgb, 159 232 112) / 0.42);
+  transition: border-radius 0.6s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s;
+  animation: aurora-breathe 5.6s ease-in-out infinite;
+}
+
+/* Morph orgánico compartido (mismos radios que .ssx-fab:hover). */
+.root:hover .sphere,
+.root:hover .core,
+.root:hover .ping {
+  border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%;
+}
+.root:hover .sphere {
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, 0.5),
+    0 0 calc(24px + var(--aurora-energy, 0) * 26px)
+      rgb(var(--aurora-rgb, 201 168 255) / 0.55);
+}
+
+/* Aro aurora: colores del Café (lime/teal/cielo/lavanda/ámbar/coral)
+   entretejidos con los 4 cardinales Trinity. Gira lento e hipnótico. */
+.ring {
+  position: absolute;
+  inset: -26%;
+  background: conic-gradient(
+    from 210deg,
+    #9fe870,
+    #39ff14,
+    #6fe6d6,
+    #007fff,
+    #7fb8ff,
+    #c9a8ff,
+    #dc143c,
+    #ff8a5c,
+    #ffbf00,
+    #ffc247,
+    #9fe870
+  );
+  animation: aurora-spin 16s linear infinite;
+  will-change: transform;
+}
+
+/* Brillo especular del vidrio sobre el aro (como el radial de .ssx-fab). */
+.specular {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 32% 26%,
+    rgba(255, 255, 255, 0.28),
+    transparent 44%
+  );
+}
+
+/* Núcleo de cristal oscuro (como .ssx-fab .core, en tonos espacio-noche). */
+.core {
+  position: absolute;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 38%, #111a2e 0%, #070b15 72%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.55),
+    inset 0 -4px 10px rgb(var(--aurora-rgb, 159 232 112) / 0.16);
+  transition: border-radius 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Canvas interior: la aurora reactiva a la voz, recortada por el núcleo. */
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Highlight del cristal del núcleo (volumen de esfera). */
+.coreSpecular {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 34% 24%,
+    rgba(255, 255, 255, 0.32),
+    rgba(255, 255, 255, 0.05) 36%,
+    transparent 56%
+  );
+  mix-blend-mode: screen;
+}
+
+/* Anillo "ping" (calco de .ssx-fab .ping): se expande y desvanece cada 3.2s. */
+.ping {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid rgb(var(--aurora-rgb, 159 232 112) / 0.5);
+  animation: aurora-ping 3.2s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  pointer-events: none;
+}
+
+/* Estrella ✦: LATE (escala) y BRILLA (drop-shadow) con --aurora-energy,
+   actualizada por rAF — cero re-renders de React. */
+.star {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%)
+    scale(calc(1 + var(--aurora-energy, 0) * 0.14));
+  filter: drop-shadow(
+      0 0 calc(1.5px + var(--aurora-energy, 0) * 4.5px)
+        rgba(255, 255, 255, 0.8)
+    )
+    drop-shadow(
+      0 0 calc(3px + var(--aurora-energy, 0) * 9px)
+        rgb(var(--aurora-rgb, 159 232 112) / 0.6)
+    );
+  will-change: transform, filter;
+}
+
+@keyframes aurora-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Igual que ssx-breathe: saturación/brillo, periodo 5.6s. */
+@keyframes aurora-breathe {
+  0%,
+  100% {
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    filter: saturate(1.18) brightness(1.09);
+  }
+}
+
+/* Igual que ssx-ping: escala 0.9 → 1.4 desvaneciéndose. */
+@keyframes aurora-ping {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Versión calmada (el canvas también reduce su movimiento por su cuenta). */
+@media (prefers-reduced-motion: reduce) {
+  .root,
+  .sphere,
+  .ring,
+  .ping,
+  .halo {
+    animation: none;
+  }
+  .root:hover {
+    transform: none;
+  }
+  .ping {
+    opacity: 0.35;
+  }
+}

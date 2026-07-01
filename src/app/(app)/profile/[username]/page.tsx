@@ -2,7 +2,7 @@
 'use client';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { comments as defaultComments, articles, courses } from "@/lib/data";
+import { comments as defaultComments, articles as rawArticles, courses as rawCourses } from "@/lib/data";
 import { BookOpen, FileText, ArrowUpRight } from "lucide-react";
 import { CommentSystem } from "@/components/comment-system";
 import Link from "next/link";
@@ -23,6 +23,26 @@ import { useState } from "react";
 // la URL (nombre legible) y, donde aplica, de la red real. Sin avatares ni
 // portadas de marcador de posición: AvatarFallback muestra las iniciales.
 const pageData: { [key: string]: any } = {};
+
+// lib/data expone hoy catálogos VACÍOS sin tipar (se infieren como never[]).
+// Vistas locales tipadas para que este archivo compile limpio; cuando lib/data
+// declare sus tipos propios, estas anotaciones sobran. Los arrays siguen
+// vacíos hasta que existan publicaciones reales (estado vacío honesto).
+interface ProfileLibArticle {
+    id: string;
+    href: string;
+    title: string;
+    author?: string;
+    tags: string[];
+}
+interface ProfileLibCourse {
+    id: string;
+    href: string;
+    title: string;
+    description?: string;
+}
+const articles = rawArticles as ProfileLibArticle[];
+const courses = rawCourses as ProfileLibCourse[];
 
 export default function ProfilePage() {
     const params = useParams();
@@ -91,9 +111,13 @@ export default function ProfilePage() {
                         </TabsContent>
 
                         <TabsContent value="agenda" className="mt-6 animate-in fade-in-50 duration-500">
-                            <UnifiedCalendar 
-                                title={`Agenda de ${profileData.name}`} 
-                                subtitle="Eventos y actividades compartidas por este perfil." 
+                            {/* realOnly: la Agenda de un perfil solo muestra entradas REALES
+                                (Supabase + creadas por la persona usuaria), nunca la semilla
+                                de demostración del CalendarProvider. */}
+                            <UnifiedCalendar
+                                realOnly
+                                title={`Agenda de ${profileData.name}`}
+                                subtitle="Eventos y actividades compartidas por este perfil."
                             />
                         </TabsContent>
 
@@ -119,11 +143,15 @@ export default function ProfilePage() {
                                     <Link href="/library" className="shrink-0 whitespace-nowrap text-sm text-primary hover:underline cursor-pointer">Ver biblioteca →</Link>
                                 </CardHeader>
                                 <CardContent className="space-y-6">
+                                    {/* Estado vacío honesto: las secciones solo se pintan si hay
+                                        contenido REAL (articles/courses de lib/data están vacíos
+                                        hasta que existan publicaciones de verdad). */}
                                     {articles.length === 0 && courses.length === 0 && (
                                         <p className="rounded-xl border border-dashed border-white/12 p-6 text-center text-sm text-muted-foreground">
                                             Aún no hay artículos ni cursos en esta biblioteca.
                                         </p>
                                     )}
+                                    {articles.length > 0 && (
                                     <div>
                                         <p className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground"><FileText className="h-3.5 w-3.5" /> Artículos</p>
                                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -136,6 +164,8 @@ export default function ProfilePage() {
                                             ))}
                                         </div>
                                     </div>
+                                    )}
+                                    {courses.length > 0 && (
                                     <div>
                                         <p className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground"><BookOpen className="h-3.5 w-3.5" /> Cursos</p>
                                         <div className="grid gap-3 sm:grid-cols-2">
@@ -147,6 +177,7 @@ export default function ProfilePage() {
                                             ))}
                                         </div>
                                     </div>
+                                    )}
                                 </CardContent>
                             </Card>
                         </TabsContent>
@@ -164,6 +195,11 @@ export default function ProfilePage() {
                             </CardHeader>
                             <CardContent>
                                 <CommentSystem comments={defaultComments} />
+                                {defaultComments.length === 0 && (
+                                    <p className="mt-4 rounded-xl border border-dashed border-white/12 p-4 text-center text-sm text-muted-foreground">
+                                        Aún no hay comentarios en este perfil. Sé quien abra la conversación.
+                                    </p>
+                                )}
                             </CardContent>
                         </Card>
                     </div>

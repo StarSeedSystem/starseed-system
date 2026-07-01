@@ -147,7 +147,8 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'conocimiento',  label: 'Conocimiento',        iconKey: 'Lightbulb',       path: '/conocimiento',          color: 'cyan',    enabled: false, origin: 'preset' },
   { id: 'cerebros',      label: 'Cerebros',            iconKey: 'Cpu',             path: '/cerebros',              color: 'purple',  enabled: false, origin: 'preset' },
   { id: 'cerebro',       label: 'Cerebro',             iconKey: 'Brain',           path: '/cerebro',               color: 'purple',  enabled: true,  origin: 'preset' },
-  { id: 'tienda',        label: 'Tienda',              iconKey: 'ShoppingBag',     path: '/store',                 color: 'emerald', enabled: false, origin: 'preset' },
+  // La Tienda vive DENTRO de la Librería (pestaña propia), no como ruta suelta.
+  { id: 'tienda',        label: 'Tienda',              iconKey: 'ShoppingBag',     path: '/library?tab=tienda',    color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'insignias',     label: 'Insignias',           iconKey: 'Award',           path: '/insignias',             color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'apps-ia',       label: 'Apps IA',             iconKey: 'AppWindow',       path: '/apps-ia',               color: 'emerald', enabled: false, origin: 'preset' },
   // AR/VR es ahora una función AUTOMÁTICA/contextual del OS (se activa donde
@@ -209,16 +210,127 @@ function applyOneShotMigration(parsed: DockItemConfig[]): DockItemConfig[] {
   return migrated;
 }
 
+/**
+ * Migración one-shot v4 — FUSIÓN DE MENÚS en todas las cuentas.
+ *
+ * Problema que resuelve: DOCK_PRESETS ya trae los botones fusionados
+ * ('mylib' = Librería · Biblioteca, 'nodes' = Red · Nodos, 'tienda' dentro de
+ * la Librería), pero la config guardada del usuario (STORAGE_KEY) conservaba
+ * los botones VIEJOS sin fusionar y tenía prioridad al cargar.
+ *
+ * Qué hace (autorizado por el usuario, es deliberadamente destructivo con los
+ * presets guardados — NUNCA con lo creado por el usuario):
+ *   (a) DESCARTA los items guardados de origen 'preset' y los sustituye por
+ *       los DOCK_PRESETS nuevos (fusionados), con su orden y enabled canónicos.
+ *   (b) CONSERVA al final los items origin:'user' (accesos personalizados).
+ *   (c) Repunta en las carpetas guardadas (FOLDERS_KEY) los itemIds viejos que
+ *       ya no existen a sus equivalentes nuevos (library/biblioteca/store →
+ *       'mylib'; red → 'nodes') y elimina los ids huérfanos restantes.
+ *   (d) Persiste el resultado y deja la marca para no repetirse.
+ *
+ * Defensiva y SSR-safe: en el servidor devuelve null (sin efectos); ante
+ * storage corrupto degrada sin lanzar.
+ */
+const DOCK_MIGRATION_V4_KEY = 'starseed.dock.items.migrated.v4';
+
+/** id viejo → id fusionado equivalente (para repuntar carpetas guardadas). */
+const LEGACY_DOCK_ID_ALIASES: Record<string, string> = {
+  library: 'mylib',
+  biblioteca: 'mylib',
+  store: 'mylib',
+  red: 'nodes',
+};
+
+/**
+ * Aplica la migración v4 si aún no se aplicó. Devuelve la lista final de items
+ * si el usuario tenía config guardada y se migró en esta carga; `null` si no
+ * procede (ya migrado, SSR, storage inaccesible o usuario sin config guardada
+ * — en este último caso solo repunta carpetas y deja la marca). Con `null`,
+ * el llamador sigue el flujo normal.
+ */
+function applyDockFusionMigrationV4(saved: DockItemConfig[] | null): DockItemConfig[] | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    if (window.localStorage.getItem(DOCK_MIGRATION_V4_KEY)) return null;
+  } catch {
+    return null;
+  }
+
+  // (a) Base = presets nuevos (fusionados), clonados para no mutar el catálogo.
+  const migrated: DockItemConfig[] = DOCK_PRESETS.map((p) => ({ ...p }));
+
+  // (b) Re-agrega al final SOLO los items personalizados del usuario
+  //     (origin:'user'), normalizados y de-duplicados por id.
+  const presetIds = new Set(migrated.map((i) => i.id));
+  const seenUser = new Set<string>();
+  for (const it of saved ?? []) {
+    if (!it || it.origin !== 'user') continue;
+    if (typeof it.id !== 'string' || typeof it.path !== 'string') continue;
+    if (presetIds.has(it.id) || seenUser.has(it.id)) continue;
+    seenUser.add(it.id);
+    migrated.push({
+      id: it.id,
+      label: String(it.label ?? it.id),
+      iconKey: (it.iconKey ?? 'LayoutGrid') as DockIconKey,
+      path: it.path,
+      color: (it.color ?? 'neutral') as DockColor,
+      enabled: it.enabled !== false,
+      origin: 'user',
+    });
+  }
+
+  // (c) Carpetas: repunta ids viejos a sus equivalentes fusionados y elimina
+  //     los huérfanos. Solo escribimos si había carpetas guardadas.
+  try {
+    const validIds = new Set(migrated.map((i) => i.id));
+    const rawFolders = window.localStorage.getItem(FOLDERS_KEY);
+    if (rawFolders) {
+      const folders = loadDockFolders().map((f) => {
+        const remapped: string[] = [];
+        const seen = new Set<string>();
+        for (const oldId of f.itemIds) {
+          const next = validIds.has(oldId) ? oldId : LEGACY_DOCK_ID_ALIASES[oldId];
+          if (!next || !validIds.has(next) || seen.has(next)) continue; // huérfano o duplicado
+          seen.add(next);
+          remapped.push(next);
+        }
+        return { ...f, itemIds: remapped };
+      });
+      saveDockFolders(folders);
+    }
+  } catch { /* noop: las carpetas no deben impedir la migración de items */ }
+
+  // (d) Persistir y marcar (v4 subsume la v3: la marcamos también).
+  try {
+    // Solo se snapshot-ea la lista si el usuario TENÍA config guardada; si no,
+    // se mantiene en modo "presets vivos" (ya fusionados de serie) y solo se
+    // repuntan carpetas + se deja la marca.
+    if (saved) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+    window.localStorage.setItem(DOCK_MIGRATION_V4_KEY, '1');
+    window.localStorage.setItem(DOCK_MIGRATION_KEY, '1');
+  } catch { /* noop */ }
+
+  return saved ? migrated : null;
+}
+
 export function loadDockConfig(): DockItemConfig[] {
   if (typeof window === 'undefined') return DOCK_PRESETS;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as DockItemConfig[];
-      // Asegurar que cualquier preset nuevo se añada al final como deshabilitado
-      const known = new Set(parsed.map((i) => i.id));
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    const saved = Array.isArray(parsed) ? (parsed as DockItemConfig[]) : null;
+
+    // Migración v4 (one-shot): si se ejecuta ahora, su resultado ya está
+    // persistido y ES la lista final de esta carga.
+    const fused = applyDockFusionMigrationV4(saved);
+    if (fused) return fused;
+
+    if (saved) {
+      // Flujo normal (post-migración): cualquier preset nuevo se añade al
+      // final como deshabilitado, y se aplica la migración v3 legada.
+      const known = new Set(saved.map((i) => i.id));
       const missing = DOCK_PRESETS.filter((p) => !known.has(p.id)).map((p) => ({ ...p, enabled: false }));
-      return applyOneShotMigration([...parsed, ...missing]);
+      return applyOneShotMigration([...saved, ...missing]);
     }
   } catch { /* noop */ }
   return DOCK_PRESETS;

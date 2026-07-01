@@ -8,7 +8,7 @@ import {
     Plus, Settings, LayoutGrid, Star, ArrowLeft, ArrowRight, Trash2, Search, 
     Sparkles, Maximize2, Minimize2, User, Cpu, Shield, Globe, Database, 
     Sliders, RefreshCw, Hammer, Compass, HardDrive, Lock, Zap, Wifi, Play, HelpCircle,
-    Palette, X, MapPin, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye, EyeOff, ArrowUp, ArrowDown, Settings2
+    Palette, X, MapPin, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye, EyeOff, ArrowUp, ArrowDown, Settings2, MonitorSmartphone
 } from "lucide-react";
 import { GridArea } from "./grid-area";
 import { useToast } from "@/components/ui/use-toast";
@@ -18,13 +18,14 @@ import { WeatherLocationProvider } from "@/modules/weather/context/weather-locat
 import { DEFAULT_DASHBOARD_TEMPLATES, ALL_DASHBOARD_TEMPLATES } from "./dashboard-defaults";
 import { WIDGET_CATEGORIES, getCategoryById } from "./widget-categories";
 import { cn } from "@/lib/utils";
+import styles from "./dashboard-tabs.module.css";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useUserContext } from "@/context/user-context";
 import { useAccount } from "@/context/account-context";
 import { useAppearance } from "@/context/appearance-context";
@@ -66,7 +67,7 @@ const LS_INITIALIZED = 'starseed_dashboards_initialized';
 // el acomodo/los widgets por defecto para que las instalaciones existentes
 // re-siembren los tableros predeterminados (preservando los tableros propios).
 const LS_DEFAULTS_VERSION = 'starseed_defaults_version';
-const DEFAULTS_VERSION = 'gen9-2026-07-01-inicio-adaptativo-carpetas';
+const DEFAULTS_VERSION = 'gen10-2026-07-01-esquinas-tabs-fullbleed';
 const LS_ACTIVE_PROFILE = 'starseed_active_profile_v1';
 const LS_AI_PROVIDER = 'starseed_ai_provider_v1';
 const LS_SERVERS = 'starseed_internet_servers_v1';
@@ -108,6 +109,9 @@ interface UserProfile {
 const PROFILES: UserProfile[] = [];
 
 const BUTTON_LABELS: Record<string, string> = {
+    add: "Añadir Pestaña (nuevo panel)",
+    panel: "Configurar Panel Actual",
+    devices: "Dispositivos y Grupos",
     profiles: "Selector de Perfiles",
     memory: "Memoria Local",
     ai: "Servicio de IA Exocórtex",
@@ -120,6 +124,31 @@ const BUTTON_LABELS: Record<string, string> = {
     fullscreen: "Pantalla Completa",
     settings: "Ajustes de Menú"
 };
+
+// Orden canónico del menú de pestañas del dashboard. Los tres primeros son
+// acciones de pestañas (añadir panel, configurar el panel actual y el gestor
+// de dispositivos/grupos): acceso visible y compacto junto a las herramientas.
+const BUTTON_ORDER_DEFAULT = [
+    "add", "panel", "devices", "divider",
+    "profiles", "memory", "ai", "connections", "themes", "servers",
+    "divider2", "location", "forge", "edit", "fullscreen", "settings"
+];
+
+// Fusiona el orden guardado en localStorage con el canónico: conserva el
+// acomodo del usuario y añade los botones nuevos que falten (las acciones de
+// pestañas al frente; el resto al final). Las instalaciones existentes
+// reciben así los controles nuevos sin perder su personalización.
+function mergeButtonOrder(saved: unknown): string[] {
+    if (!Array.isArray(saved) || saved.length === 0) return BUTTON_ORDER_DEFAULT;
+    const savedIds = saved.filter((b): b is string => typeof b === "string");
+    const missing = BUTTON_ORDER_DEFAULT.filter(
+        (id) => !id.startsWith("divider") && !savedIds.includes(id)
+    );
+    if (missing.length === 0) return savedIds;
+    const front = missing.filter((id) => ["add", "panel", "devices"].includes(id));
+    const tail = missing.filter((id) => !front.includes(id));
+    return [...front, ...(front.length > 0 ? ["divider0"] : []), ...savedIds, ...tail];
+}
 
 // ── LocalStorage Helpers ─────────────────────────────────────────
 function loadDashboards(): Dashboard[] {
@@ -241,11 +270,6 @@ export function DashboardLayout() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     // --- Customizable Sidebar State ---
-    const DEFAULT_BUTTON_ORDER = useMemo(() => [
-        "profiles", "memory", "ai", "connections", "themes", "servers", 
-        "divider", "location", "forge", "edit", "fullscreen", "settings"
-    ], []);
-
     const [sidebarConfig, setSidebarConfig] = useState<{
         position: 'left' | 'right' | 'top' | 'bottom';
         theme: 'liquid-crystal' | 'cyber-neon' | 'aurora-minimal';
@@ -254,12 +278,13 @@ export function DashboardLayout() {
     }>({
         position: 'left',
         theme: 'liquid-crystal',
-        buttonOrder: [
-            "profiles", "memory", "ai", "connections", "themes", "servers", 
-            "divider", "location", "forge", "edit", "fullscreen", "settings"
-        ],
+        buttonOrder: BUTTON_ORDER_DEFAULT,
         hiddenButtons: []
     });
+
+    // ── Carril de pestañas: detección de desborde (activa scroll + fades) ──
+    const railRef = useRef<HTMLDivElement | null>(null);
+    const [railOverflow, setRailOverflow] = useState(false);
 
     const saveSidebarConfig = useCallback((newConfig: typeof sidebarConfig) => {
         setSidebarConfig(newConfig);
@@ -359,6 +384,34 @@ export function DashboardLayout() {
 
     const { toast } = useToast();
 
+    // Respeta prefers-reduced-motion en las animaciones del menú de pestañas.
+    const shouldReduceMotion = useReducedMotion();
+
+    // ── Carril de pestañas: mide si los botones desbordan el espacio disponible.
+    // Solo entonces se activan el scroll oculto y los fades de los extremos
+    // (así, cuando todo cabe, ningún botón queda desvanecido ni recortado).
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const el = railRef.current;
+        if (!el) { setRailOverflow(false); return; }
+        const vertical = sidebarConfig.position === 'left' || sidebarConfig.position === 'right';
+        const measure = () => {
+            setRailOverflow(
+                vertical
+                    ? el.scrollHeight > el.clientHeight + 1
+                    : el.scrollWidth > el.clientWidth + 1
+            );
+        };
+        measure();
+        let ro: ResizeObserver | null = null;
+        try { ro = new ResizeObserver(measure); ro.observe(el); } catch { /* opcional */ }
+        window.addEventListener("resize", measure, { passive: true });
+        return () => {
+            try { ro?.disconnect(); } catch { /* noop */ }
+            window.removeEventListener("resize", measure);
+        };
+    }, [isSidebarOpen, sidebarConfig.position, sidebarConfig.buttonOrder, sidebarConfig.hiddenButtons]);
+
     // ── Re-hidratación desde localStorage (fuente de verdad local) ──────────────
     // Relee la lista de tableros y los widgets del tablero activo desde
     // localStorage. Se reutiliza tanto para la sincronización entre pestañas
@@ -411,10 +464,9 @@ export function DashboardLayout() {
                 setSidebarConfig({
                     position: parsed.position || 'left',
                     theme: parsed.theme || 'liquid-crystal',
-                    buttonOrder: parsed.buttonOrder || [
-                        "profiles", "memory", "ai", "connections", "themes", "servers", 
-                        "divider", "location", "forge", "edit", "fullscreen", "settings"
-                    ],
+                    // Fusión con el orden canónico: las configs antiguas reciben
+                    // los controles nuevos (añadir pestaña / panel / dispositivos).
+                    buttonOrder: mergeButtonOrder(parsed.buttonOrder),
                     hiddenButtons: parsed.hiddenButtons || []
                 });
             }
@@ -1094,67 +1146,99 @@ export function DashboardLayout() {
 
     const mainPaddingClass = useMemo(() => {
         if (isFullscreen) return "gap-0 p-0";
+        // Márgenes mínimos (rediseño gen10): la barra vive pegada al borde, así
+        // que el contenido solo reserva el carril necesario y deja ~8px máx en
+        // el resto de bordes/esquinas (sin bandas muertas, look full-bleed).
         if (!isSidebarOpen) {
-            // When menu is closed, keep a small margin to make sure workspace elements aren't overlapping the floating toggle button.
             switch (sidebarConfig.position) {
-                case 'left': return "gap-6 pl-16 pr-6 py-6";
-                case 'right': return "gap-6 pr-16 pl-6 py-6";
-                case 'top': return "gap-6 pt-16 pb-6 px-6";
-                case 'bottom': return "gap-6 pb-16 pt-6 px-6";
-                default: return "gap-6 pl-16 pr-6 py-6";
+                case 'left': return "gap-3 pl-11 pr-2 py-2";
+                case 'right': return "gap-3 pr-11 pl-2 py-2";
+                case 'top': return "gap-3 pt-11 pb-2 px-2";
+                case 'bottom': return "gap-3 pb-11 pt-2 px-2";
+                default: return "gap-3 pl-11 pr-2 py-2";
             }
         }
-        
+
         switch (sidebarConfig.position) {
-            case 'left': return "gap-6 pl-20 md:pl-24 pr-6 py-6";
-            case 'right': return "gap-6 pr-20 md:pr-24 pl-6 py-6";
-            case 'top': return "gap-6 pt-20 md:pt-24 pb-6 px-6";
-            case 'bottom': return "gap-6 pb-20 md:pb-24 pt-6 px-6";
-            default: return "gap-6 pl-20 md:pl-24 pr-6 py-6";
+            case 'left': return "gap-3 pl-[5.75rem] pr-2 py-2";
+            case 'right': return "gap-3 pr-[5.75rem] pl-2 py-2";
+            case 'top': return "gap-3 pt-[5.75rem] pb-2 px-2";
+            case 'bottom': return "gap-3 pb-[5.75rem] pt-2 px-2";
+            default: return "gap-3 pl-[5.75rem] pr-2 py-2";
         }
     }, [isFullscreen, isSidebarOpen, sidebarConfig.position]);
 
+    // Contenedor fijo del menú de pestañas: PEGADO al borde de la pantalla
+    // (sin offset muerto) y consciente de las safe-areas (notch/home bar).
     const fixedContainerClass = useMemo(() => {
         switch (sidebarConfig.position) {
             case 'right':
-                return "fixed right-4 top-1/2 -translate-y-1/2 z-[80] flex flex-row-reverse items-center pointer-events-none gap-3";
+                return "fixed right-0 top-1/2 -translate-y-1/2 z-[80] flex flex-row-reverse items-center pointer-events-none gap-1.5 pr-[env(safe-area-inset-right)]";
             case 'top':
-                return "fixed top-4 left-1/2 -translate-x-1/2 z-[80] flex flex-col items-center pointer-events-none gap-3";
+                return "fixed top-0 left-1/2 -translate-x-1/2 z-[80] flex flex-col items-center pointer-events-none gap-1.5 pt-[env(safe-area-inset-top)] max-w-[100vw]";
             case 'bottom':
-                return "fixed bottom-4 left-1/2 -translate-x-1/2 z-[80] flex flex-col-reverse items-center pointer-events-none gap-3";
+                return "fixed bottom-0 left-1/2 -translate-x-1/2 z-[80] flex flex-col-reverse items-center pointer-events-none gap-1.5 pb-[env(safe-area-inset-bottom)] max-w-[100vw]";
             case 'left':
             default:
-                return "fixed left-4 top-1/2 -translate-y-1/2 z-[80] flex flex-row items-center pointer-events-none gap-3";
+                return "fixed left-0 top-1/2 -translate-y-1/2 z-[80] flex flex-row items-center pointer-events-none gap-1.5 pl-[env(safe-area-inset-left)]";
         }
     }, [sidebarConfig.position]);
 
     const barThemeClass = useMemo(() => {
-        const layoutCls = isVertical
-            ? "flex-col w-14 h-auto p-3 rounded-3xl"
-            : "flex-row h-14 w-auto p-3 rounded-3xl";
+        // Barra compacta pegada al borde: radios moderados (16px) SOLO en las
+        // esquinas interiores; las que tocan el borde de la pantalla van casi
+        // a 0 (4px) para que no "sobre" espacio. Padding interno mínimo.
+        const edgeRadius =
+            sidebarConfig.position === 'right' ? "rounded-l-2xl rounded-r-[4px]"
+                : sidebarConfig.position === 'top' ? "rounded-b-2xl rounded-t-[4px]"
+                    : sidebarConfig.position === 'bottom' ? "rounded-t-2xl rounded-b-[4px]"
+                        : "rounded-r-2xl rounded-l-[4px]";
+        const layoutCls = cn(
+            isVertical ? "flex-col w-12 h-auto p-1.5" : "flex-row h-12 w-auto p-1.5",
+            edgeRadius
+        );
 
         switch (sidebarConfig.theme) {
             case 'cyber-neon':
                 return cn(
-                    "pointer-events-auto flex items-center gap-2 bg-slate-950/95 border border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.25)] backdrop-blur-xl shrink-0 transition-all duration-300",
+                    "pointer-events-auto flex items-center bg-slate-950/95 border border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.25)] backdrop-blur-xl shrink-0 transition-all duration-300 motion-reduce:transition-none",
                     layoutCls
                 );
             case 'aurora-minimal':
                 return cn(
-                    "pointer-events-auto flex items-center gap-2 bg-gradient-to-br from-purple-950/20 to-emerald-950/20 border border-white/5 shadow-lg backdrop-blur-2xl shrink-0 transition-all duration-300",
+                    "pointer-events-auto flex items-center bg-gradient-to-br from-purple-950/20 to-emerald-950/20 border border-white/5 shadow-lg backdrop-blur-2xl shrink-0 transition-all duration-300 motion-reduce:transition-none",
                     layoutCls
                 );
             case 'liquid-crystal':
             default:
                 return cn(
-                    "pointer-events-auto flex items-center gap-2 bg-black/40 border border-white/10 shadow-xl backdrop-blur-2xl shrink-0 transition-all duration-300",
+                    "pointer-events-auto flex items-center bg-black/40 border border-white/10 shadow-xl backdrop-blur-2xl shrink-0 transition-all duration-300 motion-reduce:transition-none",
                     layoutCls
                 );
         }
-    }, [isVertical, sidebarConfig.theme]);
+    }, [isVertical, sidebarConfig.theme, sidebarConfig.position]);
+
+    // Carril interno de pestañas: gap mínimo; si desbordan, scroll con fades.
+    const railClass = useMemo(() => cn(
+        "flex items-center gap-1",
+        isVertical
+            ? "flex-col max-h-[calc(100dvh-6.5rem)]"
+            : "flex-row max-w-[calc(100vw-6.5rem)]",
+        railOverflow && (isVertical ? cn(styles.railY, styles.fadeY) : cn(styles.railX, styles.fadeX)),
+    ), [isVertical, railOverflow]);
+
+    // El tooltip de cada pestaña se abre hacia el interior de la pantalla.
+    const tooltipSide = useMemo<"right" | "left" | "top" | "bottom">(() => {
+        switch (sidebarConfig.position) {
+            case 'right': return 'left';
+            case 'top': return 'bottom';
+            case 'bottom': return 'top';
+            default: return 'right';
+        }
+    }, [sidebarConfig.position]);
 
     const toggleButtonThemeClass = useMemo(() => {
-        const base = "w-10 h-10 rounded-full border backdrop-blur-md transition-all shadow-lg hover:shadow-[0_0_15px_rgba(6,182,212,0.4)] pointer-events-auto shrink-0 z-50 flex items-center justify-center cursor-pointer";
+        const base = "w-9 h-9 rounded-full border backdrop-blur-md transition-all duration-200 motion-reduce:transition-none shadow-lg hover:shadow-[0_0_15px_rgba(6,182,212,0.4)] pointer-events-auto shrink-0 z-50 flex items-center justify-center cursor-pointer";
         
         switch (sidebarConfig.theme) {
             case 'cyber-neon':
@@ -1207,13 +1291,70 @@ export function DashboardLayout() {
     const renderSidebarButton = useCallback((buttonId: string) => {
         if (sidebarConfig.hiddenButtons.includes(buttonId)) return null;
 
+        // Props comunes de pestaña: tooltip abierto hacia el interior de la
+        // pantalla e icono+nombre adaptativos (texto solo en barra horizontal
+        // sobre pantallas anchas; en el resto, solo icono con tooltip).
+        const tabCommon = { tipSide: tooltipSide, showText: !isVertical } as const;
+
+        // Separadores (admite varios: divider, divider0, divider2…).
+        if (buttonId.startsWith("divider")) {
+            return (
+                <div
+                    key={buttonId}
+                    className={cn(
+                        isVertical ? "w-7 h-px my-0.5" : "h-7 w-px mx-0.5",
+                        "bg-white/10 rounded-full shrink-0"
+                    )}
+                />
+            );
+        }
+
         switch (buttonId) {
+            case "add":
+                return (
+                    <SidebarIconButton
+                        key="add"
+                        {...tabCommon}
+                        icon={<Plus className="w-5 h-5" />}
+                        label="Añadir pestaña (nuevo panel)"
+                        text="Añadir"
+                        color="emerald"
+                        onClick={() => setIsCreateDialogOpen(true)}
+                    />
+                );
+            case "panel":
+                return (
+                    <SidebarIconButton
+                        key="panel"
+                        {...tabCommon}
+                        icon={<Settings2 className="w-5 h-5" />}
+                        label="Configurar panel actual (renombrar)"
+                        text="Panel"
+                        color="cyan"
+                        onClick={() => handleOpenRename(activeDashboardId ?? "")}
+                    />
+                );
+            case "devices":
+                return (
+                    <SidebarIconButton
+                        key="devices"
+                        {...tabCommon}
+                        icon={<MonitorSmartphone className="w-5 h-5" />}
+                        label="Dispositivos y grupos"
+                        text="Equipos"
+                        color="purple"
+                        active={isDeviceManagerOpen}
+                        onClick={() => setIsDeviceManagerOpen(true)}
+                    />
+                );
             case "profiles":
                 return (
-                    <SidebarIconButton 
+                    <SidebarIconButton
                         key="profiles"
-                        icon={<User className="w-5 h-5" />} 
-                        label="Perfiles" 
+                        {...tabCommon}
+                        icon={<User className="w-5 h-5" />}
+                        label="Perfiles"
+                        text="Perfiles"
                         color="cyan"
                         active={activeToolbarTab === "profiles"}
                         onClick={() => setActiveToolbarTab(activeToolbarTab === "profiles" ? null : "profiles")}
@@ -1221,10 +1362,12 @@ export function DashboardLayout() {
                 );
             case "memory":
                 return (
-                    <SidebarIconButton 
+                    <SidebarIconButton
                         key="memory"
-                        icon={<HardDrive className="w-5 h-5" />} 
-                        label="Memoria local" 
+                        {...tabCommon}
+                        icon={<HardDrive className="w-5 h-5" />}
+                        label="Memoria local"
+                        text="Memoria"
                         color="emerald"
                         active={activeToolbarTab === "memory"}
                         onClick={() => setActiveToolbarTab(activeToolbarTab === "memory" ? null : "memory")}
@@ -1232,10 +1375,12 @@ export function DashboardLayout() {
                 );
             case "ai":
                 return (
-                    <SidebarIconButton 
+                    <SidebarIconButton
                         key="ai"
-                        icon={<Cpu className="w-5 h-5" />} 
-                        label="Servicio de IA" 
+                        {...tabCommon}
+                        icon={<Cpu className="w-5 h-5" />}
+                        label="Servicio de IA"
+                        text="IA"
                         color="cyan"
                         active={activeToolbarTab === "ai"}
                         onClick={() => setActiveToolbarTab(activeToolbarTab === "ai" ? null : "ai")}
@@ -1243,10 +1388,12 @@ export function DashboardLayout() {
                 );
             case "connections":
                 return (
-                    <SidebarIconButton 
+                    <SidebarIconButton
                         key="connections"
-                        icon={<Wifi className="w-5 h-5" />} 
-                        label="Conexiones" 
+                        {...tabCommon}
+                        icon={<Wifi className="w-5 h-5" />}
+                        label="Conexiones"
+                        text="Redes"
                         color="purple"
                         active={activeToolbarTab === "connections"}
                         onClick={() => setActiveToolbarTab(activeToolbarTab === "connections" ? null : "connections")}
@@ -1254,10 +1401,12 @@ export function DashboardLayout() {
                 );
             case "themes":
                 return (
-                    <SidebarIconButton 
+                    <SidebarIconButton
                         key="themes"
-                        icon={<Palette className="w-5 h-5" />} 
-                        label="Temas rápidos" 
+                        {...tabCommon}
+                        icon={<Palette className="w-5 h-5" />}
+                        label="Temas rápidos"
+                        text="Temas"
                         color="amber"
                         active={activeToolbarTab === "themes"}
                         onClick={() => setActiveToolbarTab(activeToolbarTab === "themes" ? null : "themes")}
@@ -1265,32 +1414,26 @@ export function DashboardLayout() {
                 );
             case "servers":
                 return (
-                    <SidebarIconButton 
+                    <SidebarIconButton
                         key="servers"
-                        icon={<Globe className="w-5 h-5" />} 
-                        label="Internet / VPN" 
+                        {...tabCommon}
+                        icon={<Globe className="w-5 h-5" />}
+                        label="Internet / VPN"
+                        text="VPN"
                         color="crimson"
                         active={activeToolbarTab === "servers"}
                         onClick={() => setActiveToolbarTab(activeToolbarTab === "servers" ? null : "servers")}
                     />
                 );
-            case "divider":
-                return (
-                    <div 
-                        key="divider"
-                        className={cn(
-                            isVertical ? "w-8 h-px my-1" : "h-8 w-px mx-1", 
-                            "bg-white/10 rounded-full shrink-0"
-                        )} 
-                    />
-                );
             case "location":
                 return (
-                    <SidebarIconButton 
+                    <SidebarIconButton
                         key="location"
-                        icon={<MapPin className="w-5 h-5" />} 
-                        label="Ubicación" 
-                        color="cyan" 
+                        {...tabCommon}
+                        icon={<MapPin className="w-5 h-5" />}
+                        label="Ubicación"
+                        text="Lugar"
+                        color="cyan"
                         onClick={() => {
                             const event = new CustomEvent('starseed:open-location');
                             window.dispatchEvent(event);
@@ -1299,42 +1442,50 @@ export function DashboardLayout() {
                 );
             case "forge":
                 return (
-                    <SidebarIconButton 
+                    <SidebarIconButton
                         key="forge"
-                        icon={<Hammer className="w-5 h-5 text-indigo-300" />} 
-                        label="Forjar Widget" 
-                        color="neutral" 
+                        {...tabCommon}
+                        icon={<Hammer className="w-5 h-5 text-indigo-300" />}
+                        label="Forjar Widget"
+                        text="Forjar"
+                        color="neutral"
                         onClick={() => setIsForgeOpen(true)} 
                     />
                 );
             case "edit":
                 return (
-                    <SidebarIconButton 
+                    <SidebarIconButton
                         key="edit"
-                        icon={<LayoutGrid className="w-5 h-5" />} 
-                        label={isEditMode ? "Terminar" : "Editar"} 
-                        color={isEditMode ? "emerald" : "neutral"} 
+                        {...tabCommon}
+                        icon={<LayoutGrid className="w-5 h-5" />}
+                        label={isEditMode ? "Terminar edición" : "Editar dashboard"}
+                        text={isEditMode ? "Terminar" : "Editar"}
+                        color={isEditMode ? "emerald" : "neutral"}
                         active={isEditMode}
                         onClick={() => setIsEditMode(!isEditMode)} 
                     />
                 );
             case "fullscreen":
                 return (
-                    <SidebarIconButton 
+                    <SidebarIconButton
                         key="fullscreen"
-                        icon={isFullscreen ? <Minimize2 className="w-5 h-5 text-amber-400" /> : <Maximize2 className="w-5 h-5" />} 
-                        label={isFullscreen ? "Salir Pantalla Completa" : "Pantalla Completa"} 
-                        color="neutral" 
+                        {...tabCommon}
+                        icon={isFullscreen ? <Minimize2 className="w-5 h-5 text-amber-400" /> : <Maximize2 className="w-5 h-5" />}
+                        label={isFullscreen ? "Salir Pantalla Completa" : "Pantalla Completa"}
+                        text="Pantalla"
+                        color="neutral"
                         onClick={() => setIsFullscreen(!isFullscreen)} 
                     />
                 );
             case "settings":
                 return (
-                    <SidebarIconButton 
+                    <SidebarIconButton
                         key="settings"
-                        icon={<Settings className="w-5 h-5 text-slate-300" />} 
-                        label="Ajustes Menú" 
-                        color="cyan" 
+                        {...tabCommon}
+                        icon={<Settings className="w-5 h-5 text-slate-300" />}
+                        label="Ajustes Menú"
+                        text="Ajustes"
+                        color="cyan"
                         active={activeToolbarTab === "settings"}
                         onClick={() => setActiveToolbarTab(activeToolbarTab === "settings" ? null : "settings")} 
                     />
@@ -1342,7 +1493,7 @@ export function DashboardLayout() {
             default:
                 return null;
         }
-    }, [activeToolbarTab, isEditMode, isFullscreen, isVertical, sidebarConfig.hiddenButtons, sidebarConfig.position, sidebarConfig.theme]);
+    }, [activeToolbarTab, isEditMode, isFullscreen, isVertical, sidebarConfig.hiddenButtons, tooltipSide, activeDashboardId, isDeviceManagerOpen, handleOpenRename]);
 
     // Loading State
     if (loading) {
@@ -1374,10 +1525,13 @@ export function DashboardLayout() {
                                 initial={motionInitial}
                                 animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
                                 exit={motionInitial}
-                                transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                                transition={shouldReduceMotion ? { duration: 0 } : { type: "spring", stiffness: 350, damping: 25 }}
                                 className={barThemeClass}
                             >
-                                {sidebarConfig.buttonOrder.map(buttonId => renderSidebarButton(buttonId))}
+                                {/* Carril de pestañas: compacto; scroll + fades solo si desborda */}
+                                <div ref={railRef} className={railClass}>
+                                    {sidebarConfig.buttonOrder.map(buttonId => renderSidebarButton(buttonId))}
+                                </div>
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -1410,8 +1564,8 @@ export function DashboardLayout() {
                                 initial={flyoutInitial}
                                 animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
                                 exit={flyoutInitial}
-                                transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                                className="pointer-events-auto w-[280px] sm:w-[320px] bg-black/80 backdrop-blur-3xl border border-white/10 p-5 rounded-[2rem] shadow-2xl flex flex-col gap-4 text-white overflow-hidden relative"
+                                transition={shouldReduceMotion ? { duration: 0 } : { type: "spring", stiffness: 350, damping: 25 }}
+                                className="pointer-events-auto w-[280px] sm:w-[320px] bg-black/80 backdrop-blur-3xl border border-white/10 p-4 rounded-2xl shadow-2xl flex flex-col gap-4 text-white overflow-hidden relative"
                             >
                                 <div className="absolute top-0 right-0 w-36 h-36 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
                                 
@@ -1760,7 +1914,7 @@ export function DashboardLayout() {
                                                 <Label className="text-[10px] text-white/50 uppercase tracking-wider font-mono">Acomodo de Opciones</Label>
                                                 <div className="space-y-1 bg-black/40 border border-white/5 p-2 rounded-2xl max-h-[180px] overflow-y-auto pr-1 scrollbar-thin">
                                                     {sidebarConfig.buttonOrder.map((buttonId, idx) => {
-                                                        if (buttonId === 'divider') return null;
+                                                        if (buttonId.startsWith('divider')) return null;
                                                         const label = BUTTON_LABELS[buttonId] || buttonId;
                                                         const isHidden = sidebarConfig.hiddenButtons.includes(buttonId);
 
@@ -1832,7 +1986,7 @@ export function DashboardLayout() {
                                                     const resetConfig = {
                                                         position: 'left' as const,
                                                         theme: 'liquid-crystal' as const,
-                                                        buttonOrder: DEFAULT_BUTTON_ORDER,
+                                                        buttonOrder: BUTTON_ORDER_DEFAULT,
                                                         hiddenButtons: []
                                                     };
                                                     saveSidebarConfig(resetConfig);
@@ -2216,9 +2370,15 @@ interface SidebarIconButtonProps {
     color: "neutral" | "cyan" | "emerald" | "purple" | "amber" | "crimson";
     active?: boolean;
     onClick: () => void;
+    /** Lado hacia el que se abre el tooltip (interior de la pantalla). */
+    tipSide?: "right" | "left" | "top" | "bottom";
+    /** Nombre corto de la pestaña (se muestra junto al icono cuando cabe). */
+    text?: string;
+    /** Icono+texto en barra horizontal sobre pantallas anchas (md+). */
+    showText?: boolean;
 }
 
-function SidebarIconButton({ icon, label, color, active, onClick }: SidebarIconButtonProps) {
+function SidebarIconButton({ icon, label, color, active, onClick, tipSide = "right", text, showText }: SidebarIconButtonProps) {
     const colors = {
         neutral: "text-white/60 hover:text-white hover:bg-white/10",
         cyan: "text-cyan-400 hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.4)]",
@@ -2228,23 +2388,46 @@ function SidebarIconButton({ icon, label, color, active, onClick }: SidebarIconB
         crimson: "text-red-400 hover:bg-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.4)]"
     };
 
+    // Tooltip hacia el interior de la pantalla según el borde donde vive la barra.
+    const tipPos = {
+        right: "left-full ml-2 top-1/2 -translate-y-1/2",
+        left: "right-full mr-2 top-1/2 -translate-y-1/2",
+        top: "bottom-full mb-2 left-1/2 -translate-x-1/2",
+        bottom: "top-full mt-2 left-1/2 -translate-x-1/2",
+    }[tipSide];
+
     return (
         <div className="relative group shrink-0">
             <Button
-                size="icon"
+                size={showText ? "sm" : "icon"}
                 variant="ghost"
                 onClick={onClick}
+                aria-label={label}
                 className={cn(
-                    "w-10 h-10 rounded-xl backdrop-blur-md border border-white/5 transition-all duration-300",
+                    "rounded-[10px] backdrop-blur-md border border-white/5 transition-all duration-200 motion-reduce:transition-none cursor-pointer",
+                    showText ? "h-9 px-2.5 gap-1.5" : "w-9 h-9",
                     colors[color],
-                    active && "ring-1 ring-amber-500/40 bg-white/10 scale-105"
+                    // Pestaña activa: glow sutil con el acento del tema (variables
+                    // CSS del OS), en cualquier tema/appearance.
+                    active && "bg-[hsl(var(--primary)/0.14)] ring-1 ring-[hsl(var(--primary)/0.45)] shadow-[0_0_14px_hsl(var(--primary)/0.35)]"
                 )}
             >
                 {icon}
+                {showText && text && (
+                    <span className="hidden md:inline text-[11px] font-medium leading-none whitespace-nowrap">
+                        {text}
+                    </span>
+                )}
             </Button>
-            
-            {/* Tooltip */}
-            <span className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-black/90 text-white border border-white/10 text-[10px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-md z-[100]">
+
+            {/* Tooltip (nombre completo). Con icono+texto visible (md+) se oculta. */}
+            <span
+                className={cn(
+                    "absolute bg-black/90 text-white border border-white/10 text-[10px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 motion-reduce:transition-none pointer-events-none whitespace-nowrap shadow-md z-[100]",
+                    tipPos,
+                    showText && text && "md:hidden"
+                )}
+            >
                 {label}
             </span>
         </div>

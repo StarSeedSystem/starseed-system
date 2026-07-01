@@ -296,6 +296,30 @@ export const mergeGroups = (real: OsGroup[], sample = sampleGroupsAsOs()) =>
 export const mergeEvents = (real: OsEvent[], sample = sampleEventsAsOs()) =>
     mergeBySlug(real, sample);
 
+// ── Eventos SOLO reales (sin datos de ejemplo) ──────────────────────────────
+//
+// Para superficies que exigen honestidad total (p.ej. la Agenda de un perfil):
+// nada de `sampleEvents`, nada de fusión. ADITIVO: `mergeEvents` y el resto de
+// consumidores actuales no cambian.
+
+/** Filtra una lista de eventos dejando SOLO los reales (excluye `isSample`). */
+export const realEventsOnly = (events: OsEvent[]): OsEvent[] =>
+    events.filter((e) => !e.isSample);
+
+/**
+ * Eventos REALES de Supabase, sin fusión con ejemplos y sin lanzar jamás:
+ * devuelve [] ante cualquier fallo (SSR, sin red, sin tabla, RLS…). Es el
+ * equivalente "estado vacío honesto" de `fetchEvents` + `mergeEvents`.
+ */
+export async function fetchRealEventsSafe(): Promise<OsEvent[]> {
+    if (typeof window === "undefined") return [];
+    try {
+        return realEventsOnly(await fetchEvents());
+    } catch {
+        return [];
+    }
+}
+
 // ── Resolución tolerante por slug O id (incluye fallback a ejemplo) ──
 
 export function findSamplePageBySlug(slug: string): OsPage | undefined {

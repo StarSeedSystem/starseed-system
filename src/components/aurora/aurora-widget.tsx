@@ -85,6 +85,11 @@ export function AuroraWidget() {
   // Posición del orbe como fracción del viewport (movible + persistida).
   const [pos, setPos] = useState<AuroraOrbPosition>(DEFAULT_ORB_POSITION);
 
+  // Píldora de estado de acción: descartable; reaparece con cada acción nueva.
+  const [pillDismissed, setPillDismissed] = useState(false);
+  const actionStatusLive = aurora?.actionStatus;
+  useEffect(() => { setPillDismissed(false); }, [actionStatusLive]);
+
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const orbWrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -296,9 +301,36 @@ export function AuroraWidget() {
   const state = !supported ? "off" : speaking ? "speaking" : listening ? "listening" : "idle";
 
   // Posición absoluta del orbe (fracción → px), presente en TODAS las rutas.
+  // dvh: viewport dinámico (respeta teclado/barras móviles), como el Café.
   const orbStyle: React.CSSProperties = {
     left: `calc(${(pos.xRatio * 100).toFixed(3)}vw - ${ORB_PX / 2}px)`,
-    top: `calc(${(pos.yRatio * 100).toFixed(3)}vh - ${ORB_PX / 2}px)`,
+    top: `calc(${(pos.yRatio * 100).toFixed(3)}dvh - ${ORB_PX / 2}px)`,
+  };
+
+  // ── Anclaje del panel y de la píldora AL ORBE ─────────────────────────────
+  // Se abren hacia el lado con más espacio según el cuadrante del orbe, con
+  // transform-origin mirando al orbe y clamps (100dvh + safe-areas) para no
+  // salirse nunca del viewport — mismo criterio que el panel del Café.
+  const openUp = pos.yRatio >= 0.5;   // orbe en mitad inferior → abre hacia arriba
+  const openLeft = pos.xRatio >= 0.5; // orbe en mitad derecha → crece hacia la izquierda
+  const ANCHOR_GAP = ORB_PX / 2 + 14; // separación desde el centro del orbe
+  const vAnchor: React.CSSProperties = openUp
+    ? { bottom: `calc(${((1 - pos.yRatio) * 100).toFixed(3)}dvh + ${ANCHOR_GAP}px)` }
+    : { top: `calc(${(pos.yRatio * 100).toFixed(3)}dvh + ${ANCHOR_GAP}px)` };
+  const hAnchor = (maxW: string): React.CSSProperties => (openLeft
+    ? { right: `clamp(8px, calc(${((1 - pos.xRatio) * 100).toFixed(3)}vw - ${ORB_PX / 2}px), calc(100vw - ${maxW} - 8px))` }
+    : { left: `clamp(8px, calc(${(pos.xRatio * 100).toFixed(3)}vw - ${ORB_PX / 2}px), calc(100vw - ${maxW} - 8px))` });
+  const PANEL_W = "min(22rem, calc(100vw - 16px))";
+  const panelStyle: React.CSSProperties = {
+    ...vAnchor,
+    ...hAnchor(PANEL_W),
+    maxHeight: openUp
+      ? `calc(${(pos.yRatio * 100).toFixed(3)}dvh - ${ANCHOR_GAP + 10}px - env(safe-area-inset-top, 0px))`
+      : `calc(${((1 - pos.yRatio) * 100).toFixed(3)}dvh - ${ANCHOR_GAP + 10}px - env(safe-area-inset-bottom, 0px))`,
+    transformOrigin: `${openLeft ? "right" : "left"} ${openUp ? "bottom" : "top"}`,
+    // Glass fuerte del Café: tintes aurora (lime + lavanda) sobre cristal oscuro.
+    background:
+      "radial-gradient(140% 80% at 18% -8%, rgba(159,232,112,0.10), transparent 60%), radial-gradient(150% 90% at 110% 0%, rgba(201,168,255,0.10), transparent 55%), rgba(9,13,18,0.9)",
   };
 
   // Controles de transporte de voz (reutilizados en el chat y en la pestaña Voz).
@@ -359,12 +391,20 @@ export function AuroraWidget() {
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 12, scale: 0.98 }}
+            initial={{ opacity: 0, y: openUp ? 10 : -10, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            exit={{ opacity: 0, y: openUp ? 10 : -10, scale: 0.92 }}
             transition={{ type: "spring", stiffness: 340, damping: 30 }}
-            className="fixed bottom-5 right-5 z-[60] w-[22rem] max-w-[92vw] rounded-2xl border border-white/10 bg-zinc-950/95 backdrop-blur-xl shadow-2xl shadow-fuchsia-900/20 p-4 space-y-3 select-none"
+            className="fixed z-[60] flex w-[22rem] max-w-[calc(100vw-16px)] select-none flex-col overflow-hidden rounded-[26px] border border-white/10 shadow-2xl shadow-black/50 backdrop-blur-2xl"
+            style={panelStyle}
           >
+          {/* Filo aurora superior (lenguaje del Café): lime → cyan → lavanda. */}
+          <div
+            aria-hidden
+            className="h-[2px] w-full shrink-0 bg-gradient-to-r from-[#9FE870] via-[#6FE6D6] to-[#C9A8FF] opacity-80 shadow-[0_0_14px_rgba(111,230,214,0.55)]"
+          />
+          {/* Contenido con scroll interno: el panel nunca se sale del viewport. */}
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-fuchsia-500 to-cyan-500 flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-white" />
@@ -628,15 +668,29 @@ export function AuroraWidget() {
               )}
             </>
           )}
+          </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Píldora de acción flotante (visible aunque el panel esté cerrado). */}
-      {!open && actionStatus && (
-        <div className="fixed bottom-24 right-5 z-[55] flex items-center gap-2 rounded-full border border-cyan-400/30 bg-zinc-950/90 backdrop-blur-xl px-3 py-1.5 shadow-lg shadow-cyan-900/20">
-          <Wand2 className="w-3.5 h-3.5 text-cyan-200 animate-pulse" />
-          <span className="text-[11px] text-cyan-50 max-w-[60vw] truncate">{actionStatus}</span>
+      {/* Píldora de acción flotante ANCLADA al orbe (encima o debajo según el
+          cuadrante), visible aunque el panel esté cerrado; descartable. */}
+      {!open && actionStatus && !pillDismissed && (
+        <div
+          className="fixed z-[55] flex items-center gap-2 rounded-full border border-cyan-400/30 bg-zinc-950/90 px-3 py-1.5 shadow-lg shadow-cyan-900/20 backdrop-blur-xl"
+          style={{ ...vAnchor, ...hAnchor("min(20rem, 70vw)") }}
+        >
+          <Wand2 className="w-3.5 h-3.5 shrink-0 animate-pulse text-cyan-200" />
+          <span className="max-w-[min(16rem,55vw)] truncate text-[11px] text-cyan-50">{actionStatus}</span>
+          <button
+            type="button"
+            onClick={() => setPillDismissed(true)}
+            aria-label="Descartar aviso de acción"
+            title="Descartar"
+            className="grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded-full text-cyan-200/60 transition hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-3 w-3" />
+          </button>
         </div>
       )}
 
@@ -720,10 +774,11 @@ export function AuroraWidget() {
                     style={{
                       color: n.color,
                       borderColor: `color-mix(in srgb, ${n.color} 55%, transparent)`,
-                      background: `radial-gradient(120% 95% at 30% 18%, rgba(255,255,255,0.22), transparent 55%), color-mix(in srgb, ${n.color} ${aimed ? 42 : isActive ? 30 : 16}%, rgba(8,12,18,0.66))`,
+                      // Cristal glass del Café: highlight superior + tinte cardinal.
+                      background: `radial-gradient(120% 95% at 30% 18%, rgba(255,255,255,0.26), transparent 55%), color-mix(in srgb, ${n.color} ${aimed ? 46 : isActive ? 30 : 16}%, rgba(8,12,18,0.66))`,
                       boxShadow: (isActive || aimed)
-                        ? `0 10px 24px rgba(0,0,0,0.45), 0 0 24px color-mix(in srgb, ${n.color} 70%, transparent)`
-                        : `0 8px 20px rgba(0,0,0,0.4), 0 0 14px color-mix(in srgb, ${n.color} 35%, transparent)`,
+                        ? `inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -8px 14px rgba(0,0,0,0.3), 0 10px 24px rgba(0,0,0,0.45), 0 0 26px color-mix(in srgb, ${n.color} 75%, transparent)`
+                        : `inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -8px 14px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.4), 0 0 14px color-mix(in srgb, ${n.color} 35%, transparent)`,
                     }}
                   >
                     <n.Icon className="h-5 w-5" />
@@ -734,6 +789,21 @@ export function AuroraWidget() {
                         style={{ background: n.color }}
                       />
                     )}
+                    {/* Etiqueta bajo el pétalo (Zenith/Anchor/Horizon/Logic). */}
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute left-1/2 top-full mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-full border px-2 py-[3px] font-mono text-[8px] uppercase tracking-[0.16em] backdrop-blur-md transition-all duration-200"
+                      style={{
+                        borderColor: `color-mix(in srgb, ${n.color} ${aimed || isActive ? 70 : 40}%, transparent)`,
+                        background: "rgba(8,12,18,0.72)",
+                        color: aimed || isActive ? "#ffffff" : "rgba(255,255,255,0.72)",
+                        boxShadow: aimed
+                          ? `0 0 12px color-mix(in srgb, ${n.color} 65%, transparent)`
+                          : "0 4px 10px rgba(0,0,0,0.35)",
+                      }}
+                    >
+                      {n.label}
+                    </span>
                   </motion.button>
                 );
               })}
@@ -749,23 +819,32 @@ export function AuroraWidget() {
             title="Trinidad · Zenith · Horizon · Logic · Anchor"
             className={cn(
               "absolute -top-1 -left-1 z-30 grid h-7 w-7 place-items-center rounded-full cursor-pointer",
-              "border border-white/20 bg-zinc-950/80 backdrop-blur-md shadow-lg",
+              "border border-white/20 backdrop-blur-md shadow-lg",
               "transition-transform duration-200 hover:scale-110 active:scale-95",
               (trinityOpen || !!activeEdge) && "ring-2 ring-white/30",
             )}
+            style={{
+              // Mismo cristal oscuro del orbe, con highlight especular.
+              background:
+                "radial-gradient(circle at 32% 26%, rgba(255,255,255,0.16), transparent 46%), rgba(9,13,20,0.85)",
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,0.18), 0 4px 12px rgba(0,0,0,0.45)",
+            }}
           >
+            {/* Mini-estrella ✦ de 4 gemas: mismo lenguaje que la estrella del orbe. */}
             <motion.svg
               viewBox="0 0 24 24"
               className="h-4 w-4"
               aria-hidden
               animate={{ rotate: trinityOpen ? 45 : 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              style={{ filter: "drop-shadow(0 0 2px rgba(255,255,255,0.45))" }}
             >
-              <circle cx="12" cy="4.6" r="3" fill="#007FFF" />
-              <circle cx="19.4" cy="12" r="3" fill="#FFBF00" />
-              <circle cx="12" cy="19.4" r="3" fill="#DC143C" />
-              <circle cx="4.6" cy="12" r="3" fill="#39FF14" />
-              <circle cx="12" cy="12" r="1.6" fill="rgba(255,255,255,0.9)" />
+              <path d="M12 12 C10.9 8.8 11 5.8 12 2.4 C13 5.8 13.1 8.8 12 12 Z" fill="#007FFF" />
+              <path d="M12 12 C13.1 15.2 13 18.2 12 21.6 C11 18.2 10.9 15.2 12 12 Z" fill="#DC143C" />
+              <path d="M12 12 C8.8 13.1 5.8 13 2.4 12 C5.8 11 8.8 10.9 12 12 Z" fill="#39FF14" />
+              <path d="M12 12 C15.2 10.9 18.2 11 21.6 12 C18.2 13 15.2 13.1 12 12 Z" fill="#FFBF00" />
+              <circle cx="12" cy="12" r="1.7" fill="#FFFFFF" />
             </motion.svg>
           </button>
 

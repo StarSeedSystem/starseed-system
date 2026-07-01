@@ -47,6 +47,7 @@ import {
   type CalendarItem,
   type CalendarLayer,
 } from '@/contexts/calendar-context';
+import { communityEvents } from '@/lib/data';
 import { DayDetailDialog } from './day-detail-dialog';
 import { SincrometroModeSwitcher } from './sincrometro-mode-switcher';
 import { SincrometroAstrological } from './sincrometro-astrological';
@@ -68,7 +69,35 @@ interface UnifiedCalendarProps {
   title?: string;
   /** Subtítulo opcional para la cabecera. */
   subtitle?: string;
+  /**
+   * Si true, muestra SOLO entradas reales: eventos de Supabase (`events`,
+   * `os_events`, cierres de gobernanza) y entradas creadas por la persona
+   * usuaria. Excluye la semilla de DEMO del CalendarProvider (recordatorios,
+   * alarmas y logs de ejemplo + `communityEvents`). Pensado para superficies
+   * honestas como la Agenda de un perfil. Default: false (comportamiento
+   * histórico, sin cambios para el resto de consumidores).
+   */
+  realOnly?: boolean;
   className?: string;
+}
+
+/**
+ * Ids de la semilla DEMO sembrada por el CalendarProvider
+ * (src/contexts/calendar-context.tsx → seedItems). Se excluyen cuando
+ * `realOnly` está activo. Mantener en espejo si esa semilla cambia.
+ */
+const DEMO_SEED_IDS = new Set<string>(['rem-1', 'alm-1', 'sys-1', 'sys-2']);
+
+/** Ids de los `communityEvents` de ejemplo (hoy vacío; defensivo por si vuelven). */
+const DEMO_COMMUNITY_EVENT_IDS = new Set<string>(
+  (communityEvents as Array<{ id?: unknown }>)
+    .map((e) => String(e?.id ?? ''))
+    .filter(Boolean)
+);
+
+/** ¿La entrada proviene de la semilla de demostración (no es real)? */
+function isDemoSeedItem(item: CalendarItem): boolean {
+  return DEMO_SEED_IDS.has(item.id) || DEMO_COMMUNITY_EVENT_IDS.has(item.id);
 }
 
 function startOfMonth(year: number, monthIndex: number): Date {
@@ -100,6 +129,7 @@ export function UnifiedCalendar({
   showAgenda = true,
   title = 'Sincrómetro Unificado',
   subtitle = 'Eventos, recordatorios, alarmas y logs del sistema en una sola superficie. Misma data, tres modos de leer el tiempo: convencional, astrológico y lunar.',
+  realOnly = false,
   className,
 }: UnifiedCalendarProps) {
   const {
@@ -124,8 +154,11 @@ export function UnifiedCalendar({
   const todayISO = toISODate(now);
 
   const visibleItems = useMemo(
-    () => items.filter((it) => visibleLayers[it.layer]),
-    [items, visibleLayers]
+    () =>
+      items.filter(
+        (it) => visibleLayers[it.layer] && (!realOnly || !isDemoSeedItem(it))
+      ),
+    [items, visibleLayers, realOnly]
   );
 
   const itemsForDay = (d: Date): CalendarItem[] => {

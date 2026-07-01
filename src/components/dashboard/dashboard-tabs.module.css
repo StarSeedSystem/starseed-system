@@ -1,0 +1,46 @@
+/* ── Carril de pestañas del menú del Dashboard ────────────────────────────
+   Estilos del rediseño "esquinas/full-bleed" (gen10): scroll sin barra
+   visible y desvanecido (fade) en los extremos cuando hay más pestañas de
+   las que caben. Las clases de overflow/fade se aplican desde
+   dashboard-layout.tsx SOLO cuando el contenido desborda (railOverflow),
+   para no oscurecer los extremos cuando todo cabe. */
+
+.railY {
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    overscroll-behavior: contain;
+}
+
+.railX {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    overscroll-behavior: contain;
+}
+
+.railY::-webkit-scrollbar,
+.railX::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+/* Fades en los extremos del carril (indican que hay más pestañas). */
+.fadeY {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
+
+.fadeX {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
+
+/* Accesibilidad: sin desplazamiento animado si el usuario lo prefiere. */
+@media (prefers-reduced-motion: reduce) {
+    .railY,
+    .railX {
+        scroll-behavior: auto;
+    }
+}

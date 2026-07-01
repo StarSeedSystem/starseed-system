@@ -188,7 +188,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     // Empty state when no widgets — invitación clara a poblar desde la biblioteca
     if (mounted && widgets.length === 0) {
         return (
-            <div ref={containerRef} className="relative min-h-[500px] flex flex-col items-center justify-center gap-6 rounded-[2rem] border border-dashed border-primary/20 bg-primary/[0.02] backdrop-blur-sm overflow-hidden">
+            <div ref={containerRef} className="relative min-h-[500px] flex flex-col items-center justify-center gap-6 rounded-2xl border border-dashed border-primary/20 bg-primary/[0.02] backdrop-blur-sm overflow-hidden">
                 {/* halo decorativo animado */}
                 <div className="pointer-events-none absolute inset-0 opacity-60 [background:radial-gradient(circle_at_50%_40%,hsl(var(--primary)/0.10),transparent_60%)]" />
                 <div className="relative flex flex-col items-center text-center space-y-4 max-w-sm px-6">
@@ -240,7 +240,10 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 ref={containerRef}
                 className={cn(
                     // box-border: el padding no desborda el ancho en táctil (móvil).
-                    "box-border relative min-h-[300px] w-full rounded-[clamp(1rem,2vw,2rem)] p-[clamp(0.4rem,1.25vw,0.85rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-300",
+                    // Full-bleed (gen10): margen exterior mínimo (~4-8px) y radios
+                    // moderados → los widgets llenan la pantalla sin bandas muertas
+                    // en bordes/esquinas, como la pantalla de inicio de un móvil.
+                    "box-border relative min-h-[300px] w-full rounded-[clamp(0.625rem,1.25vw,1rem)] p-[clamp(0.25rem,0.9vw,0.5rem)] pb-[max(4rem,env(safe-area-inset-bottom))] transition-all duration-300 motion-reduce:transition-none",
                     isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-transparent"
                 )}
                 style={{ touchAction: "pan-y" }}
@@ -251,7 +254,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     ≥ 10/12 en el grid, p. ej. la carpeta-dock de apps o accesos rápidos)
                     ocupan la hilera completa. Sin recortes: box-border + separación
                     uniforme. */}
-                <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2.5 sm:gap-3.5 box-border" style={{ touchAction: "pan-y" }}>
+                <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3 box-border" style={{ touchAction: "pan-y" }}>
                     {ordered.map((widget, idx) => {
                         const h = Math.max(widget.layout.h, 3);
                         const cardHeight = h * ROW + (h - 1) * GAP;
@@ -266,7 +269,9 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                 key={widget.layout.i || widget.id}
                                 data-widget-key={widget.layout.i || widget.id}
                                 className={cn(
-                                    "relative rounded-3xl overflow-hidden bg-transparent transition-all box-border",
+                                    // Radio moderado (16px): menos esquina "sobrante" y
+                                    // mejor aprovechamiento del ancho en cada tarjeta.
+                                    "relative rounded-2xl overflow-hidden bg-transparent transition-all motion-reduce:transition-none box-border",
                                     spanFull && "col-span-2 md:col-span-3 2xl:col-span-4",
                                     isEditMode && "ring-2 ring-primary/20"
                                 )}
@@ -364,7 +369,9 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 // desborda ni "encoge" la pantalla. Sin borde propio en reposo (el
                 // marco del workspace ya lo aporta): evita el doble borde que robaba
                 // espacio visible; solo el modo edición dibuja su guía punteada.
-                "box-border relative min-h-[500px] flex-1 w-full rounded-[clamp(1rem,2vw,2rem)] overflow-visible p-[clamp(0.5rem,1.25vw,0.85rem)] pb-[max(5rem,env(safe-area-inset-bottom))] transition-all duration-300 ease-out backdrop-blur-sm",
+                // Full-bleed (gen10): margen exterior mínimo (4-8px) y radio moderado
+                // → sin bandas muertas en bordes/esquinas en ningún tamaño.
+                "box-border relative min-h-[500px] flex-1 w-full rounded-[clamp(0.625rem,1.25vw,1rem)] overflow-visible p-[clamp(0.25rem,0.9vw,0.5rem)] pb-[max(4rem,env(safe-area-inset-bottom))] transition-all duration-300 ease-out backdrop-blur-sm motion-reduce:transition-none",
                 isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-transparent border-0"
             )}
             // touch-action pan-y SIEMPRE: el dedo scrollea vertical; nada arrastra.
@@ -378,7 +385,11 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
                     rowHeight={65} // slightly taller for better visual separation
                     width={width}
-                    compactType="vertical"
+                    // compactType es la API clásica (v1) que el runtime sigue
+                    // aceptando; los types de react-grid-layout v2 ya no la
+                    // declaran (usan `compactor`), así que se pasa con spread
+                    // para no cambiar el comportamiento en ejecución.
+                    {...({ compactType: "vertical" } as any)}
                     onLayoutChange={onLayoutChange as any}
                     onDragStop={handleDragStop as any}
                     onResizeStop={handleDragStop as any}
@@ -388,7 +399,12 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     // reordenamiento táctil se hace con los botones ↑/↓ del widget.
                     isDraggable={canDragMouse}
                     isResizable={canDragMouse}
-                    margin={[18, 18]} // cleaner separation
+                    margin={[12, 12]} // separación compacta entre widgets
+                    // Sin padding extra del grid: por defecto react-grid-layout usa
+                    // containerPadding = margin (18px muertos por lado). A 0, los
+                    // widgets llegan hasta el borde del lienzo (que ya aporta su
+                    // margen mínimo) → sin bandas muertas alrededor.
+                    containerPadding={[0, 0]}
                 >
                     {widgets.map(widget => (
                         <div
@@ -414,7 +430,9 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                             }}
                         >
                             <div className={cn(
-                                `h-full w-full overflow-hidden transition-all bg-transparent rounded-3xl ${isEditMode ? 'ring-2 ring-primary/20' : 'hover:shadow-lg'}`
+                                // Radio moderado (16px) en la tarjeta contenedora: menos
+                                // esquina "sobrante" y mejor aprovechamiento del área.
+                                `h-full w-full overflow-hidden transition-all motion-reduce:transition-none bg-transparent rounded-2xl ${isEditMode ? 'ring-2 ring-primary/20' : 'hover:shadow-lg'}`
                             )}>
                                 <WidgetRegistry widget={widget} />
 

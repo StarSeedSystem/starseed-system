@@ -65,6 +65,8 @@ import {
   BookMarked,
   RefreshCw,
   Server,
+  Download,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -82,7 +84,7 @@ import { LibrarySourcesPanel } from "@/components/library/library-sources-panel"
 import { LibraryStorageSelector } from "@/components/library/library-storage-selector";
 import { LibraryStorePanel } from "@/components/library/library-store-panel";
 import { LibraryUpdatesPanel } from "@/components/library/library-updates-panel";
-import { OsDownloadCard } from "@/components/library/os-download-card";
+import { InstallButton } from "@/components/welcome/install-button";
 import { AppFilePage, type LibraryDetailItem } from "@/components/library/app-file-page";
 import { articles, courses, files } from "@/lib/data";
 import { samplePages } from "@/data/sample-entities";
@@ -884,6 +886,114 @@ function KnowledgeExplorer({ onOpenDetail }: { onOpenDetail: (item: LibraryDetai
 }
 
 // ══════════════════════════════════════════════════════════════════
+// Franja de descarga del OS — versión de build REAL y accionable
+// ------------------------------------------------------------------
+// · Versión legible derivada de la fecha de build (constante actualizada por
+//   release, o NEXT_PUBLIC_BUILD_DATE si el pipeline la inyecta en build).
+// · «Instalar como app (PWA)» → InstallButton (flujo real: beforeinstallprompt
+//   guardado + prompt(); fallback con instrucciones iOS/escritorio).
+// · «Código fuente / releases» → repositorio oficial en GitHub.
+// · Targets nativos (dmg/apk/exe) aún no publicados → nota honesta, sin
+//   enlaces muertos.
+// ══════════════════════════════════════════════════════════════════
+
+/** URL oficial del despliegue de StarSeed OS (fuente: CLAUDE.md §1). */
+const OS_WEB_URL = "https://starseed-os.vercel.app";
+/** Código fuente y releases oficiales del sistema. */
+const OS_REPO_URL = "https://github.com/StarSeedSystem/starseed-system";
+/**
+ * Fecha de build (AAAA.MM.DD). Si el pipeline define NEXT_PUBLIC_BUILD_DATE
+ * (Next la inserta inline en el bundle), se usa esa; si no, esta constante se
+ * actualiza en cada release.
+ */
+const OS_BUILD_DATE = process.env.NEXT_PUBLIC_BUILD_DATE || "2026.07.01";
+const OS_BUILD_LABEL = `StarSeed OS · build ${OS_BUILD_DATE}`;
+
+/** "2026.07.01" → "1 de julio de 2026" (defensivo: si no parsea, crudo). */
+function formatBuildDate(build: string): string {
+  const [y, m, d] = build.split(/[./-]/).map((n) => Number(n));
+  if (!y || !m || !d) return build;
+  const date = new Date(y, m - 1, d);
+  if (Number.isNaN(date.getTime())) return build;
+  try {
+    return date.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
+  } catch {
+    return build;
+  }
+}
+
+function OsDownloadStrip() {
+  return (
+    <GlassCard
+      variant="hover"
+      className="relative overflow-hidden p-6 border-emerald-400/20 bg-gradient-to-br from-emerald-900/30 via-teal-900/20 to-transparent"
+    >
+      <div className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
+
+      <div className="relative z-10 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-4 min-w-0">
+          <div className="shrink-0 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-3">
+            <Download className="h-7 w-7 text-emerald-300" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-bold font-headline text-emerald-100">Descarga StarSeed OS</h2>
+              <Badge variant="outline" className="gap-1 border-emerald-400/40 text-emerald-300 text-[10px]">
+                <Sparkles className="h-3 w-3" /> {OS_BUILD_LABEL}
+              </Badge>
+            </div>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+              Última versión publicada el {formatBuildDate(OS_BUILD_DATE)}. Instálala como app en tu
+              dispositivo (Android, iOS, escritorio) o ábrela en la web oficial.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              <a
+                href={OS_WEB_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-emerald-300 hover:text-emerald-200 hover:underline cursor-pointer"
+              >
+                starseed-os.vercel.app <ExternalLink className="h-3 w-3" />
+              </a>
+              <a
+                href={OS_REPO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-emerald-300 hover:text-emerald-200 hover:underline cursor-pointer"
+              >
+                Código fuente / releases <ExternalLink className="h-3 w-3" />
+              </a>
+              <span
+                className="inline-flex items-center gap-1 text-muted-foreground"
+                title="Los instaladores nativos aún no están publicados; en cuanto existan aparecerán aquí."
+              >
+                <Package className="h-3 w-3" /> Versiones nativas (dmg · apk · exe): en preparación
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Acciones: instalación PWA real + web oficial */}
+        <div className="flex w-full flex-col gap-2 md:w-64 shrink-0">
+          <p className="text-center text-[10px] font-semibold uppercase tracking-wider text-emerald-200/70">
+            Instalar como app (PWA)
+          </p>
+          <InstallButton />
+          <a
+            href={OS_WEB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-[13px] border border-white/12 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/80 transition-colors hover:bg-white/[0.08] cursor-pointer"
+          >
+            <ExternalLink className="h-4 w-4" /> Abrir en la web
+          </a>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
 // Página unificada
 // ══════════════════════════════════════════════════════════════════
 
@@ -936,8 +1046,8 @@ function LibraryContent() {
         </p>
       </div>
 
-      {/* Descarga del OS — SIEMPRE arriba */}
-      <OsDownloadCard />
+      {/* Descarga del OS — SIEMPRE arriba (build real, PWA y código fuente) */}
+      <OsDownloadStrip />
 
       {/* Pestañas */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as LibraryTab)} className="w-full">
