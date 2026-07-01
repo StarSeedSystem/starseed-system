@@ -106,6 +106,20 @@ import {
 } from "@/lib/publish/publish";
 import EgoContextOption from "@/components/aurora/ego-context-option";
 import { createEgoForContext, type EgoContextKind } from "@/lib/aurora/ego";
+import ReachSelector from "@/components/reach/reach-selector";
+import {
+    defaultReach,
+    reachFromDestinations,
+    reachToDestinations,
+    type Reach,
+} from "@/lib/reach/reach";
+import MentionInput from "@/components/mentions/mention-input";
+import { MentionChip } from "@/components/mentions/entity-chip";
+import {
+    parseMentions,
+    persistMentions,
+    type Mention,
+} from "@/lib/mentions/mentions";
 
 // ── Resolución de iconos (string → componente de lucide) ──
 
@@ -295,6 +309,19 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
         initial?.destinations ?? [],
     );
 
+    // ── Alcance unificado (Reach) · "publicar a todo StarSeed o a comunidades" ──
+    // Fuente de verdad de alto nivel; se sincroniza con `selectedDestinations`.
+    const [reach, setReach] = useState<Reach>(() =>
+        initial?.destinations && initial.destinations.length > 0
+            ? reachFromDestinations(initial.destinations)
+            : defaultReach(),
+    );
+
+    // ── Menciones estructuradas #/@ presentes en el cuerpo ──
+    const [mentions, setMentions] = useState<Mention[]>(
+        initial?.content?.body ? parseMentions(initial.content.body) : [],
+    );
+
     // Paso 5: formato + contenido.
     const [format, setFormat] = useState<string>(initial?.format ?? "");
     const [draft, setDraft] = useState<DraftContent>(() => ({
@@ -389,11 +416,15 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
         for (const [k, v] of Object.entries(draft.template)) {
             if (v && v.trim()) tmpl[k] = v.trim();
         }
-        if (Object.keys(tmpl).length || areaId) {
+        // Menciones estructuradas #/@ detectadas en el cuerpo (Lienzo Universal:
+        // la entidad conserva a quién menciona / qué adjunta).
+        const bodyMentions = parseMentions(draft.body);
+        if (Object.keys(tmpl).length || areaId || bodyMentions.length) {
             c.meta = {
                 ...(areaId ? { area: areaId } : {}),
                 ...(subAreaId ? { subArea: subAreaId } : {}),
                 ...(Object.keys(tmpl).length ? { template: tmpl } : {}),
+                ...(bodyMentions.length ? { mentions: bodyMentions } : {}),
             };
         }
         return c;
@@ -404,7 +435,8 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
         [typeId, content, format],
     );
 
-    const reach = useMemo(() => reachOf(selectedDestinations), [selectedDestinations]);
+    // Texto legible del alcance efectivo (resumen de destinos), para pasos 5 y 6.
+    const reachText = useMemo(() => reachOf(selectedDestinations), [selectedDestinations]);
 
     // ── Toggles de selección ──
 
@@ -426,9 +458,26 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
     function toggleDestination(opt: DestinationOption) {
         setSelectedDestinations((prev) => {
             const exists = prev.some((d) => d.kind === opt.kind && d.id === opt.id);
-            if (exists) return prev.filter((d) => !(d.kind === opt.kind && d.id === opt.id));
-            return [...prev, { kind: opt.kind, id: opt.id, label: opt.label }];
+            const next = exists
+                ? prev.filter((d) => !(d.kind === opt.kind && d.id === opt.id))
+                : [...prev, { kind: opt.kind, id: opt.id, label: opt.label }];
+            // Mantén el pill de alcance en sincronía con la edición manual.
+            setReach(reachFromDestinations(next));
+            return next;
         });
+    }
+
+    // El ReachSelector es el control unificado: al cambiar el alcance, deriva los
+    // destinos reales del composer (reachToDestinations) manteniendo el flujo de
+    // publicación existente. Si el alcance apunta a "profile", usa el primer perfil.
+    function handleReachChange(next: Reach) {
+        setReach(next);
+        const derived = reachToDestinations(next, {
+            profileId: selectedProfiles[0],
+            resolveLabel: (id) =>
+                selectedDestinations.find((d) => d.id === id)?.label,
+        });
+        setSelectedDestinations(derived);
     }
 
     async function toggleKind(kind: DestinationKind) {
@@ -530,6 +579,20 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                         : "Publicado en " + delivered + " destinos.",
                 );
                 onPublished?.(res.results);
+                // Aditivo: persistir menciones #/@ por cada publicación entregada.
+                // DEFENSIVO: si la tabla `entity_mentions` no existe todavía, no
+                // lanza — las menciones ya viajan dentro de post_references.mentions.
+                if (mentions.length > 0) {
+                    for (const r of res.results) {
+                        if (r.ok && r.recordId) {
+                            await persistMentions({
+                                sourceType: "post",
+                                sourceId: r.recordId,
+                                mentions,
+                            });
+                        }
+                    }
+                }
                 // Aditivo: crear un Agente Aurora (ego.md) para el contexto.
                 if (egoForContext) {
                     await createEgosForDelivered(res.results, egoName, content);
@@ -616,6 +679,8 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                         onToggleKind={toggleKind}
                         onToggleOption={toggleDestination}
                         isSelected={isDestSelected}
+                        reach={reach}
+                        onReachChange={handleReachChange}
                     />
                 )}
                 {step === 4 && selectedType && (
@@ -626,6 +691,7 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                         onFormat={setFormat}
                         draft={draft}
                         onDraft={setDraft}
+                        onMentions={setMentions}
                     />
                 )}
                 {step === 5 && (
@@ -636,7 +702,7 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                         onVoting={setVoting}
                         scope={scope}
                         onScope={setScope}
-                        reach={reach}
+                        reach={reachText}
                     />
                 )}
                 {step === 6 && preview && (
@@ -648,7 +714,8 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                         profiles={profiles}
                         selectedProfiles={selectedProfiles}
                         destinations={selectedDestinations}
-                        reach={reach}
+                        reach={reachText}
+                        mentions={mentions}
                         results={results}
                         onOpenFull={() => setFullOpen(true)}
                     />
@@ -926,6 +993,8 @@ function StepDestinationAndKind({
     onToggleKind,
     onToggleOption,
     isSelected,
+    reach,
+    onReachChange,
 }: {
     postKind: PostKindId;
     onPostKind: (k: PostKindId) => void;
@@ -936,17 +1005,65 @@ function StepDestinationAndKind({
     onToggleKind: (kind: DestinationKind) => void;
     onToggleOption: (opt: DestinationOption) => void;
     isSelected: (kind: DestinationKindId, id: string) => boolean;
+    reach: Reach;
+    onReachChange: (r: Reach) => void;
 }) {
     const selectedCount = (kindId: string) => selected.filter((d) => d.kind === kindId).length;
+    const [advancedOpen, setAdvancedOpen] = useState(false);
 
     return (
         <div className="space-y-5">
             <div>
-                <h3 className="mb-1 text-lg font-semibold text-amber-50">Destino y tipo</h3>
+                <h3 className="mb-1 text-lg font-semibold text-amber-50">Alcance y tipo</h3>
                 <p className="text-sm text-white/50">
                     Elige si será <span className="text-amber-200">Publicación Principal</span> o{" "}
-                    <span className="text-amber-200">Historia</span>, y a qué destinos llega.
+                    <span className="text-amber-200">Historia</span>, y su{" "}
+                    <span className="text-amber-200">alcance</span>: todo StarSeed o comunidades
+                    específicas.
                 </p>
+            </div>
+
+            {/* Control UNIFICADO de alcance (Reach) */}
+            <ReachSelector value={reach} onChange={onReachChange} />
+
+            {/* Ajuste avanzado: multi-destino granular (aditivo) */}
+            <div className="rounded-xl border border-white/10 bg-white/[0.02]">
+                <button
+                    type="button"
+                    onClick={() => setAdvancedOpen((v) => !v)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-white/[0.03]"
+                >
+                    <span className="text-sm font-medium text-amber-50/90">
+                        Ajuste avanzado de destinos
+                    </span>
+                    <span className="flex items-center gap-2">
+                        {selected.length > 0 && (
+                            <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                                {selected.length} destino(s)
+                            </span>
+                        )}
+                        <ChevronRight
+                            className={cn(
+                                "h-4 w-4 shrink-0 text-white/40 transition-transform",
+                                advancedOpen && "rotate-90",
+                            )}
+                        />
+                    </span>
+                </button>
+                {advancedOpen && (
+                    <div className="border-t border-white/10 p-3">
+                        <AdvancedDestinations
+                            openKinds={openKinds}
+                            optionsByKind={optionsByKind}
+                            loadingKinds={loadingKinds}
+                            selected={selected}
+                            onToggleKind={onToggleKind}
+                            onToggleOption={onToggleOption}
+                            isSelected={isSelected}
+                            selectedCount={selectedCount}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Tipo de publicación: Principal / Historia */}
@@ -985,128 +1102,151 @@ function StepDestinationAndKind({
                 })}
             </div>
 
-            {/* Multi-selección de destinos */}
-            <div>
-                <h4 className="mb-1 text-sm font-semibold text-amber-50">Destinos</h4>
-                <p className="mb-2 text-xs text-white/50">
-                    Elige uno o varios destinos. Despliega cada tipo para cargar sus opciones.
-                </p>
-                {selected.length > 0 && (
-                    <div className="mb-3 flex flex-wrap gap-1.5">
-                        {selected.map((d) => (
-                            <Badge
-                                key={d.kind + ":" + d.id}
-                                variant="secondary"
-                                className="gap-1 bg-amber-400/15 text-amber-100"
-                            >
-                                {d.label || d.id}
-                            </Badge>
-                        ))}
-                    </div>
-                )}
+        </div>
+    );
+}
 
-                <div className="space-y-2">
-                    {DESTINATION_KINDS.map((kind) => {
-                        const open = openKinds[kind.id];
-                        const opts = optionsByKind[kind.id];
-                        const loading = loadingKinds[kind.id];
-                        const count = selectedCount(kind.id);
-                        return (
-                            <div
-                                key={kind.id}
-                                className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.02]"
+// ── Multi-destino granular (ajuste avanzado del alcance) ──
+function AdvancedDestinations({
+    openKinds,
+    optionsByKind,
+    loadingKinds,
+    selected,
+    onToggleKind,
+    onToggleOption,
+    isSelected,
+    selectedCount,
+}: {
+    openKinds: Record<string, boolean>;
+    optionsByKind: Record<string, DestinationOption[]>;
+    loadingKinds: Record<string, boolean>;
+    selected: SelectedDestination[];
+    onToggleKind: (kind: DestinationKind) => void;
+    onToggleOption: (opt: DestinationOption) => void;
+    isSelected: (kind: DestinationKindId, id: string) => boolean;
+    selectedCount: (kindId: string) => number;
+}) {
+    return (
+        <div>
+            <p className="mb-2 text-xs text-white/50">
+                Afina el alcance eligiendo destinos concretos (páginas, chats, bibliotecas…). Se
+                combinan con el alcance elegido arriba.
+            </p>
+            {selected.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                    {selected.map((d) => (
+                        <Badge
+                            key={d.kind + ":" + d.id}
+                            variant="secondary"
+                            className="gap-1 bg-amber-400/15 text-amber-100"
+                        >
+                            {d.label || d.id}
+                        </Badge>
+                    ))}
+                </div>
+            )}
+
+            <div className="space-y-2">
+                {DESTINATION_KINDS.map((kind) => {
+                    const open = openKinds[kind.id];
+                    const opts = optionsByKind[kind.id];
+                    const loading = loadingKinds[kind.id];
+                    const count = selectedCount(kind.id);
+                    return (
+                        <div
+                            key={kind.id}
+                            className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.02]"
+                        >
+                            <button
+                                type="button"
+                                onClick={() => onToggleKind(kind)}
+                                className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-white/[0.03]"
                             >
-                                <button
-                                    type="button"
-                                    onClick={() => onToggleKind(kind)}
-                                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-white/[0.03]"
-                                >
-                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white/60">
-                                        <Icon name={kind.icon} className="h-4 w-4" />
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                        <span className="flex items-center gap-2 text-sm font-medium text-amber-50">
-                                            {kind.label}
-                                            {kind.fulfillment === "registered" && (
-                                                <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-white/50">
-                                                    registrado
-                                                </span>
-                                            )}
-                                        </span>
-                                        <span className="block truncate text-[11px] text-white/40">
-                                            {kind.blurb}
-                                        </span>
-                                    </span>
-                                    {count > 0 && (
-                                        <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
-                                            {count}
-                                        </span>
-                                    )}
-                                    <ChevronRight
-                                        className={cn(
-                                            "h-4 w-4 shrink-0 text-white/40 transition-transform",
-                                            open && "rotate-90",
+                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white/60">
+                                    <Icon name={kind.icon} className="h-4 w-4" />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="flex items-center gap-2 text-sm font-medium text-amber-50">
+                                        {kind.label}
+                                        {kind.fulfillment === "registered" && (
+                                            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-white/50">
+                                                registrado
+                                            </span>
                                         )}
-                                    />
-                                </button>
+                                    </span>
+                                    <span className="block truncate text-[11px] text-white/40">
+                                        {kind.blurb}
+                                    </span>
+                                </span>
+                                {count > 0 && (
+                                    <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                                        {count}
+                                    </span>
+                                )}
+                                <ChevronRight
+                                    className={cn(
+                                        "h-4 w-4 shrink-0 text-white/40 transition-transform",
+                                        open && "rotate-90",
+                                    )}
+                                />
+                            </button>
 
-                                {open && (
-                                    <div className="border-t border-white/10 p-2">
-                                        {loading ? (
-                                            <div className="flex items-center gap-2 px-2 py-2 text-xs text-white/50">
-                                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando opciones…
-                                            </div>
-                                        ) : !opts || opts.length === 0 ? (
-                                            <div className="px-2 py-2 text-xs text-white/40">
-                                                No hay opciones disponibles para este destino todavía.
-                                            </div>
-                                        ) : (
-                                            <div className="grid gap-1.5 sm:grid-cols-2">
-                                                {opts.map((opt) => {
-                                                    const active = isSelected(kind.id, opt.id);
-                                                    return (
-                                                        <button
-                                                            key={opt.id}
-                                                            type="button"
-                                                            onClick={() => onToggleOption(opt)}
+                            {open && (
+                                <div className="border-t border-white/10 p-2">
+                                    {loading ? (
+                                        <div className="flex items-center gap-2 px-2 py-2 text-xs text-white/50">
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando opciones…
+                                        </div>
+                                    ) : !opts || opts.length === 0 ? (
+                                        <div className="px-2 py-2 text-xs text-white/40">
+                                            No hay opciones disponibles para este destino todavía.
+                                        </div>
+                                    ) : (
+                                        <div className="grid gap-1.5 sm:grid-cols-2">
+                                            {opts.map((opt) => {
+                                                const active = isSelected(kind.id, opt.id);
+                                                return (
+                                                    <button
+                                                        key={opt.id}
+                                                        type="button"
+                                                        onClick={() => onToggleOption(opt)}
+                                                        className={cn(
+                                                            "flex items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
+                                                            active
+                                                                ? "border-amber-400/60 bg-amber-400/10"
+                                                                : "border-white/10 hover:border-white/25",
+                                                        )}
+                                                    >
+                                                        <span
                                                             className={cn(
-                                                                "flex items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
+                                                                "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
                                                                 active
-                                                                    ? "border-amber-400/60 bg-amber-400/10"
-                                                                    : "border-white/10 hover:border-white/25",
+                                                                    ? "border-amber-400 bg-amber-400/30 text-amber-100"
+                                                                    : "border-white/25",
                                                             )}
                                                         >
-                                                            <span
-                                                                className={cn(
-                                                                    "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-                                                                    active
-                                                                        ? "border-amber-400 bg-amber-400/30 text-amber-100"
-                                                                        : "border-white/25",
-                                                                )}
-                                                            >
-                                                                {active && <Check className="h-3 w-3" />}
+                                                            {active && <Check className="h-3 w-3" />}
+                                                        </span>
+                                                        <span className="min-w-0 flex-1">
+                                                            <span className="block truncate text-sm text-amber-50">
+                                                                {opt.label}
                                                             </span>
-                                                            <span className="min-w-0 flex-1">
-                                                                <span className="block truncate text-sm text-amber-50">
-                                                                    {opt.label}
+                                                            {opt.sub && (
+                                                                <span className="block truncate text-[11px] text-white/40">
+                                                                    {opt.sub}
                                                                 </span>
-                                                                {opt.sub && (
-                                                                    <span className="block truncate text-[11px] text-white/40">
-                                                                        {opt.sub}
-                                                                    </span>
-                                                                )}
-                                                            </span>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
+                                                            )}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
@@ -1123,6 +1263,7 @@ function StepFormatContent({
     onFormat,
     draft,
     onDraft,
+    onMentions,
 }: {
     type: PublicationType;
     subArea: SubArea | null;
@@ -1130,6 +1271,7 @@ function StepFormatContent({
     onFormat: (f: string) => void;
     draft: DraftContent;
     onDraft: (d: DraftContent) => void;
+    onMentions?: (m: Mention[]) => void;
 }) {
     const set = (patch: Partial<DraftContent>) => onDraft({ ...draft, ...patch });
     const setTemplate = (id: string, value: string) =>
@@ -1213,15 +1355,15 @@ function StepFormatContent({
                     type.id === "articulo" ||
                     type.id === "propuesta" ||
                     type.id === "mixto") && (
-                    <Textarea
+                    <MentionInput
+                        value={draft.body}
+                        onChange={(body) => set({ body })}
+                        onMentionsChange={onMentions}
                         placeholder={
                             format === "markdown"
-                                ? "Escribe en Markdown… (**negrita**, # títulos, listas)"
-                                : "Escribe tu contenido…"
+                                ? "Escribe en Markdown… Usa @ para mencionar y # para etiquetar."
+                                : "Escribe tu contenido… Usa @ para mencionar y # para etiquetar entidades."
                         }
-                        value={draft.body}
-                        onChange={(e) => set({ body: e.target.value })}
-                        className="min-h-[160px] bg-white/[0.03] text-amber-50"
                     />
                 )}
 
@@ -1511,6 +1653,7 @@ function StepPreview({
     selectedProfiles,
     destinations,
     reach,
+    mentions,
     results,
     onOpenFull,
 }: {
@@ -1522,6 +1665,7 @@ function StepPreview({
     selectedProfiles: string[];
     destinations: SelectedDestination[];
     reach: string;
+    mentions: Mention[];
     results: DestinationResult[] | null;
     onOpenFull: () => void;
 }) {
@@ -1596,6 +1740,24 @@ function StepPreview({
                     {reach}
                 </span>
             </div>
+
+            {/* Menciones #/@ adjuntas a la publicación */}
+            {mentions.length > 0 && (
+                <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-white/55">
+                        Menciones y etiquetas ({mentions.length})
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                        {mentions.map((m) => (
+                            <MentionChip
+                                key={m.kind + ":" + m.type + ":" + m.id}
+                                mention={m}
+                                linked
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Cuerpo del preview */}
             <Card className="border-white/10 bg-white/[0.02]">

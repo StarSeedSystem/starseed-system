@@ -5,6 +5,13 @@ import { createClient } from "@/utils/supabase/client";
 import { executeCommand } from "./commands";
 import { getConfig, eligibleCount } from "./config";
 import {
+  type Delegation,
+  computeEffectiveWeights,
+  loadActiveDelegations,
+  topicForProposal,
+} from "./delegations";
+import { reachFromParams, eligibleForReach } from "./reach";
+import {
   DEFAULT_PARAMS,
   URGENCY,
   YESNO_OPTIONS,
@@ -29,6 +36,10 @@ export type CreateProposalInput = {
   attachments?: Attachment[];
   command?: CommandSpec | null;
   params?: Partial<DecisionParams>;
+  // Alcance SUPRA-COMUNITARIO opcional (federación de ámbitos). Aditivo: si se
+  // omite, la propuesta es de ámbito único como siempre. Se persiste en
+  // params.reach para que el motor lo respete en censo/quórum.
+  reach?: import("./reach").GovernanceReach | null;
 };
 
 function computeParams(input?: Partial<DecisionParams>): DecisionParams {
@@ -91,7 +102,14 @@ export async function createProposal(
     const author = au?.user?.id;
     if (!author) return { ok: false, error: "Inicia sesión para proponer." };
 
-    const params = computeParams(input.params);
+    const baseParams = computeParams(input.params);
+    // Federación (supra-comunitario): se guarda dentro de params para no tocar el
+    // esquema de `proposals`. Sólo se añade si hay objetivos válidos.
+    const reach =
+      input.reach && Array.isArray(input.reach.targets) && input.reach.targets.length > 0
+        ? input.reach
+        : null;
+    const params = reach ? { ...baseParams, reach } : baseParams;
     const options = (input.options ?? []).filter((o) => o.label?.trim());
 
     const { data, error } = await supabase
@@ -167,6 +185,11 @@ export async function castVote(
     const voter = au?.user?.id;
     if (!voter) return { ok: false, error: "Inicia sesión para votar." };
 
+    // El voto directo SIEMPRE se guarda con peso base 1 ("una persona, una voz").
+    // El peso DELEGADO (voto líquido) NO se persiste aquí: se calcula de forma
+    // transparente y recomputable en el recuento (tally/evaluate) a partir de las
+    // delegaciones activas del tema. Así un voto directo del delegante reclama su
+    // peso automáticamente y nunca hay doble conteo ni alienación permanente.
     const { error } = await supabase.from("proposal_votes").upsert(
       {
         proposal_id: proposalId,
@@ -231,10 +254,18 @@ export type Tally = {
 };
 
 // Recuento. Sin opciones → sí/no/abstención. Con opciones → por opción.
+//
+// Voto líquido delegado (ADITIVO): si se pasan `delegations` (delegaciones
+// activas del tema de la propuesta), el peso de cada votante se calcula como
+// 1 (su voz) + las voces que le fueron delegadas por quien NO votó directamente.
+// Sin `delegations` (o vacío) el peso es 1 por votante → comportamiento actual.
+// "participants" cuenta PERSONAS (votantes directos), no pesos, para no inflar el
+// quórum por conteo: una persona sigue siendo una persona.
 export function tally(
   proposal: Proposal,
   votes: ProposalVote[],
   eligible?: number | null,
+  delegations?: Delegation[],
 ): Tally {
   const hasOptions = (proposal.options ?? []).length > 0;
   const counts: Record<string, number> = {};
@@ -244,9 +275,17 @@ export function tally(
     for (const o of YESNO_OPTIONS) counts[o.id] = 0;
   }
 
+  // Peso efectivo por votante (con delegaciones plegadas). Sin delegaciones el
+  // mapa queda a 1 por votante, equivalente al comportamiento previo.
+  const effWeight =
+    delegations && delegations.length > 0
+      ? computeEffectiveWeights(votes, delegations)
+      : null;
+
   for (const v of votes) {
     if (counts[v.choice] == null) counts[v.choice] = 0;
-    counts[v.choice] += v.weight || 1;
+    const w = effWeight ? effWeight[v.voter] ?? (v.weight || 1) : v.weight || 1;
+    counts[v.choice] += w;
   }
 
   const participants = votes.length;
@@ -283,9 +322,10 @@ export function evaluate(
   votes: ProposalVote[],
   config: GovernanceConfig | null,
   eligible?: number | null,
+  delegations?: Delegation[],
 ): Evaluation {
   const params = proposal.params ?? DEFAULT_PARAMS;
-  const t = tally(proposal, votes, eligible);
+  const t = tally(proposal, votes, eligible, delegations);
   const now = Date.now();
   const endsAt = params.votingEndsAt ? new Date(params.votingEndsAt).getTime() : now;
   const timeUp = now >= endsAt;
@@ -399,9 +439,19 @@ export async function tryResolve(
     const votes = (votesData as ProposalVote[]) ?? [];
 
     const config = await getConfig(proposal.scope, proposal.scope_ref);
-    const eligible = await eligibleCount(proposal.scope, proposal.scope_ref);
 
-    const ev = evaluate(proposal, votes, config, eligible);
+    // Censo elegible: si la propuesta es SUPRA-COMUNITARIA (params.reach), el
+    // censo es la unión/intersección de los miembros de los ámbitos federados;
+    // si no, el censo del ámbito único (comportamiento actual). Defensivo.
+    const reach = reachFromParams(proposal.params as Record<string, unknown>);
+    const eligible = reach
+      ? await eligibleForReach(reach)
+      : await eligibleCount(proposal.scope, proposal.scope_ref);
+
+    // Delegaciones activas del tema (voto líquido). Vacío si la tabla no existe.
+    const delegations = await loadActiveDelegations(topicForProposal(proposal));
+
+    const ev = evaluate(proposal, votes, config, eligible, delegations);
     if (!ev.decided) return { resolved: false, status: "open" };
 
     const result: Record<string, unknown> = {

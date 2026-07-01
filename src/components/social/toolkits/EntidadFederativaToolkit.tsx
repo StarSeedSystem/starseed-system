@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { getFederativeEntity, type EFData } from "@/data/sample-governance";
 import {
   Landmark,
@@ -120,6 +121,10 @@ export function EntidadFederativaToolkit({
           <TabsTrigger value="voto-liquido" className="cursor-pointer whitespace-nowrap">
             <Network className="mr-1.5 h-3.5 w-3.5" />
             Voto Líquido
+          </TabsTrigger>
+          <TabsTrigger value="decisiones" className="cursor-pointer whitespace-nowrap">
+            <Gavel className="mr-1.5 h-3.5 w-3.5" />
+            Decisiones
           </TabsTrigger>
         </TabsList>
 
@@ -514,6 +519,11 @@ export function EntidadFederativaToolkit({
               ))}
             </div>
           </ToolSection>
+        </TabsContent>
+
+        {/* ── TAB 6: DECISIONES (motor de gobernanza real de la E.F.) ── */}
+        <TabsContent value="decisiones" className="space-y-6">
+          <DecisionesSection kind="ef" slug={slug} accent={ac} name={name ?? data.name} />
         </TabsContent>
       </Tabs>
     </div>

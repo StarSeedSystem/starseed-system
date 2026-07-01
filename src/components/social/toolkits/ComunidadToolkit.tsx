@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { getCommunity, type CommunityData } from "@/data/sample-governance";
 import {
     Sprout,
@@ -34,6 +35,7 @@ import {
     Network,
     Wallet,
     ArrowUpRight,
+    Landmark,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -347,6 +349,10 @@ export function ComunidadToolkit({
                         <GraduationCap className="mr-1.5 h-3.5 w-3.5" />
                         Mentorías
                     </TabsTrigger>
+                    <TabsTrigger value="decisiones" className="cursor-pointer shrink-0">
+                        <Landmark className="mr-1.5 h-3.5 w-3.5" />
+                        Decisiones
+                    </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="proyectos" className="mt-4">
@@ -363,6 +369,10 @@ export function ComunidadToolkit({
 
                 <TabsContent value="mentorias" className="mt-4">
                     <TabMentorias data={data} ac={ac} />
+                </TabsContent>
+
+                <TabsContent value="decisiones" className="mt-4">
+                    <DecisionesSection kind="comunidad" slug={slug} accent={ac} name={name ?? data.name} />
                 </TabsContent>
             </Tabs>
         </div>

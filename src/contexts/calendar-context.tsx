@@ -43,6 +43,8 @@ import {
   createEvent as createRemoteEvent,
   listEvents as listRemoteEvents,
 } from '@/lib/events/events-store';
+import { listOsEventsForCalendar } from '@/lib/events/os-events-calendar';
+import { listVotingDeadlines } from '@/lib/events/governance-calendar';
 import { onTableChange } from '@/lib/realtime/realtime';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
@@ -355,8 +357,29 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   const reloadRemoteEvents = useCallback(async () => {
     try {
-      const remote = await listRemoteEvents(); // nunca lanza; [] ante fallo
-      const remoteIds = new Set(remote.map((e) => e.id));
+      // Tres fuentes REMOTAS, todas "nunca lanzan / [] ante fallo":
+      //   1) `events`        → eventos del Sincrómetro (events-store).
+      //   2) `os_events`     → eventos sociales (os-social) con fecha.
+      //   3) `proposals`     → cierres de votación de gobernanza (solo lectura).
+      // Se combinan y de-duplican por id. Si TODAS fallan, la lista sigue siendo
+      // la semilla local (el calendario nunca deja de funcionar). Sin datos
+      // falsos: cada fuente devuelve [] cuando no hay nada real que mostrar.
+      const [events, osEvents, deadlines] = await Promise.all([
+        listRemoteEvents(),
+        listOsEventsForCalendar(),
+        listVotingDeadlines(),
+      ]);
+
+      // Dedupe de las fuentes remotas entre sí (por id).
+      const remoteMerged: CalendarItem[] = [];
+      const remoteSeen = new Set<string>();
+      for (const it of [...events, ...osEvents, ...deadlines]) {
+        if (remoteSeen.has(it.id)) continue;
+        remoteSeen.add(it.id);
+        remoteMerged.push(it);
+      }
+
+      const remoteIds = remoteSeen;
       remoteIdsRef.current = remoteIds;
       setItems((prev) => {
         // Conservamos todo lo que NO es remoto (semilla + creados en local)…
@@ -364,7 +387,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         // …y añadimos los remotos frescos. Dedupe final por id por seguridad.
         const seen = new Set<string>();
         const merged: CalendarItem[] = [];
-        for (const it of [...localOnly, ...remote]) {
+        for (const it of [...localOnly, ...remoteMerged]) {
           if (seen.has(it.id)) continue;
           seen.add(it.id);
           merged.push(it);
@@ -382,10 +405,22 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     void reloadRemoteEvents();
-    const unsub = onTableChange('events', {}, () => {
-      void reloadRemoteEvents();
-    });
-    return unsub;
+    // Suscripciones realtime a las tres tablas que alimentan el calendario.
+    // Cada `onTableChange` es SSR-safe y degrada a no-op si no está disponible.
+    const unsubs = [
+      onTableChange('events', {}, () => void reloadRemoteEvents()),
+      onTableChange('os_events', {}, () => void reloadRemoteEvents()),
+      onTableChange('proposals', {}, () => void reloadRemoteEvents()),
+    ];
+    return () => {
+      for (const u of unsubs) {
+        try {
+          u();
+        } catch {
+          /* noop */
+        }
+      }
+    };
   }, [reloadRemoteEvents]);
 
   const setSincrometroMode = useCallback((mode: SincrometroMode) => {

@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { getAssembly, type AssemblyData } from "@/data/sample-governance";
 import {
   Vote,
@@ -34,6 +35,7 @@ import {
   FileText,
   Network,
   CheckCircle2,
+  Landmark,
 } from "lucide-react";
 
 function humanizeSlug(slug: string): string {
@@ -85,6 +87,10 @@ export function AsambleaToolkit({
           <TabsTrigger value="red" className="cursor-pointer flex items-center gap-1.5">
             <Network className="w-3.5 h-3.5" />
             Red
+          </TabsTrigger>
+          <TabsTrigger value="decisiones" className="cursor-pointer flex items-center gap-1.5">
+            <Landmark className="w-3.5 h-3.5" />
+            Decisiones
           </TabsTrigger>
         </TabsList>
 
@@ -251,6 +257,11 @@ export function AsambleaToolkit({
               </div>
             )}
           </ToolSection>
+        </TabsContent>
+
+        {/* ── TAB: DECISIONES (motor de gobernanza real de la asamblea) ── */}
+        <TabsContent value="decisiones" className="mt-4">
+          <DecisionesSection kind="asamblea" slug={slug} accent={ac} name={name ?? data.name} />
         </TabsContent>
       </Tabs>
     </div>

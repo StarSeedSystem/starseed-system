@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { getPartido, type PartidoData } from "@/data/sample-governance";
 import {
   Flag,
@@ -36,6 +37,7 @@ import {
   Handshake,
   TrendingUp,
   Crown,
+  Landmark,
 } from "lucide-react";
 
 // Humanise an event slug for display in LinkCards
@@ -106,6 +108,10 @@ export function PartidoToolkit({
           <TabsTrigger value="red" className="cursor-pointer whitespace-nowrap">
             <Network className="mr-1.5 h-3.5 w-3.5" />
             Red
+          </TabsTrigger>
+          <TabsTrigger value="decisiones" className="cursor-pointer whitespace-nowrap">
+            <Landmark className="mr-1.5 h-3.5 w-3.5" />
+            Decisiones
           </TabsTrigger>
         </TabsList>
 
@@ -338,6 +344,11 @@ export function PartidoToolkit({
               </div>
             )}
           </ToolSection>
+        </TabsContent>
+
+        {/* ── TAB 5: DECISIONES (gobernanza real del partido) ── */}
+        <TabsContent value="decisiones" className="space-y-6">
+          <DecisionesSection kind="partido" slug={slug} accent={ac} name={name ?? data.name} />
         </TabsContent>
       </Tabs>
     </div>

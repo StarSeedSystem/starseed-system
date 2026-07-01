@@ -23,9 +23,11 @@ import {
   Percent,
   Flag,
   Zap,
+  Network,
 } from "lucide-react";
 import { createProposal } from "@/lib/governance/engine";
 import { COMMAND_TYPES, commandTypeById } from "@/lib/governance/commands";
+import type { CensusMode, ReachQuorumMode, ReachTarget } from "@/lib/governance/reach";
 import {
   URGENCY,
   uid,
@@ -103,6 +105,12 @@ export default function ProposalComposer({
   );
   const [minPercent, setMinPercent] = useState<number>(() => initial.params?.minPercent ?? 0);
   const [threshold, setThreshold] = useState<number>(() => initial.params?.threshold ?? 50);
+
+  // Alcance SUPRA-COMUNITARIO (federación) — opcional/aditivo. Si no se añaden
+  // objetivos, la propuesta es de ámbito único (comportamiento clásico).
+  const [reachTargets, setReachTargets] = useState<ReachTarget[]>([]);
+  const [reachCensus, setReachCensus] = useState<CensusMode>("union");
+  const [reachQuorum, setReachQuorum] = useState<ReachQuorumMode>("aggregate");
 
   const [saving, setSaving] = useState(false);
   const [drafting, setDrafting] = useState(false);
@@ -186,6 +194,17 @@ export default function ProposalComposer({
     setAttachments((prev) => prev.filter((_, idx) => idx !== i));
   }
 
+  // Federación: objetivos (ámbitos) que abarca una decisión supra-comunitaria.
+  function addReachTarget() {
+    setReachTargets((prev) => [...prev, { scope: "community", scopeRef: "" }]);
+  }
+  function updateReachTarget(i: number, patch: Partial<ReachTarget>) {
+    setReachTargets((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
+  }
+  function removeReachTarget(i: number) {
+    setReachTargets((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
   async function draftWithAstraura() {
     if (!hasProvider) {
       toast.error("Activa un proveedor de IA en Ajustes → IA & Modelos para usar a Astraura.");
@@ -244,6 +263,13 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
           ? null
           : { type: commandType, payload: { ...commandPayload } };
 
+      // Federación: sólo se incluye si hay objetivos con referencia válida.
+      const validTargets = reachTargets.filter((t) => t.scope && t.scopeRef.trim());
+      const reach =
+        validTargets.length > 0
+          ? { targets: validTargets, census: reachCensus, quorum: reachQuorum }
+          : null;
+
       const res = await createProposal({
         scope,
         scopeRef: scopeRef || null,
@@ -254,6 +280,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
         attachments,
         command,
         params: { votingMinutes, minParticipants, minPercent, threshold, urgency },
+        reach,
       });
 
       if (!res.ok) {
@@ -272,6 +299,9 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
         setMinParticipants(1);
         setMinPercent(0);
         setThreshold(50);
+        setReachTargets([]);
+        setReachCensus("union");
+        setReachQuorum("aggregate");
         setAiPrompt("");
         // notifica al panel para recargar
         if (typeof window !== "undefined") {
@@ -560,6 +590,80 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
             />
           </label>
         </div>
+      </div>
+
+      {/* Alcance supra-comunitario (federación) — opcional/aditivo */}
+      <div className="rounded-lg border border-violet-500/20 bg-violet-950/10 p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-[11px] text-violet-200/80">
+            <Network className="h-3.5 w-3.5" /> Alcance supra-comunitario (federación) · opcional
+          </span>
+          <Button size="sm" variant="ghost" className="h-7 gap-1 text-violet-300" onClick={addReachTarget}>
+            <Plus className="h-3.5 w-3.5" /> Añadir ámbito
+          </Button>
+        </div>
+        {reachTargets.length === 0 ? (
+          <p className="text-[10px] text-white/35">
+            Sin ámbitos → la decisión afecta sólo a este contexto. Añade comunidades/grupos/páginas para que la
+            decisión abarque varios a la vez (censo por unión o intersección de sus miembros).
+          </p>
+        ) : (
+          <>
+            <div className="space-y-1.5">
+              {reachTargets.map((t, i) => (
+                <div key={i} className="flex flex-wrap gap-2">
+                  <select
+                    value={t.scope}
+                    onChange={(e) => updateReachTarget(i, { scope: e.target.value })}
+                    className="h-8 rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
+                  >
+                    <option value="community">Comunidad</option>
+                    <option value="page">Página</option>
+                    <option value="group">Grupo</option>
+                  </select>
+                  <Input
+                    value={t.scopeRef}
+                    onChange={(e) => updateReachTarget(i, { scopeRef: e.target.value })}
+                    placeholder="ID / slug del ámbito"
+                    className="h-8 flex-1 bg-white/5 text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 px-2 text-white/30 hover:text-red-400"
+                    onClick={() => removeReachTarget(i)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] text-white/40">Censo elegible</span>
+                <select
+                  value={reachCensus}
+                  onChange={(e) => setReachCensus(e.target.value as CensusMode)}
+                  className="h-8 rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
+                >
+                  <option value="union">Unión (miembro de al menos uno)</option>
+                  <option value="intersection">Intersección (miembro de todos)</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] text-white/40">Quórum</span>
+                <select
+                  value={reachQuorum}
+                  onChange={(e) => setReachQuorum(e.target.value as ReachQuorumMode)}
+                  className="h-8 rounded-md border border-white/15 bg-black/40 px-2 text-xs text-white"
+                >
+                  <option value="aggregate">Agregado (censo combinado)</option>
+                  <option value="per_target">Por objetivo</option>
+                </select>
+              </label>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex justify-end">

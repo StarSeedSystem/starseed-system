@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { getGroup, type GroupData } from "@/data/sample-governance";
 import {
   Users2,
@@ -34,6 +35,7 @@ import {
   Video,
   CalendarDays,
   Network,
+  Landmark,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -329,6 +331,13 @@ export function GrupoToolkit({
             <Network size={13} className="mr-1.5 inline" />
             Eventos
           </TabsTrigger>
+          <TabsTrigger
+            value="decisiones"
+            className="cursor-pointer whitespace-nowrap"
+          >
+            <Landmark size={13} className="mr-1.5 inline" />
+            Decisiones
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="sesiones" className="mt-4">
@@ -345,6 +354,10 @@ export function GrupoToolkit({
 
         <TabsContent value="eventos" className="mt-4">
           <TabEventos data={data} ac={ac} />
+        </TabsContent>
+
+        <TabsContent value="decisiones" className="mt-4">
+          <DecisionesSection kind="grupo" slug={slug} accent={ac} name={name ?? data.name} />
         </TabsContent>
       </Tabs>
     </div>

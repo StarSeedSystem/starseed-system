@@ -45,6 +45,7 @@ import type { OsPage, OsGroup, OsEvent } from "@/lib/os-social";
 import { uploadEntityMedia } from "@/lib/os-social";
 import EgoContextOption from "@/components/aurora/ego-context-option";
 import { createEgoForContext, type EgoContextKind } from "@/lib/aurora/ego";
+import { PlacePicker, type PlaceSelection } from "@/components/maps/place-picker";
 import { Lock, Loader2, Upload, X, ImageIcon } from "lucide-react";
 
 // ── Tipos del editor ──
@@ -131,6 +132,25 @@ function parseTags(raw: string): string[] {
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean);
+}
+
+/** Deriva una selección de lugar desde la geo de una entidad (o null). */
+function placeFromEntity(
+    e: { lat?: number | null; lng?: number | null; placeLabel?: string | null },
+): PlaceSelection | null {
+    if (
+        typeof e.lat === "number" &&
+        typeof e.lng === "number" &&
+        Number.isFinite(e.lat) &&
+        Number.isFinite(e.lng)
+    ) {
+        return {
+            lat: e.lat,
+            lng: e.lng,
+            label: e.placeLabel || `${e.lat.toFixed(4)}, ${e.lng.toFixed(4)}`,
+        };
+    }
+    return null;
 }
 
 /** Límite de tamaño para subidas de imagen (~5 MB). */
@@ -354,6 +374,8 @@ export function EntityEditorDialog({
     const [startsAt, setStartsAt] = React.useState("");
     const [location, setLocation] = React.useState("");
     const [organizerSlug, setOrganizerSlug] = React.useState("");
+    // Geografía (aditiva) — aplica a eventos, grupos y páginas.
+    const [place, setPlace] = React.useState<PlaceSelection | null>(null);
 
     const [saving, setSaving] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
@@ -380,6 +402,7 @@ export function EntityEditorDialog({
                 setStartsAt(isoToLocalInput(e.startsAt));
                 setLocation(e.location);
                 setOrganizerSlug(e.organizerSlug);
+                setPlace(placeFromEntity(e));
             } else {
                 const d = entity.data;
                 setName(d.name);
@@ -392,6 +415,7 @@ export function EntityEditorDialog({
                 setStartsAt("");
                 setLocation("");
                 setOrganizerSlug("");
+                setPlace(placeFromEntity(d));
             }
         } else {
             // Modo crear: valores por defecto.
@@ -412,6 +436,7 @@ export function EntityEditorDialog({
             setStartsAt("");
             setLocation("");
             setOrganizerSlug("");
+            setPlace(null);
         }
     }, [open, isEdit, entity, defaultType]);
 
@@ -441,6 +466,14 @@ export function EntityEditorDialog({
         const tagList = parseTags(tags);
         const avatarVal = avatarUrl.trim() || undefined;
         const coverVal = coverUrl.trim() || undefined;
+        // Geo aditivo: enviamos siempre lat/lng/placeLabel (valor o null para
+        // permitir "limpiar" la geografía en edición). La capa de datos ignora
+        // estas columnas con elegancia si aún no existen en la BD.
+        const geoPayload = {
+            lat: place ? place.lat : null,
+            lng: place ? place.lng : null,
+            placeLabel: place ? place.label : null,
+        };
         let res;
 
         try {
@@ -455,6 +488,7 @@ export function EntityEditorDialog({
                         accent,
                         avatarUrl: avatarUrl.trim(),
                         coverUrl: coverUrl.trim(),
+                        ...geoPayload,
                     });
                 } else if (entity.type === "group") {
                     res = await mutations.updateGroup(entity.data.slug, {
@@ -465,6 +499,7 @@ export function EntityEditorDialog({
                         accent,
                         avatarUrl: avatarUrl.trim(),
                         coverUrl: coverUrl.trim(),
+                        ...geoPayload,
                     });
                 } else {
                     res = await mutations.updateEvent(entity.data.slug, {
@@ -476,6 +511,7 @@ export function EntityEditorDialog({
                         location: location.trim(),
                         organizerSlug: organizerSlug.trim(),
                         coverUrl: coverUrl.trim(),
+                        ...geoPayload,
                     });
                 }
             } else {
@@ -489,6 +525,7 @@ export function EntityEditorDialog({
                         accent,
                         avatarUrl: avatarVal,
                         coverUrl: coverVal,
+                        ...geoPayload,
                     });
                 } else if (type === "group") {
                     res = await mutations.createGroup({
@@ -499,6 +536,7 @@ export function EntityEditorDialog({
                         accent,
                         avatarUrl: avatarVal,
                         coverUrl: coverVal,
+                        ...geoPayload,
                     });
                 } else {
                     res = await mutations.createEvent({
@@ -510,6 +548,7 @@ export function EntityEditorDialog({
                         location: location.trim(),
                         organizerSlug: organizerSlug.trim(),
                         coverUrl: coverVal,
+                        ...geoPayload,
                     });
                 }
             }
@@ -713,6 +752,13 @@ export function EntityEditorDialog({
                                     autoComplete="off"
                                 />
                             </div>
+                            {/* Geografía precisa (coordenadas para el mapa) */}
+                            <PlacePicker
+                                id="entity-event-place"
+                                label="Geografía en el mapa"
+                                value={place}
+                                onSelect={setPlace}
+                            />
                             <div className="flex flex-col gap-1.5">
                                 <Label htmlFor="entity-organizer">
                                     Organizador (slug de página)
@@ -726,6 +772,16 @@ export function EntityEditorDialog({
                                 />
                             </div>
                         </>
+                    )}
+
+                    {/* Geografía para grupos y páginas (comunidades/Sanghas) */}
+                    {type !== "event" && (
+                        <PlacePicker
+                            id="entity-place"
+                            label="Geografía en el mapa"
+                            value={place}
+                            onSelect={setPlace}
+                        />
                     )}
 
                     {/* Tags + Accent */}

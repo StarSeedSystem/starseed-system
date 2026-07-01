@@ -18,8 +18,31 @@
 
 import type { IntegrationConfig, IntegrationDescriptor } from "./types";
 
+// ── Extensión aditiva del descriptor (retrocompatible) ────────────
+// Añadimos metadatos de hospedaje GRATIS sin tocar el tipo base:
+// cualquier consumidor que use `IntegrationDescriptor` sigue funcionando
+// (los campos nuevos son opcionales). La UI de configuración puede leer
+// `freeHostingHint` para sugerir dónde desplegar la herramienta gratis y
+// `onByDefault` para saber cuáles son seguras de activar para todo el mundo.
+export interface IntegrationDescriptorExt extends IntegrationDescriptor {
+  /**
+   * Pista (ES) de la MEJOR opción de hospedaje GRATUITO para esta
+   * herramienta cuando NO hay un endpoint público fiable. Informativo:
+   * no cambia el comportamiento del runner. Ver docs/HOSTING_INTEGRACIONES.md.
+   */
+  freeHostingHint?: string;
+  /**
+   * `true` solo si la herramienta es GENUINAMENTE segura de activar por
+   * defecto para cada usuario (endpoint público fiable y de uso público).
+   * Hoy ninguna lo es sin que StarSeed hospede una instancia oficial:
+   * queda ausente/false hasta que exista ese endpoint. Defensivo: la UI
+   * debe tratar `undefined` como `false`.
+   */
+  onByDefault?: boolean;
+}
+
 // ── Catálogo de integraciones ────────────────────────────────────
-export const INTEGRATIONS: IntegrationDescriptor[] = [
+export const INTEGRATIONS: IntegrationDescriptorExt[] = [
   // ── Ingesta de datos ──────────────────────────────────────────
   {
     id: "crawl4ai",
@@ -30,6 +53,11 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     defaultEndpoint: "http://localhost:11235",
     needsKey: false,
     docsUrl: "https://docs.crawl4ai.com/core/docker-deployment/",
+    // Sin instancia pública fiable. GRATIS: Hugging Face Spaces (SDK Docker,
+    // imagen `unclecode/crawl4ai`, 16GB RAM/2 vCPU, puerto 11235; se duerme a
+    // las 48h de inactividad) o VM Always Free de Oracle Cloud (Docker 24/7).
+    freeHostingHint:
+      "Self-host GRATIS en Hugging Face Spaces (Docker, imagen unclecode/crawl4ai, expón el puerto 11235) o en una VM Always Free de Oracle Cloud (24/7). No hay instancia pública fiable; StarSeed debería hospedar una oficial y ponerla como default.",
     actions: [
       { id: "crawl", label: "Rastrear URL", description: "Rastrea una o varias URLs y devuelve su contenido en Markdown." },
     ],
@@ -42,6 +70,12 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Scraping a Markdown", "Rastreo de sitios", "Datos estructurados"],
     defaultEndpoint: "http://localhost:3002",
     needsKey: true,
+    // Existe SaaS oficial (api.firecrawl.dev) con free tier limitado (créditos
+    // one-shot + límites por minuto y clave obligatoria): NO se pone como default
+    // por ser de pago/rate-limited. GRATIS ilimitado: self-host en VM Always Free
+    // de Oracle Cloud (Docker Compose; necesita Redis + navegador headless).
+    freeHostingHint:
+      "SaaS oficial en https://api.firecrawl.dev con free tier limitado (créditos y clave obligatoria) — no apto como default. Para uso libre: self-host con Docker Compose en una VM Always Free de Oracle Cloud (requiere Redis y navegador headless).",
     docsUrl: "https://docs.firecrawl.dev/",
     actions: [
       { id: "scrape", label: "Extraer página", description: "Extrae una página web como Markdown y metadatos." },
@@ -58,6 +92,11 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Apps de chat/agente", "Workflows LLM", "RAG"],
     defaultEndpoint: "http://localhost/v1",
     needsKey: true,
+    // Dify Cloud (api.dify.ai) tiene plan Sandbox gratis pero con 200 créditos
+    // one-shot y clave POR APP: no sirve como default para todos. GRATIS estable:
+    // self-host con Docker Compose en VM Always Free de Oracle Cloud (≥24GB RAM va sobrado).
+    freeHostingHint:
+      "Dify Cloud (https://cloud.dify.ai) ofrece plan Sandbox gratis pero con créditos one-shot y clave por app — no apto como default. Para uso libre: self-host con Docker Compose (repo langgenius/dify) en una VM Always Free de Oracle Cloud.",
     docsUrl: "https://docs.dify.ai/en/use-dify/publish/developing-with-apis",
     actions: [
       { id: "chat", label: "Chat con app", description: "Envía un mensaje a una app de chat/agente de Dify (clave por app)." },
@@ -72,6 +111,11 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Ejecutar flujos visuales", "Agentes low-code"],
     defaultEndpoint: "http://localhost:7860",
     needsKey: false,
+    // Sin instancia pública multi-tenant. GRATIS: "Duplicate Space" del Space
+    // oficial Langflow/Langflow en Hugging Face (Docker, puerto 7860; duerme a
+    // las 48h) o VM Always Free de Oracle Cloud para tenerlo 24/7 con persistencia.
+    freeHostingHint:
+      "Self-host GRATIS duplicando el Space oficial (huggingface.co/spaces/Langflow/Langflow, expón el puerto 7860) o en una VM Always Free de Oracle Cloud (24/7 con persistencia). No hay instancia pública compartible.",
     docsUrl: "https://docs.langflow.org/api-flows-run",
     actions: [
       { id: "run-flow", label: "Ejecutar flujo", description: "Ejecuta un flujo de Langflow por su flowId con un valor de entrada." },
@@ -85,6 +129,11 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Predicción de chatflow", "Agentes visuales"],
     defaultEndpoint: "http://localhost:3000",
     needsKey: false,
+    // Depende de tus flows/claves LLM: no tiene sentido un endpoint público.
+    // GRATIS: Hugging Face Spaces (Docker) para pruebas o VM Always Free de
+    // Oracle Cloud para 24/7. Protégelo con FLOWISE_USERNAME/PASSWORD.
+    freeHostingHint:
+      "Self-host GRATIS en Hugging Face Spaces (Docker) o en una VM Always Free de Oracle Cloud (24/7). Actívale autenticación (FLOWISE_USERNAME/PASSWORD). No procede endpoint público.",
     docsUrl: "https://docs.flowiseai.com/api-reference/prediction",
     actions: [
       { id: "predict", label: "Preguntar al chatflow", description: "Envía una pregunta a un chatflow de Flowise y devuelve su respuesta." },
@@ -98,6 +147,10 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Chat con LLM", "Compatible OpenAI", "RAG"],
     defaultEndpoint: "http://localhost:3000",
     needsKey: true,
+    // Interfaz personal con cuentas y clave: nunca un endpoint público compartido.
+    // GRATIS: Hugging Face Spaces (Docker) o VM Always Free de Oracle Cloud (24/7).
+    freeHostingHint:
+      "Self-host GRATIS en Hugging Face Spaces (Docker, imagen ghcr.io/open-webui/open-webui) o en una VM Always Free de Oracle Cloud (24/7). Requiere cuenta y clave; no procede un endpoint público compartido.",
     docsUrl: "https://docs.openwebui.com/",
     actions: [
       { id: "chat", label: "Chatear", description: "Completa un chat usando la API compatible con OpenAI de Open WebUI." },
@@ -112,6 +165,11 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Agente de software", "Escribe y ejecuta código (experimental)"],
     defaultEndpoint: "http://localhost:3000",
     needsKey: false,
+    // Agente que EJECUTA código: por seguridad jamás debe ser público ni default
+    // para todos. Correr siempre aislado (Docker/VM propia). GRATIS: VM Always
+    // Free de Oracle Cloud como sandbox dedicado.
+    freeHostingHint:
+      "Experimental y ejecuta código: manténlo SIEMPRE aislado, nunca público ni on-by-default. Para pruebas gratis usa una VM Always Free de Oracle Cloud como sandbox dedicado (Docker).",
     docsUrl: "https://docs.all-hands.dev/",
     actions: [
       { id: "run-task", label: "Lanzar tarea", description: "Envía una tarea de programación al servidor de OpenHands (experimental; configura extra.path)." },
@@ -125,6 +183,13 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Fusionar PDF", "PDF a imagen", "Extraer texto"],
     defaultEndpoint: "http://localhost:8080",
     needsKey: false,
+    // El antiguo demo público (stirlingpdf.io) hoy redirige a un producto
+    // comercial: no hay API pública OSS fiable. Es stateless y sin datos
+    // sensibles → GRAN candidato a instancia oficial de StarSeed on-by-default.
+    // GRATIS: Hugging Face Spaces (Docker, imagen stirlingtools/stirling-pdf,
+    // puerto 8080) o VM Always Free de Oracle Cloud (24/7).
+    freeHostingHint:
+      "Sin instancia pública OSS fiable (el demo stirlingpdf.io ahora redirige a un producto de pago). Self-host GRATIS en Hugging Face Spaces (Docker, imagen stirlingtools/stirling-pdf, puerto 8080) o VM Always Free de Oracle Cloud. Es stateless: candidato ideal a instancia oficial StarSeed activada por defecto.",
     docsUrl: "https://docs.stirlingpdf.com/API/",
     actions: [
       { id: "merge", label: "Fusionar PDFs", description: "Combina dos o más PDFs en un único documento." },
@@ -142,6 +207,11 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Inferencia local", "Compatible OpenAI", "Gestión de modelos"],
     defaultEndpoint: "http://localhost:11434",
     needsKey: false,
+    // Inferencia LOCAL: su gracia es correr en la máquina del usuario (o su
+    // exocórtex). No procede endpoint público (necesitaría GPU costosa). El
+    // free tier sin GPU de HF/VMs solo mueve modelos diminutos.
+    freeHostingHint:
+      "Diseñado para correr LOCAL en la máquina/exocórtex del usuario. No procede un endpoint público (requeriría GPU). El hosting gratis sin GPU solo sirve para modelos muy pequeños; mantener default localhost.",
     docsUrl: "https://github.com/ollama/ollama/blob/main/docs/openai.md",
     actions: [
       { id: "chat", label: "Chatear", description: "Completa un chat con un modelo local servido por Ollama." },
@@ -156,6 +226,11 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Gateway 100+ LLM", "Compatible OpenAI", "Balanceo/coste"],
     defaultEndpoint: "http://localhost:4000",
     needsKey: true,
+    // Gateway con TUS claves de proveedores dentro: por seguridad nunca público.
+    // GRATIS: proxy ligero en Hugging Face Spaces (Docker) o VM Always Free de
+    // Oracle Cloud; protégelo con LITELLM_MASTER_KEY.
+    freeHostingHint:
+      "Contiene tus claves de proveedores: nunca lo expongas público. Self-host GRATIS en Hugging Face Spaces (Docker) o VM Always Free de Oracle Cloud, protegido con LITELLM_MASTER_KEY.",
     docsUrl: "https://docs.litellm.ai/docs/simple_proxy",
     actions: [
       { id: "chat", label: "Chatear", description: "Completa un chat a través del proxy LiteLLM (formato OpenAI)." },
@@ -170,6 +245,11 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Inferencia local multimodal", "Compatible OpenAI"],
     defaultEndpoint: "http://localhost:8080",
     needsKey: false,
+    // Inferencia local multimodal: como Ollama, su sentido es correr en local.
+    // GRATIS para pruebas: Hugging Face Spaces (Docker) con modelos pequeños;
+    // para algo real hace falta GPU. Mantener default localhost.
+    freeHostingHint:
+      "Inferencia local (como Ollama): pensado para la máquina del usuario. Pruebas gratis con modelos pequeños en Hugging Face Spaces (Docker); sin GPU no rinde. Mantener default localhost.",
     docsUrl: "https://localai.io/",
     actions: [
       { id: "chat", label: "Chatear", description: "Completa un chat con LocalAI (formato OpenAI)." },
@@ -186,6 +266,11 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Disparar workflows", "Automatización", "Webhooks"],
     defaultEndpoint: "http://localhost:5678",
     needsKey: false,
+    // Sus workflows/credenciales son propios de cada usuario: no hay endpoint
+    // público. OJO: los free tiers que "duermen" (Render/Railway/Koyeb) rompen
+    // los webhooks entrantes. Para 24/7 real y gratis → VM Always Free de Oracle Cloud.
+    freeHostingHint:
+      "Cada usuario tiene sus propios workflows/credenciales; no hay endpoint público. Para 24/7 GRATIS usa una VM Always Free de Oracle Cloud (Docker): los free tiers que se duermen (Render/Railway/Koyeb) rompen los webhooks entrantes.",
     docsUrl: "https://docs.n8n.io/integrations/webhooks/",
     actions: [
       { id: "trigger", label: "Disparar automatización", description: "Dispara un workflow de n8n vía su webhook con un payload." },
@@ -199,6 +284,11 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Agente de navegador", "Automatización web (experimental)"],
     defaultEndpoint: "http://localhost:8000",
     needsKey: false,
+    // Controla un navegador real (experimental): jamás público ni default para
+    // todos. Aíslalo. GRATIS para pruebas: VM Always Free de Oracle Cloud (Docker
+    // con navegador headless).
+    freeHostingHint:
+      "Controla un navegador real y es experimental: manténlo aislado, nunca público ni on-by-default. Pruebas gratis en una VM Always Free de Oracle Cloud (Docker con navegador headless).",
     docsUrl: "https://docs.browser-use.com/",
     actions: [
       { id: "browser-task", label: "Tarea de navegador", description: "Envía una tarea web en lenguaje natural a un servidor Browser Use (experimental; configura extra.path)." },
@@ -214,7 +304,15 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     capabilities: ["Búsqueda web privada", "Metabúsqueda", "Resultados JSON"],
     defaultEndpoint: "http://localhost:8080",
     needsKey: false,
-    docsUrl: "https://docs.searxng.org/dev/search_api.html",
+    // IMPORTANTE: la INMENSA mayoría de instancias públicas (searx.space) tienen
+    // el formato JSON DESHABILITADO y devuelven 403 al pedir `format=json`, así
+    // que NO se puede fijar una pública como default sin romper el conector.
+    // Es liviano y sin datos sensibles → candidato claro a instancia oficial de
+    // StarSeed on-by-default (con `search.formats: [html, json]` en settings.yml).
+    // GRATIS: Hugging Face Spaces (Docker, searxng/searxng, puerto 8080) o VM
+    // Always Free de Oracle Cloud (24/7).
+    freeHostingHint:
+      "Las instancias públicas de searx.space suelen tener JSON deshabilitado (403) — no se puede usar una pública como default. Self-host GRATIS en Hugging Face Spaces (Docker, imagen searxng/searxng) o VM Always Free de Oracle Cloud, con `search.formats: [html, json]` en settings.yml. Candidato ideal a instancia oficial StarSeed activada por defecto.",
     actions: [
       { id: "search", label: "Buscar en la web", description: "Realiza una búsqueda web y devuelve resultados (requiere format JSON activo)." },
     ],

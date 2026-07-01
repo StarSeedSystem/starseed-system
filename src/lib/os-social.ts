@@ -39,6 +39,10 @@ export interface OsPage {
     avatarUrl?: string;
     coverUrl?: string;
     memberCount: number;
+    /** Geografía opcional (aditiva). null/undefined si la entidad no tiene ubicación. */
+    lat?: number | null;
+    lng?: number | null;
+    placeLabel?: string | null;
     /** true si proviene de los datos de ejemplo (no de Supabase). */
     isSample?: boolean;
 }
@@ -54,6 +58,9 @@ export interface OsGroup {
     avatarUrl?: string;
     coverUrl?: string;
     memberCount: number;
+    lat?: number | null;
+    lng?: number | null;
+    placeLabel?: string | null;
     isSample?: boolean;
 }
 
@@ -69,6 +76,9 @@ export interface OsEvent {
     tags: string[];
     coverUrl?: string;
     attendeeCount: number;
+    lat?: number | null;
+    lng?: number | null;
+    placeLabel?: string | null;
     isSample?: boolean;
 }
 
@@ -99,6 +109,10 @@ interface PageRow {
     avatar_url?: string | null;
     cover_url?: string | null;
     member_count?: number | null;
+    // Geo (aditivo — puede no existir la columna todavía).
+    lat?: number | null;
+    lng?: number | null;
+    place_label?: string | null;
 }
 
 interface GroupRow extends Omit<PageRow, "kind"> {
@@ -117,6 +131,17 @@ interface EventRow {
     tags?: string[] | null;
     cover_url?: string | null;
     attendee_count?: number | null;
+    // Geo (aditivo — puede no existir la columna todavía).
+    lat?: number | null;
+    lng?: number | null;
+    place_label?: string | null;
+}
+
+/** Extrae un número finito o null (defensivo ante columnas ausentes/strings). */
+function numOrNull(v: unknown): number | null {
+    if (v === null || v === undefined) return null;
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : null;
 }
 
 interface PostRow {
@@ -142,6 +167,9 @@ function normalizePage(row: PageRow): OsPage {
         avatarUrl: row.avatar_url || undefined,
         coverUrl: row.cover_url || undefined,
         memberCount: typeof row.member_count === "number" ? row.member_count : 0,
+        lat: numOrNull(row.lat),
+        lng: numOrNull(row.lng),
+        placeLabel: row.place_label ?? null,
     };
 }
 
@@ -157,6 +185,9 @@ function normalizeGroup(row: GroupRow): OsGroup {
         avatarUrl: row.avatar_url || undefined,
         coverUrl: row.cover_url || undefined,
         memberCount: typeof row.member_count === "number" ? row.member_count : 0,
+        lat: numOrNull(row.lat),
+        lng: numOrNull(row.lng),
+        placeLabel: row.place_label ?? null,
     };
 }
 
@@ -173,6 +204,9 @@ function normalizeEvent(row: EventRow): OsEvent {
         tags: Array.isArray(row.tags) ? row.tags : [],
         coverUrl: row.cover_url || undefined,
         attendeeCount: typeof row.attendee_count === "number" ? row.attendee_count : 0,
+        lat: numOrNull(row.lat),
+        lng: numOrNull(row.lng),
+        placeLabel: row.place_label ?? null,
     };
 }
 
@@ -795,7 +829,16 @@ function isUniqueViolation(error: any): boolean {
 const SLUG_RETRIES = 5;
 
 /** Inputs para crear (slug se autogenera; owner_id se inyecta). */
-export interface CreatePageInput {
+export interface GeoInput {
+    /** Latitud (o null para limpiar). Si se omite, no se toca la geografía. */
+    lat?: number | null;
+    /** Longitud (o null para limpiar). */
+    lng?: number | null;
+    /** Etiqueta legible del lugar (o null para limpiar). */
+    placeLabel?: string | null;
+}
+
+export interface CreatePageInput extends GeoInput {
     name: string;
     kind?: OsPage["kind"];
     description?: string;
@@ -805,7 +848,7 @@ export interface CreatePageInput {
     coverUrl?: string;
 }
 
-export interface CreateGroupInput {
+export interface CreateGroupInput extends GeoInput {
     name: string;
     kind?: OsGroup["kind"];
     description?: string;
@@ -815,7 +858,7 @@ export interface CreateGroupInput {
     coverUrl?: string;
 }
 
-export interface CreateEventInput {
+export interface CreateEventInput extends GeoInput {
     title: string;
     kind?: string;
     description?: string;
@@ -826,29 +869,77 @@ export interface CreateEventInput {
     coverUrl?: string;
 }
 
+// ── Helpers de escritura defensiva de geo ──────────────────────────────────
+//
+// Las columnas lat/lng/place_label son ADITIVAS: puede que el entorno todavía
+// no las tenga (migración sin aplicar). Por eso NUNCA las incluimos "a ciegas".
+//
+//   · buildGeoPatch(input) → objeto snake_case solo con las claves geo definidas.
+//   · isMissingColumnError(err) → detecta el error de PostgREST/Postgres cuando
+//     una columna no existe, para reintentar la operación SIN geo.
+
+/** Devuelve las columnas geo (snake_case) presentes en el input. */
+function buildGeoPatch(input: GeoInput): Record<string, unknown> {
+    const patch: Record<string, unknown> = {};
+    if (input.lat !== undefined) patch.lat = input.lat;
+    if (input.lng !== undefined) patch.lng = input.lng;
+    if (input.placeLabel !== undefined) patch.place_label = input.placeLabel;
+    return patch;
+}
+
+/**
+ * ¿El error corresponde a una columna inexistente? PostgREST devuelve el código
+ * `PGRST204` (columna no encontrada en el schema cache) y Postgres el `42703`
+ * (undefined_column). Reintentamos sin geo en ese caso.
+ */
+function isMissingColumnError(error: any): boolean {
+    if (!error) return false;
+    const code = error.code || error?.details?.code;
+    const msg = (error.message || "").toLowerCase();
+    return (
+        code === "PGRST204" ||
+        code === "42703" ||
+        (msg.includes("column") &&
+            (msg.includes("does not exist") ||
+                msg.includes("could not find") ||
+                msg.includes("schema cache")))
+    );
+}
+
 /** Crea una página fijando owner_id = usuario actual; reintenta si el slug choca. */
 export async function createPage(input: CreatePageInput): Promise<EntityMutationResult> {
     const uid = await getCurrentUserId();
     if (!uid) return { ok: false, needsAuth: true };
     const supabase = createClient();
     let slug = buildSlug(input.name, "pagina");
+    // Geo aditivo: puede reintentarse sin él si la columna aún no existe.
+    let includeGeo = true;
+    const geoPatch = buildGeoPatch(input);
     for (let attempt = 0; attempt < SLUG_RETRIES; attempt++) {
+        const payload: Record<string, unknown> = {
+            slug,
+            name: input.name,
+            kind: input.kind || "pagina",
+            description: input.description ?? "",
+            tags: input.tags ?? [],
+            accent: input.accent || DEFAULT_ACCENT,
+            avatar_url: input.avatarUrl ?? null,
+            cover_url: input.coverUrl ?? null,
+            owner_id: uid,
+            ...(includeGeo ? geoPatch : {}),
+        };
         const { data, error } = await supabase
             .from("os_pages")
-            .insert({
-                slug,
-                name: input.name,
-                kind: input.kind || "pagina",
-                description: input.description ?? "",
-                tags: input.tags ?? [],
-                accent: input.accent || DEFAULT_ACCENT,
-                avatar_url: input.avatarUrl ?? null,
-                cover_url: input.coverUrl ?? null,
-                owner_id: uid,
-            })
+            .insert(payload)
             .select("slug")
             .single();
         if (!error) return { ok: true, slug: (data as { slug: string })?.slug ?? slug };
+        if (includeGeo && isMissingColumnError(error)) {
+            // Columna geo ausente: reintenta el mismo slug sin geo (no la pierde el usuario).
+            includeGeo = false;
+            attempt--; // no consumas un intento de slug por esto.
+            continue;
+        }
         if (isUniqueViolation(error)) {
             slug = `${buildSlug(input.name, "pagina")}-${shortSuffix()}`;
             continue;
@@ -864,23 +955,32 @@ export async function createGroup(input: CreateGroupInput): Promise<EntityMutati
     if (!uid) return { ok: false, needsAuth: true };
     const supabase = createClient();
     let slug = buildSlug(input.name, "grupo");
+    let includeGeo = true;
+    const geoPatch = buildGeoPatch(input);
     for (let attempt = 0; attempt < SLUG_RETRIES; attempt++) {
+        const payload: Record<string, unknown> = {
+            slug,
+            name: input.name,
+            kind: input.kind || "colectivo",
+            description: input.description ?? "",
+            tags: input.tags ?? [],
+            accent: input.accent || DEFAULT_ACCENT,
+            avatar_url: input.avatarUrl ?? null,
+            cover_url: input.coverUrl ?? null,
+            owner_id: uid,
+            ...(includeGeo ? geoPatch : {}),
+        };
         const { data, error } = await supabase
             .from("os_groups")
-            .insert({
-                slug,
-                name: input.name,
-                kind: input.kind || "colectivo",
-                description: input.description ?? "",
-                tags: input.tags ?? [],
-                accent: input.accent || DEFAULT_ACCENT,
-                avatar_url: input.avatarUrl ?? null,
-                cover_url: input.coverUrl ?? null,
-                owner_id: uid,
-            })
+            .insert(payload)
             .select("slug")
             .single();
         if (!error) return { ok: true, slug: (data as { slug: string })?.slug ?? slug };
+        if (includeGeo && isMissingColumnError(error)) {
+            includeGeo = false;
+            attempt--;
+            continue;
+        }
         if (isUniqueViolation(error)) {
             slug = `${buildSlug(input.name, "grupo")}-${shortSuffix()}`;
             continue;
@@ -896,24 +996,33 @@ export async function createEvent(input: CreateEventInput): Promise<EntityMutati
     if (!uid) return { ok: false, needsAuth: true };
     const supabase = createClient();
     let slug = buildSlug(input.title, "evento");
+    let includeGeo = true;
+    const geoPatch = buildGeoPatch(input);
     for (let attempt = 0; attempt < SLUG_RETRIES; attempt++) {
+        const payload: Record<string, unknown> = {
+            slug,
+            title: input.title,
+            kind: input.kind || "encuentro",
+            description: input.description ?? "",
+            starts_at: input.startsAt ?? null,
+            location: input.location ?? "",
+            organizer_slug: input.organizerSlug ?? "",
+            tags: input.tags ?? [],
+            cover_url: input.coverUrl ?? null,
+            owner_id: uid,
+            ...(includeGeo ? geoPatch : {}),
+        };
         const { data, error } = await supabase
             .from("os_events")
-            .insert({
-                slug,
-                title: input.title,
-                kind: input.kind || "encuentro",
-                description: input.description ?? "",
-                starts_at: input.startsAt ?? null,
-                location: input.location ?? "",
-                organizer_slug: input.organizerSlug ?? "",
-                tags: input.tags ?? [],
-                cover_url: input.coverUrl ?? null,
-                owner_id: uid,
-            })
+            .insert(payload)
             .select("slug")
             .single();
         if (!error) return { ok: true, slug: (data as { slug: string })?.slug ?? slug };
+        if (includeGeo && isMissingColumnError(error)) {
+            includeGeo = false;
+            attempt--;
+            continue;
+        }
         if (isUniqueViolation(error)) {
             slug = `${buildSlug(input.title, "evento")}-${shortSuffix()}`;
             continue;
@@ -1011,13 +1120,26 @@ export async function updatePage(
     if (input.accent !== undefined) patch.accent = input.accent;
     if (input.avatarUrl !== undefined) patch.avatar_url = input.avatarUrl || null;
     if (input.coverUrl !== undefined) patch.cover_url = input.coverUrl || null;
+    const geoPatch = buildGeoPatch(input);
     try {
+        // 1er intento CON geo; si la columna no existe, reintenta SIN geo.
         const { error } = await supabase
             .from("os_pages")
-            .update(patch)
+            .update({ ...patch, ...geoPatch })
             .eq("slug", slug)
             .eq("owner_id", uid);
-        if (error) throw error;
+        if (error) {
+            if (isMissingColumnError(error) && Object.keys(patch).length > 0) {
+                const { error: err2 } = await supabase
+                    .from("os_pages")
+                    .update(patch)
+                    .eq("slug", slug)
+                    .eq("owner_id", uid);
+                if (err2) throw err2;
+                return { ok: true, slug };
+            }
+            throw error;
+        }
         return { ok: true, slug };
     } catch (e: any) {
         return { ok: false, error: e?.message || "error" };
@@ -1039,13 +1161,25 @@ export async function updateGroup(
     if (input.accent !== undefined) patch.accent = input.accent;
     if (input.avatarUrl !== undefined) patch.avatar_url = input.avatarUrl || null;
     if (input.coverUrl !== undefined) patch.cover_url = input.coverUrl || null;
+    const geoPatch = buildGeoPatch(input);
     try {
         const { error } = await supabase
             .from("os_groups")
-            .update(patch)
+            .update({ ...patch, ...geoPatch })
             .eq("slug", slug)
             .eq("owner_id", uid);
-        if (error) throw error;
+        if (error) {
+            if (isMissingColumnError(error) && Object.keys(patch).length > 0) {
+                const { error: err2 } = await supabase
+                    .from("os_groups")
+                    .update(patch)
+                    .eq("slug", slug)
+                    .eq("owner_id", uid);
+                if (err2) throw err2;
+                return { ok: true, slug };
+            }
+            throw error;
+        }
         return { ok: true, slug };
     } catch (e: any) {
         return { ok: false, error: e?.message || "error" };
@@ -1068,13 +1202,25 @@ export async function updateEvent(
     if (input.organizerSlug !== undefined) patch.organizer_slug = input.organizerSlug;
     if (input.tags !== undefined) patch.tags = input.tags;
     if (input.coverUrl !== undefined) patch.cover_url = input.coverUrl || null;
+    const geoPatch = buildGeoPatch(input);
     try {
         const { error } = await supabase
             .from("os_events")
-            .update(patch)
+            .update({ ...patch, ...geoPatch })
             .eq("slug", slug)
             .eq("owner_id", uid);
-        if (error) throw error;
+        if (error) {
+            if (isMissingColumnError(error) && Object.keys(patch).length > 0) {
+                const { error: err2 } = await supabase
+                    .from("os_events")
+                    .update(patch)
+                    .eq("slug", slug)
+                    .eq("owner_id", uid);
+                if (err2) throw err2;
+                return { ok: true, slug };
+            }
+            throw error;
+        }
         return { ok: true, slug };
     } catch (e: any) {
         return { ok: false, error: e?.message || "error" };

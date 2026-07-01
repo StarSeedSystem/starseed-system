@@ -38,6 +38,7 @@ import {
 } from "@/modules/weather/context/weather-location-context";
 import { sampleEntitiesAround, type GeoEntity } from "@/lib/geo";
 import { sampleEvents } from "@/data/sample-events";
+import { fetchEvents, fetchGroups, fetchPages } from "@/lib/os-social";
 
 // ── Accent palette ─────────────────────────────────────────────
 const ACCENT_USER    = "#10b981"; // Emerald — marcador de usuario
@@ -180,6 +181,80 @@ function offsetAround(
     };
 }
 
+/** ¿Tiene la entidad coordenadas geográficas válidas? */
+function hasGeo(e: { lat?: number | null; lng?: number | null }): boolean {
+    return (
+        typeof e.lat === "number" &&
+        typeof e.lng === "number" &&
+        Number.isFinite(e.lat) &&
+        Number.isFinite(e.lng)
+    );
+}
+
+/**
+ * Carga las entidades REALES geolocalizadas (eventos, grupos, páginas) desde
+ * Supabase y las convierte en `MapPoint`. DEFENSIVO: nunca lanza; si no hay red,
+ * columnas geo o sesión, devuelve []. Solo incluye entidades con lat/lng reales
+ * — no inventa coordenadas (no fake data).
+ */
+async function fetchRealGeoPoints(): Promise<MapPoint[]> {
+    const points: MapPoint[] = [];
+    try {
+        const [events, groups, pages] = await Promise.all([
+            fetchEvents().catch(() => []),
+            fetchGroups().catch(() => []),
+            fetchPages().catch(() => []),
+        ]);
+
+        for (const ev of events) {
+            if (!hasGeo(ev)) continue;
+            points.push({
+                id: `real-ev-${ev.id}`,
+                layer: "eventos",
+                label: ev.title,
+                sublabel: ev.placeLabel || ev.location || "Evento",
+                accent: ACCENT_EVENT_C,
+                href: `/evento/${ev.slug}`,
+                lat: ev.lat as number,
+                lon: ev.lng as number,
+            });
+        }
+
+        for (const g of groups) {
+            if (!hasGeo(g)) continue;
+            points.push({
+                id: `real-grp-${g.id}`,
+                layer: "comunidades",
+                label: g.name,
+                sublabel: g.placeLabel || "Grupo",
+                accent: ACCENT_COMUNIDAD,
+                href: `/grupo/${g.slug}`,
+                lat: g.lat as number,
+                lon: g.lng as number,
+            });
+        }
+
+        for (const p of pages) {
+            if (!hasGeo(p)) continue;
+            // Las páginas de tipo comunidad son Sanghas → capa comunidades;
+            // el resto se muestran también como comunidades (nodos de la red).
+            points.push({
+                id: `real-pg-${p.id}`,
+                layer: "comunidades",
+                label: p.name,
+                sublabel: p.placeLabel || (p.kind === "comunidad" ? "Comunidad" : "Página"),
+                accent: ACCENT_COMUNIDAD,
+                href: `/pagina/${p.slug}`,
+                lat: p.lat as number,
+                lon: p.lng as number,
+            });
+        }
+    } catch {
+        /* degradación silenciosa: sin puntos reales */
+    }
+    return points;
+}
+
 export function MapWidget() {
     const location = useSafeLocation();
     const containerRef  = useRef<HTMLDivElement | null>(null);
@@ -198,6 +273,10 @@ export function MapWidget() {
     );
     const [showPanel, setShowPanel] = useState(false);
     const [mapPoints, setMapPoints] = useState<MapPoint[]>([]);
+    // Puntos REALES geolocalizados (Supabase). Aditivos a los de demostración.
+    const [realPoints, setRealPoints] = useState<MapPoint[]>([]);
+    // Referencia a Leaflet (`L`) para poder plotear puntos reales tras la carga.
+    const leafletRef = useRef<any>(null);
 
     // ── Build map points from sample data ─────────────────────
     const buildMapPoints = useCallback(
@@ -250,6 +329,7 @@ export function MapWidget() {
         loadLeaflet()
             .then((L) => {
                 if (cancelled || !containerRef.current || mapRef.current) return;
+                leafletRef.current = L;
 
                 const map = L.map(containerRef.current, {
                     center:           [location.lat, location.lon],
@@ -352,6 +432,63 @@ export function MapWidget() {
             } catch { /* noop */ }
         });
     }, [activeLayers]);
+
+    // ── Carga de puntos REALES geolocalizados (una vez, en cliente) ───────────
+    useEffect(() => {
+        let active = true;
+        fetchRealGeoPoints()
+            .then((pts) => {
+                if (active) setRealPoints(pts);
+            })
+            .catch(() => {
+                /* sin puntos reales: el mapa sigue funcionando con la demo */
+            });
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    // ── Plotea los puntos reales en los grupos de capas cuando estén listos ───
+    // Depende de que el mapa (status ready) y Leaflet estén disponibles. Los
+    // puntos reales se AÑADEN a los grupos existentes y se registran en
+    // `mapPoints` para el panel lateral (dedupe por id).
+    useEffect(() => {
+        const L = leafletRef.current;
+        const groups = layerGroupsRef.current;
+        if (status !== "ready" || !L || realPoints.length === 0) return;
+
+        realPoints.forEach((pt) => {
+            const group = groups[pt.layer];
+            if (!group) return;
+            try {
+                const icon = makeCircleIcon(L, pt.accent, pt.layer === "eventos" ? 16 : 14);
+                L.marker([pt.lat, pt.lon], { icon })
+                    .addTo(group)
+                    .bindPopup(
+                        `<div style="min-width:160px">
+                          <b style="color:${pt.accent};font-size:13px">${pt.label}</b>
+                          <br/>
+                          <span style="font-size:11px;opacity:.75">${pt.sublabel}</span>
+                          <br/>
+                          <a href="${pt.href}" style="font-size:11px;color:${pt.accent};text-decoration:underline">Ver →</a>
+                        </div>`,
+                    );
+            } catch {
+                /* noop: un punto que falle no rompe el resto */
+            }
+        });
+
+        // Registra en el panel lateral (dedupe por id).
+        setMapPoints((prev) => {
+            const seen = new Set(prev.map((p) => p.id));
+            const merged = [...prev];
+            for (const pt of realPoints) {
+                if (!seen.has(pt.id)) merged.push(pt);
+            }
+            return merged;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [status, realPoints]);
 
     const toggleLayer = (id: LayerId) => {
         setActiveLayers((prev) => {

@@ -21,6 +21,8 @@ import {
   MessageSquare,
   Vote,
   ShieldAlert,
+  Network,
+  Waypoints,
 } from "lucide-react";
 import {
   castVote,
@@ -31,6 +33,12 @@ import {
 } from "@/lib/governance/engine";
 import { getConfig, eligibleCount } from "@/lib/governance/config";
 import { commandTypeById } from "@/lib/governance/commands";
+import {
+  loadActiveDelegations,
+  topicForProposal,
+  type Delegation,
+} from "@/lib/governance/delegations";
+import { reachFromParams, eligibleForReach, reachSummary } from "@/lib/governance/reach";
 import {
   URGENCY,
   YESNO_OPTIONS,
@@ -82,7 +90,14 @@ export function ProposalCard({
   const [votes, setVotes] = useState<ProposalVote[]>([]);
   const [config, setConfig] = useState<GovernanceConfig | null>(null);
   const [eligible, setEligible] = useState<number | null>(null);
+  const [delegations, setDelegations] = useState<Delegation[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Alcance federado (supra-comunitario) de esta propuesta, si lo tiene.
+  const reach = useMemo(
+    () => reachFromParams(proposal.params as Record<string, unknown>),
+    [proposal.params],
+  );
   const [busy, setBusy] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [resolving, setResolving] = useState(false);
@@ -97,26 +112,36 @@ export function ProposalCard({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [v, cfg, el] = await Promise.all([
+      const [v, cfg, el, dels] = await Promise.all([
         listVotes(proposal.id),
         getConfig(proposal.scope, proposal.scope_ref),
-        eligibleCount(proposal.scope, proposal.scope_ref),
+        // Censo: supra-comunitario (federación) si aplica; si no, ámbito único.
+        reach ? eligibleForReach(reach) : eligibleCount(proposal.scope, proposal.scope_ref),
+        // Delegaciones activas del tema (voto líquido). Vacío si no hay tabla.
+        loadActiveDelegations(topicForProposal(proposal)),
       ]);
       setVotes(v);
       setConfig(cfg);
       setEligible(el);
+      setDelegations(dels);
     } catch {
       /* */
     }
     setLoading(false);
-  }, [proposal.id, proposal.scope, proposal.scope_ref]);
+  }, [proposal.id, proposal.scope, proposal.scope_ref, reach]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const t = useMemo(() => tally(proposal, votes, eligible), [proposal, votes, eligible]);
-  const ev = useMemo(() => evaluate(proposal, votes, config, eligible), [proposal, votes, config, eligible]);
+  const t = useMemo(
+    () => tally(proposal, votes, eligible, delegations),
+    [proposal, votes, eligible, delegations],
+  );
+  const ev = useMemo(
+    () => evaluate(proposal, votes, config, eligible, delegations),
+    [proposal, votes, config, eligible, delegations],
+  );
 
   const votesByChoice = useMemo(() => {
     const map: Record<string, ProposalVote[]> = {};
@@ -193,6 +218,24 @@ export function ProposalCard({
             {hierarchical && (
               <Badge variant="outline" className="gap-1 text-[9px] border-amber-400/40 text-amber-200 bg-amber-500/10">
                 <ShieldAlert className="h-2.5 w-2.5" /> Jerárquico
+              </Badge>
+            )}
+            {reach && (
+              <Badge
+                variant="outline"
+                className="gap-1 text-[9px] border-violet-400/40 text-violet-200 bg-violet-500/10"
+                title={reachSummary(reach)}
+              >
+                <Network className="h-2.5 w-2.5" /> Supra-comunitaria
+              </Badge>
+            )}
+            {delegations.length > 0 && (
+              <Badge
+                variant="outline"
+                className="gap-1 text-[9px] border-cyan-400/40 text-cyan-200 bg-cyan-500/10"
+                title="Voto líquido: hay delegaciones activas en este tema. El peso se calcula de forma transparente; un voto directo reclama el peso delegado."
+              >
+                <Waypoints className="h-2.5 w-2.5" /> Voto líquido
               </Badge>
             )}
           </div>
