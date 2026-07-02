@@ -36,6 +36,7 @@ import { OmniDock } from "@/components/layout/omni-dock";
 import { AuroraProvider } from "@/components/aurora/aurora-provider";
 import { AuroraWidget } from "@/components/aurora/aurora-widget";
 import { CursorFxHost } from "@/components/desktop/cursor-fx";
+import { PerfController, PerfHeavyOnly, PerfStaticBackdrop } from "@/components/perf/perf-gate";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
 import { MediaMiniDock } from "@/components/dashboard/apps/media/media-mini-dock";
 import { SovereignSyncMount } from "@/components/system/sovereign-sync-mount";
@@ -132,13 +133,20 @@ export default function RootLayout({
                         {/* Aurora envuelve TODO el árbol visible (incluido el
                             ZenithCurtain/Exocórtex) y monta su orbe universal. */}
                         <AuroraProvider>
+                        {/* Rendimiento: fija data-perf y decide cuánto fondo montar.
+                            En móviles/gama baja (eco) NO se montan las 6 capas
+                            pesadas; queda el fondo estático cristalino StarSeed. */}
+                        <PerfController />
+                        <PerfStaticBackdrop />
                         <LiquidGlass />
-                        <WebGLBackground />
-                        <SplineDefaultBackground />
-                        <LiquidPsychedelicBackground />
-                        <MateriaVivaBackgroundHost />
-                        <LivingBackground />
-                        <AudiomorphicBackground />
+                        <PerfHeavyOnly>
+                          <WebGLBackground />
+                          <SplineDefaultBackground />
+                          <LiquidPsychedelicBackground />
+                          <MateriaVivaBackgroundHost />
+                          <LivingBackground />
+                          <AudiomorphicBackground />
+                        </PerfHeavyOnly>
                         <CrystalFilters />
                         <GlobalEnvironment />
                         {children}

@@ -3313,3 +3313,22 @@ a[href*="spline.design"] *,
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
   mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
 }
+
+/* ── Rendimiento adaptativo (data-perf en <html>) ─────────────────────────────
+   'eco' (móviles/gama baja): menos desenfoque, sin animaciones de fondo caras;
+   'mid': intermedio. Fijado por src/lib/perf/device-tier.ts. */
+@keyframes ssPerfBreathe {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+:root { --glass-blur: 24px; }
+html[data-perf="mid"] { --glass-blur: 16px; }
+html[data-perf="eco"] { --glass-blur: 8px; }
+/* En eco, calma las animaciones infinitas más costosas del sistema (blobs,
+   gradientes en bucle) sin tocar micro-transiciones de UI (≤1s). */
+html[data-perf="eco"] *:not(input):not(textarea) {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+}
+/* Utilidad: listas largas que solo pintan lo visible (mejor scroll en móvil). */
+.ss-cv { content-visibility: auto; contain-intrinsic-size: 320px; }

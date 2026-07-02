@@ -10,9 +10,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { createClient } from "@/utils/supabase/client";
 import { useAuroraEngine, type AuroraEngine, type ConversationEntry } from "@/lib/aurora/engine";
 import { AURORA_CONVERSATION_EVENT } from "@/lib/aurora/aurora-orb-bus";
+import {
+  autonomyDisabled,
+  greetedThisSession,
+  markGreetedThisSession,
+  greetingFor,
+  queryMicPermission,
+} from "@/lib/aurora/voice-autonomy";
 
 /**
  * Evento global emitido cuando cambia el estado reactivo de Aurora, para que
@@ -21,10 +27,9 @@ import { AURORA_CONVERSATION_EVENT } from "@/lib/aurora/aurora-orb-bus";
  */
 export const AURORA_STATE_EVENT = "starseed:aurora-state";
 
-// Marca de localStorage para no repetir el saludo de bienvenida en cada carga.
+// Marca de localStorage (registro del último saludo; la cadencia real por
+// sesión de pestaña la lleva voice-autonomy con sessionStorage).
 const GREETED_KEY = "starseed_aurora_greeted_at";
-// Repite el saludo como mucho una vez cada 12 horas.
-const GREET_TTL_MS = 12 * 60 * 60 * 1000;
 
 /**
  * Motor de Aurora SUPERVISADO: el mismo AuroraEngine, pero con el ciclo de vida
@@ -232,58 +237,103 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
   const supervisedRef = useRef<AuroraSupervisedEngine>(supervised);
   supervisedRef.current = supervised;
 
-  // ── Auto-inicio: Aurora saluda y se ofrece a guiar/actuar (como el Café). ──
-  // Voz no bloqueante y descartable: solo habla si Aurora está activa, hay
-  // sesión iniciada y no saludó recientemente. Nunca interrumpe la navegación.
-  // DEFENSIVO SIN SESIÓN: en /login u onboarding simplemente no saluda.
+  // ── AUTONOMÍA DE VOZ: Aurora arranca sola y habla, como antes (sin menús). ──
+  // 1) Si el micrófono YA está concedido → auto-escucha al cargar + saluda.
+  // 2) Si no → un único handler de PRIMER GESTO pide permiso, arranca la
+  //    escucha y suelta el saludo (el TTS está bloqueado antes del gesto).
+  // 3) Respeta el toggle del usuario (enabled) y la preferencia de autonomía.
+  // 4) Móvil: pausa la escucha con la pestaña oculta; la reanuda al volver.
+  // Todo pasa por el flujo SUPERVISADO (superStart) → sin glitch-loop.
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
+    let cleanupGesture: (() => void) | null = null;
 
-    const alreadyGreeted = (): boolean => {
+    const doGreet = () => {
+      if (cancelled) return;
+      if (greetedThisSession()) return;
+      const eng = engineRef.current;
+      if (!eng?.enabled) return;
       try {
-        const raw = localStorage.getItem(GREETED_KEY);
-        if (!raw) return false;
-        const at = Number(raw);
-        return Number.isFinite(at) && Date.now() - at < GREET_TTL_MS;
-      } catch {
-        return false;
-      }
-    };
-
-    const markGreeted = () => {
-      try { localStorage.setItem(GREETED_KEY, String(Date.now())); } catch { /* */ }
-    };
-
-    const tryGreet = async () => {
-      try {
-        // Solo con sesión iniciada.
-        const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
-        if (cancelled || !data?.user?.id) return;
-
-        const eng = engineRef.current;
-        // Respeta el ajuste del usuario: si Aurora está apagada, no hablamos.
-        if (!eng?.enabled) return;
-        if (alreadyGreeted()) return;
-
         const name = eng.activePersonality?.name || "Aurora";
-        const greeting =
-          `Hola, soy ${name}. Tengo control total de StarSeed y sigo activa en segundo plano: ` +
-          `puedo abrir cualquier sección, ventana, archivo o enlace, cambiar ajustes y lanzar agentes por ti, ` +
-          `sin dejar de hablarte mientras lo hago. Solo dime qué quieres hacer.`;
-        markGreeted();
-        // Voz suave; si no hay soporte de voz, no pasa nada (degrada en silencio).
-        try { eng.speak(greeting); } catch { /* */ }
-      } catch {
-        /* defensivo: nunca rompemos la carga */
+        const path = window.location?.pathname || "/";
+        markGreetedThisSession();
+        try { localStorage.setItem(GREETED_KEY, String(Date.now())); } catch { /* */ }
+        eng.speak(greetingFor(name, path));
+      } catch { /* degrada en silencio si no hay TTS */ }
+    };
+
+    const beginAutonomy = () => {
+      if (cancelled) return;
+      const eng = engineRef.current;
+      if (!eng?.enabled || eng.supported === false) return;
+      // Arranca la escucha continua por el flujo supervisado (backoff/watchdog).
+      try { superStart(); } catch { /* */ }
+      // Saluda un poco después para no pisar el arranque del reconocimiento.
+      setTimeout(doGreet, 500);
+    };
+
+    // Handler de primer gesto (una sola vez): cubre navegadores que exigen
+    // interacción para micrófono/TTS (todos los móviles y Chrome de escritorio).
+    const armFirstGesture = () => {
+      const onGesture = () => {
+        cleanupGesture?.();
+        cleanupGesture = null;
+        beginAutonomy();
+      };
+      const opts: AddEventListenerOptions = { once: true, passive: true, capture: true };
+      window.addEventListener("pointerdown", onGesture, opts);
+      window.addEventListener("keydown", onGesture, opts);
+      window.addEventListener("touchstart", onGesture, opts);
+      cleanupGesture = () => {
+        window.removeEventListener("pointerdown", onGesture, opts as EventListenerOptions);
+        window.removeEventListener("keydown", onGesture, opts as EventListenerOptions);
+        window.removeEventListener("touchstart", onGesture, opts as EventListenerOptions);
+      };
+    };
+
+    const init = async () => {
+      // Si el usuario apagó Aurora o la autonomía, no auto-arrancamos (pero el
+      // orbe sigue disponible para tocar).
+      if (autonomyDisabled()) return;
+      const perm = await queryMicPermission();
+      if (cancelled) return;
+      if (perm === "denied") return; // no insistimos; el orbe mostrará reintento
+      if (perm === "granted") {
+        // Permiso concedido de sesiones anteriores → arranca ya (pequeño retraso
+        // para no competir con el montaje). El saludo (TTS) puede necesitar
+        // gesto igualmente; si falla, se re-oye en el primer toque.
+        setTimeout(beginAutonomy, 1200);
+        // Además armamos el gesto por si el TTS quedó bloqueado (re-saluda).
+        armFirstGesture();
+      } else {
+        // 'prompt' o 'unknown' → esperamos el primer gesto para pedir permiso.
+        armFirstGesture();
       }
     };
 
-    // Pequeño retraso para no competir con el arranque de la app.
-    const t = setTimeout(() => { void tryGreet(); }, 2500);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, []);
+    void init();
+
+    // Pausa/reanuda la escucha según visibilidad (móvil: batería + estabilidad).
+    const onVisibility = () => {
+      const eng = engineRef.current;
+      if (!eng) return;
+      if (document.visibilityState === "hidden") {
+        if (eng.listening) { try { eng.stop?.(); } catch { /* */ } }
+      } else if (document.visibilityState === "visible") {
+        if (!autonomyDisabled() && eng.enabled && wantListenRef.current && !eng.listening) {
+          try { superStart(); } catch { /* */ }
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelled = true;
+      cleanupGesture?.();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [superStart]);
 
   // ── Puente para una futura extensión de navegador ──────────────────────────
   // Expone window.STARSEED_AURORA = { runAction, runDirectives, onAction } y

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ThemeGallery } from "./theme-gallery";
 import { OsThemeSelector } from "./os-theme-selector";
 import { CursorSettingsPanel } from "@/components/desktop/cursor-fx";
+import { PerformanceSettings } from "./performance-settings";
 import { LayoutSettings } from "./layout-settings";
 import { BackgroundSettings } from "./background-settings";
 import { CuratedThemesGallery } from "./curated-themes-gallery";
@@ -254,6 +255,8 @@ export function AppearanceEditor() {
                     <OsThemeSelector />
                     {/* Cursor y animaciones de clic (triángulo StarSeed, onda líquida…). */}
                     <CursorSettingsPanel />
+                    {/* Rendimiento: Auto/Alto/Eco — fluidez en móviles. */}
+                    <PerformanceSettings />
                     {/* Estilos: aplican un AppearanceConfig completo coordinado */}
                     <div>
                         <div className="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
