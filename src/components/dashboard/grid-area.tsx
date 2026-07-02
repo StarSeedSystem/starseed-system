@@ -240,10 +240,11 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 ref={containerRef}
                 className={cn(
                     // box-border: el padding no desborda el ancho en táctil (móvil).
-                    // Full-bleed (gen10): margen exterior mínimo (~4-8px) y radios
-                    // moderados → los widgets llenan la pantalla sin bandas muertas
-                    // en bordes/esquinas, como la pantalla de inicio de un móvil.
-                    "box-border relative min-h-[300px] w-full rounded-[clamp(0.625rem,1.25vw,1rem)] p-[clamp(0.25rem,0.9vw,0.5rem)] pb-[max(4rem,env(safe-area-inset-bottom))] transition-all duration-300 motion-reduce:transition-none",
+                    // Full-bleed (gen10): margen exterior mínimo (~4-8px) y radio
+                    // --screen-corner (0 en navegador; ~12px como app instalada) →
+                    // el lienzo casa con la esquina física del dispositivo sin
+                    // "encoger" la pantalla ni dejar bandas muertas.
+                    "box-border relative min-h-[300px] w-full rounded-[var(--screen-corner)] p-[clamp(0.25rem,0.9vw,0.5rem)] pb-[max(4rem,env(safe-area-inset-bottom))] transition-all duration-300 motion-reduce:transition-none",
                     isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-transparent"
                 )}
                 style={{ touchAction: "pan-y" }}
@@ -369,9 +370,10 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 // desborda ni "encoge" la pantalla. Sin borde propio en reposo (el
                 // marco del workspace ya lo aporta): evita el doble borde que robaba
                 // espacio visible; solo el modo edición dibuja su guía punteada.
-                // Full-bleed (gen10): margen exterior mínimo (4-8px) y radio moderado
-                // → sin bandas muertas en bordes/esquinas en ningún tamaño.
-                "box-border relative min-h-[500px] flex-1 w-full rounded-[clamp(0.625rem,1.25vw,1rem)] overflow-visible p-[clamp(0.25rem,0.9vw,0.5rem)] pb-[max(4rem,env(safe-area-inset-bottom))] transition-all duration-300 ease-out backdrop-blur-sm motion-reduce:transition-none",
+                // Full-bleed (gen10): margen exterior mínimo (4-8px) y radio
+                // --screen-corner (0 en navegador; ~12px como app instalada) para
+                // casar con la esquina física → sin bandas muertas en ningún tamaño.
+                "box-border relative min-h-[500px] flex-1 w-full rounded-[var(--screen-corner)] overflow-visible p-[clamp(0.25rem,0.9vw,0.5rem)] pb-[max(4rem,env(safe-area-inset-bottom))] transition-all duration-300 ease-out backdrop-blur-sm motion-reduce:transition-none",
                 isEditMode ? "border-2 border-dashed border-primary/20 bg-primary/[0.02]" : "bg-transparent border-0"
             )}
             // touch-action pan-y SIEMPRE: el dedo scrollea vertical; nada arrastra.

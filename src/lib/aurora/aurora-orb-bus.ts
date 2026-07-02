@@ -29,6 +29,50 @@ export const AURORA_ORB_HIDDEN_KEY = "starseed.aurora.orb.hidden.v1";
 export const AURORA_ORB_VISIBILITY_EVENT = "starseed:aurora-orb-visibility";
 /** Evento de voz emitido por el motor (engine.ts) para animar el glow. */
 export const AURORA_SPEAK_EVENT = "aurora:speak";
+/**
+ * Evento emitido por CADA mensaje de la conversación con Aurora (usuario y
+ * Aurora, por voz o por texto). detail = { role, text, ts }. Lo emite el
+ * AuroraProvider observando el historial del motor; cualquier superficie
+ * (Exocórtex, extensiones, agentes) puede escucharlo sin acoplarse al motor.
+ */
+export const AURORA_CONVERSATION_EVENT = "aurora:conversation";
+/**
+ * Evento para abrir el chat completo de Aurora en el EXOCÓRTEX (menú Zenith).
+ * Lo dispara el orbe (clic derecho / opción de chat); el widget además abre la
+ * cortina Zenith vía usePerimeter para que la petición aterrice ya visible.
+ */
+export const AURORA_EXOCORTEX_OPEN_EVENT = "starseed:open-aurora-exocortex";
+
+export interface AuroraConversationDetail {
+  role: "user" | "aurora";
+  text: string;
+  ts: number;
+}
+
+/** Emite el evento de conversación (defensivo, SSR-safe). */
+export function emitAuroraConversation(detail: AuroraConversationDetail): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(
+      new CustomEvent<AuroraConversationDetail>(AURORA_CONVERSATION_EVENT, { detail }),
+    );
+  } catch {
+    /* defensivo */
+  }
+}
+
+/** Suscribe a los mensajes de la conversación. Devuelve la función de baja. */
+export function subscribeAuroraConversation(
+  cb: (detail: AuroraConversationDetail) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const on = (e: Event) => {
+    const d = (e as CustomEvent<AuroraConversationDetail>).detail;
+    if (d && typeof d.text === "string") cb(d);
+  };
+  window.addEventListener(AURORA_CONVERSATION_EVENT, on);
+  return () => window.removeEventListener(AURORA_CONVERSATION_EVENT, on);
+}
 
 export type AuroraSpeakPhase = "start" | "boundary" | "end";
 
@@ -153,19 +197,77 @@ export interface MicAnalyser {
    * banda (graves/medios/agudos) 0..1 para desplazar color/forma del orbe.
    */
   read: () => { level: number; bands: [number, number, number] };
+  /** Libera esta referencia (refcount; el stream real se cierra en diferido). */
   stop: () => void;
 }
 
 /**
- * Conecta un `AnalyserNode` al micrófono para alimentar el glow con audio REAL
- * mientras Aurora escucha. Requiere permiso de micrófono (gesto/consentimiento);
- * si algo falla, resuelve `null` y el orbe usa el latido por eventos/respiración.
+ * SINGLETON compartido del micrófono para el glow.
  *
- * No compite con el reconocimiento de voz: sólo lee amplitud/espectro del mismo
- * flujo de entrada. El stream se cierra al llamar `stop()`.
+ * ⚠️ Lección del bug del "glitch loop": abrir/cerrar un `getUserMedia` paralelo
+ * en cada flip de `listening` ABORTA el SpeechRecognition activo en Chrome y
+ * realimenta su bucle interno de reinicios (el orbe se enciende y apaga sin que
+ * la voz funcione). Por eso:
+ *
+ *   1. UN solo stream/AudioContext compartido por referencia contada: los flips
+ *      rápidos de escucha reutilizan la misma captura (cero churn de permisos).
+ *   2. TEARDOWN DIFERIDO (~1.6s): al soltar la última referencia no cerramos el
+ *      stream de inmediato; si la escucha vuelve en ese lapso, se reutiliza.
+ *   3. COOLDOWN tras fallo (45s; 2º fallo 120s; 3º → deshabilitado de sesión):
+ *      jamás martilleamos getUserMedia en bucle.
+ *   4. `disableMicAnalyserForSession()`: si el orbe detecta que el analizador
+ *      COMPITE con el reconocimiento (la escucha cae justo tras conectar), se
+ *      prescinde de él para toda la sesión y la luz cae al latido `aurora:speak`.
  */
-export async function createMicAnalyser(): Promise<MicAnalyser | null> {
-  if (typeof window === "undefined") return null;
+interface MicShared {
+  stream: MediaStream;
+  ctx: AudioContext;
+  source: MediaStreamAudioSourceNode;
+  analyser: AnalyserNode;
+  bins: number;
+  // TS ≥5.7 tipa los TypedArray por su buffer: el AnalyserNode exige ArrayBuffer.
+  freq: Uint8Array<ArrayBuffer>;
+  time: Uint8Array<ArrayBuffer>;
+}
+
+let micShared: MicShared | null = null;
+let micBuilding: Promise<MicShared | null> | null = null;
+let micRefs = 0;
+let micTeardownTimer: ReturnType<typeof setTimeout> | null = null;
+let micDisabledForSession = false;
+let micFailStreak = 0;
+let micRetryAfter = 0;
+
+/** Cuánto esperamos antes de cerrar de verdad el stream sin referencias. */
+const MIC_RELEASE_DELAY_MS = 1600;
+
+function micTeardownNow(): void {
+  const s = micShared;
+  micShared = null;
+  micRefs = 0;
+  if (micTeardownTimer) { clearTimeout(micTeardownTimer); micTeardownTimer = null; }
+  if (!s) return;
+  try { s.source.disconnect(); } catch { /* */ }
+  try { s.analyser.disconnect(); } catch { /* */ }
+  try { s.stream.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+  try { void s.ctx.close(); } catch { /* */ }
+}
+
+/**
+ * Prescinde del analizador para TODA la sesión (p. ej. cuando compite con el
+ * SpeechRecognition). El orbe degrada al latido por eventos + respiración.
+ */
+export function disableMicAnalyserForSession(): void {
+  micDisabledForSession = true;
+  micTeardownNow();
+}
+
+/** ¿Está el analizador deshabilitado (fallo persistente o competencia)? */
+export function isMicAnalyserDisabled(): boolean {
+  return micDisabledForSession;
+}
+
+async function buildMicShared(): Promise<MicShared | null> {
   try {
     const AudioCtx =
       (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext })
@@ -186,49 +288,108 @@ export async function createMicAnalyser(): Promise<MicAnalyser | null> {
     source.connect(analyser);
 
     const bins = analyser.frequencyBinCount;
-    const freq = new Uint8Array(bins);
-    const time = new Uint8Array(bins);
-
-    const read = () => {
-      try {
-        analyser.getByteTimeDomainData(time);
-        analyser.getByteFrequencyData(freq);
-        // Amplitud RMS (0..1) del dominio temporal.
-        let sum = 0;
-        for (let i = 0; i < bins; i++) {
-          const v = (time[i] - 128) / 128;
-          sum += v * v;
-        }
-        const level = Math.min(1, Math.sqrt(sum / bins) * 2.2);
-        // Tres bandas simples (graves/medios/agudos) del espectro.
-        const third = Math.max(1, Math.floor(bins / 3));
-        const bandAvg = (from: number, to: number) => {
-          let s = 0;
-          const a = Math.max(0, from);
-          const b = Math.min(bins, to);
-          for (let i = a; i < b; i++) s += freq[i];
-          return (b - a > 0 ? s / (b - a) : 0) / 255;
-        };
-        const bands: [number, number, number] = [
-          bandAvg(0, third),
-          bandAvg(third, third * 2),
-          bandAvg(third * 2, bins),
-        ];
-        return { level, bands };
-      } catch {
-        return { level: 0, bands: [0, 0, 0] as [number, number, number] };
-      }
+    return {
+      stream,
+      ctx,
+      source,
+      analyser,
+      bins,
+      freq: new Uint8Array(bins),
+      time: new Uint8Array(bins),
     };
-
-    const stop = () => {
-      try { source.disconnect(); } catch { /* */ }
-      try { analyser.disconnect(); } catch { /* */ }
-      try { stream.getTracks().forEach((t) => t.stop()); } catch { /* */ }
-      try { void ctx.close(); } catch { /* */ }
-    };
-
-    return { read, stop };
   } catch {
     return null;
   }
 }
+
+/**
+ * Adquiere una referencia al analizador compartido del micrófono. Resuelve
+ * `null` si no hay soporte/permiso, si estamos en cooldown tras un fallo o si
+ * quedó deshabilitado para la sesión — en todos los casos el orbe degrada con
+ * gracia (latido por `aurora:speak` + respiración). Llama `stop()` al terminar.
+ */
+export async function acquireMicAnalyser(): Promise<MicAnalyser | null> {
+  if (typeof window === "undefined") return null;
+  if (micDisabledForSession || Date.now() < micRetryAfter) return null;
+
+  if (!micShared) {
+    // Una sola construcción concurrente: los demás esperan la misma promesa.
+    if (!micBuilding) {
+      micBuilding = buildMicShared().finally(() => { micBuilding = null; });
+    }
+    const built = await micBuilding;
+    if (micDisabledForSession) {
+      // Se deshabilitó mientras construíamos: limpia y desiste.
+      if (built) {
+        try { built.stream.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+        try { void built.ctx.close(); } catch { /* */ }
+      }
+      return null;
+    }
+    if (!built) {
+      micFailStreak += 1;
+      micRetryAfter = Date.now() + (micFailStreak >= 2 ? 120_000 : 45_000);
+      if (micFailStreak >= 3) micDisabledForSession = true;
+      return null;
+    }
+    micFailStreak = 0;
+    micShared = micShared || built;
+  }
+
+  if (micTeardownTimer) { clearTimeout(micTeardownTimer); micTeardownTimer = null; }
+  micRefs += 1;
+  let released = false;
+
+  const read = () => {
+    const s = micShared;
+    if (!s) return { level: 0, bands: [0, 0, 0] as [number, number, number] };
+    try {
+      s.analyser.getByteTimeDomainData(s.time);
+      s.analyser.getByteFrequencyData(s.freq);
+      // Amplitud RMS (0..1) del dominio temporal.
+      let sum = 0;
+      for (let i = 0; i < s.bins; i++) {
+        const v = (s.time[i] - 128) / 128;
+        sum += v * v;
+      }
+      const level = Math.min(1, Math.sqrt(sum / s.bins) * 2.2);
+      // Tres bandas simples (graves/medios/agudos) del espectro.
+      const third = Math.max(1, Math.floor(s.bins / 3));
+      const bandAvg = (from: number, to: number) => {
+        let acc = 0;
+        const a = Math.max(0, from);
+        const b = Math.min(s.bins, to);
+        for (let i = a; i < b; i++) acc += s.freq[i];
+        return (b - a > 0 ? acc / (b - a) : 0) / 255;
+      };
+      const bands: [number, number, number] = [
+        bandAvg(0, third),
+        bandAvg(third, third * 2),
+        bandAvg(third * 2, s.bins),
+      ];
+      return { level, bands };
+    } catch {
+      return { level: 0, bands: [0, 0, 0] as [number, number, number] };
+    }
+  };
+
+  const stop = () => {
+    if (released) return;
+    released = true;
+    micRefs = Math.max(0, micRefs - 1);
+    if (micRefs === 0 && micShared) {
+      if (micTeardownTimer) clearTimeout(micTeardownTimer);
+      micTeardownTimer = setTimeout(() => {
+        if (micRefs === 0) micTeardownNow();
+      }, MIC_RELEASE_DELAY_MS);
+    }
+  };
+
+  return { read, stop };
+}
+
+/**
+ * @deprecated Alias de compatibilidad: usa `acquireMicAnalyser()` (singleton
+ * compartido). Se conserva para no romper importadores externos.
+ */
+export const createMicAnalyser = acquireMicAnalyser;

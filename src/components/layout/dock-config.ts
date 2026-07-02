@@ -127,6 +127,7 @@ export function saveDockFolderOpenState(state: Record<string, boolean>) {
  */
 export const DOCK_PRESETS: DockItemConfig[] = [
   // ── Sistema (visibles por defecto) ──
+  { id: 'escritorios',   label: 'Escritorio',          iconKey: 'AppWindow',       path: '/escritorios',           color: 'cyan',    enabled: true,  origin: 'preset' },
   { id: 'dashboard',     label: 'Dashboard',           iconKey: 'LayoutDashboard', path: '/dashboard',             color: 'cyan',    enabled: true,  origin: 'preset' },
   { id: 'profile',       label: 'Perfil',              iconKey: 'CircleUser',      path: '/profile',               color: 'neutral', enabled: true,  origin: 'preset' },
   { id: 'messages',      label: 'Mensajes',            iconKey: 'MessagesSquare',  path: '/messages',              color: 'crimson', enabled: true,  origin: 'preset' },

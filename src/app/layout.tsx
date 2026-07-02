@@ -29,6 +29,13 @@ import { NotificationsProvider } from "@/context/notifications-context";
 import { AccountProvider } from "@/context/account-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
+// Aurora GLOBAL: provider + orbe viven en el layout RAÍZ para que el orbe (y el
+// acceso Trinity que ofrece) exista en TODAS las rutas — dashboard (main),
+// login, onboarding… — y para que el ZenithCurtain (Exocórtex) quede DENTRO del
+// árbol del provider. Ambos son defensivos sin sesión.
+import { AuroraProvider } from "@/components/aurora/aurora-provider";
+import { AuroraWidget } from "@/components/aurora/aurora-widget";
+import { CursorFxHost } from "@/components/desktop/cursor-fx";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
 import { MediaMiniDock } from "@/components/dashboard/apps/media/media-mini-dock";
 import { SovereignSyncMount } from "@/components/system/sovereign-sync-mount";
@@ -122,6 +129,9 @@ export default function RootLayout({
                   <SidebarProvider>
                     <ControlPanelProvider>
                       <PerimeterProvider>
+                        {/* Aurora envuelve TODO el árbol visible (incluido el
+                            ZenithCurtain/Exocórtex) y monta su orbe universal. */}
+                        <AuroraProvider>
                         <LiquidGlass />
                         <WebGLBackground />
                         <SplineDefaultBackground />
@@ -151,8 +161,15 @@ export default function RootLayout({
                             cada orilla para abrir los menús cardinales en táctil.
                             Decide por sí mismo si renderizarse (auto/on/off). */}
                         <TrinityEdgeAccess />
+                        {/* ORBE de Aurora: acceso universal a la voz + menú
+                            Trinity centrado, presente en todas las rutas. */}
+                        <AuroraWidget />
+                        {/* Cursor personalizado + animaciones de clic (config en
+                            Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
+                        <CursorFxHost />
                         <Toaster />
                         <Sonner />
+                        </AuroraProvider>
                       </PerimeterProvider>
                     </ControlPanelProvider>
                   </SidebarProvider>

@@ -1581,3 +1581,45 @@ más apps al nivel de Omnifrecuencias; VR/AR; variantes de icono por tema.
 
 **Pendiente:** controladores/manos XR + locomoción; bajar coste de MeshReflector en sesión XR; AR Audiomorphic como
 textura real; unificar `omni-engine` huérfano o eliminarlo; más apps nativas completas.
+
+---
+## Adenda 48 — 2026-07-01 · Corrección integral de la ola #125–#129 (deploy 550c732)
+
+### Por qué
+El usuario reportó que la ola anterior quedó "a medias": el orbe de Aurora no tenía el diseño de la
+cafetería y su panel salía fijo en la esquina inferior; el Dashboard desperdiciaba espacio en
+bordes/esquinas; la fusión de menús del Dock nunca llegó a las cuentas existentes (localStorage
+conservaba los botones viejos); y los perfiles mostraban reuniones/eventos de ejemplo. Autorizó
+explícitamente redefinir configuraciones guardadas para propagar a TODAS las cuentas.
+
+### Hecho (3 subagentes en paralelo + integración)
+- **Orbe Aurora (diseño café):** `aurora-orb.tsx` reescrito por capas — aro conic-gradient aurora
+  (paleta café + 4 cardinales Trinity) rotando 16s, núcleo cristal oscuro, canvas interior con 5
+  cintas aurora reactivas a voz (bandas mic: graves→rojo/verde, agudos→azul/amarillo; pulsos
+  aurora:speak → ondas), estrella ✦ SVG nítida (arriba azul/abajo rojo/izq verde/der amarillo) que
+  late vía --aurora-energy (rAF, sin re-render), breathe 5.6s + ping 3.2s + morph orgánico al hover
+  (aurora-orb.module.css nuevo). `aurora-widget.tsx`: panel del chat y píldora de acción ANCLADOS al
+  orbe por cuadrante (antes fixed esquina inf-der), 100dvh + safe-area, píldora descartable, pétalos
+  con chips de nombre y glow cardinal, satélite mini-estrella. Gestos/flags/bus intactos.
+- **Dashboard full-bleed:** barra de pestañas pegada al borde (radios 16px interior / 4px al borde,
+  safe-area, p-1.5, icono+texto adaptativos, fades de scroll, glow del acento en activa, accesos
+  añadir/configurar/dispositivos); grid sin containerPadding (18px muertos fuera), margen exterior
+  clamp 4-8px, gap 12px, tarjetas 16px radio. `DEFAULTS_VERSION='gen10-2026-07-01-esquinas-tabs-fullbleed'`
+  → reseed en todas las cuentas. Bonus: eliminado error preexistente de react-grid-layout v2 en grid-area.
+- **Fusión Dock v4 (todas las cuentas):** `dock-config.ts` migración one-shot
+  `starseed.dock.items.migrated.v4` — descarta presets guardados viejos y aplica DOCK_PRESETS
+  fusionados (mylib=Librería·Biblioteca, nodes=Red·Nodos→/hub?tab=red), conserva items origin:'user',
+  repunta carpetas (library/biblioteca/store→mylib, red→nodes) y elimina huérfanos; tienda→/library?tab=tienda.
+- **Perfiles/calendario sin datos falsos:** semilla demo de `calendar-context.tsx` ELIMINADA
+  (rem-1/alm-1/sys-1/sys-2 y map de communityEvents vacío — raíz de las "reuniones" falsas);
+  `os-social.ts` realEventsOnly/fetchRealEventsSafe; `unified-calendar.tsx` prop realOnly;
+  perfil pasa realOnly + artículos/cursos solo reales + nota honesta en discusión vacía.
+- **Build en Librería:** franja OsDownloadStrip inline — "StarSeed OS · build 2026.07.01",
+  Instalar como app (PWA real vía beforeinstallprompt), enlace releases GitHub, "versiones
+  nativas: en preparación" (sin enlaces muertos). Sustituye a os-download-card (intacto, sin consumidores).
+- Verificado: tsc total 414 → **393 errores preexistentes** (−21, ninguno nuevo; 0 en archivos tocados).
+  Commit `550c732` → push a StarSeedSystem/starseed-system main → Vercel auto-deploy starseed-os.vercel.app.
+
+**Pendiente:** #47 versiones descargables nativas (dmg/apk/exe) + tiendas; posts demo de
+recent-posts-widget para páginas comunidad/EF (fuera de perfiles personales); day-detail-dialog
+ya no fuga demo al eliminarse la semilla.

@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 
 export default function Home() {
-  redirect('/dashboard');
+  // Escritorios es ahora la pantalla principal del OS (los dashboards
+  // siguen disponibles en /dashboard).
+  redirect('/escritorios');
 }

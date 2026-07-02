@@ -9,8 +9,9 @@ import { AlarmScheduler } from "@/components/calendar/alarm-scheduler";
 import { ActiveAlertModal } from "@/components/calendar/active-alert-modal";
 import { useEffect } from "react";
 import { hermes } from "@/hermes-integration";
-import { AuroraProvider } from "@/components/aurora/aurora-provider";
-import { AuroraWidget } from "@/components/aurora/aurora-widget";
+// Aurora (provider + orbe) se monta ahora en el layout RAÍZ (src/app/layout.tsx)
+// para existir en TODAS las rutas — dashboard (main), login, onboarding — y para
+// que el ZenithCurtain quede dentro del provider. Aquí ya no se monta nada.
 // DecisionsBell retirado: el botón flotante de «Decisiones» (abajo-izquierda)
 // se elimina para despejar esa esquina. Las decisiones siguen accesibles desde
 // /decisiones y desde el sistema de notificaciones; el componente se conserva
@@ -41,12 +42,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <AppHeader />
             <main className="flex-1 flex flex-col bg-transparent transition-all duration-300 overflow-y-auto">
               <div className="w-full px-[clamp(0.75rem,2vw,2rem)] py-[clamp(0.75rem,1.5vw,1.5rem)] flex flex-col gap-[clamp(0.75rem,1.5vw,1.5rem)] flex-1">
-                <AuroraProvider>
-                  {children}
-                  <AuroraWidget />
-                  <AuthGate />
-          <OnboardingGate />
-                </AuroraProvider>
+                {children}
+                <AuthGate />
+                <OnboardingGate />
               </div>
             </main>
           </div>

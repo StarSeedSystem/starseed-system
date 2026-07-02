@@ -8,7 +8,7 @@ import {
     Plus, Settings, LayoutGrid, Star, ArrowLeft, ArrowRight, Trash2, Search, 
     Sparkles, Maximize2, Minimize2, User, Cpu, Shield, Globe, Database, 
     Sliders, RefreshCw, Hammer, Compass, HardDrive, Lock, Zap, Wifi, Play, HelpCircle,
-    Palette, X, MapPin, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye, EyeOff, ArrowUp, ArrowDown, Settings2, MonitorSmartphone
+    Palette, X, MapPin, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye, EyeOff, ArrowUp, ArrowDown, Settings2, MonitorSmartphone, Info
 } from "lucide-react";
 import { GridArea } from "./grid-area";
 import { useToast } from "@/components/ui/use-toast";
@@ -124,6 +124,19 @@ const BUTTON_LABELS: Record<string, string> = {
     fullscreen: "Pantalla Completa",
     settings: "Ajustes de Menú"
 };
+
+// ── Acciones compactas con título + información ─────────────────
+// Patrón genérico: cada botón compacto del panel declara aquí su título
+// (se muestra como texto junto al icono cuando cabe) y una descripción
+// que SIEMPRE queda accesible desde el affordance "i" (popover). Para dar
+// título+info a un botón nuevo basta con añadir su definición a este array.
+const TAB_ACTION_DEFS: ReadonlyArray<{ id: string; title: string; info: string }> = [
+    { id: "add", title: "Añadir pestaña", info: "Crea un nuevo tablero de widgets." },
+    { id: "panel", title: "Configurar panel", info: "Renombra este tablero y sus opciones." },
+    { id: "devices", title: "Dispositivos y grupos", info: "Etiqueta o agrupa pestañas por dispositivo y sincronízalas." },
+    { id: "edit", title: "Editar widgets", info: "Mueve, redimensiona, quita o añade widgets." },
+];
+const getTabActionDef = (id: string) => TAB_ACTION_DEFS.find((d) => d.id === id);
 
 // Orden canónico del menú de pestañas del dashboard. Los tres primeros son
 // acciones de pestañas (añadir panel, configurar el panel actual y el gestor
@@ -264,6 +277,13 @@ export function DashboardLayout() {
     // Auto-pantalla completa al entrar: el OS abre en modo inmersivo desde el inicio.
     const [isFullscreen, setIsFullscreen] = useState(true);
     const [isTitleVisible, setIsTitleVisible] = useState(true);
+
+    // Sello de build OCULTO por defecto (chrome limpio). Solo emerge como
+    // herramienta de diagnóstico cuando localStorage 'starseed.debug' === '1'.
+    const [showBuildBadge, setShowBuildBadge] = useState(false);
+    useEffect(() => {
+        try { setShowBuildBadge(localStorage.getItem("starseed.debug") === "1"); } catch { /* noop */ }
+    }, []);
 
     // --- Side Toolbar / Panel State ---
     const [activeToolbarTab, setActiveToolbarTab] = useState<string | null>(null);
@@ -1186,13 +1206,14 @@ export function DashboardLayout() {
 
     const barThemeClass = useMemo(() => {
         // Barra compacta pegada al borde: radios moderados (16px) SOLO en las
-        // esquinas interiores; las que tocan el borde de la pantalla van casi
-        // a 0 (4px) para que no "sobre" espacio. Padding interno mínimo.
+        // esquinas interiores; las que TOCAN el borde físico usan la variable
+        // --screen-corner (0 en navegador; ~12px instalada como app táctil)
+        // para casar con el redondeo real del dispositivo sin encoger nada.
         const edgeRadius =
-            sidebarConfig.position === 'right' ? "rounded-l-2xl rounded-r-[4px]"
-                : sidebarConfig.position === 'top' ? "rounded-b-2xl rounded-t-[4px]"
-                    : sidebarConfig.position === 'bottom' ? "rounded-t-2xl rounded-b-[4px]"
-                        : "rounded-r-2xl rounded-l-[4px]";
+            sidebarConfig.position === 'right' ? "rounded-l-2xl rounded-r-[var(--screen-corner)]"
+                : sidebarConfig.position === 'top' ? "rounded-b-2xl rounded-t-[var(--screen-corner)]"
+                    : sidebarConfig.position === 'bottom' ? "rounded-t-2xl rounded-b-[var(--screen-corner)]"
+                        : "rounded-r-2xl rounded-l-[var(--screen-corner)]";
         const layoutCls = cn(
             isVertical ? "flex-col w-12 h-auto p-1.5" : "flex-row h-12 w-auto p-1.5",
             edgeRadius
@@ -1317,7 +1338,8 @@ export function DashboardLayout() {
                         {...tabCommon}
                         icon={<Plus className="w-5 h-5" />}
                         label="Añadir pestaña (nuevo panel)"
-                        text="Añadir"
+                        text={getTabActionDef("add")?.title ?? "Añadir"}
+                        info={getTabActionDef("add")?.info}
                         color="emerald"
                         onClick={() => setIsCreateDialogOpen(true)}
                     />
@@ -1329,7 +1351,8 @@ export function DashboardLayout() {
                         {...tabCommon}
                         icon={<Settings2 className="w-5 h-5" />}
                         label="Configurar panel actual (renombrar)"
-                        text="Panel"
+                        text={getTabActionDef("panel")?.title ?? "Panel"}
+                        info={getTabActionDef("panel")?.info}
                         color="cyan"
                         onClick={() => handleOpenRename(activeDashboardId ?? "")}
                     />
@@ -1341,7 +1364,8 @@ export function DashboardLayout() {
                         {...tabCommon}
                         icon={<MonitorSmartphone className="w-5 h-5" />}
                         label="Dispositivos y grupos"
-                        text="Equipos"
+                        text={getTabActionDef("devices")?.title ?? "Equipos"}
+                        info={getTabActionDef("devices")?.info}
                         color="purple"
                         active={isDeviceManagerOpen}
                         onClick={() => setIsDeviceManagerOpen(true)}
@@ -1458,11 +1482,12 @@ export function DashboardLayout() {
                         key="edit"
                         {...tabCommon}
                         icon={<LayoutGrid className="w-5 h-5" />}
-                        label={isEditMode ? "Terminar edición" : "Editar dashboard"}
-                        text={isEditMode ? "Terminar" : "Editar"}
+                        label={isEditMode ? "Terminar edición" : "Editar widgets"}
+                        text={isEditMode ? "Terminar edición" : (getTabActionDef("edit")?.title ?? "Editar")}
+                        info={getTabActionDef("edit")?.info}
                         color={isEditMode ? "emerald" : "neutral"}
                         active={isEditMode}
-                        onClick={() => setIsEditMode(!isEditMode)} 
+                        onClick={() => setIsEditMode(!isEditMode)}
                     />
                 );
             case "fullscreen":
@@ -1506,10 +1531,13 @@ export function DashboardLayout() {
 
     return (
         <WeatherLocationProvider>
-            {/* Sello de versión (confirmar caché). Esquina inf-izq, no estorba al FAB. */}
-            <div data-build="STARSEED_BUILD_BADGE" className="fixed bottom-1 left-1 z-[95] pointer-events-none select-none text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/45 text-white/55 backdrop-blur-sm">
-                build · 2026-06-14 · likes-comentarios+areas3 v18
-            </div>
+            {/* Sello de versión: SOLO en modo depuración (localStorage starseed.debug=1).
+                En uso normal el fondo queda limpio, sin rótulos técnicos. */}
+            {showBuildBadge && (
+                <div data-build="STARSEED_BUILD_BADGE" className="fixed bottom-1 left-1 z-[95] pointer-events-none select-none text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/45 text-white/55 backdrop-blur-sm">
+                    build · 2026-06-14 · likes-comentarios+areas3 v18
+                </div>
+            )}
             <div className={cn(
                 "relative flex flex-row w-full select-none min-h-screen transition-all duration-500",
                 mainPaddingClass
@@ -2376,9 +2404,31 @@ interface SidebarIconButtonProps {
     text?: string;
     /** Icono+texto en barra horizontal sobre pantallas anchas (md+). */
     showText?: boolean;
+    /** Descripción del botón: activa el affordance "i" (popover informativo,
+     *  visible SIEMPRE, quepa o no el texto del título). */
+    info?: string;
 }
 
-function SidebarIconButton({ icon, label, color, active, onClick, tipSide = "right", text, showText }: SidebarIconButtonProps) {
+function SidebarIconButton({ icon, label, color, active, onClick, tipSide = "right", text, showText, info }: SidebarIconButtonProps) {
+    // Popover informativo del affordance "i" (se cierra fuera / con Escape).
+    const [infoOpen, setInfoOpen] = useState(false);
+    const rootRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        if (!infoOpen) return;
+        const onDown = (e: PointerEvent) => {
+            if (rootRef.current && e.target instanceof Node && !rootRef.current.contains(e.target)) {
+                setInfoOpen(false);
+            }
+        };
+        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setInfoOpen(false); };
+        window.addEventListener("pointerdown", onDown);
+        window.addEventListener("keydown", onKey);
+        return () => {
+            window.removeEventListener("pointerdown", onDown);
+            window.removeEventListener("keydown", onKey);
+        };
+    }, [infoOpen]);
+
     const colors = {
         neutral: "text-white/60 hover:text-white hover:bg-white/10",
         cyan: "text-cyan-400 hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.4)]",
@@ -2396,8 +2446,16 @@ function SidebarIconButton({ icon, label, color, active, onClick, tipSide = "rig
         bottom: "top-full mt-2 left-1/2 -translate-x-1/2",
     }[tipSide];
 
+    // El popover informativo también se abre hacia el interior de la pantalla.
+    const popPos = {
+        right: "left-full ml-2 top-0",
+        left: "right-full mr-2 top-0",
+        top: "bottom-full mb-2 left-1/2 -translate-x-1/2",
+        bottom: "top-full mt-2 left-1/2 -translate-x-1/2",
+    }[tipSide];
+
     return (
-        <div className="relative group shrink-0">
+        <div ref={rootRef} className="relative group shrink-0">
             <Button
                 size={showText ? "sm" : "icon"}
                 variant="ghost"
@@ -2420,16 +2478,53 @@ function SidebarIconButton({ icon, label, color, active, onClick, tipSide = "rig
                 )}
             </Button>
 
+            {/* Affordance "i": SIEMPRE visible cuando el botón declara `info`.
+                Abre un popover con el título y la descripción de la acción. */}
+            {info && (
+                <button
+                    type="button"
+                    aria-label={`Información: ${text ?? label}`}
+                    aria-expanded={infoOpen}
+                    onClick={(e) => { e.stopPropagation(); setInfoOpen((v) => !v); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className={cn(
+                        "absolute -top-1 -right-1 z-20 grid place-items-center w-4 h-4 rounded-full cursor-pointer",
+                        "bg-black/75 border border-white/20 text-white/60 backdrop-blur-sm",
+                        "transition-colors duration-200 motion-reduce:transition-none",
+                        "hover:text-cyan-300 hover:border-cyan-400/50",
+                        infoOpen && "text-cyan-300 border-cyan-400/60 shadow-[0_0_8px_rgba(34,211,238,0.45)]"
+                    )}
+                >
+                    <Info className="w-2.5 h-2.5" />
+                </button>
+            )}
+
+            {/* Popover informativo (título + descripción), hacia el interior. */}
+            {info && infoOpen && (
+                <div
+                    role="note"
+                    className={cn(
+                        "absolute z-[120] w-52 rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl p-2.5 shadow-2xl",
+                        popPos
+                    )}
+                >
+                    <div className="text-[11px] font-semibold text-white/90 leading-tight">{text ?? label}</div>
+                    <p className="mt-1 text-[10px] leading-relaxed text-white/55">{info}</p>
+                </div>
+            )}
+
             {/* Tooltip (nombre completo). Con icono+texto visible (md+) se oculta. */}
-            <span
-                className={cn(
-                    "absolute bg-black/90 text-white border border-white/10 text-[10px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 motion-reduce:transition-none pointer-events-none whitespace-nowrap shadow-md z-[100]",
-                    tipPos,
-                    showText && text && "md:hidden"
-                )}
-            >
-                {label}
-            </span>
+            {!infoOpen && (
+                <span
+                    className={cn(
+                        "absolute bg-black/90 text-white border border-white/10 text-[10px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 motion-reduce:transition-none pointer-events-none whitespace-nowrap shadow-md z-[100]",
+                        tipPos,
+                        showText && text && "md:hidden"
+                    )}
+                >
+                    {label}
+                </span>
+            )}
         </div>
     );
 }

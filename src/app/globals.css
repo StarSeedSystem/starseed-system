@@ -68,6 +68,15 @@
     --radius-2xl: 2.5rem;
     --radius-full: 9999px;
 
+    /* ---- ESQUINA FÍSICA DE PANTALLA (chrome del sistema) ----
+       Radio de las superficies full-bleed que TOCAN el borde físico
+       (lienzo del dashboard, barras pegadas al borde). 0 en navegador
+       (la ventana ya es rectangular: redondear "encoge" la pantalla);
+       ~12px cuando el OS corre instalado como app táctil, para casar con
+       el redondeo real del hardware. Override al final de este archivo:
+       @media (display-mode: standalone) and (pointer: coarse). */
+    --screen-corner: 0px;
+
     /* ---- FLUID TYPOGRAPHY SCALE ---- */
     --text-fluid-xs: clamp(0.65rem, 0.5vw + 0.4rem, 0.8rem);
     --text-fluid-sm: clamp(0.75rem, 0.6vw + 0.45rem, 0.95rem);
@@ -1860,6 +1869,24 @@ textarea:focus {
   gap: clamp(0.125rem, 0.3vw, 0.25rem);
   border-radius: var(--radius-lg);
   padding: clamp(0.15rem, 0.3vw, 0.25rem);
+  /* Defensa anti-desborde GLOBAL (gen10): en pantallas chicas cualquier
+     carril de pestañas se desliza horizontalmente (táctil, sin scrollbar)
+     en vez de desbordar el viewport o partirse — arregla las pestañas
+     desbordadas de casi todas las secciones sin tocar cada página. */
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+[role="tablist"]::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 [role="tab"] {
@@ -2265,6 +2292,11 @@ textarea:focus {
 .omni-dock-strip {
   scrollbar-width: none;          /* Firefox */
   -ms-overflow-style: none;       /* IE/Edge legacy */
+  /* Robustez táctil (gen10): la tira jamás excede su contenedor/viewport
+     y el gesto horizontal queda reservado para deslizar el propio dock. */
+  max-width: 100%;
+  box-sizing: border-box;
+  touch-action: pan-x;
 }
 
 .omni-dock-strip::-webkit-scrollbar {
@@ -3239,4 +3271,45 @@ a[href*="spline.design"] *,
   pointer-events: none !important;
   width: 0 !important;
   height: 0 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CHROME DEL SISTEMA (gen10) — esquina física + carriles deslizables
+   ═══════════════════════════════════════════════════════════ */
+
+/* Esquina física: instalado como app táctil (PWA standalone + dedo), las
+   superficies full-bleed adoptan ~12px para casar con el radio real del
+   hardware. En navegador se queda en 0 (ver :root — no "encoge" nada). */
+@media (display-mode: standalone) and (pointer: coarse) {
+  :root {
+    --screen-corner: 12px;
+  }
+}
+
+/* .ss-hscroll — utilidad genérica: tira horizontal deslizable y táctil,
+   sin scrollbar visible, que nunca desborda el viewport. Para menús,
+   barras de pestañas o docks apretados en pantallas chicas. Añade
+   .ss-hscroll-fade para desvanecer los extremos (pista de "hay más"). */
+.ss-hscroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.ss-hscroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.ss-hscroll-fade {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
 }

@@ -288,7 +288,7 @@ export function OmniDock() {
                         border border-foreground/10
                         rounded-[--radius-full]
                         shadow-[0_10px_40px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)]
-                        mb-2 sm:mb-4 max-w-[calc(100vw-0.75rem)] lg:max-w-[96vw]
+                        mb-2 sm:mb-4 max-w-[calc(100vw-8px)] lg:max-w-[96vw]
                         p-2 lg:p-5
                         relative
                     ">
@@ -323,7 +323,12 @@ export function OmniDock() {
                         <div
                             ref={stripRef}
                             onScroll={updateShadows}
-                            className="omni-dock-strip flex items-end gap-1.5 lg:gap-4"
+                            // Tira deslizable: overflow-x táctil sin scrollbar (ver
+                            // .omni-dock-strip en globals.css: en ≥1024px vuelve a
+                            // overflow visible para tooltips/hover-scale), nunca más
+                            // ancha que el viewport (max-w + box-border) y con
+                            // padding consciente de las safe-areas laterales (notch).
+                            className="omni-dock-strip flex items-end gap-1.5 lg:gap-4 overflow-x-auto max-w-full box-border pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))]"
                         >
                             {dockEntries.map((entry) => {
                                 if (entry.kind === 'item') {

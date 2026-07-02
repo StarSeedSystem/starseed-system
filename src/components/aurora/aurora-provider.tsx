@@ -1,10 +1,18 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createClient } from "@/utils/supabase/client";
-import { useAuroraEngine, type AuroraEngine } from "@/lib/aurora/engine";
-
-const AuroraContext = createContext<AuroraEngine | null>(null);
+import { useAuroraEngine, type AuroraEngine, type ConversationEntry } from "@/lib/aurora/engine";
+import { AURORA_CONVERSATION_EVENT } from "@/lib/aurora/aurora-orb-bus";
 
 /**
  * Evento global emitido cuando cambia el estado reactivo de Aurora, para que
@@ -18,14 +26,216 @@ const GREETED_KEY = "starseed_aurora_greeted_at";
 // Repite el saludo como mucho una vez cada 12 horas.
 const GREET_TTL_MS = 12 * 60 * 60 * 1000;
 
+/**
+ * Motor de Aurora SUPERVISADO: el mismo AuroraEngine, pero con el ciclo de vida
+ * de la voz blindado contra el "glitch loop" (encendido/apagado infinito).
+ *
+ * CAUSA RAÍZ del bug: el motor reinicia el SpeechRecognition en `onend` cada
+ * ~250ms mientras `keepAlive` esté activo, SIN tope de reintentos ni backoff; en
+ * errores fatales (`not-allowed`, captura de audio ocupada…) `onerror` apaga
+ * `listening` pero el keep-alive interno vuelve a arrancar → parpadeo on/off
+ * eterno sin voz. Además, `start()` repetidos dejan cadenas de reconocimiento
+ * duplicadas que se abortan mutuamente, y el analizador de micrófono del orbe
+ * (getUserMedia paralelo) abortaba la recognition en cada flip, realimentándolo.
+ *
+ * El SUPERVISOR corta el bucle desde fuera (el motor no se toca):
+ *   · `start/stop/toggle` con guardas: nunca dos `start()` seguidos (flag
+ *     isStarting) + backoff ≥800ms entre arranques + debounce del toggle.
+ *   · WATCHDOG: cuenta caídas de escucha SIN habla; a la 5ª dentro de la
+ *     ventana llama `engine.stop()` (lo único que apaga el keep-alive interno)
+ *     y expone `voiceUnavailable` → "voz no disponible · toca para reintentar".
+ *     NUNCA un loop infinito.
+ *   · MATA-ZOMBIS: si la escucha se enciende sin que nadie la pidiera (cadena
+ *     interna resucitada tras una parada), se apaga de raíz.
+ */
+export interface AuroraSupervisedEngine extends AuroraEngine {
+  /** true → la voz quedó bloqueada tras reintentos fallidos (estado visible). */
+  voiceUnavailable: boolean;
+  /** Reintento explícito del usuario: limpia el estado y vuelve a escuchar. */
+  retryVoice: () => void;
+}
+
+const AuroraContext = createContext<AuroraSupervisedEngine | null>(null);
+
+// ── Constantes del supervisor ────────────────────────────────────────────────
+/** Backoff mínimo entre arranques del reconocimiento (≥800ms). */
+const START_COOLDOWN_MS = 800;
+/** Debounce del toggle (evita dobles taps que crucen start/stop). */
+const TOGGLE_DEBOUNCE_MS = 300;
+/** Caídas de escucha sin habla toleradas antes de declarar la voz no disponible. */
+const MAX_SILENT_DROPS = 5;
+/** Ventana en la que las caídas consecutivas cuentan como el mismo glitch. */
+const FLAP_WINDOW_MS = 10_000;
+/** Válvula: si `onstart` nunca llega, libera el flag de arranque para reintentar. */
+const STARTING_RELEASE_MS = 1600;
+
 export function AuroraProvider({ children }: { children: ReactNode }) {
   const engine = useAuroraEngine();
   const engineRef = useRef<AuroraEngine>(engine);
   engineRef.current = engine;
 
+  // ── Supervisor del ciclo de vida de la voz ─────────────────────────────────
+  const [voiceUnavailable, setVoiceUnavailable] = useState(false);
+  /** ¿El usuario QUIERE que Aurora escuche ahora mismo? (intención explícita) */
+  const wantListenRef = useRef(false);
+  /** ¿Se detectó habla real (interim/transcript) desde el último arranque? */
+  const speechSeenRef = useRef(false);
+  const prevListeningRef = useRef(false);
+  const guardRef = useRef({
+    starting: false,
+    lastStartAt: 0,
+    lastToggleAt: 0,
+    drops: 0,
+    lastDropAt: 0,
+  });
+
+  const superStart = useCallback(() => {
+    const g = guardRef.current;
+    const now = Date.now();
+    // Nunca dos start() encadenados ni arranques más rápidos que el backoff.
+    if (g.starting || now - g.lastStartAt < START_COOLDOWN_MS) return;
+    g.starting = true;
+    g.lastStartAt = now;
+    wantListenRef.current = true;
+    speechSeenRef.current = false;
+    setVoiceUnavailable(false);
+    try { engineRef.current?.start(); } catch { /* */ }
+    setTimeout(() => { g.starting = false; }, STARTING_RELEASE_MS);
+  }, []);
+
+  const superStop = useCallback(() => {
+    const g = guardRef.current;
+    wantListenRef.current = false;
+    g.drops = 0;
+    g.starting = false;
+    // stop() del motor apaga su keep-alive interno: es el corte real del bucle.
+    try { engineRef.current?.stop(); } catch { /* */ }
+  }, []);
+
+  const superToggle = useCallback(() => {
+    // Interrumpir el TTS es siempre inmediato (mismo gesto de siempre).
+    try {
+      if (
+        typeof window !== "undefined" &&
+        typeof window.speechSynthesis !== "undefined" &&
+        window.speechSynthesis.speaking
+      ) {
+        engineRef.current?.interrupt();
+        return;
+      }
+    } catch { /* */ }
+    const g = guardRef.current;
+    const now = Date.now();
+    if (now - g.lastToggleAt < TOGGLE_DEBOUNCE_MS) return;
+    g.lastToggleAt = now;
+    if (engineRef.current?.listening || wantListenRef.current) superStop();
+    else superStart();
+  }, [superStart, superStop]);
+
+  const retryVoice = useCallback(() => {
+    const g = guardRef.current;
+    g.drops = 0;
+    g.lastDropAt = 0;
+    g.lastStartAt = 0; // el gesto explícito del usuario salta el cooldown
+    g.starting = false;
+    setVoiceUnavailable(false);
+    superStart();
+  }, [superStart]);
+
+  // WATCHDOG de flapping: observa las transiciones de `listening` del motor.
+  useEffect(() => {
+    const was = prevListeningRef.current;
+    const is = engine.listening;
+    prevListeningRef.current = is;
+    const g = guardRef.current;
+
+    if (is && !was) {
+      // Escucha encendida: el arranque llegó (libera el flag de isStarting).
+      g.starting = false;
+      if (!wantListenRef.current) {
+        // Cadena ZOMBI: el keep-alive interno resucitó tras una parada → apágala.
+        try { engineRef.current?.stop(); } catch { /* */ }
+      }
+      return;
+    }
+
+    if (!is && was && wantListenRef.current) {
+      // Caída inesperada mientras el usuario quería voz.
+      if (speechSeenRef.current) {
+        // Hubo habla real: es un fin de sesión sano, no un glitch.
+        g.drops = 0;
+        speechSeenRef.current = false;
+        return;
+      }
+      const now = Date.now();
+      g.drops = now - g.lastDropAt < FLAP_WINDOW_MS ? g.drops + 1 : 1;
+      g.lastDropAt = now;
+      if (g.drops >= MAX_SILENT_DROPS) {
+        // Tope de reintentos sin habla: corta el bucle y hazlo VISIBLE.
+        g.drops = 0;
+        wantListenRef.current = false;
+        try { engineRef.current?.stop(); } catch { /* */ }
+        setVoiceUnavailable(true);
+      }
+    }
+  }, [engine.listening]);
+
+  // Habla real detectada → el ciclo es sano: resetea el contador de caídas.
+  useEffect(() => {
+    if (engine.interim || engine.transcript) {
+      speechSeenRef.current = true;
+      guardRef.current.drops = 0;
+    }
+  }, [engine.interim, engine.transcript]);
+
+  // ── Emisor de conversación: un CustomEvent por CADA mensaje (voz o texto) ──
+  // detail = { role: "user" | "aurora", text, ts }. Diff por identidad de las
+  // entradas (el motor reutiliza los objetos al anexar), robusto al ring buffer.
+  const seenConvoRef = useRef<WeakSet<ConversationEntry> | null>(null);
+  if (seenConvoRef.current === null) seenConvoRef.current = new WeakSet();
+  const convoInitRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const seen = seenConvoRef.current!;
+    const list = engine.conversation || [];
+    if (!convoInitRef.current) {
+      // Primer render: marca lo existente sin re-emitir historial.
+      convoInitRef.current = true;
+      for (const m of list) seen.add(m);
+      return;
+    }
+    for (const m of list) {
+      if (seen.has(m)) continue;
+      seen.add(m);
+      try {
+        window.dispatchEvent(
+          new CustomEvent(AURORA_CONVERSATION_EVENT, {
+            detail: { role: m.role, text: m.text, ts: m.at },
+          }),
+        );
+      } catch { /* */ }
+    }
+  }, [engine.conversation]);
+
+  // Motor supervisado: mismo contrato + estado de voz no disponible.
+  const supervised = useMemo<AuroraSupervisedEngine>(
+    () => ({
+      ...engine,
+      start: superStart,
+      stop: superStop,
+      toggle: superToggle,
+      voiceUnavailable,
+      retryVoice,
+    }),
+    [engine, superStart, superStop, superToggle, voiceUnavailable, retryVoice],
+  );
+  const supervisedRef = useRef<AuroraSupervisedEngine>(supervised);
+  supervisedRef.current = supervised;
+
   // ── Auto-inicio: Aurora saluda y se ofrece a guiar/actuar (como el Café). ──
   // Voz no bloqueante y descartable: solo habla si Aurora está activa, hay
   // sesión iniciada y no saludó recientemente. Nunca interrumpe la navegación.
+  // DEFENSIVO SIN SESIÓN: en /login u onboarding simplemente no saluda.
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
@@ -121,12 +331,12 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       interrupt: () => engineRef.current?.interrupt(),
       /** Hace hablar a Aurora (TTS) con un texto dado. */
       speak: (text: string) => engineRef.current?.speak(text),
-      /** Activa/pausa/interrumpe la voz (mismo gesto que el tap del orbe). */
-      toggle: () => engineRef.current?.toggle(),
-      /** Enciende/inicia la escucha continua de Aurora. */
-      start: () => engineRef.current?.start(),
-      /** Detiene la escucha de Aurora. */
-      stop: () => engineRef.current?.stop(),
+      /** Activa/pausa/interrumpe la voz — SUPERVISADO (sin bucles de arranque). */
+      toggle: () => supervisedRef.current?.toggle(),
+      /** Enciende la escucha continua — SUPERVISADO (backoff + watchdog). */
+      start: () => supervisedRef.current?.start(),
+      /** Detiene la escucha — SUPERVISADO (apaga el keep-alive interno). */
+      stop: () => supervisedRef.current?.stop(),
       /** Enciende/apaga Aurora globalmente (persistido). */
       setEnabled: (v: boolean) => engineRef.current?.setEnabled(v),
       /**
@@ -151,6 +361,8 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
           actionLog: e.actionLog,
           activePersonality: e.activePersonality,
           personalities: e.personalities,
+          // Aditivo (v4): estado del supervisor de voz.
+          voiceUnavailable: supervisedRef.current?.voiceUnavailable ?? false,
         };
       },
       /**
@@ -168,7 +380,7 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
         return () => subscribers.delete(cb);
       },
       /** Versión del puente, para que la extensión negocie compatibilidad. */
-      version: 3 as const,
+      version: 4 as const,
     };
 
     try {
@@ -235,16 +447,17 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     engine.supported, engine.enabled, engine.listening, engine.speaking, engine.paused,
     engine.interim, engine.transcript, engine.lastReply, engine.actionStatus,
     engine.conversation, engine.actionLog, engine.activePersonality, engine.personalities,
+    voiceUnavailable,
   ]);
 
-  return <AuroraContext.Provider value={engine}>{children}</AuroraContext.Provider>;
+  return <AuroraContext.Provider value={supervised}>{children}</AuroraContext.Provider>;
 }
 
 /**
- * Acceso al motor de Aurora. Devuelve `null` si no hay provider montado;
- * los consumidores deben degradar con elegancia.
+ * Acceso al motor de Aurora (supervisado). Devuelve `null` si no hay provider
+ * montado; los consumidores deben degradar con elegancia.
  */
-export function useAurora(): AuroraEngine | null {
+export function useAurora(): AuroraSupervisedEngine | null {
   return useContext(AuroraContext);
 }
 
