@@ -135,7 +135,9 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'hub',           label: 'Hub',                 iconKey: 'Users',           path: '/hub',                   color: 'emerald', enabled: true,  origin: 'preset' },
   { id: 'mylib',         label: 'Librería · Biblioteca', iconKey: 'Library',        path: '/library',               color: 'cyan',    enabled: true,  origin: 'preset' },
   { id: 'netlib',        label: 'Librería Global',     iconKey: 'Library',         path: '/library?tab=explorar',  color: 'cyan',    enabled: false, origin: 'preset' },
-  { id: 'nodes',         label: 'Red · Nodos',        iconKey: 'Network',         path: '/hub?tab=red',           color: 'crimson', enabled: true,  origin: 'preset' },
+  // Red·Nodos ya NO es botón del dock (pedido del usuario): vive dentro del
+  // Hub (/hub?tab=red). Queda en el catálogo por si alguien lo quiere de vuelta.
+  { id: 'nodes',         label: 'Red · Nodos',        iconKey: 'Network',         path: '/hub?tab=red',           color: 'crimson', enabled: false, origin: 'preset' },
   // ── IA: UN solo botón a la página principal por defecto ──
   { id: 'ai-studio',     label: 'Astraura AI',           iconKey: 'BrainCircuit',    path: '/agent',                 color: 'purple',  enabled: true,  origin: 'preset' },
   { id: 'settings',      label: 'Ajustes',             iconKey: 'Settings',        path: '/settings',              color: 'neutral', enabled: true,  origin: 'preset' },
@@ -148,8 +150,9 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'conocimiento',  label: 'Conocimiento',        iconKey: 'Lightbulb',       path: '/conocimiento',          color: 'cyan',    enabled: false, origin: 'preset' },
   { id: 'cerebros',      label: 'Cerebros',            iconKey: 'Cpu',             path: '/cerebros',              color: 'purple',  enabled: false, origin: 'preset' },
   { id: 'cerebro',       label: 'Cerebro',             iconKey: 'Brain',           path: '/cerebro',               color: 'purple',  enabled: true,  origin: 'preset' },
-  // La Tienda vive DENTRO de la Librería (pestaña propia), no como ruta suelta.
-  { id: 'tienda',        label: 'Tienda',              iconKey: 'ShoppingBag',     path: '/library?tab=tienda',    color: 'emerald', enabled: false, origin: 'preset' },
+  // La Tienda DESAPARECIÓ como concepto: sus funciones viven fundidas en la
+  // pestaña «Explorar» de la Librería (/library). El item 'tienda' se retiró
+  // del catálogo y la migración v5 lo purga de las configs guardadas.
   { id: 'insignias',     label: 'Insignias',           iconKey: 'Award',           path: '/insignias',             color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'apps-ia',       label: 'Apps IA',             iconKey: 'AppWindow',       path: '/apps-ia',               color: 'emerald', enabled: false, origin: 'preset' },
   // AR/VR es ahora una función AUTOMÁTICA/contextual del OS (se activa donde
@@ -314,6 +317,74 @@ function applyDockFusionMigrationV4(saved: DockItemConfig[] | null): DockItemCon
   return saved ? migrated : null;
 }
 
+/**
+ * Migración one-shot v5 — LIBRERÍA SIN TIENDA + dock depurado.
+ *
+ * Autorizada por el usuario (2026-07): la Tienda desapareció como concepto
+ * (vive fundida en «Explorar» de la Librería) y Red·Nodos dejó de ser botón
+ * del dock (vive dentro del Hub). Sobre la config GUARDADA del usuario:
+ *   (a) QUITA los items preset 'tienda', 'nodes' y 'netlib'. Lo creado por
+ *       el usuario (origin:'user') se conserva SIEMPRE, aunque coincida el id.
+ *   (b) INSERTA 'escritorios' habilitado al inicio si falta (y lo habilita
+ *       si estaba apagado): es la puerta principal del OS.
+ *   (c) PURGA de las carpetas guardadas los ids huérfanos (referencias a
+ *       items que ya no existen, p. ej. 'tienda').
+ *   (d) Persiste (solo si había config guardada) y deja la marca one-shot.
+ *
+ * Defensiva y SSR-safe: en el servidor no hace nada; ante storage corrupto
+ * degrada sin lanzar. Sin config guardada solo purga carpetas + marca.
+ */
+const DOCK_MIGRATION_V5_KEY = 'starseed.dock.items.migrated.v5';
+/** Presets retirados del dock en v5 (la Tienda ya ni existe en el catálogo). */
+const RETIRED_PRESETS_V5 = new Set<string>(['tienda', 'nodes', 'netlib']);
+
+function applyDockLibraryMigrationV5(items: DockItemConfig[], hadSaved: boolean): DockItemConfig[] {
+  if (typeof window === 'undefined') return items;
+  try {
+    if (window.localStorage.getItem(DOCK_MIGRATION_V5_KEY)) return items;
+  } catch {
+    return items;
+  }
+
+  let migrated = items;
+
+  if (hadSaved) {
+    // (a) Fuera 'tienda'/'nodes'/'netlib' de la config guardada (solo presets;
+    //     los accesos origin:'user' son intocables).
+    migrated = migrated.filter((it) => !(RETIRED_PRESETS_V5.has(it.id) && it.origin !== 'user'));
+
+    // (b) 'escritorios' habilitado al inicio si falta; habilitado si estaba off.
+    const esc = migrated.find((i) => i.id === 'escritorios');
+    if (!esc) {
+      const preset = DOCK_PRESETS.find((p) => p.id === 'escritorios');
+      if (preset) migrated = [{ ...preset, enabled: true }, ...migrated];
+    } else if (!esc.enabled) {
+      migrated = migrated.map((i) => (i.id === 'escritorios' ? { ...i, enabled: true } : i));
+    }
+  }
+
+  // (c) Carpetas: purga ids huérfanos (items que ya no existen tras la v5).
+  try {
+    const validIds = new Set(migrated.map((i) => i.id));
+    const rawFolders = window.localStorage.getItem(FOLDERS_KEY);
+    if (rawFolders) {
+      const folders = loadDockFolders().map((f) => ({
+        ...f,
+        itemIds: f.itemIds.filter((id) => validIds.has(id)),
+      }));
+      saveDockFolders(folders);
+    }
+  } catch { /* noop: las carpetas no deben impedir la migración */ }
+
+  // (d) Persistir y marcar.
+  try {
+    if (hadSaved) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+    window.localStorage.setItem(DOCK_MIGRATION_V5_KEY, '1');
+  } catch { /* noop */ }
+
+  return migrated;
+}
+
 export function loadDockConfig(): DockItemConfig[] {
   if (typeof window === 'undefined') return DOCK_PRESETS;
   try {
@@ -322,19 +393,21 @@ export function loadDockConfig(): DockItemConfig[] {
     const saved = Array.isArray(parsed) ? (parsed as DockItemConfig[]) : null;
 
     // Migración v4 (one-shot): si se ejecuta ahora, su resultado ya está
-    // persistido y ES la lista final de esta carga.
+    // persistido; la v5 se aplica encima (quita Tienda/Red·Nodos del dock).
     const fused = applyDockFusionMigrationV4(saved);
-    if (fused) return fused;
+    if (fused) return applyDockLibraryMigrationV5(fused, true);
 
     if (saved) {
       // Flujo normal (post-migración): cualquier preset nuevo se añade al
-      // final como deshabilitado, y se aplica la migración v3 legada.
+      // final como deshabilitado, se aplica la migración v3 legada y la v5.
       const known = new Set(saved.map((i) => i.id));
       const missing = DOCK_PRESETS.filter((p) => !known.has(p.id)).map((p) => ({ ...p, enabled: false }));
-      return applyOneShotMigration([...saved, ...missing]);
+      return applyDockLibraryMigrationV5(applyOneShotMigration([...saved, ...missing]), true);
     }
   } catch { /* noop */ }
-  return DOCK_PRESETS;
+  // Sin config guardada: presets vivos (ya sin 'tienda'); la v5 solo purga
+  // carpetas huérfanas y deja su marca.
+  return applyDockLibraryMigrationV5(DOCK_PRESETS, false);
 }
 
 export function saveDockConfig(items: DockItemConfig[]) {

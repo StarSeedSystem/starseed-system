@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePerimeter } from "@/context/perimeter-context";
+import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
+import { ensureAuroraChatLogRecorder } from "@/lib/aurora/aurora-chat-log";
 import {
     Sparkles, Brain, Globe, Users, BookOpen, Palette, Cpu, Search,
     ArrowRight, BrainCircuit, Bot, Server, Settings, Plus, ChevronDown,
@@ -107,7 +109,7 @@ const DEFAULT_CONNECTIONS: AIConnection[] = [
 ];
 
 export function ZenithCurtain() {
-    const { activeEdge } = usePerimeter();
+    const { activeEdge, setActiveEdge } = usePerimeter();
     const isActive = activeEdge === 'zenith';
     const [query, setQuery] = useState("");
     const [activeDomain, setActiveDomain] = useState<Domain>('ALL');
@@ -124,6 +126,23 @@ export function ZenithCurtain() {
     // Vista principal del Exocórtex: buscador universal, el Cerebro 3D (con chat
     // IA) o el Chat de Aurora (voz + multichat + configuraciones del widget).
     const [mainView, setMainView] = useState<"buscar" | "cerebro" | "aurora">("buscar");
+
+    // Apertura remota: el orbe/widget de Aurora (o cualquier superficie del OS)
+    // dispara `starseed:open-aurora-exocortex` → abrimos la cortina Zenith con
+    // la sección Aurora ENFOCADA (mismo patrón de secciones de la cortina).
+    // Además arrancamos aquí el registrador del historial de Aurora
+    // (localStorage) porque la cortina vive SIEMPRE montada en el layout raíz:
+    // así el "Registro" captura la conversación aunque la cortina esté cerrada.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        ensureAuroraChatLogRecorder();
+        const onOpenAurora = () => {
+            setMainView("aurora");
+            try { setActiveEdge("zenith"); } catch { /* defensivo */ }
+        };
+        window.addEventListener(AURORA_EXOCORTEX_OPEN_EVENT, onOpenAurora);
+        return () => window.removeEventListener(AURORA_EXOCORTEX_OPEN_EVENT, onOpenAurora);
+    }, [setActiveEdge]);
 
     const toggleSense = (id: string) => {
         setSenses(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
@@ -423,11 +442,13 @@ export function ZenithCurtain() {
                                     </div>
                                 )}
 
-                                {/* Chat de Aurora — chat completo del widget (voz + multichat +
-                                    sentidos + reactivación del orbe) integrado en el Exocórtex. */}
+                                {/* Aurora — TODO su sistema de chats/funciones (voz + multichat +
+                                    sentidos + registro + guía contextual + reactivación del orbe)
+                                    integrado en el Exocórtex. Se enfoca solo al recibir el evento
+                                    `starseed:open-aurora-exocortex` (orbe / paleta de comandos). */}
                                 {mainView === "aurora" && (
                                     <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto custom-scrollbar">
-                                        <div className="mx-auto w-full max-w-2xl px-4 md:px-6 py-5">
+                                        <div className="mx-auto w-full max-w-3xl px-4 md:px-6 py-5">
                                             <AuroraChatSection />
                                         </div>
                                     </div>

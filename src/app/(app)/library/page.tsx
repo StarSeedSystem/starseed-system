@@ -4,19 +4,25 @@
 export const dynamic = "force-dynamic";
 
 // ══════════════════════════════════════════════════════════════════
-// Librería / Biblioteca UNIFICADA (#129 + parte de #130)
+// Librería / Biblioteca DEFINITIVA (#129 + #130 · sin Tienda)
 // ------------------------------------------------------------------
 // Un único destino que fusiona:
-//   • Explorar  → Librería global (conocimiento + archivos de la red).
+//   • Explorar  → catálogo unificado con taxonomía clara (Apps · Widgets ·
+//                Layouts · Archivos · Fuentes · Cursores · Gestos táctiles ·
+//                Comandos) + Apps del ecosistema StarSeed destacadas +
+//                intercambio de recursos (publicar/instalar/valorar) +
+//                conocimiento y archivos de la red.
 //   • Mi Biblioteca → espacio personal (archivos + recursos guardados).
-//   • Tienda   → la antigua Tienda ABSORBIDA (publicar/instalar/valorar).
 //   • Fuentes  → catálogo de fuentes (GitHub, Dribbble, 21st.dev, v0.app,
 //               mcpmarket…) + selector de servidor/almacenamiento/cerebros.
 //   • Actualizaciones → novedades + alternativas/recomendaciones por cerebro.
 //
-// Al TOPE: tarjeta de descarga de la ÚLTIMA versión de StarSeed OS.
-// Cada tarjeta de app/archivo abre una ficha tipo App Store (AppFilePage).
-// La ruta /store se retira (redirige a /library?tab=store).
+// La "Tienda" DESAPARECE como concepto visible: sus funciones viven
+// fundidas en Explorar. /store redirige a /library y ?tab=tienda|store
+// aterriza en Explorar. Nada se pierde.
+//
+// Al TOPE: franja de descarga de la ÚLTIMA versión de StarSeed OS con
+// «Ver ficha» rica. Cada tarjeta abre ficha tipo App Store (AppFilePage).
 //
 // Aditivo/defensivo: se conserva TODA la data existente; localStorage y
 // Supabase van guardados; estética glass, responsive, español.
@@ -86,6 +92,8 @@ import { LibraryStorePanel } from "@/components/library/library-store-panel";
 import { LibraryUpdatesPanel } from "@/components/library/library-updates-panel";
 import { InstallButton } from "@/components/welcome/install-button";
 import { AppFilePage, type LibraryDetailItem } from "@/components/library/app-file-page";
+import { LibraryCatalog, starseedAppToDetail } from "@/components/library/library-catalog";
+import { STARSEED_APP_LISTINGS } from "@/data/starseed-apps-listings";
 import { articles, courses, files } from "@/lib/data";
 import { samplePages } from "@/data/sample-entities";
 
@@ -101,7 +109,7 @@ type ViewMode = "GRID" | "LIST";
 type AssetType = "FILE" | "FOLDER" | "LIBRARY" | "PROGRAM" | "PAGE" | "CONCEPT";
 type ResourceType = "todos" | "articulos" | "cursos" | "documentos" | "comunidades";
 type SortMode = "recientes" | "valorados" | "populares";
-type LibraryTab = "explorar" | "personal" | "store" | "fuentes" | "updates";
+type LibraryTab = "explorar" | "personal" | "fuentes" | "updates";
 
 interface AssetItem {
   id: string;
@@ -154,40 +162,72 @@ interface UnifiedResource {
   status?: string;
 }
 
+// ── Tipado LOCAL de las colecciones de @/lib/data ──
+// Hoy `articles/courses/files` son arrays vacíos (inferidos como never[]),
+// lo que rompía el acceso a propiedades. Les damos forma estable aquí sin
+// tocar lib/data: si algún día traen datos, esta forma es la esperada.
+interface KnownArticle {
+  id: string;
+  title: string;
+  author?: string;
+  excerpt?: string;
+  tags?: string[];
+  href?: string;
+  rating?: number;
+  likes?: number;
+}
+interface KnownCourse {
+  id: string;
+  title: string;
+  description?: string;
+  tags?: string[];
+  href?: string;
+}
+interface KnownFile {
+  id: string | number;
+  name: string;
+  type?: string;
+  date?: string;
+}
+
+const KNOWN_ARTICLES = articles as unknown as KnownArticle[];
+const KNOWN_COURSES = courses as unknown as KnownCourse[];
+const KNOWN_FILES = files as unknown as KnownFile[];
+
 function buildUnifiedResources(): UnifiedResource[] {
   const result: UnifiedResource[] = [];
 
-  for (const a of articles) {
+  for (const a of KNOWN_ARTICLES) {
     result.push({
       id: a.id,
       kind: "articulos",
       title: a.title,
       author: a.author,
       description: a.excerpt,
-      tags: a.tags,
-      href: a.href,
+      tags: a.tags ?? [],
+      href: a.href ?? "#",
       rating: a.rating,
       likes: a.likes,
       modified: "reciente",
     });
   }
-  for (const c of courses) {
+  for (const c of KNOWN_COURSES) {
     result.push({
       id: c.id,
       kind: "cursos",
       title: c.title,
       description: c.description,
-      tags: c.tags,
-      href: c.href,
+      tags: c.tags ?? [],
+      href: c.href ?? "#",
       modified: "reciente",
     });
   }
-  for (const f of files) {
+  for (const f of KNOWN_FILES) {
     result.push({
       id: String(f.id),
       kind: "documentos",
       title: f.name,
-      tags: [f.type],
+      tags: f.type ? [f.type] : [],
       href: "#",
       modified: f.date,
     });
@@ -354,7 +394,8 @@ function ResourceCard({
 
 // ══════════════════════════════════════════════════════════════════
 // MIS RECURSOS GUARDADOS — interconexión aditiva (Módulo 8)
-// Lo que se instala desde la Tienda (ahora dentro de la Librería) aterriza aquí.
+// Lo que se instala desde Explorar (apps, cursores, gestos, comandos,
+// recursos del intercambio…) aterriza aquí.
 // ══════════════════════════════════════════════════════════════════
 
 const SAVED_KIND_LABEL: Record<string, string> = {
@@ -367,6 +408,11 @@ const SAVED_KIND_LABEL: Record<string, string> = {
   diseno: "Diseño",
   pagina: "Página",
   ego: "Ego de Aurora",
+  cursor: "Cursor",
+  gesto: "Gesto táctil",
+  comando: "Lista de comandos",
+  layout: "Layout",
+  widget: "Widget",
 };
 
 function savedKindLabel(kind: string): string {
@@ -473,7 +519,7 @@ function SavedResourceCard({
   );
 }
 
-function SavedResourcesPanel({ onGoStore }: { onGoStore: () => void }) {
+function SavedResourcesPanel({ onGoExplore }: { onGoExplore: () => void }) {
   const { items, remove } = useSavedLibrary();
 
   return (
@@ -486,13 +532,13 @@ function SavedResourcesPanel({ onGoStore }: { onGoStore: () => void }) {
           <div>
             <h2 className="text-[clamp(1.25rem,2.5vw,1.75rem)] font-bold font-headline text-indigo-200">Mis recursos guardados</h2>
             <p className="text-xs text-muted-foreground max-w-2xl">
-              Tus recursos soberanos (guardados o instalados desde la Tienda de la Librería). Invócalos en un lienzo,
+              Tus recursos soberanos (guardados o instalados desde Explorar). Invócalos en un lienzo,
               adjúntalos a una publicación o envíalos por mensaje.
             </p>
           </div>
         </div>
-        <Button variant="outline" className="gap-2 border-indigo-500/30 text-indigo-200 hover:bg-indigo-500/10 cursor-pointer shrink-0" onClick={onGoStore}>
-          <Package className="w-4 h-4" /> Explorar la Tienda
+        <Button variant="outline" className="gap-2 border-indigo-500/30 text-indigo-200 hover:bg-indigo-500/10 cursor-pointer shrink-0" onClick={onGoExplore}>
+          <Compass className="w-4 h-4" /> Explorar la Librería
         </Button>
       </div>
 
@@ -500,9 +546,9 @@ function SavedResourcesPanel({ onGoStore }: { onGoStore: () => void }) {
         <div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground border border-dashed border-white/10 rounded-3xl bg-white/5">
           <Bookmark className="w-10 h-10 mb-3 opacity-25" />
           <p className="text-sm">Aún no has guardado recursos.</p>
-          <p className="text-xs mt-1">Guarda recursos del explorador o instala desde la Tienda: aterrizarán aquí.</p>
-          <Button variant="outline" size="sm" className="mt-4 gap-2 border-indigo-500/30 text-indigo-200 hover:bg-indigo-500/10 cursor-pointer" onClick={onGoStore}>
-            <Package className="w-3.5 h-3.5" /> Ir a la Tienda
+          <p className="text-xs mt-1">Guarda o instala desde Explorar (apps, cursores, gestos, comandos…): aterrizarán aquí.</p>
+          <Button variant="outline" size="sm" className="mt-4 gap-2 border-indigo-500/30 text-indigo-200 hover:bg-indigo-500/10 cursor-pointer" onClick={onGoExplore}>
+            <Compass className="w-3.5 h-3.5" /> Ir a Explorar
           </Button>
         </div>
       ) : (
@@ -922,7 +968,10 @@ function formatBuildDate(build: string): string {
   }
 }
 
-function OsDownloadStrip() {
+/** Listado oficial del OS (para la ficha rica de la franja de descarga). */
+const OS_APP_LISTING = STARSEED_APP_LISTINGS.find((a) => a.id === "starseed-os");
+
+function OsDownloadStrip({ onOpenDetail }: { onOpenDetail: (item: LibraryDetailItem) => void }) {
   return (
     <GlassCard
       variant="hover"
@@ -947,6 +996,16 @@ function OsDownloadStrip() {
               dispositivo (Android, iOS, escritorio) o ábrela en la web oficial.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              {OS_APP_LISTING && (
+                <button
+                  type="button"
+                  onClick={() => onOpenDetail(starseedAppToDetail(OS_APP_LISTING))}
+                  className="inline-flex items-center gap-1 font-semibold text-emerald-200 hover:text-emerald-100 hover:underline cursor-pointer"
+                  title="Ficha completa del OS: versiones, enlaces y apps relacionadas"
+                >
+                  <Sparkles className="h-3 w-3" /> Ver ficha
+                </button>
+              )}
               <a
                 href={OS_WEB_URL}
                 target="_blank"
@@ -998,16 +1057,15 @@ function OsDownloadStrip() {
 // ══════════════════════════════════════════════════════════════════
 
 // Mapea `?view=` (compat) y `?tab=` a una pestaña.
+// La Tienda ya no existe: cualquier enlace antiguo (?tab=store|tienda o
+// ?view=store|tienda) aterriza en Explorar, donde viven sus funciones.
 function resolveInitialTab(view: string | null, tab: string | null): LibraryTab {
   const t = (tab ?? "").toLowerCase();
-  if (t === "explorar" || t === "personal" || t === "store" || t === "fuentes" || t === "updates") {
+  if (t === "explorar" || t === "personal" || t === "fuentes" || t === "updates") {
     return t as LibraryTab;
   }
-  // Compat con la Tienda antigua: /library?tab=tienda o ?view=store/tienda.
-  if (t === "tienda" || t === "tienda-store") return "store";
   const v = (view ?? "").toLowerCase();
   if (v === "personal") return "personal";
-  if (v === "store" || v === "tienda") return "store";
   if (v === "fuentes" || v === "sources") return "fuentes";
   if (v === "updates" || v === "actualizaciones") return "updates";
   return "explorar";
@@ -1031,7 +1089,9 @@ function LibraryContent() {
     setTab(resolveInitialTab(searchParams.get("view"), searchParams.get("tab")));
   }, [searchParams]);
 
-  const goStore = () => setTab("store");
+  const goExplore = () => setTab("explorar");
+  const goFuentes = () => setTab("fuentes");
+  const goPersonal = () => setTab("personal");
 
   return (
     <div className="flex flex-col gap-[clamp(1.5rem,3vw,2.5rem)] min-h-screen pb-24 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] w-full mx-auto">
@@ -1041,13 +1101,13 @@ function LibraryContent() {
           Librería · Biblioteca
         </h1>
         <p className="text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground max-w-3xl text-balance w-full text-center md:text-left">
-          Un solo lugar para el conocimiento de la red, tu espacio personal, la Tienda de recursos,
-          las fuentes conectadas y las actualizaciones inteligentes.
+          Un solo lugar para las apps y recursos del ecosistema, el conocimiento de la red,
+          tu espacio personal, las fuentes conectadas y las actualizaciones inteligentes.
         </p>
       </div>
 
-      {/* Descarga del OS — SIEMPRE arriba (build real, PWA y código fuente) */}
-      <OsDownloadStrip />
+      {/* Descarga del OS — SIEMPRE arriba (build real, PWA, código y ficha) */}
+      <OsDownloadStrip onOpenDetail={openDetail} />
 
       {/* Pestañas */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as LibraryTab)} className="w-full">
@@ -1058,9 +1118,6 @@ function LibraryContent() {
           <TabsTrigger value="personal" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
             <Lock className="w-4 h-4" /> Mi Biblioteca
           </TabsTrigger>
-          <TabsTrigger value="store" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
-            <Package className="w-4 h-4" /> Tienda
-          </TabsTrigger>
           <TabsTrigger value="fuentes" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
             <BookMarked className="w-4 h-4" /> Fuentes
           </TabsTrigger>
@@ -1069,12 +1126,19 @@ function LibraryContent() {
           </TabsTrigger>
         </TabsList>
 
-        {/* EXPLORAR — Librería global */}
+        {/* EXPLORAR — catálogo unificado + intercambio + conocimiento */}
         <TabsContent value="explorar" className="mt-6 flex flex-col gap-[clamp(1.5rem,3vw,2.5rem)]">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Globe className="w-4 h-4 text-indigo-300" />
-            Librería Global — conocimiento y recursos compartidos por toda la red StarSeed.
+            Librería Global — apps, recursos y conocimiento compartidos por toda la red StarSeed.
           </div>
+
+          {/* Jerarquía: buscador → chips de categorías → destacados → grid */}
+          <LibraryCatalog onOpenDetail={openDetail} onGoFuentes={goFuentes} onGoPersonal={goPersonal} />
+
+          {/* Intercambio de recursos de la comunidad (publicar/instalar/valorar) */}
+          <LibraryStorePanel onOpenDetail={openDetail} />
+
           <KnowledgeExplorer onOpenDetail={openDetail} />
           <FileSystemExplorer mode="GLOBAL" />
           <div className="w-full mt-2">
@@ -1091,13 +1155,8 @@ function LibraryContent() {
             <Lock className="w-4 h-4 text-emerald-300" />
             Tu espacio personal seguro para archivos, ideas y proyectos.
           </div>
-          <SavedResourcesPanel onGoStore={goStore} />
+          <SavedResourcesPanel onGoExplore={goExplore} />
           <FileSystemExplorer mode="PERSONAL" />
-        </TabsContent>
-
-        {/* TIENDA — absorbida */}
-        <TabsContent value="store" className="mt-6">
-          <LibraryStorePanel onOpenDetail={openDetail} />
         </TabsContent>
 
         {/* FUENTES + servidor/almacenamiento/cerebros */}

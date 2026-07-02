@@ -1,16 +1,17 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════
-// LibraryStorePanel — La antigua "Tienda", ahora DENTRO de la Librería
+// LibraryStorePanel — Intercambio de Recursos, FUNDIDO en «Explorar»
 // ----------------------------------------------------------------
-// Absorbe TODO lo que hacía la Tienda (Módulo 12 · Economía del Regalo):
+// Economía del Regalo (Módulo 12) dentro de la Librería:
 //   • Publicar creaciones (apps, personalidades, lienzos, cerebros).
 //   • Instalar un item → Biblioteca soberana (library-store).
 //   • Valorar (ratings) y ver descargas.
 //   • Items reales de Supabase en tiempo real (store_items) con degradación.
 //
-// Nada de la Tienda se pierde: se convierte en una vista de la Librería.
-// La ruta /store se retira (redirige a /library?tab=store).
+// El concepto "Tienda" desapareció como destino: este panel vive como
+// sección de Explorar. La ruta /store redirige a /library. Se conservan
+// los exports (LibraryStorePanel + default) para no romper imports.
 //
 // Aditivo/defensivo: never-throw, SSR-safe (consultas tras montar), glass.
 // Al INSTALAR abre un evento para que la Librería refresque "Mis recursos".
@@ -137,7 +138,7 @@ function StarRating({
 }
 
 export interface LibraryStorePanelProps {
-  /** Abre la ficha (tipo App Store) de un item de la Tienda. */
+  /** Abre la ficha (tipo App Store) de un item del intercambio. */
   onOpenDetail?: (item: LibraryDetailItem) => void;
 }
 
@@ -157,7 +158,7 @@ function storeItemToDetail(item: StoreItem): LibraryDetailItem {
     downloads: item.downloads,
     verified: item.verified,
     cover: coverFor(item),
-    sourceLabel: "Tienda StarSeed",
+    sourceLabel: "Comunidad StarSeed",
     fileKind: item.source_kind ?? item.category,
     origin: "store",
     storeItem: item,
@@ -317,8 +318,8 @@ export function LibraryStorePanel({ onOpenDetail }: LibraryStorePanelProps) {
           </Badge>
         </div>
         <p className="text-sm text-muted-foreground max-w-3xl">
-          Todo es libre. Publica, instala en tu Biblioteca, valora y mejora activos digitales.
-          Antes era la Tienda; ahora forma parte de la Librería: nada se pierde.
+          Todo es libre. Publica, instala en tu Biblioteca, valora y mejora los activos digitales
+          que comparte la comunidad. Nada se compra ni se vende: se regala.
         </p>
       </div>
 
