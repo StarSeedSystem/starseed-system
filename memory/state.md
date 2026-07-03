@@ -1655,3 +1655,14 @@ Construido con 7 subagentes en 3 olas (archivos disjuntos) + integración del or
 - tsc 376 = baseline en todas las tandas (0 nuevos). Deploys: be0a9c4 (crítico) · 222329a (globo+trinity) · e3be1c4 (cross-browser+exocórtex+wake-word).
 
 **Pendiente:** STT open-source (Whisper/Moonshine transformers.js) como fallback para navegadores sin SpeechRecognition; VAD barge-in; QA visual por tamaño real.
+
+---
+## Adenda 51 — 2026-07-02 (noche) · Aurora arranque pasivo · singleton/líder · AI Studio reorg · guía (deploys cdff4bc→577c564)
+
+- **Arranque PASIVO y silencioso (petición):** quitados AMBOS saludos automáticos (requestAccess + autonomía). Aurora deja micrófono/sentidos listos en 2º plano pero NO habla al inicio, NO abre chat/reproductor, sin sonido de reinicio; habla SOLO tras hablarle/escribirle. aurora-widget: `bubbleMentioned = !!interim` (antes `visListening||interim`) → el globo aparece solo con habla real o a petición, no por escucha pasiva.
+- **Doble Aurora → una sola:** (1) guard singleton del STT a nivel de módulo en engine.ts (`sttOwner` symbol; solo una instancia reconoce → no se duplican acciones; se libera en stop/unmount). (2) `single-instance.ts`: elección de LÍDER entre pestañas (heartbeat localStorage 2s, stale 5s, relevo en focus/visibility/storage/unload). Provider: solo la líder arranca la escucha; al perder liderazgo superStop, al ganarlo superStart. → "solo puede haber una Aurora" que administra todo.
+- **AI Studio (/agent) reorganizado:** ~40 pestañas sueltas → 9 secciones de configuración con navegador de 2 niveles (rail lateral desktop / tira .ss-hscroll móvil); fix desbordes de bordes (max-w/box-border/safe-area/scroll contenido; selects del chat con wrap); tarjeta "cerebro compartido Astraura/Aurora/Exocórtex" con enlace ('starseed:open-aurora-exocortex'). Deep-links ?tab= preservados. Único archivo: app/(app)/agent/page.tsx.
+- **Guía dinámica** (onboarding/aurora-guide.tsx, global): 11 pasos (orbe, 4 Trinity, Escritorio, Dashboard, Astraura, Perfil, Cerebros, Librería) con spotlight defensivo, modos Acompáñame/Hazlo-por-mí, auto-avance+reduced-motion; arranca en primera visita ('starseed.guide.seen.v1') y reabrible ('starseed:open-guide'/window.openStarseedGuide/botón Guía); nuevos y existentes.
+- tsc 376 = baseline en todo. Deploys: cdff4bc (arranque pasivo+singleton) · 0cde608 (AI Studio) · ba82d47 (guía) · 577c564 (líder única).
+
+**Pendiente:** #10 portar Aurora/Astraura a Nexus y Café (repos vanilla JS aparte): voz auto silenciosa desde inicio, 1 toque=voz sin chat, mantener pulsado=ventana chat+reproducción (no menú Trinity), botón movible por esquinas snap, no eliminable, enlaces a todos los sistemas. También: chats de Aurora en pantalla completa + ramificación de contextos + contexto compartido Exocórtex↔AI Studio; ampliar edición de pantalla/tareas en 2º plano; investigar OSS (Whisper/Moonshine/VAD) para asistente completo.

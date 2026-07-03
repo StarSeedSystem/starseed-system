@@ -192,6 +192,14 @@ export function useAuroraEngine(): AuroraEngine {
   const sttRestartsRef = useRef<number>(0);
   const sttLastResultAtRef = useRef<number>(0);
   const sttRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Supresión de ECO (anti auto-detección) ──
+  // Mientras Aurora HABLA (TTS), el micrófono capta su propia voz y la procesaba
+  // como comando → se respondía a sí misma → loop y "duplicación". Con esto el
+  // reconocimiento IGNORA lo que oye mientras Aurora habla y durante un breve
+  // cooldown tras terminar (cola de eco). El canal del micrófono SIGUE ABIERTO
+  // (no se reinicia) — solo se descarta el texto propio.
+  const echoSuppressRef = useRef<boolean>(false);
+  const echoUntilRef = useRef<number>(0);
   // Índice del historial para Adelantar/Retroceder (-1 = última respuesta).
   const historyIndexRef = useRef<number>(-1);
   // Espejo del historial de respuestas, para el transporte sin depender del render.
@@ -306,11 +314,24 @@ export function useAuroraEngine(): AuroraEngine {
         || all.find((x) => (x.lang || "").toLowerCase().startsWith("es"))
         || null;
       if (v) u.voice = v;
-      u.onstart = () => { setSpeaking(true); setPaused(false); emitAuroraSpeak("start"); };
+      u.onstart = () => {
+        setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+        // Silencia el reconocimiento de su propia voz (anti-eco).
+        echoSuppressRef.current = true;
+      };
       // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
       u.onboundary = () => emitAuroraSpeak("boundary");
-      u.onend = () => { setSpeaking(false); emitAuroraSpeak("end"); };
-      u.onerror = () => { setSpeaking(false); emitAuroraSpeak("end"); };
+      u.onend = () => {
+        setSpeaking(false); emitAuroraSpeak("end");
+        // Cooldown de ~700ms tras hablar para descartar la cola de eco.
+        echoSuppressRef.current = false;
+        echoUntilRef.current = Date.now() + 700;
+      };
+      u.onerror = () => {
+        setSpeaking(false); emitAuroraSpeak("end");
+        echoSuppressRef.current = false;
+        echoUntilRef.current = Date.now() + 300;
+      };
       window.speechSynthesis.speak(u);
       setPaused(false);
     } catch {
@@ -705,6 +726,12 @@ export function useAuroraEngine(): AuroraEngine {
       setListening(false);
     };
     rec.onresult = (e: any) => {
+      // ANTI-ECO: si Aurora está hablando (o en el cooldown posterior), descarta
+      // lo captado — es su propia voz, no un comando del usuario. El canal del
+      // micrófono sigue abierto; solo se ignora el texto propio (rompe el loop).
+      if (echoSuppressRef.current || Date.now() < echoUntilRef.current) {
+        return;
+      }
       let finalText = "";
       let interimText = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
