@@ -3,9 +3,10 @@
 // Evita el bailout de prerender estatico por useSearchParams (build de Vercel).
 export const dynamic = "force-dynamic";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Suspense } from "react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,12 @@ import {
   Vote,
   Activity,
   Network,
+  ChevronRight,
+  ArrowUpRight,
+  Waypoints,
+  GraduationCap,
+  SlidersHorizontal,
+  Radio,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -97,6 +104,176 @@ import { buildSystemContext, snapshotToSystemPrompt } from "@/hermes-integration
 import { getLivingGraphStore } from "@/hermes-integration/living-graph-store";
 import { getOpenHumanEngine } from "@/hermes-integration/openhuman-bridge";
 import { useCalendar, eventDateTimeMs } from "@/contexts/calendar-context";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Navegación por SECCIONES de configuración
+// -----------------------------------------------------------------------------
+// Antes había ~40 pestañas sueltas en una sola barra que desbordaba los bordes.
+// Ahora las agrupamos en secciones lógicas (Cerebro & Memorias, Modelos &
+// Proveedores, Habilidades, Sentidos & Canales, Aurora & Astraura,
+// Infraestructura, Estudio, Gobernanza). El `value` de cada ítem coincide 1:1
+// con su <TabsContent> — así se conserva TODA la funcionalidad y los deep-links
+// `/agent?tab=<value>` siguen funcionando.
+// ─────────────────────────────────────────────────────────────────────────────
+type SectionItem = {
+  value: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+type StudioSection = {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  accent: string; // clase de color para el estado activo del rail
+  hint?: string;
+  items: SectionItem[];
+};
+
+const STUDIO_SECTIONS: StudioSection[] = [
+  {
+    id: "inicio",
+    label: "Inicio",
+    icon: LayoutDashboard,
+    accent: "text-primary",
+    hint: "Resumen del estado y conversación con tu IA.",
+    items: [
+      { value: "overview", label: "Resumen", icon: LayoutDashboard },
+      { value: "chat", label: "Chat Neural", icon: Bot },
+    ],
+  },
+  {
+    id: "cerebro",
+    label: "Cerebro & Memorias",
+    icon: Brain,
+    accent: "text-fuchsia-300",
+    hint: "El núcleo cognitivo, sus recuerdos, baúles y conocimiento.",
+    items: [
+      { value: "cerebro", label: "Cerebro", icon: Brain },
+      { value: "memorias", label: "Memorias", icon: Brain },
+      { value: "baules", label: "Baúles", icon: Layers },
+      { value: "mapa3d", label: "Mapa 3D", icon: Sparkles },
+      { value: "conocimiento", label: "Conocimiento", icon: BookOpen },
+      { value: "okf", label: "Wiki / OKF", icon: BookOpen },
+    ],
+  },
+  {
+    id: "modelos",
+    label: "Modelos & Proveedores",
+    icon: Cpu,
+    accent: "text-blue-300",
+    hint: "Qué modelos usa tu IA, sus agentes, reglas y directivas.",
+    items: [
+      { value: "proveedor", label: "Proveedor", icon: Database },
+      { value: "foundry", label: "Agent Foundry", icon: Sparkles },
+      { value: "rules", label: "Reglas", icon: Shield },
+      { value: "workflows", label: "Workflows", icon: Workflow },
+    ],
+  },
+  {
+    id: "habilidades",
+    label: "Habilidades",
+    icon: GraduationCap,
+    accent: "text-purple-300",
+    hint: "Skills, herramientas, MCPs y plugins de código abierto.",
+    items: [
+      { value: "skills", label: "Skills", icon: BookOpen },
+      { value: "tools", label: "Tools", icon: Wrench },
+      { value: "mcp", label: "MCPs", icon: Server },
+      { value: "fuentes", label: "Fuentes", icon: BookMarked },
+      { value: "habilidades", label: "Habilidades", icon: Zap },
+      { value: "apps-ia", label: "Apps IA", icon: Code },
+    ],
+  },
+  {
+    id: "sentidos",
+    label: "Sentidos & Canales",
+    icon: Radio,
+    accent: "text-sky-300",
+    hint: "Percepción multimodal, permisos y canales de mensajería.",
+    items: [
+      { value: "senses", label: "Sentidos", icon: Eye },
+      { value: "conexiones-chat", label: "Conexiones de chat", icon: Send },
+      { value: "telegram", label: "Telegram", icon: Send },
+      { value: "quick", label: "Accesos rápidos", icon: Plus },
+    ],
+  },
+  {
+    id: "aurora",
+    label: "Aurora & Astraura",
+    icon: Mic,
+    accent: "text-emerald-300",
+    hint: "La voz y persona de tu IA — comparte cerebro con el Exocórtex.",
+    items: [
+      { value: "aurora", label: "Estudio Aurora", icon: Mic },
+    ],
+  },
+  {
+    id: "infra",
+    label: "Infraestructura",
+    icon: Server,
+    accent: "text-amber-300",
+    hint: "Cerebros, servidores, almacenes, conexiones y seguridad.",
+    items: [
+      { value: "cerebros", label: "Cerebros", icon: BrainCircuit },
+      { value: "servidores", label: "Servidores", icon: Server },
+      { value: "servers", label: "Registro de servidores", icon: HardDrive },
+      { value: "almacenes", label: "Almacenes", icon: HardDrive },
+      { value: "conexiones", label: "Conexiones", icon: Cloud },
+      { value: "runtimes", label: "Agentes (runtimes)", icon: Server },
+      { value: "batch", label: "Batch", icon: Layers },
+      { value: "red3d", label: "Red 3D", icon: Network },
+      { value: "seguridad", label: "Seguridad", icon: Shield },
+    ],
+  },
+  {
+    id: "estudio",
+    label: "Estudio",
+    icon: Layers,
+    accent: "text-cyan-300",
+    hint: "Pizarras, navegador y publicación de contenido.",
+    items: [
+      { value: "pizarra", label: "Pizarra", icon: Layers },
+      { value: "pizarras", label: "Pizarras", icon: LayoutDashboard },
+      { value: "navegador", label: "Navegador", icon: Network },
+      { value: "publicar", label: "Publicar", icon: Send },
+    ],
+  },
+  {
+    id: "gobernanza",
+    label: "Gobernanza",
+    icon: Vote,
+    accent: "text-rose-300",
+    hint: "Decisiones y tu actividad en la red.",
+    items: [
+      { value: "decisiones", label: "Decisiones", icon: Vote },
+      { value: "mi-actividad", label: "Mi actividad", icon: Activity },
+    ],
+  },
+];
+
+// Mapa value → sección, para auto-seleccionar la sección correcta al abrir un
+// deep-link `?tab=`. Incluye alias históricos usados por otras superficies
+// (funciones-index, dock, etc.) que apuntaban a valores con guiones.
+const VALUE_TO_SECTION: Record<string, string> = (() => {
+  const m: Record<string, string> = {};
+  for (const s of STUDIO_SECTIONS) for (const it of s.items) m[it.value] = s.id;
+  return m;
+})();
+
+// Normaliza el parámetro `?tab=` (algunos enlaces externos usan variantes).
+const TAB_ALIASES: Record<string, string> = {
+  mcps: "mcp",
+  "mapa-3d": "mapa3d",
+  agentes: "runtimes",
+  wiki: "okf",
+  sentidos: "senses",
+  aurora: "aurora",
+};
+function normalizeTab(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const v = TAB_ALIASES[raw] ?? raw;
+  return VALUE_TO_SECTION[v] ? v : null;
+}
 
 // --- Types ---
 type Agent = {
@@ -158,16 +335,7 @@ type ChatTurn = { role: "user" | "agent"; content: string; timestamp: string; pe
 function AgentPageInner() {
   const params = useSearchParams();
   const tabParam = params?.get('tab');
-  const initialTab =
-    tabParam === 'skills' ? 'skills' :
-    tabParam === 'tools' ? 'tools' :
-    tabParam === 'fuentes' ? 'fuentes' :
-    tabParam === 'mcp' ? 'mcp' :
-    tabParam === 'senses' ? 'senses' :
-    tabParam === 'foundry' ? 'foundry' :
-    tabParam === 'rules' ? 'rules' :
-    tabParam === 'workflows' ? 'workflows' :
-    'chat';
+  const initialTab = normalizeTab(tabParam) ?? 'chat';
 
   const [messages, setMessages] = useState<ChatTurn[]>([
     { role: 'agent', content: 'Sistemas neurales activos. Elige un proveedor de IA en Ajustes → IA & Modelos para empezar a conversar de verdad.', timestamp: 'Ahora' }
@@ -175,6 +343,40 @@ function AgentPageInner() {
   const [inputValue, setInputValue] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Sección de configuración activa (derivada del tab activo, pero conmutable
+  // de forma independiente por el rail lateral / la tira móvil).
+  const [activeSection, setActiveSection] = useState<string>(
+    () => VALUE_TO_SECTION[initialTab] ?? 'inicio'
+  );
+  const currentSection = STUDIO_SECTIONS.find(s => s.id === activeSection) ?? STUDIO_SECTIONS[0];
+
+  // Al elegir una sección, saltamos a su primer ítem (mantiene el panel a la vista).
+  const selectSection = useCallback((sectionId: string) => {
+    setActiveSection(sectionId);
+    const sec = STUDIO_SECTIONS.find(s => s.id === sectionId);
+    if (sec && sec.items.length > 0 && !sec.items.some(it => it.value === activeTab)) {
+      setActiveTab(sec.items[0].value);
+    }
+  }, [activeTab]);
+
+  // Si el tab cambia (p.ej. por deep-link o navegación interna), sincroniza la
+  // sección resaltada para que el rail refleje dónde estás.
+  useEffect(() => {
+    const sec = VALUE_TO_SECTION[activeTab];
+    if (sec && sec !== activeSection) setActiveSection(sec);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // Abre el Exocórtex (cortina Zenith) reusando el mismo evento global que el
+  // orbe y la paleta de comandos. Astraura, Aurora y el Exocórtex comparten el
+  // mismo cerebro/contexto — este enlace lo hace explícito en la UI.
+  const openExocortex = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('starseed:open-aurora-exocortex'));
+      toast.success('Abriendo el Exocórtex de Aurora — mismo cerebro que Astraura.');
+    }
+  }, []);
 
   // Contexto del sincrómetro — fuente de eventos para inyectar en el system prompt.
   const calendar = useCalendar();
@@ -334,25 +536,25 @@ function AgentPageInner() {
   }, [messages, activeTab]);
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-5rem)] gap-4 p-4 md:p-6 max-w-[1600px] mx-auto w-full">
+    <div className="flex flex-col h-[calc(100dvh-5rem)] gap-4 p-3 sm:p-4 md:p-6 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
 
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-3">
-          <BrainCircuit className="w-8 h-8 text-primary" />
-          Astraura AI & Orchestration
+      <div className="flex items-center justify-between flex-wrap gap-3 w-full max-w-full box-border">
+        <h1 className="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 flex items-center gap-2 sm:gap-3 min-w-0">
+          <BrainCircuit className="w-7 h-7 sm:w-8 sm:h-8 text-primary shrink-0" />
+          <span className="truncate">Astraura AI & Orchestration</span>
         </h1>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full">
           {activeProviderConfig ? (
             <Badge
               variant="outline"
-              className={`gap-1 ${
+              className={`gap-1 max-w-[60vw] truncate ${
                 activeProviderInfo?.local
                   ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10"
                   : "border-blue-500/50 text-blue-400 bg-blue-500/10"
               }`}
             >
-              {activeProviderInfo?.local ? <Cpu className="h-3 w-3" /> : <Cloud className="h-3 w-3" />}
-              {activeProviderConfig.label} · {activeProviderConfig.defaultModel}
+              {activeProviderInfo?.local ? <Cpu className="h-3 w-3 shrink-0" /> : <Cloud className="h-3 w-3 shrink-0" />}
+              <span className="truncate">{activeProviderConfig.label} · {activeProviderConfig.defaultModel}</span>
             </Badge>
           ) : (
             <Link href="/settings">
@@ -365,48 +567,96 @@ function AgentPageInner() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col gap-4 min-h-0">
-        <TabsList className="w-full justify-start bg-black/20 border border-white/5 p-1 flex-wrap">
-          <TabsTrigger value="overview" className="gap-2"><LayoutDashboard className="w-4 h-4" /> Resumen</TabsTrigger>
-          <TabsTrigger value="chat" className="gap-2"><Bot className="w-4 h-4" /> Chat Neural</TabsTrigger>
-          <TabsTrigger value="cerebro" className="gap-2"><Brain className="w-4 h-4" /> Cerebro</TabsTrigger>
-          <TabsTrigger value="foundry" className="gap-2"><Sparkles className="w-4 h-4" /> Agent Foundry</TabsTrigger>
-          <TabsTrigger value="rules" className="gap-2"><Shield className="w-4 h-4" /> Reglas</TabsTrigger>
-          <TabsTrigger value="workflows" className="gap-2"><Workflow className="w-4 h-4" /> Workflows</TabsTrigger>
-          <TabsTrigger value="skills" className="gap-2"><BookOpen className="w-4 h-4" /> Skills</TabsTrigger>
-          <TabsTrigger value="tools" className="gap-2"><Wrench className="w-4 h-4" /> Tools</TabsTrigger>
-          <TabsTrigger value="fuentes" className="gap-2"><BookMarked className="w-4 h-4" /> Fuentes</TabsTrigger>
-          <TabsTrigger value="mcp" className="gap-2"><Server className="w-4 h-4" /> MCPs</TabsTrigger>
-          <TabsTrigger value="senses" className="gap-2"><Eye className="w-4 h-4" /> Sentidos</TabsTrigger>
-          <TabsTrigger value="batch" className="gap-2"><Layers className="w-4 h-4" /> Batch</TabsTrigger>
-          <TabsTrigger value="servers" className="gap-2"><HardDrive className="w-4 h-4" /> Servidores</TabsTrigger>
-          <TabsTrigger value="quick" className="gap-2"><Plus className="w-4 h-4" /> Accesos</TabsTrigger>
-          <TabsTrigger value="telegram" className="gap-2"><Bot className="w-4 h-4" /> Telegram</TabsTrigger>
-          <TabsTrigger value="memorias" className="gap-2"><Brain className="w-4 h-4" /> Memorias</TabsTrigger>
-          <TabsTrigger value="baules" className="gap-2"><Layers className="w-4 h-4" /> Baúles</TabsTrigger>
-          <TabsTrigger value="mapa3d" className="gap-2"><Sparkles className="w-4 h-4" /> Mapa 3D</TabsTrigger>
-          <TabsTrigger value="runtimes" className="gap-2"><Server className="w-4 h-4" /> Agentes</TabsTrigger>
-          <TabsTrigger value="okf" className="gap-2"><BookOpen className="w-4 h-4" /> Wiki/OKF</TabsTrigger>
-          <TabsTrigger value="proveedor" className="gap-2"><Database className="w-4 h-4" /> Proveedor</TabsTrigger>
-          <TabsTrigger value="aurora" className="gap-2"><Mic className="w-4 h-4" /> Aurora</TabsTrigger>
-          <TabsTrigger value="conexiones-chat" className="gap-2"><Send className="w-4 h-4" /> Conexiones de chat</TabsTrigger>
-          <TabsTrigger value="almacenes" className="gap-2"><HardDrive className="w-4 h-4" /> Almacenes</TabsTrigger>
-          <TabsTrigger value="conexiones" className="gap-2"><Cloud className="w-4 h-4" /> Conexiones</TabsTrigger>
-          <TabsTrigger value="cerebros" className="gap-2"><BrainCircuit className="w-4 h-4" /> Cerebros</TabsTrigger>
-          <TabsTrigger value="servidores" className="gap-2"><Server className="w-4 h-4" /> Servidores</TabsTrigger>
-          <TabsTrigger value="red3d" className="gap-2"><Network className="w-4 h-4" /> Red 3D</TabsTrigger>
-          <TabsTrigger value="seguridad" className="gap-2"><Shield className="w-4 h-4" /> Seguridad</TabsTrigger>
-          <TabsTrigger value="pizarra" className="gap-2"><Layers className="w-4 h-4" /> Pizarra</TabsTrigger>
-          <TabsTrigger value="navegador" className="gap-2"><Network className="w-4 h-4" /> Navegador</TabsTrigger>
-          <TabsTrigger value="publicar" className="gap-2"><Send className="w-4 h-4" /> Publicar</TabsTrigger>
-          <TabsTrigger value="pizarras" className="gap-2"><LayoutDashboard className="w-4 h-4" /> Pizarras</TabsTrigger>
-          <TabsTrigger value="apps-ia" className="gap-2"><Code className="w-4 h-4" /> Apps IA</TabsTrigger>
-          <TabsTrigger value="habilidades" className="gap-2"><Zap className="w-4 h-4" /> Habilidades</TabsTrigger>
-          <TabsTrigger value="conocimiento" className="gap-2"><BookOpen className="w-4 h-4" /> Conocimiento</TabsTrigger>
-          <TabsTrigger value="sentidos" className="gap-2"><Eye className="w-4 h-4" /> Sentidos</TabsTrigger>
-          <TabsTrigger value="decisiones" className="gap-2"><Vote className="w-4 h-4" /> Decisiones</TabsTrigger>
-          <TabsTrigger value="mi-actividad" className="gap-2"><Activity className="w-4 h-4" /> Mi actividad</TabsTrigger>
-        </TabsList>
+      {/* --- Vínculo Astraura ↔ Aurora ↔ Exocórtex (mismo cerebro/contexto) --- */}
+      <button
+        type="button"
+        onClick={openExocortex}
+        className="group w-full max-w-full box-border text-left rounded-xl border border-emerald-400/25 bg-gradient-to-r from-emerald-500/10 via-fuchsia-500/[0.06] to-blue-500/10 backdrop-blur-md px-3 sm:px-4 py-2.5 sm:py-3 cursor-pointer transition-colors duration-200 hover:border-emerald-400/45 hover:from-emerald-500/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40"
+        aria-label="Abrir el Exocórtex de Aurora"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="shrink-0 grid place-items-center h-9 w-9 rounded-lg bg-gradient-to-tr from-emerald-500/30 to-fuchsia-500/30 border border-white/10">
+            <Waypoints className="w-4 h-4 text-emerald-200" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-emerald-50 truncate">
+              Astraura, Aurora y el Exocórtex comparten el mismo cerebro
+            </p>
+            <p className="text-[11px] sm:text-xs text-white/55 truncate">
+              El contexto se mantiene entre este estudio y el Exocórtex de la voz Aurora.
+            </p>
+          </div>
+          <span className="hidden sm:inline-flex items-center gap-1 text-xs font-medium text-emerald-200 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5">
+            Abrir Exocórtex <ArrowUpRight className="w-3.5 h-3.5" />
+          </span>
+          <ArrowUpRight className="w-4 h-4 text-emerald-200 shrink-0 sm:hidden" />
+        </div>
+      </button>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col lg:flex-row gap-3 lg:gap-4 min-h-0 w-full max-w-full box-border">
+
+        {/* ── RAIL DE SECCIONES ──────────────────────────────────────────────
+            Desktop: navegación vertical fija a la izquierda.
+            Móvil/tablet: tira horizontal deslizable (.ss-hscroll) que NUNCA
+            desborda el viewport. */}
+        <nav
+          className="ss-hscroll ss-hscroll-fade flex flex-row lg:flex-col gap-1.5 lg:gap-1 shrink-0 w-full max-w-full lg:w-56 lg:max-w-[14rem] box-border lg:overflow-x-visible lg:overflow-y-auto lg:[mask-image:none] lg:pr-1 pb-1 lg:pb-0"
+          aria-label="Secciones de configuración de Astraura"
+        >
+          {STUDIO_SECTIONS.map((sec) => {
+            const isActive = sec.id === activeSection;
+            const Icon = sec.icon;
+            return (
+              <button
+                key={sec.id}
+                type="button"
+                onClick={() => selectSection(sec.id)}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "group flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium cursor-pointer transition-colors duration-200 shrink-0 box-border whitespace-nowrap lg:whitespace-normal lg:w-full text-left border",
+                  isActive
+                    ? "bg-white/[0.07] border-white/15 text-white shadow-sm"
+                    : "bg-black/20 lg:bg-transparent border-white/5 text-muted-foreground hover:bg-white/5 hover:text-white/90"
+                )}
+              >
+                <Icon className={cn("w-4 h-4 shrink-0", isActive ? sec.accent : "text-muted-foreground group-hover:text-white/80")} />
+                <span className="truncate">{sec.label}</span>
+                <ChevronRight className={cn("w-3.5 h-3.5 ml-auto shrink-0 hidden lg:block transition-opacity", isActive ? "opacity-70" : "opacity-0 group-hover:opacity-40")} />
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* ── PANEL DE LA SECCIÓN ACTIVA ─────────────────────────────────── */}
+        <div className="flex-1 flex flex-col gap-3 min-h-0 min-w-0 w-full max-w-full box-border">
+
+          {/* Cabecera de la sección + sub-pestañas deslizables */}
+          <div className="w-full max-w-full box-border rounded-xl border border-white/5 bg-black/20 backdrop-blur-md p-2 sm:p-2.5">
+            <div className="flex items-center gap-2 px-1 pb-2 min-w-0">
+              <currentSection.icon className={cn("w-4 h-4 shrink-0", currentSection.accent)} />
+              <span className="text-sm font-semibold text-white truncate">{currentSection.label}</span>
+              {currentSection.hint && (
+                <span className="text-[11px] text-muted-foreground/70 truncate hidden md:inline">— {currentSection.hint}</span>
+              )}
+            </div>
+            {currentSection.items.length > 1 && (
+              <TabsList className="ss-hscroll ss-hscroll-fade w-full max-w-full box-border justify-start bg-transparent border-0 p-0 gap-1 h-auto flex-nowrap">
+                {currentSection.items.map((it) => {
+                  const ItemIcon = it.icon;
+                  return (
+                    <TabsTrigger
+                      key={it.value}
+                      value={it.value}
+                      className="gap-2 shrink-0 whitespace-nowrap rounded-lg data-[state=active]:bg-white/10 data-[state=active]:text-white cursor-pointer"
+                    >
+                      <ItemIcon className="w-4 h-4 shrink-0" />
+                      <span>{it.label}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            )}
+          </div>
 
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto">
           <AiStudioDashboard />
@@ -425,17 +675,17 @@ function AgentPageInner() {
         </TabsContent>
 
         {/* --- TAB: CHAT --- */}
-        <TabsContent value="chat" className="flex-1 data-[state=active]:flex gap-6 min-h-0">
+        <TabsContent value="chat" className="flex-1 data-[state=active]:flex flex-col md:flex-row gap-4 md:gap-6 min-h-0 w-full max-w-full box-border">
           <ChatNeuralSidebar />
           {/* Chat Interface */}
-          <div className="flex-1 flex flex-col rounded-xl border bg-background/50 overflow-hidden shadow-sm relative">
-            <div className="absolute top-4 right-4 z-10 flex gap-2">
+          <div className="flex-1 flex flex-col rounded-xl border bg-background/50 overflow-hidden shadow-sm relative min-w-0 w-full max-w-full box-border">
+            <div className="absolute top-3 right-3 left-3 sm:left-auto z-10 flex flex-wrap justify-end gap-2 max-w-[calc(100%-1.5rem)]">
               {configs.filter(c => c.enabled).length > 0 && (
                 <Select
                   value={activeProviderId ?? configs[0]?.id}
                   onValueChange={(v) => setProvider(v as ProviderId)}
                 >
-                  <SelectTrigger className="w-[200px] max-w-[46vw] bg-card/60 backdrop-blur border-border/50">
+                  <SelectTrigger className="w-[180px] max-w-[44vw] bg-card/60 backdrop-blur border-border/50">
                     <SelectValue placeholder="Proveedor" />
                   </SelectTrigger>
                   <SelectContent>
@@ -448,7 +698,7 @@ function AgentPageInner() {
                 </Select>
               )}
               <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
-                <SelectTrigger className="w-[180px] max-w-[42vw] bg-card/60 backdrop-blur border-border/50">
+                <SelectTrigger className="w-[160px] max-w-[44vw] bg-card/60 backdrop-blur border-border/50">
                   <SelectValue placeholder="Agente" />
                 </SelectTrigger>
                 <SelectContent>
@@ -460,7 +710,7 @@ function AgentPageInner() {
             </div>
 
             <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-              <div className="flex flex-col gap-4 max-w-3xl mx-auto pt-10">
+              <div className="flex flex-col gap-4 max-w-3xl mx-auto pt-16 sm:pt-12">
                 {messages.map((msg, i) => (
                   <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                     <Avatar className="w-8 h-8 border border-white/10">
@@ -915,6 +1165,7 @@ function AgentPageInner() {
             editable
           />
         </TabsContent>
+        </div>
       </Tabs>
     </div>
   );
