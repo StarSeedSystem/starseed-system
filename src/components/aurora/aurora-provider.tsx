@@ -17,6 +17,11 @@ import {
   queryMicPermission,
 } from "@/lib/aurora/voice-autonomy";
 import {
+  startAuroraLeaderElection,
+  isAuroraLeader,
+  subscribeAuroraLeader,
+} from "@/lib/aurora/single-instance";
+import {
   getCapabilities,
   requestMaxAccess,
   type CapabilityReport,
@@ -297,6 +302,29 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
   const supervisedRef = useRef<AuroraSupervisedEngine>(supervised);
   supervisedRef.current = supervised;
 
+  // ── UNA SOLA AURORA: elección de líder entre pestañas ──────────────────────
+  // Solo la pestaña LÍDER ejerce de Aurora activa (voz + micrófono). Las demás
+  // ceden el micrófono. Al perder/ganar liderazgo, se detiene/retoma la escucha.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stop = startAuroraLeaderElection();
+    const unsub = subscribeAuroraLeader((leader) => {
+      const eng = engineRef.current;
+      if (!eng) return;
+      if (!leader) {
+        // Perdimos el liderazgo → soltamos el micrófono (otra pestaña manda).
+        try { superStop(); } catch { /* */ }
+      } else if (
+        !autonomyDisabled() && eng.enabled && wantListenRef.current === false &&
+        getCapabilities().hasSpeechRecognition && eng.supported !== false
+      ) {
+        // Ganamos el liderazgo y el usuario quería voz → la retomamos.
+        try { superStart(); } catch { /* */ }
+      }
+    });
+    return () => { unsub(); stop(); };
+  }, [superStart, superStop]);
+
   // ── AUTONOMÍA DE VOZ: Aurora arranca sola y habla, como antes (sin menús). ──
   // 1) Si el micrófono YA está concedido → auto-escucha al cargar + saluda.
   // 2) Si no → un único handler de PRIMER GESTO pide permiso, arranca la
@@ -313,6 +341,8 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       const eng = engineRef.current;
       if (!eng?.enabled) return;
+      // UNA SOLA AURORA ACTIVA: si esta pestaña NO es la líder, cede (no escucha).
+      if (!isAuroraLeader()) return;
       const caps = getCapabilities();
       // ARRANQUE PASIVO Y SILENCIOSO (petición del usuario): solo dejamos el
       // micrófono/sentidos LISTOS escuchando en segundo plano donde EXISTE
