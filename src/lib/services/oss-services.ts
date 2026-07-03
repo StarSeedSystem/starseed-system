@@ -592,6 +592,119 @@ export const OSS_SERVICES: OssService[] = [
     enabledByDefault: true,
     tags: ["sitios", "plantillas", "propio"],
   },
+
+  // ── NVIDIA NIM — API-catalog (compatible con OpenAI, gratis para dev) ───────
+  // No se auto-hospeda: se CONECTA por clave (Bearer). La clave es GRATIS para
+  // prototipar con el NVIDIA Developer Program (build.nvidia.com). Ver el panel
+  // dedicado <NvidiaNimPanel /> para catálogo de modelos/skills y guías.
+  {
+    id: "nvidia-nim",
+    name: "NVIDIA NIM (modelos de lenguaje)",
+    category: "llm",
+    purpose:
+      "Catálogo de modelos de IA de NVIDIA (Llama, Nemotron, Mixtral, DeepSeek…) vía una API compatible con OpenAI. Incluye modelos de código y embeddings. Se conecta con una clave gratis del NVIDIA Developer Program.",
+    repoUrl: "https://build.nvidia.com/models",
+    docsUrl: "https://docs.api.nvidia.com/nim/reference/llm-apis",
+    defaultEndpoint: "https://integrate.api.nvidia.com/v1",
+    connectionKind: "api-key",
+    fields: [
+      F_BASE_URL(
+        "https://integrate.api.nvidia.com/v1",
+        "La API-catalog de NVIDIA (compatible con OpenAI). Cámbiala sólo si usas un NIM auto-hospedado.",
+      ),
+      F_API_KEY(
+        "Consigue una clave GRATIS en build.nvidia.com (NVIDIA Developer Program). Se guarda como tu credencial; no se comparte.",
+      ),
+    ],
+    endpoints: [
+      { method: "GET", path: "/models", purpose: "Listar los modelos disponibles en tu cuenta." },
+      { method: "POST", path: "/chat/completions", purpose: "Chat/generación al estilo OpenAI." },
+    ],
+    selfHostHint:
+      "No se instala: es una API en la nube de NVIDIA. La clave es GRATIS para prototipar con el Developer Program (build.nvidia.com). Para producción/on-prem existen los contenedores NIM auto-hospedables.",
+    enabledByDefault: true,
+    testPath: "/models",
+    tags: ["nvidia", "nim", "openai-compat", "gratis-dev", "código", "embeddings"],
+  },
+  {
+    id: "nvidia-nim-vision",
+    name: "NVIDIA NIM (visión e imagen)",
+    category: "image",
+    purpose:
+      "Modelos multimodales y de imagen de NVIDIA (Llama Vision, NeVA, Stable Diffusion, FLUX…) para entender y generar imágenes. API compatible con OpenAI; clave gratis del Developer Program.",
+    repoUrl: "https://build.nvidia.com/models",
+    docsUrl: "https://docs.api.nvidia.com/nim/reference/vision-language-models",
+    defaultEndpoint: "https://integrate.api.nvidia.com/v1",
+    connectionKind: "api-key",
+    fields: [
+      F_BASE_URL(
+        "https://integrate.api.nvidia.com/v1",
+        "La misma API-catalog de NVIDIA; el modelo de visión/imagen se elige por id.",
+      ),
+      F_API_KEY(
+        "Clave GRATIS del NVIDIA Developer Program (build.nvidia.com). La misma clave sirve para todos los modelos NIM.",
+      ),
+    ],
+    endpoints: [
+      { method: "GET", path: "/models", purpose: "Listar modelos (visión/imagen incluidos)." },
+      { method: "POST", path: "/chat/completions", purpose: "Consulta multimodal (imagen + texto)." },
+    ],
+    selfHostHint:
+      "No se instala: API en la nube de NVIDIA con clave gratis para dev. Los modelos de imagen/visión comparten la misma clave que los LLM.",
+    enabledByDefault: true,
+    testPath: "/models",
+    tags: ["nvidia", "nim", "visión", "imagen", "multimodal", "gratis-dev"],
+  },
+  {
+    id: "nvidia-riva-asr",
+    name: "NVIDIA Riva (voz → texto)",
+    category: "stt",
+    purpose:
+      "Reconocimiento de voz de NVIDIA Riva (Parakeet, Canary) para transcribir audio a texto, también multilingüe. Se conecta por la API-catalog con clave gratis del Developer Program.",
+    repoUrl: "https://build.nvidia.com/explore/speech",
+    docsUrl: "https://docs.nvidia.com/deeplearning/riva/user-guide/docs/asr/asr-overview.html",
+    defaultEndpoint: "https://integrate.api.nvidia.com/v1",
+    connectionKind: "api-key",
+    fields: [
+      F_BASE_URL(
+        "https://integrate.api.nvidia.com/v1",
+        "API-catalog de NVIDIA para los modelos de voz (Riva).",
+      ),
+      F_API_KEY(
+        "Clave GRATIS del NVIDIA Developer Program (build.nvidia.com).",
+      ),
+    ],
+    selfHostHint:
+      "No se instala: servicio de voz en la nube de NVIDIA (Riva) con clave gratis para dev. Riva también se puede desplegar on-prem con contenedores NIM.",
+    enabledByDefault: true,
+    testPath: "/models",
+    tags: ["nvidia", "riva", "asr", "voz→texto", "gratis-dev"],
+  },
+  {
+    id: "nvidia-riva-tts",
+    name: "NVIDIA Riva (texto → voz)",
+    category: "tts",
+    purpose:
+      "Síntesis de voz de NVIDIA Riva (FastPitch/HiFi-GAN, Magpie) para generar voz natural, incluso multilingüe. Se conecta por la API-catalog con clave gratis del Developer Program.",
+    repoUrl: "https://build.nvidia.com/explore/speech",
+    docsUrl: "https://docs.nvidia.com/deeplearning/riva/user-guide/docs/tts/tts-overview.html",
+    defaultEndpoint: "https://integrate.api.nvidia.com/v1",
+    connectionKind: "api-key",
+    fields: [
+      F_BASE_URL(
+        "https://integrate.api.nvidia.com/v1",
+        "API-catalog de NVIDIA para los modelos de voz (Riva).",
+      ),
+      F_API_KEY(
+        "Clave GRATIS del NVIDIA Developer Program (build.nvidia.com). La misma clave sirve para ASR y TTS.",
+      ),
+    ],
+    selfHostHint:
+      "No se instala: servicio de voz en la nube de NVIDIA (Riva) con clave gratis para dev. Desplegable on-prem con contenedores NIM si lo necesitas.",
+    enabledByDefault: true,
+    testPath: "/models",
+    tags: ["nvidia", "riva", "tts", "texto→voz", "gratis-dev"],
+  },
 ];
 
 // ── Helpers de lectura del catálogo ───────────────────────────────────────────

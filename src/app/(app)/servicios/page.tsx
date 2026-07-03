@@ -142,6 +142,14 @@ export default function ServiciosPage() {
             Integraciones y conectores (n8n · AppFlowy · Penpot · Cal.com)
             <ArrowUpRight className="h-3 w-3" />
           </Link>
+          <Link
+            href="/nvidia"
+            className="mt-3 ml-2 inline-flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/[0.06] px-3 py-1.5 text-xs text-emerald-300 transition hover:bg-emerald-400/[0.12]"
+          >
+            <Plug className="h-3.5 w-3.5" />
+            NVIDIA NIM · Modelos y Skills (clave gratis)
+            <ArrowUpRight className="h-3 w-3" />
+          </Link>
         </div>
 
         {/* Selector de vista: modelo tri-fuente ↔ registro de servicios OSS */}

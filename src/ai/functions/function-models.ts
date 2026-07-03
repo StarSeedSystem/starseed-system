@@ -224,6 +224,149 @@ export function servicesForFunction(functionId: string): OssService[] {
   return cat ? getOssServicesByCategory(cat) : [];
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// NVIDIA NIM — modelos elegibles por función (texto · imagen · código · voz…)
+// ----------------------------------------------------------------------------
+// NVIDIA tiene modelos especializados (LLM, visión/imagen, código, embeddings,
+// voz) que van MÁS ALLÁ de las categorías OSS. Este bloque permite que la UI de
+// "modelos por función" ofrezca modelos NIM concretos para cada función, sin
+// tocar las firmas existentes ni la resolución (que sigue en oss-connections).
+// La preferencia de SERVICIO por función se fija con `setServiceFor` (OSS
+// defaults); la elección de MODELO NIM concreto se guarda como preferencia de
+// UI ligera (`starseed.ai.nim-function-model.v1`), aditiva y SSR-safe.
+// ════════════════════════════════════════════════════════════════════════════
+
+import {
+  buildNimModelCatalog,
+  type NimCategory,
+  type NimModelEntry,
+} from "@/lib/services/nvidia/nim-catalog";
+
+/** Ids de servicio NVIDIA registrados en el catálogo OSS (para detección). */
+export const NVIDIA_SERVICE_IDS = [
+  "nvidia-nim",
+  "nvidia-nim-vision",
+  "nvidia-riva-asr",
+  "nvidia-riva-tts",
+] as const;
+
+/** ¿Es un servicio NVIDIA (NIM/Riva) del catálogo OSS? */
+export function isNvidiaService(serviceId: string): boolean {
+  return (NVIDIA_SERVICE_IDS as readonly string[]).includes(serviceId);
+}
+
+/**
+ * Mapa función de generación → categoría(s) NIM cuyos modelos tienen sentido
+ * para ella. Una función puede aceptar varias categorías NIM (p.ej. "texto"
+ * admite LLM y código; "imagen" admite generación de imagen y visión).
+ */
+const FUNCTION_TO_NIM_CATEGORIES: Partial<
+  Record<GenerationFunctionId, NimCategory[]>
+> = {
+  text: ["llm", "code"],
+  transcription: ["stt"],
+  voice: ["tts"],
+  image: ["image", "vision"],
+  presentation: ["image", "vision"],
+  infographic: ["image", "vision"],
+  document: ["llm"],
+  website: ["llm", "code"],
+  design: ["image", "vision"],
+  automation: ["llm"],
+};
+
+/** Categorías NIM aceptadas por una función (vacío si desconocida). */
+export function nimCategoriesForFunction(functionId: string): NimCategory[] {
+  return FUNCTION_TO_NIM_CATEGORIES[functionId as GenerationFunctionId] ?? [];
+}
+
+/**
+ * Modelos NIM curados elegibles para una función (por sus categorías NIM).
+ * Devuelve [] si la función no admite NIM. Nunca lanza.
+ */
+export function nimModelsForFunction(functionId: string): NimModelEntry[] {
+  const cats = nimCategoriesForFunction(functionId);
+  if (!cats.length) return [];
+  const all = buildNimModelCatalog();
+  return all.filter((m) => cats.includes(m.category));
+}
+
+// ── Preferencia de MODELO NIM por función/scope (UI ligera) ──────────────────
+
+/** Clave de persistencia del modelo NIM elegido por función/scope. */
+export const NIM_FUNCTION_MODEL_KEY = "starseed.ai.nim-function-model.v1";
+
+type NimFunctionModelPrefs = Record<string, string>; // `${functionId}@${scope}` → modelId
+
+function readNimModelPrefs(): NimFunctionModelPrefs {
+  if (!isClient()) return {};
+  try {
+    const raw = window.localStorage.getItem(NIM_FUNCTION_MODEL_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: NimFunctionModelPrefs = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof v === "string" && v) out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function writeNimModelPrefs(prefs: NimFunctionModelPrefs): void {
+  if (!isClient()) return;
+  try {
+    window.localStorage.setItem(NIM_FUNCTION_MODEL_KEY, JSON.stringify(prefs));
+  } catch {
+    /* cuota / modo privado: degradamos en silencio */
+  }
+}
+
+function nimModelKey(functionId: string, scope: OssScope): string {
+  return `${functionId}@${normalizeScope(scope)}`;
+}
+
+/**
+ * Id del modelo NIM elegido para una función en un scope (o null si ninguno).
+ * Preferencia de UI ligera; no afecta a la resolución OSS. Nunca lanza.
+ */
+export function getNimModelFor(
+  functionId: string,
+  scope: OssScope = "user",
+): string | null {
+  const prefs = readNimModelPrefs();
+  const v = prefs[nimModelKey(functionId, scope)];
+  return typeof v === "string" && v ? v : null;
+}
+
+/**
+ * Fija (o limpia con null) el modelo NIM a usar para una función en un scope.
+ * Valida que el modelo exista en el catálogo curado y sea de una categoría
+ * compatible con la función. Devuelve true si se aplicó.
+ */
+export function setNimModelFor(
+  functionId: string,
+  modelId: string | null,
+  scope: OssScope = "user",
+): boolean {
+  const key = nimModelKey(functionId, scope);
+  const prefs = readNimModelPrefs();
+  if (!modelId) {
+    if (key in prefs) {
+      delete prefs[key];
+      writeNimModelPrefs(prefs);
+    }
+    return true;
+  }
+  const eligible = nimModelsForFunction(functionId).some((m) => m.id === modelId);
+  if (!eligible) return false;
+  prefs[key] = modelId;
+  writeNimModelPrefs(prefs);
+  return true;
+}
+
 // ── Preferencias de UI del panel (scope activo elegido en la interfaz) ────────
 // SÓLO presentación. La preferencia real de servicio vive en OSS defaults.
 
@@ -351,6 +494,16 @@ export interface UseFunctionModels {
     functionId: string,
     scope?: OssScope,
   ) => ResolvedFunction | null;
+  /** Modelos NIM (NVIDIA) curados elegibles para una función (o []). */
+  nimModelsFor: (functionId: string) => NimModelEntry[];
+  /** Id del modelo NIM elegido para una función/scope (o null). */
+  getNimModelFor: (functionId: string, scope?: OssScope) => string | null;
+  /** Fija/limpia el modelo NIM a usar para una función/scope. */
+  setNimModelFor: (
+    functionId: string,
+    modelId: string | null,
+    scope?: OssScope,
+  ) => boolean;
   /** Scope actualmente elegido en la UI (recordado entre sesiones). */
   uiScope: OssScope;
   /** Cambia el scope activo de la UI (persistente). */
@@ -439,12 +592,34 @@ export function useFunctionModels(): UseFunctionModels {
     [],
   );
 
+  const nimModels = useCallback<UseFunctionModels["nimModelsFor"]>(
+    (functionId) => nimModelsForFunction(functionId),
+    [],
+  );
+
+  const getNimModel = useCallback<UseFunctionModels["getNimModelFor"]>(
+    (functionId, scope = "user") => getNimModelFor(functionId, scope),
+    [],
+  );
+
+  const setNimModel = useCallback<UseFunctionModels["setNimModelFor"]>(
+    (functionId, modelId, scope = "user") => {
+      const ok = setNimModelFor(functionId, modelId, scope);
+      refresh();
+      return ok;
+    },
+    [refresh],
+  );
+
   return {
     functions: GENERATION_FUNCTIONS,
     servicesFor,
     getServiceFor: get,
     setServiceFor: set,
     resolveFunction: resolve,
+    nimModelsFor: nimModels,
+    getNimModelFor: getNimModel,
+    setNimModelFor: setNimModel,
     uiScope,
     setUiScope,
     refresh,
