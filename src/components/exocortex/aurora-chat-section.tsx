@@ -35,9 +35,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle, Bot, ChevronDown, Compass, ExternalLink, FileJson, FileText,
-  GitBranch, History, Layers, ListChecks, Maximize2, MessageSquare, Mic, MicOff,
-  Orbit, Pause, Play, Plus, Power, RefreshCw, ScrollText, Search, Send, SkipBack,
-  SkipForward, SlidersHorizontal, Sparkles, Square, Trash2, Volume2, Wand2,
+  FolderTree, GitBranch, History, Layers, ListChecks, Maximize2, MessageSquare,
+  Mic, MicOff, Orbit, Pause, Play, Plus, Power, RefreshCw, ScrollText, Search,
+  Send, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Square, Trash2,
+  Volume2, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AuroraMultichatPanel } from "@/components/aurora/aurora-multichat-panel";
@@ -45,6 +46,8 @@ import { AuroraControlPanel } from "@/components/aurora/aurora-control-panel";
 import { AuroraAlwaysOn } from "@/components/exocortex/aurora-always-on";
 import { AuroraChatView } from "@/components/exocortex/aurora-chat-view";
 import { AuroraChatFullscreen } from "@/components/exocortex/aurora-chat-fullscreen";
+import { AuroraChatExplorer } from "@/components/exocortex/aurora-chat-explorer";
+import type { CatalogChat } from "@/lib/aurora/chat-catalog";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import {
   getAuroraBridge,
@@ -73,7 +76,7 @@ import {
 import { useChatTree } from "@/lib/aurora/chat-tree";
 
 // ── Tipos locales ────────────────────────────────────────────────────────────
-type Tab = "chat" | "chats" | "voz" | "control" | "registro";
+type Tab = "carpeta" | "chat" | "chats" | "voz" | "control" | "registro";
 
 /** El puente v4 añade voiceUnavailable a la instantánea (aditivo). */
 type SnapshotPlus = AuroraStateSnapshot & { voiceUnavailable?: boolean };
@@ -381,7 +384,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
   // Árbol de contextos/temas de conversación (ramificación) — persistido aparte.
   const tree = useChatTree();
 
-  const [tab, setTab] = useState<Tab>("chat");
+  const [tab, setTab] = useState<Tab>("carpeta");
   const [snap, setSnap] = useState<SnapshotPlus | null>(null);
   const [bridgeReady, setBridgeReady] = useState(false);
   const [draft, setDraft] = useState("");
@@ -518,6 +521,24 @@ export function AuroraChatSection({ className }: { className?: string }) {
     });
     setTab("chat");
   }, [tree]);
+
+  // Abrir un chat del catálogo (explorador) en la conversación. Un chat de tipo
+  // "context" se fija como activo en el árbol (los mensajes nuevos caerán en él);
+  // uno de tipo "day" se carga en solo-lectura. En ambos casos reutilizamos la
+  // vista de chat (AuroraChatView) — no se duplica la lógica de conversación.
+  const openCatalogChat = useCallback((chat: CatalogChat) => {
+    setSessionStartTs(0);
+    if (chat.source === "context" && chat.contextId) {
+      openContext(chat.contextId);
+      return;
+    }
+    setLoadedSession({
+      day: chat.day,
+      entries: chat.entries,
+      label: chat.title,
+    });
+    setTab("chat");
+  }, [openContext]);
 
   const doToggleVoice = useCallback(() => {
     try { if (aurora) aurora.toggle(); else toggleAuroraVoice(); } catch { /* */ }
@@ -811,6 +832,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
       {/* ── Pestañas ── */}
       <div className="axc-chips relative z-[1]">
         {([
+          { id: "carpeta", label: "Carpeta", Icon: FolderTree },
           { id: "chat", label: "Chat", Icon: MessageSquare },
           { id: "chats", label: "Chats", Icon: Layers },
           { id: "voz", label: "Voz", Icon: Volume2 },
@@ -836,7 +858,19 @@ export function AuroraChatSection({ className }: { className?: string }) {
         </div>
       )}
 
-      {tab === "control" ? (
+      {tab === "carpeta" ? (
+        /* Explorador de carpeta: TODOS los chats por fecha + tema, barra única
+           buscar⇄chatear (fusión), categorización automática, guardar-en-
+           memorias/duplicar/interconectar. Reutiliza la vista de chat al abrir. */
+        <div className="relative z-[1]">
+          <AuroraChatExplorer
+            auroraName={auroraName}
+            tree={tree}
+            onAskAurora={(t) => doSend(t)}
+            onOpenChat={openCatalogChat}
+          />
+        </div>
+      ) : tab === "control" ? (
         /* Sentidos de Aurora (panel real) + modo "siempre encendida" (wake-word). */
         <div className="relative z-[1] flex flex-col gap-3">
           <AuroraAlwaysOn />
