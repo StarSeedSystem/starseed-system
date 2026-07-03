@@ -269,6 +269,14 @@ export function isMicAnalyserDisabled(): boolean {
 
 async function buildMicShared(): Promise<MicShared | null> {
   try {
+    // ANDROID: NO abrir un getUserMedia paralelo para el analizador — en Android
+    // Chrome compite con SpeechRecognition y provoca el loop "escuchando sin
+    // reconocer". La iluminación del orbe cae al latido por eventos de voz.
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+    if (/android/i.test(ua)) {
+      micDisabledForSession = true;
+      return null;
+    }
     const AudioCtx =
       (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext })
         .AudioContext ||

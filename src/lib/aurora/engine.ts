@@ -72,6 +72,7 @@ const ROUTES: { keys: string[]; path: string }[] = [
   { keys: ["sincronización", "sincronizacion", "syncthing", "sync"], path: "/sincronizacion" },
   { keys: ["agentes", "agente", "telegram", "vps", "agent"], path: "/agent" },
   { keys: ["inicio", "dashboard", "panel", "principal"], path: "/dashboard" },
+  { keys: ["escritorio", "escritorios", "desktop", "mis escritorios", "pantalla principal"], path: "/escritorios" },
 ];
 
 function norm(s: string): string {
@@ -169,6 +170,15 @@ export function useAuroraEngine(): AuroraEngine {
   // Mantener-vivo: si está activo, el reconocimiento se reinicia solo al terminar
   // (clave para que la voz NO se corte al navegar entre rutas/secciones del OS).
   const keepAliveRef = useRef<boolean>(false);
+  // ── Anti-loop de Android (STT) ──
+  // En Android Chrome `continuous=true` no es fiable: `onend` se dispara al
+  // instante sin resultados y el auto-reinicio entra en bucle ("escuchando sin
+  // reconocer"). Estos refs implementan un backoff y un tope de reinicios sin
+  // habla para NO martillar el micrófono y dejar que el supervisor muestre el
+  // reintento en vez de un loop infinito.
+  const sttRestartsRef = useRef<number>(0);
+  const sttLastResultAtRef = useRef<number>(0);
+  const sttRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Índice del historial para Adelantar/Retroceder (-1 = última respuesta).
   const historyIndexRef = useRef<number>(-1);
   // Espejo del historial de respuestas, para el transporte sin depender del render.
@@ -625,30 +635,56 @@ export function useAuroraEngine(): AuroraEngine {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return null;
     const rec = new SR();
+    // Detección de móvil/Android: en estos, `continuous` NO es fiable.
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+    const isAndroid = /android/i.test(ua);
+    const isMobile = isAndroid || /iphone|ipad|ipod|mobile/i.test(ua) ||
+      (typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches);
     rec.lang = activeRef.current.voice?.lang || "es-MX";
     rec.interimResults = true;
-    rec.continuous = true;
+    // Móvil: NO continuo (Android reinicia solo tras cada frase, con backoff).
+    rec.continuous = !isMobile;
     rec.maxAlternatives = 1;
     rec.onstart = () => { setListening(true); setInterim(""); };
     rec.onerror = (e: any) => {
       // 'no-speech' / 'aborted' son transitorios: si seguimos vivos, reanudamos.
       const err = e?.error;
       if (keepAliveRef.current && err !== "not-allowed" && err !== "service-not-allowed") {
-        // Deja que onend gestione el reinicio.
+        // Deja que onend gestione el reinicio (con backoff).
         return;
       }
       setListening(false);
     };
     rec.onend = () => {
       setInterim("");
-      // Reinicio automático si Aurora debe seguir escuchando (segundo plano).
+      if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
+      // Reinicio automático si Aurora debe seguir escuchando (segundo plano),
+      // PERO con backoff y tope de reinicios sin habla para no entrar en loop.
       if (keepAliveRef.current && typeof window !== "undefined") {
+        const now = Date.now();
+        const sawResultRecently = now - sttLastResultAtRef.current < 15_000;
+        if (sawResultRecently) sttRestartsRef.current = 0; // ciclo sano
+        else sttRestartsRef.current += 1;
+
+        // Tras 6 reinicios seguidos SIN habla, paramos de martillar: dejamos que
+        // el supervisor del provider muestre "voz no disponible · reintentar".
+        if (sttRestartsRef.current > 6) {
+          keepAliveRef.current = false;
+          sttRestartsRef.current = 0;
+          setListening(false);
+          return;
+        }
+
+        // Backoff progresivo: base 500ms (700ms en móvil) → hasta ~2.5s.
+        const base = isMobile ? 700 : 500;
+        const delay = Math.min(base + sttRestartsRef.current * 300, 2500);
         try {
           const next = buildRecognition();
           if (next) {
             recognitionRef.current = next;
-            // Pequeño respiro para evitar bucles de error inmediato.
-            setTimeout(() => { try { next.start(); } catch { /* */ } }, 250);
+            sttRestartTimerRef.current = setTimeout(() => {
+              try { next.start(); } catch { /* */ }
+            }, delay);
             return;
           }
         } catch { /* */ }
@@ -663,6 +699,10 @@ export function useAuroraEngine(): AuroraEngine {
         if (r.isFinal) finalText += r[0].transcript;
         else interimText += r[0].transcript;
       }
+      // Cualquier resultado (incluso interino) prueba que el micro SÍ funciona:
+      // resetea el backoff anti-loop.
+      sttLastResultAtRef.current = Date.now();
+      sttRestartsRef.current = 0;
       if (interimText) setInterim(interimText);
       if (finalText) {
         setInterim("");
@@ -686,6 +726,8 @@ export function useAuroraEngine(): AuroraEngine {
 
   const stop = useCallback(() => {
     keepAliveRef.current = false; // parada deliberada: no reanudar
+    if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
+    sttRestartsRef.current = 0;
     try { recognitionRef.current?.stop?.(); } catch { /* */ }
     setListening(false);
   }, []);

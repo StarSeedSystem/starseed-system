@@ -119,6 +119,7 @@ function isClient(): boolean {
 // nombre cualquier área/sección y la resolvamos a una ruta canónica.
 
 export const OS_ROUTES: { label: string; path: string; keys: string[] }[] = [
+  { label: "Escritorio", path: "/escritorios", keys: ["escritorio", "escritorios", "desktop", "mis escritorios", "pantalla principal", "escritorio principal"] },
   { label: "Inicio (Dashboard)", path: "/dashboard", keys: ["inicio", "dashboard", "panel", "tablero", "principal", "home"] },
   { label: "Memorias", path: "/memorias", keys: ["memorias", "memoria", "recuerdos", "memory hub"] },
   { label: "Memorias 3D", path: "/memorias-3d", keys: ["memorias 3d", "memoria 3d", "grafo de memorias"] },

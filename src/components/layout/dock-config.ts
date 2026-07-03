@@ -385,6 +385,40 @@ function applyDockLibraryMigrationV5(items: DockItemConfig[], hadSaved: boolean)
   return migrated;
 }
 
+/**
+ * Migración v6: el botón 'escritorios' debe estar SIEMPRE el primero (izquierda,
+ * junto a Dashboard) en TODAS las cuentas — incluidas las que ya corrieron v5 y
+ * lo tenían al final (aparecía a la derecha). Mueve 'escritorios' al índice 0 y
+ * lo habilita; si falta, lo inserta al inicio. Se aplica una sola vez por navegador.
+ */
+const DOCK_MIGRATION_V6_KEY = 'starseed.dock.items.migrated.v6';
+
+function applyDockEscritorioFirstV6(items: DockItemConfig[], hadSaved: boolean): DockItemConfig[] {
+  if (typeof window === 'undefined') return items;
+  try {
+    if (window.localStorage.getItem(DOCK_MIGRATION_V6_KEY)) return items;
+  } catch {
+    return items;
+  }
+
+  let migrated = items;
+  const idx = migrated.findIndex((i) => i.id === 'escritorios');
+  if (idx === -1) {
+    const preset = DOCK_PRESETS.find((p) => p.id === 'escritorios');
+    if (preset) migrated = [{ ...preset, enabled: true }, ...migrated];
+  } else if (idx !== 0 || !migrated[idx].enabled) {
+    const esc = { ...migrated[idx], enabled: true };
+    migrated = [esc, ...migrated.filter((_, i) => i !== idx)];
+  }
+
+  try {
+    if (hadSaved) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+    window.localStorage.setItem(DOCK_MIGRATION_V6_KEY, '1');
+  } catch { /* noop */ }
+
+  return migrated;
+}
+
 export function loadDockConfig(): DockItemConfig[] {
   if (typeof window === 'undefined') return DOCK_PRESETS;
   try {
@@ -393,21 +427,25 @@ export function loadDockConfig(): DockItemConfig[] {
     const saved = Array.isArray(parsed) ? (parsed as DockItemConfig[]) : null;
 
     // Migración v4 (one-shot): si se ejecuta ahora, su resultado ya está
-    // persistido; la v5 se aplica encima (quita Tienda/Red·Nodos del dock).
+    // persistido; la v5 se aplica encima (quita Tienda/Red·Nodos del dock);
+    // la v6 fuerza 'escritorios' al primer puesto.
     const fused = applyDockFusionMigrationV4(saved);
-    if (fused) return applyDockLibraryMigrationV5(fused, true);
+    if (fused) return applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(fused, true), true);
 
     if (saved) {
       // Flujo normal (post-migración): cualquier preset nuevo se añade al
-      // final como deshabilitado, se aplica la migración v3 legada y la v5.
+      // final como deshabilitado, se aplica la migración v3 legada, la v5 y la v6.
       const known = new Set(saved.map((i) => i.id));
       const missing = DOCK_PRESETS.filter((p) => !known.has(p.id)).map((p) => ({ ...p, enabled: false }));
-      return applyDockLibraryMigrationV5(applyOneShotMigration([...saved, ...missing]), true);
+      return applyDockEscritorioFirstV6(
+        applyDockLibraryMigrationV5(applyOneShotMigration([...saved, ...missing]), true),
+        true,
+      );
     }
   } catch { /* noop */ }
-  // Sin config guardada: presets vivos (ya sin 'tienda'); la v5 solo purga
-  // carpetas huérfanas y deja su marca.
-  return applyDockLibraryMigrationV5(DOCK_PRESETS, false);
+  // Sin config guardada: presets vivos (ya sin 'tienda'); la v5 purga carpetas
+  // huérfanas y la v6 confirma 'escritorios' al inicio (ya lo está en presets).
+  return applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false);
 }
 
 export function saveDockConfig(items: DockItemConfig[]) {
