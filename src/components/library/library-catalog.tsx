@@ -44,6 +44,7 @@ import {
   Play,
   ExternalLink,
   Check,
+  Boxes,
   Zap,
   Waves,
   Vote,
@@ -88,12 +89,16 @@ import {
   type CommandStep,
 } from "@/data/starseed-command-listings";
 import type { LibraryDetailItem } from "@/components/library/app-file-page";
+import { LibraryServicesCatalog } from "@/components/library/library-services-catalog";
+import { useOssConnections } from "@/lib/services/oss-connections";
+import { listOssLibraryItems } from "@/lib/library/oss-catalog-bridge";
 
 // ── Taxonomía de categorías (chips) ──────────────────────────────
 
 export type CatalogCategory =
   | "todo"
   | "apps"
+  | "servicios"
   | "widgets"
   | "layouts"
   | "archivos"
@@ -105,6 +110,7 @@ export type CatalogCategory =
 const CATEGORY_DEFS: { id: CatalogCategory; label: string; icon: LucideIcon }[] = [
   { id: "todo", label: "Todo", icon: Sparkles },
   { id: "apps", label: "Apps", icon: AppWindow },
+  { id: "servicios", label: "Servicios / Integraciones", icon: Boxes },
   { id: "widgets", label: "Widgets", icon: LayoutGrid },
   { id: "layouts", label: "Layouts", icon: LayoutTemplate },
   { id: "archivos", label: "Archivos", icon: FolderOpen },
@@ -244,6 +250,7 @@ export interface LibraryCatalogProps {
 
 export function LibraryCatalog({ onOpenDetail, onGoFuentes, onGoPersonal }: LibraryCatalogProps) {
   const router = useRouter();
+  const { connections } = useOssConnections();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<CatalogCategory>("todo");
   const [confirmCmd, setConfirmCmd] = useState<CommandListListing | null>(null);
@@ -280,11 +287,20 @@ export function LibraryCatalog({ onOpenDetail, onGoFuentes, onGoPersonal }: Libr
       ),
     [matches],
   );
+  // Servicios OSS (conectores/integraciones) filtrados por la misma búsqueda.
+  const servicios = useMemo(
+    () =>
+      listOssLibraryItems(connections).filter((s) =>
+        matches(s.title, s.description, s.functionLabel, s.tags),
+      ),
+    [connections, matches],
+  );
 
   const countFor = useCallback(
     (cat: CatalogCategory): number => {
       switch (cat) {
         case "apps": return apps.length;
+        case "servicios": return servicios.length;
         case "cursores": return cursores.length;
         case "gestos": return gestos.length;
         case "comandos": return comandos.length;
@@ -294,10 +310,10 @@ export function LibraryCatalog({ onOpenDetail, onGoFuentes, onGoPersonal }: Libr
         case "fuentes":
           return 0;
         default:
-          return apps.length + cursores.length + gestos.length + comandos.length;
+          return apps.length + servicios.length + cursores.length + gestos.length + comandos.length;
       }
     },
-    [apps, cursores, gestos, comandos],
+    [apps, servicios, cursores, gestos, comandos],
   );
 
   // ── Aplicar cursores / gestos (setCursorFxConfig) ──
@@ -496,6 +512,11 @@ export function LibraryCatalog({ onOpenDetail, onGoFuentes, onGoPersonal }: Libr
             ))}
           </div>
         </div>
+      )}
+
+      {/* 3b · SERVICIOS / INTEGRACIONES — conectores OSS instalables */}
+      {showSection("servicios") && (
+        <LibraryServicesCatalog onOpenDetail={onOpenDetail} query={query} />
       )}
 
       {/* 4 · GRID FLUIDA por categoría */}

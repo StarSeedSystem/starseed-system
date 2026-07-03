@@ -93,6 +93,7 @@ import { LibraryUpdatesPanel } from "@/components/library/library-updates-panel"
 import { InstallButton } from "@/components/welcome/install-button";
 import { AppFilePage, type LibraryDetailItem } from "@/components/library/app-file-page";
 import { LibraryCatalog, starseedAppToDetail } from "@/components/library/library-catalog";
+import { InstalledServicesPanel } from "@/components/library/installed-services-panel";
 import { STARSEED_APP_LISTINGS } from "@/data/starseed-apps-listings";
 import { articles, courses, files } from "@/lib/data";
 import { samplePages } from "@/data/sample-entities";
@@ -413,6 +414,7 @@ const SAVED_KIND_LABEL: Record<string, string> = {
   comando: "Lista de comandos",
   layout: "Layout",
   widget: "Widget",
+  servicio: "Servicio / Integración",
 };
 
 function savedKindLabel(kind: string): string {
@@ -1156,6 +1158,7 @@ function LibraryContent() {
             Tu espacio personal seguro para archivos, ideas y proyectos.
           </div>
           <SavedResourcesPanel onGoExplore={goExplore} />
+          <InstalledServicesPanel />
           <FileSystemExplorer mode="PERSONAL" />
         </TabsContent>
 

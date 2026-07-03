@@ -25,6 +25,8 @@ import {
 import { toast } from "sonner";
 
 import { OssLibraryBrowser } from "./oss-library-browser";
+import { OllamaBrainPanel } from "@/components/agent/ollama-brain-panel";
+import { FunctionModelsPanel } from "@/components/agent/function-models-panel";
 import { PROVIDERS, PROVIDER_ORDER, type ProviderId } from "@/ai/providers";
 import type { ProviderConfig } from "@/ai/providers/types";
 import {
@@ -180,6 +182,43 @@ export function AiProvidersPanel() {
     } finally {
       setBusy(null);
     }
+  }
+
+  /**
+   * Aplica modelos detectados por el panel Ollama al proveedor Ollama del store:
+   * fija su baseUrl y su lista de modelos (creándolo si no existe). Aditivo:
+   * respeta el resto de configs.
+   */
+  function applyOllamaModels(baseUrl: string, models: string[]) {
+    if (!models.length) {
+      toast.message("No hay modelos que aplicar.");
+      return;
+    }
+    const idx = configs.findIndex((c) => c.id === "ollama");
+    if (idx >= 0) {
+      const cur = configs[idx];
+      updateProvider(idx, {
+        baseUrl,
+        models,
+        defaultModel: models.includes(cur.defaultModel) ? cur.defaultModel : models[0],
+        enabled: true,
+      });
+    } else {
+      const info = PROVIDERS.ollama.info;
+      persist([
+        ...configs,
+        {
+          id: "ollama",
+          label: info.label,
+          baseUrl,
+          encryptedKey: "",
+          models,
+          defaultModel: models[0],
+          enabled: true,
+        },
+      ]);
+    }
+    toast.success(`Ollama: ${models.length} modelos aplicados al proveedor.`);
   }
 
   return (
@@ -472,6 +511,12 @@ export function AiProvidersPanel() {
           );
         })}
       </div>
+
+      {/* Ollama completo: detectar / probar / local · remoto · cerebro */}
+      <OllamaBrainPanel onApplyModels={applyOllamaModels} />
+
+      {/* Modelos por función (imagen, vídeo, presentaciones, voz, sitios…) */}
+      <FunctionModelsPanel />
 
       {/* Catálogo de código abierto: modelos, runtimes y frameworks */}
       <Card className="bg-background/40 backdrop-blur-sm">
