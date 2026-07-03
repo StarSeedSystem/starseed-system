@@ -7,6 +7,7 @@
 // junto a tus dashboards.
 
 import WorkCenters from "@/components/canvas/work-centers";
+import { PizarraDesignActions } from "@/components/integrations/pizarra-design-actions";
 
 export default function PizarrasPage() {
   return (
@@ -16,6 +17,8 @@ export default function PizarrasPage() {
         <p className="text-sm text-white/50 mt-1 mb-6">
           Centros infinitos que agrupan varias pizarras: guarda, exporta, comparte y almacena en bibliotecas y carpetas. Míralos como mapa mental o vista cerebro, junto a tus dashboards.
         </p>
+        {/* Accesos a diseño/documentos (Penpot / AppFlowy) si hay conexión. */}
+        <PizarraDesignActions />
         <WorkCenters />
       </div>
     </main>

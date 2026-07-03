@@ -11,6 +11,7 @@
  */
 
 import { useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { TriSourceConfig } from "@/components/services/tri-source-config";
@@ -25,6 +26,8 @@ import {
   Network,
   Boxes,
   Layers,
+  Plug,
+  ArrowUpRight,
 } from "lucide-react";
 
 interface DomainDef {
@@ -131,6 +134,14 @@ export default function ServiciosPage() {
             interconectadas y moduladas (prioridad, balanceo, fusión o failover).
             Todo se sincroniza de forma inteligente por usuario.
           </p>
+          <Link
+            href="/integraciones"
+            className="mt-3 inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/[0.06] px-3 py-1.5 text-xs text-primary transition hover:bg-primary/[0.12]"
+          >
+            <Plug className="h-3.5 w-3.5" />
+            Integraciones y conectores (n8n · AppFlowy · Penpot · Cal.com)
+            <ArrowUpRight className="h-3 w-3" />
+          </Link>
         </div>
 
         {/* Selector de vista: modelo tri-fuente ↔ registro de servicios OSS */}
