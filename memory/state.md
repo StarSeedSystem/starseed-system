@@ -1729,3 +1729,14 @@ Construido con 5 subagentes en 3 olas + investigación de repos.
 - tsc 376 = baseline en todo. Deploys OS: cb6ae74 (registro OSS) · 7c74786 (voz) · 762e72c (Ollama+función+librería) · 8f876e6 (n8n/Cal.com/AppFlowy/Penpot).
 
 **Pendiente:** enrutar las tools de generación de Aurora a los servicios por función (crear_imagen→Fooocus, etc.); WebRTC LAN real; wake-word acústico OSS; portar registro OSS a Nexus/Café si se desea.
+
+---
+## Adenda 57 — 2026-07-03 · Generación por servicios + WebRTC LAN real + Aurora tap Nexus/Café + Exocórtex Aurora principal (deploys OS 42d8794→5aba02d; Nexus 1eda83a; Café eefefea)
+
+- **Aurora enruta generación a servicios por función** (aurora/generate/service-generation.ts): generar_imagen→Fooocus-API (/v1/generation/text-to-image) o A1111 (/sdapi/v1/txt2img)→guarda en biblioteca; lanzar_workflow→n8n triggerWebhook; generar_sitio_web→servicio o plantilla HTML local (fallback útil); generar_video→servicio. 4 tools nuevas en aurora-tools.ts, prompt actualizado; fallbacks honestos (si no hay endpoint, guía a /servicios, no inventa).
+- **WebRTC LAN real** (network/): signaling.ts (Supabase Realtime channel starseed-signal-<userId> + fallback polling user_settings.prefs.signals TTL 60s), webrtc-mesh.ts (RTCPeerConnection STUN google + DataChannel 'starseed' + ICE trickle + glare polite/impolite por id), lan-sync.ts real (ensureMesh/getSharedMesh/teardownMesh), device-network-panel con estado por dispositivo + probar-envío ping/pong. Nota honesta: STUN sin TURN → NAT simétrico puede fallar.
+- **Aurora tap en Nexus y Café** (petición): tap corto = activa voz + SONIDO de activación (WebAudio 2 tonos ascendentes ~150ms) + empieza a escuchar (SIN chat) + halo .hearing animado; a los 6s sin voz dice "Estoy disponible por si necesitas algo…" (cancelado al instante si se habla, tras anti-eco); mantener pulsado = chat. Guías (aurora-guide.js Nexus / tour.js Café, con conflicto de merge arreglado) explican el funcionamiento. Nexus exocortex v=100/guide v=98 (1eda83a); Café exocortex v=84/tour v=81 (eefefea).
+- **Exocórtex: Aurora principal** (zenith-curtain.tsx): mainView default 'buscar'→'aurora' — al abrir el Exocórtex aparece directamente Aurora (con buscador fusionado dentro); buscador clásico + Cerebro 3D quedan secundarios conmutables. Deploy 5aba02d.
+- tsc OS 376 = baseline; node --check limpio Nexus/Café.
+
+**Pendiente:** wake-word acústico local OSS (#31 pendiente); TURN server para NAT simétrico; portar generación por servicios a Nexus/Café si se desea.
