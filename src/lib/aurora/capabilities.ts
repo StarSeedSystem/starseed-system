@@ -17,7 +17,16 @@
  *
  * TODO es defensivo y SSR-safe: jamás lanza, jamás rompe la app ni la voz
  * nativa. Sin dependencias nuevas.
+ *
+ * RESPALDO OPEN-SOURCE (aditivo, explícito): cuando NO hay reconocimiento de voz
+ * nativo, existe un fallback OSS (transformers.js/Whisper por CDN, opt-in). Aquí
+ * sólo EXPONEMOS si es viable (`ossSttAvailable`) y si el usuario lo activó
+ * (`ossSttEnabled`). NUNCA cambiamos `voiceMode` por ello: el fallback es
+ * explícito y se cablea desde su propio panel, no automáticamente.
  */
+
+import { isOssSttSupported } from "@/lib/aurora/stt-oss/oss-stt";
+import { isOssSttEnabled } from "@/lib/aurora/stt-oss/opt-in";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +67,14 @@ export interface CapabilityReport {
   isCoarsePointer: boolean;
   /** Modo de voz efectivo derivado de lo anterior. */
   voiceMode: VoiceMode;
+  /**
+   * ¿Es viable el reconocimiento de voz OPEN-SOURCE de respaldo (transformers.js
+   * por CDN)? Requiere WebAssembly + micrófono. Es INDEPENDIENTE de si el usuario
+   * lo activó; sólo indica que el entorno podría ejecutarlo. NO altera voiceMode.
+   */
+  ossSttAvailable: boolean;
+  /** ¿El usuario activó (opt-in) el respaldo OSS? (default false). */
+  ossSttEnabled: boolean;
   /** Mensaje honesto y accionable para la UI según el contexto. */
   note: string;
 }
@@ -287,6 +304,8 @@ export function getCapabilities(): CapabilityReport {
       isStandalonePWA: false,
       isCoarsePointer: false,
       voiceMode: "text-only",
+      ossSttAvailable: false,
+      ossSttEnabled: false,
       note: "Preparando el entorno…",
     };
   }
@@ -304,6 +323,21 @@ export function getCapabilities(): CapabilityReport {
   const voiceMode = deriveVoiceMode(hasSpeechRecognition, hasTTS, isSecureContext);
   const note = noteFor(browser, hasSpeechRecognition, hasTTS, isSecureContext, voiceMode);
 
+  // Respaldo OSS: sólo lo REPORTAMOS (viable + opt-in). Todo defensivo; jamás
+  // toca voiceMode ni carga transformers.js (importar sus detectores es barato).
+  let ossSttAvailable = false;
+  let ossSttEnabled = false;
+  try {
+    ossSttAvailable = isOssSttSupported();
+  } catch {
+    ossSttAvailable = false;
+  }
+  try {
+    ossSttEnabled = isOssSttEnabled();
+  } catch {
+    ossSttEnabled = false;
+  }
+
   return {
     hasSpeechRecognition,
     hasTTS,
@@ -315,6 +349,8 @@ export function getCapabilities(): CapabilityReport {
     isStandalonePWA,
     isCoarsePointer,
     voiceMode,
+    ossSttAvailable,
+    ossSttEnabled,
     note,
   };
 }
