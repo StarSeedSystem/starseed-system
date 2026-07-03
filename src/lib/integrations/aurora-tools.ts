@@ -449,9 +449,210 @@ export const AURORA_SCREEN_TOOLS: AuroraScreenTool[] = [
   },
 ];
 
-// Índice por nombre para O(1) — integraciones + control de pantalla.
+// ════════════════════════════════════════════════════════════════════════════
+// GENERAR Y USAR CONTENIDO — Aurora crea/coloca contenido libremente (local)
+// ----------------------------------------------------------------------------
+// Tools LOCALES (kind:"screen" ⇒ ejecución en navegador, sin config ni endpoint)
+// que permiten a Aurora GENERAR contenido (notas, documentos, archivos) y USARLO
+// en cualquier contexto del OS: guardarlo en la Biblioteca, publicarlo, ponerlo
+// en una pizarra, añadir un widget, buscar en la web (navegador interno) o en la
+// Biblioteca. Delegan en src/lib/aurora/generate/content-actions (import perezoso
+// para no acoplar el bundle ni romper SSR). Cada acción devuelve
+// { ok, message, data? } y aquí se adapta a IntegrationResult (data.text =
+// message decible). NUNCA lanza; degrada con un mensaje hablado útil.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Tipado del módulo de generación de contenido (import dinámico). */
+type ContentActionsModule = typeof import("@/lib/aurora/generate/content-actions");
+
+/**
+ * Ejecuta una acción de generación de contenido con import perezoso del módulo
+ * y adapta su resultado (ContentOutcome) al contrato IntegrationResult
+ * (data.text = frase decible). NUNCA lanza.
+ */
+async function runContentAction(
+  exec: (mod: ContentActionsModule) => ScreenOutcome | Promise<ScreenOutcome>,
+): Promise<IntegrationResult> {
+  if (typeof window === "undefined") {
+    return { ok: false, error: "Generar y usar contenido solo funciona en el navegador." };
+  }
+  try {
+    const mod = await import("@/lib/aurora/generate/content-actions");
+    const res = await exec(mod);
+    if (!res || typeof res.ok !== "boolean") {
+      return { ok: false, error: "La generación de contenido no respondió." };
+    }
+    return res.ok
+      ? { ok: true, data: { text: res.message, ...(res.data ?? {}) } }
+      : { ok: false, error: res.message };
+  } catch {
+    return { ok: false, error: "No pude generar o usar ese contenido en esta página." };
+  }
+}
+
+/** Tools de GENERAR/USAR CONTENIDO que Aurora puede invocar (navegador). */
+export const AURORA_GENERATE_TOOLS: AuroraScreenTool[] = [
+  {
+    name: "crear_nota",
+    description:
+      "Crea una nota breve en markdown y la guarda en la Biblioteca del usuario. Entrada: { titulo, texto }. Úsala cuando el usuario diga «anota…», «crea una nota…», «apunta esto…». Al terminar puedes ofrecer «abre la biblioteca».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "crear_nota",
+    kind: "screen",
+    run: (input) =>
+      runContentAction((m) =>
+        m.crearNota(
+          pickInput(input, "titulo", "título", "title", "nombre", "name", "asunto"),
+          pickInput(input, "texto", "text", "contenido", "content", "cuerpo", "body", "nota"),
+        ),
+      ),
+  },
+  {
+    name: "crear_documento",
+    description:
+      "Redacta un documento markdown (más extenso que una nota) y lo guarda en la Biblioteca. Entrada: { titulo, texto }. Úsala para «escribe un documento…», «redacta…», «prepara un texto largo…».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "crear_documento",
+    kind: "screen",
+    run: (input) =>
+      runContentAction((m) =>
+        m.crearDocumento(
+          pickInput(input, "titulo", "título", "title", "nombre", "name", "asunto"),
+          pickInput(input, "texto", "text", "contenido", "content", "cuerpo", "body"),
+        ),
+      ),
+  },
+  {
+    name: "crear_archivo",
+    description:
+      "Genera un archivo de cualquier formato (por su contenido de texto o una data URL) y lo guarda en la Biblioteca. Entrada: { nombre, contenido, tipo? } (tipo = mime como application/json o extensión como json, csv, svg, html…). Úsala para «crea un archivo…», «guárdame este JSON/CSV/SVG…».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "crear_archivo",
+    kind: "screen",
+    run: (input) =>
+      runContentAction((m) =>
+        m.crearArchivo(
+          pickInput(input, "nombre", "name", "titulo", "título", "archivo", "filename"),
+          pickInput(input, "contenido", "content", "texto", "text", "datos", "data", "cuerpo"),
+          pickInput(input, "tipo", "type", "mime", "formato", "extension", "extensión"),
+        ),
+      ),
+  },
+  {
+    name: "crear_publicacion",
+    description:
+      "Abre el Composer de Publicar con el texto ya prellenado para publicar en la red. Entrada: { texto, area?, tipo? } (area: politica|educacion|cultura|general). Úsala cuando el usuario diga «publícalo», «compártelo en la red», «haz una publicación con esto…».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "crear_publicacion",
+    kind: "screen",
+    run: (input) =>
+      runContentAction((m) =>
+        m.crearPublicacion(
+          pickInput(input, "texto", "text", "contenido", "content", "mensaje", "cuerpo", "body"),
+          pickInput(input, "area", "área", "seccion", "sección"),
+          pickInput(input, "tipo", "type", "formato"),
+        ),
+      ),
+  },
+  {
+    name: "abrir_pizarra",
+    description:
+      "Abre las pizarras (lienzos). Sin datos abre el hub de Pizarras; con { id } abre ese lienzo; con { titulo } abre el lienzo para una pizarra nueva. Entrada: { id?, titulo? }. Úsala para «abre una pizarra», «llévame a mis lienzos».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "abrir_pizarra",
+    kind: "screen",
+    run: (input) =>
+      runContentAction((m) =>
+        m.abrirPizarra(
+          pickInput(input, "id", "canvas", "pizarra", "lienzo"),
+          pickInput(input, "titulo", "título", "title", "nombre", "name"),
+        ),
+      ),
+  },
+  {
+    name: "crear_en_pizarra",
+    description:
+      "Coloca un bloque de texto en una pizarra/lienzo y la abre. Entrada: { texto, titulo? }. Úsala para «pon esto en la pizarra», «añade una tarjeta al lienzo con…».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "crear_en_pizarra",
+    kind: "screen",
+    run: (input) =>
+      runContentAction((m) =>
+        m.crearEnPizarra(
+          pickInput(input, "texto", "text", "contenido", "content", "cuerpo", "body", "nota"),
+          pickInput(input, "titulo", "título", "title", "nombre", "name"),
+        ),
+      ),
+  },
+  {
+    name: "crear_widget",
+    description:
+      "Añade un widget al tablero activo del usuario. Entrada: { tipo? } (nombre: clima, memorias, música, calculadora, mapa, mensajes, astraura… o un TIPO en mayúsculas del registro). Úsala para «pon el clima en mi tablero», «añade un widget de…».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "crear_widget",
+    kind: "screen",
+    run: (input) =>
+      runContentAction((m) => m.crearWidget(pickInput(input, "tipo", "type", "widget", "nombre", "name"))),
+  },
+  {
+    name: "buscar_web",
+    description:
+      "Busca en la web (DuckDuckGo) dentro del Navegador interno del OS, sin salir de Aurora. Entrada: { consulta }. Úsala para «busca en internet…», «busca en la web…».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "buscar_web",
+    kind: "screen",
+    run: (input) =>
+      runContentAction((m) =>
+        m.buscarWeb(pickInput(input, "consulta", "query", "q", "texto", "text", "busqueda", "búsqueda", "termino", "término")),
+      ),
+  },
+  {
+    name: "abrir_enlace",
+    description:
+      "Abre una URL en el Navegador interno del OS (o navega si es una ruta interna). Entrada: { url }. Úsala para «abre esta web…», «ve a este enlace…».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "abrir_enlace",
+    kind: "screen",
+    run: (input) =>
+      runContentAction((m) => m.abrirEnlace(pickInput(input, "url", "enlace", "link", "href", "direccion", "dirección"))),
+  },
+  {
+    name: "buscar_en_libreria",
+    description:
+      "Abre la Biblioteca del usuario con una consulta para encontrar recursos guardados. Entrada: { consulta }. Úsala para «búscalo en la librería», «busca en mi biblioteca…».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "buscar_en_libreria",
+    kind: "screen",
+    run: (input) =>
+      runContentAction((m) =>
+        m.buscarEnBiblioteca(pickInput(input, "consulta", "query", "q", "texto", "text", "busqueda", "búsqueda", "termino", "término")),
+      ),
+  },
+  {
+    name: "buscar_en_biblioteca",
+    description:
+      "Alias de buscar_en_libreria: abre la Biblioteca con una consulta. Entrada: { consulta }. Úsala para «búscalo en la biblioteca».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "buscar_en_biblioteca",
+    kind: "screen",
+    run: (input) =>
+      runContentAction((m) =>
+        m.buscarEnBiblioteca(pickInput(input, "consulta", "query", "q", "texto", "text", "busqueda", "búsqueda", "termino", "término")),
+      ),
+  },
+];
+
+/** Conjunto de nombres de las tools de GENERAR/USAR CONTENIDO (para la sección de prompt). */
+const GENERATE_TOOL_NAMES: ReadonlySet<string> = new Set(AURORA_GENERATE_TOOLS.map((t) => t.name));
+
+/** ¿Es una tool de generación/uso de contenido? */
+function isGenerateTool(t: AuroraIntegrationTool): boolean {
+  return GENERATE_TOOL_NAMES.has(t.name);
+}
+
+// Índice por nombre para O(1) — integraciones + control de pantalla + generación.
 const TOOL_INDEX: Record<string, AuroraIntegrationTool> = Object.fromEntries(
-  [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS].map((t) => [t.name, t]),
+  [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS].map((t) => [t.name, t]),
 );
 
 /** Busca una tool de Aurora por nombre. */
@@ -476,7 +677,7 @@ export function isAuroraToolAvailable(name: string, brainId?: string): boolean {
 
 /** Lista las tools disponibles ahora mismo (por config). */
 export function listAvailableAuroraTools(brainId?: string): AuroraIntegrationTool[] {
-  return [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS].filter((t) =>
+  return [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS].filter((t) =>
     isAuroraToolAvailable(t.name, brainId),
   );
 }
@@ -504,12 +705,45 @@ export async function runAuroraTool(
   return runIntegration(t.integrationId, t.actionId, input, cfg);
 }
 
-/** Fragmento para el system prompt: tools de integración + control de pantalla. */
+/**
+ * Fragmento SOLO de las tools de GENERAR/USAR CONTENIDO disponibles ahora.
+ * EXPORTADO para que el motor lo una a las demás secciones si lo desea. Aun sin
+ * wiring extra, estas tools YA aparecen en el prompt: `auroraToolsPromptSection`
+ * las incluye bajo su propia cabecera, y `actions.ts` las lista vía
+ * `listAvailableAuroraTools`. La sintaxis de invocación es la MISMA directiva
+ * `[[ACCION: nombre {json}]]` (el puente de actions.ts despacha a runAuroraTool).
+ * Nunca lanza. Cadena vacía ⇒ no hay tools de generación disponibles.
+ */
+export function auroraGeneratePromptSection(brainId?: string): string {
+  const tools = listAvailableAuroraTools(brainId).filter((t) => isGenerateTool(t));
+  if (tools.length === 0) return "";
+  return [
+    "GENERAR Y USAR CONTENIDO — puedes CREAR contenido y COLOCARLO libremente donde el usuario pida, en cualquier momento de la conversación. No te limites a describir: hazlo tú.",
+    "Puedes: escribir notas y documentos (markdown) y GUARDARLOS en la Biblioteca; generar archivos de cualquier formato (JSON, CSV, SVG, HTML, texto…) y guardarlos; PUBLICAR un texto (abre el Composer prellenado); abrir/crear PIZARRAS y poner bloques en el lienzo; añadir WIDGETS al tablero; BUSCAR en la web (navegador interno) o en la Biblioteca; y abrir cualquier ENLACE dentro del OS.",
+    "Invoca cada tool con la MISMA sintaxis de directiva, con el nombre como acción y su entrada como JSON:",
+    '  [[ACCION: nombre {"clave":"valor"}]]',
+    "Herramientas de contenido disponibles ahora mismo:",
+    ...tools.map((t) => `- ${t.name}: ${t.description}`),
+    "Ejemplos:",
+    '· «Anota que mañana reunión a las 10» → [[ACCION: crear_nota {"titulo":"Reunión","texto":"Mañana a las 10"}]] Anotado en tu Biblioteca.',
+    '· «Escribe un documento sobre el plan» → [[ACCION: crear_documento {"titulo":"Plan","texto":"…"}]] Redactado y guardado.',
+    '· «Publícalo en cultura» → [[ACCION: crear_publicacion {"texto":"…","area":"cultura"}]] Abrí el Composer con tu texto.',
+    '· «Abre una pizarra» → [[ACCION: abrir_pizarra {}]] Aquí están tus pizarras.',
+    '· «Pon el clima en mi tablero» → [[ACCION: crear_widget {"tipo":"clima"}]] Añadí el widget.',
+    '· «Busca en la web café de especialidad» → [[ACCION: buscar_web {"consulta":"café de especialidad"}]] Buscando en tu navegador.',
+    '· «Búscalo en la librería» → [[ACCION: buscar_en_libreria {"consulta":"…"}]] Abrí tu Biblioteca.',
+  ].join("\n");
+}
+
+/** Fragmento para el system prompt: tools de integración + control de pantalla + generación. */
 export function auroraToolsPromptSection(brainId?: string): string {
   const tools = listAvailableAuroraTools(brainId);
   if (tools.length === 0) return "";
   const integraciones = tools.filter((t) => !isAuroraScreenTool(t));
-  const pantalla = tools.filter((t) => isAuroraScreenTool(t));
+  // Las tools locales (kind:"screen") se separan en dos familias: control de
+  // pantalla/tareas vs. generar/usar contenido, cada una con su propia cabecera.
+  const contenido = tools.filter((t) => isAuroraScreenTool(t) && isGenerateTool(t));
+  const pantalla = tools.filter((t) => isAuroraScreenTool(t) && !isGenerateTool(t));
   const parts: string[] = [];
   if (integraciones.length > 0) {
     parts.push(
@@ -521,6 +755,12 @@ export function auroraToolsPromptSection(brainId?: string): string {
     parts.push(
       "CONTROL DE PANTALLA Y TAREAS EN SEGUNDO PLANO (la pantalla como agente interactivo + trabajo en curso): puedes ver y manejar la interfaz visible del usuario — enumerarla, pulsar, escribir, resaltar, leer, rellenar formularios, elegir opciones, copiar texto, ir a secciones y abrir apps — y registrar/consultar tareas que quedan en proceso mientras sigues hablando.",
       ...pantalla.map((t) => `- ${t.name}: ${t.description}`),
+    );
+  }
+  if (contenido.length > 0) {
+    parts.push(
+      "GENERAR Y USAR CONTENIDO: puedes CREAR contenido (notas, documentos, archivos) y COLOCARLO libremente — guardarlo en la Biblioteca, publicarlo, ponerlo en una pizarra, añadir widgets, buscar en la web o en la Biblioteca y abrir enlaces — a petición del usuario y en cualquier momento. No solo lo describas: hazlo.",
+      ...contenido.map((t) => `- ${t.name}: ${t.description}`),
     );
   }
   return parts.join("\n");

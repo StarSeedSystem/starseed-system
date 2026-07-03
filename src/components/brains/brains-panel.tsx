@@ -54,6 +54,7 @@ import {
   Image as ImageIcon,
   Bot,
   GitBranch,
+  GitMerge,
   Workflow,
   Rocket,
   HardDrive,
@@ -117,8 +118,15 @@ import {
   applyPreset,
   type GenAdapter,
 } from "@/lib/brains/adapters";
+import {
+  mergeBrains,
+  previewMergeBrains,
+  type BrainMergePreview,
+  type MergeBrainsOptions,
+} from "@/lib/brains/merge-duplicate";
 import { useRealtime } from "@/lib/realtime/realtime";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
+import MemoryMergePanel from "@/components/brains/memory-merge-panel";
 import AutoUpdatePanel from "@/components/brains/auto-update-panel";
 import IntegrationsPanel from "@/components/integrations/integrations-panel";
 // Terminal integrada + dispositivos como servidores: antes eran una página/botón
@@ -324,6 +332,29 @@ export default function BrainsPanel() {
     if (copy) {
       toast.success("Cerebro duplicado.");
       await load();
+    }
+  }
+
+  /* ---------------------------- fusionar cerebros ---------------------------- */
+
+  // Cerebro de origen A para la fusión (se abre el diálogo desde su tarjeta).
+  const [mergeA, setMergeA] = useState<Brain | null>(null);
+
+  function openMerge(b: Brain) {
+    setMergeA(b);
+  }
+  function closeMerge() {
+    setMergeA(null);
+  }
+
+  async function onMergeConfirm(idA: string, idB: string, opts: MergeBrainsOptions) {
+    const created = await mergeBrains(idA, idB, opts);
+    if (created) {
+      toast.success(`Cerebro «${created.name}» creado por fusión.`);
+      closeMerge();
+      await load();
+    } else {
+      toast.error("No se pudo fusionar. Revisa que ambos cerebros existan.");
     }
   }
 
@@ -683,6 +714,16 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
         />
       )}
 
+      {/* Diálogo de fusión de cerebros */}
+      {mergeA && (
+        <BrainMergeDialog
+          brainA={mergeA}
+          brains={brains}
+          onClose={closeMerge}
+          onConfirm={onMergeConfirm}
+        />
+      )}
+
       {/* Lista de cerebros */}
       <div className="space-y-2">
         <span className="text-[11px] uppercase tracking-widest text-cyan-300/60">
@@ -750,6 +791,16 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
                     </Button>
                     <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-white/60" onClick={() => onDuplicate(b)}>
                       <Copy className="h-3.5 w-3.5" /> Duplicar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 gap-1.5 text-fuchsia-200/80 hover:text-fuchsia-100"
+                      onClick={() => openMerge(b)}
+                      disabled={brains.length < 2}
+                      title={brains.length < 2 ? "Necesitas al menos dos cerebros" : "Fusionar con otro cerebro"}
+                    >
+                      <GitMerge className="h-3.5 w-3.5" /> Fusionar
                     </Button>
                     <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-white/60" onClick={() => onExport(b)}>
                       <Download className="h-3.5 w-3.5" /> Exportar
@@ -926,6 +977,9 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
       {/* Terminal y dispositivos (integrada dentro de Cerebros) */}
       <BrainsTerminalSection />
 
+      {/* Fusionar y duplicar memorias (Bóveda del Exocórtex) */}
+      <MemoryMergePanel />
+
       {/* Astraura */}
       <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/10 p-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -948,6 +1002,210 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
         )}
       </div>
     </div>
+  );
+}
+
+/* ====================================================================== */
+/* Diálogo de fusión de cerebros (A + B → resultado)                       */
+/* ====================================================================== */
+
+/**
+ * BrainMergeDialog — overlay para fusionar el cerebro A con otro (B). Muestra
+ * un selector del segundo cerebro y una PREVISUALIZACIÓN en vivo de lo que
+ * resultará (unión deduplicada de incluidos + servidores, con conteos). Por
+ * defecto NO destruye los originales; el usuario puede optar por reemplazarlos.
+ * Crystal Liquid Glass, responsive y con reduced-motion.
+ */
+function BrainMergeDialog({
+  brainA,
+  brains,
+  onClose,
+  onConfirm,
+}: {
+  brainA: Brain;
+  brains: Brain[];
+  onClose: () => void;
+  onConfirm: (idA: string, idB: string, opts: MergeBrainsOptions) => void;
+}) {
+  const others = useMemo(() => brains.filter((b) => b.id !== brainA.id), [brains, brainA.id]);
+  const [idB, setIdB] = useState<string>(others[0]?.id ?? "");
+  const [name, setName] = useState("");
+  const [replaceSources, setReplaceSources] = useState(false);
+  const [preview, setPreview] = useState<BrainMergePreview | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const brainB = useMemo(() => brains.find((b) => b.id === idB) || null, [brains, idB]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!idB) {
+      setPreview(null);
+      return;
+    }
+    setLoading(true);
+    previewMergeBrains(brainA.id, idB, { name: name || undefined })
+      .then((p) => {
+        if (alive) setPreview(p);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [brainA.id, idB, name]);
+
+  const COUNT_LABELS: { key: string; label: string; icon: string }[] = [
+    { key: "memories", label: "Memorias", icon: "🧠" },
+    { key: "vaults", label: "Baúles", icon: "🗄️" },
+    { key: "backends", label: "Almacenes", icon: "📦" },
+    { key: "personalities", label: "Personalidades", icon: "🌸" },
+    { key: "runtimes", label: "Runtimes", icon: "🤖" },
+    { key: "tokens", label: "Tokens", icon: "🔐" },
+    { key: "connections", label: "Conexiones", icon: "🔌" },
+    { key: "servers", label: "Servidores", icon: "🖥️" },
+  ];
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Fusionar cerebros"
+        className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,44rem)] max-h-[88vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-fuchsia-500/30 bg-black/85 p-5 shadow-2xl backdrop-blur-2xl"
+      >
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-fuchsia-500 to-cyan-500">
+            <GitMerge className="h-4 w-4 text-white" />
+          </div>
+          <span className="text-sm font-semibold text-fuchsia-50">Fusionar cerebros</span>
+          <button
+            onClick={onClose}
+            className="ml-auto cursor-pointer rounded-md p-1 text-white/50 transition-colors motion-reduce:transition-none hover:bg-white/10 hover:text-white"
+            aria-label="Cerrar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* A + B → resultado */}
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px]">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3 py-1 text-cyan-100">
+            <BrainIcon className="h-3.5 w-3.5" />
+            <span className="max-w-[12rem] truncate">{brainA.name}</span>
+          </span>
+          <span className="text-fuchsia-300">+</span>
+          <select
+            value={idB}
+            onChange={(e) => setIdB(e.target.value)}
+            className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-3 py-1 text-fuchsia-100"
+          >
+            {others.length === 0 && <option value="">— no hay otro cerebro —</option>}
+            {others.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          <span className="text-fuchsia-300">→</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-emerald-100">
+            <Sparkles className="h-3.5 w-3.5" />
+            <span className="max-w-[14rem] truncate">
+              {name.trim() || (brainB ? `${brainA.name} + ${brainB.name}` : "resultado")}
+            </span>
+          </span>
+        </div>
+
+        {/* Nombre del resultado */}
+        <label className="mt-4 flex flex-col gap-1">
+          <span className="text-[11px] text-white/50">Nombre del cerebro resultante</span>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={brainB ? `${brainA.name} + ${brainB.name}` : "Nombre de la fusión"}
+            className="h-8 border-white/15 bg-black/30 text-white placeholder:text-white/30"
+          />
+        </label>
+
+        {/* Previsualización de conteos */}
+        <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-3">
+          <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-fuchsia-300/60">
+            <Layers className="h-3.5 w-3.5" /> Vista previa de la unión
+            {loading && <RefreshCw className="ml-1 h-3 w-3 animate-spin text-white/40 motion-reduce:animate-none" />}
+          </div>
+          {!brainB ? (
+            <p className="text-[11px] text-white/40">Elige un segundo cerebro para previsualizar.</p>
+          ) : preview ? (
+            <>
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                {COUNT_LABELS.map((c) => {
+                  const n = preview.counts[c.key] ?? 0;
+                  return (
+                    <div
+                      key={c.key}
+                      className={cn(
+                        "flex flex-col items-center rounded-lg border px-2 py-1.5",
+                        n > 0 ? "border-fuchsia-400/30 bg-fuchsia-500/5" : "border-white/10 bg-black/20",
+                      )}
+                    >
+                      <span className="text-base leading-none">{c.icon}</span>
+                      <span className="mt-0.5 text-sm font-semibold text-white">{n}</span>
+                      <span className="text-[9px] text-white/45">{c.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[10px] text-white/45">
+                Unión deduplicada. {brainA.name} aporta {preview.sourceTotals.a} elementos y{" "}
+                {brainB.name} aporta {preview.sourceTotals.b}; el resultado combina sin duplicar.
+                {preview.includes.bindScope && " El resultado vincula todo el alcance."}
+              </p>
+            </>
+          ) : (
+            <p className="text-[11px] text-white/40">No se pudo previsualizar.</p>
+          )}
+        </div>
+
+        {/* Reemplazar originales */}
+        <label className="mt-4 flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+          <div className="flex flex-col">
+            <span className="text-[11px] font-medium text-white/80">Reemplazar los cerebros originales</span>
+            <span className="text-[10px] text-white/40">
+              Por defecto se conservan A y B. Actívalo sólo si quieres eliminarlos tras fusionar.
+            </span>
+          </div>
+          <Switch checked={replaceSources} onCheckedChange={setReplaceSources} />
+        </label>
+
+        {/* Acciones */}
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <Button size="sm" variant="ghost" className="gap-1.5 text-white/60" onClick={onClose}>
+            <X className="h-4 w-4" /> Cancelar
+          </Button>
+          <Button
+            size="sm"
+            className="gap-1.5 bg-fuchsia-600 text-white hover:bg-fuchsia-500"
+            disabled={!idB}
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                const msg = replaceSources
+                  ? `Se creará la fusión y se ELIMINARÁN «${brainA.name}» y «${brainB?.name}». ¿Continuar?`
+                  : `Se creará un nuevo cerebro fusionando «${brainA.name}» y «${brainB?.name}» (los originales se conservan). ¿Continuar?`;
+                if (!window.confirm(msg)) return;
+              }
+              onConfirm(brainA.id, idB, { name: name || undefined, replaceSources });
+            }}
+          >
+            <GitMerge className="h-4 w-4" /> Fusionar
+          </Button>
+        </div>
+      </div>
+    </>
   );
 }
 
