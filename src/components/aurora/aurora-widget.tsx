@@ -491,9 +491,11 @@ export function AuroraWidget() {
     openUp,
     openLeft,
   };
-  // Aurora está "siendo mencionada" cuando se le está hablando (escucha activa
-  // con transcripción parcial) → el globo aparece también en ese caso.
-  const bubbleMentioned = visListening || !!interim;
+  // El globo aparece SOLO cuando el usuario le está hablando de verdad (hay
+  // transcripción parcial `interim`), NO por el mero hecho de escuchar en
+  // segundo plano. Así el arranque es limpio: micrófono/sentidos listos en
+  // silencio, sin botón de texto ni reproductor hasta que se solicite.
+  const bubbleMentioned = !!interim;
 
   // Últimas 2 líneas de la conversación (usuario y Aurora, voz o texto).
   const lastLines = conversation.slice(-2);

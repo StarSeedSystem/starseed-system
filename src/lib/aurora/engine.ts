@@ -143,9 +143,22 @@ export interface AuroraEngine {
   reloadPersonalities: () => Promise<void>;
 }
 
+/**
+ * Guard SINGLETON a nivel de módulo: garantiza que SOLO una instancia del motor
+ * ejecute el reconocimiento de voz aunque se carguen dos Auroras al mismo tiempo
+ * (bundle viejo+nuevo del service worker, StrictMode en dev, doble montaje). Sin
+ * él, dos SpeechRecognition disparan `onresult`→`runCommand` en paralelo y las
+ * ACCIONES SE DUPLICAN. El primer motor que arranca toma el testigo; los demás
+ * quedan como seguidores (no arrancan su propio reconocimiento). El testigo se
+ * libera al parar/desmontar el dueño.
+ */
+let sttOwner: symbol | null = null;
+
 export function useAuroraEngine(): AuroraEngine {
   const router = useRouter();
   const pathname = usePathname();
+  // Identidad única de ESTA instancia (para el guard singleton del STT).
+  const instanceIdRef = useRef<symbol>(Symbol("aurora-engine"));
   const [supported, setSupported] = useState(false);
   const [enabled, setEnabledState] = useState<boolean>(DEFAULT_SETTINGS.enabled);
   const [listening, setListening] = useState(false);
@@ -716,6 +729,10 @@ export function useAuroraEngine(): AuroraEngine {
     if (typeof window === "undefined") return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { toast.error("Tu navegador no soporta reconocimiento de voz."); return; }
+    // Guard singleton: si otra instancia ya posee el testigo del STT, esta cede
+    // (no arranca un segundo reconocimiento → no se duplican las acciones).
+    if (sttOwner && sttOwner !== instanceIdRef.current) return;
+    sttOwner = instanceIdRef.current;
     keepAliveRef.current = true; // mantener vivo a través de la navegación
     try { recognitionRef.current?.stop?.(); } catch { /* */ }
     const rec = buildRecognition();
@@ -729,7 +746,15 @@ export function useAuroraEngine(): AuroraEngine {
     if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
     sttRestartsRef.current = 0;
     try { recognitionRef.current?.stop?.(); } catch { /* */ }
+    // Libera el testigo del STT para que cualquier instancia pueda retomarlo.
+    if (sttOwner === instanceIdRef.current) sttOwner = null;
     setListening(false);
+  }, []);
+
+  // Al desmontar la instancia dueña del STT, libera el testigo.
+  useEffect(() => {
+    const id = instanceIdRef.current;
+    return () => { if (sttOwner === id) sttOwner = null; };
   }, []);
 
   const toggle = useCallback(() => {

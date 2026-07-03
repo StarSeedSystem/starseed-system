@@ -14,9 +14,6 @@ import { useAuroraEngine, type AuroraEngine, type ConversationEntry } from "@/li
 import { AURORA_CONVERSATION_EVENT } from "@/lib/aurora/aurora-orb-bus";
 import {
   autonomyDisabled,
-  greetedThisSession,
-  markGreetedThisSession,
-  greetingFor,
   queryMicPermission,
 } from "@/lib/aurora/voice-autonomy";
 import {
@@ -31,10 +28,6 @@ import {
  * refresquen vía el puente `window.STARSEED_AURORA.subscribe()`.
  */
 export const AURORA_STATE_EVENT = "starseed:aurora-state";
-
-// Marca de localStorage (registro del último saludo; la cadencia real por
-// sesión de pestaña la lleva voice-autonomy con sessionStorage).
-const GREETED_KEY = "starseed_aurora_greeted_at";
 
 /**
  * Motor de Aurora SUPERVISADO: el mismo AuroraEngine, pero con el ciclo de vida
@@ -206,17 +199,10 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       g.starting = false;
       try { superStart(); } catch { /* */ }
     }
-    // Saluda (TTS) si hay síntesis y aún no saludó en esta sesión. Nace del
-    // gesto → la política de autoplay ya está satisfecha.
-    if (fresh.hasTTS && !greetedThisSession()) {
-      try {
-        const name = eng.activePersonality?.name || "Aurora";
-        const path = typeof window !== "undefined" ? (window.location?.pathname || "/") : "/";
-        markGreetedThisSession();
-        try { localStorage.setItem(GREETED_KEY, String(Date.now())); } catch { /* */ }
-        eng.speak(greetingFor(name, path));
-      } catch { /* degrada en silencio si no hay TTS */ }
-    }
+    // NO saludamos al arrancar (petición del usuario): Aurora se mantiene en
+    // segundo plano con el micrófono y los sentidos LISTOS pero EN SILENCIO.
+    // Solo habla DESPUÉS de que el usuario hable (o escriba). Sin sonidos de
+    // arranque, sin abrir chat/reproductor, sin conversación iniciada por ella.
   }, [superStart]);
 
   // WATCHDOG de flapping: observa las transiciones de `listening` del motor.
@@ -323,35 +309,20 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     let cleanupGesture: (() => void) | null = null;
 
-    const doGreet = () => {
-      if (cancelled) return;
-      if (greetedThisSession()) return;
-      const eng = engineRef.current;
-      if (!eng?.enabled) return;
-      try {
-        const name = eng.activePersonality?.name || "Aurora";
-        const path = window.location?.pathname || "/";
-        markGreetedThisSession();
-        try { localStorage.setItem(GREETED_KEY, String(Date.now())); } catch { /* */ }
-        eng.speak(greetingFor(name, path));
-      } catch { /* degrada en silencio si no hay TTS */ }
-    };
-
     const beginAutonomy = () => {
       if (cancelled) return;
       const eng = engineRef.current;
       if (!eng?.enabled) return;
       const caps = getCapabilities();
-      // Solo arrancamos STT donde EXISTE reconocimiento de voz (Chrome/Edge/
-      // Safari). En Firefox / algunos WebView no hay STT: NO intentamos escuchar
-      // (evita el estado de error/flapping) → queda text-only + TTS, chat 100%.
+      // ARRANQUE PASIVO Y SILENCIOSO (petición del usuario): solo dejamos el
+      // micrófono/sentidos LISTOS escuchando en segundo plano donde EXISTE
+      // reconocimiento de voz (Chrome/Edge/Safari). En Firefox/WebView sin STT
+      // NO intentamos escuchar (evita error/flapping) → chat de texto + TTS.
+      // Aurora NO saluda ni abre chat/reproductor: hablará solo cuando el
+      // usuario le hable o escriba.
       if (caps.hasSpeechRecognition && eng.supported !== false) {
-        // Arranca la escucha continua por el flujo supervisado (backoff/watchdog).
         try { superStart(); } catch { /* */ }
       }
-      // Saluda un poco después para no pisar el arranque del reconocimiento.
-      // Si hay TTS (aunque no haya STT), Aurora igualmente habla su saludo.
-      setTimeout(doGreet, 500);
     };
 
     // Handler de primer gesto (una sola vez): cubre navegadores que exigen

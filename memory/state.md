@@ -1640,3 +1640,18 @@ Construido con 7 subagentes en 3 olas (archivos disjuntos) + integración del or
 - Verificado: tsc 393 → **376 errores preexistentes** (−17, 0 nuevos). Deploys: 04766fe (ola 1) + commit siguiente (olas 2-3 + integración).
 
 **Pendiente:** #47 instaladores nativos; investigación OSS ampliada para sentidos/plugins de Aurora; day-detail-dialog ya sin semilla.
+
+---
+## Adenda 50 — 2026-07-02 · Escritorio-izq · Aurora Android/cross-browser · globo diálogo · Trinity cierre/swipe · Exocórtex+wake-word (deploys be0a9c4→e3be1c4)
+
+- **Escritorio primero (izquierda) en TODAS las cuentas:** migración dock v6 (`starseed.dock.items.migrated.v6`) mueve 'escritorios' al índice 0 y lo habilita (v5 solo insertaba si faltaba → quedaba a la derecha en cuentas existentes).
+- **Aurora reconoce /escritorios:** añadido a OS_ROUTES (actions.ts, primero) y al nav map de engine.ts.
+- **FIX Aurora Android Chrome (loop "escuchando sin reconocer"):** causa = `continuous=true` no fiable en Android (onend inmediato + reinicio 250ms) + getUserMedia del analyser compitiendo con SpeechRecognition. Fix en engine.ts: móvil → `continuous=false`, backoff progresivo (700ms→2.5s) con tope de 6 reinicios sin habla → corta y deja al supervisor mostrar reintento; onresult resetea el backoff. aurora-orb-bus.ts: en Android NO se crea el analyser de mic (cae al latido de eventos). stop() limpia el timer.
+- **Globo de diálogo cristalino sobre el orbe (aurora-speech-bubble.tsx):** sustituye el auto-popover al hablar. Voz SOLO a petición; sugerencias/notificaciones proactivas ('aurora:suggest'/'aurora:notify') aparecen como TEXTO sobre el botón sin hablar; play/continuar inicia voz; se puede seguir solo por chat. Controles translúcidos, auto-oculta 10s, descartable.
+- **Drag-to-open natural:** durante el long-press, deslizar (mismo pointer capture, histéresis 40/26px, overlay pointer-events-none mientras arrastra) resalta y al soltar abre la sección; touch+mouse; overlay centrado dentro del viewport.
+- **Cortinas Trinity (Zenith/Horizon/Logic):** botón de cierre X cristalino (≥44px), swipe-to-close que sigue el dedo (umbral 80px + spring, reduced-motion), responsive anclado dentro del viewport (Logic ya no sale de pantalla; Horizon sin botones encimados: clamp + safe-area + box-border). trinity-curtains.module.css nuevo.
+- **Voz cross-navegador (capabilities.ts):** detecta STT/TTS/mediaDevices/fullscreen/secureContext/navegador; requestMaxAccess pide micrófono→pantalla completa desde gesto; voiceMode full|tts-only|text-only; Firefox/WebView ya no entran en error (chat 100% + TTS). provider expone capabilities+requestAccess (puente v5); widget adapta chip/tap.
+- **Exocórtex = casa de Aurora:** barra superior (escribir para preguntar/buscar + botón derecho activar voz), nuevo chat / ver registro / entrar a contextos de sesión, switches orbe flotante y Aurora global. Modo "Aurora siempre encendida" wake-word (wake-word.ts + aurora-always-on.tsx, 'starseed.aurora.always-on'): escucha pasiva de fondo, al decir "aurora" se activa con el resto de la frase, ~6s de silencio → vuelve al fondo. containsWake/stripWake probados 10/10.
+- tsc 376 = baseline en todas las tandas (0 nuevos). Deploys: be0a9c4 (crítico) · 222329a (globo+trinity) · e3be1c4 (cross-browser+exocórtex+wake-word).
+
+**Pendiente:** STT open-source (Whisper/Moonshine transformers.js) como fallback para navegadores sin SpeechRecognition; VAD barge-in; QA visual por tamaño real.
