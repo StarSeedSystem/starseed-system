@@ -66,6 +66,15 @@ export function useOpenDesktopIcon(desktopId: string | null | undefined): OpenDe
                     return;
                 }
                 case "file": {
+                    // Nota rápida → ventana editor de nota (más compacta).
+                    if (icon.fileKind === "note") {
+                        openWindow(
+                            desktopId,
+                            { type: "file", ref: icon.id, name: icon.name, meta: { kind: "note", noteId: icon.id } },
+                            { w: 460, h: 420 },
+                        );
+                        return;
+                    }
                     openWindow(
                         desktopId,
                         { type: "file", ref: icon.url ?? "", name: icon.name, meta: { kind: icon.fileKind } },

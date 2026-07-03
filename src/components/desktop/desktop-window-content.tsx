@@ -15,18 +15,18 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import {
-    ExternalLink, Loader2, Hammer, Globe, RotateCw, ArrowRight, Plus,
-    FolderOpen, Trash2, LayoutGrid, FileQuestion, type LucideIcon,
+    ExternalLink, Loader2, Hammer, Globe, RotateCw, ArrowRight,
+    LayoutGrid, FileQuestion, StickyNote, FolderOpen, type LucideIcon,
 } from "lucide-react";
 import { getApp } from "@/components/dashboard/apps/app-catalog";
 import type { ContentKind, ContentResource } from "@/components/dashboard/apps/content/content-types";
 import { detectKind } from "@/components/dashboard/apps/content/content-types";
-import type { DesktopIcon, DesktopWindow, DesktopWindowContentRef } from "./desktop-store";
-import { removeIcon, useDesktopsState } from "./desktop-store";
+import type { DesktopWindow, DesktopWindowContentRef } from "./desktop-store";
+import { updateIcon, useDesktopsState, findIconInTree } from "./desktop-store";
 import { DesktopErrorBoundary, DesktopWidgetHost, widgetAccent, widgetLabel } from "./desktop-widget-host";
-import { DesktopIconTile } from "./desktop-icon";
-import { useOpenDesktopIcon } from "./desktop-open";
+import { DesktopFolderView } from "./desktop-folder-view";
 import type { WindowChrome } from "./desktop-window";
 import { WIDGET_MANIFEST } from "@/components/dashboard/widget-manifest";
 import type { WidgetType } from "@/components/dashboard/dashboard-types";
@@ -77,10 +77,14 @@ export function resolveWindowChrome(ref: DesktopWindowContentRef): WindowChrome 
         case "file":
             return {
                 title: ref.name ?? "Archivo",
-                subtitle: ref.meta?.kind ? `Archivo · ${ref.meta.kind}` : "Archivo",
-                accent: "#38BDF8",
-                href: ref.ref || undefined,
-                iconEl: <FileQuestion className="size-3 text-white" strokeWidth={2.2} />,
+                subtitle: ref.meta?.kind === "note"
+                    ? "Nota rápida"
+                    : ref.meta?.kind ? `Archivo · ${ref.meta.kind}` : "Archivo",
+                accent: ref.meta?.kind === "note" ? "#FBBF24" : "#38BDF8",
+                href: ref.meta?.kind === "note" ? undefined : (ref.ref || undefined),
+                iconEl: ref.meta?.kind === "note"
+                    ? <StickyNote className="size-3 text-white" strokeWidth={2.2} />
+                    : <FileQuestion className="size-3 text-white" strokeWidth={2.2} />,
             };
         case "browser":
             return {
@@ -120,14 +124,17 @@ export function DesktopWindowContent({
                 </div>
             );
         case "file":
+            if (ref.meta?.kind === "note" && ref.meta?.noteId) {
+                return <NoteContent desktopId={desktopId} noteId={ref.meta.noteId} />;
+            }
             return <FileContent refData={ref} winId={win.id} />;
         case "browser":
             return <BrowserContent initialUrl={ref.ref} />;
         case "folder":
             return (
-                <FolderContent
+                <DesktopFolderView
                     desktopId={desktopId}
-                    folderId={ref.ref}
+                    rootFolderId={ref.ref}
                     onRequestAddInto={onRequestAddInto}
                 />
             );
@@ -271,6 +278,51 @@ function AppContent({ appId, fallbackName }: { appId: string; fallbackName?: str
             accent={app.accent}
             action={href ? <OpenTabButton href={href} accent={app.accent} /> : undefined}
         />
+    );
+}
+
+// ── NOTE: editor de nota rápida (texto embebido, guardado en vivo) ──
+function NoteContent({ desktopId, noteId }: { desktopId: string; noteId: string }): React.ReactElement {
+    const state = useDesktopsState();
+    const desktop = state.desktops.find((d) => d.id === desktopId);
+    const note = desktop ? findIconInTree(desktop.icons, noteId) : null;
+    const [draft, setDraft] = useState(note?.text ?? "");
+    const [saved, setSaved] = useState(true);
+    const skipRef = useRef(true);
+
+    // Autoguardado con debounce.
+    useEffect(() => {
+        if (skipRef.current) { skipRef.current = false; return; }
+        setSaved(false);
+        const t = setTimeout(() => {
+            updateIcon(desktopId, noteId, { text: draft });
+            setSaved(true);
+        }, 500);
+        return () => clearTimeout(t);
+    }, [draft, desktopId, noteId]);
+
+    if (!note) {
+        return <CenterBody icon={StickyNote} title="Nota no encontrada" text="Esta nota ya no existe en el escritorio." accent="#FBBF24" />;
+    }
+
+    return (
+        <div className="flex h-full w-full flex-col bg-gradient-to-b from-amber-500/[0.04] to-transparent">
+            <div className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-white/[0.03] px-3 py-1.5">
+                <StickyNote className="size-3.5 text-amber-300" />
+                <span className="text-[11px] font-bold text-amber-100/90">{note.name}</span>
+                <span className={cn("ml-auto text-[10px] font-semibold transition-colors", saved ? "text-emerald-300/80" : "text-muted-foreground/70")}>
+                    {saved ? "Guardado" : "Guardando…"}
+                </span>
+            </div>
+            <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onPointerDown={(e) => e.stopPropagation()}
+                placeholder="Escribe tu nota… se guarda sola."
+                spellCheck={false}
+                className="min-h-0 flex-1 resize-none bg-transparent p-4 text-[13px] leading-relaxed text-foreground/90 outline-none placeholder:text-muted-foreground/50"
+            />
+        </div>
     );
 }
 
@@ -428,103 +480,5 @@ function BrowserContent({ initialUrl }: { initialUrl: string }): React.ReactElem
     );
 }
 
-// ── FOLDER: contenido de carpeta (iconos hijos) ──────────────────
-function FolderItem({
-    child, onOpen, onRemove,
-}: {
-    child: DesktopIcon;
-    onOpen: () => void;
-    onRemove: () => void;
-}): React.ReactElement {
-    const lastTapRef = useRef(0);
-    return (
-        <div className="group relative flex flex-col items-center rounded-xl p-1.5 transition-colors hover:bg-white/[0.06]">
-            <button
-                type="button"
-                onDoubleClick={onOpen}
-                onPointerUp={(e) => {
-                    if (e.pointerType !== "touch") return;
-                    const now = Date.now();
-                    if (now - lastTapRef.current < 350) onOpen();
-                    lastTapRef.current = now;
-                }}
-                className="cursor-pointer"
-                title={`Abrir ${child.name}`}
-            >
-                <DesktopIconTile icon={child} compact />
-            </button>
-            <button
-                type="button"
-                onClick={onRemove}
-                title="Quitar de la carpeta"
-                aria-label={`Quitar ${child.name}`}
-                className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full border border-white/20 bg-black/70 text-muted-foreground opacity-0 transition-opacity hover:text-red-300 group-hover:opacity-100 cursor-pointer"
-            >
-                <Trash2 className="size-3" />
-            </button>
-        </div>
-    );
-}
-
-function FolderContent({
-    desktopId, folderId, onRequestAddInto,
-}: {
-    desktopId: string;
-    folderId: string;
-    onRequestAddInto?: (folderId: string) => void;
-}): React.ReactElement {
-    const state = useDesktopsState();
-    const desktop = state.desktops.find((d) => d.id === desktopId);
-    const folder = desktop?.icons.find((i) => i.id === folderId && i.kind === "folder");
-    const openIcon = useOpenDesktopIcon(desktopId);
-    const children = folder?.children ?? [];
-
-    if (!folder) {
-        return (
-            <CenterBody
-                icon={FolderOpen}
-                title="Carpeta no encontrada"
-                text="Esta carpeta ya no existe en el escritorio."
-                accent="#FFBF00"
-            />
-        );
-    }
-
-    return (
-        <div className="flex h-full w-full flex-col">
-            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-white/[0.03] px-3 py-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                    {children.length === 0 ? "Carpeta vacía" : `${children.length} elemento${children.length === 1 ? "" : "s"}`}
-                </span>
-                {onRequestAddInto && (
-                    <button
-                        type="button"
-                        onClick={() => onRequestAddInto(folderId)}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] font-bold text-amber-200 transition-colors hover:bg-amber-300/20 cursor-pointer"
-                    >
-                        <Plus className="size-3.5" /> Añadir aquí
-                    </button>
-                )}
-            </div>
-            {children.length === 0 ? (
-                <div className="grid flex-1 place-items-center p-6 text-center">
-                    <p className="max-w-[260px] text-xs leading-relaxed text-muted-foreground">
-                        Esta carpeta está esperando contenido. Usa <strong>Añadir aquí</strong> para
-                        guardar apps, archivos o widgets dentro.
-                    </p>
-                </div>
-            ) : (
-                <div className="grid flex-1 auto-rows-min grid-cols-3 gap-1 overflow-y-auto p-3 sm:grid-cols-4 md:grid-cols-5">
-                    {children.map((child) => (
-                        <FolderItem
-                            key={child.id}
-                            child={child}
-                            onOpen={() => openIcon(child)}
-                            onRemove={() => removeIcon(desktopId, child.id)}
-                        />
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
+// La carpeta ahora se renderiza con <DesktopFolderView /> (explorador
+// ramificado con breadcrumb, rejilla/lista, tipos de archivo y anidamiento).

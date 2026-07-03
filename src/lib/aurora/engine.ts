@@ -42,6 +42,11 @@ import {
 // Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
 // eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
 import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
+// Corrección fonética de términos propios (Astraura, Exocórtex, StarSeed…): el
+// STT los destroza; los reparamos ANTES de rutear/enviar. Determinista y barato.
+import { normalizeStarseedTerms } from "@/lib/aurora/term-normalizer";
+// Conocimiento del ecosistema (áreas, tríada, enlaces) para el prompt de Astraura.
+import { buildSystemKnowledge } from "@/lib/aurora/system-knowledge";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -499,7 +504,11 @@ export function useAuroraEngine(): AuroraEngine {
 
   // ── enrutado de comandos ──
   const runCommand = useCallback(async (raw: string) => {
-    const text = (raw || "").trim();
+    // Corrección fonética de términos StarSeed (idempotente): cubre también el
+    // texto ESCRITO (send) y refuerza el de voz. Si algo falla, usa el original.
+    let base = raw || "";
+    try { base = normalizeStarseedTerms(base); } catch { base = raw || ""; }
+    const text = base.trim();
     if (!text) return;
     setTranscript(text);
     pushUser(text);
@@ -622,10 +631,15 @@ export function useAuroraEngine(): AuroraEngine {
       // cerebro activo (vacía si no hay ninguna configurada → prompt idéntico).
       let toolsSection = "";
       try { toolsSection = await auroraToolsActionPromptSection(brainIdRef.current); } catch { toolsSection = ""; }
+      // Conocimiento del ecosistema (áreas, tríada, enlaces canónicos) para que
+      // Aurora entienda cada contexto/sección y responda/actúe interconectando.
+      let knowledge = "";
+      try { knowledge = buildSystemKnowledge(routeContext()); } catch { knowledge = ""; }
       const system =
         buildSystemPrompt(activeRef.current) + "\n\n" +
         actionsSystemPromptSection() +
-        (toolsSection ? "\n\n" + toolsSection : "") + "\n\n" +
+        (toolsSection ? "\n\n" + toolsSection : "") +
+        (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
         contextNote;
       const messages: ChatMessage[] = [
         { role: "system", content: system },
@@ -761,7 +775,11 @@ export function useAuroraEngine(): AuroraEngine {
       if (interimText) setInterim(interimText);
       if (finalText) {
         setInterim("");
-        void runCommandRef.current(finalText);
+        // Corrección fonética de términos StarSeed (voz): "astral aura" →
+        // "Astraura", "exo corte" → "Exocórtex"… antes de rutear/enviar.
+        let corrected = finalText;
+        try { corrected = normalizeStarseedTerms(finalText); } catch { corrected = finalText; }
+        void runCommandRef.current(corrected);
       }
     };
     return rec;

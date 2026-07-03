@@ -1689,3 +1689,13 @@ Construido con 5 subagentes en 2 olas + integración.
 - tsc OS 376 = baseline. node --check limpio en Nexus y Café. Deploys: OS 6ec7481 (chats+ampliación) · 220558e (STT OSS) · Nexus 5ad9eff · Café f60b268.
 
 **Pendiente:** WebRTC LAN real (señalización por cuenta); contexto compartido real Exocórtex↔AI Studio (hoy enlace); wake-word acústico local (Porcupine/OSS) opcional.
+
+---
+## Adenda 54 — 2026-07-02 (madrugada 2) · Anti-eco GLOBAL + carpeta de chats de Aurora (deploys b19feee, 0db1d45)
+
+- **FIX definitivo eco/duplicación/loop:** la supresión anterior era POR INSTANCIA y solo en el TTS del navegador → si había 2 instancias o la voz salía por otra ruta, Aurora se oía a sí misma. Ahora `ttsSpeakingGlobal`/`ttsGuardUntilGlobal` + `ttsGuardActive()`/`markTtsSpeaking()` a NIVEL DE MÓDULO: TODAS las instancias y rutas de voz suprimen a la vez. Guard abierto ANTES de speechSynthesis.speak (cubre primer fonema) + cola 800ms; onresult descarta si guard activo; el watchdog no cuenta reinicios como "sin habla" durante TTS (no se autodesactiva tras hablar). engine.ts.
+- **Carpeta/explorador de chats de Aurora** (exocortex, vista principal por defecto "Carpeta"): dos ejes fecha (hoy/ayer/semana/mes) + tema; categorización automática LOCAL determinista (chat-auto-categorize.ts: Sistema/OS·Creación·Gobernanza·Café·Audio-Frecuencias·Educación·Personal·General + título derivado, sin IA externa); catálogo unificado (chat-catalog.ts 'starseed.aurora.chatcatalog.v1', useChatCatalog): guardar chat en MEMORIAS (baúl memory-vault + referencia library-store), DUPLICAR (contexto nuevo copiando timestamps), INTERCONECTAR (linkedIds bidireccional). 
+- **Ventana principal fusionada búsqueda⇄chat:** barra única en el explorador, conmutador Preguntar/Buscar; escribir en Buscar lanza universalSearch (recursos de red) y filtra chats; botón Aurora/Enter invoca send(); el buscar del Exocórtex ahora invoca a Aurora. Reutiliza AuroraChatView/chat-tree/aurora-chat-log sin duplicar.
+- tsc 376 = baseline. Deploys OS: b19feee (anti-eco global) · 0db1d45 (carpeta de chats).
+
+**Pendiente:** WebRTC LAN real; contexto compartido en vivo Exocórtex↔AI Studio; wake-word acústico local OSS; verificar en Android que el eco global ya no reinicia.

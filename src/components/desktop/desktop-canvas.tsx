@@ -14,16 +14,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
-    Plus, Eye, EyeOff, ChevronDown, Pencil, Trash2, Check, Sparkles,
-    LayoutGrid, MousePointer2, ExternalLink, X, Magnet, ImageIcon,
-    MonitorPlay, SquareStack,
+    Plus, Eye, EyeOff, ChevronDown, Pencil, Trash2, Check,
+    MousePointer2, ExternalLink, X, Magnet, ImageIcon,
+    SquareStack, Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-    type Desktop, type DesktopIcon, useDesktopsState, useDesktopsBackup,
+    type Desktop, type DesktopIcon, type DesktopIconSize, type DesktopTheme,
+    useDesktopsState, useDesktopsBackup,
     seedIfEmpty, createDesktop, renameDesktop, deleteDesktop, setActiveDesktop,
     setWallpaper, setSnap, moveIcon, removeIcon, updateIcon,
-    setWindowMinimized, focusWindow,
+    setWindowMinimized, focusWindow, DEFAULT_DESKTOP_VIEW,
 } from "./desktop-store";
 import { DesktopIconTile, ICON_CELL } from "./desktop-icon";
 import { useOpenDesktopIcon } from "./desktop-open";
@@ -31,9 +32,23 @@ import { DesktopWindowFrame } from "./desktop-window";
 import { DesktopWindowContent, resolveWindowChrome } from "./desktop-window-content";
 import { DesktopAddPanel, type AddPanelTab } from "./desktop-add-panel";
 import { CursorSettingsPanel } from "./cursor-fx";
+import { EmptyDesktopState } from "./desktop-empty";
+import { CanvasContextMenu, IconContextMenu } from "./desktop-context-menu";
+import { DesktopTaskbar } from "./desktop-taskbar";
+import { DesktopSettingsPanel } from "./desktop-settings-panel";
 
 const TOPBAR_H = 44;
 const WINDOW_TOP_INSET = TOPBAR_H + 6;
+
+// ── Tinte del escritorio por tema (acento del lienzo/rejilla) ────
+const THEME_ACCENT: Record<DesktopTheme, string> = {
+    auto: "#22D3EE",
+    azure: "#007FFF",
+    emerald: "#10B981",
+    amber: "#FFBF00",
+    crimson: "#DC143C",
+    violet: "#7C3AED",
+};
 
 // ── Media query SSR-safe ─────────────────────────────────────────
 function useMediaQuery(query: string): boolean {
@@ -77,7 +92,7 @@ function DesktopClock(): React.ReactElement {
 
 // ── Icono posicionado y arrastrable (pointer events) ─────────────
 function PositionedIcon({
-    desktopId, icon, areaRef, snap, selected, renaming,
+    desktopId, icon, areaRef, snap, selected, renaming, sizeOverride,
     onSelect, onOpen, onContext, onRenameCommit, onRenameCancel,
 }: {
     desktopId: string;
@@ -86,6 +101,8 @@ function PositionedIcon({
     snap: boolean;
     selected: boolean;
     renaming: boolean;
+    /** Tamaño efectivo del escritorio (sobrescribe icon.size en el render). */
+    sizeOverride?: DesktopIconSize;
     onSelect: (id: string, additive: boolean) => void;
     onOpen: (icon: DesktopIcon) => void;
     onContext: (x: number, y: number, icon: DesktopIcon) => void;
@@ -209,7 +226,7 @@ function PositionedIcon({
             )}
         >
             <DesktopIconTile
-                icon={icon}
+                icon={sizeOverride ? { ...icon, size: sizeOverride } : icon}
                 selected={selected}
                 renaming={renaming}
                 onRenameCommit={onRenameCommit}
@@ -219,173 +236,47 @@ function PositionedIcon({
     );
 }
 
-// ── Estado vacío: bienvenida guiada por Aurora ───────────────────
-function EmptyDesktopState({
-    desktop, onAddApps, onAddWidgets,
-}: {
-    desktop: Desktop;
-    onAddApps: () => void;
-    onAddWidgets: () => void;
-}): React.ReactElement {
-    const reduced = useReducedMotion();
-
-    const askAurora = () => {
-        try {
-            window.dispatchEvent(new CustomEvent("starseed:open-aurora-exocortex"));
-            window.dispatchEvent(new CustomEvent("aurora:suggest", {
-                detail: { context: "desktop-empty", desktopName: desktop.name },
-            }));
-        } catch { /* noop */ }
-    };
-
-    return (
-        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center p-6">
-            <div className="pointer-events-auto flex max-w-sm flex-col items-center text-center">
-                {/* Orbe estelar estático (respiración sutil si el usuario lo permite) */}
-                <motion.div
-                    aria-hidden
-                    animate={reduced ? undefined : { scale: [1, 1.045, 1], opacity: [0.95, 1, 0.95] }}
-                    transition={reduced ? undefined : { duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
-                    className="relative mb-5 size-28"
-                >
-                    <span className="absolute inset-0 rounded-full opacity-90"
-                        style={{ background: "radial-gradient(circle at 34% 30%, rgba(234,246,255,0.95), rgba(63,182,255,0.55) 38%, rgba(109,40,217,0.4) 68%, transparent 78%)" }} />
-                    <span className="absolute -inset-4 rounded-full blur-2xl"
-                        style={{ background: "radial-gradient(circle, rgba(0,127,255,0.35), rgba(124,58,237,0.18) 55%, transparent 75%)" }} />
-                    <svg viewBox="0 0 24 24" className="absolute inset-0 m-auto size-12 opacity-95 drop-shadow-[0_0_10px_rgba(191,243,255,0.9)]">
-                        <path
-                            d="M12 1 C12.9 8 15.5 10.6 22.5 12 C15.5 13.4 12.9 16 12 23 C11.1 16 8.5 13.4 1.5 12 C8.5 10.6 11.1 8 12 1 Z"
-                            fill="white"
-                        />
-                    </svg>
-                </motion.div>
-
-                <h2 className="text-lg font-black tracking-tight text-foreground">
-                    «{desktop.name}» está en blanco
-                </h2>
-                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                    Este es tu espacio. Coloca apps, widgets vivos, archivos y carpetas —
-                    o deja que Aurora lo componga contigo.
-                </p>
-
-                <div className="mt-5 flex flex-col items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={askAurora}
-                        className="group inline-flex items-center gap-2 rounded-full border border-violet-300/40 bg-gradient-to-r from-violet-500/25 to-sky-500/25 px-5 py-2.5 text-[12px] font-black text-violet-100 shadow-[0_0_24px_rgba(124,58,237,0.35)] transition-all hover:shadow-[0_0_32px_rgba(124,58,237,0.55)] hover:-translate-y-px cursor-pointer"
-                    >
-                        <Sparkles className="size-4 transition-transform group-hover:rotate-12" />
-                        Pídele a Aurora que lo arme
-                    </button>
-                    <div className="flex gap-2">
-                        <button
-                            type="button"
-                            onClick={onAddApps}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.05] px-4 py-2 text-[11px] font-bold text-foreground/90 transition-colors hover:bg-white/[0.12] cursor-pointer"
-                        >
-                            <LayoutGrid className="size-3.5" /> Añadir apps
-                        </button>
-                        <button
-                            type="button"
-                            onClick={onAddWidgets}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.05] px-4 py-2 text-[11px] font-bold text-foreground/90 transition-colors hover:bg-white/[0.12] cursor-pointer"
-                        >
-                            <MonitorPlay className="size-3.5" /> Añadir widgets
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ── Menú contextual de icono ─────────────────────────────────────
-interface CtxMenuState { x: number; y: number; icon: DesktopIcon; }
-
-function IconContextMenu({
-    ctx, desktopId, canvasRef, onClose, onOpen, onRename,
-}: {
-    ctx: CtxMenuState;
-    desktopId: string;
-    canvasRef: React.RefObject<HTMLDivElement | null>;
-    onClose: () => void;
-    onOpen: (icon: DesktopIcon) => void;
-    onRename: (id: string) => void;
-}): React.ReactElement {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    const left = Math.min((rect ? ctx.x - rect.left : ctx.x), (rect?.width ?? 400) - 190);
-    const top = Math.min((rect ? ctx.y - rect.top : ctx.y), (rect?.height ?? 400) - 230);
-    const icon = ctx.icon;
-    const canPreview = icon.kind === "widget" || (icon.kind === "file" && (icon.fileKind === "image" || icon.fileKind === "gif"));
-
-    const Item = ({ onClick, danger, children }: { onClick: () => void; danger?: boolean; children: React.ReactNode }) => (
-        <button
-            type="button"
-            onClick={() => { onClick(); onClose(); }}
-            className={cn(
-                "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12px] font-semibold transition-colors cursor-pointer",
-                danger ? "text-red-300 hover:bg-red-500/15" : "text-foreground/90 hover:bg-white/10",
-            )}
-        >
-            {children}
-        </button>
-    );
-
+// ── Rejilla del escritorio (patrón sutil, conmutable) ────────────
+function DesktopGrid({ accent }: { accent: string }): React.ReactElement {
     return (
         <div
-            role="menu"
-            style={{ left: Math.max(8, left), top: Math.max(TOPBAR_H + 4, top) }}
-            className="absolute z-[60] w-[180px] rounded-2xl border border-white/12 bg-card/95 p-1.5 shadow-2xl backdrop-blur-2xl"
-        >
-            <Item onClick={() => onOpen(icon)}>
-                <ExternalLink className="size-3.5" /> Abrir
-            </Item>
-            <Item onClick={() => onRename(icon.id)}>
-                <Pencil className="size-3.5" /> Renombrar
-            </Item>
-            {canPreview && (
-                <Item onClick={() => updateIcon(desktopId, icon.id, { viewMode: icon.viewMode === "preview" ? "icon" : "preview" })}>
-                    <MonitorPlay className="size-3.5" />
-                    {icon.viewMode === "preview" ? "Ver como icono" : "Vista previa viva"}
-                </Item>
-            )}
-            <div className="my-1 flex items-center gap-1 px-2.5">
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/70">Tamaño</span>
-                <div className="ml-auto flex gap-1">
-                    {(["sm", "md", "lg"] as const).map((s) => (
-                        <button
-                            key={s}
-                            type="button"
-                            onClick={() => updateIcon(desktopId, icon.id, { size: s })}
-                            className={cn(
-                                "rounded-md border px-1.5 py-0.5 text-[10px] font-black uppercase transition-colors cursor-pointer",
-                                icon.size === s
-                                    ? "border-sky-300/60 bg-sky-400/20 text-sky-100"
-                                    : "border-white/10 text-muted-foreground hover:bg-white/10",
-                            )}
-                        >
-                            {s.toUpperCase()[0]}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            <div className="my-1 h-px bg-white/10" />
-            <Item danger onClick={() => removeIcon(desktopId, icon.id)}>
-                <Trash2 className="size-3.5" /> Quitar del escritorio
-            </Item>
-        </div>
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-[4] opacity-[0.5]"
+            style={{
+                backgroundImage: `linear-gradient(color-mix(in srgb, ${accent} 22%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, ${accent} 22%, transparent) 1px, transparent 1px)`,
+                backgroundSize: `${ICON_CELL.w}px ${ICON_CELL.h}px`,
+                backgroundPosition: "12px 12px",
+                maskImage: "radial-gradient(ellipse 80% 70% at 50% 45%, black, transparent 92%)",
+                WebkitMaskImage: "radial-gradient(ellipse 80% 70% at 50% 45%, black, transparent 92%)",
+            }}
+        />
     );
 }
+
+// ── Marco de selección (marquee) ─────────────────────────────────
+function SelectionBox({ box }: { box: { x: number; y: number; w: number; h: number } }): React.ReactElement {
+    return (
+        <div
+            aria-hidden
+            className="pointer-events-none absolute z-[9] rounded-lg border border-cyan-300/70 bg-cyan-400/10"
+            style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+        />
+    );
+}
+
+// ── Estado del menú contextual (icono o lienzo) ──────────────────
+interface CtxMenuState { x: number; y: number; icon: DesktopIcon | null; }
 
 // ── Menú gestor de escritorios (barra superior) ──────────────────
 function DesktopManagerMenu({
-    desktops, active, snap, onClose, onOpenCursorPanel,
+    desktops, active, snap, onClose, onOpenCursorPanel, onOpenSettings,
 }: {
     desktops: Desktop[];
     active: Desktop;
     snap: boolean;
     onClose: () => void;
     onOpenCursorPanel: () => void;
+    onOpenSettings: () => void;
 }): React.ReactElement {
     const [renamingId, setRenamingId] = useState<string | null>(null);
     const [wallpaperDraft, setWallpaperDraft] = useState(active.wallpaper?.value ?? "");
@@ -522,6 +413,17 @@ function DesktopManagerMenu({
                 </span>
             </button>
 
+            {/* Ajustes completos del escritorio */}
+            <button
+                type="button"
+                onClick={() => { onOpenSettings(); onClose(); }}
+                className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-[12px] font-bold text-foreground/90 transition-colors hover:bg-white/[0.06] cursor-pointer"
+            >
+                <Settings2 className="size-3.5" />
+                Ajustes del escritorio…
+                <ChevronDown className="ml-auto size-3.5 -rotate-90 text-muted-foreground" />
+            </button>
+
             {/* Personalizar → Cursor y gestos */}
             <button
                 type="button"
@@ -553,10 +455,14 @@ export function DesktopCanvas(): React.ReactElement {
     const [managerOpen, setManagerOpen] = useState(false);
     const [cleanView, setCleanView] = useState(false);
     const [cursorPanelOpen, setCursorPanelOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
     const [addOpen, setAddOpen] = useState(false);
     const [addTab, setAddTab] = useState<AddPanelTab>("apps");
     const [addFolderTarget, setAddFolderTarget] = useState<string | null>(null);
     const swipeRef = useRef<{ x: number; y: number } | null>(null);
+    // Marquee de selección (marco arrastrando sobre el fondo).
+    const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+    const marqueeRef = useRef<{ startX: number; startY: number; areaRect: DOMRect; moved: boolean; additive: boolean } | null>(null);
 
     // Espejo soberano en la cuenta (best-effort, patrón dashboards-sync).
     useDesktopsBackup();
@@ -574,10 +480,22 @@ export function DesktopCanvas(): React.ReactElement {
 
     const openIcon = useOpenDesktopIcon(desktop?.id);
 
+    // Preferencias de vista/diseño efectivas del escritorio activo.
+    const view = useMemo(() => ({ ...DEFAULT_DESKTOP_VIEW, ...(desktop?.view ?? {}) }), [desktop?.view]);
+    const themeAccent = THEME_ACCENT[view.theme] ?? THEME_ACCENT.auto;
+
     const openAdd = useCallback((tab: AddPanelTab, folderId?: string | null) => {
         setAddTab(tab);
         setAddFolderTarget(folderId ?? null);
         setAddOpen(true);
+    }, []);
+
+    // Menú contextual del LIENZO (clic derecho sobre el fondo).
+    const onBackgroundContext = useCallback((e: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
+        if (e.target !== e.currentTarget) return;
+        e.preventDefault();
+        setSelection(new Set());
+        setCtxMenu({ x: e.clientX, y: e.clientY, icon: null });
     }, []);
 
     // Teclado: Supr elimina selección · Escape cierra paneles.
@@ -614,18 +532,53 @@ export function DesktopCanvas(): React.ReactElement {
         });
     }, []);
 
-    // Swipe en el fondo → cambia de escritorio (móvil/táctil).
+    // Fondo: swipe (táctil → cambia de escritorio) + marquee (ratón → selección).
     const onBackgroundPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
         if (e.target !== e.currentTarget) return;
-        setSelection(new Set());
         setCtxMenu(null);
         setManagerOpen(false);
+        const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+        if (!additive) setSelection(new Set());
         swipeRef.current = { x: e.clientX, y: e.clientY };
+        // Marquee solo con ratón en escritorio (el táctil se reserva al swipe).
+        if (!isMobile && e.pointerType === "mouse" && e.button === 0) {
+            const area = e.currentTarget.getBoundingClientRect();
+            marqueeRef.current = { startX: e.clientX, startY: e.clientY, areaRect: area, moved: false, additive };
+            try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+        }
+    };
+
+    const onBackgroundPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+        const m = marqueeRef.current;
+        if (!m || !desktop) return;
+        const dx = e.clientX - m.startX;
+        const dy = e.clientY - m.startY;
+        if (!m.moved && Math.hypot(dx, dy) < 6) return;
+        m.moved = true;
+        const rect = m.areaRect;
+        const x = Math.min(m.startX, e.clientX) - rect.left;
+        const y = Math.min(m.startY, e.clientY) - rect.top;
+        const w = Math.abs(dx);
+        const h = Math.abs(dy);
+        setMarquee({ x, y, w, h });
+        // Selecciona los iconos cuyo ancla cae dentro del marco.
+        const inBox = new Set<string>(m.additive ? Array.from(selection) : []);
+        desktop.icons.forEach((icon) => {
+            const ix = icon.x * rect.width;
+            const iy = icon.y * rect.height;
+            if (ix >= x && ix <= x + w && iy >= y && iy <= y + h) inBox.add(icon.id);
+        });
+        setSelection(inBox);
     };
 
     const onBackgroundPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+        const m = marqueeRef.current;
+        marqueeRef.current = null;
+        setMarquee(null);
         const s = swipeRef.current;
         swipeRef.current = null;
+        // Si hubo marquee real, no interpretes swipe.
+        if (m?.moved) return;
         if (!s || !desktop || state.desktops.length < 2) return;
         const dx = e.clientX - s.x;
         const dy = e.clientY - s.y;
@@ -702,6 +655,7 @@ export function DesktopCanvas(): React.ReactElement {
                         ref={iconAreaRef}
                         onPointerDown={onBackgroundPointerDown}
                         onPointerUp={onBackgroundPointerUp}
+                        onContextMenu={onBackgroundContext}
                         className="absolute inset-x-2 bottom-24 top-12 overflow-y-auto"
                     >
                         <div className="grid grid-cols-4 gap-y-3 pt-2 min-[420px]:grid-cols-5 min-[540px]:grid-cols-6">
@@ -734,9 +688,12 @@ export function DesktopCanvas(): React.ReactElement {
                     <div
                         ref={iconAreaRef}
                         onPointerDown={onBackgroundPointerDown}
+                        onPointerMove={onBackgroundPointerMove}
                         onPointerUp={onBackgroundPointerUp}
+                        onContextMenu={onBackgroundContext}
                         className="absolute inset-x-3 bottom-24 top-12"
                     >
+                        {view.showGrid && <DesktopGrid accent={themeAccent} />}
                         {desktop.icons.map((icon) => (
                             <PositionedIcon
                                 key={icon.id}
@@ -744,6 +701,7 @@ export function DesktopCanvas(): React.ReactElement {
                                 icon={icon}
                                 areaRef={iconAreaRef}
                                 snap={state.snap}
+                                sizeOverride={view.iconSize}
                                 selected={selection.has(icon.id)}
                                 renaming={renamingId === icon.id}
                                 onSelect={selectIcon}
@@ -756,15 +714,17 @@ export function DesktopCanvas(): React.ReactElement {
                                 onRenameCancel={() => setRenamingId(null)}
                             />
                         ))}
+                        {marquee && <SelectionBox box={marquee} />}
                     </div>
                 )}
 
-                {/* Estado vacío guiado por Aurora */}
+                {/* Estado vacío premium (bienvenida + geometría sagrada) */}
                 {desktop.icons.length === 0 && desktop.windows.length === 0 && (
                     <EmptyDesktopState
                         desktop={desktop}
                         onAddApps={() => openAdd("apps")}
                         onAddWidgets={() => openAdd("widgets")}
+                        onExploreLibrary={() => openAdd("files")}
                     />
                 )}
             </motion.div>
@@ -839,6 +799,16 @@ export function DesktopCanvas(): React.ReactElement {
                 )}
             </div>
 
+            {/* ── Dock / barra de tareas (ventanas abiertas) ── */}
+            {!cleanView && (
+                <DesktopTaskbar
+                    desktopId={desktop.id}
+                    windows={desktop.windows}
+                    topZ={topZ}
+                    isMobile={isMobile}
+                />
+            )}
+
             {/* ── Barra superior fina (glass) ── */}
             <header
                 className="absolute inset-x-0 top-0 z-[40] flex items-center gap-1.5 border-b border-white/10 bg-black/30 px-2 backdrop-blur-2xl"
@@ -901,6 +871,7 @@ export function DesktopCanvas(): React.ReactElement {
                             snap={state.snap}
                             onClose={() => setManagerOpen(false)}
                             onOpenCursorPanel={() => setCursorPanelOpen(true)}
+                            onOpenSettings={() => setSettingsOpen(true)}
                         />
                     )}
                 </div>
@@ -957,21 +928,54 @@ export function DesktopCanvas(): React.ReactElement {
                     {cleanView ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
                 </button>
 
+                {/* Ajustes del escritorio (acceso rápido) */}
+                <button
+                    type="button"
+                    onClick={() => setSettingsOpen(true)}
+                    title="Ajustes del escritorio"
+                    aria-label="Ajustes del escritorio"
+                    className={cn(
+                        "grid size-7 place-items-center rounded-full border transition-colors cursor-pointer",
+                        settingsOpen
+                            ? "border-violet-300/50 bg-violet-400/15 text-violet-200"
+                            : "border-white/12 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.09] hover:text-foreground",
+                    )}
+                >
+                    <Settings2 className="size-3.5" />
+                </button>
+
                 <DesktopClock />
             </header>
 
-            {/* ── Menú contextual de icono ── */}
+            {/* ── Menú contextual (icono o lienzo) ── */}
             {ctxMenu && (
                 <>
-                    <div className="absolute inset-0 z-[58]" onPointerDown={() => setCtxMenu(null)} aria-hidden />
-                    <IconContextMenu
-                        ctx={ctxMenu}
-                        desktopId={desktop.id}
-                        canvasRef={canvasRef}
-                        onClose={() => setCtxMenu(null)}
-                        onOpen={openIcon}
-                        onRename={(id) => setRenamingId(id)}
-                    />
+                    <div className="absolute inset-0 z-[58]" onPointerDown={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }} aria-hidden />
+                    {ctxMenu.icon ? (
+                        <IconContextMenu
+                            x={ctxMenu.x}
+                            y={ctxMenu.y}
+                            desktop={desktop}
+                            icon={ctxMenu.icon}
+                            canvasRef={canvasRef}
+                            onClose={() => setCtxMenu(null)}
+                            onOpen={openIcon}
+                            onRename={(id) => setRenamingId(id)}
+                        />
+                    ) : (
+                        <CanvasContextMenu
+                            x={ctxMenu.x}
+                            y={ctxMenu.y}
+                            desktop={desktop}
+                            canvasRef={canvasRef}
+                            snap={state.snap}
+                            onClose={() => setCtxMenu(null)}
+                            onAddApps={() => openAdd("apps")}
+                            onAddWidgets={() => openAdd("widgets")}
+                            onChangeBackground={() => setSettingsOpen(true)}
+                            onOpenSettings={() => setSettingsOpen(true)}
+                        />
+                    )}
                 </>
             )}
 
@@ -982,6 +986,15 @@ export function DesktopCanvas(): React.ReactElement {
                 initialTab={addTab}
                 targetFolderId={addFolderTarget}
                 onClose={() => { setAddOpen(false); setAddFolderTarget(null); }}
+            />
+
+            {/* ── Ajustes del escritorio (diseño y edición) ── */}
+            <DesktopSettingsPanel
+                desktop={desktop}
+                desktops={state.desktops}
+                snap={state.snap}
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
             />
 
             {/* ── Hoja: Personalizar cursor y gestos ── */}
