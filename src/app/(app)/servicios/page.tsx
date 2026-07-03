@@ -14,6 +14,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { TriSourceConfig } from "@/components/services/tri-source-config";
+import { OssServicesPanel } from "@/components/services/oss-services-panel";
 import {
   Sparkles,
   Database,
@@ -23,6 +24,7 @@ import {
   MapPin,
   Network,
   Boxes,
+  Layers,
 } from "lucide-react";
 
 interface DomainDef {
@@ -106,8 +108,11 @@ const DOMAINS: DomainDef[] = [
   },
 ];
 
+type ViewMode = "fuentes" | "oss";
+
 export default function ServiciosPage() {
   const [active, setActive] = useState<string>(DOMAINS[0].domain);
+  const [view, setView] = useState<ViewMode>("fuentes");
   const current = DOMAINS.find((d) => d.domain === active) ?? DOMAINS[0];
 
   return (
@@ -128,6 +133,59 @@ export default function ServiciosPage() {
           </p>
         </div>
 
+        {/* Selector de vista: modelo tri-fuente ↔ registro de servicios OSS */}
+        <div className="mb-6 inline-flex rounded-xl border border-white/10 bg-white/5 p-1">
+          <button
+            onClick={() => setView("fuentes")}
+            className={cn(
+              "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition",
+              view === "fuentes"
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Layers className="h-3.5 w-3.5" />
+            Fuentes (tri-fuente)
+          </button>
+          <button
+            onClick={() => setView("oss")}
+            className={cn(
+              "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition",
+              view === "oss"
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Boxes className="h-3.5 w-3.5" />
+            Servicios open-source
+          </button>
+        </div>
+
+        {view === "oss" ? (
+          <OssServicesPanel scope="user" />
+        ) : (
+          <TriSourceSection
+            active={active}
+            setActive={setActive}
+            current={current}
+          />
+        )}
+      </div>
+    </main>
+  );
+}
+
+function TriSourceSection({
+  active,
+  setActive,
+  current,
+}: {
+  active: string;
+  setActive: (d: string) => void;
+  current: DomainDef;
+}) {
+  return (
+    <>
         {/* Selector de dominio */}
         <div className="mb-6 flex flex-wrap gap-2">
           {DOMAINS.map((d) => {
@@ -179,7 +237,6 @@ export default function ServiciosPage() {
             tiempo real.
           </span>
         </div>
-      </div>
-    </main>
+    </>
   );
 }

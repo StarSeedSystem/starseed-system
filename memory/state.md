@@ -1699,3 +1699,18 @@ Construido con 5 subagentes en 2 olas + integración.
 - tsc 376 = baseline. Deploys OS: b19feee (anti-eco global) · 0db1d45 (carpeta de chats).
 
 **Pendiente:** WebRTC LAN real; contexto compartido en vivo Exocórtex↔AI Studio; wake-word acústico local OSS; verificar en Android que el eco global ya no reinicia.
+
+---
+## Adenda 55 — 2026-07-03 · Aurora sabia + generación + fusión + Escritorios PC + términos en Nexus/Café (deploys OS c60756f→c739358; Nexus 69e0760; Café 385016c)
+
+Construido con 4 subagentes en 2 olas + integración + port a Nexus/Café.
+
+- **Aurora reconoce términos StarSeed** (term-normalizer.ts): corrección fonética (clave: sin acentos, seseo z/c→s, v→b, qu/k/q→k, h muda, colapsa dobles) + tabla STARSEED_TERMS (~20: Astraura, StarSeed, Exocórtex, Ontocracia, Ciberdelia, Sangha/Sanghas, Audiomorphic, Omnifrecuencias, Trinity, Nexus, Zenith, Horizon, Anchor, Logic, Multiverso, Transhumanismo). Aplicado en engine.ts onresult (voz) y runCommand (texto).
+- **Conocimiento del ecosistema** (system-knowledge.ts): buildSystemKnowledge(route) — áreas OS (Escritorio/Dashboard/Exocórtex/Trinity/Librería/Cerebros/Perfil/Astraura), tríada (Ontocracia/Ciberdelia/Transhumanismo), dualidad Cuenta/Perfil, gobernanza, enlaces canónicos — insertado aditivamente en el prompt de Astraura.
+- **Generación libre de contenido** (aurora/generate/content-actions.ts, 11 tools en aurora-tools.ts): crear_nota/documento/archivo (→biblioteca), crear_publicacion (→/publicar), abrir_pizarra/crear_en_pizarra, crear_widget (→dashboard/escritorio), buscar_web/abrir_enlace (→navegador), buscar_en_libreria/biblioteca. Dispatch por el puente [[ACCION:…]] existente; auto-listadas en el prompt.
+- **Fusionar/duplicar cerebros y memorias** (lib/brains/merge-duplicate.ts): duplicateBrainById, mergeBrains (unión dedup de includes/servidores, no destruye originales salvo replaceSources), duplicateMemoryDoc, mergeMemories (concatena secciones). UI con previsualización A+B→resultado en brains-panel + memory-merge-panel nuevo. Modelo: src/lib/brains/brains.ts (Supabase) + src/lib/memory-vault.ts (localStorage).
+- **Escritorios rediseñados** (components/desktop/): escritorio vacío estético (geometría sagrada, orbe-estrella, gradientes) desktop-empty.tsx; ramificación de carpetas anidadas con iconos por tipo + breadcrumb (desktop-folder-view.tsx, desktop-file-icons.ts); opciones tipo PC (desktop-context-menu.tsx clic-derecho lienzo/icono, selección múltiple marquee, desktop-taskbar.tsx dock de ventanas, notas rápidas); ajustes por escritorio (desktop-settings-panel.tsx: fondo/iconos/rejilla/tema, renombrar/duplicar/reordenar). Store con jerarquía recursiva retrocompatible ('starseed.desktops.v1').
+- **Nexus y Café**: normalizeStarseedTerms vanilla-JS en su exocortex.js (onresult voz + onSend texto). Nexus v=99 (69e0760), Café v=83 (385016c, clon /tmp).
+- tsc OS 376 = baseline; node --check limpio Nexus/Café. Deploys OS c60756f (contexto+escritorios) · c739358 (generación+fusión); Nexus 69e0760; Café 385016c.
+
+**Pendiente:** WebRTC LAN real; contexto compartido en vivo Exocórtex↔AI Studio; wake-word acústico OSS; verificar visualmente /escritorios y la carpeta de chats.
