@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState, type ComponentType } from "re
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, X, Play, Pause, SkipForward, SkipBack, Square, Wand2,
-  MessageSquare, EyeOff, Trash2, MicOff, Layout, LayoutGrid, Settings2,
+  MessageSquare, EyeOff, Trash2, MicOff, Mic, Layout, LayoutGrid, Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
+import { voiceModeChipLabel } from "@/lib/aurora/capabilities";
 import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
 import { AURORA_TRINITY_FLAG, AURORA_TRINITY_EVENT } from "@/components/layout/trinity-fab";
 import { AuroraOrb } from "./aurora-orb";
@@ -331,12 +332,32 @@ export function AuroraWidget() {
       return;
     }
 
-    // TAP simple → voz de Aurora (activar/parar/interrumpir · reintentar).
+    // TAP simple → voz de Aurora, ADAPTADO a las capacidades del navegador:
+    //   · sin STT ni TTS útil ('text-only') o sin soporte → abre el popover para
+    //     escribirle (chat en el Exocórtex); no forzamos una voz que no existe.
+    //   · voz no disponible tras reintentos → REINTENTA (con backoff).
+    //   · hay reconocimiento pero aún FALTA el permiso de micrófono → PIDE acceso
+    //     (requestAccess) en vez de fallar; al concederse arranca la escucha sola.
+    //   · voz completa lista → activar/parar/interrumpir (toggle de siempre).
     if (!aurora) return;
-    if (!aurora.supported) { setOpen((o) => !o); return; }
+    const caps = aurora.capabilities;
+    if (!aurora.supported || caps.voiceMode === "text-only") {
+      // Este gesto ya cuenta como interacción del usuario: intentamos subir el
+      // acceso al máximo (por si el TTS/micrófono estaban a la espera de gesto).
+      try { void aurora.requestAccess(); } catch { /* */ }
+      setOpen((o) => !o);
+      return;
+    }
     if (aurora.voiceUnavailable) {
       // Estado visible «voz no disponible» → el toque REINTENTA (con backoff).
       aurora.retryVoice();
+      setOpen(true);
+      return;
+    }
+    // Reconocimiento presente + contexto seguro pero el modo aún no es 'full'
+    // → lo que falta es el permiso de micrófono: pídelo desde este gesto.
+    if (caps.voiceMode !== "full" && caps.hasSpeechRecognition && caps.isSecureContext) {
+      try { void aurora.requestAccess(); } catch { /* */ }
       setOpen(true);
       return;
     }
@@ -373,8 +394,21 @@ export function AuroraWidget() {
   const {
     supported, enabled, paused, interim, actionStatus,
     pauseSpeech, resumeSpeech, skipForward, skipBack, interrupt,
-    conversation, voiceUnavailable,
+    conversation, voiceUnavailable, capabilities, requestAccess,
   } = aurora;
+
+  // ── Adaptación por capacidades del navegador ──────────────────────────────
+  const voiceMode = capabilities.voiceMode; // 'full' | 'tts-only' | 'text-only'
+  // Reconocimiento presente + contexto seguro pero el modo aún no es 'full':
+  // lo único que falta es el permiso de micrófono → el orbe invita a darlo.
+  const needsMicPermission =
+    !voiceUnavailable &&
+    voiceMode !== "full" &&
+    capabilities.hasSpeechRecognition &&
+    capabilities.isSecureContext;
+  // Este navegador no reconoce voz (Firefox / algunos WebView): NO es un error,
+  // es un modo adaptado (te hablo si hay TTS; siempre puedes escribir).
+  const noSttHere = !capabilities.hasSpeechRecognition;
 
   const state = !supported
     ? "off"
@@ -384,7 +418,11 @@ export function AuroraWidget() {
         ? "speaking"
         : visListening
           ? "listening"
-          : "idle";
+          : needsMicPermission
+            ? "needs-mic"
+            : noSttHere
+              ? "text"
+              : "idle";
 
   const stateLabel = !supported
     ? "Sin soporte de voz en este navegador"
@@ -394,7 +432,11 @@ export function AuroraWidget() {
         ? (paused ? "En pausa" : "Hablando…")
         : visListening
           ? "Escuchando…"
-          : "En reposo · toca el orbe para hablar";
+          : needsMicPermission
+            ? "Toca para dar permiso de micrófono"
+            : noSttHere
+              ? capabilities.note
+              : "En reposo · toca el orbe para hablar";
 
   const stateDot = voiceUnavailable
     ? "bg-rose-400"
@@ -402,7 +444,11 @@ export function AuroraWidget() {
       ? "bg-fuchsia-400"
       : visListening
         ? "bg-cyan-400"
-        : "bg-white/30";
+        : needsMicPermission
+          ? "bg-amber-400"
+          : noSttHere
+            ? "bg-violet-400"
+            : "bg-white/30";
 
   // Posición absoluta del orbe (fracción → px), presente en TODAS las rutas.
   // dvh: viewport dinámico (respeta teclado/barras móviles), como el Café.
@@ -557,6 +603,50 @@ export function AuroraWidget() {
                   <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* ── Chip de modo de voz + acceso ADAPTADO al navegador ──
+                  Chip cristalino honesto ('voz completa' / 'solo texto · te
+                  hablo' / 'solo texto'). Cuando el modo no es 'full', un botón
+                  pide el permiso de micrófono (si hay reconocimiento) o invita a
+                  escribir por el chat (Firefox / WebView sin STT). */}
+              {voiceMode !== "full" && (
+                <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide",
+                        needsMicPermission
+                          ? "border-amber-400/40 bg-amber-500/10 text-amber-100"
+                          : "border-violet-400/40 bg-violet-500/10 text-violet-100",
+                      )}
+                    >
+                      {needsMicPermission ? <MicOff className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
+                      {voiceModeChipLabel(voiceMode)}
+                    </span>
+                    {capabilities.hasTTS && (
+                      <span className="text-[9px] uppercase tracking-wide text-white/40">te hablo</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-white/55">{capabilities.note}</p>
+                  {needsMicPermission ? (
+                    <button
+                      onClick={() => { try { void requestAccess(); } catch { /* */ } }}
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-500/15 px-2.5 py-1.5 text-[11px] font-medium text-amber-100 transition hover:bg-amber-500/25 cursor-pointer"
+                      title="Dar permiso de micrófono para que Aurora te escuche"
+                    >
+                      <Mic className="h-3.5 w-3.5" /> Dar permiso de micrófono
+                    </button>
+                  ) : (
+                    <button
+                      onClick={openExocortexChat}
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-violet-400/40 bg-violet-500/15 px-2.5 py-1.5 text-[11px] font-medium text-violet-100 transition hover:bg-violet-500/25 cursor-pointer"
+                      title="Abrir el chat de Aurora para escribirle"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" /> Escríbeme por el chat
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Transporte de voz */}
               <Transport />
@@ -815,11 +905,15 @@ export function AuroraWidget() {
               ? "Tu navegador no soporta voz · toca para opciones · clic derecho abre el chat en el Exocórtex"
               : voiceUnavailable
                 ? "Voz no disponible · toca para reintentar · mantén pulsado para el menú Trinity"
-                : visSpeaking
-                  ? "Hablando… (toca para interrumpir) · mantén pulsado para el menú Trinity · arrástrame para moverme"
-                  : visListening
-                    ? "Escuchando… (toca para parar) · mantén pulsado para el menú Trinity · arrástrame para moverme"
-                    : "Hablar con Aurora (toca) · mantén pulsado para el menú Trinity · clic derecho abre el chat en el Exocórtex"}
+                : needsMicPermission
+                  ? "Toca para dar permiso de micrófono · mantén pulsado para el menú Trinity · clic derecho abre el chat"
+                  : noSttHere
+                    ? `${capabilities.note} · toca para abrir el chat · clic derecho abre el chat en el Exocórtex`
+                    : visSpeaking
+                      ? "Hablando… (toca para interrumpir) · mantén pulsado para el menú Trinity · arrástrame para moverme"
+                      : visListening
+                        ? "Escuchando… (toca para parar) · mantén pulsado para el menú Trinity · arrástrame para moverme"
+                        : "Hablar con Aurora (toca) · mantén pulsado para el menú Trinity · clic derecho abre el chat en el Exocórtex"}
             className={cn(
               "relative rounded-full flex items-center justify-center touch-none cursor-pointer",
               "transition-transform active:scale-95",
@@ -836,8 +930,9 @@ export function AuroraWidget() {
               supported={supported}
               unavailable={voiceUnavailable}
             />
-            {/* Indicador de "Aurora activa" (LED verde). */}
-            {enabled && !voiceUnavailable && (
+            {/* Indicador de "Aurora activa" (LED verde). Cede su sitio cuando hay
+                una insignia de estado (voz no disponible / falta micrófono). */}
+            {enabled && !voiceUnavailable && !needsMicPermission && (
               <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-zinc-950" />
             )}
             {/* Estado visible: voz no disponible → insignia carmesí (reintenta al tocar). */}
@@ -848,6 +943,17 @@ export function AuroraWidget() {
                 title="Voz no disponible · toca el orbe para reintentar"
               >
                 <MicOff className="h-2.5 w-2.5 text-white" />
+              </span>
+            )}
+            {/* Estado adaptado: hay reconocimiento pero FALTA el permiso de
+                micrófono → insignia ámbar (el toque pide el permiso). */}
+            {!voiceUnavailable && needsMicPermission && (
+              <span
+                className="absolute -bottom-1 -right-1 grid place-items-center rounded-full border border-amber-200/70 bg-amber-500/90 shadow-[0_0_10px_rgba(255,191,0,0.55)]"
+                style={{ width: 18, height: 18 }}
+                title="Toca el orbe para dar permiso de micrófono"
+              >
+                <MicOff className="h-2.5 w-2.5 text-zinc-900" />
               </span>
             )}
           </button>

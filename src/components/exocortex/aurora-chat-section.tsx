@@ -35,13 +35,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle, Bot, ChevronDown, Compass, ExternalLink, FileJson, FileText,
-  History, Layers, ListChecks, MessageSquare, Orbit, Pause, Play, Power,
-  RefreshCw, ScrollText, Send, SkipBack, SkipForward, SlidersHorizontal,
-  Sparkles, Square, Trash2, Volume2, Wand2,
+  History, Layers, ListChecks, MessageSquare, Mic, MicOff, Orbit, Pause, Play,
+  Plus, Power, RefreshCw, ScrollText, Search, Send, SkipBack, SkipForward,
+  SlidersHorizontal, Sparkles, Square, Trash2, Volume2, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AuroraMultichatPanel } from "@/components/aurora/aurora-multichat-panel";
 import { AuroraControlPanel } from "@/components/aurora/aurora-control-panel";
+import { AuroraAlwaysOn } from "@/components/exocortex/aurora-always-on";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import {
   getAuroraBridge,
@@ -60,7 +61,7 @@ import {
   setOrbHidden,
   subscribeOrbVisibility,
 } from "@/lib/aurora/aurora-orb-bus";
-import { useAuroraChatLog } from "@/lib/aurora/aurora-chat-log";
+import { useAuroraChatLog, type AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
 
 // ── Tipos locales ────────────────────────────────────────────────────────────
 type Tab = "chat" | "chats" | "voz" | "control" | "registro";
@@ -219,6 +220,30 @@ const AXC_CSS = `
   background:rgba(2,4,10,.72);border:1px solid rgba(148,163,184,.12);transition:border-color .2s, box-shadow .2s;}
 .axc-inputrow:focus-within{border-color:rgba(0,127,255,.55);box-shadow:0 0 0 3px rgba(0,127,255,.14), inset 0 1px 0 rgba(255,255,255,.04);}
 .axc-input{flex:1;min-width:0;background:transparent;border:0;outline:none;color:#eef2ff;font-size:12.5px;padding:8px 6px 8px 10px;}
+/* ── Barra superior de Aurora: preguntar / buscar en la red + activar voz ── */
+.axc-bar{display:flex;gap:8px;align-items:center;padding:6px;border-radius:20px;
+  background:radial-gradient(120% 140% at 0% 0%, rgba(0,127,255,.1), transparent 60%), rgba(2,4,10,.78);
+  border:1px solid rgba(148,163,184,.16);
+  box-shadow:0 10px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+  transition:border-color .2s, box-shadow .2s;}
+.axc-bar:focus-within{border-color:rgba(0,127,255,.6);box-shadow:0 0 0 3px rgba(0,127,255,.16), 0 10px 30px rgba(0,0,0,.4);}
+.axc-bar-ico{flex:none;display:grid;place-items:center;width:30px;height:38px;color:rgba(127,184,255,.7);padding-left:6px;}
+.axc-bar-input{flex:1;min-width:0;background:transparent;border:0;outline:none;color:#eef2ff;font-size:13.5px;padding:9px 4px;}
+.axc-bar-input::placeholder{color:rgba(148,163,184,.55);}
+.axc-mic{position:relative;width:44px;height:44px;border-radius:15px;flex:none;display:grid;place-items:center;cursor:pointer;color:#dcfce7;
+  border:1px solid rgba(57,255,20,.4);background:linear-gradient(135deg, rgba(57,255,20,.16), rgba(0,127,255,.1));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14);
+  transition:transform .2s cubic-bezier(.5,1.6,.4,1), background .2s, box-shadow .2s, color .2s, border-color .2s;}
+.axc-mic:hover{transform:translateY(-2px) scale(1.04);background:linear-gradient(135deg, rgba(57,255,20,.26), rgba(0,127,255,.16));}
+.axc-mic:active{transform:scale(.94);}
+.axc-mic:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none;}
+.axc-mic.on{color:#101728;border-color:transparent;background:linear-gradient(135deg, #39FF14, #007FFF);
+  box-shadow:0 0 22px rgba(57,255,20,.5), inset 0 1px 0 rgba(255,255,255,.3);}
+.axc-mic.on::after{content:"";position:absolute;inset:-4px;border-radius:18px;border:1.5px solid rgba(57,255,20,.5);
+  animation:axc-ring 1.8s ease-out infinite;}
+.axc-mic.speaking{color:#3a2600;border-color:transparent;background:linear-gradient(135deg, #FFBF00, #DC143C);
+  box-shadow:0 0 22px rgba(255,191,0,.5), inset 0 1px 0 rgba(255,255,255,.3);}
+@keyframes axc-ring{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.35);opacity:0}}
 .axc-input::placeholder{color:rgba(148,163,184,.5);}
 .axc-send{width:38px;height:38px;border-radius:14px;flex:none;display:grid;place-items:center;color:#fff;border:0;cursor:pointer;
   background:linear-gradient(135deg, #007FFF, #DC143C);box-shadow:0 7px 18px rgba(0,127,255,.35), inset 0 1px 0 rgba(255,255,255,.25);
@@ -252,8 +277,9 @@ const AXC_CSS = `
 .axc-scroll::-webkit-scrollbar-thumb:hover{background:rgba(57,255,20,.35);background-clip:padding-box;}
 @media (prefers-reduced-motion: reduce){
   .axc-orb,.axc-live .dot,.axc-msg{animation:none !important;}
-  .axc-chip,.axc-btn,.axc-send,.axc-tbtn,.axc-switch .knob,.axc-msg{transition:none !important;}
-  .axc-chip:hover,.axc-btn:hover,.axc-send:hover,.axc-tbtn:hover{transform:none;}
+  .axc-chip,.axc-btn,.axc-send,.axc-tbtn,.axc-switch .knob,.axc-msg,.axc-mic{transition:none !important;}
+  .axc-chip:hover,.axc-btn:hover,.axc-send:hover,.axc-tbtn:hover,.axc-mic:hover{transform:none;}
+  .axc-mic.on::after{animation:none !important;}
 }
 `;
 
@@ -293,9 +319,18 @@ export function AuroraChatSection({ className }: { className?: string }) {
   const [snap, setSnap] = useState<SnapshotPlus | null>(null);
   const [bridgeReady, setBridgeReady] = useState(false);
   const [draft, setDraft] = useState("");
+  const [barDraft, setBarDraft] = useState("");
   const [orbHidden, setOrbHiddenState] = useState(false);
   const [openDay, setOpenDay] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // "Nuevo chat": marca temporal a partir de la cual se muestra la conversación
+  // en vivo (reinicio VISUAL del contexto; el motor mantiene su ring interno).
+  const [sessionStartTs, setSessionStartTs] = useState<number>(0);
+  // Contexto cargado desde el registro: al entrar a una sesión pasada, sus
+  // mensajes se muestran en la vista de chat (solo lectura de ese contexto).
+  const [loadedSession, setLoadedSession] = useState<
+    { day: string; entries: AuroraChatLogEntry[] } | null
+  >(null);
 
   // Fallback: suscripción al puente SOLO cuando no hay contexto de provider.
   useEffect(() => {
@@ -349,6 +384,37 @@ export function AuroraChatSection({ className }: { className?: string }) {
     await doSend(t);
   }, [draft, doSend]);
 
+  // Barra superior: preguntar a Aurora / buscar en la red. Envía a send()
+  // (genera o continúa el contexto de chat) y aterriza en la vista de chat.
+  const submitBar = useCallback(async () => {
+    const t = barDraft.trim();
+    if (!t) return;
+    setBarDraft("");
+    setLoadedSession(null); // salimos de cualquier contexto pasado cargado
+    setTab("chat");
+    await doSend(t);
+  }, [barDraft, doSend]);
+
+  // "Nuevo chat": reinicio VISUAL del contexto en vivo (el motor conserva su
+  // ring interno; el registro persistente por día no se toca). Marca la frontera
+  // temporal a partir de la cual se muestra la conversación.
+  const newChat = useCallback(() => {
+    setSessionStartTs(Date.now());
+    setLoadedSession(null);
+    setDraft("");
+    setTab("chat");
+    try { scrollRef.current && (scrollRef.current.scrollTop = 0); } catch { /* */ }
+  }, []);
+
+  // Entrar a un contexto pasado del registro: carga sus mensajes en la vista de
+  // chat (solo lectura de ese día). Escribir abajo continúa en el chat en vivo.
+  const openSessionInChat = useCallback((day: string, entries: AuroraChatLogEntry[]) => {
+    setLoadedSession({ day, entries });
+    setTab("chat");
+  }, []);
+
+  const exitLoadedSession = useCallback(() => setLoadedSession(null), []);
+
   const doToggleVoice = useCallback(() => {
     try { if (aurora) aurora.toggle(); else toggleAuroraVoice(); } catch { /* */ }
   }, [aurora]);
@@ -382,13 +448,27 @@ export function AuroraChatSection({ className }: { className?: string }) {
     } catch { /* */ }
   }, [aurora]);
 
-  // Auto-scroll del historial al fondo cuando llegan mensajes.
-  const convoLen = conversation.length;
+  // Conversación EN VIVO visible: si el usuario pulsó "Nuevo chat", solo desde
+  // esa frontera temporal (reinicio visual). ConversationEntry lleva `.at`.
+  const visibleConvo = useMemo(() => {
+    if (!sessionStartTs) return conversation;
+    try {
+      return conversation.filter((m) => {
+        const at = (m as { at?: number })?.at;
+        return typeof at !== "number" || at >= sessionStartTs;
+      });
+    } catch {
+      return conversation;
+    }
+  }, [conversation, sessionStartTs]);
+
+  // Auto-scroll del historial al fondo cuando llegan mensajes (solo en vivo).
+  const convoLen = visibleConvo.length;
   useEffect(() => {
-    if (tab === "chat" && scrollRef.current) {
+    if (tab === "chat" && !loadedSession && scrollRef.current) {
       try { scrollRef.current.scrollTop = scrollRef.current.scrollHeight; } catch { /* */ }
     }
-  }, [convoLen, tab, interim]);
+  }, [convoLen, tab, interim, loadedSession]);
 
   const guide = useMemo(() => guideFor(pathname), [pathname]);
 
@@ -459,6 +539,103 @@ export function AuroraChatSection({ className }: { className?: string }) {
           <span className="dot" />
           {ready ? "Conectada" : "En espera"}
         </span>
+      </div>
+
+      {/* ── Barra de Aurora: preguntar / buscar en la red + activar la voz ── */}
+      <div className="axc-bar relative z-[1]">
+        <span className="axc-bar-ico" aria-hidden>
+          <Search className="h-4 w-4" />
+        </span>
+        <input
+          value={barDraft}
+          onChange={(e) => setBarDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void submitBar(); } }}
+          placeholder="Pregunta a Aurora o busca recursos en la red…"
+          className="axc-bar-input"
+          aria-label="Preguntar a Aurora o buscar en la red"
+        />
+        {barDraft.trim() && (
+          <button
+            onClick={() => void submitBar()}
+            title="Enviar a Aurora"
+            className="axc-send"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        )}
+        <button
+          onClick={doToggleVoice}
+          disabled={!supported || !ready}
+          className={cn(
+            "axc-mic",
+            speaking && !paused && "speaking",
+            !speaking && listening && "on",
+          )}
+          title={
+            !supported
+              ? "Tu navegador no soporta voz"
+              : speaking
+                ? "Aurora está hablando · toca para interrumpir"
+                : listening
+                  ? "Escuchando · toca para desactivar la voz"
+                  : "Activar la voz de Aurora (empezar a escuchar)"
+          }
+          aria-label={listening ? "Desactivar la voz de Aurora" : "Activar la voz de Aurora"}
+          aria-pressed={listening}
+        >
+          {supported ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {/* ── Accesos: nuevo chat · orbe flotante · Aurora activa ── */}
+      <div className="relative z-[1] flex flex-wrap items-center gap-2">
+        <button
+          onClick={newChat}
+          className="axc-btn azure"
+          title="Empezar un chat nuevo (limpia la vista en vivo; el registro se conserva)"
+        >
+          <Plus className="h-3.5 w-3.5" /> Nuevo chat
+        </button>
+        <button
+          onClick={() => setTab("registro")}
+          className={cn("axc-btn", tab === "registro" ? "lime" : undefined)}
+          title="Ver tus chats guardados (sesiones por día) y entrar a cualquiera"
+        >
+          <History className="h-3.5 w-3.5" /> Ver chats
+          {chatLog.sessions.length > 0 && (
+            <span className="ml-0.5 rounded-full bg-white/15 px-1.5 py-0.5 font-mono text-[9px] leading-none">
+              {chatLog.sessions.length}
+            </span>
+          )}
+        </button>
+        <div className="ml-auto flex items-center gap-3">
+          <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-white/70" title="Mostrar u ocultar el orbe flotante de Aurora">
+            <Orbit className="h-3.5 w-3.5 text-[#7fb8ff]" />
+            <span className="hidden sm:inline">Orbe flotante</span>
+            <button
+              role="switch"
+              aria-checked={!orbHidden}
+              onClick={() => setOrbHidden(!orbHidden)}
+              className="axc-switch"
+              title={orbHidden ? "Mostrar el orbe flotante" : "Ocultar el orbe flotante"}
+            >
+              <span className="knob" />
+            </button>
+          </label>
+          <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-white/70" title="Encender o apagar Aurora globalmente">
+            <Power className="h-3.5 w-3.5 text-[#39FF14]" />
+            <span className="hidden sm:inline">Aurora</span>
+            <button
+              role="switch"
+              aria-checked={enabled}
+              onClick={() => doSetEnabled(!enabled)}
+              className="axc-switch"
+              title={enabled ? "Apagar Aurora" : "Encender Aurora"}
+            >
+              <span className="knob" />
+            </button>
+          </label>
+        </div>
       </div>
 
       {/* ── Voz no disponible · Reintentar (supervisor del provider) ── */}
@@ -556,8 +733,9 @@ export function AuroraChatSection({ className }: { className?: string }) {
       )}
 
       {tab === "control" ? (
-        /* Configuraciones del widget — panel real, importado tal cual. */
-        <div className="relative z-[1]">
+        /* Sentidos de Aurora (panel real) + modo "siempre encendida" (wake-word). */
+        <div className="relative z-[1] flex flex-col gap-3">
+          <AuroraAlwaysOn />
           <AuroraControlPanel enabled={enabled} onSetEnabled={doSetEnabled} />
         </div>
       ) : tab === "chats" ? (
@@ -569,28 +747,58 @@ export function AuroraChatSection({ className }: { className?: string }) {
         <>
           <Transport />
 
-          {/* Historial de conversación */}
+          {/* Banner de contexto cargado desde el registro (solo lectura) */}
+          {loadedSession && (
+            <div className="relative z-[1] flex items-center gap-2 rounded-[14px] border border-[#39FF14]/30 bg-[#39FF14]/10 px-3 py-2">
+              <History className="h-3.5 w-3.5 shrink-0 text-[#39FF14]" />
+              <span className="min-w-0 flex-1 truncate text-[11px] text-white/75">
+                Contexto del <span className="font-medium text-white/90 first-letter:uppercase">{dayLabel(loadedSession.day)}</span>
+                {" "}· {loadedSession.entries.length} mensajes
+              </span>
+              <button onClick={exitLoadedSession} className="axc-btn lime shrink-0" title="Volver al chat en vivo">
+                <MessageSquare className="h-3.5 w-3.5" /> En vivo
+              </button>
+            </div>
+          )}
+
+          {/* Historial de conversación (en vivo, o contexto cargado del registro) */}
           <div
             ref={scrollRef}
             className="axc-scroll relative z-[1] flex h-64 flex-col gap-2 overflow-y-auto rounded-[18px] border border-white/10 bg-black/40 px-3 py-2.5"
           >
-            {conversation.length === 0 ? (
+            {loadedSession ? (
+              loadedSession.entries.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-[11px] text-white/40">
+                  Esta sesión no tiene mensajes.
+                </div>
+              ) : (
+                loadedSession.entries.map((m, i) => (
+                  <div key={`${m.ts}-${i}`} className={cn("axc-msg", m.role === "user" ? "user" : "aurora")}>
+                    <div className="axc-role">
+                      {m.role === "user" ? "Tú" : auroraName} · {fmtTime(m.ts)}
+                    </div>
+                    {m.text}
+                  </div>
+                ))
+              )
+            ) : visibleConvo.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-1 px-2 text-center">
                 <History className="h-5 w-5 text-white/25" />
                 <div className="text-[11px] leading-relaxed text-white/40">
-                  Aquí verás tu conversación con {auroraName}. Háblale desde el orbe o
-                  escríbele abajo: tiene control total del OS y sigue activa en segundo plano.
+                  Aquí verás tu conversación con {auroraName}. Háblale desde el orbe, usa la
+                  barra de arriba o escríbele abajo: tiene control total del OS y sigue activa
+                  en segundo plano.
                 </div>
               </div>
             ) : (
-              conversation.map((m, i) => (
+              visibleConvo.map((m, i) => (
                 <div key={i} className={cn("axc-msg", m.role === "user" ? "user" : "aurora")}>
                   <div className="axc-role">{m.role === "user" ? "Tú" : auroraName}</div>
                   {m.text}
                 </div>
               ))
             )}
-            {interim && (
+            {!loadedSession && interim && (
               <div className="axc-msg user interim">
                 <div className="axc-role">Tú</div>
                 {interim}
@@ -598,17 +806,17 @@ export function AuroraChatSection({ className }: { className?: string }) {
             )}
           </div>
 
-          {/* Entrada + envío */}
+          {/* Entrada + envío (continúa siempre en el chat EN VIVO) */}
           <div className="axc-inputrow relative z-[1]">
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void submitDraft(); } }}
-              placeholder="Escribe o pídele que abra/haga algo…"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (loadedSession) exitLoadedSession(); void submitDraft(); } }}
+              placeholder={loadedSession ? "Escribe para continuar en el chat en vivo…" : "Escribe o pídele que abra/haga algo…"}
               className="axc-input"
             />
             <button
-              onClick={() => void submitDraft()}
+              onClick={() => { if (loadedSession) exitLoadedSession(); void submitDraft(); }}
               disabled={!draft.trim()}
               title="Enviar"
               className="axc-send"
@@ -829,15 +1037,27 @@ export function AuroraChatSection({ className }: { className?: string }) {
                       />
                     </button>
                     {isOpen && (
-                      <div className="axc-scroll flex max-h-56 flex-col gap-1.5 overflow-y-auto border-t border-white/5 px-3.5 py-2.5">
-                        {s.entries.map((m, i) => (
-                          <div key={`${m.ts}-${i}`} className={cn("axc-msg small", m.role === "user" ? "user" : "aurora")}>
-                            <div className="axc-role">
-                              {m.role === "user" ? "Tú" : auroraName} · {fmtTime(m.ts)}
+                      <div className="border-t border-white/5">
+                        <div className="flex items-center justify-between gap-2 px-3.5 pt-2.5">
+                          <span className="axc-label">Sesión del {dayLabel(s.day)}</span>
+                          <button
+                            onClick={() => openSessionInChat(s.day, s.entries)}
+                            className="axc-btn azure"
+                            title="Abrir este contexto en la vista de chat"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" /> Abrir en chat
+                          </button>
+                        </div>
+                        <div className="axc-scroll flex max-h-56 flex-col gap-1.5 overflow-y-auto px-3.5 py-2.5">
+                          {s.entries.map((m, i) => (
+                            <div key={`${m.ts}-${i}`} className={cn("axc-msg small", m.role === "user" ? "user" : "aurora")}>
+                              <div className="axc-role">
+                                {m.role === "user" ? "Tú" : auroraName} · {fmtTime(m.ts)}
+                              </div>
+                              {m.text}
                             </div>
-                            {m.text}
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

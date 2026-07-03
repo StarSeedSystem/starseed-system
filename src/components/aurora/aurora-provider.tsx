@@ -19,6 +19,11 @@ import {
   greetingFor,
   queryMicPermission,
 } from "@/lib/aurora/voice-autonomy";
+import {
+  getCapabilities,
+  requestMaxAccess,
+  type CapabilityReport,
+} from "@/lib/aurora/capabilities";
 
 /**
  * Evento global emitido cuando cambia el estado reactivo de Aurora, para que
@@ -58,6 +63,18 @@ export interface AuroraSupervisedEngine extends AuroraEngine {
   voiceUnavailable: boolean;
   /** Reintento explícito del usuario: limpia el estado y vuelve a escuchar. */
   retryVoice: () => void;
+  /**
+   * Capacidades del entorno (STT/TTS/mediaDevices/secureContext/navegador…) +
+   * `voiceMode` ('full' | 'tts-only' | 'text-only'). SSR-safe; se recalcula tras
+   * pedir permisos. La UI la usa para adaptarse con honestidad a cada navegador.
+   */
+  capabilities: CapabilityReport;
+  /**
+   * Pide el MÁXIMO acceso posible (micrófono → pantalla completa opcional) EN EL
+   * ORDEN correcto; si el micrófono queda concedido, arranca la escucha por el
+   * flujo SUPERVISADO y saluda. Nace de un gesto del usuario. Nunca lanza.
+   */
+  requestAccess: (opts?: { wantFullscreen?: boolean }) => Promise<void>;
 }
 
 const AuroraContext = createContext<AuroraSupervisedEngine | null>(null);
@@ -81,6 +98,16 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
 
   // ── Supervisor del ciclo de vida de la voz ─────────────────────────────────
   const [voiceUnavailable, setVoiceUnavailable] = useState(false);
+  /**
+   * Capacidades del entorno. SSR-safe: arranca con el informe conservador
+   * ('text-only') de getCapabilities() en servidor y se refina en cliente tras
+   * el montaje (y de nuevo tras pedir permisos, que puede subir/bajar el modo).
+   */
+  const [capabilities, setCapabilities] = useState<CapabilityReport>(() => getCapabilities());
+  useEffect(() => {
+    // Recalcula ya en cliente (window disponible): detecta STT/TTS reales.
+    setCapabilities(getCapabilities());
+  }, []);
   /** ¿El usuario QUIERE que Aurora escuche ahora mismo? (intención explícita) */
   const wantListenRef = useRef(false);
   /** ¿Se detectó habla real (interim/transcript) desde el último arranque? */
@@ -145,6 +172,51 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     g.starting = false;
     setVoiceUnavailable(false);
     superStart();
+  }, [superStart]);
+
+  /**
+   * requestAccess — Pide el MÁXIMO acceso posible (micrófono → pantalla completa
+   * opcional) desde un gesto del usuario. Si el micrófono queda concedido y hay
+   * reconocimiento de voz, arranca la escucha por el flujo SUPERVISADO y saluda.
+   * Refresca `capabilities` con el resultado. Todo defensivo: nunca lanza.
+   */
+  const requestAccess = useCallback(async (opts?: { wantFullscreen?: boolean }) => {
+    let result: Awaited<ReturnType<typeof requestMaxAccess>> | null = null;
+    try {
+      result = await requestMaxAccess({
+        fromUserGesture: true,
+        wantFullscreen: opts?.wantFullscreen ?? false,
+      });
+    } catch {
+      result = null;
+    }
+    // Recalcula el informe de capacidades (el micrófono pudo cambiar el modo).
+    const fresh = getCapabilities();
+    setCapabilities(fresh);
+
+    const eng = engineRef.current;
+    if (!eng?.enabled) return;
+
+    // Con micrófono concedido + reconocimiento presente → arranca la escucha
+    // por el flujo supervisado (backoff/watchdog) y saluda una vez por sesión.
+    const micGranted = result?.mic === "granted";
+    if (micGranted && fresh.hasSpeechRecognition && eng.supported !== false) {
+      const g = guardRef.current;
+      g.lastStartAt = 0; // el gesto explícito del usuario salta el cooldown
+      g.starting = false;
+      try { superStart(); } catch { /* */ }
+    }
+    // Saluda (TTS) si hay síntesis y aún no saludó en esta sesión. Nace del
+    // gesto → la política de autoplay ya está satisfecha.
+    if (fresh.hasTTS && !greetedThisSession()) {
+      try {
+        const name = eng.activePersonality?.name || "Aurora";
+        const path = typeof window !== "undefined" ? (window.location?.pathname || "/") : "/";
+        markGreetedThisSession();
+        try { localStorage.setItem(GREETED_KEY, String(Date.now())); } catch { /* */ }
+        eng.speak(greetingFor(name, path));
+      } catch { /* degrada en silencio si no hay TTS */ }
+    }
   }, [superStart]);
 
   // WATCHDOG de flapping: observa las transiciones de `listening` del motor.
@@ -222,7 +294,7 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     }
   }, [engine.conversation]);
 
-  // Motor supervisado: mismo contrato + estado de voz no disponible.
+  // Motor supervisado: mismo contrato + estado de voz no disponible + capacidades.
   const supervised = useMemo<AuroraSupervisedEngine>(
     () => ({
       ...engine,
@@ -231,8 +303,10 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       toggle: superToggle,
       voiceUnavailable,
       retryVoice,
+      capabilities,
+      requestAccess,
     }),
-    [engine, superStart, superStop, superToggle, voiceUnavailable, retryVoice],
+    [engine, superStart, superStop, superToggle, voiceUnavailable, retryVoice, capabilities, requestAccess],
   );
   const supervisedRef = useRef<AuroraSupervisedEngine>(supervised);
   supervisedRef.current = supervised;
@@ -266,10 +340,17 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     const beginAutonomy = () => {
       if (cancelled) return;
       const eng = engineRef.current;
-      if (!eng?.enabled || eng.supported === false) return;
-      // Arranca la escucha continua por el flujo supervisado (backoff/watchdog).
-      try { superStart(); } catch { /* */ }
+      if (!eng?.enabled) return;
+      const caps = getCapabilities();
+      // Solo arrancamos STT donde EXISTE reconocimiento de voz (Chrome/Edge/
+      // Safari). En Firefox / algunos WebView no hay STT: NO intentamos escuchar
+      // (evita el estado de error/flapping) → queda text-only + TTS, chat 100%.
+      if (caps.hasSpeechRecognition && eng.supported !== false) {
+        // Arranca la escucha continua por el flujo supervisado (backoff/watchdog).
+        try { superStart(); } catch { /* */ }
+      }
       // Saluda un poco después para no pisar el arranque del reconocimiento.
+      // Si hay TTS (aunque no haya STT), Aurora igualmente habla su saludo.
       setTimeout(doGreet, 500);
     };
 
@@ -390,6 +471,15 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       /** Enciende/apaga Aurora globalmente (persistido). */
       setEnabled: (v: boolean) => engineRef.current?.setEnabled(v),
       /**
+       * Pide el MÁXIMO acceso posible (micrófono → pantalla completa opcional)
+       * desde un gesto; si el micrófono queda concedido, arranca la escucha
+       * supervisada y saluda. Refresca las capacidades. Nunca lanza.
+       */
+      requestAccess: (opts?: { wantFullscreen?: boolean }) =>
+        supervisedRef.current?.requestAccess(opts),
+      /** Informe actual de capacidades del entorno (STT/TTS/… + voiceMode). */
+      getCapabilities: () => supervisedRef.current?.capabilities ?? getCapabilities(),
+      /**
        * Instantánea del estado reactivo de Aurora, para que superficies FUERA del
        * árbol de AuroraProvider (p. ej. el Exocórtex del menú Zenith) muestren su
        * estado sin instanciar otro motor. Se combina con `subscribe`.
@@ -413,6 +503,8 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
           personalities: e.personalities,
           // Aditivo (v4): estado del supervisor de voz.
           voiceUnavailable: supervisedRef.current?.voiceUnavailable ?? false,
+          // Aditivo (v5): capacidades del entorno + modo de voz efectivo.
+          capabilities: supervisedRef.current?.capabilities ?? getCapabilities(),
         };
       },
       /**
@@ -430,7 +522,7 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
         return () => subscribers.delete(cb);
       },
       /** Versión del puente, para que la extensión negocie compatibilidad. */
-      version: 4 as const,
+      version: 5 as const,
     };
 
     try {
@@ -497,7 +589,7 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     engine.supported, engine.enabled, engine.listening, engine.speaking, engine.paused,
     engine.interim, engine.transcript, engine.lastReply, engine.actionStatus,
     engine.conversation, engine.actionLog, engine.activePersonality, engine.personalities,
-    voiceUnavailable,
+    voiceUnavailable, capabilities,
   ]);
 
   return <AuroraContext.Provider value={supervised}>{children}</AuroraContext.Provider>;
