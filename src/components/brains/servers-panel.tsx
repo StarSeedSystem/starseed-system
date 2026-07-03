@@ -1,6 +1,7 @@
 "use client";
 
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
+import DeviceNetworkPanel from "@/components/brains/device-network-panel";
 
 /**
  * ServersPanel — Registro de servidores de cerebros + enlaces MUCHOS-A-MUCHOS.
@@ -439,6 +440,9 @@ export default function ServersPanel() {
           ))}
         </div>
       </div>
+
+      {/* Detección automática: dispositivos y red (cuenta + IP pública) */}
+      <DeviceNetworkPanel />
 
       {/* Editor de servidor */}
       {draft && (
