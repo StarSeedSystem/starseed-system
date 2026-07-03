@@ -35,6 +35,10 @@ import { OmniDock } from "@/components/layout/omni-dock";
 // árbol del provider. Ambos son defensivos sin sesión.
 import { AuroraProvider } from "@/components/aurora/aurora-provider";
 import { AuroraWidget } from "@/components/aurora/aurora-widget";
+// Guía dinámica de bienvenida y ayuda (tour vivo de la interfaz). Global,
+// defensiva y SSR-safe: arranca sola en la primera visita y se reabre con el
+// evento 'starseed:open-guide' o el acceso flotante "Guía".
+import { AuroraGuide } from "@/components/onboarding/aurora-guide";
 import { CursorFxHost } from "@/components/desktop/cursor-fx";
 import { PerfController, PerfHeavyOnly, PerfStaticBackdrop } from "@/components/perf/perf-gate";
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
@@ -172,6 +176,11 @@ export default function RootLayout({
                         {/* ORBE de Aurora: acceso universal a la voz + menú
                             Trinity centrado, presente en todas las rutas. */}
                         <AuroraWidget />
+                        {/* Guía dinámica de bienvenida/ayuda: tour vivo que
+                            presenta y resalta orbe, menús Trinity, Escritorio,
+                            Dashboard, Astraura, Perfil, Cerebros y Librería.
+                            Arranca sola la primera vez; reabrible siempre. */}
+                        <AuroraGuide />
                         {/* Cursor personalizado + animaciones de clic (config en
                             Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
                         <CursorFxHost />
