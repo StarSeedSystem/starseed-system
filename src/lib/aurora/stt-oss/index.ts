@@ -12,16 +12,24 @@ export {
   // Opt-in persistido + modelos
   AURORA_OSS_STT_KEY,
   AURORA_OSS_STT_MODEL_KEY,
+  AURORA_OSS_STT_LANG_KEY,
   AURORA_OSS_STT_EVENT,
   OSS_STT_MODELS,
   DEFAULT_OSS_STT_MODEL,
+  OSS_STT_LANGS,
+  DEFAULT_OSS_STT_LANG,
   isOssSttEnabled,
   setOssSttEnabled,
   getOssSttModel,
   setOssSttModel,
+  getOssSttLang,
+  setOssSttLang,
+  getOssSttLangCode,
   subscribeOssStt,
   type OssSttModelId,
   type OssSttModelSpec,
+  type OssSttLang,
+  type OssSttLangSpec,
 } from "@/lib/aurora/stt-oss/opt-in";
 
 export {

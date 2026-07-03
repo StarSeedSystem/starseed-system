@@ -27,13 +27,15 @@
 export const AURORA_OSS_STT_KEY = "starseed.aurora.oss-stt";
 /** Clave de localStorage del modelo elegido (default "tiny"). */
 export const AURORA_OSS_STT_MODEL_KEY = "starseed.aurora.oss-stt.model";
-/** Evento interno (mismo tab) emitido al cambiar el opt-in o el modelo. */
+/** Clave de localStorage del idioma preferido de transcripción (default "es"). */
+export const AURORA_OSS_STT_LANG_KEY = "starseed.aurora.oss-stt.lang";
+/** Evento interno (mismo tab) emitido al cambiar el opt-in, el modelo o el idioma. */
 export const AURORA_OSS_STT_EVENT = "starseed:aurora-oss-stt";
 
 // ── Modelos disponibles ──────────────────────────────────────────────────────
 
 /** Identificadores de modelo que exponemos en la UI (compactos, honestos). */
-export type OssSttModelId = "tiny" | "base";
+export type OssSttModelId = "tiny" | "base" | "small";
 
 export interface OssSttModelSpec {
   id: OssSttModelId;
@@ -67,10 +69,47 @@ export const OSS_STT_MODELS: Record<OssSttModelId, OssSttModelSpec> = {
     approxSize: "~80 MB",
     note: "Más preciso a cambio de más descarga, batería y CPU.",
   },
+  small: {
+    id: "small",
+    repo: "Xenova/whisper-small",
+    label: "Preciso (small)",
+    approxSize: "~250 MB",
+    note: "La mejor calidad. Descarga y CPU altas: recomendado sólo en equipos de sobremesa.",
+  },
 };
 
 /** Modelo por defecto: el más ligero, para que el fallback sea viable en móviles. */
 export const DEFAULT_OSS_STT_MODEL: OssSttModelId = "tiny";
+
+// ── Idiomas de transcripción ─────────────────────────────────────────────────
+
+/** Idioma preferido de transcripción. `"auto"` deja que Whisper lo detecte. */
+export type OssSttLang = "auto" | "es" | "en" | "ca" | "fr" | "de" | "pt" | "it";
+
+export interface OssSttLangSpec {
+  id: OssSttLang;
+  /** Código que se pasa a Whisper (undefined = autodetección). */
+  code?: string;
+  label: string;
+}
+
+/**
+ * Idiomas ofrecidos en la UI. El español es el DEFAULT (fijar el idioma mejora
+ * mucho la precisión frente a la autodetección, sobre todo en frases cortas).
+ */
+export const OSS_STT_LANGS: Record<OssSttLang, OssSttLangSpec> = {
+  es: { id: "es", code: "es", label: "Español" },
+  auto: { id: "auto", code: undefined, label: "Automático (detectar)" },
+  en: { id: "en", code: "en", label: "Inglés" },
+  ca: { id: "ca", code: "ca", label: "Catalán" },
+  fr: { id: "fr", code: "fr", label: "Francés" },
+  de: { id: "de", code: "de", label: "Alemán" },
+  pt: { id: "pt", code: "pt", label: "Portugués" },
+  it: { id: "it", code: "it", label: "Italiano" },
+};
+
+/** Idioma por defecto: español (mejora la calidad frente a autodetección). */
+export const DEFAULT_OSS_STT_LANG: OssSttLang = "es";
 
 // ── Utilidades SSR-safe ──────────────────────────────────────────────────────
 
@@ -114,7 +153,7 @@ export function getOssSttModel(): OssSttModelId {
   if (!ls) return DEFAULT_OSS_STT_MODEL;
   try {
     const v = ls.getItem(AURORA_OSS_STT_MODEL_KEY);
-    if (v === "tiny" || v === "base") return v;
+    if (v === "tiny" || v === "base" || v === "small") return v;
   } catch {
     /* */
   }
@@ -131,6 +170,41 @@ export function setOssSttModel(model: OssSttModelId): void {
     /* */
   }
   emitChange();
+}
+
+/** Idioma de transcripción elegido (o el default español si no hay/valor inválido). */
+export function getOssSttLang(): OssSttLang {
+  const ls = safeLocalStorage();
+  if (!ls) return DEFAULT_OSS_STT_LANG;
+  try {
+    const v = ls.getItem(AURORA_OSS_STT_LANG_KEY);
+    if (v && Object.prototype.hasOwnProperty.call(OSS_STT_LANGS, v)) {
+      return v as OssSttLang;
+    }
+  } catch {
+    /* */
+  }
+  return DEFAULT_OSS_STT_LANG;
+}
+
+/** Fija el idioma de transcripción y notifica al mismo tab. */
+export function setOssSttLang(lang: OssSttLang): void {
+  const ls = safeLocalStorage();
+  if (!ls) return;
+  try {
+    ls.setItem(AURORA_OSS_STT_LANG_KEY, lang);
+  } catch {
+    /* */
+  }
+  emitChange();
+}
+
+/**
+ * Devuelve el CÓDIGO de idioma que se pasa a Whisper (o `undefined` para que lo
+ * autodetecte). Útil para el motor sin que tenga que conocer el catálogo.
+ */
+export function getOssSttLangCode(): string | undefined {
+  return OSS_STT_LANGS[getOssSttLang()]?.code;
 }
 
 function emitChange(): void {
@@ -150,7 +224,12 @@ export function subscribeOssStt(cb: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   const onLocal = () => cb();
   const onStorage = (e: StorageEvent) => {
-    if (e.key === AURORA_OSS_STT_KEY || e.key === AURORA_OSS_STT_MODEL_KEY) cb();
+    if (
+      e.key === AURORA_OSS_STT_KEY ||
+      e.key === AURORA_OSS_STT_MODEL_KEY ||
+      e.key === AURORA_OSS_STT_LANG_KEY
+    )
+      cb();
   };
   try {
     window.addEventListener(AURORA_OSS_STT_EVENT, onLocal);

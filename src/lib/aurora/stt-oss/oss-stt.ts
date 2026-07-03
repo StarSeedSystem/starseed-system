@@ -13,14 +13,20 @@
  *   1) CARGA PEREZOSA POR CDN. El paquete de transformers.js NO es dependencia
  *      del proyecto ni se importa en el arranque. Se trae por `import()` dinámico
  *      desde jsDelivr SÓLO cuando el usuario pulsa "Activar y descargar modelo".
- *      El modelo pesa (~40-80 MB la 1ª vez); luego el navegador lo cachea y corre
- *      local/offline.
- *   2) RECONOCIMIENTO POR LOTES + VAD SIMPLE. No hay streaming nativo en Whisper
- *      web; grabamos del micrófono y con un VAD por energía (RMS) detectamos el
- *      FIN de cada frase (silencio ~700 ms). Cerrado el segmento, lo transcribimos
- *      y emitimos el texto FINAL. `onInterim` (opcional) sólo informa de que hay
- *      voz/energía en curso; no produce texto parcial real (Whisper no lo da).
- *   3) DEGRADACIÓN DIGNA. Todo está guardado: si falta WebAssembly, el micrófono,
+ *      El modelo pesa (~40-250 MB la 1ª vez según tiny/base/small); luego el
+ *      navegador lo cachea y corre local/offline. El progreso de descarga se
+ *      reporta por fichero y agregado, con mensaje honesto.
+ *   2) RECONOCIMIENTO POR LOTES + VAD ADAPTATIVO. No hay streaming nativo en
+ *      Whisper web; grabamos del micrófono y con un VAD por energía (RMS) que se
+ *      CALIBRA al ruido de fondo detectamos el FIN de cada frase (silencio
+ *      ~800 ms). Guardamos un pre-roll para no cortar la 1ª sílaba y NO partimos
+ *      frases largas (hasta 30 s). Cerrado el segmento lo transcribimos (con
+ *      reintento defensivo) y emitimos el texto FINAL. `onInterim` (opcional)
+ *      sólo informa de que hay voz/energía; no produce texto parcial real.
+ *   3) IDIOMA. Por defecto ES (español): fijar el idioma mejora mucho la calidad
+ *      frente a la autodetección. Se lee del opt-in y puede sobreescribirse por
+ *      llamada con `lang`.
+ *   4) DEGRADACIÓN DIGNA. Todo está guardado: si falta WebAssembly, el micrófono,
  *      o falla la CDN, devolvemos errores por callback y NUNCA lanzamos.
  *
  * PUENTE A AURORA
@@ -36,6 +42,7 @@
 import {
   OSS_STT_MODELS,
   getOssSttModel,
+  getOssSttLangCode,
   type OssSttModelId,
 } from "@/lib/aurora/stt-oss/opt-in";
 
@@ -51,15 +58,41 @@ const TRANSFORMERS_CDN =
 /** Tasa de muestreo que espera Whisper. */
 const TARGET_SAMPLE_RATE = 16000;
 
-// VAD (detección de actividad de voz) por energía RMS.
-/** Umbral de RMS por encima del cual consideramos que hay voz. */
-const VAD_RMS_THRESHOLD = 0.012;
+// VAD (detección de actividad de voz) por energía RMS — con UMBRAL ADAPTATIVO.
+// -----------------------------------------------------------------------------
+// El umbral fijo antiguo (0.012) fallaba en dos direcciones: en entornos ruidosos
+// (ventilador, calle, cafetería) disparaba voz sin parar; en micrófonos flojos o
+// habitaciones muy silenciosas se perdía el habla suave. Ahora medimos el RUIDO
+// DE FONDO al arrancar (calibración) y seguimos un suelo de ruido móvil; el
+// umbral de voz vive SIEMPRE por encima de ese suelo (histéresis).
+/** Suelo de ruido mínimo asumido (evita umbral 0 en micrófonos perfectos). */
+const VAD_NOISE_FLOOR_MIN = 0.004;
+/** Suelo de ruido máximo asumido (por si el entorno es muy ruidoso). */
+const VAD_NOISE_FLOOR_MAX = 0.08;
+/** Cuánto por encima del suelo de ruido tiene que estar el RMS para ser "voz". */
+const VAD_SPEECH_MULT = 2.4;
+/** Margen absoluto extra sobre el suelo (protege micrófonos silenciosos). */
+const VAD_SPEECH_MARGIN = 0.006;
+/** Factor de histéresis: para SEGUIR hablando basta con superar ~60% del umbral. */
+const VAD_RELEASE_RATIO = 0.6;
+/** Suavizado exponencial del suelo de ruido (0..1; alto = se adapta despacio). */
+const VAD_NOISE_SMOOTHING = 0.995;
+/** Bloques de calibración inicial (a 4096 muestras/~85 ms cada uno ≈ 0.85 s). */
+const VAD_CALIBRATION_BLOCKS = 10;
 /** Silencio (ms) tras el cual cerramos un segmento y lo transcribimos. */
-const VAD_SILENCE_MS = 700;
+const VAD_SILENCE_MS = 800;
 /** Duración mínima (ms) de voz para molestarnos en transcribir (evita clics). */
 const VAD_MIN_SPEECH_MS = 350;
-/** Duración máxima (ms) de un segmento: lo cerramos aunque no haya silencio. */
-const VAD_MAX_SEGMENT_MS = 12000;
+/**
+ * Duración máxima (ms) de un segmento: lo cerramos aunque no haya silencio. Se
+ * sube a 30 s (el `chunk_length_s` de Whisper) para NO cortar frases largas por
+ * la mitad; antes 12 s partía monólogos y perdía contexto.
+ */
+const VAD_MAX_SEGMENT_MS = 30000;
+/** Pre-roll (ms) de audio a conservar ANTES del inicio de voz (evita cortar la 1ª sílaba). */
+const VAD_PREROLL_MS = 300;
+/** Reintentos de transcripción de un segmento ante fallo transitorio. */
+const TRANSCRIBE_RETRIES = 1;
 
 // ── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -210,20 +243,47 @@ export async function loadModel(
   emit({ status: "loading", progress: 1, message: `Preparando ${spec.label}…` });
 
   // Progreso agregado: transformers.js llama por CADA fichero; promediamos.
+  // Guardamos también bytes (loaded/total) cuando llegan, para un % más honesto
+  // que ponderar por fichero (los pesos difieren mucho de tamaño).
   const fileProgress = new Map<string, number>();
+  const fileBytes = new Map<string, { loaded: number; total: number }>();
+  /** Nombre corto y legible del fichero en curso (sin la ruta del Hub). */
+  const shortFile = (file?: string) => {
+    if (!file) return undefined;
+    const parts = file.split("/");
+    return parts[parts.length - 1] || file;
+  };
   const reportAggregate = (file?: string) => {
-    let sum = 0;
-    let n = 0;
-    fileProgress.forEach((v) => {
-      sum += v;
-      n += 1;
+    // Preferimos el % ponderado por bytes si tenemos totales fiables.
+    let loaded = 0;
+    let total = 0;
+    fileBytes.forEach((b) => {
+      if (b.total > 0) {
+        loaded += b.loaded;
+        total += b.total;
+      }
     });
-    const pct = n > 0 ? Math.min(99, Math.round(sum / n)) : 1;
+    let pct: number;
+    if (total > 0) {
+      pct = Math.min(99, Math.round((loaded / total) * 100));
+    } else {
+      // Fallback: media simple de los porcentajes por fichero.
+      let sum = 0;
+      let n = 0;
+      fileProgress.forEach((v) => {
+        sum += v;
+        n += 1;
+      });
+      pct = n > 0 ? Math.min(99, Math.round(sum / n)) : 1;
+    }
+    const shown = shortFile(file);
     emit({
       status: "loading",
       progress: pct,
-      file,
-      message: `Descargando ${spec.label} (${spec.approxSize}) — ${pct}%`,
+      file: shown,
+      message: shown
+        ? `Descargando ${spec.label} (${spec.approxSize}) · ${shown} — ${pct}%`
+        : `Descargando ${spec.label} (${spec.approxSize}) — ${pct}%`,
     });
   };
 
@@ -233,6 +293,7 @@ export async function loadModel(
     if (typeof mod?.pipeline !== "function") {
       throw new Error("El módulo de transformers.js no expone pipeline().");
     }
+    emit({ status: "loading", progress: 2, message: `Conectando con el Hub para ${spec.label}…` });
     const progressCallback = (data: any) => {
       try {
         const file: string | undefined = data?.file;
@@ -240,9 +301,17 @@ export async function loadModel(
         if (data?.status === "progress" && file) {
           const p = typeof data.progress === "number" ? data.progress : 0;
           fileProgress.set(file, p);
+          // Bytes, si los reporta (para un % agregado ponderado más honesto).
+          const loaded = typeof data.loaded === "number" ? data.loaded : undefined;
+          const totalB = typeof data.total === "number" ? data.total : undefined;
+          if (typeof loaded === "number" && typeof totalB === "number" && totalB > 0) {
+            fileBytes.set(file, { loaded, total: totalB });
+          }
           reportAggregate(file);
         } else if (data?.status === "done" && file) {
           fileProgress.set(file, 100);
+          const prev = fileBytes.get(file);
+          if (prev && prev.total > 0) fileBytes.set(file, { loaded: prev.total, total: prev.total });
           reportAggregate(file);
         }
       } catch {
@@ -386,6 +455,28 @@ export async function startOssStt(opts: StartOssSttOptions): Promise<OssSttSessi
   let segmentLength = 0;
   let interimNotifiedAt = 0;
 
+  // ── Estado del VAD adaptativo ──────────────────────────────────────────────
+  // Suelo de ruido móvil (RMS). Empieza en el mínimo; se calibra al arrancar y
+  // luego se adapta lentamente durante los silencios.
+  let noiseFloor = VAD_NOISE_FLOOR_MIN;
+  let calibrationBlocks = 0;
+  let calibrationSum = 0;
+
+  // Ring buffer de PRE-ROLL: guarda los últimos bloques ANTES de detectar voz,
+  // para no cortar la primera sílaba de la frase. Tamaño según VAD_PREROLL_MS.
+  const prerollMaxBlocks = Math.max(
+    1,
+    Math.ceil((VAD_PREROLL_MS / 1000) * inputRate / BUFFER),
+  );
+  let preroll: Float32Array[] = [];
+
+  /** Umbral de INICIO de voz derivado del suelo de ruido actual (histéresis). */
+  const speechThreshold = () =>
+    Math.min(
+      VAD_NOISE_FLOOR_MAX * VAD_SPEECH_MULT,
+      noiseFloor * VAD_SPEECH_MULT + VAD_SPEECH_MARGIN,
+    );
+
   const resetSegment = () => {
     segmentChunks = [];
     segmentLength = 0;
@@ -393,37 +484,70 @@ export async function startOssStt(opts: StartOssSttOptions): Promise<OssSttSessi
     speechStartAt = 0;
   };
 
+  // Idioma efectivo: prioriza el pasado por llamada; si no, la preferencia
+  // persistida (español por defecto). undefined ⇒ Whisper autodetecta.
+  const effectiveLang = opts.lang || getOssSttLangCode();
+
+  // Post-proceso ligero del texto de Whisper: recorta y filtra alucinaciones
+  // típicas del modelo en silencios/ruido (etiquetas y muletillas de subtítulos).
+  const HALLUCINATION_RE =
+    /^(?:\s*[\[(][^\])]*[\])]\s*|gracias(?: por ver(?:me)?)?\.?|subt[íi]tulos[^.]*\.?|thanks for watching\.?|you\.?|\.|\s)+$/i;
+  const cleanTranscript = (raw: string): string => {
+    let t = raw.trim();
+    // Quita etiquetas entre corchetes/paréntesis al inicio (p. ej. "[Música]").
+    t = t.replace(/^\s*[\[(][^\])]*[\])]\s*/g, "").trim();
+    return t;
+  };
+
   // Transcribe un buffer PCM (Float32, mono, a inputRate) — remuestrea a 16k.
+  // Con reintento defensivo ante fallos transitorios (WASM ocupado, GC…).
   const transcribeSegment = async (pcm: Float32Array) => {
     const asr = pipelinePromise ? await pipelinePromise.catch(() => null) : null;
     if (!asr) return;
     let audio = pcm;
-    try {
-      if (inputRate !== TARGET_SAMPLE_RATE) {
+    if (inputRate !== TARGET_SAMPLE_RATE) {
+      try {
         audio = resampleLinear(pcm, inputRate, TARGET_SAMPLE_RATE);
+      } catch {
+        audio = pcm; // si el remuestreo falla, probamos con el original
       }
-      const out: any = await asr(audio, {
-        // Autodetección si no se pide idioma; chunk largo para frases completas.
-        language: opts.lang || undefined,
-        task: "transcribe",
-        chunk_length_s: 30,
-        stride_length_s: 5,
-      });
-      const text = typeof out?.text === "string" ? out.text.trim() : "";
-      if (text && !stopped) {
-        try {
-          opts.onResult(text);
-        } catch {
-          /* la UI/consumidor puede fallar; el motor no */
+    }
+    let lastErr: unknown = null;
+    for (let attempt = 0; attempt <= TRANSCRIBE_RETRIES; attempt++) {
+      if (stopped) return;
+      try {
+        const out: any = await asr(audio, {
+          language: effectiveLang || undefined,
+          task: "transcribe",
+          chunk_length_s: 30,
+          stride_length_s: 5,
+          // Sin muestreo aleatorio: salidas estables/repetibles.
+          do_sample: false,
+        });
+        const raw = typeof out?.text === "string" ? out.text : "";
+        const text = cleanTranscript(raw);
+        if (text && !HALLUCINATION_RE.test(raw) && !stopped) {
+          try {
+            opts.onResult(text);
+          } catch {
+            /* la UI/consumidor puede fallar; el motor no */
+          }
+        }
+        return; // éxito (aunque el texto quedara vacío tras limpiar)
+      } catch (err) {
+        lastErr = err;
+        // Pequeña espera antes de reintentar (deja respirar al runtime WASM).
+        if (attempt < TRANSCRIBE_RETRIES) {
+          await new Promise((r) => setTimeout(r, 120));
         }
       }
+    }
+    // Agotados los reintentos: segmento no decodificable → seguimos escuchando.
+    void lastErr;
+    try {
+      opts.onError?.("No se pudo transcribir un fragmento; sigo escuchando.");
     } catch {
-      // Segmento no decodificable → lo ignoramos y seguimos escuchando.
-      try {
-        opts.onError?.("No se pudo transcribir un fragmento; sigo escuchando.");
-      } catch {
-        /* */
-      }
+      /* */
     }
   };
 
@@ -463,11 +587,39 @@ export async function startOssStt(opts: StartOssSttOptions): Promise<OssSttSessi
     const rms = Math.sqrt(sumSq / (input.length || 1));
     const now = performance.now();
 
-    if (rms >= VAD_RMS_THRESHOLD) {
+    // ── Calibración inicial del suelo de ruido (primeros ~0.85 s) ────────────
+    if (calibrationBlocks < VAD_CALIBRATION_BLOCKS) {
+      calibrationBlocks += 1;
+      calibrationSum += rms;
+      if (calibrationBlocks === VAD_CALIBRATION_BLOCKS) {
+        const avg = calibrationSum / VAD_CALIBRATION_BLOCKS;
+        noiseFloor = Math.min(
+          VAD_NOISE_FLOOR_MAX,
+          Math.max(VAD_NOISE_FLOOR_MIN, avg),
+        );
+      }
+      // Durante la calibración guardamos pre-roll pero no detectamos voz aún.
+      preroll.push(new Float32Array(input));
+      if (preroll.length > prerollMaxBlocks) preroll.shift();
+      return;
+    }
+
+    const startTh = speechThreshold();
+    // Para SEGUIR hablando basta un umbral menor (histéresis anti-parpadeo).
+    const continueTh = startTh * VAD_RELEASE_RATIO;
+    const isVoice = speaking ? rms >= continueTh : rms >= startTh;
+
+    if (isVoice) {
       // Hay voz.
       if (!speaking) {
         speaking = true;
         speechStartAt = now;
+        // Prepend del PRE-ROLL para no perder la primera sílaba.
+        for (const b of preroll) {
+          segmentChunks.push(b);
+          segmentLength += b.length;
+        }
+        preroll = [];
       }
       lastVoiceAt = now;
       // Copiamos el bloque (el buffer se reutiliza) y lo acumulamos.
@@ -482,7 +634,7 @@ export async function startOssStt(opts: StartOssSttOptions): Promise<OssSttSessi
           /* */
         }
       }
-      // Corte por segmento demasiado largo.
+      // Corte por segmento demasiado largo (evita OOM en monólogos infinitos).
       if (now - speechStartAt >= VAD_MAX_SEGMENT_MS) {
         flushIfSpeech();
       }
@@ -494,6 +646,15 @@ export async function startOssStt(opts: StartOssSttOptions): Promise<OssSttSessi
       if (now - lastVoiceAt >= VAD_SILENCE_MS) {
         flushIfSpeech();
       }
+    } else {
+      // Silencio real: adaptamos MUY lentamente el suelo de ruido (sólo baja o
+      // sube poco a poco) y mantenemos el ring de pre-roll al día.
+      noiseFloor =
+        VAD_NOISE_SMOOTHING * noiseFloor + (1 - VAD_NOISE_SMOOTHING) * rms;
+      if (noiseFloor < VAD_NOISE_FLOOR_MIN) noiseFloor = VAD_NOISE_FLOOR_MIN;
+      if (noiseFloor > VAD_NOISE_FLOOR_MAX) noiseFloor = VAD_NOISE_FLOOR_MAX;
+      preroll.push(new Float32Array(input));
+      if (preroll.length > prerollMaxBlocks) preroll.shift();
     }
   };
 
