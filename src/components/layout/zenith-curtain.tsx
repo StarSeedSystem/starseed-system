@@ -214,9 +214,12 @@ export function ZenithCurtain() {
     const [senses, setSenses] = useState<AISense[]>(DEFAULT_SENSES);
     const [connections, setConnections] = useState<AIConnection[]>(DEFAULT_CONNECTIONS);
     const [sensesTab, setSensesTab] = useState<"senses" | "connections" | "topology">("senses");
-    // Vista principal del Exocórtex: buscador universal, el Cerebro 3D (con chat
-    // IA) o el Chat de Aurora (voz + multichat + configuraciones del widget).
-    const [mainView, setMainView] = useState<"buscar" | "cerebro" | "aurora">("buscar");
+    // Vista principal del Exocórtex: AURORA es la principal (su sección ya lleva
+    // el BUSCADOR fusionado dentro — barra Preguntar⇄Buscar). El buscador universal
+    // clásico y el Cerebro 3D quedan como vistas secundarias conmutables.
+    // (Petición del usuario: al abrir el Exocórtex aparece directamente Aurora,
+    // no la versión anterior del buscador.)
+    const [mainView, setMainView] = useState<"buscar" | "cerebro" | "aurora">("aurora");
 
     // Apertura remota: el orbe/widget de Aurora (o cualquier superficie del OS)
     // dispara `starseed:open-aurora-exocortex` → abrimos la cortina Zenith con
