@@ -218,6 +218,14 @@ export function useAuroraEngine(): AuroraEngine {
   const sttLastResultAtRef = useRef<number>(0);
   const sttRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // (La supresión de eco es GLOBAL: ttsGuardActive() a nivel de módulo, arriba.)
+  // ── MEDIO-DÚPLEX (anti auto-escucha DEFINITIVO) ──
+  // Mientras Aurora HABLA, DETENEMOS el reconocimiento (no solo ignoramos): el
+  // micrófono deja de alimentar al reconocedor, así es IMPOSIBLE que se oiga a sí
+  // misma. Al terminar de hablar, se reanuda. `pausedForTtsRef` marca esa pausa
+  // para que el `onend` del reconocimiento NO reinicie por su cuenta. El watchdog
+  // cubre el bug de Chrome donde `utterance.onend` a veces no dispara.
+  const pausedForTtsRef = useRef<boolean>(false);
+  const ttsWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Índice del historial para Adelantar/Retroceder (-1 = última respuesta).
   const historyIndexRef = useRef<number>(-1);
   // Espejo del historial de respuestas, para el transporte sin depender del render.
@@ -302,6 +310,31 @@ export function useAuroraEngine(): AuroraEngine {
     return false;
   }, []);
 
+  // Referencia a `start()` (definido más abajo) para reanudar la escucha tras el
+  // habla sin problemas de orden de declaración.
+  const startRef = useRef<() => void>(() => {});
+
+  // finishTts — cierra el turno de habla de Aurora (medio-dúplex): apaga el
+  // guard anti-eco y REANUDA la escucha si el usuario la tenía activa. Idempotente
+  // (lo llaman tanto `utterance.onend` como el watchdog).
+  const finishTts = useCallback(() => {
+    if (ttsWatchdogRef.current) { clearTimeout(ttsWatchdogRef.current); ttsWatchdogRef.current = null; }
+    setSpeaking(false);
+    emitAuroraSpeak("end");
+    markTtsSpeaking(false); // + cola de eco de 800ms
+    if (pausedForTtsRef.current) {
+      pausedForTtsRef.current = false;
+      if (keepAliveRef.current) {
+        // Respiro para que muera la cola de audio antes de volver a escuchar.
+        setTimeout(() => {
+          if (keepAliveRef.current && !ttsSpeakingGlobal && !pausedForTtsRef.current) {
+            try { startRef.current(); } catch { /* */ }
+          }
+        }, 350);
+      }
+    }
+  }, []);
+
   const speak = useCallback((text: string) => {
     if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
     const clean = (text || "").replace(/\[\[goto:[^\]]+\]\]/gi, "").trim();
@@ -338,25 +371,26 @@ export function useAuroraEngine(): AuroraEngine {
       };
       // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
       u.onboundary = () => emitAuroraSpeak("boundary");
-      u.onend = () => {
-        setSpeaking(false); emitAuroraSpeak("end");
-        markTtsSpeaking(false); // + cola de eco de 800ms
-      };
-      u.onerror = () => {
-        setSpeaking(false); emitAuroraSpeak("end");
-        markTtsSpeaking(false);
-      };
+      u.onend = () => { finishTts(); };
+      u.onerror = () => { finishTts(); };
       // Abre la ventana anti-eco YA (antes de onstart) para cubrir el arranque
       // del habla: el micrófono no debe procesar ni el primer fonema propio.
       markTtsSpeaking(true);
+      // MEDIO-DÚPLEX: DETÉN el micrófono mientras Aurora habla (no basta con
+      // ignorar; hay que dejar de escuchar para que no se oiga a sí misma).
+      pausedForTtsRef.current = true;
+      try { recognitionRef.current?.abort?.(); } catch { /* */ }
+      // Watchdog: si `utterance.onend` no dispara (bug conocido de Chrome con
+      // textos largos), reanuda igualmente tras una duración estimada.
+      if (ttsWatchdogRef.current) clearTimeout(ttsWatchdogRef.current);
+      const estMs = Math.min(30000, 1600 + clean.length * 80);
+      ttsWatchdogRef.current = setTimeout(() => { finishTts(); }, estMs);
       window.speechSynthesis.speak(u);
       setPaused(false);
     } catch {
-      setSpeaking(false);
-      markTtsSpeaking(false);
-      emitAuroraSpeak("end");
+      finishTts();
     }
-  }, [speakPremium]);
+  }, [speakPremium, finishTts]);
 
   // ── historial de respuestas + conversación ──
   // Registra una respuesta de Aurora en el historial (para el transporte y el chat).
@@ -401,7 +435,10 @@ export function useAuroraEngine(): AuroraEngine {
     try { window.speechSynthesis.cancel(); } catch { /* */ }
     setSpeaking(false);
     setPaused(false);
-  }, []);
+    // Cancelar el habla también cierra el turno TTS y reanuda la escucha
+    // (medio-dúplex): el navegador puede no disparar utterance.onend al cancelar.
+    finishTts();
+  }, [finishTts]);
 
   const toggleSpeech = useCallback(() => {
     // Si está hablando y no pausada → pausa; si está pausada → reanuda;
@@ -719,6 +756,13 @@ export function useAuroraEngine(): AuroraEngine {
     rec.onend = () => {
       setInterim("");
       if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
+      // MEDIO-DÚPLEX: si el reconocimiento se detuvo porque Aurora va a hablar /
+      // está hablando, NO reiniciamos aquí. Lo reanudará `resumeListeningAfterTts`
+      // cuando termine el habla (evita que el micro capte su propia voz).
+      if (pausedForTtsRef.current || ttsGuardActive()) {
+        setListening(false);
+        return;
+      }
       // Reinicio automático si Aurora debe seguir escuchando (segundo plano),
       // PERO con backoff y tope de reinicios sin habla para no entrar en loop.
       if (keepAliveRef.current && typeof window !== "undefined") {
@@ -795,15 +839,22 @@ export function useAuroraEngine(): AuroraEngine {
     sttOwner = instanceIdRef.current;
     keepAliveRef.current = true; // mantener vivo a través de la navegación
     try { recognitionRef.current?.stop?.(); } catch { /* */ }
+    // Medio-dúplex: reanudar la escucha limpia cualquier pausa por TTS pendiente.
+    pausedForTtsRef.current = false;
     const rec = buildRecognition();
     if (!rec) return;
     recognitionRef.current = rec;
     try { rec.start(); } catch { /* ya iniciado */ }
   }, [buildRecognition]);
 
+  // Mantén `startRef` apuntando a la última versión de `start` (para finishTts).
+  useEffect(() => { startRef.current = start; }, [start]);
+
   const stop = useCallback(() => {
     keepAliveRef.current = false; // parada deliberada: no reanudar
+    pausedForTtsRef.current = false;
     if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
+    if (ttsWatchdogRef.current) { clearTimeout(ttsWatchdogRef.current); ttsWatchdogRef.current = null; }
     sttRestartsRef.current = 0;
     try { recognitionRef.current?.stop?.(); } catch { /* */ }
     // Libera el testigo del STT para que cualquier instancia pueda retomarlo.
