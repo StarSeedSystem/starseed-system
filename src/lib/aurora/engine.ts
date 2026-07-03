@@ -154,6 +154,26 @@ export interface AuroraEngine {
  */
 let sttOwner: symbol | null = null;
 
+/**
+ * Guard de ECO a NIVEL DE MÓDULO (compartido por CUALQUIER instancia del motor y
+ * por CUALQUIER ruta de voz). Mientras Aurora habla (TTS) —o durante un breve
+ * cooldown— el reconocimiento DESCARTA lo que capta: es su propia voz, no un
+ * comando del usuario. Ser global es la clave: aunque existan dos instancias o
+ * la voz salga por otra vía, TODAS suprimen a la vez → no se auto-responde ni
+ * entra en loop. El canal del micrófono NO se reinicia; solo se ignora el audio
+ * propio.
+ */
+let ttsSpeakingGlobal = false;
+let ttsGuardUntilGlobal = 0;
+function ttsGuardActive(): boolean {
+  return ttsSpeakingGlobal || Date.now() < ttsGuardUntilGlobal;
+}
+/** Llamado por speak() en TODAS sus rutas: abre/cierra la ventana anti-eco. */
+function markTtsSpeaking(on: boolean): void {
+  ttsSpeakingGlobal = on;
+  if (!on) ttsGuardUntilGlobal = Date.now() + 800; // cola de eco tras hablar
+}
+
 export function useAuroraEngine(): AuroraEngine {
   const router = useRouter();
   const pathname = usePathname();
@@ -192,14 +212,7 @@ export function useAuroraEngine(): AuroraEngine {
   const sttRestartsRef = useRef<number>(0);
   const sttLastResultAtRef = useRef<number>(0);
   const sttRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // ── Supresión de ECO (anti auto-detección) ──
-  // Mientras Aurora HABLA (TTS), el micrófono capta su propia voz y la procesaba
-  // como comando → se respondía a sí misma → loop y "duplicación". Con esto el
-  // reconocimiento IGNORA lo que oye mientras Aurora habla y durante un breve
-  // cooldown tras terminar (cola de eco). El canal del micrófono SIGUE ABIERTO
-  // (no se reinicia) — solo se descarta el texto propio.
-  const echoSuppressRef = useRef<boolean>(false);
-  const echoUntilRef = useRef<number>(0);
+  // (La supresión de eco es GLOBAL: ttsGuardActive() a nivel de módulo, arriba.)
   // Índice del historial para Adelantar/Retroceder (-1 = última respuesta).
   const historyIndexRef = useRef<number>(-1);
   // Espejo del historial de respuestas, para el transporte sin depender del render.
@@ -316,26 +329,26 @@ export function useAuroraEngine(): AuroraEngine {
       if (v) u.voice = v;
       u.onstart = () => {
         setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
-        // Silencia el reconocimiento de su propia voz (anti-eco).
-        echoSuppressRef.current = true;
+        markTtsSpeaking(true); // anti-eco GLOBAL: ignora la voz propia
       };
       // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
       u.onboundary = () => emitAuroraSpeak("boundary");
       u.onend = () => {
         setSpeaking(false); emitAuroraSpeak("end");
-        // Cooldown de ~700ms tras hablar para descartar la cola de eco.
-        echoSuppressRef.current = false;
-        echoUntilRef.current = Date.now() + 700;
+        markTtsSpeaking(false); // + cola de eco de 800ms
       };
       u.onerror = () => {
         setSpeaking(false); emitAuroraSpeak("end");
-        echoSuppressRef.current = false;
-        echoUntilRef.current = Date.now() + 300;
+        markTtsSpeaking(false);
       };
+      // Abre la ventana anti-eco YA (antes de onstart) para cubrir el arranque
+      // del habla: el micrófono no debe procesar ni el primer fonema propio.
+      markTtsSpeaking(true);
       window.speechSynthesis.speak(u);
       setPaused(false);
     } catch {
       setSpeaking(false);
+      markTtsSpeaking(false);
       emitAuroraSpeak("end");
     }
   }, [speakPremium]);
@@ -696,7 +709,9 @@ export function useAuroraEngine(): AuroraEngine {
       // PERO con backoff y tope de reinicios sin habla para no entrar en loop.
       if (keepAliveRef.current && typeof window !== "undefined") {
         const now = Date.now();
-        const sawResultRecently = now - sttLastResultAtRef.current < 15_000;
+        // Si Aurora estaba HABLANDO, el fin de escucha es esperado (medio-dúplex):
+        // NO cuenta como "caída sin habla" → no penaliza el watchdog.
+        const sawResultRecently = now - sttLastResultAtRef.current < 15_000 || ttsGuardActive();
         if (sawResultRecently) sttRestartsRef.current = 0; // ciclo sano
         else sttRestartsRef.current += 1;
 
@@ -726,10 +741,10 @@ export function useAuroraEngine(): AuroraEngine {
       setListening(false);
     };
     rec.onresult = (e: any) => {
-      // ANTI-ECO: si Aurora está hablando (o en el cooldown posterior), descarta
-      // lo captado — es su propia voz, no un comando del usuario. El canal del
-      // micrófono sigue abierto; solo se ignora el texto propio (rompe el loop).
-      if (echoSuppressRef.current || Date.now() < echoUntilRef.current) {
+      // ANTI-ECO GLOBAL: si Aurora está hablando (o en el cooldown posterior),
+      // descarta lo captado — es su propia voz, no un comando del usuario. El
+      // canal del micrófono sigue abierto; solo se ignora el texto propio.
+      if (ttsGuardActive()) {
         return;
       }
       let finalText = "";

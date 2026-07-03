@@ -1676,3 +1676,16 @@ Construido con 7 subagentes en 3 olas (archivos disjuntos) + integración del or
 - tsc 376 = baseline en todo. Deploys: eb9e2d8 (anti-eco) · e27d7dd (guía) · 7aecd15 (dispositivos/red).
 
 **Pendiente:** #10 Aurora en Nexus/Café; chats fullscreen+ramificación; WebRTC LAN real (señalización por cuenta); STT OSS (Whisper/Moonshine) fallback.
+
+---
+## Adenda 53 — 2026-07-02 (madrugada) · Ola sincronizada: chats fullscreen · Aurora ampliada · STT OSS · Aurora en Nexus y Café (deploys OS 6ec7481→220558e; Nexus 5ad9eff; Café f60b268)
+
+Construido con 5 subagentes en 2 olas + integración.
+
+- **Chats de Aurora en pantalla completa + ramificación** (exocortex): AuroraChatView compartida + AuroraChatFullscreen (overlay 2 columnas desktop / 1 móvil, Esc+X); chat-tree.ts (árbol de contextos persistido 'starseed.aurora.chattree.v1', useChatTree, branchFrom, índice paralelo ts→contextId SIN tocar el log); UI de árbol con sangría/líneas/iconos de rama.
+- **Aurora ampliada** (lib/aurora): 7 acciones de pantalla nuevas (resaltar/leer_pantalla/rellenar_formulario/seleccionar_opcion/ir_a_seccion/abrir_app/copiar_texto) + task-manager.ts (tareas 2º plano 'starseed.aurora.bgtasks.v1', runInBackground) + context-hints.ts (suggestForContext por ruta); 10 tools nuevas en aurora-tools.ts (patrón AuroraScreenTool).
+- **STT open-source fallback** (stt-oss/): transformers.js Whisper (tiny/base) por CDN, opt-in 'starseed.aurora.oss-stt', VAD RMS+silencio 700ms→16kHz; capabilities expone ossSttAvailable/Enabled sin tocar voiceMode; panel aurora-voice-fallback-panel montado en Ajustes→IA; alimenta a Aurora vía window.STARSEED_AURORA.send. Para Firefox/WebView sin voz nativa.
+- **Aurora portada a NEXUS y CAFÉ** (repos vanilla JS, deploy propio): mismas reglas del OS — arranque PASIVO silencioso (sin saludo/auto-chat; micrófono listo en 2º plano), tap=voz sin chat, mantener-pulsado=ventana de chat con barra de reproducción (▶/⏸/⏹+mic), ANTI-ECO (ignora TTS propio +700ms; micrófono sin reiniciar en loop), orbe MOVIBLE por esquinas con snap persistido ('starseed.nexus.aurora.corner' / 'starseed.cafe.aurora.corner'), enlaces a OS/Nexus/Café/Audiomorphic. Nexus exocortex.js v=98 (adaptado sobre su versión completa). Café exocortex.js 273→1035 líneas (se le AÑADIÓ el motor de voz que no tenía; contexto menú/elixires/baristas), v=82, desplegado vía clon limpio a /tmp (working tree del Café desordenado). 
+- tsc OS 376 = baseline. node --check limpio en Nexus y Café. Deploys: OS 6ec7481 (chats+ampliación) · 220558e (STT OSS) · Nexus 5ad9eff · Café f60b268.
+
+**Pendiente:** WebRTC LAN real (señalización por cuenta); contexto compartido real Exocórtex↔AI Studio (hoy enlace); wake-word acústico local (Porcupine/OSS) opcional.
