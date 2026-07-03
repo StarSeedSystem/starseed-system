@@ -35,14 +35,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle, Bot, ChevronDown, Compass, ExternalLink, FileJson, FileText,
-  History, Layers, ListChecks, MessageSquare, Mic, MicOff, Orbit, Pause, Play,
-  Plus, Power, RefreshCw, ScrollText, Search, Send, SkipBack, SkipForward,
-  SlidersHorizontal, Sparkles, Square, Trash2, Volume2, Wand2,
+  GitBranch, History, Layers, ListChecks, Maximize2, MessageSquare, Mic, MicOff,
+  Orbit, Pause, Play, Plus, Power, RefreshCw, ScrollText, Search, Send, SkipBack,
+  SkipForward, SlidersHorizontal, Sparkles, Square, Trash2, Volume2, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AuroraMultichatPanel } from "@/components/aurora/aurora-multichat-panel";
 import { AuroraControlPanel } from "@/components/aurora/aurora-control-panel";
 import { AuroraAlwaysOn } from "@/components/exocortex/aurora-always-on";
+import { AuroraChatView } from "@/components/exocortex/aurora-chat-view";
+import { AuroraChatFullscreen } from "@/components/exocortex/aurora-chat-fullscreen";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import {
   getAuroraBridge,
@@ -60,8 +62,15 @@ import {
   readOrbHidden,
   setOrbHidden,
   subscribeOrbVisibility,
+  subscribeAuroraConversation,
 } from "@/lib/aurora/aurora-orb-bus";
-import { useAuroraChatLog, type AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
+import {
+  useAuroraChatLog,
+  readAuroraChatEntries,
+  auroraChatDayOf,
+  type AuroraChatLogEntry,
+} from "@/lib/aurora/aurora-chat-log";
+import { useChatTree } from "@/lib/aurora/chat-tree";
 
 // ── Tipos locales ────────────────────────────────────────────────────────────
 type Tab = "chat" | "chats" | "voz" | "control" | "registro";
@@ -275,11 +284,66 @@ const AXC_CSS = `
 .axc-scroll::-webkit-scrollbar{width:8px;}
 .axc-scroll::-webkit-scrollbar-thumb{background:rgba(0,127,255,.28);border-radius:99px;border:2px solid transparent;background-clip:padding-box;}
 .axc-scroll::-webkit-scrollbar-thumb:hover{background:rgba(57,255,20,.35);background-clip:padding-box;}
+/* ── Árbol de contextos de conversación (ramificación) ── */
+.axc-tree{display:flex;flex-direction:column;min-height:0;gap:8px;padding:11px 12px 10px;}
+.axc-tree-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.axc-tree-new{padding:6px 10px;font-size:10.5px;}
+.axc-tree-body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding-right:2px;}
+.axc-tree-empty{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:18px 12px;}
+.axc-tree-node{position:relative;}
+/* Sangría por nivel + guía visual de rama. */
+.axc-tree-row{position:relative;display:flex;align-items:center;gap:4px;border-radius:12px;padding:5px 7px;
+  margin-left:calc(var(--tree-depth, 0) * 16px);
+  border:1px solid transparent;transition:background .18s, border-color .18s;}
+.axc-tree-row:hover{background:rgba(148,163,184,.07);border-color:rgba(148,163,184,.14);}
+.axc-tree-row.active{background:linear-gradient(120deg, rgba(0,127,255,.18), rgba(57,255,20,.08));
+  border-color:rgba(0,127,255,.4);box-shadow:inset 0 1px 0 rgba(255,255,255,.06);}
+.axc-tree-branch{flex:none;display:grid;place-items:center;width:14px;color:rgba(127,184,255,.6);}
+.axc-tree-caret{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:6px;cursor:pointer;
+  border:0;background:transparent;color:rgba(226,232,240,.55);transition:color .18s, background .18s;}
+.axc-tree-caret:hover{color:#fff;background:rgba(148,163,184,.14);}
+.axc-tree-caret.ghost{cursor:default;}
+.axc-tree-dot{width:4px;height:4px;border-radius:50%;background:rgba(148,163,184,.4);}
+.axc-tree-title{flex:1;min-width:0;display:flex;align-items:center;gap:6px;cursor:pointer;text-align:left;
+  border:0;background:transparent;color:rgba(226,232,240,.9);font-size:12px;padding:2px 2px;transition:color .18s;}
+.axc-tree-title:hover{color:#fff;}
+.axc-tree-titletext{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.axc-tree-count{flex:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:8.5px;
+  padding:1px 6px;border-radius:999px;background:rgba(148,163,184,.16);color:rgba(226,232,240,.6);}
+.axc-tree-edit{flex:1;min-width:0;background:rgba(2,4,10,.8);border:1px solid rgba(0,127,255,.5);border-radius:8px;
+  color:#eef2ff;font-size:12px;padding:3px 8px;outline:none;}
+.axc-tree-actions{flex:none;display:flex;align-items:center;gap:2px;opacity:0;transition:opacity .18s;}
+.axc-tree-row:hover .axc-tree-actions,.axc-tree-row.active .axc-tree-actions{opacity:1;}
+.axc-tree-act{display:grid;place-items:center;width:24px;height:24px;border-radius:8px;cursor:pointer;
+  border:1px solid rgba(148,163,184,.16);background:rgba(148,163,184,.06);color:rgba(226,232,240,.7);
+  transition:transform .16s, background .18s, color .18s, border-color .18s;}
+.axc-tree-act:hover{color:#fff;background:rgba(0,127,255,.2);border-color:rgba(0,127,255,.45);transform:translateY(-1px);}
+.axc-tree-act:active{transform:scale(.92);}
+.axc-tree-act.danger:hover{background:rgba(255,191,0,.2);border-color:rgba(255,191,0,.45);color:#fef3c7;}
+/* Línea vertical de rama que agrupa los hijos. */
+.axc-tree-children{position:relative;}
+.axc-tree-children::before{content:"";position:absolute;top:0;bottom:9px;
+  left:calc(var(--tree-depth, 0) * 16px + 14px);width:1px;background:rgba(127,184,255,.22);}
+.axc-tree-activechip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;
+  padding:5px 10px;border-radius:999px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:#dbeafe;background:rgba(0,127,255,.12);border:1px solid rgba(0,127,255,.35);}
+.axc-tree-archive{margin-top:6px;border-top:1px solid rgba(148,163,184,.1);padding-top:6px;}
+.axc-tree-archtoggle{display:flex;align-items:center;gap:6px;width:100%;cursor:pointer;border:0;background:transparent;
+  color:rgba(226,232,240,.55);font-size:10.5px;padding:4px 2px;transition:color .18s;}
+.axc-tree-archtoggle:hover{color:rgba(226,232,240,.85);}
+.axc-tree-archlist{display:flex;flex-direction:column;gap:2px;padding:2px 0 0 4px;}
+.axc-tree-archrow{display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(226,232,240,.55);
+  padding:3px 6px;border-radius:8px;}
+.axc-tree-archrow:hover{background:rgba(148,163,184,.06);}
+.axc-tree-foot{font-size:9.5px;line-height:1.5;color:rgba(148,163,184,.5);padding-top:4px;margin-top:2px;
+  border-top:1px solid rgba(148,163,184,.08);}
 @media (prefers-reduced-motion: reduce){
   .axc-orb,.axc-live .dot,.axc-msg{animation:none !important;}
   .axc-chip,.axc-btn,.axc-send,.axc-tbtn,.axc-switch .knob,.axc-msg,.axc-mic{transition:none !important;}
   .axc-chip:hover,.axc-btn:hover,.axc-send:hover,.axc-tbtn:hover,.axc-mic:hover{transform:none;}
   .axc-mic.on::after{animation:none !important;}
+  .axc-tree-act,.axc-tree-caret,.axc-tree-actions,.axc-tree-row,.axc-tree-title{transition:none !important;}
+  .axc-tree-act:hover{transform:none;}
 }
 `;
 
@@ -314,6 +378,8 @@ export function AuroraChatSection({ className }: { className?: string }) {
   const hasCtx = !!aurora;
   const pathname = usePathname();
   const chatLog = useAuroraChatLog();
+  // Árbol de contextos/temas de conversación (ramificación) — persistido aparte.
+  const tree = useChatTree();
 
   const [tab, setTab] = useState<Tab>("chat");
   const [snap, setSnap] = useState<SnapshotPlus | null>(null);
@@ -322,14 +388,17 @@ export function AuroraChatSection({ className }: { className?: string }) {
   const [barDraft, setBarDraft] = useState("");
   const [orbHidden, setOrbHiddenState] = useState(false);
   const [openDay, setOpenDay] = useState<string | null>(null);
+  // Overlay a pantalla completa de la vista de chat (2 columnas en escritorio).
+  const [fullscreen, setFullscreen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // "Nuevo chat": marca temporal a partir de la cual se muestra la conversación
   // en vivo (reinicio VISUAL del contexto; el motor mantiene su ring interno).
   const [sessionStartTs, setSessionStartTs] = useState<number>(0);
   // Contexto cargado desde el registro: al entrar a una sesión pasada, sus
   // mensajes se muestran en la vista de chat (solo lectura de ese contexto).
+  // `label` opcional para contextos del árbol (si no, se usa el día).
   const [loadedSession, setLoadedSession] = useState<
-    { day: string; entries: AuroraChatLogEntry[] } | null
+    { day: string; entries: AuroraChatLogEntry[]; label?: string } | null
   >(null);
 
   // Fallback: suscripción al puente SOLO cuando no hay contexto de provider.
@@ -349,6 +418,19 @@ export function AuroraChatSection({ className }: { className?: string }) {
     if (typeof window === "undefined") return;
     setOrbHiddenState(readOrbHidden());
     return subscribeOrbVisibility((h) => setOrbHiddenState(h));
+  }, []);
+
+  // Asocia cada mensaje (voz o texto, usuario o Aurora) al contexto ACTIVO del
+  // árbol, si lo hay (índice paralelo en chat-tree; no toca el registro). Así la
+  // ramificación captura la conversación de cada contexto sin duplicar datos.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    return subscribeAuroraConversation((d) => {
+      try { tree.tagMessage(d.ts); } catch { /* defensivo */ }
+    });
+    // `tree.tagMessage` es estable (useCallback sin deps); el índice lee el
+    // contexto activo en el momento de cada mensaje, así que no re-suscribimos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Vista unificada del estado (contexto primero, puente después) ──────────
@@ -414,6 +496,28 @@ export function AuroraChatSection({ className }: { className?: string }) {
   }, []);
 
   const exitLoadedSession = useCallback(() => setLoadedSession(null), []);
+
+  // Abrir un CONTEXTO del árbol: reconstruye su conversación cruzando los
+  // timestamps asociados (índice paralelo) con las entradas del registro. Lo fija
+  // como contexto activo (los mensajes nuevos caerán en él) y lo carga en la vista.
+  const openContext = useCallback((id: string) => {
+    tree.setActive(id);
+    const ctx = tree.contextById(id);
+    const tsSet = new Set(tree.timestampsOf(id));
+    // Cruzamos con el registro (dedup + orden temporal). Si el contexto aún no
+    // tiene mensajes asociados, mostramos una vista vacía (pero editable en vivo).
+    const all = readAuroraChatEntries();
+    const entries = all
+      .filter((e) => tsSet.has(e.ts))
+      .sort((a, b) => a.ts - b.ts);
+    setSessionStartTs(0);
+    setLoadedSession({
+      day: entries[0] ? auroraChatDayOf(entries[0].ts) : "",
+      entries,
+      label: ctx?.title ?? "Contexto",
+    });
+    setTab("chat");
+  }, [tree]);
 
   const doToggleVoice = useCallback(() => {
     try { if (aurora) aurora.toggle(); else toggleAuroraVoice(); } catch { /* */ }
@@ -744,115 +848,47 @@ export function AuroraChatSection({ className }: { className?: string }) {
           <AuroraMultichatPanel />
         </div>
       ) : tab === "chat" ? (
-        <>
-          <Transport />
-
-          {/* Banner de contexto cargado desde el registro (solo lectura) */}
-          {loadedSession && (
-            <div className="relative z-[1] flex items-center gap-2 rounded-[14px] border border-[#39FF14]/30 bg-[#39FF14]/10 px-3 py-2">
-              <History className="h-3.5 w-3.5 shrink-0 text-[#39FF14]" />
-              <span className="min-w-0 flex-1 truncate text-[11px] text-white/75">
-                Contexto del <span className="font-medium text-white/90 first-letter:uppercase">{dayLabel(loadedSession.day)}</span>
-                {" "}· {loadedSession.entries.length} mensajes
-              </span>
-              <button onClick={exitLoadedSession} className="axc-btn lime shrink-0" title="Volver al chat en vivo">
-                <MessageSquare className="h-3.5 w-3.5" /> En vivo
-              </button>
-            </div>
-          )}
-
-          {/* Historial de conversación (en vivo, o contexto cargado del registro) */}
-          <div
-            ref={scrollRef}
-            className="axc-scroll relative z-[1] flex h-64 flex-col gap-2 overflow-y-auto rounded-[18px] border border-white/10 bg-black/40 px-3 py-2.5"
-          >
-            {loadedSession ? (
-              loadedSession.entries.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-[11px] text-white/40">
-                  Esta sesión no tiene mensajes.
-                </div>
-              ) : (
-                loadedSession.entries.map((m, i) => (
-                  <div key={`${m.ts}-${i}`} className={cn("axc-msg", m.role === "user" ? "user" : "aurora")}>
-                    <div className="axc-role">
-                      {m.role === "user" ? "Tú" : auroraName} · {fmtTime(m.ts)}
-                    </div>
-                    {m.text}
-                  </div>
-                ))
-              )
-            ) : visibleConvo.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-1 px-2 text-center">
-                <History className="h-5 w-5 text-white/25" />
-                <div className="text-[11px] leading-relaxed text-white/40">
-                  Aquí verás tu conversación con {auroraName}. Háblale desde el orbe, usa la
-                  barra de arriba o escríbele abajo: tiene control total del OS y sigue activa
-                  en segundo plano.
-                </div>
-              </div>
-            ) : (
-              visibleConvo.map((m, i) => (
-                <div key={i} className={cn("axc-msg", m.role === "user" ? "user" : "aurora")}>
-                  <div className="axc-role">{m.role === "user" ? "Tú" : auroraName}</div>
-                  {m.text}
-                </div>
-              ))
-            )}
-            {!loadedSession && interim && (
-              <div className="axc-msg user interim">
-                <div className="axc-role">Tú</div>
-                {interim}
-              </div>
-            )}
-          </div>
-
-          {/* Entrada + envío (continúa siempre en el chat EN VIVO) */}
-          <div className="axc-inputrow relative z-[1]">
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (loadedSession) exitLoadedSession(); void submitDraft(); } }}
-              placeholder={loadedSession ? "Escribe para continuar en el chat en vivo…" : "Escribe o pídele que abra/haga algo…"}
-              className="axc-input"
-            />
+        <div className="relative z-[1]">
+          {/* Acceso a pantalla completa (overlay 2 columnas en escritorio) */}
+          <div className="mb-2.5 flex items-center justify-end">
             <button
-              onClick={() => { if (loadedSession) exitLoadedSession(); void submitDraft(); }}
-              disabled={!draft.trim()}
-              title="Enviar"
-              className="axc-send"
+              onClick={() => setFullscreen(true)}
+              className="axc-btn azure"
+              title="Abrir el chat de Aurora a pantalla completa (árbol de contextos + conversación)"
             >
-              <Send className="h-4 w-4" />
+              <Maximize2 className="h-3.5 w-3.5" /> Pantalla completa
             </button>
           </div>
 
-          {/* Registro de acciones ejecutadas */}
-          {actionLog.length > 0 && (
-            <div className="axc-card relative z-[1] px-3.5 py-2.5">
-              <div className="axc-label mb-1 flex items-center gap-1.5">
-                <ListChecks className="h-3 w-3" /> Acciones
-              </div>
-              <div className="axc-scroll max-h-24 space-y-1 overflow-y-auto">
-                {actionLog.slice(-6).reverse().map((a, i) => (
-                  <div key={i} className="flex items-start gap-1.5 text-[11px] leading-snug">
-                    <span className={cn(
-                      "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
-                      a.ok ? "bg-[#39FF14]" : "bg-[#FFBF00]",
-                    )} />
-                    <span className="text-white/60">
-                      <span className="font-medium text-white/80">{a.name}</span> · {a.message}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Vista COMPARTIDA (compacta): árbol desplegable + conversación */}
+          <AuroraChatView
+            auroraName={auroraName}
+            visibleConvo={visibleConvo}
+            interim={interim}
+            loadedSession={loadedSession}
+            actionLog={actionLog}
+            paused={paused}
+            draft={draft}
+            setDraft={setDraft}
+            onSubmitDraft={() => { void submitDraft(); }}
+            onExitLoadedSession={exitLoadedSession}
+            onPause={tPause}
+            onResume={tResume}
+            onSkipBack={tSkipB}
+            onSkipForward={tSkipF}
+            onInterrupt={tInterrupt}
+            tree={tree}
+            onOpenContext={openContext}
+            fmtTime={fmtTime}
+            dayLabel={dayLabel}
+          />
 
           {!supported && ready && (
-            <div className="text-center text-[10px] text-amber-300/70">
+            <div className="mt-2 text-center text-[10px] text-amber-300/70">
               Tu navegador no soporta voz. Aún puedes escribirle aquí y gestionar sus sentidos en «Control».
             </div>
           )}
-        </>
+        </div>
       ) : tab === "voz" ? (
         <>
           <Transport />
@@ -1067,6 +1103,34 @@ export function AuroraChatSection({ className }: { className?: string }) {
           )}
         </>
       )}
+
+      {/* ── Overlay a pantalla completa (2 columnas en escritorio) ── */}
+      <AuroraChatFullscreen
+        open={fullscreen}
+        onClose={() => setFullscreen(false)}
+        speaking={speaking && !paused}
+        listening={listening}
+        statusLine={statusLine}
+        auroraName={auroraName}
+        visibleConvo={visibleConvo}
+        interim={interim}
+        loadedSession={loadedSession}
+        actionLog={actionLog}
+        paused={paused}
+        draft={draft}
+        setDraft={setDraft}
+        onSubmitDraft={() => { void submitDraft(); }}
+        onExitLoadedSession={exitLoadedSession}
+        onPause={tPause}
+        onResume={tResume}
+        onSkipBack={tSkipB}
+        onSkipForward={tSkipF}
+        onInterrupt={tInterrupt}
+        tree={tree}
+        onOpenContext={openContext}
+        fmtTime={fmtTime}
+        dayLabel={dayLabel}
+      />
     </div>
   );
 }

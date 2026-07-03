@@ -16,6 +16,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import {
+  AURORA_EXCLUDE_SELECTOR,
   findByNumber,
   formatScanSummary,
   getLastScan,
@@ -456,6 +457,401 @@ export function typeInto(idOrName: unknown, texto: unknown): ScreenActionOutcome
   } catch {
     return fail(`No pude escribir en «${item.label}».`);
   }
+}
+
+// ── Resaltar (highlight sin pulsar) ─────────────────────────────────────────
+
+/**
+ * Resalta un elemento por número o nombre SIN pulsarlo: lo trae a la vista y
+ * dibuja el marco ámbar del overlay. Útil para «señálame el 3» / «¿dónde está
+ * Publicar?» antes de decidir. No dispara ningún click.
+ */
+export function highlightElement(idOrName: unknown): ScreenActionOutcome {
+  const { item, error } = resolveTarget(idOrName);
+  if (!item) return fail(error ?? `No encuentro ese elemento. ${HINT}`);
+  try {
+    try { item.el.scrollIntoView({ block: "center", inline: "nearest" }); } catch { /* noop */ }
+    highlight(item.el);
+    return ok(`Te señalo «${item.label}».`, { numero: item.id, nombre: item.label });
+  } catch {
+    return fail(`No pude señalar «${item.label}».`);
+  }
+}
+
+// ── Leer pantalla (describir textos y elementos en voz) ──────────────────────
+
+/** Selector de bloques de texto legibles para el resumen de «leer pantalla». */
+const READ_TEXT_SELECTOR = [
+  "h1", "h2", "h3",
+  '[role="heading"]',
+  "p", "li",
+  "figcaption", "blockquote",
+  "[data-aurora-read]",
+].join(", ");
+
+/** Texto directo y visible de un nodo (sin volcar subárboles enormes). */
+function visibleTextOf(el: HTMLElement, max = 160): string {
+  try {
+    const st = window.getComputedStyle(el);
+    if (st.display === "none" || st.visibility === "hidden") return "";
+    if (Number(st.opacity || "1") < 0.05) return "";
+  } catch { return ""; }
+  try {
+    const r = el.getBoundingClientRect();
+    // Solo lo que está (al menos parcialmente) dentro del viewport.
+    if (r.width < 4 || r.height < 4) return "";
+    if (r.bottom <= 2 || r.right <= 2 || r.top >= window.innerHeight - 2 || r.left >= window.innerWidth - 2) return "";
+  } catch { /* noop */ }
+  let t = "";
+  try { t = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim(); } catch { return ""; }
+  if (!t) return "";
+  return t.length <= max ? t : t.slice(0, max - 1).trimEnd() + "…";
+}
+
+/**
+ * Describe en un resumen decible lo que se ve en pantalla: el título/encabezados
+ * y los primeros textos principales visibles, más un recuento de botones,
+ * enlaces y campos. Pensado para leerse en voz alta («leer pantalla»).
+ */
+export function readScreen(): ScreenActionOutcome {
+  if (!isClient()) return fail("Solo puedo leer la pantalla en el navegador.");
+  try {
+    // 1) Textos principales (encabezados y párrafos) visibles, sin duplicar.
+    const textos: string[] = [];
+    const seen = new Set<string>();
+    let nodes: HTMLElement[] = [];
+    try {
+      nodes = Array.from(document.querySelectorAll<HTMLElement>(READ_TEXT_SELECTOR));
+    } catch { nodes = []; }
+    for (const el of nodes) {
+      if (textos.length >= 8) break;
+      try { if (el.closest(AURORA_EXCLUDE_SELECTOR)) continue; } catch { /* noop */ }
+      const txt = visibleTextOf(el);
+      if (!txt) continue;
+      const key = normalizeText(txt);
+      if (!key || seen.has(key)) continue;
+      // Descarta si ya hay un texto que lo contiene (subcadena de otro mayor).
+      if (textos.some((prev) => normalizeText(prev).includes(key))) continue;
+      seen.add(key);
+      textos.push(txt);
+    }
+
+    // 2) Recuento de elementos interactivos (reutiliza el escáner).
+    let items = getLastScan();
+    if (items.length === 0) items = scanScreen();
+    const nBotones = items.filter((i) => i.kind === "boton").length;
+    const nEnlaces = items.filter((i) => i.kind === "enlace" || i.kind === "pestana" || i.kind === "menu").length;
+    const nCampos = items.filter((i) => i.kind === "campo" || i.kind === "selector" || i.kind === "control").length;
+
+    const partes: string[] = [];
+    let titulo = "";
+    try {
+      const h = document.querySelector<HTMLElement>('h1, [role="heading"][aria-level="1"]');
+      if (h) titulo = visibleTextOf(h, 80);
+      if (!titulo && document.title) titulo = clip(document.title, 80);
+    } catch { /* noop */ }
+    if (titulo) partes.push(`Estás en «${titulo}».`);
+
+    if (textos.length > 0) {
+      partes.push(`Veo: ${textos.slice(0, 6).join(". ")}.`);
+    } else if (!titulo) {
+      partes.push("No veo textos destacados en esta parte de la pantalla.");
+    }
+
+    const conteo: string[] = [];
+    if (nBotones > 0) conteo.push(`${nBotones} ${nBotones === 1 ? "botón" : "botones"}`);
+    if (nEnlaces > 0) conteo.push(`${nEnlaces} ${nEnlaces === 1 ? "enlace" : "enlaces"}`);
+    if (nCampos > 0) conteo.push(`${nCampos} ${nCampos === 1 ? "campo" : "campos"}`);
+    if (conteo.length > 0) {
+      partes.push(`Hay ${conteo.join(", ")}. Di «ver pantalla» para numerarlos.`);
+    }
+
+    return ok(partes.join(" ") || "No hay mucho que leer aquí ahora mismo.", {
+      titulo,
+      textos,
+      botones: nBotones,
+      enlaces: nEnlaces,
+      campos: nCampos,
+    });
+  } catch {
+    return fail("No pude leer la pantalla.");
+  }
+}
+
+// ── Copiar el texto de un elemento ───────────────────────────────────────────
+
+/** Escribe en el portapapeles con degradado a execCommand. Defensivo. */
+function writeClipboard(text: string): boolean {
+  if (!isClient() || !text) return false;
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      // Puede rechazar (permiso/insecure context): lo dejamos correr sin await.
+      void navigator.clipboard.writeText(text).catch(() => { /* fallback abajo */ });
+      return true;
+    }
+  } catch { /* noop */ }
+  // Fallback clásico: textarea temporal + execCommand('copy').
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    let copied = false;
+    try { copied = document.execCommand("copy"); } catch { copied = false; }
+    try { ta.remove(); } catch { /* noop */ }
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Copia al portapapeles el texto de un elemento (por número o nombre). Para
+ * campos usa su valor; para el resto, su texto visible. Devuelve un extracto
+ * decible de lo copiado.
+ */
+export function copyElementText(idOrName: unknown): ScreenActionOutcome {
+  const { item, error } = resolveTarget(idOrName);
+  if (!item) return fail(error ?? `No encuentro ese elemento. ${HINT}`);
+  let text = "";
+  try {
+    const field = editableFrom(item.el);
+    if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+      text = field.value || "";
+    } else if (field instanceof HTMLSelectElement) {
+      const opt = field.selectedOptions?.[0];
+      text = (opt?.label || opt?.text || field.value || "").trim();
+    }
+    if (!text) {
+      text = ((item.el.innerText || item.el.textContent || "") as string).replace(/\s+/g, " ").trim();
+    }
+    // Enlaces sin texto: copia la URL de destino.
+    if (!text && item.el instanceof HTMLAnchorElement && item.el.href) text = item.el.href;
+  } catch { /* noop */ }
+  if (!text) return fail(`«${item.label}» no tiene texto que copiar.`);
+  try { highlight(item.el); } catch { /* noop */ }
+  const done = writeClipboard(text);
+  if (!done) return fail(`No pude copiar el texto de «${item.label}».`);
+  return ok(`Copié «${clip(text, 80)}».`, { numero: item.id, nombre: item.label, texto: text });
+}
+
+// ── Seleccionar una opción de un desplegable ─────────────────────────────────
+
+/**
+ * Elige una opción en un <select> (por número/nombre del selector) casando la
+ * {opcion} por etiqueta o valor (fuzzy, sin acentos). Si el objetivo no es un
+ * <select>, lo dice con amabilidad.
+ */
+export function selectOption(idOrName: unknown, opcion: unknown): ScreenActionOutcome {
+  const wanted = String(opcion ?? "").trim();
+  if (!wanted) return fail("¿Qué opción quieres elegir?");
+  const { item, error } = resolveTarget(idOrName);
+  if (!item) return fail(error ?? `No encuentro ese selector. ${HINT}`);
+  const field = editableFrom(item.el);
+  if (!(field instanceof HTMLSelectElement)) {
+    return fail(`«${item.label}» no es un desplegable. ${HINT}`);
+  }
+  try {
+    try { field.scrollIntoView({ block: "center", inline: "nearest" }); } catch { /* noop */ }
+    highlight(field);
+    try { field.focus({ preventScroll: true }); } catch { /* noop */ }
+    const w = normalizeText(wanted);
+    const options = Array.from(field.options);
+    const opt =
+      options.find((o) => normalizeText(o.label || o.text) === w || normalizeText(o.value) === w) ||
+      options.find((o) => normalizeText(o.label || o.text).includes(w) || normalizeText(o.value).includes(w));
+    if (!opt) return fail(`No encontré la opción «${clip(wanted, 40)}» en «${item.label}».`);
+    field.value = opt.value;
+    fireInput(field, opt.value);
+    return ok(`Elegí «${opt.label || opt.text}» en «${item.label}».`, {
+      numero: item.id, nombre: item.label, opcion: opt.label || opt.text,
+    });
+  } catch {
+    return fail(`No pude elegir la opción en «${item.label}».`);
+  }
+}
+
+// ── Rellenar un formulario (varios campos por etiqueta) ──────────────────────
+
+/** Un par campo→valor tal como llega desde la voz/el modelo. */
+export interface FormFieldInput {
+  /** Etiqueta, placeholder, nombre o número del campo. */
+  campo: unknown;
+  /** Valor a escribir/elegir. */
+  valor: unknown;
+}
+
+/** Normaliza la lista de campos aceptando varias formas de entrada. */
+function normalizeFieldList(campos: unknown): FormFieldInput[] {
+  const out: FormFieldInput[] = [];
+  if (Array.isArray(campos)) {
+    for (const c of campos) {
+      if (c && typeof c === "object") {
+        const o = c as Record<string, unknown>;
+        const campo = o.campo ?? o.field ?? o.nombre ?? o.name ?? o.etiqueta ?? o.label ?? o.numero ?? o["número"];
+        const valor = o.valor ?? o.value ?? o.texto ?? o.text ?? o.contenido;
+        if (campo !== undefined && campo !== null && String(campo).trim() !== "") {
+          out.push({ campo, valor });
+        }
+      }
+    }
+    return out;
+  }
+  // Objeto plano { "Nombre": "Ana", "Email": "a@b.c" }.
+  if (campos && typeof campos === "object") {
+    for (const [k, v] of Object.entries(campos as Record<string, unknown>)) {
+      if (k && k.trim()) out.push({ campo: k, valor: v });
+    }
+  }
+  return out;
+}
+
+/**
+ * Rellena varios campos de un formulario de una vez: para cada { campo, valor }
+ * localiza el input/textarea/select por su etiqueta (o número) y le pone el
+ * valor (usando la misma maquinaria que escribir_en / seleccionar_opcion).
+ * Devuelve un resumen decible con lo que se rellenó y lo que no se encontró.
+ */
+export function fillForm(campos: unknown): ScreenActionOutcome {
+  if (!isClient()) return fail("Solo puedo rellenar formularios en el navegador.");
+  const list = normalizeFieldList(campos);
+  if (list.length === 0) {
+    return fail("Dime qué campos rellenar, por ejemplo: nombre «Ana», correo «ana@ejemplo.com».");
+  }
+  // Un escaneo fresco para que los campos estén localizables por nombre/número.
+  try { scanScreen(); } catch { /* noop */ }
+
+  const hechos: string[] = [];
+  const fallidos: string[] = [];
+  for (const { campo, valor } of list) {
+    const label = String(campo).trim();
+    const value = valor === null || valor === undefined ? "" : String(valor);
+    const { item } = resolveTarget(campo);
+    if (!item) { fallidos.push(label); continue; }
+    const field = editableFrom(item.el);
+    if (!field) { fallidos.push(item.label); continue; }
+    try {
+      if (field instanceof HTMLSelectElement) {
+        const res = selectOption(campo, value);
+        if (res.ok) hechos.push(item.label); else fallidos.push(item.label);
+        continue;
+      }
+      if (field instanceof HTMLInputElement) {
+        const t = (field.type || "text").toLowerCase();
+        if (t === "checkbox" || t === "radio") {
+          // Marcar si el valor es afirmativo; desmarcar si negativo/explícito.
+          const on = /^(1|true|si|sí|yes|on|marcar|activar)$/i.test(value.trim()) || value.trim() === "";
+          if (field.checked !== on) { try { field.click(); } catch { /* noop */ } }
+          hechos.push(item.label);
+          continue;
+        }
+      }
+      try { field.focus({ preventScroll: true }); } catch { /* noop */ }
+      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+        setNativeValue(field, value);
+        fireInput(field, value);
+        hechos.push(item.label);
+      } else if (field.isContentEditable) {
+        field.textContent = value;
+        fireInput(field, value);
+        hechos.push(item.label);
+      } else {
+        fallidos.push(item.label);
+      }
+    } catch {
+      fallidos.push(item.label);
+    }
+  }
+
+  const partes: string[] = [];
+  if (hechos.length > 0) {
+    partes.push(`Rellené ${hechos.length} campo${hechos.length === 1 ? "" : "s"}: ${hechos.join(", ")}.`);
+  }
+  if (fallidos.length > 0) {
+    partes.push(`No encontré: ${fallidos.join(", ")}. ${HINT}`);
+  }
+  const okAny = hechos.length > 0;
+  const message = partes.join(" ") || `No pude rellenar ningún campo. ${HINT}`;
+  return okAny
+    ? ok(message, { rellenados: hechos, no_encontrados: fallidos })
+    : fail(message);
+}
+
+// ── Ir a una sección del OS / abrir una app (navegación por nombre) ──────────
+
+/**
+ * Resuelve un nombre libre a una ruta interna del OS reutilizando `resolveOsRoute`
+ * de las acciones de Aurora (import perezoso, defensivo). Devuelve { path, label }.
+ * Si no se puede cargar el resolvedor, acepta rutas explícitas («/memorias»).
+ */
+async function resolveSectionRoute(raw: string): Promise<{ path: string | null; label: string }> {
+  let path: string | null = null;
+  let label = raw;
+  try {
+    const mod = await import("@/lib/aurora/actions");
+    path = mod.resolveOsRoute(raw);
+    const hit = mod.OS_ROUTES.find((r) => r.path === path);
+    if (hit) label = hit.label;
+  } catch {
+    path = raw.startsWith("/") ? raw : null;
+  }
+  return { path, label };
+}
+
+/** Navegación de verdad a una ruta interna (evento suave + fallback duro). */
+function navigateTo(path: string): void {
+  try { hideOverlayBadges(); } catch { /* noop */ }
+  try {
+    window.dispatchEvent(
+      new CustomEvent("starseed:navigate", { detail: { path, source: "aurora", at: Date.now() } }),
+    );
+  } catch { /* noop */ }
+  try {
+    window.location.assign(path);
+  } catch {
+    try { window.location.href = path; } catch { /* noop */ }
+  }
+}
+
+/**
+ * Navega a una sección/área del OS por su nombre libre (memorias, decisiones,
+ * pizarras, red…). Emite `starseed:navigate` por si la shell hace navegación
+ * suave y cae a la navegación del navegador. SSR-safe; nunca lanza.
+ */
+export async function goToSection(nombre: unknown): Promise<ScreenActionOutcome> {
+  if (!isClient()) return fail("Solo puedo cambiar de sección en el navegador.");
+  const raw = String(nombre ?? "").trim();
+  if (!raw) return fail("¿A qué sección quieres ir? Por ejemplo: memorias, decisiones o pizarras.");
+  const { path, label } = await resolveSectionRoute(raw);
+  if (!path) return fail(`No reconozco la sección «${clip(raw, 40)}».`);
+  navigateTo(path);
+  return ok(`Voy a ${label}.`, { ruta: path, seccion: label });
+}
+
+/**
+ * Abre una app del OS por nombre. Emite `starseed:open-app` (que la shell y el
+ * catálogo de apps del OS pueden atender para abrir ventana/ruta) y, si el
+ * nombre resuelve a una sección conocida, navega a ella como respaldo.
+ */
+export async function openApp(nombre: unknown): Promise<ScreenActionOutcome> {
+  if (!isClient()) return fail("Solo puedo abrir apps en el navegador.");
+  const raw = String(nombre ?? "").trim();
+  if (!raw) return fail("¿Qué app quieres abrir?");
+  try {
+    window.dispatchEvent(
+      new CustomEvent("starseed:open-app", { detail: { name: raw, source: "aurora", at: Date.now() } }),
+    );
+  } catch { /* noop */ }
+  const { path } = await resolveSectionRoute(raw);
+  if (path) {
+    navigateTo(path);
+    return ok(`Abriendo ${raw}.`, { app: raw, ruta: path });
+  }
+  return ok(`Pedí abrir «${clip(raw, 40)}». Si no aparece, dime el nombre exacto de la app.`, { app: raw });
 }
 
 // ── Historial y pantalla completa ───────────────────────────────────────────

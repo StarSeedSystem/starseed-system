@@ -1666,3 +1666,13 @@ Construido con 7 subagentes en 3 olas (archivos disjuntos) + integración del or
 - tsc 376 = baseline en todo. Deploys: cdff4bc (arranque pasivo+singleton) · 0cde608 (AI Studio) · ba82d47 (guía) · 577c564 (líder única).
 
 **Pendiente:** #10 portar Aurora/Astraura a Nexus y Café (repos vanilla JS aparte): voz auto silenciosa desde inicio, 1 toque=voz sin chat, mantener pulsado=ventana chat+reproducción (no menú Trinity), botón movible por esquinas snap, no eliminable, enlaces a todos los sistemas. También: chats de Aurora en pantalla completa + ramificación de contextos + contexto compartido Exocórtex↔AI Studio; ampliar edición de pantalla/tareas en 2º plano; investigar OSS (Whisper/Moonshine/VAD) para asistente completo.
+
+---
+## Adenda 52 — 2026-07-02 (noche 2) · Anti-eco voz · guía voz-opcional/sin-timer · detección de dispositivos por IP (deploys eb9e2d8→7aecd15)
+
+- **FIX crítico del loop/duplicación de voz = ECO acústico:** Aurora captaba su propia voz TTS por el micrófono, la procesaba como comando y se respondía a sí misma → loop y "múltiples Auroras". engine.ts: `echoSuppressRef`/`echoUntilRef` — el reconocimiento IGNORA lo captado mientras Aurora habla (u.onstart→suppress on; u.onend→off + cooldown 700ms). El canal del micrófono queda ABIERTO sin reiniciarse; solo se descarta la voz propia. (Complementa singleton STT + líder de pestañas de la Adenda 51.)
+- **Guía (aurora-guide):** pregunta inicial "voz+micrófono vs silenciosa" (persistida 'starseed.guide.mode.v1'); QUITADO el auto-avance por temporizador (solo Siguiente / comando de voz "siguiente"/"continúa"); botón de silenciar Aurora manteniendo el chat de texto; demos animadas por paso (framer-motion: orbe/Trinity/escritorio/dashboard/astraura/perfil/cerebros/librería) con reduced-motion. Archivos: aurora-guide.tsx + aurora-guide-demos.tsx + aurora-guide-voice.ts. Consume Aurora solo por el puente window.STARSEED_AURORA.
+- **Detección de dispositivos por red (IP):** honesto — el navegador NO puede escanear la LAN (privacidad, mDNS .local). src/lib/network/device-registry.ts registra el dispositivo en user_settings.prefs.devices (id persistente + IP pública vía ipify + userAgent/plataforma/lastSeen), sameNetwork = misma IP pública; useDeviceNetwork() + switch 'starseed.network.autodetect' (default ON). lan-sync.ts = andamiaje WebRTC P2P (contrato+stubs; señalización futura por la cuenta). device-network-panel.tsx montado en servers-panel. 
+- tsc 376 = baseline en todo. Deploys: eb9e2d8 (anti-eco) · e27d7dd (guía) · 7aecd15 (dispositivos/red).
+
+**Pendiente:** #10 Aurora en Nexus/Café; chats fullscreen+ramificación; WebRTC LAN real (señalización por cuenta); STT OSS (Whisper/Moonshine) fallback.
