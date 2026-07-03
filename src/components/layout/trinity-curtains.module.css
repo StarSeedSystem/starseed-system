@@ -1,0 +1,140 @@
+/*
+ * TrinityCurtains — contenedor cristalino + botón de cierre + gesto de swipe
+ * para las cortinas cardinales (Zenith arriba, Horizon izquierda, Logic derecha).
+ * Estética: centro de control móvil (iOS/Android) · Crystal Liquid Glass.
+ *
+ * SOP: architecture/integracion-portal-starseed-os.md — "Trinity Móvil".
+ *
+ * Objetivos de este módulo:
+ *  1) Botón de salida claro (X cristalina) con área táctil >= 44px.
+ *  2) Tirador ("grabber") superior/lateral que invita al swipe de cierre.
+ *  3) Anclaje SIEMPRE dentro del viewport + safe-area insets (nunca fuera).
+ *  4) Degradar animaciones con prefers-reduced-motion.
+ */
+
+/* ── Área táctil accesible del botón de cierre (>= 44x44) ────────────── */
+.closeBtn {
+    position: absolute;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 9999px;
+    border: 1px solid color-mix(in srgb, var(--cc, #fff) 30%, transparent);
+    /* Cristal translúcido difuminado con tinte cardinal muy tenue. */
+    background:
+        radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--cc, #fff) 16%, transparent), transparent 70%),
+        color-mix(in srgb, #000 55%, transparent);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    backdrop-filter: blur(14px) saturate(1.2);
+    color: color-mix(in srgb, var(--cc, #fff) 85%, #fff);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--cc, #fff) 12%, transparent),
+        0 6px 20px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 color-mix(in srgb, #fff 20%, transparent);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 200ms ease,
+                box-shadow 200ms ease,
+                opacity 200ms ease;
+}
+
+/* Respeta el notch / barra de gestos al posicionar en las esquinas. */
+.closeTopRight {
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    right: calc(env(safe-area-inset-right, 0px) + 12px);
+}
+
+.closeBtn:hover {
+    transform: scale(1.06);
+    background:
+        radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--cc, #fff) 26%, transparent), transparent 70%),
+        color-mix(in srgb, #000 45%, transparent);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--cc, #fff) 30%, transparent),
+        0 8px 26px color-mix(in srgb, var(--cc, #fff) 22%, transparent),
+        inset 0 1px 0 color-mix(in srgb, #fff 24%, transparent);
+}
+
+.closeBtn:active {
+    transform: scale(0.94);
+}
+
+.closeBtn:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--cc, #fff) 70%, transparent);
+    outline-offset: 3px;
+}
+
+.closeIcon {
+    width: 20px;
+    height: 20px;
+    pointer-events: none;
+}
+
+/* ── Tirador de swipe (grabber) — invita a deslizar hacia el borde ───── */
+/* Barra superior (Zenith): horizontal, centrada arriba. */
+.grabberTop {
+    position: absolute;
+    z-index: 55;
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 44px;
+    height: 5px;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--cc, #fff) 55%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--cc, #fff) 40%, transparent);
+    /* Zona táctil ampliada sin agrandar el visual. */
+    cursor: grab;
+    touch-action: none;
+}
+.grabberTop::before {
+    content: "";
+    position: absolute;
+    inset: -16px -40px;
+}
+
+/* Tirador vertical lateral (Horizon / Logic): fino, centrado en su borde. */
+.grabberSideLeft,
+.grabberSideRight {
+    position: absolute;
+    z-index: 55;
+    top: 50%;
+    width: 5px;
+    height: 48px;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--cc, #fff) 55%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--cc, #fff) 40%, transparent);
+    cursor: grab;
+    touch-action: none;
+    transform: translateY(-50%);
+}
+/* Horizon (izquierda) cierra hacia la IZQUIERDA → tirador en su borde izquierdo. */
+.grabberSideLeft {
+    left: calc(env(safe-area-inset-left, 0px) + 8px);
+}
+/* Logic (derecha) cierra hacia la DERECHA → tirador en su borde derecho. */
+.grabberSideRight {
+    right: calc(env(safe-area-inset-right, 0px) + 8px);
+}
+.grabberSideLeft::before,
+.grabberSideRight::before {
+    content: "";
+    position: absolute;
+    inset: -20px -16px;
+}
+
+/* ── Reduced motion: sin rebotes ni escalados ───────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    .closeBtn {
+        transition: background 120ms linear, opacity 120ms linear;
+    }
+    .closeBtn:hover,
+    .closeBtn:active {
+        transform: none;
+    }
+}

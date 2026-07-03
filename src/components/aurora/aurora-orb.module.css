@@ -290,3 +290,174 @@
     opacity: 0.35;
   }
 }
+
+/* ============================================================================
+   GLOBO DE DIÁLOGO de Aurora (Crystal Liquid Glass) — usado por
+   AuroraSpeechBubble. Cristal translúcido difuminado, borde de luz y un tinte
+   cardinal MUY sutil (--bubble-rgb) según el estado del globo. Adaptado a
+   smartphone / tablet / computadora vía clamp() y anclaje relativo al orbe.
+
+   Variable viva:
+     --bubble-rgb : "r g b" color del tinte (azul Zenith / lime Horizon /
+                    ámbar Logic / lavanda Café) según el tipo de mensaje.
+   ========================================================================== */
+.bubble {
+  width: clamp(15rem, 74vw, 21rem);
+  max-width: calc(100vw - 16px);
+  border-radius: 20px;
+  overflow: visible;
+  color: #fff;
+  /* Cristal oscuro con doble tinte aurora + rescoldo cardinal muy tenue. */
+  background:
+    radial-gradient(140% 90% at 16% -10%, rgb(var(--bubble-rgb, 201 168 255) / 0.16), transparent 58%),
+    radial-gradient(150% 96% at 112% 0%, rgba(111, 230, 214, 0.1), transparent 52%),
+    linear-gradient(180deg, rgba(14, 19, 27, 0.86), rgba(8, 11, 17, 0.92));
+  border: 1px solid rgb(var(--bubble-rgb, 201 168 255) / 0.28);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  backdrop-filter: blur(22px) saturate(1.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -14px 26px rgba(0, 0, 0, 0.34),
+    0 18px 44px rgba(0, 0, 0, 0.5),
+    0 0 34px rgb(var(--bubble-rgb, 201 168 255) / 0.22);
+}
+
+/* Filo de luz aurora superior (mismo lenguaje que el popover del Café). */
+.bubbleEdge {
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 2px;
+  border-radius: 2px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(var(--bubble-rgb, 201 168 255) / 0.9),
+    #6fe6d6,
+    transparent
+  );
+  opacity: 0.85;
+  box-shadow: 0 0 14px rgb(var(--bubble-rgb, 201 168 255) / 0.55);
+}
+
+/* Colita del globo: rombo de cristal que apunta al orbe. Se coloca arriba o
+   abajo (según abra hacia arriba/abajo) y a izq/der (según el lado del orbe). */
+.bubbleTail {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, rgba(14, 19, 27, 0.9), rgba(8, 11, 17, 0.92));
+  border: 1px solid rgb(var(--bubble-rgb, 201 168 255) / 0.28);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  pointer-events: none;
+}
+/* Globo ABRE ARRIBA → colita en el BORDE INFERIOR apuntando hacia abajo. */
+.bubbleTailDown {
+  bottom: -7px;
+  border-top: none;
+  border-left: none;
+}
+/* Globo ABRE ABAJO → colita en el BORDE SUPERIOR apuntando hacia arriba. */
+.bubbleTailUp {
+  top: -7px;
+  border-bottom: none;
+  border-right: none;
+}
+.bubbleTailRight {
+  right: 22px;
+}
+.bubbleTailLeft {
+  left: 22px;
+}
+
+/* Grupo de controles de reproducción: mini cápsula cristalina. */
+.bubbleControls {
+  padding: 3px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* Botón de control translúcido cristalino (play/pausa/stop/chat). */
+.bubbleCtrl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  width: 30px;
+  border-radius: 9px;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+.bubbleCtrl:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.bubbleCtrl:active {
+  transform: scale(0.94);
+}
+
+/* Botón primario (play/pausa): tinte cardinal cristalino con glow suave. */
+.bubbleCtrlPrimary {
+  color: #fff;
+  background: rgb(var(--bubble-rgb, 201 168 255) / 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 14px rgb(var(--bubble-rgb, 201 168 255) / 0.4);
+}
+.bubbleCtrlPrimary:hover {
+  background: rgb(var(--bubble-rgb, 201 168 255) / 0.28);
+}
+
+/* Botón "responder / continuar": píldora cristalina con borde de luz. */
+.bubbleRespond {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: #eafaf3;
+  cursor: pointer;
+  border: 1px solid rgba(111, 230, 214, 0.32);
+  background:
+    radial-gradient(120% 120% at 30% 10%, rgba(255, 255, 255, 0.14), transparent 60%),
+    rgba(111, 230, 214, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 14px rgba(111, 230, 214, 0.3);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+.bubbleRespond:hover {
+  background:
+    radial-gradient(120% 120% at 30% 10%, rgba(255, 255, 255, 0.2), transparent 60%),
+    rgba(111, 230, 214, 0.2);
+  transform: translateY(-1px);
+}
+.bubbleRespond:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubbleCtrl,
+  .bubbleCtrlPrimary,
+  .bubbleRespond {
+    transition: none;
+  }
+  .bubbleCtrl:hover,
+  .bubbleRespond:hover {
+    transform: none;
+  }
+}

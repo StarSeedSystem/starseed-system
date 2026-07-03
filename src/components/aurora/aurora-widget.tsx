@@ -11,6 +11,7 @@ import { useAurora } from "./aurora-provider";
 import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
 import { AURORA_TRINITY_FLAG, AURORA_TRINITY_EVENT } from "@/components/layout/trinity-fab";
 import { AuroraOrb } from "./aurora-orb";
+import { AuroraSpeechBubble, type AuroraBubbleAnchor } from "./aurora-speech-bubble";
 import {
   readOrbHidden,
   setOrbHidden as setOrbHiddenBus,
@@ -72,7 +73,13 @@ const ORB_PX = 60;                 // diámetro del orbe flotante
 const TRINITY_ORB_PX = 108;        // orbe grande del menú centrado
 const LONG_PRESS_MS = 480;         // umbral de pulsación prolongada
 const DRAG_SLOP = 8;               // px antes de considerar arrastre
-const DRAG_TO_OPEN_DIST = 44;      // px de deslizamiento hacia una opción
+/**
+ * Deslizar-para-abrir con HISTÉRESIS: hace falta pasar de DRAG_TO_OPEN_IN (~40px)
+ * para ENGANCHAR una dirección, y caer por debajo de DRAG_TO_OPEN_OUT para
+ * soltarla. Evita el parpadeo de resaltado cerca del umbral.
+ */
+const DRAG_TO_OPEN_IN = 40;        // px para enganchar una opción
+const DRAG_TO_OPEN_OUT = 26;       // px para soltarla (histéresis)
 /** Debounce del estado VISUAL (≥250ms): el apagado espera; nunca parpadea. */
 const VISUAL_FALL_MS = 320;
 
@@ -126,7 +133,13 @@ export function AuroraWidget() {
     longTimer: ReturnType<typeof setTimeout> | null;
     longFired: boolean;   // menú Trinity abierto en modo deslizar-para-abrir
     moved: boolean;       // superó el slop → arrastre de reposición
+    aim: Cardinal | null; // dirección enganchada (con histéresis) al deslizar
+    target: HTMLElement | null; // elemento con el pointer capture (para liberar)
   } | null>(null);
+
+  // ¿Hay un deslizar-para-abrir EN CURSO? El overlay del menú Trinity se vuelve
+  // pasivo (pointer-events:none) para que jamás robe la captura del orbe.
+  const [draggingOpen, setDraggingOpen] = useState(false);
 
   // ── Sincronización de posición/visibilidad con localStorage + bus ──
   useEffect(() => {
@@ -176,18 +189,32 @@ export function AuroraWidget() {
     try { window.dispatchEvent(new CustomEvent(AURORA_EXOCORTEX_OPEN_EVENT)); } catch { /* */ }
   }, [setActiveEdge]);
 
-  // Traduce el delta del deslizamiento a una opción cardinal.
-  const dirFromDelta = useCallback((dx: number, dy: number): Cardinal | null => {
+  // Traduce el delta del deslizamiento a una opción cardinal, con HISTÉRESIS:
+  // si ya había una dirección enganchada (`prev`), se mantiene mientras no se
+  // caiga por debajo de DRAG_TO_OPEN_OUT; para enganchar una nueva hace falta
+  // superar DRAG_TO_OPEN_IN. El eje dominante decide arriba/abajo vs izq/der.
+  const dirFromDelta = useCallback((dx: number, dy: number, prev: Cardinal | null): Cardinal | null => {
     const dist = Math.hypot(dx, dy);
-    if (dist < DRAG_TO_OPEN_DIST) return null;
-    if (Math.abs(dx) > Math.abs(dy)) return dx < 0 ? "left" : "right";
-    return dy < 0 ? "up" : "down";
+    const axisDir: Cardinal = Math.abs(dx) > Math.abs(dy)
+      ? (dx < 0 ? "left" : "right")
+      : (dy < 0 ? "up" : "down");
+    if (prev) {
+      // Con dirección ya enganchada: soltar solo si se relaja mucho el gesto.
+      if (dist < DRAG_TO_OPEN_OUT) return null;
+      return axisDir; // permite re-apuntar a otro cardinal sin volver al centro
+    }
+    // Sin enganche previo: hace falta superar el umbral de entrada.
+    if (dist < DRAG_TO_OPEN_IN) return null;
+    return axisDir;
   }, []);
 
   // ── Puntero: tap = voz · mantener = menú centrado · arrastre = mover ──
   const onOrbPointerDown = useCallback((e: React.PointerEvent) => {
     if (gesture.current) return;
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    const target = e.currentTarget as HTMLElement;
+    // El MISMO pointer capture del long-press: todos los pointermove/up de este
+    // puntero llegan al orbe aunque el overlay del menú se monte encima.
+    try { target.setPointerCapture?.(e.pointerId); } catch { /* */ }
     const g = {
       id: e.pointerId,
       startX: e.clientX,
@@ -195,6 +222,8 @@ export function AuroraWidget() {
       longTimer: null as ReturnType<typeof setTimeout> | null,
       longFired: false,
       moved: false,
+      aim: null as Cardinal | null,
+      target,
     };
     gesture.current = g;
 
@@ -210,6 +239,8 @@ export function AuroraWidget() {
       }
       setOpen(false);
       setAimDir(null);
+      // Deslizar-para-abrir armado: neutraliza el overlay para no perder captura.
+      setDraggingOpen(true);
       setTrinityOpen(true);
     }, LONG_PRESS_MS);
   }, []);
@@ -222,8 +253,15 @@ export function AuroraWidget() {
     const dist = Math.hypot(dx, dy);
 
     if (g.longFired) {
-      // Deslizar-para-abrir: resalta la opción hacia la que se apunta.
-      setAimDir(dirFromDelta(dx, dy));
+      // Deslizar-para-abrir (histéresis): resalta la opción hacia la que se
+      // apunta. Guardamos la dirección enganchada en el gesto para que el mismo
+      // valor se use al SOLTAR (no depende de un re-render de estado).
+      const next = dirFromDelta(dx, dy, g.aim);
+      if (next !== g.aim) {
+        g.aim = next;
+        setAimDir(next);
+        if (next) { try { navigator?.vibrate?.(8); } catch { /* */ } }
+      }
       return;
     }
 
@@ -248,15 +286,18 @@ export function AuroraWidget() {
     const g = gesture.current;
     if (!g || g.id !== e.pointerId) return;
     if (g.longTimer) { clearTimeout(g.longTimer); g.longTimer = null; }
+    try { g.target?.releasePointerCapture?.(e.pointerId); } catch { /* */ }
     gesture.current = null;
 
     const dx = e.clientX - g.startX;
     const dy = e.clientY - g.startY;
 
     if (g.longFired) {
-      // Deslizó hacia una opción y SOLTÓ → se abre ese menú cardinal.
-      const dir = dirFromDelta(dx, dy);
+      // Deslizó hacia una opción y SOLTÓ → se abre ese menú cardinal. Usamos la
+      // dirección ENGANCHADA en el gesto (histéresis), no el delta crudo.
+      const dir = g.aim ?? dirFromDelta(dx, dy, null);
       setAimDir(null);
+      setDraggingOpen(false);
       if (dir) {
         const node = TRINITY_NODES.find((n) => n.dir === dir);
         if (node) {
@@ -306,10 +347,12 @@ export function AuroraWidget() {
     const g = gesture.current;
     if (!g || g.id !== e.pointerId) return;
     if (g.longTimer) { clearTimeout(g.longTimer); g.longTimer = null; }
+    try { g.target?.releasePointerCapture?.(e.pointerId); } catch { /* */ }
     gesture.current = null;
     setMoving(false);
     setOverTrash(false);
     setAimDir(null);
+    setDraggingOpen(false);
   }, []);
 
   // ── Estado VISUAL estabilizado (debounce ≥250ms: sin parpadeo on/off) ──
@@ -318,24 +361,12 @@ export function AuroraWidget() {
   const visListening = useStableFlag(rawListening);
   const visSpeaking = useStableFlag(rawSpeaking);
 
-  // El popover aparece con la sesión de voz (descartable) y se recoge al
-  // terminar; también se abre al tocar cuando la voz no está disponible.
+  // Sesión de voz activa: el GLOBO DE DIÁLOGO sobre el orbe es ahora la
+  // superficie conversacional (habla / escucha / sugerencias). El mini-popover
+  // completo YA NO se auto-abre con la voz — queda disponible bajo demanda
+  // (voz no disponible al tocar, o desde el propio globo → «Abrir chat»).
   const voiceActive = visListening || visSpeaking;
   const hudDismissedRef = useRef(false);
-  const prevVoiceActiveRef = useRef(false);
-  useEffect(() => {
-    const was = prevVoiceActiveRef.current;
-    prevVoiceActiveRef.current = voiceActive;
-    if (voiceActive && !was) {
-      if (!hudDismissedRef.current) setOpen(true);
-      return;
-    }
-    if (!voiceActive && was) {
-      hudDismissedRef.current = false;
-      const t = setTimeout(() => setOpen(false), 2600);
-      return () => clearTimeout(t);
-    }
-  }, [voiceActive]);
 
   if (!aurora) return null;
 
@@ -403,6 +434,21 @@ export function AuroraWidget() {
       "radial-gradient(140% 80% at 18% -8%, rgba(159,232,112,0.10), transparent 60%), radial-gradient(150% 90% at 110% 0%, rgba(201,168,255,0.10), transparent 55%), rgba(9,13,18,0.9)",
   };
 
+  // ── Anclaje del GLOBO DE DIÁLOGO al orbe (se voltea arriba/abajo y clampa a
+  //    los bordes en cualquier tamaño; el ancho lo pone el CSS del globo). ────
+  const BUBBLE_MAX_W = "min(21rem, calc(100vw - 16px))";
+  const bubbleAnchor: AuroraBubbleAnchor = {
+    style: {
+      ...vAnchor,
+      ...hAnchor(BUBBLE_MAX_W),
+    },
+    openUp,
+    openLeft,
+  };
+  // Aurora está "siendo mencionada" cuando se le está hablando (escucha activa
+  // con transcripción parcial) → el globo aparece también en ese caso.
+  const bubbleMentioned = visListening || !!interim;
+
   // Últimas 2 líneas de la conversación (usuario y Aurora, voz o texto).
   const lastLines = conversation.slice(-2);
 
@@ -456,6 +502,20 @@ export function AuroraWidget() {
 
   return (
     <>
+      {/* ══════════════════════════════════════════════════════════════════
+          GLOBO DE DIÁLOGO cristalino sobre el orbe — superficie conversacional
+          principal: aparece cuando Aurora es mencionada, habla/responde, o
+          ofrece una recomendación/notificación proactiva (texto sin voz). La voz
+          solo suena a petición (hablar/▶); el chat completo sigue accesible.
+      ══════════════════════════════════════════════════════════════════ */}
+      {!trinityOpen && (
+        <AuroraSpeechBubble
+          anchor={bubbleAnchor}
+          mentioned={bubbleMentioned}
+          onOpenChat={openExocortexChat}
+        />
+      )}
+
       {/* ══════════════════════════════════════════════════════════════════
           MINI-POPOVER anclado al orbe: estado + transporte + últimas 2 líneas
           + «Abrir chat en Exocórtex» / «Ocultar orbe». El chat completo vive
@@ -617,14 +677,19 @@ export function AuroraWidget() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22 }}
-            className="fixed inset-0 z-[80]"
+            className={cn("fixed inset-0 z-[80]", draggingOpen && "pointer-events-none")}
           >
-            {/* Backdrop cristalino (toca fuera para cerrar). */}
+            {/* Backdrop cristalino (toca fuera para cerrar). Mientras el
+                deslizar-para-abrir está EN CURSO se vuelve pasivo: así no roba
+                la captura del orbe y el gesto continúo funciona en móvil y ratón. */}
             <button
               type="button"
               aria-label="Cerrar menú Trinity"
               onClick={() => setTrinityOpen(false)}
-              className="absolute inset-0 h-full w-full cursor-default backdrop-blur-2xl"
+              className={cn(
+                "absolute inset-0 h-full w-full cursor-default backdrop-blur-2xl",
+                draggingOpen && "pointer-events-none",
+              )}
               style={{
                 background:
                   "radial-gradient(120% 120% at 50% 50%, rgba(8,12,20,0.36) 0%, rgba(4,7,13,0.68) 100%)",
@@ -677,7 +742,13 @@ export function AuroraWidget() {
                   exit={{ opacity: 0, x: 0, y: 0, scale: 0.4 }}
                   transition={{ type: "spring", stiffness: 380, damping: 26, delay: i * 0.03 }}
                   transformTemplate={(_t, generated) => `translate(-50%, -50%) ${generated}`}
-                  className="absolute left-1/2 top-1/2 z-10 flex cursor-pointer flex-col items-center gap-1.5"
+                  className={cn(
+                    "absolute left-1/2 top-1/2 z-10 flex cursor-pointer flex-col items-center gap-1.5",
+                    // Durante el deslizar-para-abrir las opciones no capturan el
+                    // puntero (la captura vive en el orbe); al soltar en el centro
+                    // vuelven a ser tocables.
+                    draggingOpen && "pointer-events-none",
+                  )}
                 >
                   <span
                     className="grid h-16 w-16 place-items-center rounded-full border backdrop-blur-xl transition-shadow duration-200"

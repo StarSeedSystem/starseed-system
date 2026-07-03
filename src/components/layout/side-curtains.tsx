@@ -1,8 +1,12 @@
 "use client";
 
-import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useRef, useCallback } from "react";
+import {
+    motion, AnimatePresence, useReducedMotion, useMotionValue, animate,
+    type MotionValue,
+} from "framer-motion";
 import { usePerimeter } from "@/context/perimeter-context";
+import curtain from "@/components/layout/trinity-curtains.module.css";
 import { useAppearance } from "@/context/appearance-context";
 import { useBoardSystem } from "@/context/board-context"; // Import BoardContext
 import UniversalBoardViewer from "@/components/control-panel/board/universal-board-viewer"; // Import new Viewer
@@ -21,8 +25,90 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
+// ── Swipe-to-close (centro de control) ──────────────────────────────
+// Gesto de arrastre que sigue al dedo y cierra la cortina al superar el
+// umbral hacia su borde de origen (Horizon→izquierda, Logic→derecha).
+const SWIPE_THRESHOLD = 80; // px para confirmar el cierre
+type SwipeDir = "up" | "left" | "right";
+
+function useSwipeToClose(dir: SwipeDir, onClose: () => void) {
+    const reduceMotion = useReducedMotion();
+    // `signed`: desplazamiento VISUAL con signo (va directo al style).
+    const signed = useMotionValue(0);
+    const axis: "x" | "y" = dir === "up" ? "y" : "x";
+    // Signo hacia el borde de cierre: arriba(-y), izquierda(-x), derecha(+x).
+    const sign = dir === "right" ? 1 : -1;
+
+    const start = useRef<{ x: number; y: number } | null>(null);
+    const dragging = useRef(false);
+    const progress = useRef(0); // magnitud (>=0) hacia el borde, para el umbral
+
+    const onPointerDown = useCallback((e: React.PointerEvent) => {
+        start.current = { x: e.clientX, y: e.clientY };
+        dragging.current = true;
+        progress.current = 0;
+        try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* noop */ }
+    }, []);
+
+    const onPointerMove = useCallback((e: React.PointerEvent) => {
+        if (!dragging.current || !start.current) return;
+        const delta = axis === "y" ? e.clientY - start.current.y : e.clientX - start.current.x;
+        const toward = Math.max(0, delta * sign); // solo hacia el borde de cierre
+        const mag = reduceMotion ? toward : toward * (toward > 120 ? 0.85 : 1);
+        progress.current = mag;
+        signed.set(mag * sign);
+    }, [axis, sign, signed, reduceMotion]);
+
+    const finish = useCallback(() => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        start.current = null;
+        if (progress.current >= SWIPE_THRESHOLD) {
+            onClose();
+            signed.set(0);
+        } else if (reduceMotion) {
+            signed.set(0);
+        } else {
+            animate(signed, 0, { type: "spring", stiffness: 500, damping: 40 });
+        }
+        progress.current = 0;
+    }, [signed, onClose, reduceMotion]);
+
+    const style: { x?: MotionValue<number>; y?: MotionValue<number> } =
+        axis === "y" ? { y: signed } : { x: signed };
+
+    return {
+        motionStyle: style,
+        handlers: {
+            onPointerDown,
+            onPointerMove,
+            onPointerUp: finish,
+            onPointerCancel: finish,
+        },
+    };
+}
+
+// Botón de cierre cristalino reutilizable (X, área táctil >= 44px).
+function CurtainCloseButton({ onClose, accent }: { onClose: () => void; accent: string }) {
+    return (
+        <button
+            type="button"
+            aria-label="Cerrar"
+            title="Cerrar"
+            onClick={onClose}
+            className={cn(curtain.closeBtn, curtain.closeTopRight)}
+            style={{ ["--cc" as string]: accent }}
+        >
+            <X className={curtain.closeIcon} />
+        </button>
+    );
+}
+
 export function SideCurtains() {
     const { activeEdge, setActiveEdge } = usePerimeter();
+    const closeCurtain = useCallback(() => setActiveEdge(null), [setActiveEdge]);
+    const horizonSwipe = useSwipeToClose("left", closeCurtain);
+    const logicSwipe = useSwipeToClose("right", closeCurtain);
 
     // Control Panel State Integration
     const [activeTab, setActiveTab] = React.useState("ai");
@@ -72,26 +158,41 @@ export function SideCurtains() {
             {/* Horizon (Left) - Creation / Green */}
             {activeEdge === "horizon" && (
                 <motion.div
-                    initial={{ x: "-100%", y: "-50%", opacity: 0, scale: 0.95 }}
-                    animate={{ x: 0, y: "-50%", opacity: 1, scale: 1 }}
-                    exit={{ x: "-100%", y: "-50%", opacity: 0, scale: 0.95 }}
+                    initial={{ x: "-100%", opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: "-100%", opacity: 0 }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
-                    style={{ top: "50%" }}
                     className={cn(
-                        "fixed z-[90] pointer-events-auto overflow-hidden shadow-2xl border border-emerald-500/30 flex flex-col",
-                        // Mobile: fullscreen | Desktop: side panel
-                        "inset-0 !top-0 !transform-none rounded-none",
-                        "md:inset-auto md:left-4 md:!top-[50%] md:!-translate-y-1/2 md:h-auto md:max-h-[90vh] md:w-[350px] md:rounded-[2rem]",
-                        "lg:w-[500px]"
+                        // Nota: framer anima `x` en este nodo, por lo que escribe `transform`
+                        // inline y sobrescribe cualquier translate de Tailwind. El centrado
+                        // vertical en desktop se hace con top/bottom-0 + my-auto (sin transform),
+                        // evitando la trampa del containing block (ver SOP Trinity Móvil · Bloque 3).
+                        "fixed z-[90] pointer-events-auto overflow-hidden shadow-2xl border border-emerald-500/30 box-border",
+                        // Móvil: ocupa casi todo el ancho, anclado a la izquierda dentro del viewport.
+                        "top-0 bottom-0 left-0 h-[100dvh] w-full rounded-none",
+                        // Tablet/desktop: panel lateral cómodo, centrado por my-auto, SIEMPRE dentro del viewport.
+                        "md:h-[min(46rem,92dvh)] md:my-auto md:rounded-[2rem]",
+                        "md:left-[max(1rem,env(safe-area-inset-left))] md:w-[clamp(22rem,42vw,32rem)] md:max-w-[calc(100vw-2rem)]"
                     )}
                 >
+                  {/* Capa de arrastre: sigue al dedo (swipe hacia la izquierda cierra). */}
+                  <motion.div className="relative w-full h-full flex flex-col" style={horizonSwipe.motionStyle}>
                     {/* Glass/Color Background - Contained */}
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
 
                     {/* Emerald Accent Gradient */}
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/50 to-transparent pointer-events-none" />
 
-                    <div className="relative z-10 w-full flex-1 flex flex-col p-6 md:p-10 text-emerald-50 overflow-y-auto custom-scrollbar">
+                    {/* Tirador de swipe (Horizon cierra hacia la IZQUIERDA) + botón de cierre */}
+                    <div
+                        className={curtain.grabberSideLeft}
+                        style={{ ["--cc" as string]: "#10b981" }}
+                        {...horizonSwipe.handlers}
+                        role="presentation"
+                    />
+                    <CurtainCloseButton onClose={handleClose} accent="#10b981" />
+
+                    <div className="relative z-10 w-full flex-1 flex flex-col p-6 pt-14 md:p-10 md:pt-14 text-emerald-50 overflow-y-auto custom-scrollbar">
                         {/* Header */}
                         <div className="flex flex-col items-center text-center gap-4 mb-10 flex-shrink-0">
                             <div className="p-4 rounded-full bg-emerald-500/20 border border-emerald-400/30 shadow-[0_0_25px_rgba(16,185,129,0.5)]">
@@ -198,7 +299,7 @@ export function SideCurtains() {
                                     </p>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3">
                                     <PublicationButton
                                         icon={<Library className="w-5 h-5" />}
                                         label="Biblioteca"
@@ -232,17 +333,19 @@ export function SideCurtains() {
                             <span className="uppercase tracking-wider">Deslizar para cerrar</span>
                         </button>
                     </div>
+                  </motion.div>
                 </motion.div>
             )}
 
             {/* Logic (Right) - System / Amber - NOW INTEGRATED CONTROL PANEL */}
             {/*
-                Nota (Trinity Móvil · Bloque 3): el wrapper anima SOLO en `x`.
-                El antiguo `y: "-50%"` dejaba un transform residual que convertía
-                este div en containing block de los `position: fixed` interiores
-                (el ControlCenter móvil quedaba confinado a una franja de ~2px
-                fuera de pantalla en <768px). El centrado vertical ahora es por
-                top-0/bottom-0 + flex / my-auto, sin transform.
+                Nota (Trinity Móvil · Bloque 3 + responsive fix): el wrapper anima
+                SOLO en `x` y va SIEMPRE anclado a `right:0` con ancho acotado por
+                clamp + max-w-[100vw] + safe-area, de modo que NUNCA quede fuera de
+                pantalla al abrirse. El desplazamiento del swipe vive en una capa
+                interna (`logicSwipe.motionStyle`) para no pelear con la animación
+                de entrada/salida en `x`. Centrado vertical por top/bottom-0 + flex,
+                sin transform residual (evita la trampa del containing block).
             */}
             {activeEdge === "logic" && (
                 <motion.div
@@ -251,16 +354,32 @@ export function SideCurtains() {
                     exit={{ x: "110%", opacity: 0 }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
                     className={cn(
-                        "fixed z-[90] flex items-center justify-center",
+                        "fixed z-[90] top-0 bottom-0 right-0 h-[100dvh] flex items-center justify-end box-border pointer-events-none",
                         activeBoardId
-                            ? "top-0 bottom-0 right-0 md:right-4 my-auto h-[100dvh] md:h-[90vh] w-full sm:w-[90vw] lg:w-[85vw] bg-black/80 backdrop-blur-xl border border-amber-500/30 rounded-none md:rounded-3xl pointer-events-auto"
-                            : "inset-0 md:inset-auto md:top-0 md:bottom-0 md:right-4 md:w-auto pointer-events-none"
+                            // Board viewer: casi pantalla completa, pero acotado dentro del viewport.
+                            ? "w-full md:right-[max(1rem,env(safe-area-inset-right))] md:h-[90vh] md:my-auto md:w-[min(85vw,72rem)] md:max-w-[calc(100vw-2rem)]"
+                            // Control Center: móvil casi todo el ancho; tablet/desktop panel lateral cómodo.
+                            // min 28rem para alojar holgado el ControlCenter (md:w-[420px]) sin recortes.
+                            : "w-full sm:w-[min(30rem,100vw)] md:right-[max(1rem,env(safe-area-inset-right))] md:w-[clamp(28rem,40vw,34rem)] md:max-w-[calc(100vw-2rem)]"
                     )}
                 >
-                    {/* Only show background if it's the Board Viewer */}
-                    {!activeBoardId && (
-                        <div className="absolute inset-0 bg-transparent" />
+                  {/* Capa de arrastre: sigue al dedo (swipe hacia la DERECHA cierra). */}
+                  <motion.div
+                    className={cn(
+                        "relative w-full h-full flex items-center justify-center",
+                        activeBoardId
+                            ? "bg-black/80 backdrop-blur-xl border border-amber-500/30 rounded-none md:rounded-3xl overflow-hidden pointer-events-auto"
+                            : "pointer-events-none"
                     )}
+                    style={logicSwipe.motionStyle}
+                  >
+                    {/* Tirador de swipe (Logic cierra hacia la DERECHA) — sobre el panel */}
+                    <div
+                        className={cn(curtain.grabberSideRight, "pointer-events-auto")}
+                        style={{ ["--cc" as string]: "#f59e0b" }}
+                        {...logicSwipe.handlers}
+                        role="presentation"
+                    />
 
                     <div className="relative z-10 w-full h-full flex flex-col text-foreground">
 
@@ -279,14 +398,22 @@ export function SideCurtains() {
                             </div>
                         ) : (
                             <>
-                                {/* Control Center — móvil: rellena el wrapper fullscreen; md+: tamaño propio centrado.
-                                    pointer-events-none aquí: solo el panel (que trae pointer-events-auto) captura clics. */}
+                                {/* Control Center — móvil: rellena el wrapper; md+: tamaño propio centrado.
+                                    pointer-events-none aquí: solo el panel (con pointer-events-auto) captura clics.
+                                    El botón de cierre cristalino vive dentro del ControlCenter/aquí abajo. */}
                                 <div className="pointer-events-none w-full h-full flex items-center justify-center">
                                     <ControlCenter />
+                                </div>
+                                {/* Botón de cierre cristalino. En móvil el ControlCenter ya trae su
+                                    propia X (md:hidden); aquí la mostramos solo en md+ para no duplicar
+                                    y garantizar una X clara también en tablet/desktop (área táctil >= 44px). */}
+                                <div className="pointer-events-auto hidden md:block">
+                                    <CurtainCloseButton onClose={handleClose} accent="#f59e0b" />
                                 </div>
                             </>
                         )}
                     </div>
+                  </motion.div>
                 </motion.div>
             )}
         </AnimatePresence>

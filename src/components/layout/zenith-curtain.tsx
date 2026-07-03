@@ -1,8 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import {
+    motion, AnimatePresence, useReducedMotion, useMotionValue, animate,
+    type MotionValue,
+} from "framer-motion";
 import { usePerimeter } from "@/context/perimeter-context";
+import curtain from "@/components/layout/trinity-curtains.module.css";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
 import { ensureAuroraChatLogRecorder } from "@/lib/aurora/aurora-chat-log";
 import {
@@ -108,9 +112,96 @@ const DEFAULT_CONNECTIONS: AIConnection[] = [
     { id: "conn-ipfs", label: "IPFS Network", type: "connection", provider: "P2P", enabled: false, icon: Network, color: "purple" },
 ];
 
+// ── Swipe-to-close (centro de control) ──────────────────────────────
+// Gesto de arrastre que sigue al dedo y cierra al superar el umbral hacia
+// el borde de origen de la cortina. Devuelve el MotionValue del eje activo
+// (para enlazarlo al `style` del contenedor) + handlers de pointer.
+//   dir = 'up' (Zenith) | 'left' (Horizon) | 'right' (Logic)
+const SWIPE_THRESHOLD = 80; // px para confirmar el cierre
+type SwipeDir = "up" | "left" | "right";
+
+function useSwipeToClose(dir: SwipeDir, onClose: () => void) {
+    const reduceMotion = useReducedMotion();
+    // `signed` guarda el desplazamiento VISUAL con signo (el que va al style):
+    //   arriba => valores negativos en y · izquierda => negativos en x · derecha => positivos en x.
+    const signed = useMotionValue(0);
+    const axis: "x" | "y" = dir === "up" ? "y" : "x";
+    // Signo hacia el borde de cierre: arriba(-y), izquierda(-x), derecha(+x).
+    const sign = dir === "right" ? 1 : -1;
+
+    const start = useRef<{ x: number; y: number } | null>(null);
+    const dragging = useRef(false);
+    // Magnitud (>=0) del avance hacia el borde de cierre; para el umbral.
+    const progress = useRef(0);
+
+    const onPointerDown = useCallback((e: React.PointerEvent) => {
+        start.current = { x: e.clientX, y: e.clientY };
+        dragging.current = true;
+        progress.current = 0;
+        try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* noop */ }
+    }, []);
+
+    const onPointerMove = useCallback((e: React.PointerEvent) => {
+        if (!dragging.current || !start.current) return;
+        const delta = axis === "y" ? e.clientY - start.current.y : e.clientX - start.current.x;
+        // Solo permitimos movimiento HACIA el borde de cierre (delta*sign > 0).
+        const toward = Math.max(0, delta * sign);
+        // Resistencia elástica suave para que se sienta líquido.
+        const mag = reduceMotion ? toward : toward * (toward > 120 ? 0.85 : 1);
+        progress.current = mag;
+        signed.set(mag * sign);
+    }, [axis, sign, signed, reduceMotion]);
+
+    const finish = useCallback(() => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        start.current = null;
+        if (progress.current >= SWIPE_THRESHOLD) {
+            onClose();
+            signed.set(0); // reset para la próxima apertura
+        } else if (reduceMotion) {
+            signed.set(0);
+        } else {
+            animate(signed, 0, { type: "spring", stiffness: 500, damping: 40 });
+        }
+        progress.current = 0;
+    }, [signed, onClose, reduceMotion]);
+
+    const style: { x?: MotionValue<number>; y?: MotionValue<number> } =
+        axis === "y" ? { y: signed } : { x: signed };
+
+    return {
+        motionStyle: style,
+        handlers: {
+            onPointerDown,
+            onPointerMove,
+            onPointerUp: finish,
+            onPointerCancel: finish,
+        },
+    };
+}
+
+// Botón de cierre cristalino reutilizable (X, área táctil >= 44px).
+function CurtainCloseButton({ onClose, accent }: { onClose: () => void; accent: string }) {
+    return (
+        <button
+            type="button"
+            aria-label="Cerrar"
+            title="Cerrar"
+            onClick={onClose}
+            className={cn(curtain.closeBtn, curtain.closeTopRight)}
+            style={{ ["--cc" as string]: accent }}
+        >
+            <X className={curtain.closeIcon} />
+        </button>
+    );
+}
+
 export function ZenithCurtain() {
     const { activeEdge, setActiveEdge } = usePerimeter();
     const isActive = activeEdge === 'zenith';
+    const closeCurtain = useCallback(() => setActiveEdge(null), [setActiveEdge]);
+    const swipe = useSwipeToClose("up", closeCurtain);
     const [query, setQuery] = useState("");
     const [activeDomain, setActiveDomain] = useState<Domain>('ALL');
     const [editorOpen, setEditorOpen] = useState(false);
@@ -170,17 +261,33 @@ export function ZenithCurtain() {
                         animate={{ y: 0, x: "-50%", opacity: 1, scale: 1 }}
                         exit={{ y: "-100%", x: "-50%", opacity: 0, scale: 0.96 }}
                         transition={{ type: "spring", damping: 30, stiffness: 200 }}
-                        style={{ left: "50%" }}
-                        className="fixed top-3 w-[96vw] max-w-7xl h-[92vh] z-[90] pointer-events-auto rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(6,182,212,0.3)] border border-cyan-500/30 text-cyan-50"
+                        className={cn(
+                            "fixed left-1/2 -translate-x-1/2 z-[90] pointer-events-auto rounded-3xl overflow-hidden box-border",
+                            "shadow-[0_20px_50px_rgba(6,182,212,0.3)] border border-cyan-500/30 text-cyan-50",
+                            // Anclado dentro del viewport + safe-area (nunca se sale).
+                            "top-[max(0.75rem,env(safe-area-inset-top))] w-[min(96vw,80rem)] max-w-[100vw]",
+                            "h-[min(92vh,calc(100dvh-1.5rem))]"
+                        )}
                     >
+                      {/* Capa de arrastre: sigue al dedo (swipe hacia arriba cierra). */}
+                      <motion.div className="absolute inset-0" style={swipe.motionStyle}>
                         {/* Background */}
                         <div className="absolute inset-0 bg-black/85 backdrop-blur-2xl" />
                         <div className="absolute inset-0 bg-gradient-to-b from-cyan-950/50 via-transparent to-cyan-950/20 pointer-events-none" />
 
+                        {/* Tirador de swipe (Zenith cierra hacia ARRIBA) + botón de cierre */}
+                        <div
+                            className={curtain.grabberTop}
+                            style={{ ["--cc" as string]: "#22d3ee" }}
+                            {...swipe.handlers}
+                            role="presentation"
+                        />
+                        <CurtainCloseButton onClose={closeCurtain} accent="#22d3ee" />
+
                         <div className="relative z-10 w-full h-full flex flex-col text-cyan-50">
 
-                            {/* Header */}
-                            <div className="flex flex-col gap-3 px-5 md:px-8 pt-5 pb-3 shrink-0 border-b border-cyan-500/15 bg-black/20">
+                            {/* Header (deja hueco arriba para el tirador de swipe) */}
+                            <div className="flex flex-col gap-3 px-5 md:px-8 pt-8 md:pt-9 pb-3 shrink-0 border-b border-cyan-500/15 bg-black/20">
                                 <div className="flex items-center justify-between gap-3 flex-wrap">
                                     <div className="flex items-center gap-3 min-w-0">
                                         <div className="p-2.5 rounded-xl bg-cyan-500/20 border border-cyan-400/30 shadow-[0_0_20px_rgba(34,211,238,0.4)] shrink-0">
@@ -687,6 +794,7 @@ export function ZenithCurtain() {
                             <div className="absolute top-0 right-[20%] w-[1px] h-full bg-gradient-to-b from-cyan-400 to-transparent blur-[2px]" />
                             <div className="absolute top-0 left-1/2 w-[600px] h-full -translate-x-1/2 bg-gradient-to-b from-cyan-500/10 to-transparent blur-[60px]" />
                         </div>
+                      </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
