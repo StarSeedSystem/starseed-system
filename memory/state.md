@@ -1714,3 +1714,18 @@ Construido con 4 subagentes en 2 olas + integración + port a Nexus/Café.
 - tsc OS 376 = baseline; node --check limpio Nexus/Café. Deploys OS c60756f (contexto+escritorios) · c739358 (generación+fusión); Nexus 69e0760; Café 385016c.
 
 **Pendiente:** WebRTC LAN real; contexto compartido en vivo Exocórtex↔AI Studio; wake-word acústico OSS; verificar visualmente /escritorios y la carpeta de chats.
+
+---
+## Adenda 56 — 2026-07-03 · Servicios open-source integrados (Ollama/Whisper/Kokoro/Fooocus/n8n/Cal.com/AppFlowy/Penpot) (deploys cb6ae74→8f876e6)
+
+Construido con 5 subagentes en 3 olas + investigación de repos.
+
+- **Registro unificado OSS** (src/lib/services/oss-services.ts): catálogo tipado por categoría de función (llm/stt/tts/image/video/workflow/calendar/docs/design/website) — Ollama, Whisper, Piper/Kokoro, Fooocus-API, AUTOMATIC1111, n8n, Cal.com, Google Cal/CalDAV/ICS, AppFlowy, Penpot, generador web. oss-connections.ts: store multi-servidor por scope (usuario/cerebro:<id>/página/contexto, 'starseed.oss.connections.v1' + espejo cuenta) + testConnection + resolveServiceFor(category,scope). Panel en /servicios (vista alterna al tri-fuente). Preintegrado por defecto (catálogo siempre; conexiones del usuario).
+- **Voz OSS:** STT Whisper mejorado (VAD adaptativo al ruido, pre-roll ring, modelo small, ES por defecto, filtro de alucinaciones); TTS Kokoro nuevo (src/lib/aurora/tts-oss/, voz alternativa por transformers.js/CDN, opt-in 'starseed.aurora.oss-tts', offline tras ~80MB). Panel ampliado en Ajustes→IA (STT idioma + sección Voz Kokoro con probar).
+- **Ollama completo** (src/ai/providers/ollama.ts): probeOllamaModels/testOllamaConnection (/api/tags, timeout+CORS), detectar modelos, local/remoto, sync por cerebro vía conexiones OSS. Modelos por función (src/ai/functions/function-models.ts + hook): imagen/video/presentaciones/infografías/web/voz → servicio/conexión OSS elegible por scope. Paneles en AiProvidersPanel (/settings).
+- **Servicios en Librería/Biblioteca** (petición): src/lib/library/oss-catalog-bridge.ts proyecta OSS_SERVICES→fichas; nueva categoría "Servicios / Integraciones" en la librería (fichas instalables: Instalar/Conectar+Configurar via OssServicesPanel embebido); biblioteca personal "Mis servicios e integraciones" (conectados por ti + predeterminados integrados). installService = conexión por defecto + saveResource.
+- **Apps conectoras** (src/lib/integrations/services/ + src/components/integrations/): n8n (triggerWebhook /webhook/<path>, listWorkflows X-N8N-API-KEY, hooks guardados) + panel; Cal.com (API v2 Bearer, listBookings→eventos de red) añadido a external-calendar-connectors (auto en UnifiedCalendar); AppFlowy+Penpot (app-embed iframe sandbox, guardar diseño→biblioteca, accesos desde /pizarras). Página nueva /integraciones. 
+- REALISTA: la web CONECTA por endpoint/clave/webhook (self-host o nube), no instala servidores. Repos: ollama/ollama, n8n-io/n8n, calcom/cal.com, mrhan1993/Fooocus-API, AppFlowy-IO/AppFlowy, penpot/penpot, Xenova/transformers (Whisper/Kokoro).
+- tsc 376 = baseline en todo. Deploys OS: cb6ae74 (registro OSS) · 7c74786 (voz) · 762e72c (Ollama+función+librería) · 8f876e6 (n8n/Cal.com/AppFlowy/Penpot).
+
+**Pendiente:** enrutar las tools de generación de Aurora a los servicios por función (crear_imagen→Fooocus, etc.); WebRTC LAN real; wake-word acústico OSS; portar registro OSS a Nexus/Café si se desea.

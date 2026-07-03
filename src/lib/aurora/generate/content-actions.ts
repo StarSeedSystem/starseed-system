@@ -24,6 +24,13 @@
 //   • Defensivo: NADA lanza. Si un destino no existe, degradamos con un mensaje
 //     hablado útil (y, cuando aplica, disparamos un evento que un futuro
 //     listener puede recoger, sin romper nada si nadie escucha).
+//
+// COMPLEMENTO: la generación que SÍ llama a SERVICIOS externos configurados por
+// función (imagen con Fooocus-API / AUTOMATIC1111, workflows con n8n, sitios
+// web, vídeo) vive en el módulo hermano `service-generation.ts`, que resuelve el
+// endpoint con `resolveServiceFor()` y guarda el resultado en la Biblioteca. La
+// sección de prompt que describe TODAS estas capacidades (locales + con
+// servicios) se construye en `aurora-tools.ts::auroraGeneratePromptSection`.
 // ════════════════════════════════════════════════════════════════════════════
 
 import { saveResource } from "@/lib/library-store";

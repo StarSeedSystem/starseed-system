@@ -490,6 +490,43 @@ async function runContentAction(
   }
 }
 
+// ── GENERAR CON SERVICIOS por función (red defensiva, mismo contrato) ────────
+// A diferencia de las tools de content-actions (100% local), estas ENRUTAN la
+// generación a los SERVICIOS open-source que el usuario configuró por función en
+// /servicios (resolveServiceFor): imagen (Fooocus-API / AUTOMATIC1111), workflow
+// (n8n), sitios web (servicio o plantilla local) y vídeo. Delegan en
+// src/lib/aurora/generate/service-generation (import perezoso). Cada acción
+// devuelve { ok, message, data? } y se adapta al mismo contrato IntegrationResult.
+// NUNCA lanza; si no hay servicio, degrada con un mensaje honesto → /servicios.
+
+/** Tipado del módulo de generación con servicios (import dinámico). */
+type ServiceGenerationModule = typeof import("@/lib/aurora/generate/service-generation");
+
+/**
+ * Ejecuta una acción de generación-con-servicios con import perezoso del módulo
+ * y adapta su resultado (ContentOutcome) al contrato IntegrationResult
+ * (data.text = frase decible). NUNCA lanza.
+ */
+async function runServiceGeneration(
+  exec: (mod: ServiceGenerationModule) => ScreenOutcome | Promise<ScreenOutcome>,
+): Promise<IntegrationResult> {
+  if (typeof window === "undefined") {
+    return { ok: false, error: "Generar con servicios solo funciona en el navegador." };
+  }
+  try {
+    const mod = await import("@/lib/aurora/generate/service-generation");
+    const res = await exec(mod);
+    if (!res || typeof res.ok !== "boolean") {
+      return { ok: false, error: "La generación con servicios no respondió." };
+    }
+    return res.ok
+      ? { ok: true, data: { text: res.message, ...(res.data ?? {}) } }
+      : { ok: false, error: res.message };
+  } catch {
+    return { ok: false, error: "No pude generar con el servicio configurado en esta página." };
+  }
+}
+
 /** Tools de GENERAR/USAR CONTENIDO que Aurora puede invocar (navegador). */
 export const AURORA_GENERATE_TOOLS: AuroraScreenTool[] = [
   {
@@ -640,6 +677,64 @@ export const AURORA_GENERATE_TOOLS: AuroraScreenTool[] = [
         m.buscarEnBiblioteca(pickInput(input, "consulta", "query", "q", "texto", "text", "busqueda", "búsqueda", "termino", "término")),
       ),
   },
+  // ── GENERAR CON SERVICIOS por función (usa lo que el usuario conectó en /servicios) ──
+  {
+    name: "generar_imagen",
+    description:
+      "Genera una IMAGEN a partir de un prompt usando el servicio de imagen que el usuario conectó en /servicios (Fooocus-API o Stable Diffusion / AUTOMATIC1111) y la guarda en la Biblioteca. Entrada: { prompt }. Úsala para «genera una imagen de…», «créame una ilustración de…», «dibuja…». Si no hay servicio conectado, avisa para configurarlo en /servicios (no inventa la imagen).",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "generar_imagen",
+    kind: "screen",
+    run: (input) =>
+      runServiceGeneration((m) =>
+        m.generarImagen(
+          pickInput(input, "prompt", "descripcion", "descripción", "texto", "text", "idea", "imagen"),
+        ),
+      ),
+  },
+  {
+    name: "lanzar_workflow",
+    description:
+      "Lanza un WORKFLOW de automatización (n8n) por su webhook, usando la instancia conectada en /servicios. Entrada: { nombre | path, datos? } (nombre/path = lo que va tras /webhook/ o la URL completa; datos = objeto JSON opcional para el flujo). Úsala para «lanza el workflow…», «dispara la automatización…», «ejecuta el flujo…». Si no hay n8n conectado, avisa para configurarlo en /servicios.",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "lanzar_workflow",
+    kind: "screen",
+    run: (input) =>
+      runServiceGeneration((m) =>
+        m.lanzarWorkflow(
+          pickInput(input, "nombre", "name", "path", "ruta", "webhook", "flujo", "workflow"),
+          pickInput(input, "datos", "data", "payload", "cuerpo", "body", "parametros", "parámetros"),
+        ),
+      ),
+  },
+  {
+    name: "generar_sitio_web",
+    description:
+      "Crea un SITIO WEB a partir de una descripción usando el servicio de sitios conectado en /servicios; si no hay ninguno, genera una página HTML de plantilla y la guarda en la Biblioteca (fallback útil). Entrada: { descripcion }. Úsala para «crea un sitio web de…», «hazme una landing para…», «genera una página sobre…».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "generar_sitio_web",
+    kind: "screen",
+    run: (input) =>
+      runServiceGeneration((m) =>
+        m.generarSitioWeb(
+          pickInput(input, "descripcion", "descripción", "prompt", "texto", "text", "idea", "sitio", "web"),
+        ),
+      ),
+  },
+  {
+    name: "generar_video",
+    description:
+      "Genera un VÍDEO a partir de un prompt usando el servicio de vídeo que el usuario conectó en /servicios, y lo guarda en la Biblioteca. Entrada: { prompt }. Úsala para «genera un vídeo de…», «créame un clip de…». Si no hay servicio de vídeo conectado, avisa para configurarlo en /servicios (no inventa el vídeo).",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "generar_video",
+    kind: "screen",
+    run: (input) =>
+      runServiceGeneration((m) =>
+        m.generarVideo(
+          pickInput(input, "prompt", "descripcion", "descripción", "texto", "text", "idea", "video", "vídeo"),
+        ),
+      ),
+  },
 ];
 
 /** Conjunto de nombres de las tools de GENERAR/USAR CONTENIDO (para la sección de prompt). */
@@ -720,6 +815,7 @@ export function auroraGeneratePromptSection(brainId?: string): string {
   return [
     "GENERAR Y USAR CONTENIDO — puedes CREAR contenido y COLOCARLO libremente donde el usuario pida, en cualquier momento de la conversación. No te limites a describir: hazlo tú.",
     "Puedes: escribir notas y documentos (markdown) y GUARDARLOS en la Biblioteca; generar archivos de cualquier formato (JSON, CSV, SVG, HTML, texto…) y guardarlos; PUBLICAR un texto (abre el Composer prellenado); abrir/crear PIZARRAS y poner bloques en el lienzo; añadir WIDGETS al tablero; BUSCAR en la web (navegador interno) o en la Biblioteca; y abrir cualquier ENLACE dentro del OS.",
+    "GENERAR CON SERVICIOS CONECTADOS: también puedes generar IMÁGENES (generar_imagen), lanzar WORKFLOWS de automatización (lanzar_workflow), crear SITIOS WEB (generar_sitio_web) y VÍDEOS (generar_video). Estas usan los SERVICIOS open-source que el usuario haya conectado POR FUNCIÓN en /servicios (p.ej. Fooocus-API o Stable Diffusion para imagen, n8n para workflows). Lo generado se guarda en la Biblioteca. IMPORTANTE: no inventes resultados — si no hay un servicio conectado para esa función, la tool te lo dirá y debes GUIAR al usuario a configurarlo en /servicios (para sitios web, sí generas una página de plantilla local útil como respaldo).",
     "Invoca cada tool con la MISMA sintaxis de directiva, con el nombre como acción y su entrada como JSON:",
     '  [[ACCION: nombre {"clave":"valor"}]]',
     "Herramientas de contenido disponibles ahora mismo:",
@@ -732,6 +828,9 @@ export function auroraGeneratePromptSection(brainId?: string): string {
     '· «Pon el clima en mi tablero» → [[ACCION: crear_widget {"tipo":"clima"}]] Añadí el widget.',
     '· «Busca en la web café de especialidad» → [[ACCION: buscar_web {"consulta":"café de especialidad"}]] Buscando en tu navegador.',
     '· «Búscalo en la librería» → [[ACCION: buscar_en_libreria {"consulta":"…"}]] Abrí tu Biblioteca.',
+    '· «Genera una imagen de un bosque de cristal al amanecer» → [[ACCION: generar_imagen {"prompt":"un bosque de cristal al amanecer, luz volumétrica"}]] La generé con tu servicio de imagen y la guardé en tu Biblioteca.',
+    '· «Lanza el workflow de bienvenida» → [[ACCION: lanzar_workflow {"nombre":"bienvenida","datos":{"usuario":"Alex"}}]] Disparé el flujo en n8n.',
+    '· «Crea un sitio web para mi cafetería» → [[ACCION: generar_sitio_web {"descripcion":"Cafetería de especialidad con menú y reservas"}]] Generé la página y la guardé en tu Biblioteca.',
   ].join("\n");
 }
 
@@ -759,7 +858,7 @@ export function auroraToolsPromptSection(brainId?: string): string {
   }
   if (contenido.length > 0) {
     parts.push(
-      "GENERAR Y USAR CONTENIDO: puedes CREAR contenido (notas, documentos, archivos) y COLOCARLO libremente — guardarlo en la Biblioteca, publicarlo, ponerlo en una pizarra, añadir widgets, buscar en la web o en la Biblioteca y abrir enlaces — a petición del usuario y en cualquier momento. No solo lo describas: hazlo.",
+      "GENERAR Y USAR CONTENIDO: puedes CREAR contenido (notas, documentos, archivos) y COLOCARLO libremente — guardarlo en la Biblioteca, publicarlo, ponerlo en una pizarra, añadir widgets, buscar en la web o en la Biblioteca y abrir enlaces — a petición del usuario y en cualquier momento. Además puedes GENERAR CON LOS SERVICIOS que el usuario haya conectado por función en /servicios: imágenes (generar_imagen), workflows (lanzar_workflow), sitios web (generar_sitio_web) y vídeos (generar_video), guardando el resultado en la Biblioteca. No solo lo describas: hazlo — y si falta un servicio para esa función, guía a configurarlo en /servicios en vez de inventar el resultado.",
       ...contenido.map((t) => `- ${t.name}: ${t.description}`),
     );
   }
