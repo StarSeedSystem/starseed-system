@@ -11,7 +11,7 @@
  * Bumpea SW_VERSION cuando quieras invalidar todas las cachés anteriores.
  */
 
-const SW_VERSION = "v1";
+const SW_VERSION = "v3-2026-07-03";
 const PRECACHE = `starseed-precache-${SW_VERSION}`;
 const RUNTIME = `starseed-runtime-${SW_VERSION}`;
 const OFFLINE_URL = "/offline.html";
@@ -80,11 +80,18 @@ self.addEventListener("message", (event) => {
 });
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-function isStaticAsset(url) {
-  if (url.pathname.startsWith("/_next/static/")) return true;
-  return /\.(?:js|css|woff2?|ttf|otf|eot|png|jpe?g|gif|svg|webp|avif|ico|mp3|wav|ogg)$/i.test(
+// SOLO medios verdaderamente inmutables van cache-first (imágenes, fuentes,
+// audio). El CÓDIGO (js/css) va NETWORK-FIRST para que cada despliegue llegue
+// SIEMPRE al usuario sin quedarse con una versión vieja cacheada (causa del
+// "no se actualiza nada"). La caché de código queda solo como respaldo offline.
+function isImmutableMedia(url) {
+  return /\.(?:woff2?|ttf|otf|eot|png|jpe?g|gif|svg|webp|avif|ico|mp3|wav|ogg|mp4|webm)$/i.test(
     url.pathname
   );
+}
+function isCode(url) {
+  if (url.pathname.startsWith("/_next/static/")) return true;
+  return /\.(?:js|css)$/i.test(url.pathname);
 }
 
 // ── Fetch: enrutado por tipo de petición ────────────────────────────────────
@@ -117,9 +124,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Estáticos: cache-first con relleno en runtime.
-  if (isStaticAsset(url)) {
+  // Medios inmutables (imágenes/fuentes/audio): cache-first (rápido, no cambian).
+  if (isImmutableMedia(url)) {
     event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  // CÓDIGO (js/css, _next/static): NETWORK-FIRST → siempre el último despliegue;
+  // la caché solo sirve si NO hay red (offline). Esto garantiza que las
+  // actualizaciones lleguen a TODOS los usuarios/dispositivos automáticamente.
+  if (isCode(url)) {
+    event.respondWith(networkFirst(request));
     return;
   }
 

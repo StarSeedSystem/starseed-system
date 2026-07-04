@@ -1750,3 +1750,15 @@ Construido con 5 subagentes en 3 olas + investigación de repos.
 - tsc OS 376 = baseline; node --check Nexus/Café OK. Deploys OS a139890(medio-dúplex)/2ed2b93(mini-player)/8956a70(NVIDIA); Nexus 3fc38de; Café 788fd84.
 
 **Pendiente:** verificar en vivo que el medio-dúplex elimina la auto-escucha en los 3; refrescar catálogo NIM en vivo con la clave del usuario; TURN para WebRTC NAT simétrico.
+
+---
+## Adenda 59 — 2026-07-03 · Fix definitivo del bucle de voz (contador de generación) + regresiones de botones (deploys OS 9668a20/cd40b28; Nexus dce848b; Café d6b1baf)
+
+CAUSA RAÍZ del bucle "se reinicia sin escuchar y suena la reactivación": al reemplazar el reconocimiento (start/stop/medio-dúplex), el reconocimiento VIEJO disparaba su onend y arrancaba OTRO en paralelo → competían y se reiniciaban. 
+- **OS engine.ts:** `recGenRef` (contador de generación) — cada reconocimiento toma gen=++recGen; onstart/onerror/onend/onresult hacen `if(gen!==recGenRef.current) return` (obsoletos = silencio, no reinician). speak() medio-dúplex incrementa gen al abortar (el onend del abortado no reinicia; finishTts→start crea gen fresco). Elimina el bucle competitivo; el tap vuelve a escuchar.
+- **OS aurora-widget.tsx + aurora-mini-player.tsx (regresiones):** (1) mantener-pulsado volvía a abrir Exocórtex en vez de Trinity porque el mini-player se solapaba sobre el orbe (capturaba el long-press) Y el contextmenu táctil abría Exocórtex. Fix: mini-player wrapper pointer-events-none + desplazado (MINI_GAP), y onContextMenu abre Exocórtex SOLO en clic derecho de ratón real (pointerType mouse; ignora touch/pen en hold). (2) tap SOLO activa escucha en silencio: quitados los setOpen(true); requestAccess silencioso si falta permiso; popover solo si NO hay STT.
+- **Nexus/Café exocortex.js:** contador de generación `_recGen` (silencia reinicios internos, mata el bucle); chime SOLO en activación explícita (tap/wake-word), NUNCA en reinicio (era la causa del sonido repetido); tap activa escucha en silencio (QUITADO el saludo hablado del café "soy Aurora tu guía…"; fallback de aurSectionHint reescrito); wake-word "aurora" de fondo estable sin auto-oírse (medio-dúplex); aviso 6s se arma 1 vez por activación (no en reinicios); Café chat comparte estructura .ssx-* del Nexus con contenido café.
+- Comportamiento final unificado: TAP = activa escucha en silencio (chime+halo, sin hablar/sin chat); al conversar aparece el reproductor resumido; HOLD = OS menú Trinity (deslizar-seleccionar) / Nexus·Café reproductor completo; Exocórtex del OS = ventana completa (clic derecho/botón/al abrir Exocórtex). Aurora escucha en fondo para "aurora" sin reinicios audibles.
+- tsc OS 376=baseline; node --check Nexus/Café OK. Deploys OS 9668a20(gen)/cd40b28(regresión botones); Nexus dce848b (v102); Café d6b1baf (v86).
+
+**Pendiente:** verificación en vivo del usuario en los 3; si aún se oye reinicio sería doble pestaña (líder) — reforzar.
