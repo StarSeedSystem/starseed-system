@@ -1773,3 +1773,15 @@ VERIFICADO EN VIVO con Claude-in-Chrome: la página del OS estaba controlada por
 - Pipeline VERIFICADO correcto: repos GitHub (StarSeedSystem/starseed-system, alexbordongarrigos/StarSeed-Nexus, alexbordongarrigos/Starseed-Cafe) → proyectos Vercel correctos → deploys success → live sirve el código nuevo (sw.js v3 confirmado en vivo).
 
 **Pendiente:** que el usuario reabra la app 1 vez en cada sistema (propaga el SW auto-actualizable); luego reprobar la voz (ya con los fixes aplicados de verdad).
+
+---
+## Adenda 61 — 2026-07-03 · Voz de DOS NIVELES (pasivo silencioso / activa) en los 3 (deploys OS a70153e; Nexus 292c013 v103; Café c93aaaa v87)
+
+Tras el fix del SW (Adenda 60) el código ya llega. El usuario reportó: OS mejor pero el fondo repite encendido/apagado con sonido (debería solo esperar "aurora"); Nexus al responder abre el reproductor COMPLETO (debe ser el resumido); Café sigue mal.
+- **DOS NIVELES (engine.ts OS + Nexus/Café exocortex.js):** FONDO PASIVO = micrófono abierto pero SILENCIOSO, orbe/botón en CALMA (halo apagado), el reconocimiento SOLO reacciona a "aurora" (ignora lo demás en silencio) → elimina el encendido/apagado audible/visible del fondo. ACTIVA (engaged) = al TOCAR el orbe o al oír "aurora": halo encendido, procesa lo que digas; 30s de silencio → vuelve a pasivo. engaged/engage/disengage expuestos; send() (texto) también engage. Widget: halo del orbe = engaged (no la escucha pasiva); tap = engage/disengage. Nexus/Café: A._engaged + IDLE 30s, chime solo al activar, halo solo en activa.
+- **Respuesta en el RESUMIDO (fix Nexus):** quitados los open() del panel completo en route()/conversación; la respuesta aparece en .ssx-mini; el completo solo al mantener pulsado (hold) o botón "Abrir".
+- **Aviso de 6s eliminado del fondo** (Nexus/Café): el fondo es 100% silencioso hasta oír "aurora" (antes hablaba solo).
+- Mantiene: medio-dúplex, anti-eco, _recGen (generación), wake-word sin auto-oírse, tap/hold/drag.
+- tsc OS 376=baseline; node --check Nexus/Café OK. Deploys OS a70153e; Nexus 292c013; Café c93aaaa.
+
+**Pendiente:** verificación del usuario; si el fondo aún hace sonido en Chrome sería el tono nativo de SpeechRecognition al reiniciar (mitigable con wake-word acústico Porcupine ya integrado, opt-in).

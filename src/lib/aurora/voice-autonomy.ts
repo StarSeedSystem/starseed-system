@@ -108,3 +108,25 @@ export function isCoarsePointer(): boolean {
     return false;
   }
 }
+
+/**
+ * ¿Corre como APP INSTALADA (PWA standalone / TWA / app dedicada) y NO como una
+ * pestaña web normal? SOLO en la app instalada dejamos la ESCUCHA DE FONDO
+ * (wake-word "Aurora") activa; en la web, Aurora escucha únicamente al PULSAR el
+ * botón (evita el bucle/tono del reconocimiento de fondo en el navegador).
+ */
+export function isInstalledApp(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      window.matchMedia?.("(display-mode: fullscreen)").matches ||
+      window.matchMedia?.("(display-mode: minimal-ui)").matches;
+    // iOS Safari expone navigator.standalone; algunos wrappers ponen una marca.
+    const iosStandalone = (navigator as unknown as { standalone?: boolean }).standalone === true;
+    const wrapperFlag = !!(window as unknown as { __STARSEED_NATIVE_APP__?: boolean }).__STARSEED_NATIVE_APP__;
+    return !!(standalone || iosStandalone || wrapperFlag);
+  } catch {
+    return false;
+  }
+}

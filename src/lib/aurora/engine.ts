@@ -49,6 +49,9 @@ import { normalizeStarseedTerms } from "@/lib/aurora/term-normalizer";
 import { buildSystemKnowledge } from "@/lib/aurora/system-knowledge";
 // Detección de la palabra "Aurora" para el modo pasivo (fondo silencioso).
 import { containsWake, stripWake } from "@/lib/aurora/wake-word";
+// ¿App instalada? Solo ahí mantenemos el micrófono abierto en 2º plano; en la
+// web, al terminar la conversación se APAGA (no hay escucha de fondo).
+import { isInstalledApp } from "@/lib/aurora/voice-autonomy";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -215,10 +218,11 @@ export function useAuroraEngine(): AuroraEngine {
   const [engaged, setEngagedState] = useState(false);
   const engagedRef = useRef(false);
   const engagedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Refs a las funciones engage/touch (definidas abajo) para usarlas dentro de
-  // buildRecognition sin problemas de orden de declaración.
+  // Refs a las funciones engage/touch/stop (definidas abajo) para usarlas dentro
+  // de buildRecognition/idle sin problemas de orden de declaración.
   const engageNowRef = useRef<() => void>(() => {});
   const touchEngagedRef = useRef<() => void>(() => {});
+  const stopNowRef = useRef<() => void>(() => {});
   /** Segundos de silencio en modo ACTIVA antes de volver al fondo pasivo. */
   const ENGAGED_IDLE_MS = 30_000;
 
@@ -901,6 +905,9 @@ export function useAuroraEngine(): AuroraEngine {
       engagedRef.current = false;
       setEngagedState(false);
       setInterim("");
+      // WEB: al terminar la conversación, APAGA el micrófono (no hay fondo).
+      // App instalada: se queda en fondo pasivo esperando "Aurora".
+      if (!isInstalledApp()) { try { stopNowRef.current(); } catch { /* */ } }
     }, ENGAGED_IDLE_MS);
   }, []);
 
@@ -918,6 +925,8 @@ export function useAuroraEngine(): AuroraEngine {
     setEngagedState(false);
     if (engagedTimerRef.current) { clearTimeout(engagedTimerRef.current); engagedTimerRef.current = null; }
     setInterim("");
+    // WEB: desactivar también APAGA el micrófono (sin escucha de fondo).
+    if (!isInstalledApp()) { try { stopNowRef.current(); } catch { /* */ } }
   }, []);
 
   useEffect(() => { engageNowRef.current = engage; touchEngagedRef.current = touchEngaged; }, [engage, touchEngaged]);
@@ -954,6 +963,10 @@ export function useAuroraEngine(): AuroraEngine {
     if (sttOwner === instanceIdRef.current) sttOwner = null;
     setListening(false);
   }, []);
+
+  // Mantén `stopNowRef` apuntando a la última versión de `stop` (para el corte
+  // del micrófono en WEB al desactivar/expirar la conversación).
+  useEffect(() => { stopNowRef.current = stop; }, [stop]);
 
   // Al desmontar la instancia dueña del STT, libera el testigo.
   useEffect(() => {

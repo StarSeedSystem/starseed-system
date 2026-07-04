@@ -15,6 +15,7 @@ import { AURORA_CONVERSATION_EVENT } from "@/lib/aurora/aurora-orb-bus";
 import {
   autonomyDisabled,
   queryMicPermission,
+  isInstalledApp,
 } from "@/lib/aurora/voice-autonomy";
 import {
   startAuroraLeaderElection,
@@ -315,10 +316,10 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
         // Perdimos el liderazgo → soltamos el micrófono (otra pestaña manda).
         try { superStop(); } catch { /* */ }
       } else if (
-        !autonomyDisabled() && eng.enabled && wantListenRef.current === false &&
+        isInstalledApp() && !autonomyDisabled() && eng.enabled && wantListenRef.current === false &&
         getCapabilities().hasSpeechRecognition && eng.supported !== false
       ) {
-        // Ganamos el liderazgo y el usuario quería voz → la retomamos.
+        // Ganamos el liderazgo (SOLO app instalada, con fondo activo) → retomamos.
         try { superStart(); } catch { /* */ }
       }
     });
@@ -378,6 +379,11 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       // Si el usuario apagó Aurora o la autonomía, no auto-arrancamos (pero el
       // orbe sigue disponible para tocar).
       if (autonomyDisabled()) return;
+      // ESCUCHA DE FONDO SOLO EN LA APP INSTALADA. En la web (pestaña normal) NO
+      // arrancamos el micrófono en 2º plano — Aurora escucha ÚNICAMENTE al PULSAR
+      // el orbe. Así se elimina el bucle/tono del reconocimiento de fondo del
+      // navegador. (Petición del usuario.)
+      if (!isInstalledApp()) return;
       const perm = await queryMicPermission();
       if (cancelled) return;
       if (perm === "denied") return; // no insistimos; el orbe mostrará reintento
