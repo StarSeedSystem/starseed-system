@@ -23,6 +23,26 @@ export function RegisterSW() {
     const forced = process.env.NEXT_PUBLIC_ENABLE_SW === "1";
     if (!isProd && !forced) return;
 
+    // AUTO-SANADO DE CACHÉ: si el dispositivo tiene cachés de una versión anterior
+    // (causa de "no se actualiza / Aurora sigue igual / se reinicia"), las borra y
+    // recarga UNA vez por sesión (sessionStorage → anti-bucle). Complementa al SW
+    // network-first para garantizar que el código fresco llega a todos.
+    try {
+      const CUR = "v3-2026-07-03";
+      const G = "ssheal:" + CUR;
+      if ("caches" in window && !sessionStorage.getItem(G)) {
+        caches.keys().then((ks) => {
+          const stale = ks.filter((k) => /^starseed-(precache|runtime)-/.test(k) && k.indexOf(CUR) === -1);
+          if (stale.length) {
+            sessionStorage.setItem(G, "1");
+            Promise.all(stale.map((k) => caches.delete(k))).then(() => {
+              try { window.location.reload(); } catch { /* */ }
+            });
+          }
+        }).catch(() => { /* */ });
+      }
+    } catch { /* */ }
+
     let cancelled = false;
     let reloaded = false;
 
