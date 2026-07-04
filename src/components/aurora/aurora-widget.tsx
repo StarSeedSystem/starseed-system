@@ -155,12 +155,20 @@ export function AuroraWidget() {
     id: number;
     startX: number;
     startY: number;
+    pointerType: string;  // 'touch' | 'pen' | 'mouse' — distingue hold táctil de clic derecho
     longTimer: ReturnType<typeof setTimeout> | null;
     longFired: boolean;   // menú Trinity abierto en modo deslizar-para-abrir
     moved: boolean;       // superó el slop → arrastre de reposición
     aim: Cardinal | null; // dirección enganchada (con histéresis) al deslizar
     target: HTMLElement | null; // elemento con el pointer capture (para liberar)
   } | null>(null);
+
+  // Marca de tiempo del último gesto TÁCTIL/lápiz sobre el orbe. Sirve para que
+  // el menú contextual (contextmenu) — que en móvil lo SINTETIZA un mantener
+  // pulsado — NO abra el Exocórtex: el hold es Trinity, no clic derecho. El
+  // Exocórtex solo se abre por clic derecho REAL de ratón, el botón del
+  // resumido o el evento remoto.
+  const lastTouchGestureRef = useRef(0);
 
   // ¿Hay un deslizar-para-abrir EN CURSO? El overlay del menú Trinity se vuelve
   // pasivo (pointer-events:none) para que jamás robe la captura del orbe.
@@ -240,10 +248,16 @@ export function AuroraWidget() {
     // El MISMO pointer capture del long-press: todos los pointermove/up de este
     // puntero llegan al orbe aunque el overlay del menú se monte encima.
     try { target.setPointerCapture?.(e.pointerId); } catch { /* */ }
+    // Puntero táctil/lápiz: marca el instante para que un contextmenu sintético
+    // (mantener pulsado en móvil) NO abra el Exocórtex — ese hold es Trinity.
+    if (e.pointerType === "touch" || e.pointerType === "pen") {
+      lastTouchGestureRef.current = Date.now();
+    }
     const g = {
       id: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
+      pointerType: e.pointerType || "mouse",
       longTimer: null as ReturnType<typeof setTimeout> | null,
       longFired: false,
       moved: false,
@@ -257,6 +271,11 @@ export function AuroraWidget() {
       if (!gesture.current || gesture.current.id !== e.pointerId) return;
       if (gesture.current.moved) return; // si ya arrastra para mover, no abre
       gesture.current.longFired = true;
+      // Refresca la marca táctil: el contextmenu sintético de algunos WebView
+      // llega justo al cumplirse el hold; que quede claramente vetado.
+      if (gesture.current.pointerType === "touch" || gesture.current.pointerType === "pen") {
+        lastTouchGestureRef.current = Date.now();
+      }
       if (typeof window !== "undefined") {
         const vmin = Math.min(window.innerWidth, window.innerHeight);
         setCrossDist(Math.round(Math.max(104, Math.min(168, vmin * 0.3))));
@@ -356,36 +375,45 @@ export function AuroraWidget() {
       return;
     }
 
-    // TAP simple → voz de Aurora, ADAPTADO a las capacidades del navegador:
-    //   · sin STT ni TTS útil ('text-only') o sin soporte → abre el popover para
-    //     escribirle (chat en el Exocórtex); no forzamos una voz que no existe.
-    //   · voz no disponible tras reintentos → REINTENTA (con backoff).
-    //   · hay reconocimiento pero aún FALTA el permiso de micrófono → PIDE acceso
-    //     (requestAccess) en vez de fallar; al concederse arranca la escucha sola.
-    //   · voz completa lista → activar/parar/interrumpir (toggle de siempre).
+    // TAP simple → EMPIEZA A ESCUCHAR EN SILENCIO. Un toque = activar el modo
+    // escucha y NADA MÁS: no abrimos popover ni Exocórtex, no leemos nada. La
+    // única superficie que puede aparecer es el reproductor resumido, y eso lo
+    // decide la conversación (interim/reply), no este gesto.
+    //
+    // Adaptación por capacidades, SIN abrir ventanas mientras exista voz/STT:
+    //   · voz no disponible tras reintentos → REINTENTA (con backoff). Silencio.
+    //   · hay reconocimiento pero FALTA el permiso de micrófono → PIDE acceso
+    //     (requestAccess); al concederse arranca la escucha sola. Sin popover.
+    //   · voz completa (o STT presente) → activar/parar la escucha (toggle).
+    //   · SOLO como último recurso, cuando NO hay reconocimiento en absoluto
+    //     (text-only real / navegador sin STT), abrimos el popover para escribir
+    //     — es la única forma de conversar sin micrófono.
     if (!aurora) return;
     const caps = aurora.capabilities;
-    if (!aurora.supported || caps.voiceMode === "text-only") {
-      // Este gesto ya cuenta como interacción del usuario: intentamos subir el
-      // acceso al máximo (por si el TTS/micrófono estaban a la espera de gesto).
-      try { void aurora.requestAccess(); } catch { /* */ }
-      setOpen((o) => !o);
-      return;
-    }
     if (aurora.voiceUnavailable) {
-      // Estado visible «voz no disponible» → el toque REINTENTA (con backoff).
-      aurora.retryVoice();
-      setOpen(true);
+      // Estado visible «voz no disponible» → el toque REINTENTA (con backoff),
+      // en silencio: no abrimos ninguna ventana.
+      try { aurora.retryVoice(); } catch { /* */ }
       return;
     }
     // Reconocimiento presente + contexto seguro pero el modo aún no es 'full'
-    // → lo que falta es el permiso de micrófono: pídelo desde este gesto.
+    // → lo que falta es el permiso de micrófono: pídelo desde este gesto y deja
+    // que arranque la escucha sola; NO abrimos el popover.
     if (caps.voiceMode !== "full" && caps.hasSpeechRecognition && caps.isSecureContext) {
       try { void aurora.requestAccess(); } catch { /* */ }
-      setOpen(true);
       return;
     }
-    aurora.toggle();
+    // Hay reconocimiento de voz en este navegador: un toque arranca/para la
+    // escucha. Toggle de siempre, en SILENCIO (sin abrir ventanas).
+    if (aurora.supported && caps.hasSpeechRecognition) {
+      aurora.toggle();
+      return;
+    }
+    // Sin reconocimiento REAL aquí (text-only / navegador sin STT): no hay voz
+    // que activar → el único canal es escribir, así que abrimos el popover como
+    // FALLBACK. Este gesto también intenta subir el acceso por si el TTS espera.
+    try { void aurora.requestAccess(); } catch { /* */ }
+    setOpen((o) => !o);
   }, [aurora, dirFromDelta, overTrash, setActiveEdge]);
 
   const cancelGesture = useCallback((e: React.PointerEvent) => {
@@ -515,11 +543,21 @@ export function AuroraWidget() {
     openUp,
     openLeft,
   };
-  // ── Anclaje del REPRODUCTOR RESUMIDO al orbe (mismo cálculo que el globo). ──
+  // ── Anclaje del REPRODUCTOR RESUMIDO al orbe ──────────────────────────────
+  // DESPLAZADO con margen EXTRA respecto al orbe: el resumido nunca debe cubrir
+  // el área del orbe ni interceptar su mantener-pulsado (Trinity). Usamos una
+  // separación mayor que el popover/globo (radio del orbe + colchón amplio) para
+  // que su rectángulo quede claramente al lado/encima, con hueco libre sobre el
+  // orbe. Además el propio componente lleva pointer-events:none en su envoltorio
+  // (solo la tarjeta captura), así que aunque rozara, el gesto del orbe manda.
   const MINI_MAX_W = "min(20.5rem, calc(100vw - 16px))";
+  const MINI_GAP = ORB_PX / 2 + 30; // colchón amplio: el resumido no toca el orbe
+  const miniVAnchor: React.CSSProperties = openUp
+    ? { bottom: `calc(${((1 - pos.yRatio) * 100).toFixed(3)}dvh + ${MINI_GAP}px)` }
+    : { top: `calc(${(pos.yRatio * 100).toFixed(3)}dvh + ${MINI_GAP}px)` };
   const miniAnchor: AuroraMiniPlayerAnchor = {
     style: {
-      ...vAnchor,
+      ...miniVAnchor,
       ...hAnchor(MINI_MAX_W),
     },
     openUp,
@@ -968,7 +1006,24 @@ export function AuroraWidget() {
             onPointerMove={onOrbPointerMove}
             onPointerUp={finishGesture}
             onPointerCancel={cancelGesture}
-            onContextMenu={(e) => { e.preventDefault(); openExocortexChat(); }}
+            onContextMenu={(e) => {
+              // Siempre prevenimos el menú nativo del navegador sobre el orbe.
+              e.preventDefault();
+              // El Exocórtex se abre SOLO con clic DERECHO REAL de ratón. Un
+              // mantener-pulsado táctil SINTETIZA un contextmenu en móvil/WebView:
+              // ese gesto es TRINITY, no Exocórtex. Si acabamos de registrar un
+              // gesto táctil sobre el orbe (o hay uno en curso desde touch/pen),
+              // vetamos la apertura del Exocórtex y dejamos que el hold sea Trinity.
+              const g = gesture.current;
+              const touchGestureActive =
+                (g && (g.pointerType === "touch" || g.pointerType === "pen")) ||
+                Date.now() - lastTouchGestureRef.current < 900;
+              if (touchGestureActive) return;
+              // Clic derecho REAL de ratón: cancela el temporizador de hold para
+              // que este mismo gesto no arme también Trinity a los 480ms.
+              if (g && g.longTimer) { clearTimeout(g.longTimer); g.longTimer = null; }
+              openExocortexChat();
+            }}
             aria-label="Aurora"
             data-aurora-state={state}
             title={!supported

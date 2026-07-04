@@ -233,24 +233,36 @@ export function AuroraMiniPlayer({
 
   return (
     <AnimatePresence>
+      {/* ENVOLTORIO POSICIONAL (motion, para conservar la animación de salida) —
+          fijo y anclado al orbe, pero pointer-events:none: NUNCA intercepta
+          punteros. Así, aunque el rectángulo del resumido llegara a rozar el
+          orbe, el mantener-pulsado (Trinity) y el resto de gestos del orbe
+          SIEMPRE los recibe el orbe. Solo la TARJETA interior es interactiva. */}
       <motion.div
         key="aurora-mini-player"
-        role="group"
-        aria-label="Reproductor de conversación de Aurora"
         initial={reduce ? { opacity: 0 } : { opacity: 0, y: openUp ? 10 : -10, scale: 0.95 }}
         animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
         exit={reduce ? { opacity: 0 } : { opacity: 0, y: openUp ? 8 : -8, scale: 0.96 }}
         transition={reduce ? { duration: 0.15 } : { type: "spring", stiffness: 360, damping: 30 }}
+        className="pointer-events-none fixed z-[62] flex select-none flex-col"
+        style={{
+          ...anchor.style,
+          transformOrigin: `${openLeft ? "right" : "left"} ${openUp ? "bottom" : "top"}`,
+        }}
+      >
+      <motion.div
+        role="group"
+        aria-label="Reproductor de conversación de Aurora"
         drag={reduce ? false : "y"}
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={0.14}
         dragMomentum={false}
         onDragEnd={onDragEnd}
-        className={cn(styles.player, "fixed z-[62] flex select-none flex-col")}
+        // La TARJETA sí captura el puntero (pointer-events:auto) para el swipe y
+        // los botones; el envoltorio de arriba se mantiene inerte.
+        className={cn(styles.player, "pointer-events-auto flex select-none flex-col")}
         style={{
-          ...anchor.style,
           ["--mp-rgb" as string]: accentRgb,
-          transformOrigin: `${openLeft ? "right" : "left"} ${openUp ? "bottom" : "top"}`,
         }}
       >
         {/* Filo de luz aurora superior (reactivo al turno). */}
@@ -476,6 +488,7 @@ export function AuroraMiniPlayer({
             <span className="text-[10px] font-semibold">Exocórtex</span>
           </button>
         </div>
+      </motion.div>
       </motion.div>
     </AnimatePresence>
   );
