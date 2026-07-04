@@ -47,6 +47,8 @@ import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
 import { normalizeStarseedTerms } from "@/lib/aurora/term-normalizer";
 // Conocimiento del ecosistema (áreas, tríada, enlaces) para el prompt de Astraura.
 import { buildSystemKnowledge } from "@/lib/aurora/system-knowledge";
+// Detección de la palabra "Aurora" para el modo pasivo (fondo silencioso).
+import { containsWake, stripWake } from "@/lib/aurora/wake-word";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -146,6 +148,12 @@ export interface AuroraEngine {
   setActivePersonality: (p: Personality) => void;
   setEnabled: (v: boolean) => void;
   reloadPersonalities: () => Promise<void>;
+  /** ¿Modo ACTIVA (engaged)? En fondo pasivo es false (solo espera "Aurora"). */
+  engaged: boolean;
+  /** Enciende el modo activo (lo llama el toque del orbe y el wake-word). */
+  engage: () => void;
+  /** Vuelve al fondo pasivo silencioso sin apagar el micrófono. */
+  disengage: () => void;
 }
 
 /**
@@ -200,6 +208,19 @@ export function useAuroraEngine(): AuroraEngine {
   const [replyHistory, setReplyHistory] = useState<string[]>([]);
   const [conversation, setConversation] = useState<ConversationEntry[]>([]);
   const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
+  // ── DOS NIVELES: fondo PASIVO (solo escucha la palabra "Aurora", SILENCIOSO,
+  //    sin indicador activo) vs ACTIVA (engaged: procesa lo que digas, con el
+  //    halo encendido). El micrófono está SIEMPRE abierto en pasivo, pero el
+  //    reconocimiento no actúa hasta oír "aurora" o hasta que tocas el orbe.
+  const [engaged, setEngagedState] = useState(false);
+  const engagedRef = useRef(false);
+  const engagedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Refs a las funciones engage/touch (definidas abajo) para usarlas dentro de
+  // buildRecognition sin problemas de orden de declaración.
+  const engageNowRef = useRef<() => void>(() => {});
+  const touchEngagedRef = useRef<() => void>(() => {});
+  /** Segundos de silencio en modo ACTIVA antes de volver al fondo pasivo. */
+  const ENGAGED_IDLE_MS = 30_000;
 
   const recognitionRef = useRef<any>(null);
   const activeRef = useRef<Personality>(activePersonality);
@@ -837,6 +858,27 @@ export function useAuroraEngine(): AuroraEngine {
       // resetea el backoff anti-loop.
       sttLastResultAtRef.current = Date.now();
       sttRestartsRef.current = 0;
+
+      // ── MODO PASIVO (fondo): NO procesamos nada como comando ni mostramos el
+      //    interim; solo esperamos oír "aurora". Al oírla, ACTIVAMOS (engaged) y,
+      //    si la frase trae algo más ("aurora, abre el café"), lo ejecutamos. ──
+      if (!engagedRef.current) {
+        const heard = finalText || interimText;
+        if (containsWake(heard)) {
+          engageNowRef.current(); // enciende modo activo (+ halo)
+          if (finalText) {
+            const rest = stripWake(finalText);
+            if (rest && rest.trim().length > 1) {
+              setInterim("");
+              void runCommandRef.current(rest);
+            }
+          }
+        }
+        return; // en pasivo, ignora todo lo demás (silencioso)
+      }
+
+      // ── MODO ACTIVO (engaged): conversación normal ──
+      touchEngagedRef.current(); // reinicia el temporizador de inactividad
       if (interimText) setInterim(interimText);
       if (finalText) {
         setInterim("");
@@ -849,6 +891,36 @@ export function useAuroraEngine(): AuroraEngine {
     };
     return rec;
   }, []);
+
+  // ── Control del modo ACTIVA (engaged) ──
+  // touchEngaged: reinicia el temporizador de inactividad; tras ENGAGED_IDLE_MS
+  // sin habla, Aurora vuelve al fondo pasivo (silencioso) automáticamente.
+  const touchEngaged = useCallback(() => {
+    if (engagedTimerRef.current) clearTimeout(engagedTimerRef.current);
+    engagedTimerRef.current = setTimeout(() => {
+      engagedRef.current = false;
+      setEngagedState(false);
+      setInterim("");
+    }, ENGAGED_IDLE_MS);
+  }, []);
+
+  // engage: ENCIENDE el modo activo (halo + procesar lo que digas). Lo llama el
+  // wake-word ("aurora") y el toque del orbe. Idempotente.
+  const engage = useCallback(() => {
+    engagedRef.current = true;
+    setEngagedState(true);
+    touchEngaged();
+  }, [touchEngaged]);
+
+  // disengage: vuelve al fondo pasivo (silencioso) sin apagar el micrófono.
+  const disengage = useCallback(() => {
+    engagedRef.current = false;
+    setEngagedState(false);
+    if (engagedTimerRef.current) { clearTimeout(engagedTimerRef.current); engagedTimerRef.current = null; }
+    setInterim("");
+  }, []);
+
+  useEffect(() => { engageNowRef.current = engage; touchEngagedRef.current = touchEngaged; }, [engage, touchEngaged]);
 
   const start = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -901,6 +973,8 @@ export function useAuroraEngine(): AuroraEngine {
 
   // Envía texto al motor como si el usuario hablara (para el chat por escrito).
   const send = useCallback(async (text: string) => {
+    // Escribir/enviar texto es interacción explícita → modo ACTIVA.
+    try { engageNowRef.current(); } catch { /* */ }
     await runCommandRef.current(text);
   }, []);
 
@@ -940,6 +1014,10 @@ export function useAuroraEngine(): AuroraEngine {
       conversation,
       send,
       actionLog,
+      // DOS NIVELES: estado activo (engaged) + control.
+      engaged,
+      engage,
+      disengage,
     }),
     [
       supported, enabled, listening, speaking, transcript, interim, lastReply, actionStatus,
@@ -947,6 +1025,7 @@ export function useAuroraEngine(): AuroraEngine {
       start, stop, toggle, speak, runCommand, runDirectives, runAction, setActivePersonality, setEnabled, reloadPersonalities,
       paused, pauseSpeech, resumeSpeech, toggleSpeech, skipForward, skipBack, interrupt,
       replyHistory, conversation, send, actionLog,
+      engaged, engage, disengage,
     ]
   );
 }

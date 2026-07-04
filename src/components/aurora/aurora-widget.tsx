@@ -403,10 +403,19 @@ export function AuroraWidget() {
       try { void aurora.requestAccess(); } catch { /* */ }
       return;
     }
-    // Hay reconocimiento de voz en este navegador: un toque arranca/para la
-    // escucha. Toggle de siempre, en SILENCIO (sin abrir ventanas).
+    // Hay reconocimiento de voz: DOS NIVELES. El micrófono ya escucha en FONDO
+    // pasivo (silencioso, esperando "Aurora"). Un toque ACTIVA la conversación
+    // (engaged: halo encendido, procesa lo que digas) sin que Aurora hable. Si ya
+    // está activa, el toque la devuelve al fondo pasivo. Todo en SILENCIO.
     if (aurora.supported && caps.hasSpeechRecognition) {
-      aurora.toggle();
+      try {
+        if (aurora.engaged) {
+          aurora.disengage();
+        } else {
+          if (!aurora.listening) { try { aurora.start(); } catch { /* */ } }
+          aurora.engage();
+        }
+      } catch { /* */ }
       return;
     }
     // Sin reconocimiento REAL aquí (text-only / navegador sin STT): no hay voz
@@ -429,7 +438,11 @@ export function AuroraWidget() {
   }, []);
 
   // ── Estado VISUAL estabilizado (debounce ≥250ms: sin parpadeo on/off) ──
-  const rawListening = !!aurora?.listening;
+  // El halo "escuchando" del orbe refleja el modo ACTIVA (engaged), NO la escucha
+  // pasiva de fondo. Así, mientras Aurora solo espera oír "Aurora" en 2º plano, el
+  // orbe está en CALMA (sin encender/apagar); solo se ilumina al ACTIVARSE (toque
+  // o wake-word) o al hablar. Esto elimina el parpadeo/sonido de reinicio del fondo.
+  const rawListening = !!aurora?.engaged;
   const rawSpeaking = !!aurora?.speaking;
   const visListening = useStableFlag(rawListening);
   const visSpeaking = useStableFlag(rawSpeaking);

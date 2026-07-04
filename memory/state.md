@@ -1762,3 +1762,14 @@ CAUSA RAÍZ del bucle "se reinicia sin escuchar y suena la reactivación": al re
 - tsc OS 376=baseline; node --check Nexus/Café OK. Deploys OS 9668a20(gen)/cd40b28(regresión botones); Nexus dce848b (v102); Café d6b1baf (v86).
 
 **Pendiente:** verificación en vivo del usuario en los 3; si aún se oye reinicio sería doble pestaña (líder) — reforzar.
+
+---
+## Adenda 60 — 2026-07-03 · CAUSA REAL de "no se actualiza nada" = Service Worker cache-first (deploys OS 3056604; Nexus 8de8b77; Café 483b89a)
+
+VERIFICADO EN VIVO con Claude-in-Chrome: la página del OS estaba controlada por un SW `SW_VERSION=v1` con caché runtime de **459 recursos cache-first** que NUNCA se invalidaba → el navegador ejecutaba el JS VIEJO aunque Vercel desplegara bien (deploys success confirmados). Los TRES sistemas tenían el mismo bug: OS public/sw.js (cache-first _next/static + js/css), Nexus/Café sw.js (cache-first css/js). Por eso "solo cambiaba el menú de Trinidad" y la voz/otros no: código cacheado.
+- **FIX (los 3):** SW ahora RED-PRIMERO para TODO el código (js/css/mjs/_next/static) — cada despliegue llega siempre; la caché de código solo es respaldo offline; solo medios inmutables (img/fuentes/audio) cache-first. SW_VERSION nueva (v3-2026-07-03 / starseed-nexus-v3 / starseed-cafe-v3) → activate purga TODAS las cachés viejas. + listener SKIP_WAITING. 
+- **AUTO-ACTUALIZACIÓN (los 3):** register-sw.tsx (OS) e index.html (Nexus/Café) escuchan updatefound→statechange installed→postMessage SKIP_WAITING, y controllerchange→location.reload() una vez → el usuario recibe el código fresco AUTOMÁTICAMENTE sin Cmd+Shift+R. reg.update() al cargar + cada 30min (OS).
+- IMPLICACIÓN: los fixes de voz de las Adendas 58/59 (medio-dúplex, contador de generación, tap silencioso, hold=Trinity) NO llegaban al usuario por el SW; ahora sí. El usuario debe abrir la app UNA vez con el SW viejo (que descarga el v3 y auto-recarga); desde entonces cada deploy es automático para todos los dispositivos/usuarios.
+- Pipeline VERIFICADO correcto: repos GitHub (StarSeedSystem/starseed-system, alexbordongarrigos/StarSeed-Nexus, alexbordongarrigos/Starseed-Cafe) → proyectos Vercel correctos → deploys success → live sirve el código nuevo (sw.js v3 confirmado en vivo).
+
+**Pendiente:** que el usuario reabra la app 1 vez en cada sistema (propaga el SW auto-actualizable); luego reprobar la voz (ya con los fixes aplicados de verdad).
