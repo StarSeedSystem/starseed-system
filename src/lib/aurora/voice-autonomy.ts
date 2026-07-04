@@ -118,10 +118,10 @@ export function isCoarsePointer(): boolean {
 export function isInstalledApp(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    const standalone =
-      window.matchMedia?.("(display-mode: standalone)").matches ||
-      window.matchMedia?.("(display-mode: fullscreen)").matches ||
-      window.matchMedia?.("(display-mode: minimal-ui)").matches;
+    // SÓLO 'standalone' es señal fiable de PWA instalada. NO usamos 'fullscreen'
+    // ni 'minimal-ui': una pestaña normal del navegador en pantalla completa (F11
+    // / botón verde de macOS) coincide con 'fullscreen' y NO es una app instalada.
+    const standalone = window.matchMedia?.("(display-mode: standalone)").matches === true;
     // iOS Safari expone navigator.standalone; algunos wrappers ponen una marca.
     const iosStandalone = (navigator as unknown as { standalone?: boolean }).standalone === true;
     const wrapperFlag = !!(window as unknown as { __STARSEED_NATIVE_APP__?: boolean }).__STARSEED_NATIVE_APP__;
