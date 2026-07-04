@@ -226,6 +226,13 @@ export function useAuroraEngine(): AuroraEngine {
   // cubre el bug de Chrome donde `utterance.onend` a veces no dispara.
   const pausedForTtsRef = useRef<boolean>(false);
   const ttsWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── CONTADOR DE GENERACIÓN del reconocimiento (anti bucle competitivo) ──
+  // Cada reconocimiento creado toma una "generación". SOLO la generación vigente
+  // (la más reciente) puede reiniciarse en su `onend`. Cuando reemplazamos el
+  // reconocimiento (start/stop/medio-dúplex), incrementamos la generación → el
+  // `onend` del reconocimiento viejo queda OBSOLETO y no arranca otro en paralelo
+  // (esa era la causa del "se reinicia en loop y no escucha").
+  const recGenRef = useRef<number>(0);
   // Índice del historial para Adelantar/Retroceder (-1 = última respuesta).
   const historyIndexRef = useRef<number>(-1);
   // Espejo del historial de respuestas, para el transporte sin depender del render.
@@ -378,7 +385,10 @@ export function useAuroraEngine(): AuroraEngine {
       markTtsSpeaking(true);
       // MEDIO-DÚPLEX: DETÉN el micrófono mientras Aurora habla (no basta con
       // ignorar; hay que dejar de escuchar para que no se oiga a sí misma).
+      // Invalida la generación para que el onend del reconocimiento abortado NO
+      // reinicie (lo reanudará finishTts al terminar el habla).
       pausedForTtsRef.current = true;
+      recGenRef.current++;
       try { recognitionRef.current?.abort?.(); } catch { /* */ }
       // Watchdog: si `utterance.onend` no dispara (bug conocido de Chrome con
       // textos largos), reanuda igualmente tras una duración estimada.
@@ -733,6 +743,9 @@ export function useAuroraEngine(): AuroraEngine {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return null;
     const rec = new SR();
+    // Esta reconocimiento toma la GENERACIÓN vigente. Su onend solo reinicia si
+    // sigue siendo la más reciente (evita reinicios en paralelo competitivos).
+    const gen = ++recGenRef.current;
     // Detección de móvil/Android: en estos, `continuous` NO es fiable.
     const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
     const isAndroid = /android/i.test(ua);
@@ -743,8 +756,12 @@ export function useAuroraEngine(): AuroraEngine {
     // Móvil: NO continuo (Android reinicia solo tras cada frase, con backoff).
     rec.continuous = !isMobile;
     rec.maxAlternatives = 1;
-    rec.onstart = () => { setListening(true); setInterim(""); };
+    rec.onstart = () => {
+      if (gen !== recGenRef.current) { try { rec.abort?.(); } catch { /* */ } return; }
+      setListening(true); setInterim("");
+    };
     rec.onerror = (e: any) => {
+      if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
       // 'no-speech' / 'aborted' son transitorios: si seguimos vivos, reanudamos.
       const err = e?.error;
       if (keepAliveRef.current && err !== "not-allowed" && err !== "service-not-allowed") {
@@ -754,6 +771,9 @@ export function useAuroraEngine(): AuroraEngine {
       setListening(false);
     };
     rec.onend = () => {
+      // OBSOLETO: si ya no es la generación vigente, no hace NADA (otro
+      // reconocimiento más reciente manda) → no hay reinicios en paralelo.
+      if (gen !== recGenRef.current) return;
       setInterim("");
       if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
       // MEDIO-DÚPLEX: si el reconocimiento se detuvo porque Aurora va a hablar /
@@ -799,6 +819,7 @@ export function useAuroraEngine(): AuroraEngine {
       setListening(false);
     };
     rec.onresult = (e: any) => {
+      if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
       // ANTI-ECO GLOBAL: si Aurora está hablando (o en el cooldown posterior),
       // descarta lo captado — es su propia voz, no un comando del usuario. El
       // canal del micrófono sigue abierto; solo se ignora el texto propio.

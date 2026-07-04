@@ -1740,3 +1740,13 @@ Construido con 5 subagentes en 3 olas + investigación de repos.
 - tsc OS 376 = baseline; node --check limpio Nexus/Café.
 
 **Pendiente:** wake-word acústico local OSS (#31 pendiente); TURN server para NAT simétrico; portar generación por servicios a Nexus/Café si se desea.
+
+---
+## Adenda 58 — 2026-07-03 · Medio-dúplex definitivo + reproductor resumido + NVIDIA NIM (deploys OS a139890→8956a70; Nexus 3fc38de; Café 788fd84)
+
+- **FIX DEFINITIVO auto-escucha/duplicación/loop = MEDIO-DÚPLEX real** (engine.ts + Nexus/Café exocortex.js): mientras Aurora HABLA se DETIENE el micrófono (recognition.abort(), no solo ignorar); al terminar (utterance.onend o watchdog por el bug de Chrome que no dispara onend en textos largos) se REANUDA. Imposible oírse a sí misma. pausedForTtsRef + finishTts + startRef; onend respeta pausedForTts (no reinicia en bucle); interrupt/stop limpian. Esto era lo que faltaba (el guard global solo ignoraba; ahora se para de verdad). En Nexus además backoff en onend → elimina el bucle de reinicio; Café tap ya NO habla (solo chime+halo+escucha).
+- **Reproductor de chat RESUMIDO** (los 3 sistemas): OS aurora-mini-player.tsx (widget sobre el orbe: últimas líneas, transporte play/pausa/parar/anterior/siguiente/mic, DESLIZAR para historial de sesión, iluminación reactiva a voz de usuario Y Aurora, botón "Abrir en Exocórtex", auto-ocultar 10s, un solo canal); Nexus/Café .ssx-mini equivalente (swipe historial + botón abrir completo). Comportamiento: tap=escucha silenciosa (sin hablar/sin chat); al hablar aparece el resumido; hold = OS menú Trinity / Nexus·Café reproductor completo; ventana completa del OS = Exocórtex.
+- **NVIDIA NIM** (src/lib/services/nvidia/): nim-client.ts (OpenAI-compatible integrate.api.nvidia.com/v1, Bearer, /models + /chat/completions, testNim, listModels en vivo), nim-catalog.ts (~30 modelos curados por función llm/vision/image/code/embedding/stt/tts + 7 skills/blueprints; gratis con Developer Program; mergeWithLiveModels). oss-services.ts: servicios nvidia-nim/vision/riva-asr/riva-tts (enabledByDefault, api-key) → aparecen en Librería categorizados. function-models.ts: modelos NIM por función. Panel /nvidia (nvidia-nim-panel.tsx) con API key, probar, detectar modelos, guías inteligentes desplegables, default por función; enlace desde /servicios.
+- tsc OS 376 = baseline; node --check Nexus/Café OK. Deploys OS a139890(medio-dúplex)/2ed2b93(mini-player)/8956a70(NVIDIA); Nexus 3fc38de; Café 788fd84.
+
+**Pendiente:** verificar en vivo que el medio-dúplex elimina la auto-escucha en los 3; refrescar catálogo NIM en vivo con la clave del usuario; TURN para WebRTC NAT simétrico.
