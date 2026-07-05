@@ -27,6 +27,7 @@ import {
   findSource,
   paidSuggestionsFor,
   scoreModelForTask,
+  toProviderModel,
   type CatalogModel,
   type CatalogSource,
   type TaskKind,
@@ -54,6 +55,14 @@ export interface IntelligenceSettings {
   disabledSources: string[];
   /** Permitir que el failover use fuentes de pago YA configuradas por el usuario. */
   allowConfiguredPaid: boolean;
+  /**
+   * Enrutado por dificultad (patrón RouteLLM): estima lo difícil que es la
+   * petición y sube el peso de los modelos FUERTES para lo difícil y de los
+   * RÁPIDOS/baratos para lo trivial. Siempre respeta freeFirst. (Por defecto on.)
+   */
+  difficultyRouting: boolean;
+  /** Umbral 0..1 a partir del cual una tarea se considera "difícil". */
+  strongThreshold: number;
 }
 
 export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
@@ -63,6 +72,8 @@ export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
   perTask: {},
   disabledSources: [],
   allowConfiguredPaid: true,
+  difficultyRouting: true,
+  strongThreshold: 0.6,
 };
 
 export function getIntelligenceSettings(): IntelligenceSettings {
@@ -93,6 +104,8 @@ export interface TaskProfile {
   needsVision: boolean;
   /** Longitud total aproximada del contexto en caracteres. */
   chars: number;
+  /** Dificultad estimada 0..1 (0 = trivial, 1 = muy difícil). Informativa. */
+  difficulty: number;
 }
 
 const CODE_RX = /\b(código|codigo|code|función|funcion|script|typescript|javascript|python|css|html|bug|error de|refactor|programa|compil)/i;
@@ -105,7 +118,8 @@ const VISION_RX = /\b(imagen adjunta|esta imagen|la foto|captura|screenshot|qué
 export function classifyTask(messages: ChatMessage[], hint?: TaskKind): TaskProfile {
   const user = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
   const chars = messages.reduce((n, m) => n + (m.content?.length ?? 0), 0);
-  if (hint) return { kind: hint, needsVision: VISION_RX.test(user), chars };
+  const difficulty = estimateDifficulty(messages);
+  if (hint) return { kind: hint, needsVision: VISION_RX.test(user), chars, difficulty };
   let kind: TaskKind = "chat";
   if (CODE_RX.test(user)) kind = "code";
   else if (REASON_RX.test(user)) kind = "reasoning";
@@ -114,7 +128,58 @@ export function classifyTask(messages: ChatMessage[], hint?: TaskKind): TaskProf
   else if (CREATIVE_RX.test(user)) kind = "creative";
   if (chars > 60_000) kind = "long";
   else if (user.length <= 80 && kind === "chat") kind = "fast";
-  return { kind, needsVision: VISION_RX.test(user), chars };
+  return { kind, needsVision: VISION_RX.test(user), chars, difficulty };
+}
+
+/* ───────────────────── Estimación de dificultad (patrón RouteLLM) ───────────────────── */
+
+// Señales de razonamiento profundo / multi-paso (además de REASON_RX).
+const DIFFICULTY_REASON_RX = /\b(demuestra|paso a paso|analiza a fondo|matemát|matemat|razona|deduce|optimiza|arquitectura|diseña un|compleja|complejo|teorema|integral|derivada|algoritmo|complejidad|prueba que)\b/i;
+
+/**
+ * Estima 0..1 lo difícil que es una petición mediante heurísticas BARATAS
+ * (sin red, sin modelo): longitud total, presencia de código, señales de
+ * razonamiento, número de pasos/preguntas y contexto largo. 0 = trivial,
+ * 1 = muy difícil. Pura y defensiva: nunca lanza.
+ *
+ * Inspirado en RouteLLM: dirigir lo difícil a modelos fuertes y lo trivial a
+ * modelos rápidos/baratos, ahorrando cuota gratuita para cuando importa.
+ */
+export function estimateDifficulty(messages: ChatMessage[]): number {
+  try {
+    const user = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const totalChars = messages.reduce((n, m) => n + (m.content?.length ?? 0), 0);
+    let d = 0;
+
+    // 1) Longitud del turno del usuario (peticiones largas suelen pedir más).
+    const len = user.length;
+    if (len > 1200) d += 0.3;
+    else if (len > 500) d += 0.2;
+    else if (len > 200) d += 0.1;
+
+    // 2) Contexto total muy largo (documentos, memorias, hilos extensos).
+    if (totalChars > 20_000) d += 0.2;
+    else if (totalChars > 8_000) d += 0.1;
+
+    // 3) Código o depuración → suele requerir capacidad.
+    if (CODE_RX.test(user) || /```|\bstack ?trace\b|traceback/i.test(user)) d += 0.25;
+
+    // 4) Razonamiento profundo / matemáticas / diseño.
+    if (REASON_RX.test(user) || DIFFICULTY_REASON_RX.test(user)) d += 0.25;
+
+    // 5) Multi-paso / listas de requisitos / muchas preguntas.
+    const questions = (user.match(/\?/g) || []).length;
+    if (questions >= 3) d += 0.15;
+    else if (questions === 2) d += 0.08;
+    const steps = (user.match(/\b(\d+[.)]\s|primero|luego|después|despues|finalmente|además|ademas)\b/gi) || []).length;
+    if (steps >= 4) d += 0.15;
+    else if (steps >= 2) d += 0.08;
+    if (/\b(y también|and also|paso a paso|uno por uno|para cada|todos los)\b/i.test(user)) d += 0.05;
+
+    return Math.max(0, Math.min(1, d));
+  } catch {
+    return 0.4; // neutro-medio si algo raro pasa
+  }
 }
 
 /* ───────────────────── Ranking de candidatos ───────────────────── */
@@ -128,6 +193,49 @@ export interface RouteCandidate {
   fromUser: boolean;
 }
 
+/** ¿Es un modelo "fuerte" (para tareas difíciles)? Heurística por calidad. */
+function isStrongModel(m: CatalogModel): boolean {
+  return (m.quality ?? 0) >= 8;
+}
+
+/** ¿Es un modelo rápido/barato (ideal para tareas triviales)? */
+function isFastModel(source: CatalogSource, m: CatalogModel): boolean {
+  if (m.strengths.includes("fast")) return true;
+  const id = m.id.toLowerCase();
+  if (source.id.startsWith("groq") && /8b|instant/.test(id)) return true; // Groq 8B
+  if (/flash-lite|gemini-nano|gemma/.test(id)) return true;                // Gemini flash-lite / Gemma / Nano
+  if (/8b|3b|4b|mini|lite|nano|small/.test(id)) return true;              // modelos pequeños en general
+  return false;
+}
+
+/**
+ * Ajuste de puntuación por DIFICULTAD (patrón RouteLLM), aditivo sobre el score
+ * base. Difícil (>= strongThreshold) favorece modelos fuertes; trivial
+ * (< ~strongThreshold/1.7) favorece modelos rápidos/baratos. Zona media: neutral.
+ * Nunca penaliza tanto como para invertir la prioridad de los servicios del
+ * usuario o los overrides. Devuelve el delta a sumar y una etiqueta opcional.
+ */
+export function difficultyAdjustment(
+  source: CatalogSource,
+  m: CatalogModel,
+  difficulty: number,
+  strongThreshold: number
+): { delta: number; note?: string } {
+  const hi = Math.max(0.3, Math.min(0.95, strongThreshold));
+  const lo = hi / 1.7; // umbral "trivial" derivado del umbral "difícil"
+  if (difficulty >= hi) {
+    if (isStrongModel(m)) return { delta: 4, note: "tarea difícil → modelo fuerte" };
+    if (isFastModel(source, m)) return { delta: -3 }; // desincentiva lo flojo en lo difícil
+    return { delta: 0 };
+  }
+  if (difficulty <= lo) {
+    if (isFastModel(source, m)) return { delta: 3, note: "tarea sencilla → modelo rápido" };
+    if (isStrongModel(m)) return { delta: -2 }; // ahorra cuota de los fuertes en lo trivial
+    return { delta: 0 };
+  }
+  return { delta: 0 };
+}
+
 export function rankCandidates(
   profile: TaskProfile,
   avail: SourceAvailability[],
@@ -135,6 +243,8 @@ export function rankCandidates(
 ): RouteCandidate[] {
   const out: RouteCandidate[] = [];
   const override = prefs.perTask[profile.kind];
+  const difficultyOn = prefs.difficultyRouting !== false;
+  const strongThreshold = typeof prefs.strongThreshold === "number" ? prefs.strongThreshold : 0.6;
 
   for (const a of avail) {
     if (!a.ready) continue;
@@ -149,6 +259,12 @@ export function rankCandidates(
       let reason = fromUser
         ? `Servicio que TÚ conectaste (${a.source.label})`
         : a.source.why;
+      // Capa RouteLLM: reordena por dificultad estimada (aditivo, defensivo).
+      if (difficultyOn) {
+        const adj = difficultyAdjustment(a.source, m, profile.difficulty, strongThreshold);
+        if (adj.delta) score += adj.delta;
+        if (adj.note && !fromUser) reason = `${reason} · ${adj.note}`;
+      }
       if (override === `${a.source.id}::${m.id}`) {
         score += 100;
         reason = `Elegido por ti para «${TASK_LABELS[profile.kind]}»`;
@@ -169,11 +285,15 @@ export interface RouteRecord {
   sourceLabel: string;
   model: string;
   modelLabel: string;
+  /** Nombre "provider/model" estilo LiteLLM (etiqueta/telemetría). */
+  providerModel?: string;
   tier: string;
   free: boolean;
   reason: string;
   ok: boolean;
   ms: number;
+  /** Dificultad estimada de la petición 0..1 (informativa). */
+  difficulty?: number;
   /** Alternativas gratuitas listas para usar (top-3). */
   alternatives: { sourceId: string; label: string; model: string }[];
   /** Sugerencias de pago (solo informativas). */
@@ -336,11 +456,13 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
         sourceLabel: c.source.label,
         model: c.model.id,
         modelLabel: c.model.label,
+        providerModel: toProviderModel(c.source, c.model),
         tier: c.source.tier,
         free: c.source.tier !== "paid",
         reason: c.reason,
         ok: true,
         ms: Date.now() - t0,
+        difficulty: profile.difficulty,
         alternatives: candidates
           .filter((x) => x !== c && x.source.tier !== "paid")
           .slice(0, 3)
@@ -376,11 +498,13 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     sourceLabel: last.source.label,
     model: last.model.id,
     modelLabel: last.model.label,
+    providerModel: toProviderModel(last.source, last.model),
     tier: last.source.tier,
     free: last.source.tier !== "paid",
     reason: last.reason,
     ok: false,
     ms: 0,
+    difficulty: profile.difficulty,
     alternatives: [],
     paidSuggestions: [],
     failovers,

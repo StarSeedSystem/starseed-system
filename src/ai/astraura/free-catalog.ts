@@ -139,6 +139,21 @@ export const FREE_CATALOG: CatalogSource[] = [
       { id: "local-model", label: "Modelo cargado en LM Studio", strengths: ["chat", "code"], quality: 6, note: "Usa el modelo activo" },
     ],
   },
+  {
+    id: "local-openllm",
+    label: "OpenLLM (este equipo)",
+    tier: "local",
+    providerId: "openai-compatible",
+    baseUrl: "http://localhost:3000/v1",
+    requiresKey: false,
+    limits: "Sin límites: corre en tu dispositivo.",
+    why: "Máxima privacidad y soberanía: nada sale de tu equipo. OpenLLM corre modelos abiertos como una API OpenAI local (openllm serve).",
+    privacy: "local",
+    weight: 1.12,
+    models: [
+      { id: "local-model", label: "Modelo servido por OpenLLM", strengths: ["chat", "code", "reasoning"], quality: 6, note: "OpenLLM: corre modelos abiertos como API OpenAI en tu equipo (openllm serve)" },
+    ],
+  },
 
   /* ── FREE-KEY (gratis con clave gratuita) ─────────────────── */
   {
@@ -268,6 +283,77 @@ export const FREE_CATALOG: CatalogSource[] = [
     models: [
       { id: "openai/gpt-4.1", label: "GPT-4.1", strengths: ["reasoning", "code", "creative"], quality: 9, note: "Cuota pequeña: usar con cabeza" },
       { id: "openai/gpt-4o-mini", label: "GPT-4o mini", strengths: ["chat", "vision"], quality: 7, vision: true },
+    ],
+  },
+  {
+    id: "cloudflare-workers-ai",
+    label: "Cloudflare Workers AI (gratis)",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    // OpenAI-compatible; sustituye {ACCOUNT} por tu Account ID de Cloudflare.
+    baseUrl: "https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/ai/v1",
+    requiresKey: true,
+    getKeyUrl: "https://dash.cloudflare.com/profile/api-tokens",
+    limits: "Cuota diaria gratuita (Neurons/día) generosa para uso ligero.",
+    why: "IA en el edge de Cloudflare con modelos abiertos; buena red de seguridad gratuita si ya usas Cloudflare.",
+    privacy: "cloud",
+    weight: 0.9,
+    models: [
+      { id: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", label: "Llama 3.3 70B", strengths: ["chat", "fast", "summary", "translate"], quality: 8, note: "requiere account id + token" },
+      { id: "@cf/qwen/qwen2.5-coder-32b-instruct", label: "Qwen2.5 Coder 32B", strengths: ["code"], quality: 8, note: "requiere account id + token" },
+      { id: "@cf/openai/gpt-oss-120b", label: "GPT-OSS 120B", strengths: ["reasoning", "code"], quality: 8, note: "requiere account id + token" },
+    ],
+  },
+  {
+    id: "scaleway-free",
+    label: "Scaleway Generative APIs (gratis)",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    baseUrl: "https://api.scaleway.ai/v1",
+    requiresKey: true,
+    getKeyUrl: "https://console.scaleway.com/generative-apis/models",
+    limits: "1M de tokens gratis de bienvenida (crédito inicial, no mensual).",
+    why: "Proveedor europeo OpenAI-compatible con un buen crédito inicial gratuito para arrancar.",
+    privacy: "cloud",
+    weight: 0.9,
+    models: [
+      { id: "llama-3.3-70b-instruct", label: "Llama 3.3 70B", strengths: ["chat", "summary", "translate"], quality: 8, context: 128000 },
+      { id: "qwen3-235b-a22b-instruct-2507", label: "Qwen3 235B", strengths: ["reasoning", "code"], quality: 9 },
+    ],
+  },
+  {
+    id: "cohere-free",
+    label: "Cohere (gratis)",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    // Compatibility API OpenAI de Cohere.
+    baseUrl: "https://api.cohere.ai/compatibility/v1",
+    requiresKey: true,
+    getKeyUrl: "https://dashboard.cohere.com/api-keys",
+    limits: "Clave de prueba gratis: 1.000 req/mes · 20 req/min (chat).",
+    why: "Modelos Command de Cohere (buen multilingüe y RAG) vía API compatible con OpenAI.",
+    privacy: "cloud",
+    weight: 0.85,
+    models: [
+      { id: "command-a-03-2025", label: "Command A", strengths: ["chat", "translate", "summary"], quality: 8, context: 256000 },
+      { id: "command-r-plus-08-2024", label: "Command R+", strengths: ["chat", "reasoning", "long"], quality: 8, context: 128000 },
+    ],
+  },
+  {
+    id: "sambanova-free",
+    label: "SambaNova Cloud (gratis)",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    baseUrl: "https://api.sambanova.ai/v1",
+    requiresKey: true,
+    getKeyUrl: "https://cloud.sambanova.ai/apis",
+    limits: "Gratis con límites de tasa (inferencia muy rápida).",
+    why: "Inferencia ultrarrápida de modelos abiertos grandes (Llama 3.3 70B, DeepSeek R1) en tier gratuito.",
+    privacy: "cloud",
+    weight: 0.9,
+    models: [
+      { id: "Meta-Llama-3.3-70B-Instruct", label: "Llama 3.3 70B", strengths: ["chat", "fast", "summary", "translate"], quality: 8, context: 128000 },
+      { id: "DeepSeek-R1", label: "DeepSeek R1", strengths: ["reasoning", "code"], quality: 9, note: "Razonamiento" },
     ],
   },
 
@@ -442,4 +528,53 @@ export function scoreModelForTask(source: CatalogSource, model: CatalogModel, ta
   if (task === "long" && (model.context ?? 0) >= 200000) score += 2;
   if (task === "fast" && source.id.startsWith("groq")) score += 2;
   return score * source.weight;
+}
+
+/* ───────────────────── Naming estilo LiteLLM (etiquetas/telemetría) ───────────────────── */
+
+/**
+ * Prefijo de proveedor "estilo LiteLLM" para una fuente (p.ej. groq, gemini,
+ * openrouter, ollama, cloudflare). SOLO para etiquetas y telemetría — NO cambia
+ * cómo se invocan los adaptadores. Deriva del providerId y, para las genéricas
+ * OpenAI-compatible, del id de catálogo para no perder de qué fuente hablamos.
+ */
+export function providerSlugForSource(source: CatalogSource): string {
+  switch (source.providerId) {
+    case "google": return "gemini";
+    case "groq": return "groq";
+    case "anthropic": return "anthropic";
+    case "openai": return "openai";
+    case "ollama": return "ollama";
+    case "deepseek": return "deepseek";
+    case "starseed": return "starseed";
+    default: break; // openai-compatible → usa el id de catálogo
+  }
+  // De "groq-free" → "groq", "cloudflare-workers-ai" → "cloudflare",
+  // "openrouter-free" → "openrouter", "local-openllm" → "openllm".
+  const raw = source.id
+    .replace(/^local-/, "")
+    .replace(/-(free|local|paid|text|webgpu)$/g, "")
+    .replace(/-(workers-ai|models|nim)$/g, "");
+  return (raw || source.providerId).replace(/[^a-z0-9]+/gi, "-").replace(/-+$/g, "").toLowerCase();
+}
+
+/**
+ * Nombre "provider/model" estilo LiteLLM para logs y UI, p.ej.
+ * "groq/llama-3.3-70b-versatile", "gemini/gemini-2.5-flash",
+ * "openrouter/qwen/qwen3-coder:free". Puramente informativo.
+ */
+export function toProviderModel(source: CatalogSource, model: CatalogModel | string): string {
+  const modelId = typeof model === "string" ? model : model.id;
+  return `${providerSlugForSource(source)}/${modelId}`;
+}
+
+/**
+ * Parte inversa de `toProviderModel`: separa el primer segmento como proveedor.
+ * El resto (que puede contener más "/", como en OpenRouter) es el id del modelo.
+ */
+export function parseProviderModel(s: string): { provider: string; model: string } {
+  const str = String(s ?? "");
+  const i = str.indexOf("/");
+  if (i < 0) return { provider: "", model: str };
+  return { provider: str.slice(0, i), model: str.slice(i + 1) };
 }

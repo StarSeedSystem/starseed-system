@@ -1856,3 +1856,15 @@ Tras la ola de instalación/updates, Aurora se rompió en los 3: OS "abre 2 vece
 - **Instalables:** las apps nativas Tauri v0.1.0 envuelven la web desplegada (cargan la URL), así que reciben este fix automáticamente sin recompilar.
 - Verificado EN VIVO: OS un solo orbe + bundle v5; Café sin banner (`bannerPresent:false`). Deploys: OS 3bd5475, Nexus 6ecacb9, Café 8ad59de (los 3 Vercel success).
 - **RESULTADO FINAL (09:55Z):** run 28736265509 **15/15 jobs en verde**. Release v0.1.0 PUBLICADO (46 assets): 3 APK Android firmados (self-signed), 3 IPA iOS sin firmar (¡best-effort funcionó!), dmg/msi+exe/deb+rpm+AppImage × 3 sistemas, todos los .sig del updater + latest.json. Único flaky: carrera al reemplazar assets del draft entre runs (`Not Found` al borrar asset) → se cura con `gh run rerun --failed`. https://github.com/StarSeedSystem/starseed-system/releases/tag/v0.1.0
+
+---
+## Adenda 66 — 2026-07-05 · Voz Aurora: cierre del mini, auto-hablar/escuchar (Café), STT móvil (Nexus), animación de carga (3)
+
+Diagnóstico EN VIVO con Claude-in-Chrome (verificado por comportamiento).
+- **Café reproductor "no se cerraba" (VERIFICADO EN VIVO el fix):** `aurora-mini.js` — el tick `miniSync()` (cada 300ms) llamaba `update({active:true})` que RE-AÑADÍA `amp-show` tras cerrar. FIX: guard `_dismissed` en AuroraMini (hide()→_dismissed=true; update() solo re-muestra si `!_dismissed`; show()→_dismissed=false). Aplicado a Café Y Nexus (mismo módulo).
+- **Café no auto-hablaba:** `speakReply` solo hablaba si `voiceOut||handsFree`. Ahora también si el reproductor está visible (contexto de voz). 
+- **Café "hay que pulsar el micro" tras el tap:** `startVoice` pedía `getMicStream()` (getUserMedia del halo) ANTES de `AURORA_CAFE.listen()`; en móvil eso roba el micro al SpeechRecognition → no arranca. FIX: reconocimiento PRIMERO, getMicStream 600ms después (cosmético).
+- **Nexus "no escucha" (CAUSA REAL):** `exocortex.js` ponía `r.continuous=true` SIEMPRE. En móvil (Android) eso dispara onend al instante sin capturar → "no escucha". El OS ya usaba `continuous=!isMobile`. FIX: portado — detecta móvil por UA/pointer y usa `continuous=false` en móvil. Verificado: en escritorio continuous=true, mini ya no pegado.
+- **Animación de CARGA (los 3):** anillo giratorio en el orbe + spinner en el botón de reproducir del mini mientras procesa. OS: estado `thinking` en engine.ts (se apaga en finally) → `data-aurora-state="thinking"` en el orbe → CSS en globals.css. Café: `setThinking()` en agent.js. Nexus: `aurThinking()` en exocortex.js (clase en .ssx-fab).
+- Voz/tono: los 3 ya usan la voz "Mónica" (OS es-MX, Nexus/Café es-ES) — misma familia; no se tocó la selección para no arriesgar.
+- Deploys: OS cabcffd (SW sigue v5, network-first entrega el código nuevo sin bump), Nexus db6581d (SW v12, exocortex v108, mini v2), Café 550ff49 (SW v13, ?v=98).

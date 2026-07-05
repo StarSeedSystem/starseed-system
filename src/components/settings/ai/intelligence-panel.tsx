@@ -24,7 +24,7 @@ import {
   Sparkles, Wand2, SlidersHorizontal, Megaphone, Radar, RefreshCw, ExternalLink,
   ChevronDown, Gem, ListChecks, History, CheckCircle2, XCircle,
   Gauge, Zap, RotateCcw, KeyRound, Cpu, Eye, Volume2, Lightbulb,
-  Download, Loader2,
+  Download, Loader2, Wrench, GitBranch, Library as LibraryIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -71,6 +71,24 @@ function usageBarColor(pct: number): string {
   if (pct >= 60) return "bg-amber-400";
   return "bg-emerald-500";
 }
+
+/**
+ * Servicios GRATIS con clave que Aurora ya sabe usar: enlaces rápidos para
+ * pegar la clave (abren su página de claves). Se resuelven contra el catálogo
+ * (findSource) para heredar label + getKeyUrl reales; si un id cambiara en el
+ * catálogo, esa entrada simplemente se omite (degradación defensiva).
+ */
+const FREE_KEY_SERVICE_IDS = [
+  "groq-free",
+  "gemini-free",
+  "openrouter-free",
+  "cerebras-free",
+  "cloudflare-workers-ai",
+  "cohere-free",
+  "mistral-free",
+  "github-models-free",
+  "sambanova-free",
+] as const;
 
 /** Icono lucide por tipo de sugerencia de Aurora. */
 const SUGGESTION_ICON: Record<SuggestionKind, typeof Gauge> = {
@@ -252,6 +270,14 @@ export function IntelligencePanel() {
     [freeAvail, settings.disabledSources],
   );
   const recentRoutes = useMemo(() => [...routes].slice(-8).reverse(), [routes]);
+  /** Servicios gratis-con-clave resueltos contra el catálogo (label + getKeyUrl). */
+  const freeKeyServices = useMemo(
+    () =>
+      FREE_KEY_SERVICE_IDS
+        .map((id) => findSource(id))
+        .filter((s): s is NonNullable<typeof s> => !!s && !!s.getKeyUrl),
+    [],
+  );
 
   function toggleSource(sourceId: string, enabled: boolean) {
     const next = enabled
@@ -509,6 +535,80 @@ export function IntelligencePanel() {
               </div>
             );
           })}
+        </CardContent>
+      </Card>
+
+      {/* ── Herramientas & servicios ── */}
+      <Card className="bg-background/40 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wrench className="h-4 w-4 text-teal-300" /> Herramientas & servicios
+          </CardTitle>
+          <CardDescription>
+            Ajustes de las herramientas que potencian a Aurora. Todo viene <strong>pre-integrado</strong>:
+            aquí afinas el enrutado y conectas más servicios gratis. Puedes ampliar la caja de
+            herramientas en la <Link href="/library?tab=destacado" className="text-primary hover:underline cursor-pointer">Biblioteca → Herramientas IA & Agentes</Link>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Enrutado por dificultad (patrón RouteLLM, ya integrado) */}
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-white/5 bg-black/20 p-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <GitBranch className="h-4 w-4 text-teal-300 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Enrutado por dificultad</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Estima lo difícil que es cada petición y usa modelos <strong>fuertes</strong> para lo
+                  difícil y <strong>rápidos</strong> para lo trivial (patrón RouteLLM). Siempre respeta
+                  gratis-primero.
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={settings.difficultyRouting !== false}
+              onCheckedChange={(v) => { update({ difficultyRouting: v }); toast.success(v ? "Enrutado por dificultad activado" : "Enrutado por dificultad desactivado"); }}
+              aria-label="Enrutado por dificultad"
+            />
+          </div>
+
+          {/* Enlaces rápidos para pegar claves de servicios gratis */}
+          {freeKeyServices.length > 0 && (
+            <div className="rounded-lg border border-white/5 bg-black/20 p-3">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <KeyRound className="h-4 w-4 text-sky-300" /> Conectar servicios gratis
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+                Consigue una clave GRATUITA de cualquiera de estos y pégala arriba, en «Fuentes detectadas».
+                Aurora los usará solos, gratis-primero.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {freeKeyServices.map((s) => (
+                  <a
+                    key={s.id}
+                    href={s.getKeyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-background/60 px-2.5 py-1 text-xs font-medium hover:bg-white/5 transition cursor-pointer"
+                    title={`Conseguir clave gratis de ${s.label}`}
+                  >
+                    {s.label} <ExternalLink className="h-3 w-3" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Nota: pre-integrado + ampliable en la Biblioteca */}
+          <div className="flex items-start gap-3 rounded-lg border border-teal-400/15 bg-teal-500/5 p-3">
+            <LibraryIcon className="h-4 w-4 text-teal-300 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Las herramientas de agentes, sentidos web, calidad de UI y las fuentes locales
+              (OpenLLM, Ollama…) vienen pre-integradas. Amplía o gestiona todo en la{" "}
+              <Link href="/library?tab=destacado" className="text-teal-300 hover:underline cursor-pointer">
+                Biblioteca → Herramientas IA & Agentes
+              </Link>.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

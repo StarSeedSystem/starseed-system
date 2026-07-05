@@ -40,6 +40,9 @@ import {
   TreePine, Leaf, Move3d, Activity, Rotate3d, Radio, Orbit, Monitor,
   BookOpen, Boxes, RefreshCw, CalendarClock, Languages,
   BrainCircuit, Eye, Volume2, Table, Cat, Beaker, Workflow,
+  // Iconos de Herramientas IA & Agentes
+  Server, ListChecks, ClipboardList, Radar, NotebookPen, Terminal,
+  MessagesSquare, Container, Bot,
   // Iconos de acción
   Download, Check, Trash2, KeyRound, ExternalLink, Search, Plus,
   Clock, Store, PackageCheck, ArrowLeft, Settings2, Loader2,
@@ -110,7 +113,13 @@ const ICON_MAP: Record<string, LucideIcon> = {
   TreePine, Leaf, Move3d, Activity, Rotate3d, Radio, Orbit, Monitor,
   BookOpen, Boxes, RefreshCw, CalendarClock, Languages,
   BrainCircuit, Eye, Volume2, Table, Cat, Beaker, Workflow,
+  // Herramientas IA & Agentes
+  Server, ListChecks, ClipboardList, Radar, NotebookPen, Terminal,
+  MessagesSquare, Container, Bot,
 };
+
+/** Id del repo builtin de Herramientas IA & Agentes (para la sección destacada). */
+const IA_TOOLS_REPO_ID = "starseed-ia-tools";
 
 function PkgIcon({ name, className }: { name: string; className?: string }) {
   const Icon = ICON_MAP[name] ?? Package;
@@ -1011,6 +1020,12 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
       .sort(byScoreDesc)
       .slice(0, 4);
   }, [data.packages, data.installed, signals.hasSignals, signals.scores, byScoreDesc]);
+  /* «Herramientas IA & Agentes»: la caja de herramientas de la inteligencia
+   * gratis-primero de Aurora (repo builtin dedicado). Se destaca en portada. */
+  const iaTools = useMemo(
+    () => data.packages.filter((p) => p.sourceRepoId === IA_TOOLS_REPO_ID).slice().sort(byScoreDesc),
+    [data.packages, byScoreDesc],
+  );
 
   if (!mounted) {
     // SSR / primer render: esqueleto ligero sin tocar localStorage.
@@ -1064,6 +1079,34 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
                 onOpenDetail={openDetail}
                 emptyText=""
               />
+            </section>
+          )}
+          {/* Herramientas IA & Agentes: sección destacada (caja de herramientas
+              de la inteligencia gratis-primero de Aurora). */}
+          {iaTools.length > 0 && (
+            <section className="flex flex-col gap-4">
+              <div className="rounded-3xl border border-teal-400/20 bg-gradient-to-br from-teal-500/10 via-emerald-500/5 to-transparent p-5">
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  <Bot className="h-5 w-5 text-teal-300" />
+                  <h2 className="text-lg font-bold text-white">Herramientas IA & Agentes</h2>
+                  <span className="rounded-full border border-teal-400/25 bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-200">
+                    {iaTools.length} · gratis y open source
+                  </span>
+                </div>
+                <p className="mb-4 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+                  La caja de herramientas de la inteligencia gratis-primero de Aurora: listas vivas de
+                  APIs gratis, fuentes locales, skills (calidad de UI · sentidos web) y patrones de
+                  agentes. Todo viene pre-integrado; instala más aquí cuando quieras.
+                </p>
+                <PackageGrid
+                  packages={iaTools}
+                  data={data}
+                  aiReady={aiReady}
+                  actions={actions}
+                  onOpenDetail={openDetail}
+                  emptyText=""
+                />
+              </div>
             </section>
           )}
           <section className="flex flex-col gap-4">

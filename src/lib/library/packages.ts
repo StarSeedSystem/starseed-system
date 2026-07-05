@@ -526,6 +526,142 @@ export const STARSEED_LABS_REPO: LibraryRepo = {
   packages: LABS_PACKAGES,
 };
 
+/* ═══════════════ REPO BUILTIN «starseed-ia-tools» ═══════════════ */
+/**
+ * Herramientas IA & Agentes: la caja de herramientas de la inteligencia
+ * gratis-primero de Aurora (investigación julio 2026). Cada paquete declara en
+ * su payload EXACTAMENTE su efecto (transparencia radical) y es open source:
+ *   · ai-source con `catalogSourceId` → activa esa fuente local en Astraura
+ *     (OpenLLM: opt-in de uso; requiere el servidor local corriendo).
+ *   · function/skill con `skillId` (+ `externalUrl`) → registra la skill en
+ *     `starseed.library.functions.v1` para que los cerebros de Aurora la usen
+ *     Y guarda/abre su repo de referencia (honesto: la skill es la mejora real,
+ *     el enlace es el código fuente para estudiar/adaptar).
+ *   · project/repo/research/app con `externalUrl` (sin route) → guarda el
+ *     enlace en la biblioteca y lo abre; honesto sobre que es un servicio,
+ *     servidor o repo de referencia, no algo que finjamos correr en el navegador.
+ * Estas herramientas alimentan la auto-selección de Astraura (RouteLLM ya
+ * integrado, LiteLLM como patrón multi-proveedor, listas vivas de APIs gratis).
+ */
+const IA_TOOLS_PACKAGES: LibraryPackage[] = [
+  /* ── Lista viva de APIs LLM gratis (alimenta la auto-selección) — DESTACADO ── */
+  {
+    id: "iatool-free-llm-api-resources", kind: "repo", name: "Free LLM API Resources",
+    description:
+      "Lista viva y curada de APIs de LLM GRATIS (Groq, Gemini, OpenRouter, Cerebras, Cloudflare, Cohere…) que alimenta la auto-selección gratis-primero de Astraura. Instalar guarda el enlace y abre el repositorio para consultar límites y novedades.",
+    icon: "ListChecks", tags: ["ia", "apis", "gratis", "catalogo", "agentes"], version: "1.0.0",
+    author: "cheahjs · comunidad", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { externalUrl: "https://github.com/cheahjs/free-llm-api-resources", note: "Lista viva de APIs LLM gratis que alimenta la auto-selección de Astraura" },
+  },
+  /* ── OpenLLM · API OpenAI local (fuente IA local) ── */
+  {
+    id: "iatool-openllm", kind: "ai-source", name: "OpenLLM (API local)",
+    description:
+      "Corre modelos abiertos como una API OpenAI local en tu equipo (openllm serve): máxima privacidad y soberanía. Instalar activa la fuente «OpenLLM» para que Aurora pueda elegirla (requiere el servidor local corriendo) y abre su repo.",
+    icon: "Server", tags: ["ia", "local", "servidor", "openai", "soberania"], version: "1.0.0",
+    author: "BentoML", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { catalogSourceId: "local-openllm", externalUrl: "https://github.com/bentoml/OpenLLM", note: "Corre modelos abiertos como API OpenAI local (openllm serve)" },
+  },
+  /* ── RouteLLM · enrutado por dificultad (ya integrado en Astraura) ── */
+  {
+    id: "iatool-routellm", kind: "project", name: "RouteLLM",
+    description:
+      "Enruta cada petición al modelo adecuado según su dificultad (fuertes para lo difícil, rápidos/baratos para lo trivial). Su patrón ya está integrado en Astraura (Ajustes → Inteligencia → «Enrutado por dificultad»). Instalar guarda el enlace y abre su repo de referencia.",
+    icon: "GitBranch", tags: ["ia", "enrutado", "agentes", "referencia"], version: "1.0.0",
+    author: "LM-SYS", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { externalUrl: "https://github.com/lm-sys/RouteLLM", note: "Enrutado por dificultad (ya integrado en Astraura)" },
+  },
+  /* ── LiteLLM · proxy multi-proveedor OpenAI-compatible ── */
+  {
+    id: "iatool-litellm", kind: "project", name: "LiteLLM",
+    description:
+      "Proxy que unifica ~100 proveedores de LLM tras una única API OpenAI-compatible (el patrón de naming de Astraura se inspira en él). Es un servicio/servidor: instalar guarda el enlace y abre su repo para desplegarlo donde corresponda.",
+    icon: "Boxes", tags: ["ia", "proxy", "multi-proveedor", "servidor"], version: "1.0.0",
+    author: "BerriAI", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/BerriAI/litellm", note: "Proxy multi-proveedor OpenAI-compatible" },
+  },
+  /* ── taste-skill · mejora la UI que genera Aurora (Horizon) ── */
+  {
+    id: "iatool-taste-skill", kind: "function", name: "Taste Skill (calidad de UI)",
+    description:
+      "Skill que mejora el gusto y la calidad de las interfaces que Aurora genera en el Canvas de Creación (nodo Horizon). Instalar la registra para tus cerebros y abre su repo de referencia.",
+    icon: "Sparkles", tags: ["skill", "aurora", "ui", "horizon", "diseño"], version: "1.0.0",
+    author: "Leonxlnx", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "aurora-taste", externalUrl: "https://github.com/Leonxlnx/taste-skill", note: "Mejora la calidad de UI que genera Aurora (Horizon)" },
+  },
+  /* ── pm-skills · gestión de producto/proyecto para Aurora ── */
+  {
+    id: "iatool-pm-skills", kind: "function", name: "PM Skills (producto/proyecto)",
+    description:
+      "Conjunto de skills de gestión de producto y proyecto para Aurora (planificación, requisitos, priorización). Instalar las registra para tus cerebros y abre su repo de referencia.",
+    icon: "ClipboardList", tags: ["skill", "aurora", "producto", "proyecto"], version: "1.0.0",
+    author: "phuryn", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "aurora-pm", externalUrl: "https://github.com/phuryn/pm-skills" },
+  },
+  /* ── Agent-Reach · sentidos web de Aurora ── */
+  {
+    id: "iatool-agent-reach", kind: "function", name: "Agent-Reach (sentidos web)",
+    description:
+      "Da a Aurora sentidos web gratis: leer X/Reddit/YouTube/webs para traer contexto fresco a la red. Instalar la registra para tus cerebros y abre su repo de referencia.",
+    icon: "Radar", tags: ["skill", "aurora", "web", "sentidos", "agentes"], version: "1.0.0",
+    author: "Panniantong", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "aurora-web-senses", externalUrl: "https://github.com/Panniantong/Agent-Reach", note: "Sentidos web de Aurora: leer X/Reddit/YouTube/web gratis" },
+  },
+  /* ── open-notebook · NotebookLM open source (Área de Investigación) ── */
+  {
+    id: "iatool-open-notebook", kind: "research", name: "Open Notebook (investigación)",
+    description:
+      "NotebookLM open source: convierte fuentes en notas, resúmenes y podcasts como Área de Investigación de Aurora. Es un servicio con REST API (:5055): instalar guarda el enlace y abre su repo para desplegarlo.",
+    icon: "NotebookPen", tags: ["investigacion", "notebooklm", "oss", "servidor"], version: "1.0.0",
+    author: "lfnovo", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/lfnovo/open-notebook", note: "NotebookLM open source como Área de Investigación de Aurora (REST API :5055)" },
+  },
+  /* ── AgentOS (rivet) · patrones de orquestación de agentes ── */
+  {
+    id: "iatool-agentos", kind: "function", name: "AgentOS · orquestación (rivet)",
+    description:
+      "Patrones de orquestación de agentes (referencia). No es una skill ejecutable hoy: instalar guarda el enlace y abre su repo para estudiar/adaptar sus patrones al Exocórtex.",
+    icon: "Workflow", tags: ["referencia", "agentes", "orquestacion"], version: "0.1.0",
+    author: "Rivet", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/rivet-dev/agentos", note: "Patrones de orquestación de agentes" },
+  },
+  /* ── OpenCode · agente de programación open source ── */
+  {
+    id: "iatool-opencode", kind: "app", name: "OpenCode (agente de código)",
+    description:
+      "Agente de programación open source para terminal. Es una app externa: instalar guarda el enlace y abre su repo para instalarlo en tu equipo.",
+    icon: "Terminal", tags: ["app", "codigo", "agente", "oss"], version: "1.0.0",
+    author: "anomalyco", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/anomalyco/opencode", note: "Agente de programación open source" },
+  },
+  /* ── OpenClaw · asistente omnicanal open source ── */
+  {
+    id: "iatool-openclaw", kind: "app", name: "OpenClaw (omnicanal)",
+    description:
+      "Asistente omnicanal open source (alternativa a Abacus Claw): responde en múltiples canales. Es una app/servicio externo: instalar guarda el enlace y abre su repo.",
+    icon: "MessagesSquare", tags: ["app", "omnicanal", "asistente", "oss"], version: "1.0.0",
+    author: "openclaw", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/openclaw/openclaw", note: "Asistente omnicanal open source (alt. Abacus Claw)" },
+  },
+  /* ── apple/container · aislar agentes/herramientas locales en el Mac ── */
+  {
+    id: "iatool-apple-container", kind: "project", name: "apple/container",
+    description:
+      "Ejecuta contenedores Linux en el Mac (macOS 26) para AISLAR agentes y herramientas locales con seguridad. Es una herramienta de sistema: instalar guarda el enlace y abre su repo.",
+    icon: "Container", tags: ["proyecto", "contenedor", "aislamiento", "macos"], version: "1.0.0",
+    author: "Apple", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { externalUrl: "https://github.com/apple/container", note: "Aislar agentes/herramientas locales en el Mac (macOS 26)" },
+  },
+];
+
+/** Repo builtin de Herramientas IA & Agentes (caja de herramientas de Aurora). */
+export const STARSEED_IA_TOOLS_REPO: LibraryRepo = {
+  id: "starseed-ia-tools",
+  name: "Herramientas IA & Agentes",
+  builtin: true,
+  packages: IA_TOOLS_PACKAGES,
+};
+
 /* ═══════════════════ Validación de repos externos ═══════════════════ */
 
 function asString(v: unknown, fallback = ""): string {
@@ -620,7 +756,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
@@ -652,7 +788,12 @@ export async function addRepoByUrl(url: string): Promise<InstallResult & { repo?
     if (!repo) {
       return { ok: false, message: "El JSON no tiene el shape LibraryRepo (id, name, packages[])." };
     }
-    if (repo.id === STARSEED_CORE_REPO.id || repo.id === STARSEED_LABS_REPO.id || repo.id === MINE_REPO_ID) {
+    if (
+      repo.id === STARSEED_CORE_REPO.id ||
+      repo.id === STARSEED_LABS_REPO.id ||
+      repo.id === STARSEED_IA_TOOLS_REPO.id ||
+      repo.id === MINE_REPO_ID
+    ) {
       return { ok: false, message: `Ese id de repo está reservado (${repo.id}).` };
     }
     const others = readExternalRepos().filter((r) => r.id !== repo.id);
@@ -796,7 +937,14 @@ export async function install(pkg: LibraryPackage): Promise<InstallResult> {
     if (externalUrl && !hasRoute) {
       saveLinkEntry(pkg, externalUrl);
       registerInstalled(pkg);
-      // Co-activación opcional de fuente IA (p.ej. Sipp) — nunca bloquea.
+      // Co-registro de skill si el paquete externo TAMBIÉN declara `skillId`
+      // (p.ej. taste-skill / Agent-Reach / pm-skills de Herramientas IA): la
+      // mejora real es la skill; el enlace es su código fuente de referencia.
+      const coSkillId = asString(pkg.payload.skillId).trim();
+      if (coSkillId) {
+        setInstalledFunctionIds([...getInstalledFunctionIds(), coSkillId]);
+      }
+      // Co-activación opcional de fuente IA (p.ej. Sipp / OpenLLM) — nunca bloquea.
       const coSourceId = asString(pkg.payload.catalogSourceId).trim();
       if (coSourceId && findSource(coSourceId)) {
         try {
@@ -807,12 +955,10 @@ export async function install(pkg: LibraryPackage): Promise<InstallResult> {
           });
         } catch { /* defensivo: la fuente se puede activar luego a mano */ }
       }
-      return {
-        ok: true,
-        message: `Enlace de «${pkg.name}» guardado en tu biblioteca. Lo abro para que lo despliegues/estudies (no se ejecuta en el navegador).`,
-        action: "external",
-        href: externalUrl,
-      };
+      const msg = coSkillId
+        ? `Skill «${pkg.name}» registrada para tus cerebros y su enlace guardado. Abro el repo de referencia.`
+        : `Enlace de «${pkg.name}» guardado en tu biblioteca. Lo abro para que lo despliegues/estudies (no se ejecuta en el navegador).`;
+      return { ok: true, message: msg, action: "external", href: externalUrl };
     }
 
     switch (pkg.kind) {

@@ -68,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 1;
+export const SEED_VERSION = 2;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -96,6 +96,18 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   "anim-micro-tilt",
   // ── La ÚNICA skill de Aurora con efecto real hoy: mantener cerebros al día.
   "fn-auto-update",
+  // ── Herramientas IA & Agentes (SEED_VERSION 2): recomendados SIN descarga
+  //    pesada ni servicios de pago. Efecto seguro y local:
+  //    · free-llm-api-resources → guarda el enlace de la lista viva de APIs
+  //      gratis que alimenta la auto-selección de Astraura (solo enlace).
+  //    · OpenLLM → activa la fuente local «local-openllm» (opt-in de uso: solo
+  //      la usará si el usuario tiene el servidor corriendo; no descarga nada).
+  //    · taste-skill / Agent-Reach → registran skills reales de Aurora
+  //      (calidad de UI en Horizon · sentidos web gratis). Solo registro.
+  "iatool-free-llm-api-resources",
+  "iatool-openllm",
+  "iatool-taste-skill",
+  "iatool-agent-reach",
 ];
 
 /**
@@ -108,6 +120,7 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
 export const RECOMMENDED_FREE_SOURCES: string[] = [
   "pollinations-text", // instant · sin clave · siempre disponible
   "ollama-local",      // local · sin límites si el usuario tiene Ollama corriendo
+  "local-openllm",     // local · API OpenAI (OpenLLM) si el usuario tiene el servidor corriendo
 ];
 
 /* ─────────────────────── Estado de la siembra ─────────────────────── */
