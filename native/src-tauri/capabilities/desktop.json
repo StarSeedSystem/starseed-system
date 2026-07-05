@@ -1,13 +1,24 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "desktop-only",
-  "description": "Permisos exclusivos de ESCRITORIO (Linux/macOS/Windows). El autoarranque hace que el compañero StarSeed se levante con el sistema, siempre presente para Aurora. Se separa aquí porque el plugin autostart no existe en móvil y rompería el build de Android/iOS si se mezclara con la capability multiplataforma.",
+  "description": "Permisos exclusivos de ESCRITORIO (Linux/macOS/Windows): autoarranque (el compañero StarSeed se levanta con el sistema) y updater incremental in-app. Se separan aquí porque los plugins autostart y updater NO existen en móvil (en Cargo.toml son dependencias solo-escritorio) y sus permisos romperían el build de Android/iOS si se mezclaran con la capability multiplataforma — tauri-build filtra capabilities por `platforms` antes de validar permisos. El bloque `remote` replica el de default.json para que Aurora (la web remota desplegada) pueda invocar estos plugins también.",
   "windows": ["main"],
   "platforms": ["linux", "macOS", "windows"],
+  "remote": {
+    "urls": [
+      "https://starseed-os.vercel.app",
+      "https://starseed-nexus.vercel.app",
+      "https://starseed-cafe.vercel.app"
+    ]
+  },
   "permissions": [
     "autostart:default",
     "autostart:allow-enable",
     "autostart:allow-disable",
-    "autostart:allow-is-enabled"
+    "autostart:allow-is-enabled",
+
+    "updater:default",
+    "updater:allow-check",
+    "updater:allow-download-and-install"
   ]
 }

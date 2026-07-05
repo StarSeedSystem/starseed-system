@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/remote-schema.json",
   "identifier": "default",
-  "description": "Capability principal de StarSeed Native. Concede a Aurora (la web remota desplegada) CONTROL PROFUNDO del dispositivo tras la instalación nativa: terminal, procesos, archivos, sistema, notificaciones, diálogos, autoarranque y el updater incremental. Todos los permisos están DECLARADOS y limitados por su scope; el usuario los concede al instalar y ejecutar la app nativa. Un navegador por seguridad NO puede hacer esto — por eso existe este cuerpo nativo.",
+  "description": "Capability principal de StarSeed Native. Concede a Aurora (la web remota desplegada) CONTROL PROFUNDO del dispositivo tras la instalación nativa: terminal, procesos, archivos, sistema, notificaciones, diálogos y deep-links. (Autoarranque y updater viven en desktop.json: son plugins solo-escritorio y sus permisos no existen en Android/iOS.) Todos los permisos están DECLARADOS y limitados por su scope; el usuario los concede al instalar y ejecutar la app nativa. Un navegador por seguridad NO puede hacer esto — por eso existe este cuerpo nativo.",
   "windows": ["main"],
   "platforms": ["linux", "macOS", "windows", "android", "iOS"],
   "remote": {
@@ -107,10 +107,6 @@
     "dialog:allow-message",
     "dialog:allow-ask",
     "dialog:allow-confirm",
-
-    "updater:default",
-    "updater:allow-check",
-    "updater:allow-download-and-install",
 
     "deep-link:default"
   ]
