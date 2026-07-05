@@ -35,6 +35,17 @@ export const SYNCED_KEYS = [
     "os.trinity.fab",            // visibilidad del botón Trinity
     "os.trinity.fab.pos",        // posición del botón Trinity
     "starseed_user_memory",      // memoria del Exocórtex (intereses/rasgos)
+    // ── Astraura Intelligence (ola 2026-07): la MISMA inteligencia en OS,
+    //    Nexus y Café, en todos los dispositivos de la cuenta. Las claves API
+    //    NUNCA viajan (starseed.ai.providers queda local por diseño).
+    "starseed.astraura.intelligence.v1", // modo auto/manual, overrides por tarea
+    "starseed.oss.defaults.v1",          // servicio elegido por función/scope
+    "starseed.ai.function-models.v1",    // preferencias de UI de modelos por función
+    "starseed.neurons.prefs.v1",         // permisos/preferencias de neuronas (dispositivos)
+    "starseed.library.installed.v1",     // paquetes instalados desde la Biblioteca
+    "starseed.library.mine.v1",          // réplicas/forks editables del usuario (Cydia «Replicar»)
+    "starseed.library.published.v1",     // ramas marcadas como públicas (preparadas para la red)
+    "starseed.aurora.voice.v1",          // voz de Aurora: motor (navegador/Kokoro/Kitten) + voz elegida
 ] as const;
 
 export interface SyncResult {

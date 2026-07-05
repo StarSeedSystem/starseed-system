@@ -194,9 +194,12 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 - `memory/state.md` — bitácora de cambios (actualizar tras cada sesión)
 - `memory/glossary.md` — glosario extendido
 
+### Inteligencia de Aurora (Astraura) — capa agéntica
+- `architecture/astraura-inteligencia.md` — **fuente de verdad** del router de IA gratis-primero, failover, uso/costes, sentidos (visión SmolVLM2 · voz Kokoro), neuronas (cada dispositivo = cerebro+servidor) y Biblioteca-Cydia. Núcleo en `src/ai/astraura/`. Adaptado a Nexus/Café vía `astraura-core.js`. Regla: Aurora **siempre** funciona (gratis y local primero) y cambia sola de fuente si una se agota.
+
 ---
 
-*Última actualización del archivo: 2026-05-25*
+*Última actualización del archivo: 2026-07-04 (Adenda 62 · Astraura)*
 
 
 ---

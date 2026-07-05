@@ -282,7 +282,7 @@ function DesktopManagerMenu({
     const [wallpaperDraft, setWallpaperDraft] = useState(active.wallpaper?.value ?? "");
 
     return (
-        <div className="absolute left-2 top-[calc(100%+6px)] z-[55] w-[300px] max-w-[calc(100vw-16px)] rounded-2xl border border-white/12 bg-card/95 p-2 shadow-2xl backdrop-blur-2xl">
+        <div className="ss-crystal absolute left-2 top-[calc(100%+6px)] z-[55] w-[300px] max-w-[calc(100vw-16px)] rounded-2xl border border-white/12 bg-card/95 p-2 shadow-2xl backdrop-blur-2xl">
             <p className="px-2 pb-1 pt-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground/70">
                 Escritorios
             </p>
@@ -1019,7 +1019,7 @@ export function DesktopCanvas(): React.ReactElement {
                             animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
                             exit={reduced ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.97 }}
                             transition={reduced ? { duration: 0.15 } : { type: "spring", stiffness: 320, damping: 30 }}
-                            className="absolute left-1/2 top-1/2 z-[52] w-[400px] max-w-[calc(100vw-24px)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/12 bg-card/95 p-4 shadow-2xl backdrop-blur-2xl"
+                            className="ss-crystal absolute left-1/2 top-1/2 z-[52] w-[400px] max-w-[calc(100vw-24px)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/12 bg-card/95 p-4 shadow-2xl backdrop-blur-2xl"
                         >
                             <span aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/70 to-transparent" />
                             <header className="mb-3 flex items-center gap-2">

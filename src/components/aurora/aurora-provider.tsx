@@ -423,6 +423,31 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     };
   }, [superStart]);
 
+  // ── NEURONAS + AUTONOMÍA (ola Astraura 2026-07) ────────────────────────────
+  // Al montar Aurora: (1) registra ESTE dispositivo como neurona de la cuenta
+  // (cerebro+servidor, todo activo por defecto) con su heartbeat, y (2) arranca
+  // el latido de auto-mejora, que recalcula sugerencias gratis-primero y emite
+  // `starseed:astraura-suggestions`. Ambos por import dinámico y defensivos:
+  // si algo falla (sin sesión, sin tabla), no afecta a la voz ni al chat.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let stopped = false;
+    void (async () => {
+      try {
+        const neurons = await import("@/lib/neurons/neurons");
+        if (!stopped) await neurons.ensureThisNeuron();
+      } catch { /* sin cuenta/tabla: seguimos como dispositivo único */ }
+      try {
+        const autonomy = await import("@/ai/astraura/autonomy");
+        if (!stopped) autonomy.startAutonomy(30);
+      } catch { /* */ }
+    })();
+    return () => {
+      stopped = true;
+      void import("@/ai/astraura/autonomy").then((a) => a.stopAutonomy()).catch(() => {});
+    };
+  }, []);
+
   // ── Puente para una futura extensión de navegador ──────────────────────────
   // Expone window.STARSEED_AURORA = { runAction, runDirectives, onAction } y
   // escucha mensajes window.postMessage con { source: "starseed-aurora-extension" }

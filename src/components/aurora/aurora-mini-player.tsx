@@ -39,6 +39,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
+import { MessageMedia } from "./universal-viewer";
+import { RouteChip } from "./route-chip";
 import styles from "./aurora-mini-player.module.css";
 
 /** Inactividad tras la cual el reproductor resumido se retira solo. */
@@ -225,6 +227,8 @@ export function AuroraMiniPlayer({
 
   // Últimas líneas: 2 en resumido; en expandido mostramos todo el historial.
   const collapsedLines = conversation.slice(-2);
+  // Última respuesta de Aurora → visor universal (imágenes/vídeo/audio/PDF/3D…).
+  const say = (aurora.lastReply ?? "").trim();
   const playIcon = speaking && !paused ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />;
 
   // Barras de iluminación reactiva (ecualizador cristalino) — reaccionan a quien
@@ -383,6 +387,13 @@ export function AuroraMiniPlayer({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Visor universal bajo la última respuesta (compacto, alturas reducidas). */}
+          {say.length > 0 && <MessageMedia text={say} compact />}
+
+          {/* Transparencia del modelo: chip en la esquina del mini-panel.
+              inlinePanel: la tarjeta abre EN FLUJO (la carta tiene overflow:hidden). */}
+          <RouteChip compact inlinePanel className="mt-1.5" />
         </div>
 
         {/* ── Transporte AMPLIADO: prev · play/pausa · stop · next · mic ── */}

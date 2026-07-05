@@ -4,25 +4,31 @@
 export const dynamic = "force-dynamic";
 
 // ══════════════════════════════════════════════════════════════════
-// Librería / Biblioteca DEFINITIVA (#129 + #130 · sin Tienda)
+// Biblioteca — TIENDA VIVA del OS (estilo Cydia) + colección de siempre
 // ------------------------------------------------------------------
-// Un único destino que fusiona:
-//   • Explorar  → catálogo unificado con taxonomía clara (Apps · Widgets ·
-//                Layouts · Archivos · Fuentes · Cursores · Gestos táctiles ·
-//                Comandos) + Apps del ecosistema StarSeed destacadas +
-//                intercambio de recursos (publicar/instalar/valorar) +
-//                conocimiento y archivos de la red.
-//   • Mi Biblioteca → espacio personal (archivos + recursos guardados).
-//   • Fuentes  → catálogo de fuentes (GitHub, Dribbble, 21st.dev, v0.app,
-//               mcpmarket…) + selector de servidor/almacenamiento/cerebros.
-//   • Actualizaciones → novedades + alternativas/recomendaciones por cerebro.
+// Desde aquí se instala CUALQUIER COSA directamente al sistema: repos
+// (fuentes de paquetes), apps, widgets, páginas, publicaciones, pizarras,
+// investigaciones, proyectos, diseños/temas, animaciones, funciones/skills
+// y FUENTES DE IA por contexto. Todo open source y gratis-primero.
 //
-// La "Tienda" DESAPARECE como concepto visible: sus funciones viven
-// fundidas en Explorar. /store redirige a /library y ?tab=tienda|store
-// aterriza en Explorar. Nada se pierde.
+// Pestañas de nivel superior:
+//   • Destacado    → paquetes curados + catálogo completo instalable.
+//   • Categorías   → grid por tipo de paquete (12 kinds) con contadores.
+//   • Repos        → fuentes de paquetes (núcleo + añadidas por URL).
+//   • Mi colección → TODO lo que la Biblioteca era antes, intacto:
+//                    Explorar · Mi Biblioteca · Fuentes · Actualizaciones
+//                    (catálogo unificado, intercambio, conocimiento,
+//                    archivos, fuentes conectadas y updates inteligentes).
+//   • Instalado    → registro real de paquetes con desinstalación.
+//
+// El motor de paquetes vive en src/lib/library/packages.ts (efectos REALES:
+// activa fuentes IA en Astraura, clases de material/animación, skills,
+// rutas del OS). La UI de tienda en components/library/package-store.tsx.
 //
 // Al TOPE: franja de descarga de la ÚLTIMA versión de StarSeed OS con
-// «Ver ficha» rica. Cada tarjeta abre ficha tipo App Store (AppFilePage).
+// «Ver ficha» rica. Compat de enlaces antiguos: ?tab=explorar|personal|
+// fuentes|updates aterrizan dentro de «Mi colección»; ?tab=store|tienda
+// aterrizan en Destacado (la tienda vuelve, ahora de verdad).
 //
 // Aditivo/defensivo: se conserva TODA la data existente; localStorage y
 // Supabase van guardados; estética glass, responsive, español.
@@ -73,6 +79,10 @@ import {
   Server,
   Download,
   Sparkles,
+  Store,
+  Shapes,
+  GitBranch,
+  PackageCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -94,6 +104,8 @@ import { InstallButton } from "@/components/welcome/install-button";
 import { AppFilePage, type LibraryDetailItem } from "@/components/library/app-file-page";
 import { LibraryCatalog, starseedAppToDetail } from "@/components/library/library-catalog";
 import { InstalledServicesPanel } from "@/components/library/installed-services-panel";
+// ── Tienda viva de paquetes (estilo Cydia) — motor en lib/library/packages ──
+import { PackageStore, type StoreSection } from "@/components/library/package-store";
 import { STARSEED_APP_LISTINGS } from "@/data/starseed-apps-listings";
 import { articles, courses, files } from "@/lib/data";
 import { samplePages } from "@/data/sample-entities";
@@ -110,7 +122,10 @@ type ViewMode = "GRID" | "LIST";
 type AssetType = "FILE" | "FOLDER" | "LIBRARY" | "PROGRAM" | "PAGE" | "CONCEPT";
 type ResourceType = "todos" | "articulos" | "cursos" | "documentos" | "comunidades";
 type SortMode = "recientes" | "valorados" | "populares";
-type LibraryTab = "explorar" | "personal" | "fuentes" | "updates";
+/** Pestañas de nivel superior (la tienda viva + la colección de siempre). */
+type LibraryTab = "destacado" | "categorias" | "repos" | "coleccion" | "instalado";
+/** Pestañas internas de «Mi colección» (la Biblioteca anterior, intacta). */
+type CollectionTab = "explorar" | "personal" | "fuentes" | "updates";
 
 interface AssetItem {
   id: string;
@@ -1058,24 +1073,38 @@ function OsDownloadStrip({ onOpenDetail }: { onOpenDetail: (item: LibraryDetailI
 // Página unificada
 // ══════════════════════════════════════════════════════════════════
 
-// Mapea `?view=` (compat) y `?tab=` a una pestaña.
-// La Tienda ya no existe: cualquier enlace antiguo (?tab=store|tienda o
-// ?view=store|tienda) aterriza en Explorar, donde viven sus funciones.
-function resolveInitialTab(view: string | null, tab: string | null): LibraryTab {
+// Mapea `?view=` (compat) y `?tab=` a las pestañas nuevas SIN romper enlaces:
+//   · valores nuevos (destacado|categorias|repos|instalado) → nivel superior.
+//   · store|tienda → Destacado (la tienda vuelve, ahora instala de verdad).
+//   · valores antiguos (explorar|personal|fuentes|updates) → dentro de
+//     «Mi colección», que conserva la Biblioteca anterior intacta.
+function resolveInitialTab(
+  view: string | null,
+  tab: string | null,
+): { top: LibraryTab; inner: CollectionTab } {
   const t = (tab ?? "").toLowerCase();
+  if (t === "destacado" || t === "categorias" || t === "repos" || t === "instalado") {
+    return { top: t as LibraryTab, inner: "explorar" };
+  }
+  if (t === "store" || t === "tienda") return { top: "destacado", inner: "explorar" };
+  if (t === "coleccion" || t === "colección") return { top: "coleccion", inner: "explorar" };
   if (t === "explorar" || t === "personal" || t === "fuentes" || t === "updates") {
-    return t as LibraryTab;
+    return { top: "coleccion", inner: t as CollectionTab };
   }
   const v = (view ?? "").toLowerCase();
-  if (v === "personal") return "personal";
-  if (v === "fuentes" || v === "sources") return "fuentes";
-  if (v === "updates" || v === "actualizaciones") return "updates";
-  return "explorar";
+  if (v === "personal") return { top: "coleccion", inner: "personal" };
+  if (v === "fuentes" || v === "sources") return { top: "coleccion", inner: "fuentes" };
+  if (v === "updates" || v === "actualizaciones") return { top: "coleccion", inner: "updates" };
+  return { top: "destacado", inner: "explorar" };
 }
 
 function LibraryContent() {
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<LibraryTab>(() => resolveInitialTab(searchParams.get("view"), searchParams.get("tab")));
+  const initial = resolveInitialTab(searchParams.get("view"), searchParams.get("tab"));
+  const [tab, setTab] = useState<LibraryTab>(initial.top);
+  const [collectionTab, setCollectionTab] = useState<CollectionTab>(initial.inner);
+  // Buscador grande del hero: filtra los paquetes instalables en vivo.
+  const [storeQuery, setStoreQuery] = useState("");
 
   // Ficha detallada (App Store / Play Store) — modal.
   const [detailItem, setDetailItem] = useState<LibraryDetailItem | null>(null);
@@ -1088,48 +1117,115 @@ function LibraryContent() {
 
   // Reacciona a cambios de query (?view / ?tab) sin recargar.
   useEffect(() => {
-    setTab(resolveInitialTab(searchParams.get("view"), searchParams.get("tab")));
+    const next = resolveInitialTab(searchParams.get("view"), searchParams.get("tab"));
+    setTab(next.top);
+    setCollectionTab(next.inner);
   }, [searchParams]);
 
-  const goExplore = () => setTab("explorar");
-  const goFuentes = () => setTab("fuentes");
-  const goPersonal = () => setTab("personal");
+  // Navegación interna de la colección (usada por los paneles conservados).
+  const goExplore = () => { setTab("coleccion"); setCollectionTab("explorar"); };
+  const goFuentes = () => { setTab("coleccion"); setCollectionTab("fuentes"); };
+  const goPersonal = () => { setTab("coleccion"); setCollectionTab("personal"); };
 
   return (
     <div className="flex flex-col gap-[clamp(1.5rem,3vw,2.5rem)] min-h-screen pb-24 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] w-full mx-auto">
-      {/* Header */}
-      <div className="flex flex-col gap-2 items-center md:items-start w-full text-center md:text-left">
-        <h1 className="text-[clamp(2rem,4vw,3rem)] font-bold font-headline text-primary bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500 w-full text-center md:text-left">
-          Librería · Biblioteca
-        </h1>
-        <p className="text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground max-w-3xl text-balance w-full text-center md:text-left">
-          Un solo lugar para las apps y recursos del ecosistema, el conocimiento de la red,
-          tu espacio personal, las fuentes conectadas y las actualizaciones inteligentes.
-        </p>
-      </div>
+      {/* ── HERO de la tienda viva: gradiente cristal + buscador grande ── */}
+      <GlassCard className="relative overflow-hidden border-white/10 p-[clamp(1.25rem,3vw,2.5rem)]">
+        {/* Auroras de fondo (decorativas, sin interacción) */}
+        <div className="pointer-events-none absolute -left-24 -top-28 h-72 w-72 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute right-0 -bottom-32 h-80 w-80 rounded-full bg-emerald-500/15 blur-3xl" />
+        <div className="pointer-events-none absolute left-1/2 top-0 h-56 w-56 -translate-x-1/2 rounded-full bg-cyan-400/10 blur-3xl" />
+
+        <div className="relative z-10 flex flex-col gap-4 items-center md:items-start text-center md:text-left">
+          <h1 className="text-[clamp(2rem,4vw,3rem)] font-bold font-headline leading-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400">
+            Biblioteca · instala cualquier cosa en tu OS
+          </h1>
+          <p className="text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground max-w-3xl text-balance">
+            La tienda viva de StarSeed: fuentes de IA, temas, animaciones, apps, widgets, pizarras,
+            investigaciones, funciones y repos de la comunidad — todo open source y gratis-primero.
+            Lo que ves instalable actúa de verdad sobre tu sistema; lo que aún no existe se marca
+            honesto como «próximamente».
+          </p>
+
+          {/* Buscador grande de paquetes (filtra en vivo por nombre/tags/tipo) */}
+          <div className="relative w-full max-w-2xl group">
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <Input
+              placeholder="Buscar paquetes: IA, temas, widgets, pizarras, skills…"
+              value={storeQuery}
+              onChange={(e) => setStoreQuery(e.target.value)}
+              className="h-12 rounded-2xl border-white/10 bg-black/30 pl-12 pr-10 text-base focus-visible:ring-indigo-500/50"
+            />
+            {storeQuery && (
+              <button
+                onClick={() => setStoreQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:bg-white/10 hover:text-white cursor-pointer"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </GlassCard>
 
       {/* Descarga del OS — SIEMPRE arriba (build real, PWA, código y ficha) */}
       <OsDownloadStrip onOpenDetail={openDetail} />
 
-      {/* Pestañas */}
-      <Tabs value={tab} onValueChange={(v) => setTab(v as LibraryTab)} className="w-full">
+      {/* Resultados del buscador: sustituyen a las pestañas mientras se escribe */}
+      {storeQuery.trim() && <PackageStore section="destacado" query={storeQuery} />}
+
+      {/* Pestañas de la tienda (ocultas mientras hay búsqueda activa) */}
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as LibraryTab)}
+        className={cn("w-full", storeQuery.trim() && "hidden")}
+      >
         <TabsList className="flex flex-wrap h-auto gap-1 bg-black/30 border border-white/10 p-1 rounded-2xl">
-          <TabsTrigger value="explorar" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
-            <Compass className="w-4 h-4" /> Explorar
+          <TabsTrigger value="destacado" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+            <Store className="w-4 h-4" /> Destacado
           </TabsTrigger>
-          <TabsTrigger value="personal" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
-            <Lock className="w-4 h-4" /> Mi Biblioteca
+          <TabsTrigger value="categorias" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+            <Shapes className="w-4 h-4" /> Categorías
           </TabsTrigger>
-          <TabsTrigger value="fuentes" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
-            <BookMarked className="w-4 h-4" /> Fuentes
+          <TabsTrigger value="repos" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+            <GitBranch className="w-4 h-4" /> Repos
           </TabsTrigger>
-          <TabsTrigger value="updates" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
-            <RefreshCw className="w-4 h-4" /> Actualizaciones
+          <TabsTrigger value="coleccion" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+            <BookMarked className="w-4 h-4" /> Mi colección
+          </TabsTrigger>
+          <TabsTrigger value="instalado" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+            <PackageCheck className="w-4 h-4" /> Instalado
           </TabsTrigger>
         </TabsList>
 
-        {/* EXPLORAR — catálogo unificado + intercambio + conocimiento */}
-        <TabsContent value="explorar" className="mt-6 flex flex-col gap-[clamp(1.5rem,3vw,2.5rem)]">
+        {/* ── TIENDA: Destacado · Categorías · Repos · Instalado ── */}
+        {(["destacado", "categorias", "repos", "instalado"] as StoreSection[]).map((section) => (
+          <TabsContent key={section} value={section} className="mt-6">
+            <PackageStore section={section} />
+          </TabsContent>
+        ))}
+
+        {/* ── MI COLECCIÓN: la Biblioteca de siempre, intacta ── */}
+        <TabsContent value="coleccion" className="mt-6">
+          <Tabs value={collectionTab} onValueChange={(v) => setCollectionTab(v as CollectionTab)} className="w-full">
+            <TabsList className="flex flex-wrap h-auto gap-1 bg-black/30 border border-white/10 p-1 rounded-2xl">
+              <TabsTrigger value="explorar" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+                <Compass className="w-4 h-4" /> Explorar
+              </TabsTrigger>
+              <TabsTrigger value="personal" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+                <Lock className="w-4 h-4" /> Mi Biblioteca
+              </TabsTrigger>
+              <TabsTrigger value="fuentes" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+                <BookMarked className="w-4 h-4" /> Fuentes
+              </TabsTrigger>
+              <TabsTrigger value="updates" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+                <RefreshCw className="w-4 h-4" /> Actualizaciones
+              </TabsTrigger>
+            </TabsList>
+
+            {/* EXPLORAR — catálogo unificado + intercambio + conocimiento */}
+            <TabsContent value="explorar" className="mt-6 flex flex-col gap-[clamp(1.5rem,3vw,2.5rem)]">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Globe className="w-4 h-4 text-indigo-300" />
             Librería Global — apps, recursos y conocimiento compartidos por toda la red StarSeed.
@@ -1185,9 +1281,11 @@ function LibraryContent() {
           </GlassCard>
         </TabsContent>
 
-        {/* ACTUALIZACIONES inteligentes */}
-        <TabsContent value="updates" className="mt-6">
-          <LibraryUpdatesPanel />
+            {/* ACTUALIZACIONES inteligentes */}
+            <TabsContent value="updates" className="mt-6">
+              <LibraryUpdatesPanel />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
 

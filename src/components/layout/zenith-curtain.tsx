@@ -267,6 +267,8 @@ export function ZenithCurtain() {
                         className={cn(
                             "fixed left-1/2 -translate-x-1/2 z-[90] pointer-events-auto rounded-3xl overflow-hidden box-border",
                             "shadow-[0_20px_50px_rgba(6,182,212,0.3)] border border-cyan-500/30 text-cyan-50",
+                            // Material StarSeed: aro neón Zenith que respira suave (azul #007FFF)
+                            "ss-neon ss-neon--zenith",
                             // Anclado dentro del viewport + safe-area (nunca se sale).
                             "top-[max(0.75rem,env(safe-area-inset-top))] w-[min(96vw,80rem)] max-w-[100vw]",
                             "h-[min(92vh,calc(100dvh-1.5rem))]"
@@ -274,8 +276,8 @@ export function ZenithCurtain() {
                     >
                       {/* Capa de arrastre: sigue al dedo (swipe hacia arriba cierra). */}
                       <motion.div className="absolute inset-0" style={swipe.motionStyle}>
-                        {/* Background */}
-                        <div className="absolute inset-0 bg-black/85 backdrop-blur-2xl" />
+                        {/* Background — cristal líquido profundo teñido Zenith */}
+                        <div className="absolute inset-0 rounded-3xl bg-black/85 backdrop-blur-2xl ss-crystal ss-crystal--deep ss-tone--zenith" />
                         <div className="absolute inset-0 bg-gradient-to-b from-cyan-950/50 via-transparent to-cyan-950/20 pointer-events-none" />
 
                         {/* Tirador de swipe (Zenith cierra hacia ARRIBA) + botón de cierre */}
@@ -293,9 +295,9 @@ export function ZenithCurtain() {
                             <div className="flex flex-col gap-3 px-5 md:px-8 pt-8 md:pt-9 pb-3 shrink-0 border-b border-cyan-500/15 bg-black/20">
                                 <div className="flex items-center justify-between gap-3 flex-wrap">
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className="p-2.5 rounded-xl bg-cyan-500/20 border border-cyan-400/30 shadow-[0_0_20px_rgba(34,211,238,0.4)] shrink-0">
-                                            <Globe className="w-5 h-5 md:w-6 md:h-6 text-cyan-300" />
-                                        </div>
+                                        <span className="ss-icon-3d ss-tone--zenith ss-float shrink-0">
+                                            <Globe className="w-5 h-5 md:w-6 md:h-6" />
+                                        </span>
                                         <div className="min-w-0">
                                             <h2 className="text-lg md:text-2xl font-light tracking-widest uppercase font-headline truncate">
                                                 Explorador Universal & Nexus

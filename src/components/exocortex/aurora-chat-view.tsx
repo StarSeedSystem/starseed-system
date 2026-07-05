@@ -28,6 +28,8 @@ import {
 import { cn } from "@/lib/utils";
 import type { AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
 import type { ChatContext, UseChatTree } from "@/lib/aurora/chat-tree";
+import { MessageMedia } from "@/components/aurora/universal-viewer";
+import { RouteChip } from "@/components/aurora/route-chip";
 
 // ── Tipos de props ───────────────────────────────────────────────────────────
 /** Un mensaje "en vivo" del motor (conversation lleva `.at`). */
@@ -404,6 +406,8 @@ function Conversation(props: {
                 {m.role === "user" ? "Tú" : auroraName} · {fmtTime(m.ts)}
               </div>
               {m.text}
+              {/* Visor universal: imágenes/vídeo/audio/PDF/3D/CSV… del mensaje */}
+              <MessageMedia text={m.text} compact={m.role === "user"} />
             </div>
           ))
         )
@@ -421,6 +425,8 @@ function Conversation(props: {
           <div key={i} className={cn("axc-msg", m.role === "user" ? "user" : "aurora")}>
             <div className="axc-role">{m.role === "user" ? "Tú" : auroraName}</div>
             {m.text}
+            {/* Visor universal: imágenes/vídeo/audio/PDF/3D/CSV… del mensaje */}
+            <MessageMedia text={m.text} compact={m.role === "user"} />
           </div>
         ))
       )}
@@ -551,6 +557,8 @@ export function AuroraChatView(props: AuroraChatViewProps) {
                 {activeCtx ? activeCtx.title : loadedSession ? (loadedSession.label ?? dayLabel(loadedSession.day)) : "Chat en vivo"}
               </div>
             </div>
+            {/* Transparencia: qué inteligencia usó Aurora en la última respuesta */}
+            <RouteChip compact className="shrink-0" />
             {activeCtx && (
               <button
                 className="axc-btn azure shrink-0"
@@ -620,6 +628,8 @@ export function AuroraChatView(props: AuroraChatViewProps) {
             {activeCtx.title}
           </span>
         )}
+        {/* Transparencia: qué inteligencia usó Aurora en la última respuesta */}
+        <RouteChip compact className="ml-auto" />
       </div>
 
       {/* Árbol desplegable */}

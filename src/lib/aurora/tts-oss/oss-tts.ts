@@ -485,6 +485,130 @@ export function isOssTtsSpeaking(): boolean {
   return speaking;
 }
 
+// ── Acceso de bajo nivel al modelo (para otros motores/Ut.) ───────────────────
+
+/**
+ * getLoadedTts — Devuelve la instancia de Kokoro ya cargada, cargándola de forma
+ * perezosa si hiciera falta (respeta el memoizado; NO re-descarga). Devuelve
+ * `null` si no hay soporte o algo falló. NUNCA lanza.
+ *
+ * Pensado para que `kokoro.ts` reutilice EXACTAMENTE el mismo modelo/caché que
+ * `speakOss`, sin duplicar la lógica de import por CDN ni la descarga.
+ */
+export async function getLoadedTts(
+  onProgress?: (p: OssTtsLoadProgress) => void,
+): Promise<any | null> {
+  if (!isOssTtsSupported()) return null;
+  if (!isTtsModelReady()) {
+    const ok = await loadTtsModel(onProgress);
+    if (!ok) return null;
+  }
+  try {
+    return ttsPromise ? await ttsPromise : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * generateOssRaw — Sintetiza `text` con Kokoro y devuelve el objeto `RawAudio`
+ * crudo (con `{ audio: Float32Array, sampling_rate }` y, según versión, métodos
+ * `toBlob()`/`toWav()`/`save()`). NO reproduce nada. Devuelve `null` si no se
+ * pudo. NUNCA lanza. Base para producir un Blob/HTMLAudioElement en `kokoro.ts`.
+ */
+export async function generateOssRaw(
+  text: string,
+  opts: { voice?: string; speed?: number; onProgress?: (p: OssTtsLoadProgress) => void } = {},
+): Promise<any | null> {
+  const clean = (text || "").trim();
+  if (!clean) return null;
+  const tts = await getLoadedTts(opts.onProgress);
+  if (!tts || typeof tts.generate !== "function") return null;
+  const voice = opts.voice || getOssTtsVoice();
+  const speed = typeof opts.speed === "number" && opts.speed > 0 ? opts.speed : 1;
+  try {
+    return await tts.generate(clean, { voice, speed });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * rawAudioToWavBlob — Convierte la salida de Kokoro (`RawAudio`) a un Blob WAV
+ * reproducible por un elemento <audio>. Prefiere el método nativo del objeto
+ * (`toBlob()`/`toWav()`) si existe; si no, codifica un WAV PCM16 a partir del
+ * Float32Array de forma manual. Devuelve `null` si no hay datos. NUNCA lanza.
+ */
+export function rawAudioToWavBlob(raw: any): Blob | null {
+  try {
+    // 1) Método nativo del RawAudio (kokoro-js expone .toBlob() en versiones recientes).
+    if (raw && typeof raw.toBlob === "function") {
+      const b = raw.toBlob();
+      if (b instanceof Blob) return b;
+    }
+    // 2) .toWav() → ArrayBuffer/Uint8Array con cabecera WAV completa.
+    if (raw && typeof raw.toWav === "function") {
+      const wav = raw.toWav();
+      if (wav) return new Blob([wav], { type: "audio/wav" });
+    }
+    // 3) Codificación manual desde Float32Array (fallback robusto).
+    const data: Float32Array | undefined =
+      raw?.audio instanceof Float32Array
+        ? raw.audio
+        : raw?.data instanceof Float32Array
+          ? raw.data
+          : undefined;
+    const rate: number =
+      typeof raw?.sampling_rate === "number"
+        ? raw.sampling_rate
+        : typeof raw?.sampleRate === "number"
+          ? raw.sampleRate
+          : 24000;
+    if (!data || data.length === 0) return null;
+    return encodeWavPcm16(data, rate);
+  } catch {
+    return null;
+  }
+}
+
+/** Codifica un Float32Array mono a un Blob WAV PCM 16-bit. Sin dependencias. */
+function encodeWavPcm16(samples: Float32Array, sampleRate: number): Blob {
+  const numSamples = samples.length;
+  const bytesPerSample = 2;
+  const blockAlign = bytesPerSample; // 1 canal
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = numSamples * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeStr = (offset: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
+  };
+  // Cabecera RIFF/WAVE
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true); // subchunk1 size (PCM)
+  view.setUint16(20, 1, true); // audio format = PCM
+  view.setUint16(22, 1, true); // canales = 1 (mono)
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true); // bits por muestra
+  writeStr(36, "data");
+  view.setUint32(40, dataSize, true);
+  // Muestras PCM16 (clamp + escala)
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    let s = samples[i];
+    if (s > 1) s = 1;
+    else if (s < -1) s = -1;
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    offset += 2;
+  }
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
 // ── Helper para la UI: "voz alternativa de Aurora" ────────────────────────────
 
 /**

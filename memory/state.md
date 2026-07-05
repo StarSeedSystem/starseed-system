@@ -1785,3 +1785,23 @@ Tras el fix del SW (Adenda 60) el código ya llega. El usuario reportó: OS mejo
 - tsc OS 376=baseline; node --check Nexus/Café OK. Deploys OS a70153e; Nexus 292c013; Café c93aaaa.
 
 **Pendiente:** verificación del usuario; si el fondo aún hace sonido en Chrome sería el tono nativo de SpeechRecognition al reiniciar (mitigable con wake-word acústico Porcupine ya integrado, opt-in).
+
+---
+## Adenda 62 — 2026-07-04 · Astraura gratis-primero + sentidos + neuronas + Biblioteca-Cydia (OS·Nexus·Café)
+
+Ola de capacidades agénticas. Ver `architecture/astraura-inteligencia.md` (fuente de verdad).
+
+- **Router de inteligencia gratis-primero** (`src/ai/astraura/`): `free-catalog.ts` (fuentes instant/free-key/local/paid con modelos, fortalezas por tarea, límites, `why`), `availability.ts` (detecta claves/Ollama/WebGPU/Chrome AI), `router.ts` (`astrauraChat`: clasifica tarea → rankea gratis-primero, servicios del usuario +2.5 → **failover en cadena** → registra ruta + transparencia `announceLine`), `builtin-engines.ts` (Chrome AI, WebLLM, **Transformers.js SmolLM3-3B-ONNX**). Enganchado en `engine.ts::runCommand` (modo auto por defecto; manual = `chat()` clásico). Aurora ya NO exige proveedor: siempre tiene inteligencia gratis.
+- **Uso/costes + nunca-se-cae** (`usage.ts`): cuenta peticiones/tokens/día por fuente + límites gratis; 429/quota → `markCooldown` 60min → el router la salta y usa la siguiente local/gratis. Panel muestra uso, %, cooldowns con "Reactivar".
+- **Sentidos**: **Visión** SmolVLM2 en navegador (`vision.ts` + `senses/vision-sense.ts`, `maybeHandleVisionCommand` "¿qué ves?/pantalla/cámara"), panel opt-in `starseed.aurora.vision.v1`. **Voz OSS** Kokoro español local + Kitten beta (`tts-oss/`, `starseed.aurora.voice.v1`); `speak()` delega y cae al navegador.
+- **Neuronas** (`lib/neurons/neurons.ts` + tabla Supabase `neuron_devices` RLS/heartbeat): cada dispositivo de la cuenta = cerebro+servidor con capacidades y 6 permisos (compute/storage/sync/agent/senses/wake), **todo activo por defecto**; panel Ajustes→Astraura→Neuronas; registro+latido en `AuroraProvider`.
+- **Autonomía** (`autonomy.ts`, late 30min desde `AuroraProvider`): sugerencias gratis-primero (`starseed:astraura-suggestions`) + señales (`recordSignal`) que personalizan la Biblioteca.
+- **Biblioteca-Cydia** (`lib/library/packages.ts`, repos `starseed-core`+`starseed-labs`): tienda instalable de todo (apps/widgets/páginas/pizarras/investigaciones/proyectos/diseños/animaciones/funciones/ai-source/repos) con instalar-efecto-real / abrir / **guardar enlace** / **descargar** / **replicar** (fork editable) / **publicar como rama**. Paquetes nuevos: SmolLM3, Visión SmolVLM2, Voz Kokoro, KittenTTS, TabFM, Sipp, AgentOS.
+- **Visor universal** en el chat de Aurora (`components/aurora/universal-viewer.tsx` + `route-chip.tsx`): renderiza imagen/vídeo/audio/PDF/3D(model-viewer)/CSV/código/MD bajo cada mensaje (resumen y completo) + chip de transparencia del modelo.
+- **Rediseño**: `src/styles/starseed-materials.css` (cristal líquido, neón por nodo Trinity, metal, madera, naturaleza, float/tilt/press, icon-3d) aplicado a Ajustes (por familia=nodo Trinity), Zenith, Trinity-FAB, escritorios; menús de Ajustes con anchors + barra sticky de categorías.
+- **Sync cuenta** (`SYNCED_KEYS`): inteligencia, defaults por función, voz, neuronas, instalados de Biblioteca (mine/published). Claves API NUNCA viajan (local por diseño).
+- **Nexus + Café**: `astraura-core.js` vanilla portable (misma cadena gratis-primero+failover+transparencia+cooldown) + `astraura-vision.js` (SmolVLM2). ⚠️ **Nexus usa su propio proyecto Supabase `nxstilnyidvkqeosofuh`** (no el del OS) → su core usa `window.STARSEED.client()`. Versiones bumpeadas: Nexus exocortex ?v=107 + SW starseed-nexus-v7; Café ?v=94 + SW starseed-cafe-v2.
+- **Supabase**: migración `neuron_devices` + `user_settings` aplicada en prod `dzkjapinnewkxzjltadv`.
+- Verificación: 0 errores de tipos en TODOS los archivos de la ola (tsc dirigido); errores preexistentes ajenos (keyStorage TS2769, actions Router, engine pushReply/pushUser) no tocados. next.config tiene ignoreBuildErrors.
+
+**Pendiente:** que el usuario reabra las 3 apps 1 vez (propaga SW auto-actualizable de Adenda 60) y pruebe; verificar en vivo el chip de ruta y la visión (1ª descarga de SmolVLM2 ~250MB).

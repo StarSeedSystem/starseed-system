@@ -254,7 +254,9 @@ export function TrinityFab() {
 
             <button
                 type="button"
-                className={styles.core}
+                // Material StarSeed: halo neón 4-colores respirando suave (4s,
+                // solo opacidad — ver src/styles/starseed-materials.css)
+                className={cn(styles.core, "ss-neon-breathe", "ss-neon-breathe--trinity")}
                 aria-expanded={open}
                 aria-label={open ? "Cerrar pétalos Trinity" : "Abrir pétalos Trinity"}
                 title="Trinity"

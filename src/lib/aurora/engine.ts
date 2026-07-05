@@ -10,8 +10,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { chat } from "@/ai/client/chat";
 import { loadConfigs } from "@/ai/client/providerStore";
+// ROUTER GRATIS-PRIMERO: Aurora elige automáticamente el mejor modelo
+// disponible por tarea (gratis primero, servicios del usuario prioritarios),
+// con failover y transparencia. En modo "manual" delega en chat() clásico.
+import { astrauraChat, announceLine, getIntelligenceSettings } from "@/ai/astraura/router";
 import type { ChatMessage } from "@/ai/providers/types";
 import {
   DEFAULT_PERSONALITY,
@@ -367,12 +370,10 @@ export function useAuroraEngine(): AuroraEngine {
     }
   }, []);
 
-  const speak = useCallback((text: string) => {
+  // speakWithBrowser — habla con la Web Speech API del navegador (comportamiento
+  // HISTÓRICO, intacto). Se invoca directamente o como fallback del motor OSS.
+  const speakWithBrowser = useCallback((clean: string, p: Personality) => {
     if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
-    const clean = (text || "").replace(/\[\[goto:[^\]]+\]\]/gi, "").trim();
-    if (!clean) return;
-    const p = activeRef.current;
-
     if (p.provider !== "browser" && p.provider !== "astraura") {
       const ok = speakPremium(clean, p);
       if (ok) return; // si tuviera implementación premium real
@@ -427,6 +428,88 @@ export function useAuroraEngine(): AuroraEngine {
     }
   }, [speakPremium, finishTts]);
 
+  // speak — Punto de entrada del habla de Aurora. ADITIVO Y DEFENSIVO:
+  //   1) Limpia el texto (quita marcadores [[goto:...]]).
+  //   2) Si el usuario eligió un MOTOR DE VOZ OSS (Kokoro/Kitten) y está listo,
+  //      delega en él manteniendo el medio-dúplex (mic off + anti-eco) y el
+  //      LATIDO del orbe (emitAuroraSpeak start/boundary/end) alrededor del audio.
+  //   3) Si el motor OSS no aplica / no está disponible / falla, cae a la voz del
+  //      navegador (speakWithBrowser) — comportamiento histórico intacto.
+  const speak = useCallback((text: string) => {
+    if (typeof window === "undefined") return;
+    const clean = (text || "").replace(/\[\[goto:[^\]]+\]\]/gi, "").trim();
+    if (!clean) return;
+    const p = activeRef.current;
+
+    const runBrowser = () => speakWithBrowser(clean, p);
+
+    // Intento OSS (asíncrono, import dinámico). Nunca lanza; si declina → navegador.
+    void (async () => {
+      let handedOff = false;
+      // Latido del orbe mientras suena el audio OSS (el <audio> no expone amplitud):
+      // pulsos periódicos de "boundary" que el bus de glow ya sabe interpretar.
+      let boundaryTimer: ReturnType<typeof setInterval> | null = null;
+      const clearBoundary = () => {
+        if (boundaryTimer) { clearInterval(boundaryTimer); boundaryTimer = null; }
+      };
+      // Watchdog: si el onEnd del audio OSS nunca llega, reanuda igualmente.
+      let ossWatchdog: ReturnType<typeof setTimeout> | null = null;
+      const clearOssWatchdog = () => {
+        if (ossWatchdog) { clearTimeout(ossWatchdog); ossWatchdog = null; }
+      };
+
+      try {
+        const { speakWithConfiguredEngine } = await import("@/lib/aurora/tts-oss/speak-router");
+        const spoke = await speakWithConfiguredEngine(clean, {
+          onStart: () => {
+            handedOff = true;
+            // Corta cualquier voz nativa por si acaso (una sola voz a la vez).
+            try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
+            setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
+            // Anti-eco GLOBAL + medio-dúplex: deja de escuchar mientras habla.
+            markTtsSpeaking(true);
+            pausedForTtsRef.current = true;
+            recGenRef.current++;
+            try { recognitionRef.current?.abort?.(); } catch { /* */ }
+            // Impulsa el latido del orbe ~cada 240ms mientras dura el audio.
+            clearBoundary();
+            boundaryTimer = setInterval(() => emitAuroraSpeak("boundary"), 240);
+            // Watchdog de seguridad (misma heurística que el navegador).
+            clearOssWatchdog();
+            const estMs = Math.min(45000, 2000 + clean.length * 90);
+            ossWatchdog = setTimeout(() => { clearBoundary(); finishTts(); }, estMs);
+          },
+          onEnd: () => {
+            clearBoundary();
+            clearOssWatchdog();
+            // finishTts cierra el turno: apaga glow, anti-eco y reanuda escucha.
+            finishTts();
+          },
+          onError: () => { /* no fatal: si además declina, caemos a navegador abajo */ },
+        });
+
+        if (spoke) return; // el motor OSS se hizo cargo del turno completo.
+
+        // Declinó (motor navegador, no disponible, o fallo antes de sonar).
+        clearBoundary();
+        clearOssWatchdog();
+        if (!handedOff) {
+          // Nunca llegó a hablar → voz del navegador, turno limpio.
+          runBrowser();
+        } else {
+          // Improbable: arrancó pero devolvió false → cierra el turno con dignidad.
+          finishTts();
+        }
+      } catch {
+        // El import/enrutador falló → comportamiento histórico intacto.
+        clearBoundary();
+        clearOssWatchdog();
+        if (!handedOff) runBrowser();
+        else finishTts();
+      }
+    })();
+  }, [speakWithBrowser, finishTts]);
+
   // ── historial de respuestas + conversación ──
   // Registra una respuesta de Aurora en el historial (para el transporte y el chat).
   const pushReply = useCallback((text: string) => {
@@ -466,8 +549,12 @@ export function useAuroraEngine(): AuroraEngine {
   }, []);
 
   const interrupt = useCallback(() => {
-    if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
-    try { window.speechSynthesis.cancel(); } catch { /* */ }
+    if (typeof window === "undefined") return;
+    try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
+    // También corta cualquier voz OSS en curso (Kokoro/Kitten). Fire-and-forget.
+    void import("@/lib/aurora/tts-oss/speak-router")
+      .then((m) => m.stopConfiguredEngine())
+      .catch(() => { /* */ });
     setSpeaking(false);
     setPaused(false);
     // Cancelar el habla también cierra el turno TTS y reanuda la escucha
@@ -687,9 +774,26 @@ export function useAuroraEngine(): AuroraEngine {
       pushReply(m); speak(m); return;
     }
 
+    // ── visión local (SmolVLM2): "¿qué ves?", "describe la pantalla", "mira la
+    //    cámara"… ANTES del fallback a Astraura. Import DINÁMICO para no cargar
+    //    Transformers.js salvo que se use de verdad. Aditivo y defensivo: ante
+    //    cualquier fallo, seguimos al fallback de Astraura con normalidad.
+    try {
+      const { maybeHandleVisionCommand } = await import("@/lib/aurora/senses/vision-sense");
+      const visionReply = await maybeHandleVisionCommand(text);
+      if (visionReply) {
+        pushReply(visionReply);
+        speak(visionReply);
+        return;
+      }
+    } catch { /* la visión es opcional: si falla, continúa al fallback */ }
+
     // ── fallback: Astraura ──
     try {
-      if (!loadConfigs().some((c) => c.enabled)) {
+      // En modo MANUAL exigimos un proveedor activo (comportamiento clásico).
+      // En modo AUTO (predeterminado) Aurora SIEMPRE tiene inteligencia:
+      // encuentra la mejor fuente gratuita disponible aunque no haya config.
+      if (getIntelligenceSettings().mode === "manual" && !loadConfigs().some((c) => c.enabled)) {
         const m = "No tengo un proveedor de IA activo. Configúralo en Proveedor para que pueda conversar contigo.";
         pushReply(m); speak(m); return;
       }
@@ -718,8 +822,20 @@ export function useAuroraEngine(): AuroraEngine {
         { role: "user", content: text },
       ];
       const temperature = 0.4 + (Number(activeRef.current.params?.creatividad ?? 60) / 100) * 0.6;
-      const res = await chat({ messages, temperature });
+      // Router agéntico gratis-primero (auto) o proveedor clásico (manual).
+      const res = await astrauraChat({
+        messages,
+        temperature,
+        brainId: brainIdRef.current,
+        onStatus: (s) => { if (s) setStatus(s); },
+      });
       let reply = (res?.text || "").trim();
+      // TRANSPARENCIA: si la fuente cambió (o el usuario quiere oírlo siempre),
+      // Aurora menciona qué modelo usó y sus alternativas. Aditivo y opcional.
+      try {
+        const announce = announceLine(res?.route);
+        if (announce) reply = reply ? `${reply}\n\n${announce}` : announce;
+      } catch { /* */ }
 
       // 1) Directivas de ACCIÓN [[ACCION: nombre {json}]] — el control real del OS.
       //    Las extraemos, las quitamos del discurso, y las ejecutamos.

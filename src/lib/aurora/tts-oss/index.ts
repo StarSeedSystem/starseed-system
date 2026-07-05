@@ -28,7 +28,7 @@ export {
 } from "@/lib/aurora/tts-oss/opt-in";
 
 export {
-  // Motor
+  // Motor (bajo nivel: Kokoro por CDN + WebAudio)
   isOssTtsSupported,
   loadTtsModel,
   isTtsModelReady,
@@ -36,7 +36,59 @@ export {
   stopOssTts,
   isOssTtsSpeaking,
   speakOssForAurora,
+  getLoadedTts,
+  generateOssRaw,
+  rawAudioToWavBlob,
   type OssTtsLoadStatus,
   type OssTtsLoadProgress,
   type SpeakOssOptions,
 } from "@/lib/aurora/tts-oss/oss-tts";
+
+export {
+  // Config UNIFICADA de voz (motor + voz + autoDownload) — viaja con la cuenta
+  AURORA_VOICE_CONFIG_KEY,
+  AURORA_VOICE_CONFIG_EVENT,
+  DEFAULT_VOICE_CONFIG,
+  getVoiceConfig,
+  getVoiceEngine,
+  setVoiceConfig,
+  setVoiceEngine,
+  setVoiceName,
+  getEffectiveVoice,
+  subscribeVoiceConfig,
+  type AuroraVoiceEngine,
+  type AuroraVoiceConfig,
+} from "@/lib/aurora/tts-oss/voice-config";
+
+export {
+  // Motor Kokoro (fachada de alto nivel: reproduce por <audio> desde blob)
+  kokoroAvailable,
+  kokoroModelReady,
+  kokoroPreload,
+  kokoroSpeak,
+  stopKokoro,
+  isKokoroSpeaking,
+  KOKORO_SPANISH_VOICES,
+  KOKORO_DEFAULT_SPANISH_VOICE,
+  type KokoroSpeakOptions,
+} from "@/lib/aurora/tts-oss/kokoro";
+
+export {
+  // Motor Kitten (stub honesto: beta/inglés, hoy no activo)
+  kittenAvailable,
+  kittenModelReady,
+  kittenSpeak,
+  stopKitten,
+  isKittenSpeaking,
+  KITTEN_STATUS,
+  KITTEN_VOICES,
+  type KittenSpeakOptions,
+} from "@/lib/aurora/tts-oss/kitten";
+
+export {
+  // Enrutador multi-motor (lo usa el engine de Aurora)
+  speakWithConfiguredEngine,
+  isConfiguredOssEngineReady,
+  stopConfiguredEngine,
+  type ConfiguredSpeakOptions,
+} from "@/lib/aurora/tts-oss/speak-router";

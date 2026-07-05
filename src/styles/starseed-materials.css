@@ -1,0 +1,446 @@
+/* ═══════════════════════════════════════════════════════════════════
+   STARSEED MATERIALS — Capa de materiales "Crystal Liquid Glass"
+   ─────────────────────────────────────────────────────────────────────
+   Sistema de MATERIALES reutilizables del OS: cristal líquido, neón
+   fluido, metal orgánico, madera realista y elementos naturales, más
+   utilidades de movimiento 3D (flotación, tilt, press) e iconos 3D.
+
+   Reglas de la casa:
+   · Se importa desde `src/app/globals.css` ANTES de las capas Tailwind,
+     así cualquier utilidad Tailwind sobre el mismo elemento GANA al
+     material (aditivo y seguro: nunca rompe estilos existentes).
+   · Animaciones continuas SOLO con transform / opacity / filter
+     (compositor, sin repaints). Los brillos "animados" viven en
+     pseudo-elementos cuya OPACIDAD respira, no en box-shadow animado.
+   · Todo respeta prefers-reduced-motion y el modo eco del OS
+     (html[data-perf="eco"] ya congela animaciones globalmente).
+   · Nodos Trinity: Zenith #007FFF · Horizon #39FF14/#10B981 ·
+     Logic #FFBF00/#D4AF37 · Anchor #DC143C.
+   · No combinar .ss-crystal y .ss-neon en el MISMO nodo (comparten
+     pseudo-elementos): anida — contenedor neón, superficie cristal.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Colores cardinales Trinity ──────────────────────────────── */
+  --ss-zenith: #007FFF;
+  --ss-zenith-rgb: 0, 127, 255;
+  --ss-horizon: #10B981;          /* esmeralda (superficies) */
+  --ss-horizon-vivid: #39FF14;    /* lima neón (acentos de luz) */
+  --ss-horizon-rgb: 16, 185, 129;
+  --ss-logic: #FFBF00;
+  --ss-logic-deep: #D4AF37;       /* oro bruñido (metal) */
+  --ss-logic-rgb: 255, 191, 0;
+  --ss-anchor: #DC143C;
+  --ss-anchor-rgb: 220, 20, 60;
+
+  /* ── Color de material activo (lo fijan los tonos/variantes) ── */
+  --ss-mat-color: var(--ss-zenith);
+  --ss-mat-rgb: var(--ss-zenith-rgb);
+
+  /* ── Cristal: tema CLARO por defecto (leche translúcida) ─────── */
+  --ss-crystal-bg-a: rgba(255, 255, 255, 0.72);
+  --ss-crystal-bg-b: rgba(245, 242, 255, 0.48);
+  --ss-crystal-edge: rgba(120, 90, 200, 0.22);
+  --ss-crystal-glow: rgba(150, 110, 255, 0.10);
+  --ss-crystal-reflect: rgba(255, 255, 255, 0.55);
+  --ss-metal-sheen: rgba(255, 255, 255, 0.34);
+}
+
+/* Temas OSCUROS del OS (dark · glass · natural): cristal profundo */
+.dark, .glass, .natural {
+  --ss-crystal-bg-a: rgba(14, 16, 30, 0.62);
+  --ss-crystal-bg-b: rgba(6, 8, 20, 0.42);
+  --ss-crystal-edge: rgba(255, 255, 255, 0.14);
+  --ss-crystal-glow: rgba(var(--ss-mat-rgb), 0.10);
+  --ss-crystal-reflect: rgba(255, 255, 255, 0.16);
+  --ss-metal-sheen: rgba(255, 255, 255, 0.22);
+}
+
+/* ── Tonos: fijan el color de material sin aportar estilos ─────────
+   Útiles para teñir .ss-icon-3d o .ss-crystal dentro de una familia. */
+.ss-tone--zenith  { --ss-mat-color: var(--ss-zenith);  --ss-mat-rgb: var(--ss-zenith-rgb); }
+.ss-tone--horizon { --ss-mat-color: var(--ss-horizon); --ss-mat-rgb: var(--ss-horizon-rgb); }
+.ss-tone--logic   { --ss-mat-color: var(--ss-logic);   --ss-mat-rgb: var(--ss-logic-rgb); }
+.ss-tone--anchor  { --ss-mat-color: var(--ss-anchor);  --ss-mat-rgb: var(--ss-anchor-rgb); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   1 · CRISTAL LÍQUIDO — .ss-crystal / .ss-crystal--deep
+   Multicapa: desenfoque de fondo + gradientes de reflexión + borde
+   luminoso de 1px (anillo cónico con destello lento) + brillo interior.
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-crystal {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--ss-crystal-edge);
+  background:
+    radial-gradient(120% 90% at 18% 0%, rgba(var(--ss-mat-rgb), 0.07), transparent 55%),
+    linear-gradient(152deg, var(--ss-crystal-bg-a) 0%, var(--ss-crystal-bg-b) 100%);
+  backdrop-filter: blur(var(--glass-blur, 20px)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 20px)) saturate(150%);
+  box-shadow:
+    0 4px 16px -6px rgba(0, 0, 0, 0.28),
+    0 18px 42px -18px rgba(var(--ss-mat-rgb), 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+/* Anillo cónico luminoso de 1px sobre el borde (solo el aro, vía mask).
+   "Anima" con un destello lento de opacidad + hue-rotate (filter). */
+.ss-crystal::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: 2;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from 210deg,
+    rgba(var(--ss-mat-rgb), 0.0) 0deg,
+    rgba(var(--ss-mat-rgb), 0.85) 55deg,
+    rgba(255, 255, 255, 0.55) 95deg,
+    rgba(var(--ss-mat-rgb), 0.0) 160deg,
+    rgba(var(--ss-mat-rgb), 0.45) 260deg,
+    rgba(var(--ss-mat-rgb), 0.0) 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.55;
+  animation: ss-anillo 9s ease-in-out infinite;
+}
+
+/* Reflexión superior + brillo interior (estáticos, capa de luz). */
+.ss-crystal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, var(--ss-crystal-reflect) 0%, transparent 38%),
+    radial-gradient(85% 60% at 50% 115%, var(--ss-crystal-glow), transparent 70%);
+  opacity: 0.5;
+}
+
+/* Variante profunda: más denso, más desenfoque, halo interior mayor. */
+.ss-crystal--deep {
+  border-color: color-mix(in srgb, var(--ss-crystal-edge) 70%, var(--ss-mat-color) 30%);
+  background:
+    radial-gradient(130% 100% at 20% -5%, rgba(var(--ss-mat-rgb), 0.12), transparent 58%),
+    linear-gradient(158deg,
+      color-mix(in srgb, var(--ss-crystal-bg-a) 88%, #000 12%) 0%,
+      color-mix(in srgb, var(--ss-crystal-bg-b) 82%, #000 18%) 100%);
+  backdrop-filter: blur(calc(var(--glass-blur, 20px) + 8px)) saturate(160%);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur, 20px) + 8px)) saturate(160%);
+  box-shadow:
+    0 8px 24px -8px rgba(0, 0, 0, 0.45),
+    0 28px 64px -24px rgba(var(--ss-mat-rgb), 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -18px 36px -24px rgba(var(--ss-mat-rgb), 0.35);
+}
+
+@keyframes ss-anillo {
+  0%, 100% { opacity: 0.35; filter: hue-rotate(0deg); }
+  50%      { opacity: 0.8;  filter: hue-rotate(14deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   2 · NEÓN FLUIDO — .ss-neon (+ variantes por nodo Trinity)
+   Halo multicapa en el host (estático) + aro interior que RESPIRA
+   (pseudo con opacidad animada, ciclo 4s — cero repaints de sombra).
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-neon {
+  --ss-neon-color: var(--ss-mat-color);
+  --ss-neon-rgb: var(--ss-mat-rgb);
+  position: relative;
+  border: 1px solid rgba(var(--ss-neon-rgb), 0.38);
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(var(--ss-neon-rgb), 0.10), transparent 60%),
+    linear-gradient(160deg, rgba(var(--ss-neon-rgb), 0.05), rgba(0, 0, 0, 0.04));
+  box-shadow:
+    0 0 10px -2px rgba(var(--ss-neon-rgb), 0.35),
+    0 0 34px -6px rgba(var(--ss-neon-rgb), 0.22),
+    0 10px 28px -14px rgba(0, 0, 0, 0.5),
+    inset 0 0 12px -6px rgba(var(--ss-neon-rgb), 0.4);
+}
+
+/* Aro/halo que respira (solo cambia la OPACIDAD del pseudo). */
+.ss-neon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 18px -6px rgba(var(--ss-neon-rgb), 0.65),
+    inset 0 0 3px 0 rgba(var(--ss-neon-rgb), 0.5),
+    0 0 22px -4px rgba(var(--ss-neon-rgb), 0.55);
+  opacity: 0.35;
+  animation: ss-respira 4s ease-in-out infinite;
+}
+
+/* Variantes cardinales (fijan también el tono de material). */
+.ss-neon--zenith  { --ss-mat-color: var(--ss-zenith);  --ss-mat-rgb: var(--ss-zenith-rgb); }
+.ss-neon--horizon { --ss-mat-color: var(--ss-horizon); --ss-mat-rgb: var(--ss-horizon-rgb); }
+.ss-neon--logic   { --ss-mat-color: var(--ss-logic);   --ss-mat-rgb: var(--ss-logic-rgb); }
+.ss-neon--anchor  { --ss-mat-color: var(--ss-anchor);  --ss-mat-rgb: var(--ss-anchor-rgb); }
+
+/* Respiración SUELTA para superficies con estilo propio (p. ej. el FAB
+   Trinity): solo añade el halo respirante, sin tocar borde ni fondo. */
+.ss-neon-breathe { position: relative; }
+.ss-neon-breathe::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 22px -2px rgba(var(--ss-mat-rgb), 0.55);
+  opacity: 0.35;
+  animation: ss-respira 4s ease-in-out infinite;
+}
+
+/* Halo 4-colores para el acceso Trinity (Zenith·Logic·Anchor·Horizon). */
+.ss-neon-breathe--trinity::after {
+  box-shadow:
+    0 -6px 20px -4px rgba(var(--ss-zenith-rgb), 0.55),
+    6px 0 20px -4px rgba(var(--ss-logic-rgb), 0.5),
+    0 6px 20px -4px rgba(var(--ss-anchor-rgb), 0.5),
+    -6px 0 20px -4px rgba(var(--ss-horizon-rgb), 0.5);
+}
+
+@keyframes ss-respira {
+  0%, 100% { opacity: 0.28; }
+  50%      { opacity: 0.85; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   3 · METAL ORGÁNICO — .ss-metal
+   Titanio oscuro con curvas de forja (conic + radial), bisel por
+   bordes + sombras internas y highlight especular que se desplaza
+   al hover (transform 300ms, sin repaints).
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-metal {
+  position: relative;
+  overflow: hidden; /* contiene el barrido especular */
+  color: #f2ede2;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-top-color: rgba(255, 255, 255, 0.28);
+  border-bottom-color: rgba(0, 0, 0, 0.55);
+  background:
+    radial-gradient(140% 90% at 85% -10%, rgba(255, 244, 214, 0.10), transparent 55%),
+    conic-gradient(
+      from 205deg at 30% 20%,
+      #3a3a40 0deg,
+      #23232a 70deg,
+      #4a463c 130deg,
+      #2b2b31 200deg,
+      #55503f 280deg,
+      #3a3a40 360deg
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.55),
+    inset 2px 0 6px -3px rgba(255, 255, 255, 0.10),
+    0 10px 26px -12px rgba(0, 0, 0, 0.6),
+    0 4px 14px -8px rgba(var(--ss-logic-rgb), 0.35);
+}
+
+/* Barrido especular: banda de luz inclinada que cruza en hover. */
+.ss-metal::before {
+  content: "";
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: -30%;
+  width: 45%;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    var(--ss-metal-sheen) 45%,
+    rgba(255, 255, 255, 0.06) 55%,
+    transparent 100%
+  );
+  transform: translateX(-140%) skewX(-12deg);
+  transition: transform 300ms var(--ease-glide, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.ss-metal:hover::before,
+.ss-metal:focus-visible::before {
+  transform: translateX(340%) skewX(-12deg);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   4 · MADERA REALISTA — .ss-wood
+   Vetas por gradientes repetidos multicapa (dos frecuencias + nudos
+   radiales) fundidas con blend-mode. Tonos cálidos, texto claro.
+   Pensada para superficies "naturales" (biblioteca / cultura).
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-wood {
+  position: relative;
+  color: #f6e9d4;
+  border: 1px solid rgba(122, 78, 42, 0.65);
+  border-top-color: rgba(233, 189, 132, 0.4);
+  background-color: #4a2f1c;
+  background-image:
+    /* nudos y ondulaciones de la veta */
+    radial-gradient(ellipse 22% 9% at 26% 38%, rgba(46, 26, 12, 0.55), transparent 70%),
+    radial-gradient(ellipse 16% 7% at 74% 68%, rgba(46, 26, 12, 0.45), transparent 70%),
+    /* veta fina (alta frecuencia) */
+    repeating-linear-gradient(
+      97deg,
+      rgba(62, 38, 20, 0.55) 0px,
+      rgba(94, 60, 32, 0.35) 3px,
+      rgba(62, 38, 20, 0.5) 7px,
+      rgba(118, 76, 40, 0.3) 12px
+    ),
+    /* veta ancha (baja frecuencia) + luz cálida general */
+    repeating-linear-gradient(
+      94deg,
+      #5a3a22 0px,
+      #6d4527 26px,
+      #55351f 52px,
+      #74502d 84px
+    ),
+    linear-gradient(180deg, rgba(255, 196, 120, 0.14), rgba(20, 8, 2, 0.35));
+  background-blend-mode: soft-light, soft-light, multiply, normal, overlay;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 214, 156, 0.22),
+    inset 0 -3px 8px rgba(24, 10, 3, 0.6),
+    0 10px 26px -12px rgba(24, 10, 3, 0.65);
+}
+
+/* Barniz superior sutil (reflexión de la laca). */
+.ss-wood::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 236, 200, 0.14) 0%, transparent 32%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   5 · ELEMENTO NATURAL — .ss-nature
+   Verdes musgo/esmeralda con gradiente orgánico, borde irregular
+   simulado (radios asimétricos) y brote decorativo opcional.
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-nature {
+  position: relative;
+  color: #eafbe9;
+  /* radio asimétrico = silueta orgánica, sin romper la caja */
+  border-radius: 1.6rem 1.1rem 1.5rem 0.9rem !important;
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  background:
+    radial-gradient(120% 90% at 12% 8%, rgba(57, 255, 20, 0.14), transparent 55%),
+    radial-gradient(90% 80% at 88% 92%, rgba(6, 78, 46, 0.75), transparent 75%),
+    linear-gradient(150deg, #123a22 0%, #0b2b18 55%, #133620 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(190, 255, 190, 0.16),
+    inset 0 -10px 24px -16px rgba(57, 255, 20, 0.3),
+    0 10px 28px -14px rgba(4, 32, 16, 0.8);
+}
+
+/* Brote/hoja decorativa opcional en la esquina superior derecha. */
+.ss-nature--brote::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  right: 14px;
+  width: 14px;
+  height: 18px;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: 0 85% 0 85%;
+  background: linear-gradient(135deg, var(--ss-horizon-vivid), var(--ss-horizon));
+  box-shadow: 0 0 10px rgba(var(--ss-horizon-rgb), 0.6);
+  transform: rotate(18deg);
+  opacity: 0.85;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   6 · MOVIMIENTO 3D — .ss-float / .ss-tilt / .ss-press
+   Solo transform (compositor). Sutiles, orgánicos, 150-300ms en
+   interacciones; la flotación continua dura 7s.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Flotación 3D perpetua muy sutil (ideal para orbes/iconos sueltos). */
+.ss-float {
+  animation: ss-flota 7s ease-in-out infinite;
+  transform-style: preserve-3d;
+}
+
+@keyframes ss-flota {
+  0%, 100% { transform: perspective(600px) translateY(0) rotateX(0deg); }
+  50%      { transform: perspective(600px) translateY(-4px) rotateX(1.6deg); }
+}
+
+/* Micro-tilt 3D al hover (200ms, dentro del rango 150-300ms). */
+.ss-tilt {
+  transition: transform 200ms var(--ease-organic, cubic-bezier(0.22, 1, 0.36, 1));
+  will-change: transform;
+}
+
+.ss-tilt:hover {
+  transform: perspective(800px) rotateX(2deg) rotateY(-2deg) translateY(-2px);
+}
+
+/* Feedback táctil al presionar (definido DESPUÉS de .ss-tilt para
+   ganar la cascada cuando conviven en el mismo elemento). */
+.ss-press { transition: transform 150ms var(--ease-soft, cubic-bezier(0.4, 0.1, 0.2, 1)); }
+.ss-press:active { transform: scale(0.97); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   7 · ICONO 3D — .ss-icon-3d
+   Envoltorio squircle (radio 30%) para iconos lucide: material de
+   cristal teñido + gradiente + sombra de color. Tono vía .ss-tone--*.
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-icon-3d {
+  display: inline-grid;
+  place-items: center;
+  width: var(--ss-icon-size, 44px);
+  height: var(--ss-icon-size, 44px);
+  flex-shrink: 0;
+  border-radius: 30% !important; /* squircle: gana al radio orgánico global */
+  color: var(--ss-mat-color);
+  border: 1px solid rgba(var(--ss-mat-rgb), 0.45);
+  background:
+    radial-gradient(115% 85% at 30% 18%, rgba(255, 255, 255, 0.28), transparent 55%),
+    radial-gradient(120% 120% at 70% 110%, rgba(var(--ss-mat-rgb), 0.38), transparent 70%),
+    linear-gradient(150deg, rgba(var(--ss-mat-rgb), 0.22), rgba(var(--ss-mat-rgb), 0.06));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -3px 8px -4px rgba(var(--ss-mat-rgb), 0.5),
+    0 4px 12px -4px rgba(var(--ss-mat-rgb), 0.45);
+  filter: drop-shadow(0 2px 6px rgba(var(--ss-mat-rgb), 0.25));
+}
+
+/* Tamaño compacto para tiles/chips densos. */
+.ss-icon-3d--sm { --ss-icon-size: 36px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   8 · ACCESIBILIDAD — prefers-reduced-motion
+   Congela toda animación/transición continua del sistema de materiales.
+   ═══════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .ss-crystal::before,
+  .ss-neon::after,
+  .ss-neon-breathe::after,
+  .ss-float {
+    animation: none;
+  }
+
+  .ss-tilt,
+  .ss-press,
+  .ss-metal::before {
+    transition: none;
+  }
+
+  .ss-tilt:hover { transform: none; }
+  .ss-metal:hover::before { transform: translateX(-140%) skewX(-12deg); }
+}

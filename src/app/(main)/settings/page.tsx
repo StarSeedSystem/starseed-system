@@ -5,8 +5,12 @@ import Link from "next/link";
 import { AppearanceEditor } from "@/components/settings/appearance/appearance-editor";
 import IntegrationsPanel from "@/components/integrations/integrations-panel";
 import { AiProvidersPanel } from "@/components/settings/ai/ai-providers-panel";
+import { IntelligencePanel } from "@/components/settings/ai/intelligence-panel";
+import { NeuronsPanel } from "@/components/settings/neurons/neurons-panel";
 import { AuroraChannelsPanel } from "@/components/settings/ai/aurora-channels-panel";
 import { AuroraVoiceFallbackPanel } from "@/components/settings/aurora-voice-fallback-panel";
+import { VoiceOssPanel } from "@/components/settings/aurora/voice-oss-panel";
+import { VisionPanel } from "@/components/settings/aurora/vision-panel";
 import { MixtureOfAgentsPanel } from "@/components/settings/ai/mixture-of-agents-panel";
 import { TriSourceConfig } from "@/components/services/tri-source-config";
 import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
@@ -96,12 +100,21 @@ function LinkCard({
     );
 }
 
-/* ── Acceso rápido: tiles de navegación interna ─────────────────────────────── */
+/* ── Acceso rápido: tiles de navegación interna ───────────────────────────────
+   Cada familia lleva su MATERIAL StarSeed (capa src/styles/starseed-materials.css)
+   y su tono cardinal Trinity:
+   · Perfil & Cuenta  → cristal líquido + Anchor (identidad = acceso raíz)
+   · IA & Modelos     → neón Zenith (azul, la guía IA)
+   · Aurora & Sentidos→ neón Horizon (lima/esmeralda, vitalidad)
+   · Seguridad        → metal orgánico + oro Logic (orden, ejecución)          */
 interface QuickTile {
     icon: React.ComponentType<{ className?: string }>;
     label: string;
     description: string;
-    accent: string;
+    /** Material de la familia (ss-crystal / ss-neon--* / ss-metal). */
+    material: string;
+    /** Tono cardinal Trinity para icono 3D y anillo luminoso. */
+    tone: string;
     tab: string;
 }
 
@@ -110,28 +123,32 @@ const QUICK_TILES: QuickTile[] = [
         icon: User,
         label: "Perfil & Cuenta",
         description: "Identidad · correos",
-        accent: "text-primary border-primary/20 bg-primary/5 hover:bg-primary/10",
+        material: "ss-crystal",
+        tone: "ss-tone--anchor",
         tab: "profile",
     },
     {
         icon: Cpu,
         label: "IA & Modelos",
         description: "Local · API · Fuentes",
-        accent: "text-[#FFBF00] border-[#FFBF00]/20 bg-[#FFBF00]/5 hover:bg-[#FFBF00]/10",
+        material: "ss-neon ss-neon--zenith",
+        tone: "",
         tab: "ai",
     },
     {
         icon: Sparkles,
         label: "Aurora & Sentidos",
         description: "Asistente · percepción",
-        accent: "text-[#39FF14] border-[#39FF14]/20 bg-[#39FF14]/5 hover:bg-[#39FF14]/10",
+        material: "ss-neon ss-neon--horizon",
+        tone: "",
         tab: "experience",
     },
     {
         icon: Shield,
         label: "Seguridad",
         description: "Privacidad · conexiones",
-        accent: "text-[#007FFF] border-[#007FFF]/20 bg-[#007FFF]/5 hover:bg-[#007FFF]/10",
+        material: "ss-metal",
+        tone: "ss-tone--logic",
         tab: "security",
     },
 ];
@@ -149,16 +166,20 @@ function QuickAccessTiles({ onTabChange }: { onTabChange: (tab: string) => void 
                     >
                         <div
                             className={cn(
-                                "flex flex-col gap-1.5 p-3 rounded-xl border transition-all duration-200 cursor-pointer group h-full",
-                                tile.accent,
+                                // Material + micro-tilt 3D + feedback táctil (transform only)
+                                "flex flex-col gap-1.5 p-3 rounded-xl cursor-pointer group h-full ss-tilt ss-press",
+                                tile.material,
+                                tile.tone,
                             )}
                         >
                             <div className="flex items-center justify-between">
-                                <Icon className="w-4 h-4" />
+                                <span className="ss-icon-3d ss-icon-3d--sm">
+                                    <Icon className="w-4 h-4" />
+                                </span>
                                 <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
                             </div>
                             <p className="text-xs font-semibold leading-tight">{tile.label}</p>
-                            <p className="text-[10px] text-muted-foreground leading-snug">{tile.description}</p>
+                            <p className="text-[10px] leading-snug opacity-75">{tile.description}</p>
                         </div>
                     </button>
                 );
@@ -167,9 +188,62 @@ function QuickAccessTiles({ onTabChange }: { onTabChange: (tab: string) => void 
     );
 }
 
+/* ── Ramificación de menús: chips-ancla pegajosos por categoría ───────────────
+   Barra compacta que acompaña al hacer scroll; cada chip activa su pestaña y
+   desplaza suavemente hasta el panel de secciones (#settings-secciones). El
+   chip activo viste el material de su familia; el resto queda neutro.        */
+function CategoryChipsBar({ activeTab, onNavigate }: { activeTab: string; onNavigate: (tab: string) => void }) {
+    return (
+        <div className="sticky top-2 z-30">
+            <nav
+                aria-label="Categorías de configuración"
+                className="ss-crystal rounded-full p-1.5 flex items-center gap-1 ss-hscroll ss-hscroll-fade w-fit max-w-full mx-auto md:mx-0"
+            >
+                {QUICK_TILES.map((tile) => {
+                    const Icon = tile.icon;
+                    const active = activeTab === tile.tab;
+                    return (
+                        <button
+                            key={tile.tab}
+                            type="button"
+                            onClick={() => onNavigate(tile.tab)}
+                            aria-current={active ? "true" : undefined}
+                            className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all duration-200 cursor-pointer ss-press shrink-0",
+                                tile.tone,
+                                active
+                                    ? tile.material
+                                    : "border border-transparent opacity-70 hover:opacity-100 hover:bg-foreground/5",
+                            )}
+                        >
+                            <Icon className="w-3.5 h-3.5" />
+                            <span>{tile.label}</span>
+                        </button>
+                    );
+                })}
+            </nav>
+        </div>
+    );
+}
+
 /* ── Página principal ───────────────────────────────────────────────────────── */
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = React.useState("appearance");
+
+    // Ancla REAL: activa la pestaña y desplaza con scroll suave hasta el
+    // panel de secciones (respeta prefers-reduced-motion).
+    const goToSection = React.useCallback((tab: string) => {
+        setActiveTab(tab);
+        requestAnimationFrame(() => {
+            const reduce =
+                typeof window !== "undefined" &&
+                window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            document.getElementById("settings-secciones")?.scrollIntoView({
+                behavior: reduce ? "auto" : "smooth",
+                block: "start",
+            });
+        });
+    }, []);
 
     return (
         <div className="w-full mx-auto px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] space-y-[clamp(1.5rem,3vw,3rem)] pb-24">
@@ -191,13 +265,16 @@ export default function SettingsPage() {
                     <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-1">
                         Acceso rápido
                     </p>
-                    <QuickAccessTiles onTabChange={setActiveTab} />
+                    <QuickAccessTiles onTabChange={goToSection} />
                 </div>
             </div>
 
+            {/* ── Chips-ancla pegajosos por categoría (ramificación) ── */}
+            <CategoryChipsBar activeTab={activeTab} onNavigate={goToSection} />
+
             {/* ── Área de pestañas ─────────────────────────────────── */}
             <div className="relative">
-                <div className="backdrop-blur-xl bg-background/30 border rounded-xl overflow-hidden shadow-2xl">
+                <div id="settings-secciones" className="scroll-mt-20 backdrop-blur-xl bg-background/30 border rounded-xl overflow-hidden shadow-2xl">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <div className="border-b bg-muted/20 p-4">
                             <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 max-w-4xl mx-auto gap-1">
@@ -297,6 +374,9 @@ export default function SettingsPage() {
                                         </div>
                                     </GlassCard>
                                 </div>
+                                {/* Inteligencia de Aurora (Astraura): gratis-primero, modelo por tarea y rutas transparentes */}
+                                <IntelligencePanel />
+
                                 <AiProvidersPanel />
 
                                 {/* Mixture of Agents: combinaciones multi-agente que Aurora orquesta y selecciona por contexto */}
@@ -304,6 +384,9 @@ export default function SettingsPage() {
 
                                 {/* Canales de Aurora: por dónde habla (interno + Telegram/Google Chat/API) */}
                                 <AuroraChannelsPanel />
+
+                                {/* Motor de voz de Aurora: Navegador / Kokoro (local, mejor español) / Kitten (beta) */}
+                                <VoiceOssPanel />
 
                                 {/* Reconocimiento de voz alternativo (open-source) para navegadores sin voz nativa */}
                                 <AuroraVoiceFallbackPanel />
@@ -384,6 +467,17 @@ export default function SettingsPage() {
                                         accentText="text-[#FFBF00]"
                                         accentBg="bg-[#FFBF00]/10 border-[#FFBF00]/20"
                                     />
+                                </div>
+
+                                {/* ── Visión de Aurora (SmolVLM2 · WebGPU · 100% local) ── */}
+                                <VisionPanel />
+
+                                {/* ── Astraura · Neuronas: tus dispositivos como red personal ── */}
+                                <div className="space-y-3">
+                                    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-1">
+                                        Astraura · Neuronas
+                                    </p>
+                                    <NeuronsPanel />
                                 </div>
 
                                 {/* Navegación Trinity (se configura aquí) */}

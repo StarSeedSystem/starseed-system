@@ -2,6 +2,10 @@
 /* Tema StarSeed Café: serif Fraunces (titulares) + Space Mono (etiquetas).
    Solo se usan bajo html[data-os-theme="cafe"]; fallback Georgia/monospace. */
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Space+Mono:wght@400;700&display=swap');
+/* Capa de MATERIALES StarSeed (cristal líquido, neón, metal, madera,
+   naturaleza + movimiento 3D). Importada ANTES de Tailwind a propósito:
+   cualquier utilidad Tailwind sobre el mismo elemento gana al material. */
+@import '../styles/starseed-materials.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

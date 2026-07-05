@@ -68,9 +68,10 @@ export interface OssTtsVoiceSpec {
  * de la voz sólo marca su ACENTO/fonética. Para español, usa una voz `es`.
  */
 export const OSS_TTS_VOICES: OssTtsVoiceSpec[] = [
-  // Español
+  // Español (voces nativas de Kokoro v1.0: lang_code 'e', espeak-ng `es`)
   { id: "ef_dora", label: "Dora (español)", lang: "es", gender: "f" },
   { id: "em_alex", label: "Álex (español)", lang: "es", gender: "m" },
+  { id: "em_santa", label: "Santa (español)", lang: "es", gender: "m" },
   // Inglés (US) — voces de referencia de Kokoro
   { id: "af_heart", label: "Heart (inglés US)", lang: "en", gender: "f" },
   { id: "af_bella", label: "Bella (inglés US)", lang: "en", gender: "f" },
