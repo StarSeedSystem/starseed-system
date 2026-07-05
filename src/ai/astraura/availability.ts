@@ -17,6 +17,7 @@ import { loadConfigs } from "@/ai/client/providerStore";
 import type { ProviderConfig } from "@/ai/providers/types";
 import { FREE_CATALOG, type CatalogSource } from "./free-catalog";
 import { chromeAiAvailable, webgpuAvailable } from "./builtin-engines";
+import { isDownloadableSource, isModelInstalled } from "./installed-models";
 
 export interface SourceAvailability {
   source: CatalogSource;
@@ -76,14 +77,24 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
   for (const source of FREE_CATALOG) {
     const userConfig = userConfigForSource(source, configs);
 
-    if (source.baseUrl === "builtin://chrome-ai") {
-      const ok = fast ? typeof window !== "undefined" && !!(window as any).LanguageModel : await chromeAiAvailable();
-      out.push({ source, ready: ok, reason: ok ? undefined : "Este navegador no trae la Prompt API (Chrome 148+)." });
-      continue;
-    }
-    if (source.baseUrl === "builtin://webllm") {
-      const ok = webgpuAvailable();
-      out.push({ source, ready: ok, reason: ok ? undefined : "Sin WebGPU en este navegador." });
+    // ── MODELOS DESCARGABLES (opt-in): NUNCA "ready" salvo que el usuario los
+    //    haya INSTALADO. Así el router jamás dispara una descarga enorme solo y
+    //    Aurora usa la mejor alternativa gratis mientras. El modal de instalación
+    //    se ofrece aparte (installed-models + install-model-modal).
+    if (isDownloadableSource(source.id)) {
+      const installed = isModelInstalled(source.id);
+      const hasEngine =
+        source.baseUrl === "builtin://chrome-ai"
+          ? (typeof window !== "undefined" && !!(window as any).LanguageModel)
+          : webgpuAvailable();
+      out.push({
+        source,
+        ready: installed && hasEngine,
+        userConfig,
+        reason: !hasEngine
+          ? (source.baseUrl === "builtin://chrome-ai" ? "Este navegador no trae la Prompt API (Chrome 148+)." : "Sin WebGPU en este navegador.")
+          : installed ? undefined : "Modelo local disponible — instálalo (opcional) para usarlo.",
+      });
       continue;
     }
     if (source.tier === "local") {

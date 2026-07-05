@@ -46,6 +46,8 @@ export const SYNCED_KEYS = [
     "starseed.library.mine.v1",          // réplicas/forks editables del usuario (Cydia «Replicar»)
     "starseed.library.published.v1",     // ramas marcadas como públicas (preparadas para la red)
     "starseed.aurora.voice.v1",          // voz de Aurora: motor (navegador/Kokoro/Kitten) + voz elegida
+    "starseed.aurora.vision.v1",             // visión de Aurora: activada + modelo elegido
+    "starseed.astraura.installed-models.v1", // modelos de navegador instalados (opt-in) por el usuario
 ] as const;
 
 export interface SyncResult {

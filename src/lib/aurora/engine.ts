@@ -522,14 +522,14 @@ export function useAuroraEngine(): AuroraEngine {
       return next;
     });
     historyIndexRef.current = -1; // -1 = al final (última respuesta)
-    setConversation((prev) => [...prev, { role: "aurora", text: t, at: Date.now() }].slice(-HISTORY_LIMIT));
+    setConversation((prev) => [...prev, { role: "aurora" as const, text: t, at: Date.now() }].slice(-HISTORY_LIMIT));
   }, []);
 
   // Registra lo que el usuario dijo/escribió.
   const pushUser = useCallback((text: string) => {
     const t = (text || "").trim();
     if (!t) return;
-    setConversation((prev) => [...prev, { role: "user", text: t, at: Date.now() }].slice(-HISTORY_LIMIT));
+    setConversation((prev) => [...prev, { role: "user" as const, text: t, at: Date.now() }].slice(-HISTORY_LIMIT));
   }, []);
 
   // Registra una acción ejecutada (para el panel del chat).
@@ -662,7 +662,16 @@ export function useAuroraEngine(): AuroraEngine {
   }, []);
 
   // ── enrutado de comandos ──
+  // ¿Aurora está procesando una respuesta ahora mismo? (guard de solapamiento).
+  const runningRef = useRef(false);
   const runCommand = useCallback(async (raw: string) => {
+    // GUARD ANTI-SOLAPAMIENTO: si Aurora YA está procesando una respuesta, no
+    // lanzamos otra en paralelo. Sin esto, mientras Aurora "piensa" el micrófono
+    // puede captar más frases y disparar runCommands concurrentes → pile-up que
+    // se percibe como "oye pero no responde y el reproductor se reinicia en loop".
+    if (runningRef.current) return;
+    runningRef.current = true;
+    try {
     // Corrección fonética de términos StarSeed (idempotente): cubre también el
     // texto ESCRITO (send) y refuerza el de voz. Si algo falla, usa el original.
     let base = raw || "";
@@ -867,6 +876,11 @@ export function useAuroraEngine(): AuroraEngine {
         ? `Astraura: ${d}`
         : "No pude contactar a Astraura. Revisa tu proveedor de IA en Ajustes → IA & Modelos.";
       pushReply(m); speak(m);
+    }
+    } finally {
+      // Libera el guard SIEMPRE (aunque hubiera return anticipado o error): así
+      // el siguiente turno del usuario se procesa con normalidad.
+      runningRef.current = false;
     }
   }, [router, speak, setEnabled, buildActionCtx, pushUser, pushReply, pushAction, routeContext]);
 

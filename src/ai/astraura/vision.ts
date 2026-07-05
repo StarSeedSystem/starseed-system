@@ -123,6 +123,18 @@ async function getVisionPipeline(
   return created;
 }
 
+/**
+ * Precarga (descarga+calienta) el pipeline de visión SIN analizar nada. La usa
+ * el instalador de modelos en segundo plano para dejar SmolVLM2 listo. Devuelve
+ * cuando el modelo está cacheado. Nunca deja la promesa rechazada cacheada.
+ */
+export async function warmUpVision(
+  modelId = VISION_MODELS["256M"].id,
+  onProgress?: (p: string) => void,
+): Promise<void> {
+  await getVisionPipeline(modelId, (p) => onProgress?.(p.message || ""));
+}
+
 /* ── Normalización de la imagen a dataURL ────────────────────────────────── */
 
 /** Convierte un Blob/File a dataURL (base64) con FileReader. */

@@ -223,6 +223,26 @@ export interface AstrauraChatRequest {
   onStatus?: (status: string) => void;
 }
 
+/** Tiempo máximo por candidato antes de pasar al siguiente (nunca cuelga). */
+function candidateTimeoutMs(c: RouteCandidate): number {
+  // Modelos de navegador ya instalados pueden tardar más en la 1ª carga tras un
+  // reinicio; el resto (nube/local HTTP) debe responder rápido o cedemos el turno.
+  if (c.source.privacy === "browser") return 90_000;
+  if (c.source.privacy === "local") return 20_000;
+  return 30_000;
+}
+
+/** Envuelve una promesa con un timeout que rechaza (para el failover). */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`timeout ${label} (${Math.round(ms / 1000)}s)`)), ms);
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
 /** Ejecuta UNA fuente candidata. Lanza si falla (para el failover). */
 async function runCandidate(c: RouteCandidate, req: AstrauraChatRequest): Promise<ChatResponse> {
   const base: Omit<ChatRequest, "providerOverride"> = {
@@ -305,7 +325,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     const t0 = Date.now();
     try {
       req.onStatus?.(`Usando ${c.source.label} · ${c.model.label}…`);
-      const res = await runCandidate(c, req);
+      const res = await withTimeout(runCandidate(c, req), candidateTimeoutMs(c), c.source.label);
       // Registra el uso (peticiones/tokens) para el panel de uso y límites.
       try { noteUsage(c.source.id, c.model.id, res?.usage); } catch { /* */ }
       const rec: RouteRecord = {
