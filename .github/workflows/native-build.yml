@@ -1,0 +1,210 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# StarSeed Native — Build & Release (Tauri 2)
+# ---------------------------------------------------------------------------
+# Compila los TRES sistemas StarSeed (OS · Nexus · Café) como apps NATIVAS por
+# sistema operativo y sube los instaladores a un GitHub Release, generando el
+# `latest.json` que consume el updater incremental in-app.
+#
+# Dispara en:
+#   · push de una etiqueta v*   (p.ej. v0.1.0)   → release
+#   · ejecución manual (workflow_dispatch)        → elige qué sistema(s) construir
+#
+# Produce por SO:
+#   · macOS   → .dmg + .app  (+ .app.tar.gz para el updater)
+#   · Windows → .msi + .exe (NSIS)  (+ .zip/.sig para el updater)
+#   · Linux   → .deb + .AppImage + .rpm  (+ .sig para el updater)
+#   · Android → .apk / .aab   (job separado, comentado abajo)
+#
+# Todo vive en `native/` del repo del OS. Como los tres sistemas comparten el
+# mismo binario `starseed-native`, cada uno se construye con su `-c ...conf.json`
+# y su icono, regenerando `native/src-tauri/icons/` antes de cada build.
+#
+# ── FIRMA (honestidad) ──────────────────────────────────────────────────────
+# Los binarios SIN FIRMAR sirven para probar (macOS pedirá "clic derecho → Abrir";
+# Windows mostrará SmartScreen). Para DISTRIBUIR sin fricción hay que añadir los
+# secretos de firma (opcionales; el build funciona sin ellos):
+#   · TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#       → clave del UPDATER (genérala con `cargo tauri signer generate`). Firma
+#         los artefactos de actualización; su clave PÚBLICA va en tauri.conf.json.
+#   · APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY /
+#     APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID
+#       → firma Developer ID + NOTARIZACIÓN de Apple para el .dmg/.app.
+#   · WINDOWS_CERTIFICATE / WINDOWS_CERTIFICATE_PASSWORD
+#       → code-signing de Windows (Authenticode) para el .exe/.msi.
+# Sin estos secretos, los pasos de firma se omiten y se generan binarios de prueba.
+# ═══════════════════════════════════════════════════════════════════════════
+
+name: StarSeed Native · Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      systems:
+        description: "Sistemas a construir (coma-separados): os,nexus,cafe"
+        required: false
+        default: "os,nexus,cafe"
+
+# Permiso para crear/actualizar el Release con los instaladores.
+permissions:
+  contents: write
+
+jobs:
+  build-desktop:
+    name: ${{ matrix.system }} · ${{ matrix.platform }}
+    strategy:
+      # No cancelar el resto de la matriz si un target falla.
+      fail-fast: false
+      matrix:
+        # Los tres sistemas StarSeed.
+        system: [os, nexus, cafe]
+        include:
+          # macOS Apple Silicon + Intel (universal se puede añadir con --target universal-apple-darwin).
+          - platform: macos-latest
+            args: "--target aarch64-apple-darwin"
+          - platform: macos-latest
+            args: "--target x86_64-apple-darwin"
+          # Linux (produce .deb, .AppImage y .rpm).
+          - platform: ubuntu-22.04
+            args: ""
+          # Windows (produce .msi y .exe NSIS).
+          - platform: windows-latest
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      # ── Toolchains ──
+      - name: Instalar Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # Objetivos extra de macOS para la matriz aarch64/x86_64.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache de Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "native/src-tauri -> target"
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ── Dependencias de sistema de Tauri en Linux ──
+      - name: Dependencias de Linux (Tauri)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            build-essential \
+            file
+
+      # ── Iconos del sistema que toca (regenera native/src-tauri/icons/) ──
+      - name: Generar iconos para «${{ matrix.system }}»
+        working-directory: native/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon "../icons-src/${{ matrix.system }}.png"
+
+      # ── Selección del fichero de config por sistema ──
+      #   OS   → tauri.conf.json (base, sin -c)
+      #   otros → -c tauri.<sistema>.conf.json
+      - name: Resolver flag de config
+        id: cfg
+        shell: bash
+        run: |
+          if [ "${{ matrix.system }}" = "os" ]; then
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=-c tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Build + Release con la acción oficial de Tauri ──
+      - name: Build (tauri-action) y subir al Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Firma del UPDATER (opcional): si están, firma los artefactos de update.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Firma + notarización de Apple (opcional).
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Code-signing de Windows (opcional).
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        with:
+          # La raíz del proyecto Tauri (donde está src-tauri/).
+          projectPath: native
+          # Un Release por etiqueta; la acción sube los instaladores y el latest.json.
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('native-{0}', github.run_number) }}
+          releaseName: "StarSeed Native ${{ github.ref_type == 'tag' && github.ref_name || github.run_number }}"
+          releaseBody: "Instaladores nativos de StarSeed (OS · Nexus · Café) generados desde native/ por CI. El updater incremental in-app usa el latest.json de este release."
+          releaseDraft: true
+          prerelease: false
+          # Config extra por sistema + args de target de la matriz.
+          args: ${{ steps.cfg.outputs.flag }} ${{ matrix.args }}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ANDROID (.apk / .aab) — habilitar cuando se configure la firma de Google Play.
+  # Descomenta este job y añade los secretos ANDROID_* (keystore base64, alias,
+  # contraseñas). Requiere inicializar el proyecto Android una vez:
+  #   cd native && cargo tauri android init
+  # y confirmar la carpeta gen/android generada (o regenerarla en el CI).
+  # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # build-android:
+  #   name: ${{ matrix.system }} · android
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       system: [os, nexus, cafe]
+  #   runs-on: ubuntu-22.04
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+  #     - uses: actions/setup-node@v4
+  #       with: { node-version: 20 }
+  #     - uses: actions/setup-java@v4
+  #       with: { distribution: temurin, java-version: 17 }
+  #     - name: Instalar Android SDK/NDK
+  #       uses: android-actions/setup-android@v3
+  #     - name: Instalar Tauri CLI
+  #       run: cargo install tauri-cli --version "^2" --locked
+  #     - name: Generar iconos (${{ matrix.system }})
+  #       working-directory: native/src-tauri
+  #       run: npx --yes @tauri-apps/cli@latest icon "../icons-src/${{ matrix.system }}.png"
+  #     - name: Inicializar Android (si no está en el repo)
+  #       working-directory: native
+  #       run: cargo tauri android init || true
+  #     - name: Build Android (.apk / .aab)
+  #       working-directory: native
+  #       env:
+  #         # Firma de la app Android (opcional pero necesaria para Play Store):
+  #         ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+  #         ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+  #         ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+  #       run: |
+  #         FLAG=""
+  #         if [ "${{ matrix.system }}" != "os" ]; then FLAG="-c tauri.${{ matrix.system }}.conf.json"; fi
+  #         cargo tauri android build $FLAG
+  #     - name: Subir artefactos Android
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: starseed-${{ matrix.system }}-android
+  #         path: native/src-tauri/gen/android/app/build/outputs/**/*.{apk,aab}

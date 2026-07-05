@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-only",
+  "description": "Permisos exclusivos de ESCRITORIO (Linux/macOS/Windows). El autoarranque hace que el compañero StarSeed se levante con el sistema, siempre presente para Aurora. Se separa aquí porque el plugin autostart no existe en móvil y rompería el build de Android/iOS si se mezclara con la capability multiplataforma.",
+  "windows": ["main"],
+  "platforms": ["linux", "macOS", "windows"],
+  "permissions": [
+    "autostart:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
+  ]
+}

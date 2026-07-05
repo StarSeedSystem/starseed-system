@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "StarSeed Nexus",
+  "identifier": "app.starseed.nexus",
+  "build": {
+    "frontendDist": "https://starseed-nexus.vercel.app",
+    "devUrl": "https://starseed-nexus.vercel.app"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "StarSeed Nexus",
+        "url": "https://starseed-nexus.vercel.app"
+      }
+    ]
+  },
+  "bundle": {
+    "shortDescription": "Portal del ecosistema StarSeed — Nexus",
+    "longDescription": "StarSeed Nexus — portal de marca del ecosistema StarSeed, empaquetado como aplicación nativa con actualización incremental in-app."
+  }
+}

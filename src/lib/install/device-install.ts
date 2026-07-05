@@ -280,14 +280,18 @@ export async function requestMaxPermissions(): Promise<PermissionReport> {
 
 /* ═══════════════════════ 4 · Paquetes nativos por SO ═══════════════════════ */
 
-export type NativeStatus = "pwa" | "soon" | "link";
+export type NativeStatus = "pwa" | "release" | "soon" | "link";
 
 export interface NativeOption {
   /** Etiqueta ("AppImage (.AppImage)", "Instalador (.dmg)"…). */
   label: string;
   /** Nota honesta sobre el estado real de este target. */
   note: string;
-  /** "pwa" = la vía real hoy · "soon" = aún no hay binario · "link" = enlace real. */
+  /**
+   * "pwa" = la vía real hoy · "release" = binario nativo real (se compila en
+   * `native/` con Tauri 2 y se publica en GitHub Releases vía CI) · "soon" = aún
+   * no hay binario · "link" = enlace real (repo/releases).
+   */
   status: NativeStatus;
   /** Icono lucide sugerido (la UI lo resuelve con fallback). */
   icon?: string;
@@ -295,19 +299,32 @@ export interface NativeOption {
   href?: string;
 }
 
-/** Código fuente y releases oficiales (donde vivirán los binarios nativos). */
+/** Código fuente y releases oficiales (donde viven los binarios nativos). */
 export const OS_REPO_URL = "https://github.com/StarSeedSystem/starseed-system";
+/** Página de releases (instaladores nativos generados por CI desde `native/`). */
+export const OS_RELEASES_URL =
+  "https://github.com/StarSeedSystem/starseed-system/releases";
 /** Despliegue web oficial (PWA instalable). */
 export const OS_WEB_URL = "https://starseed-os.vercel.app";
 
-/** Texto honesto reutilizable para targets nativos aún sin binario. */
-const SOON_NOTE =
-  "El paquete nativo aún no está publicado. Hoy la vía real de instalación es la PWA (se instala como app con acceso a pantalla completa y trabajo offline). Los binarios nativos aparecerán aquí en cuanto existan.";
+/**
+ * Nota honesta para los targets nativos REALES: el empaquetado nativo existe
+ * como scaffold Tauri 2 en `native/` (envuelve la web desplegada en una app
+ * nativa con updater incremental in-app y control por terminal). Los binarios
+ * se compilan por CI y se publican en Releases; hasta que haya un release
+ * publicado, el enlace lleva a la página de releases (aún puede estar vacía) y
+ * la PWA sigue siendo la vía inmediata.
+ */
+const NATIVE_NOTE =
+  "Paquete nativo real (Tauri): app nativa que envuelve StarSeed y se actualiza sola dentro de la app, con acceso profundo al dispositivo. Se compila desde native/ y se publica en Releases por CI. Si aún no ves un binario, es que no hay release publicado todavía — mientras tanto, la PWA se instala al instante.";
 
 /**
  * Opciones de instalación NATIVA para un SO. La primera opción de cada lista es
- * SIEMPRE la PWA (lo real hoy). Los binarios propios se marcan "soon" con nota
- * honesta hasta que el pipeline los publique en releases. Nunca lanza.
+ * SIEMPRE la PWA (lo real hoy, sin esperas). Los binarios nativos son REALES:
+ * se generan con el scaffold Tauri 2 de `native/` y se publican en GitHub
+ * Releases por CI; se marcan "release" con enlace a la página de releases (que
+ * puede estar vacía hasta el primer release publicado — la nota lo aclara).
+ * Nunca lanza.
  */
 export function nativePackages(os: OsId): NativeOption[] {
   const pwa: NativeOption = {
@@ -317,9 +334,11 @@ export function nativePackages(os: OsId): NativeOption[] {
     icon: "Download",
     href: OS_WEB_URL,
   };
+  // Enlace a los binarios nativos (los publica el CI desde `native/`).
+  const nativeHref = OS_RELEASES_URL;
   const releases: NativeOption = {
     label: "Código fuente y releases",
-    note: "Repositorio oficial: aquí se publicarán los instaladores nativos y puedes compilarlo tú mismo (open source).",
+    note: "Repositorio oficial: aquí se publican los instaladores nativos (generados desde native/ vía CI) y puedes compilarlo tú mismo (open source).",
     status: "link",
     icon: "Github",
     href: OS_REPO_URL,
@@ -329,26 +348,27 @@ export function nativePackages(os: OsId): NativeOption[] {
     case "linux":
       return [
         pwa,
-        { label: "AppImage (.AppImage)", note: SOON_NOTE, status: "soon", icon: "Package" },
-        { label: "Paquete Debian (.deb)", note: SOON_NOTE, status: "soon", icon: "Package" },
+        { label: "AppImage (.AppImage)", note: NATIVE_NOTE, status: "release", icon: "Package", href: nativeHref },
+        { label: "Paquete Debian (.deb)", note: NATIVE_NOTE, status: "release", icon: "Package", href: nativeHref },
+        { label: "Paquete RPM (.rpm)", note: NATIVE_NOTE, status: "release", icon: "Package", href: nativeHref },
         releases,
       ];
     case "windows":
       return [
         pwa,
-        { label: "Instalador (.exe / MSIX)", note: SOON_NOTE, status: "soon", icon: "Package" },
+        { label: "Instalador (.msi / .exe NSIS)", note: NATIVE_NOTE, status: "release", icon: "Package", href: nativeHref },
         releases,
       ];
     case "macos":
       return [
         pwa,
-        { label: "Imagen de disco (.dmg)", note: SOON_NOTE, status: "soon", icon: "Package" },
+        { label: "Imagen de disco (.dmg / .app)", note: NATIVE_NOTE, status: "release", icon: "Package", href: nativeHref },
         releases,
       ];
     case "android":
       return [
         pwa,
-        { label: "APK (.apk)", note: SOON_NOTE, status: "soon", icon: "Package" },
+        { label: "APK / AAB (.apk / .aab)", note: NATIVE_NOTE, status: "release", icon: "Package", href: nativeHref },
         releases,
       ];
     case "ios":
@@ -356,7 +376,7 @@ export function nativePackages(os: OsId): NativeOption[] {
         {
           ...pwa,
           label: "Añadir a pantalla de inicio (PWA)",
-          note: "En iPhone/iPad la instalación es vía Safari: Compartir → «Añadir a pantalla de inicio». No hay App Store nativa aún; la PWA es la vía real hoy.",
+          note: "En iPhone/iPad la instalación es vía Safari: Compartir → «Añadir a pantalla de inicio». La app nativa (Tauri iOS) requiere firma Apple; hasta entonces, la PWA es la vía real hoy.",
         },
         releases,
       ];
@@ -403,9 +423,10 @@ export function companionInfo(os: OsId): CompanionInfo {
   const browserLimit =
     "Un navegador NO puede abrir una terminal ni controlar tu sistema por seguridad. Para dar a Aurora control real del dispositivo hay que instalar este compañero nativo y concederle permisos explícitamente.";
   const unlocks = [
-    "Control por terminal: Aurora puede ejecutar comandos que tú autorices.",
+    "Control por terminal: Aurora ejecuta comandos que tú autorices (comando nativo run_terminal de la app Tauri).",
     "Acceso a archivos locales fuera del navegador (con permiso).",
     "Sentidos y automatización del sistema (pantalla, apps) cuando lo pidas.",
+    "Actualización incremental dentro de la app (updater de Tauri, sin reinstalar).",
     "Registra este equipo como neurona con permiso 'agent' (red personal).",
   ];
 
@@ -450,12 +471,14 @@ export function companionInfo(os: OsId): CompanionInfo {
   return {
     title: `Compañero local de StarSeed para ${label}`,
     intro:
-      "El compañero es un pequeño agente nativo que corre en tu dispositivo. Instalarlo y darle permisos es lo que permite a Aurora control por terminal y acceso real al equipo — algo que el navegador solo NO puede hacer.",
+      "El compañero nativo es esta misma app StarSeed empaquetada con Tauri 2 (código en native/): al instalarla y darle permisos, expone a Aurora el comando run_terminal (control por terminal, con tu consentimiento) y acceso real al equipo — algo que el navegador solo NO puede hacer. Se compila y publica en Releases por CI.",
     unlocks,
     steps: stepsByOs[os] ?? stepsByOs.unknown,
+    // "soon" mientras no haya un release publicado; el binario nativo ya existe
+    // como scaffold Tauri en native/ y sale por CI en cuanto se etiquete una versión.
     status: "soon",
-    // Mientras no exista el instalador, enlazamos al repo (transparencia).
-    href: OS_REPO_URL,
+    // Enlace a la página de releases (donde aparece el binario del compañero).
+    href: OS_RELEASES_URL,
     browserLimit,
   };
 }

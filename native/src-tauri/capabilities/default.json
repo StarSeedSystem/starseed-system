@@ -1,0 +1,117 @@
+{
+  "$schema": "../gen/schemas/remote-schema.json",
+  "identifier": "default",
+  "description": "Capability principal de StarSeed Native. Concede a Aurora (la web remota desplegada) CONTROL PROFUNDO del dispositivo tras la instalación nativa: terminal, procesos, archivos, sistema, notificaciones, diálogos, autoarranque y el updater incremental. Todos los permisos están DECLARADOS y limitados por su scope; el usuario los concede al instalar y ejecutar la app nativa. Un navegador por seguridad NO puede hacer esto — por eso existe este cuerpo nativo.",
+  "windows": ["main"],
+  "platforms": ["linux", "macOS", "windows", "android", "iOS"],
+  "remote": {
+    "urls": [
+      "https://starseed-os.vercel.app",
+      "https://starseed-nexus.vercel.app",
+      "https://starseed-cafe.vercel.app"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "core:app:default",
+    "core:window:default",
+    "core:webview:default",
+    "core:event:default",
+    "core:path:default",
+    "core:resources:default",
+    "core:menu:default",
+    "core:tray:default",
+    "core:window:allow-set-title",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "sh",
+          "cmd": "sh",
+          "args": ["-c", { "validator": "\\S+" }],
+          "sidecar": false
+        },
+        {
+          "name": "bash",
+          "cmd": "bash",
+          "args": ["-c", { "validator": "\\S+" }],
+          "sidecar": false
+        },
+        {
+          "name": "cmd",
+          "cmd": "cmd",
+          "args": ["/C", { "validator": "\\S+" }],
+          "sidecar": false
+        },
+        {
+          "name": "powershell",
+          "cmd": "powershell",
+          "args": ["-Command", { "validator": "\\S+" }],
+          "sidecar": false
+        }
+      ]
+    },
+    "shell:allow-spawn",
+    "shell:allow-kill",
+    "shell:allow-stdin-write",
+    "shell:allow-open",
+
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "$HOME/**" }, { "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$HOME/**" }]
+    },
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [{ "path": "$HOME/**" }, { "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$HOME/**" }]
+    },
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$APPDATA/**" }, { "path": "$APPCONFIG/**" }, { "path": "$APPLOCALDATA/**" }, { "path": "$DOCUMENT/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DESKTOP/**" }]
+    },
+    "fs:default",
+
+    "os:allow-platform",
+    "os:allow-version",
+    "os:allow-os-type",
+    "os:allow-family",
+    "os:allow-arch",
+    "os:allow-hostname",
+    "os:allow-locale",
+    "os:allow-exe-extension",
+
+    "process:allow-exit",
+    "process:allow-restart",
+
+    "notification:default",
+    "notification:allow-notify",
+    "notification:allow-request-permission",
+    "notification:allow-is-permission-granted",
+
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-ask",
+    "dialog:allow-confirm",
+
+    "updater:default",
+    "updater:allow-check",
+    "updater:allow-download-and-install",
+
+    "deep-link:default"
+  ]
+}

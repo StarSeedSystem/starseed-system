@@ -124,6 +124,7 @@ function InstallOsBlock({ os }: { os: DetectedOs }) {
               className={cn(
                 "flex items-start gap-2.5 rounded-xl border p-3",
                 opt.status === "pwa" ? "border-emerald-400/25 bg-emerald-500/[0.06]"
+                  : opt.status === "release" ? "border-sky-400/25 bg-sky-500/[0.05]"
                   : opt.status === "link" ? "border-white/10 bg-white/[0.03]"
                   : "border-white/10 bg-white/[0.02] opacity-90",
               )}
@@ -139,16 +140,24 @@ function InstallOsBlock({ os }: { os: DetectedOs }) {
                       <Clock className="h-2.5 w-2.5" /> Próximamente
                     </Badge>
                   )}
+                  {opt.status === "release" && (
+                    <Badge variant="outline" className="border-sky-400/30 bg-sky-500/10 text-[9px] text-sky-200 gap-1">
+                      <DownloadCloud className="h-2.5 w-2.5" /> Releases
+                    </Badge>
+                  )}
                 </div>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{opt.note}</p>
-                {opt.href && (opt.status === "link" || opt.status === "pwa") && (
+                {opt.href && (opt.status === "link" || opt.status === "pwa" || opt.status === "release") && (
                   <a
                     href={opt.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-300 hover:text-emerald-200 hover:underline cursor-pointer"
+                    className={cn(
+                      "mt-1 inline-flex items-center gap-1 text-[11px] font-medium hover:underline cursor-pointer",
+                      opt.status === "release" ? "text-sky-300 hover:text-sky-200" : "text-emerald-300 hover:text-emerald-200",
+                    )}
                   >
-                    Abrir <ExternalLink className="h-3 w-3" />
+                    {opt.status === "release" ? "Ver releases" : "Abrir"} <ExternalLink className="h-3 w-3" />
                   </a>
                 )}
               </div>

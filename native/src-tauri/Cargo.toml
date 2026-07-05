@@ -1,0 +1,84 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# StarSeed Native — Manifiesto Cargo (Tauri 2)
+# ---------------------------------------------------------------------------
+# Este crate NO contiene la web: envuelve la web desplegada (StarSeed OS /
+# Nexus / Café) en una app nativa por sistema operativo. La web se carga en
+# remoto (ver tauri.conf.json → app.windows[].url), así que aquí no hay
+# frontend embebido: solo el "cuerpo" nativo con integración real de sistema.
+#
+# Un solo binario `starseed-native` sirve a los tres sistemas: se compila el OS
+# por defecto y Nexus/Café con `-c tauri.nexus.conf.json` / `-c tauri.cafe.conf.json`.
+# ═══════════════════════════════════════════════════════════════════════════
+
+[package]
+name = "starseed-native"
+version = "0.1.0"
+description = "Empaquetado nativo (Tauri 2) de los sistemas StarSeed: OS, Nexus y Café. Envuelve la web desplegada en una app nativa por SO con actualización in-app y control profundo del dispositivo."
+authors = ["Alex Bordón Garrigós <alexbordongarrigos@gmail.com>", "StarSeedSystem"]
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/StarSeedSystem/starseed-system"
+edition = "2021"
+# El plugin updater/shell exige Rust >= 1.77.2.
+rust-version = "1.77.2"
+# El binario producido se llama `starseed-native`.
+default-run = "starseed-native"
+
+# El binario nativo. `lib` no hace falta en escritorio; para Android el punto de
+# entrada móvil se genera con `cargo tauri android init` (crea el lib target).
+[[bin]]
+name = "starseed-native"
+path = "src/main.rs"
+
+[build-dependencies]
+# Genera el contexto de Tauri (embebe tauri.conf.json, iconos y capabilities).
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Núcleo de Tauri 2. El feature `tray-icon` deja un icono en la bandeja del
+# sistema (compañero siempre presente). No fijamos features de protocolo aquí:
+# el CLI las gestiona según tauri.conf.json.
+tauri = { version = "2", features = ["tray-icon"] }
+
+# ─── Plugins oficiales de Tauri 2 (todos en su major 2) ───
+# Actualización incremental DENTRO de la app (sin reinstalar).
+tauri-plugin-updater = "2"
+# Terminal / procesos: el puente de "control por terminal" para Aurora.
+tauri-plugin-shell = "2"
+# Notificaciones nativas del sistema.
+tauri-plugin-notification = "2"
+# Diálogos nativos (abrir/guardar/confirmar) — consentimiento del usuario.
+tauri-plugin-dialog = "2"
+# Sistema de archivos con scope (lectura/escritura de rutas del usuario).
+tauri-plugin-fs = "2"
+# Información del sistema operativo (plataforma, arquitectura, versión…).
+tauri-plugin-os = "2"
+# Control del proceso (reiniciar/salir) — necesario tras instalar update.
+tauri-plugin-process = "2"
+# Arranque automático con el sistema (el compañero se levanta solo).
+tauri-plugin-autostart = "2"
+# Enlaces profundos starseed:// (abrir el sistema desde la web / otras apps).
+tauri-plugin-deep-link = "2"
+
+# ─── Serialización ───
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# El updater usa thiserror para el error del comando fetch/install (patrón oficial).
+thiserror = "2"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Notas de compilación (NO se compila aquí; lo hace el CI o el dueño en local):
+#   · Requiere la Tauri CLI 2.x:  cargo install tauri-cli --version "^2"
+#   · Compilar OS:     cargo tauri build              (usa tauri.conf.json)
+#   · Compilar Nexus:  cargo tauri build -c tauri.nexus.conf.json
+#   · Compilar Café:   cargo tauri build -c tauri.cafe.conf.json
+#   · Android:         cargo tauri android init  &&  cargo tauri android build
+# ═══════════════════════════════════════════════════════════════════════════
+
+[profile.release]
+# Binarios más pequeños y rápidos para distribución.
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
