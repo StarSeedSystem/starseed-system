@@ -35,6 +35,7 @@ import {
 import { detectAvailability, userConfigForSource, type SourceAvailability } from "./availability";
 import { chromeAiChat, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown } from "./usage";
+import { skillsSystemPrompt, skillsRoutingBias } from "./skills";
 
 /* ───────────────────── Ajustes de Inteligencia ───────────────────── */
 
@@ -352,6 +353,20 @@ function candidateTimeoutMs(c: RouteCandidate): number {
   return 30_000;
 }
 
+/** Antepone/mezcla un bloque de system prompt (Capacidades de Aurora) sin
+ *  duplicar: si ya hay un mensaje `system`, se le añade al final; si no, se
+ *  inserta uno al inicio. Devuelve una copia (no muta el original). */
+function mergeSystemPrompt(messages: ChatMessage[], extra: string): ChatMessage[] {
+  if (!extra) return messages;
+  const idx = messages.findIndex((m) => m.role === "system");
+  if (idx >= 0) {
+    const copy = messages.slice();
+    copy[idx] = { ...copy[idx], content: `${copy[idx].content}\n\n${extra}` };
+    return copy;
+  }
+  return [{ role: "system", content: extra } as ChatMessage, ...messages];
+}
+
 /** Envuelve una promesa con un timeout que rechaza (para el failover). */
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -414,9 +429,16 @@ async function runCandidate(c: RouteCandidate, req: AstrauraChatRequest): Promis
 export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatResponse & { route?: RouteRecord }> {
   const prefs = getIntelligenceSettings();
 
+  // ── Capacidades vivas de Aurora (skills instaladas desde la Biblioteca) ──
+  // Se inyectan SIEMPRE (manual o auto): (1) system prompt en el cerebro y
+  // (2) sesgo de routing. Defensivo: sin skills, `capText`="" y nada cambia.
+  const capText = skillsSystemPrompt();
+  const messages = capText ? mergeSystemPrompt(req.messages, capText) : req.messages;
+  const reqX: AstrauraChatRequest = capText ? { ...req, messages } : req;
+
   if (prefs.mode === "manual") {
     return chat({
-      messages: req.messages,
+      messages,
       temperature: req.temperature,
       maxTokens: req.maxTokens,
       signal: req.signal,
@@ -424,7 +446,14 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     });
   }
 
-  const profile = classifyTask(req.messages, req.taskHint);
+  const profile = classifyTask(messages, req.taskHint);
+  // Sesgo de routing por capacidad: preferStrong/planning suben la dificultad
+  // (RouteLLM → modelo más capaz); vision marca necesidad de visión.
+  const capBias = skillsRoutingBias();
+  if (capBias.preferStrong || capBias.planning) {
+    profile.difficulty = Math.min(1, profile.difficulty + 0.25);
+  }
+  if (capBias.vision) profile.needsVision = true;
   req.onStatus?.("Eligiendo la mejor inteligencia…");
   const avail = await detectAvailability();
   const candidates = rankCandidates(profile, avail, prefs);
@@ -445,7 +474,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     const t0 = Date.now();
     try {
       req.onStatus?.(`Usando ${c.source.label} · ${c.model.label}…`);
-      const res = await withTimeout(runCandidate(c, req), candidateTimeoutMs(c), c.source.label);
+      const res = await withTimeout(runCandidate(c, reqX), candidateTimeoutMs(c), c.source.label);
       // Registra el uso (peticiones/tokens) para el panel de uso y límites.
       try { noteUsage(c.source.id, c.model.id, res?.usage); } catch { /* */ }
       const rec: RouteRecord = {

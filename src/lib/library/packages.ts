@@ -910,6 +910,37 @@ export function getInstalledFunctionIds(): string[] {
   return readStringList(FUNCTIONS_KEY);
 }
 
+/** IDs de paquetes instalados (claves del mapa `starseed.library.installed.v1`).
+ *  Lo usan las Capacidades de Aurora (skills.ts) para activar capacidades cuyo
+ *  disparador es un paquete (p.ej. Open Notebook) y no una skill-función. */
+export function getInstalledPackageIds(): string[] {
+  return Object.keys(getInstalledMap());
+}
+
+/** Fusiona (UNIÓN, nunca resta) instalados/funciones traídos de la CUENTA para
+ *  que la Biblioteca "Cydia" y las skills de Aurora SIGAN a la misma cuenta en
+ *  cualquier dispositivo (OS · Nexus · Café comparten cuenta soberana). Lo llama
+ *  library-sync al iniciar sesión. Local gana en conflicto; defensivo. */
+export function mergeInstalledFromAccount(
+  map?: Record<string, InstalledEntry> | null,
+  fns?: string[] | null,
+): void {
+  if (!isClient()) return;
+  try {
+    if (map && typeof map === "object") {
+      const local = getInstalledMap();
+      writeJson(INSTALLED_KEY, { ...map, ...local }); // local prevalece
+    }
+  } catch { /* noop */ }
+  try {
+    if (Array.isArray(fns) && fns.length) {
+      const set = new Set<string>([...getInstalledFunctionIds(), ...fns.filter((x) => typeof x === "string")]);
+      writeJson(FUNCTIONS_KEY, Array.from(set));
+    }
+  } catch { /* noop */ }
+  emitLibraryEvent();
+}
+
 function setInstalledFunctionIds(ids: string[]): void {
   writeJson(FUNCTIONS_KEY, Array.from(new Set(ids)));
   emitLibraryEvent();

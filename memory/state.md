@@ -1868,3 +1868,17 @@ Diagnóstico EN VIVO con Claude-in-Chrome (verificado por comportamiento).
 - **Animación de CARGA (los 3):** anillo giratorio en el orbe + spinner en el botón de reproducir del mini mientras procesa. OS: estado `thinking` en engine.ts (se apaga en finally) → `data-aurora-state="thinking"` en el orbe → CSS en globals.css. Café: `setThinking()` en agent.js. Nexus: `aurThinking()` en exocortex.js (clase en .ssx-fab).
 - Voz/tono: los 3 ya usan la voz "Mónica" (OS es-MX, Nexus/Café es-ES) — misma familia; no se tocó la selección para no arriesgar.
 - Deploys: OS cabcffd (SW sigue v5, network-first entrega el código nuevo sin bump), Nexus db6581d (SW v12, exocortex v108, mini v2), Café 550ff49 (SW v13, ?v=98).
+
+---
+## Adenda 67 — 2026-07-05 · Café bucle-blurb + Nexus mini-al-inicio + integración de repos IA (free-llm-api-resources, RouteLLM, LiteLLM…)
+
+VOZ (arreglos, verificado en vivo con Claude-in-Chrome donde posible):
+- **Café "habla 'tócame para que te lea lo último' + loop + no escucha" (app INSTALADO):** aurora-cafe.js es un SEGUNDO motor completo cargado junto a agent.js; en la app instalada su `maybeAutoListen()→startListen()→handleUserSpeech()→sectionBlurb()` (fallback) hablaba el blurb y re-escuchaba en BUCLE. FIX: `maybeAutoListen()`=NO-OP (aurora-cafe ya no re-escucha con su motor propio; agent.js manda), `contextText()`=`lastBotText()||''` (sin blurb hablado), revertido el `speakReply` "mini visible". En escritorio el tap ya era limpio (1 reconocimiento, sin habla). Café SW v14.
+- **Nexus "el mini se abre solo al inicio":** `miniStateObj().active` era `true` fijo → cualquier `miniSync` (incl. saludo pasivo) lo re-mostraba. FIX: `active=aurora._engaged` (solo con Aurora ACTIVADA por el usuario); `setSpeakingFlag` solo abre el mini si `_engaged`; `aurTap` ahora SÍ abre el mini al activar. Nexus SW v13.
+- Regla: en el Café hay DOS motores (agent.js=UI/sesión, aurora-cafe.js=engine speak/listenOnce/brain); aurora-cafe NO debe auto-escuchar ni hablar blurbs por su cuenta.
+
+INTEGRACIÓN REPOS IA (aprendido e integrado, pre-instalado por defecto):
+- **free-catalog.ts** (OS): +Cloudflare Workers AI, Scaleway, Cohere, SambaNova, OpenLLM-local (de free-llm-api-resources). **router.ts**: `estimateDifficulty()` + ajuste por dificultad (patrón **RouteLLM**: fuertes para lo difícil, rápidos para lo trivial) + ajustes `difficultyRouting`/`strongThreshold`; naming **LiteLLM** `toProviderModel()`. `free-llm-sync.ts` (pista del README).
+- **Biblioteca** (OS): repo builtin `starseed-ia-tools` (12 paquetes: free-llm-api-resources, OpenLLM, RouteLLM, LiteLLM, taste-skill, pm-skills, Agent-Reach, open-notebook, agentos, OpenCode, OpenClaw, apple/container); `defaults-seed` SEED_VERSION 1→2 (recomendados pre-instalados también en cuentas existentes); tarjeta "Herramientas & servicios" en intelligence-panel (toggle dificultad + claves rápidas).
+- **Nexus/Café** astraura-core.js: cadena gratis ampliada (locales Ollama+OpenLLM → LanguageModel → claves groq→cerebras→openrouter→gemini→cohere→sambanova→scaleway → Pollinations) + `estimateDifficulty` ligero; sección "Herramientas IA & Agentes" en astraura-install.js. Nexus core ?v=3, Café core ?v=100.
+- Deploys en verde: OS 36f0c4d, Nexus 47130b6 (SW v14), Café 144ad6f (SW v15).

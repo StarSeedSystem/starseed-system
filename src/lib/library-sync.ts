@@ -35,6 +35,16 @@ import {
     type SavedResource,
     type InstalledApp,
 } from "@/lib/library-store";
+// Store "Cydia" (paquetes/skills) + Capacidades de Aurora: también SIGUEN a la
+// cuenta soberana, para que las skills instaladas y el comportamiento de Aurora
+// sean idénticos en OS · Nexus · Café con la misma identidad.
+import {
+    getInstalledMap,
+    getInstalledFunctionIds,
+    mergeInstalledFromAccount,
+    type InstalledEntry,
+} from "@/lib/library/packages";
+import { recomputeCapabilityMirror, CAPS_KEY } from "@/ai/astraura/skills";
 
 // Mismo nombre de evento que emite el store soberano tras cada mutación.
 const LIBRARY_EVENT = "starseed:library";
@@ -140,8 +150,43 @@ async function pullAndMerge(userId: string): Promise<void> {
         if (error || !data?.prefs || typeof data.prefs !== "object") return;
         const prefs = data.prefs as Record<string, unknown>;
         mergeRemoteIntoLocal({ library: prefs.library, installed: prefs.installed });
+
+        // Cydia (paquetes/skills) de la cuenta → unión con lo local (nunca resta).
+        try {
+            mergeInstalledFromAccount(
+                (prefs.cydiaInstalled as Record<string, InstalledEntry> | undefined) ?? undefined,
+                (prefs.cydiaFunctions as string[] | undefined) ?? undefined,
+            );
+        } catch { /* noop */ }
+
+        // Capacidades de Aurora: unión de las remotas con las locales; si no hay
+        // remotas, recomputa desde lo instalado. Así el COMPORTAMIENTO de Aurora
+        // (system prompt + routing) es el mismo en cualquier dispositivo.
+        try {
+            if (Array.isArray(prefs.capabilities)) {
+                const remote = (prefs.capabilities as unknown[]).filter(
+                    (x): x is string => typeof x === "string",
+                );
+                const union = Array.from(new Set([...readLocalCaps(), ...remote]));
+                if (isClient()) window.localStorage.setItem(CAPS_KEY, JSON.stringify(union));
+            } else {
+                recomputeCapabilityMirror();
+            }
+        } catch { /* noop */ }
     } catch {
         /* sin sesión / sin tabla / red: localStorage manda */
+    }
+}
+
+/** Espejo local de capacidades (para la unión no destructiva en el pull). */
+function readLocalCaps(): string[] {
+    if (!isClient()) return [];
+    try {
+        const raw = window.localStorage.getItem(CAPS_KEY);
+        const arr = raw ? (JSON.parse(raw) as unknown) : [];
+        return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : [];
+    } catch {
+        return [];
     }
 }
 
@@ -170,6 +215,18 @@ async function pushSnapshot(userId: string): Promise<void> {
         // 2) Mezcla solo nuestras claves.
         prefs.library = library;
         prefs.installed = installed;
+
+        // 2b) Store "Cydia" (paquetes/skills) + Capacidades de Aurora → cuenta,
+        //     para que las skills instaladas y el COMPORTAMIENTO de Aurora sigan
+        //     a la misma identidad en OS · Nexus · Café. recompute escribe además
+        //     el espejo local `starseed.capabilities.v1`.
+        try {
+            prefs.cydiaInstalled = getInstalledMap();
+            prefs.cydiaFunctions = getInstalledFunctionIds();
+            prefs.capabilities = recomputeCapabilityMirror();
+        } catch {
+            /* defensivo: nunca rompemos la subida por esto */
+        }
 
         // 3) Upsert por user_id (misma forma que settings-sync).
         await supabase

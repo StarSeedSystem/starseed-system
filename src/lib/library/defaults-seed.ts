@@ -68,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 2;
+export const SEED_VERSION = 3;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -108,6 +108,13 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   "iatool-openllm",
   "iatool-taste-skill",
   "iatool-agent-reach",
+  // ── (SEED_VERSION 3) Paridad de Capacidades con Nexus/Café: Aurora trae
+  //    Taste · PM · Sentidos web · Investigación activas por defecto. Ambas son
+  //    registro/enlace local (sin descarga pesada ni pago).
+  //    · pm-skills    → registra la skill `aurora-pm` (capacidad "pm").
+  //    · open-notebook→ activa la capacidad "research" (guarda su enlace/REST).
+  "iatool-pm-skills",
+  "iatool-open-notebook",
 ];
 
 /**

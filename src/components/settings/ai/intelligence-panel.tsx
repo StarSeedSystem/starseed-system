@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { TASK_LABELS, findSource, type TaskKind, type SourceTier } from "@/ai/astraura/free-catalog";
+import { activeCapabilities, type SkillCapability } from "@/ai/astraura/skills";
 import {
   DOWNLOADABLE_SOURCES, DOWNLOAD_SIZES, MODEL_DOWNLOAD_EVENT, INSTALLED_MODELS_EVENT,
   isDownloadableSource, installModelInBackground, isModelInstalled, isDownloading,
@@ -201,6 +202,9 @@ export function IntelligencePanel() {
   const [cooldowns, setCooldowns] = useState<ReturnType<typeof activeCooldowns>>([]);
   // Sugerencias de Aurora (autonomía): se cargan en efecto y se refrescan por evento.
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  // Capacidades vivas (skills instaladas que Aurora EJECUTA). Se refrescan al
+  // instalar/desinstalar desde la Biblioteca (evento "starseed:library").
+  const [activeCaps, setActiveCaps] = useState<SkillCapability[]>([]);
 
   /* ── Carga inicial + escucha de eventos (SSR-safe: todo en useEffect) ── */
   const detect = useCallback(async () => {
@@ -234,10 +238,14 @@ export function IntelligencePanel() {
     void detect();
     refreshUsage();
     void refreshSuggestions();
+    const refreshCaps = () => { try { setActiveCaps(activeCapabilities()); } catch { setActiveCaps([]); } };
+    refreshCaps();
     if (typeof window === "undefined") return;
     const onRoute = () => { setRoutes(readRouteLog()); refreshUsage(); };
     const onSettings = () => setSettings(getIntelligenceSettings());
     const onUsage = () => refreshUsage();
+    const onLibrary = () => refreshCaps();
+    window.addEventListener("starseed:library", onLibrary);
     // El latido de autonomía emite las sugerencias ya calculadas en `detail`.
     const onSuggestions = (e: Event) => {
       const d = (e as CustomEvent<Suggestion[]>).detail;
@@ -253,6 +261,7 @@ export function IntelligencePanel() {
       window.removeEventListener("starseed:astraura-intelligence", onSettings);
       window.removeEventListener(USAGE_EVENT, onUsage);
       window.removeEventListener(SUGGESTIONS_EVENT, onSuggestions);
+      window.removeEventListener("starseed:library", onLibrary);
     };
   }, [detect, refreshUsage, refreshSuggestions]);
 
@@ -569,6 +578,31 @@ export function IntelligencePanel() {
               onCheckedChange={(v) => { update({ difficultyRouting: v }); toast.success(v ? "Enrutado por dificultad activado" : "Enrutado por dificultad desactivado"); }}
               aria-label="Enrutado por dificultad"
             />
+          </div>
+
+          {/* Capacidades vivas: skills instaladas que Aurora EJECUTA (system prompt + routing) */}
+          <div className="rounded-lg border border-white/5 bg-black/20 p-3">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Sparkles className="h-4 w-4 text-fuchsia-300" /> Capacidades activas de Aurora
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+              Las skills que instalas desde la Biblioteca no solo se guardan: Aurora las <strong>ejecuta</strong>
+              {" "}(guían su cerebro y su elección de modelo). Se sincronizan con tu cuenta en OS, Nexus y Café.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {activeCaps.length > 0 ? (
+                activeCaps.map((c) => (
+                  <Badge key={c.id} variant="secondary" className="bg-fuchsia-500/10 text-fuchsia-200 border-fuchsia-400/20">
+                    {c.label}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-[11px] text-muted-foreground">
+                  Ninguna activa todavía. Añádelas en la{" "}
+                  <Link href="/library?tab=destacado" className="text-primary hover:underline cursor-pointer">Biblioteca → Herramientas IA & Agentes</Link>.
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Enlaces rápidos para pegar claves de servicios gratis */}
