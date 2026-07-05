@@ -111,6 +111,8 @@ export interface AuroraEngine {
   enabled: boolean;
   listening: boolean;
   speaking: boolean;
+  /** ¿Aurora está procesando la respuesta (esperando a la IA)? */
+  thinking: boolean;
   transcript: string;
   interim: string;
   lastReply: string;
@@ -202,6 +204,9 @@ export function useAuroraEngine(): AuroraEngine {
   const [enabled, setEnabledState] = useState<boolean>(DEFAULT_SETTINGS.enabled);
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  // ¿Aurora está PROCESANDO la respuesta (esperando a la IA)? → animación de
+  // carga en el orbe y los botones. Entre el fin de tu voz y el inicio del habla.
+  const [thinking, setThinking] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [interim, setInterim] = useState("");
   const [lastReply, setLastReply] = useState("");
@@ -835,6 +840,7 @@ export function useAuroraEngine(): AuroraEngine {
         { role: "user", content: text },
       ];
       const temperature = 0.4 + (Number(activeRef.current.params?.creatividad ?? 60) / 100) * 0.6;
+      setThinking(true); // ← animación de carga en el orbe mientras espera a la IA
       // Router agéntico gratis-primero (auto) o proveedor clásico (manual).
       const res = await astrauraChat({
         messages,
@@ -842,6 +848,7 @@ export function useAuroraEngine(): AuroraEngine {
         brainId: brainIdRef.current,
         onStatus: (s) => { if (s) setStatus(s); },
       });
+      setThinking(false); // ya llegó la respuesta
       let reply = (res?.text || "").trim();
       // TRANSPARENCIA: si la fuente cambió (o el usuario quiere oírlo siempre),
       // Aurora menciona qué modelo usó y sus alternativas. Aditivo y opcional.
@@ -885,6 +892,7 @@ export function useAuroraEngine(): AuroraEngine {
       // Libera el guard SIEMPRE (aunque hubiera return anticipado o error): así
       // el siguiente turno del usuario se procesa con normalidad.
       runningRef.current = 0;
+      setThinking(false); // apaga la animación de carga pase lo que pase
     }
   }, [router, speak, setEnabled, buildActionCtx, pushUser, pushReply, pushAction, routeContext]);
 
@@ -1131,6 +1139,7 @@ export function useAuroraEngine(): AuroraEngine {
       enabled,
       listening,
       speaking,
+      thinking,
       transcript,
       interim,
       lastReply,
@@ -1167,7 +1176,7 @@ export function useAuroraEngine(): AuroraEngine {
       disengage,
     }),
     [
-      supported, enabled, listening, speaking, transcript, interim, lastReply, actionStatus,
+      supported, enabled, listening, speaking, thinking, transcript, interim, lastReply, actionStatus,
       activePersonality, settings, listVoicesNow, personalities,
       start, stop, toggle, speak, runCommand, runDirectives, runAction, setActivePersonality, setEnabled, reloadPersonalities,
       paused, pauseSpeech, resumeSpeech, toggleSpeech, skipForward, skipBack, interrupt,

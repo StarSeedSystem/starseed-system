@@ -444,6 +444,7 @@ export function AuroraWidget() {
   // o wake-word) o al hablar. Esto elimina el parpadeo/sonido de reinicio del fondo.
   const rawListening = !!aurora?.engaged;
   const rawSpeaking = !!aurora?.speaking;
+  const rawThinking = !!aurora?.thinking;
   const visListening = useStableFlag(rawListening);
   const visSpeaking = useStableFlag(rawSpeaking);
 
@@ -483,11 +484,13 @@ export function AuroraWidget() {
         ? "speaking"
         : visListening
           ? "listening"
-          : needsMicPermission
-            ? "needs-mic"
-            : noSttHere
-              ? "text"
-              : "idle";
+          : rawThinking
+            ? "thinking"
+            : needsMicPermission
+              ? "needs-mic"
+              : noSttHere
+                ? "text"
+                : "idle";
 
   const stateLabel = !supported
     ? "Sin soporte de voz en este navegador"

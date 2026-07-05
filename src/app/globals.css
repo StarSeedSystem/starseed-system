@@ -3336,3 +3336,20 @@ html[data-perf="eco"] *:not(input):not(textarea) {
 }
 /* Utilidad: listas largas que solo pintan lo visible (mejor scroll en móvil). */
 .ss-cv { content-visibility: auto; contain-intrinsic-size: 320px; }
+
+/* ── Aurora · animación de CARGA del orbe (procesando la respuesta) ──────────
+   El orbe muestra un anillo giratorio mientras Aurora espera a la IA. Se activa
+   por data-aurora-state="thinking" (lo pone aurora-widget desde engine.thinking). */
+[data-aurora-state="thinking"] { position: relative; }
+[data-aurora-state="thinking"]::after {
+  content: ""; position: absolute; inset: -3px; border-radius: inherit; pointer-events: none; z-index: 2;
+  background: conic-gradient(from 0deg, transparent 0 60%, rgba(127,184,255,.95) 80%, #6fe6d6 92%, transparent);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  animation: aurora-think-spin .85s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(111,230,214,.55));
+}
+@keyframes aurora-think-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  [data-aurora-state="thinking"]::after { animation-duration: 2.6s; }
+}
