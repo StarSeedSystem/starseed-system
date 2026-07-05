@@ -28,7 +28,7 @@ export function RegisterSW() {
     // recarga UNA vez por sesión (sessionStorage → anti-bucle). Complementa al SW
     // network-first para garantizar que el código fresco llega a todos.
     try {
-      const CUR = "v3-2026-07-03";
+      const CUR = "v5-2026-07-05";
       const G = "ssheal:" + CUR;
       if ("caches" in window && !sessionStorage.getItem(G)) {
         caches.keys().then((ks) => {
@@ -46,45 +46,28 @@ export function RegisterSW() {
     let cancelled = false;
     let reloaded = false;
 
-    // ¿El usuario está en medio de algo? (Aurora hablando/escuchando, un campo
-    // enfocado, o escribiendo). Si es así, NO recargamos de golpe: mostramos un
-    // banner "Actualización lista · Aplicar" y aplicamos cuando quiera o cuando
-    // quede inactivo. Así la actualización es SIEMPRE dentro de la app, sin
-    // reinstalar, sin interrumpir. Defensivo.
-    const userIsBusy = (): boolean => {
-      try {
-        const ss = typeof window.speechSynthesis !== "undefined" && window.speechSynthesis.speaking;
-        const ae = document.activeElement as HTMLElement | null;
-        const typing = !!ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable);
-        const listening = document.documentElement.getAttribute("data-aurora-listening") === "1";
-        return !!ss || typing || listening;
-      } catch { return false; }
-    };
-
+    // Aplica la actualización recargando UNA vez. Con TOPE ANTI-BUCLE por sesión
+    // (máx 2 recargas): si por cualquier causa el controllerchange se disparara
+    // en cadena, NUNCA entra en bucle de recargas (era una de las causas de
+    // "se reinicia en loop"). El código es network-first en el SW, así que la
+    // recarga trae solo lo nuevo, sin reinstalar.
     const applyUpdate = () => {
       if (reloaded) return;
       reloaded = true;
+      try {
+        const k = "ss:swreloads";
+        const n = parseInt(sessionStorage.getItem(k) || "0", 10);
+        if (n >= 2) return; // ya recargamos 2 veces esta sesión: no insistir
+        sessionStorage.setItem(k, String(n + 1));
+      } catch { /* */ }
       try { window.location.reload(); } catch { /* */ }
     };
-    // Expuesto para que el banner / Ajustes puedan aplicar la actualización.
+    // Expuesto para que Ajustes / el banner puedan aplicar la actualización.
     try { (window as any).STARSEED_APPLY_UPDATE = applyUpdate; } catch { /* */ }
 
-    // Cuando el SW nuevo toma el control: si el usuario está libre, aplicamos ya
-    // (auto-actualización, solo el código nuevo); si está ocupado, avisamos y
-    // aplicamos al quedar inactivo (o cuando pulse "Aplicar").
-    const onControllerChange = () => {
-      if (reloaded) return;
-      if (!userIsBusy()) { applyUpdate(); return; }
-      // Ocupado: avisa dentro de la app y reintenta al quedar libre/oculto.
-      try { window.dispatchEvent(new CustomEvent("starseed:update-ready")); } catch { /* */ }
-      try { import("@/lib/notifications/update-notifications").then((m) => m.notifyUpdateAvailable?.()).catch(() => {}); } catch { /* */ }
-      const tryLater = () => { if (!userIsBusy()) applyUpdate(); };
-      try {
-        const iv = setInterval(tryLater, 8000);
-        document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") applyUpdate(); }, { once: true });
-        setTimeout(() => { try { clearInterval(iv); } catch { /* */ } }, 5 * 60 * 1000);
-      } catch { /* */ }
-    };
+    // Cuando el SW nuevo toma el control, recargamos una vez (con el tope anti
+    // bucle). Simple y probado; sin lógicas de "ocupado" que puedan realimentarse.
+    const onControllerChange = () => { applyUpdate(); };
 
     const register = () => {
       navigator.serviceWorker

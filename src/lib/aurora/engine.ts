@@ -662,15 +662,19 @@ export function useAuroraEngine(): AuroraEngine {
   }, []);
 
   // ── enrutado de comandos ──
-  // ¿Aurora está procesando una respuesta ahora mismo? (guard de solapamiento).
-  const runningRef = useRef(false);
+  // Marca temporal del runCommand en curso (0 = libre). Guard de solapamiento
+  // BASADO EN TIEMPO: se AUTO-LIBERA a los 60s aunque algo interno se colgara,
+  // para que Aurora NUNCA se quede sorda ("ni reconoce nada") de forma permanente.
+  const runningRef = useRef<number>(0);
   const runCommand = useCallback(async (raw: string) => {
-    // GUARD ANTI-SOLAPAMIENTO: si Aurora YA está procesando una respuesta, no
-    // lanzamos otra en paralelo. Sin esto, mientras Aurora "piensa" el micrófono
-    // puede captar más frases y disparar runCommands concurrentes → pile-up que
-    // se percibe como "oye pero no responde y el reproductor se reinicia en loop".
-    if (runningRef.current) return;
-    runningRef.current = true;
+    // GUARD ANTI-SOLAPAMIENTO: si Aurora YA está procesando una respuesta (hace
+    // menos de 60s), no lanzamos otra en paralelo. Sin esto, mientras Aurora
+    // "piensa" el micrófono puede captar más frases y disparar runCommands
+    // concurrentes → pile-up que se percibe como "oye pero no responde y el
+    // reproductor se reinicia en loop". El tope temporal evita el bloqueo eterno.
+    const nowRun = Date.now();
+    if (runningRef.current && nowRun - runningRef.current < 60_000) return;
+    runningRef.current = nowRun;
     try {
     // Corrección fonética de términos StarSeed (idempotente): cubre también el
     // texto ESCRITO (send) y refuerza el de voz. Si algo falla, usa el original.
@@ -880,7 +884,7 @@ export function useAuroraEngine(): AuroraEngine {
     } finally {
       // Libera el guard SIEMPRE (aunque hubiera return anticipado o error): así
       // el siguiente turno del usuario se procesa con normalidad.
-      runningRef.current = false;
+      runningRef.current = 0;
     }
   }, [router, speak, setEnabled, buildActionCtx, pushUser, pushReply, pushAction, routeContext]);
 
