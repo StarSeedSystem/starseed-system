@@ -29,6 +29,8 @@ import {
 } from "@/lib/aurora/capabilities";
 // Host del modal de instalación de modelos (opt-in, descarga en 2º plano).
 import { InstallModelModalHost } from "@/components/aurora/install-model-modal";
+// Banner de actualización dentro de la app (sin reinstalar).
+import { UpdateBanner } from "@/components/pwa/update-banner";
 
 /**
  * Evento global emitido cuando cambia el estado reactivo de Aurora, para que
@@ -649,6 +651,8 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
           La descarga sigue en 2º plano; Aurora funciona con la mejor alternativa
           gratis mientras. NO bloquea nada. */}
       <InstallModelModalHost />
+      {/* Aviso de versión nueva (se aplica dentro de la app, sin reinstalar). */}
+      <UpdateBanner />
     </AuroraContext.Provider>
   );
 }
