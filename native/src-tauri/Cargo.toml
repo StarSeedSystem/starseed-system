@@ -23,8 +23,16 @@ rust-version = "1.77.2"
 # El binario producido se llama `starseed-native`.
 default-run = "starseed-native"
 
-# El binario nativo. `lib` no hace falta en escritorio; para Android el punto de
-# entrada móvil se genera con `cargo tauri android init` (crea el lib target).
+# Target de LIBRERÍA — OBLIGATORIO para Android/iOS: el proyecto que genera
+# `cargo tauri android|ios init` compila este crate como librería (cdylib en
+# Android vía JNI, staticlib en iOS) y entra por `tauri::mobile_entry_point`
+# (ver src/lib.rs). Sin esta sección, cargo falla con
+# "no library targets found in package" (fallo del run de CI del 2026-07-05).
+[lib]
+name = "starseed_native_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+# El binario de escritorio: un main fino que llama a la librería (src/lib.rs).
 [[bin]]
 name = "starseed-native"
 path = "src/main.rs"
@@ -40,8 +48,6 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 
 # ─── Plugins oficiales de Tauri 2 (todos en su major 2) ───
-# Actualización incremental DENTRO de la app (sin reinstalar).
-tauri-plugin-updater = "2"
 # Terminal / procesos: el puente de "control por terminal" para Aurora.
 tauri-plugin-shell = "2"
 # Notificaciones nativas del sistema.
@@ -54,8 +60,6 @@ tauri-plugin-fs = "2"
 tauri-plugin-os = "2"
 # Control del proceso (reiniciar/salir) — necesario tras instalar update.
 tauri-plugin-process = "2"
-# Arranque automático con el sistema (el compañero se levanta solo).
-tauri-plugin-autostart = "2"
 # Enlaces profundos starseed:// (abrir el sistema desde la web / otras apps).
 tauri-plugin-deep-link = "2"
 
@@ -65,6 +69,15 @@ serde_json = "1"
 
 # El updater usa thiserror para el error del comando fetch/install (patrón oficial).
 thiserror = "2"
+
+# ─── Plugins SOLO ESCRITORIO (no compilan / no aplican en Android · iOS) ───
+# Patrón oficial de la doc de Tauri 2: van bajo un target cfg que excluye móvil,
+# y en el código se registran dentro de #[cfg(desktop)] (ver src/lib.rs).
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+# Actualización incremental DENTRO de la app (sin reinstalar).
+tauri-plugin-updater = "2"
+# Arranque automático con el sistema (el compañero se levanta solo).
+tauri-plugin-autostart = "2"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Notas de compilación (NO se compila aquí; lo hace el CI o el dueño en local):

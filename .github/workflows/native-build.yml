@@ -196,7 +196,11 @@ jobs:
       - name: Localizar NDK y exportar NDK_HOME
         shell: bash
         run: |
-          NDK_DIR=$(ls -d "$ANDROID_HOME"/ndk/* 2>/dev/null | sort -V | tail -1)
+          # Preferimos el NDK 27 que instalamos (recomendado por Tauri 2 y
+          # determinista); el runner trae preinstalados NDKs más nuevos (29)
+          # que `sort -V | tail -1` elegía y no están probados con cargo-mobile2.
+          NDK_DIR="$ANDROID_HOME/ndk/27.0.12077973"
+          [ -d "$NDK_DIR" ] || NDK_DIR=$(ls -d "$ANDROID_HOME"/ndk/* 2>/dev/null | sort -V | tail -1)
           echo "NDK encontrado: $NDK_DIR"
           echo "NDK_HOME=$NDK_DIR" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$NDK_DIR" >> "$GITHUB_ENV"

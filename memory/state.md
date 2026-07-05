@@ -1822,3 +1822,22 @@ Correcciones y peticiones tras la Adenda 62 (deploys: OS 6dc60a0; Nexus dbfed66;
 - Honestidad mantenida en toda la UI: control total del dispositivo/terminal = requiere compañero nativo + permisos (el navegador solo no puede); binarios nativos "próximamente"; modelos locales opcionales.
 
 **Pendiente dueño:** (1) revisar env vars Supabase en Vercel del Nexus; (2) reabrir cada app 1 vez para propagar; (3) opcional: scaffolding Tauri para binarios nativos firmados por SO.
+
+---
+## Adenda 64 — 2026-07-04 · Release nativo Tauri v0.1.0 (CI) + lecciones de checkout Windows
+
+- **Empaquetado nativo REAL** en `native/` (Tauri 2): 3 sistemas × 3 plataformas (macOS universal · Linux · Windows) vía `.github/workflows/native-build.yml` (tag `v*` → Release borrador con instaladores + `latest.json` del updater). Comandos Rust: `run_terminal` (control por terminal con permiso), `check_update` (actualización incremental in-app), `device_info`. Solo los orígenes Vercel pueden invocar comandos (capabilities.remote.urls).
+- **Clave del updater generada y puesta:** `npx @tauri-apps/cli signer generate` → pública en `tauri.conf.json:pubkey`, privada+password como secretos GitHub `TAURI_SIGNING_PRIVATE_KEY`/`_PASSWORD` (repo StarSeedSystem/starseed-system). Firma de Apple/Windows = requiere cuentas del dueño (huecos en el CI, binarios sin firmar funcionan para probar).
+- **LECCIÓN CRÍTICA — checkout de Windows fallaba (exit 128):** el repo tenía **189 archivos macOS `Icon\r`** (icono de carpeta, nombre con CR) y la carpeta **`AI-refernces `** (espacios finales en el nombre) — ambos ILEGALES en Windows. Se quitaron del índice (`git rm --cached` / `git update-index --force-remove` para variantes NFD que pathspec no casa) + `.gitignore`. También un **submódulo fantasma** `.agent/skills/ui-ux-pro-max` (gitlink mode 160000 sin `.gitmodules`) daba exit 128 → removido. REGLA: en el repo del OS, nunca commitear archivos `Icon\r` de macOS ni carpetas con espacios finales (rompen CI multiplataforma).
+- **LECCIÓN — matriz del workflow:** `system:[...]` + `include:` con solo `platform` NO hace producto cartesiano (todo caía en windows-latest). Correcto: `system × platform` como dos dimensiones + `include` que añade `args` por plataforma.
+- **LECCIÓN — flag `-c` de tauri-action:** con `projectPath: native`, tauri corre desde `native/`, así que los overrides se pasan como `-c src-tauri/tauri.<sistema>.conf.json` (no `-c tauri.<sistema>.conf.json`).
+- **frontendDist por URL** (https://starseed-os.vercel.app) SÍ funciona en Tauri 2 (la app nativa carga la web desplegada); confirmado (el OS pasó del config a compilar).
+- Estado al cierre de la adenda: run v0.1.0 con los 9 jobs compilando. Deploys web previos intactos.
+
+---
+## Adenda 65 — 2026-07-05 · Fix Android del release nativo v0.1.0 (target lib)
+
+- **Diagnóstico (run 28735558254):** escritorio 9/9 ✅ (dmg/msi/exe/deb/AppImage/rpm subidos al draft), iOS 3/3 ✅ best-effort, **Android 3/3 ❌** con `error: no library targets found in package starseed-native`. Causa: Tauri 2 móvil compila el crate como LIBRERÍA (cdylib JNI en Android, staticlib en iOS); el comentario del Cargo.toml era erróneo (`android init` NO crea el lib target, lo exige).
+- **Fix (patrón oficial Tauri 2):** lógica movida a `native/src-tauri/src/lib.rs` con `pub fn run()` + `#[cfg_attr(mobile, tauri::mobile_entry_point)]`; `main.rs` queda fino llamando `starseed_native_lib::run()`; `[lib] name=starseed_native_lib, crate-type=[staticlib,cdylib,rlib]` en Cargo.toml. **Updater + autostart movidos a `[target.'cfg(not(any(android,ios)))'.dependencies]`** (solo escritorio; en móvil ni compilan — patrón de la doc oficial del updater).
+- **CI:** NDK fijado al 27.0.12077973 que instalamos (Tauri lo recomienda; `sort -V | tail -1` cogía el NDK 29 preinstalado del runner, sin probar con cargo-mobile2). Fallback al más nuevo si faltara.
+- Re-tag `v0.1.0 -f` para relanzar los 15 jobs sobre el mismo draft Release.
