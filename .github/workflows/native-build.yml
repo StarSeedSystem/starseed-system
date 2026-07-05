@@ -137,14 +137,18 @@ jobs:
           # Firma del UPDATER (opcional): si están, firma los artefactos de update.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Firma + notarización de Apple (opcional).
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Code-signing de Windows (opcional).
+          # ── Firma + notarización de Apple (macOS) ──────────────────────────────
+          # IMPORTANTE: si defines APPLE_CERTIFICATE (aunque sea VACÍO), tauri-action
+          # intenta `security import` y FALLA el bundle en macOS. Por eso NO pasamos
+          # estas variables mientras no haya certificado real. Cuando el dueño tenga
+          # su Apple Developer ID, añade aquí (con los secretos correspondientes):
+          #   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+          #   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+          # y macOS saldrá firmado + notarizado. Sin ellas, el .dmg/.app sale sin
+          # firmar (funciona; macOS pedirá clic derecho → Abrir la primera vez).
+          #
+          # Code-signing de Windows (opcional): tauri-action SÍ tolera el valor
+          # vacío, así que lo dejamos referenciado (se activa al añadir el secreto).
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         with:
