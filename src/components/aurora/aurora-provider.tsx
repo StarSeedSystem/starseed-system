@@ -27,6 +27,8 @@ import {
   requestMaxAccess,
   type CapabilityReport,
 } from "@/lib/aurora/capabilities";
+// Host del modal de instalación de modelos (opt-in, descarga en 2º plano).
+import { InstallModelModalHost } from "@/components/aurora/install-model-modal";
 
 /**
  * Evento global emitido cuando cambia el estado reactivo de Aurora, para que
@@ -423,12 +425,15 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     };
   }, [superStart]);
 
-  // ── NEURONAS + AUTONOMÍA (ola Astraura 2026-07) ────────────────────────────
-  // Al montar Aurora: (1) registra ESTE dispositivo como neurona de la cuenta
-  // (cerebro+servidor, todo activo por defecto) con su heartbeat, y (2) arranca
-  // el latido de auto-mejora, que recalcula sugerencias gratis-primero y emite
-  // `starseed:astraura-suggestions`. Ambos por import dinámico y defensivos:
-  // si algo falla (sin sesión, sin tabla), no afecta a la voz ni al chat.
+  // ── NEURONAS + AUTONOMÍA + DEFAULTS + UPDATES + PWA (ola Astraura 2026-07) ──
+  // Al montar Aurora, todo por import dinámico y defensivo (si algo falla, no
+  // afecta a la voz ni al chat):
+  //   1) registra ESTE dispositivo como neurona (cerebro+servidor, todo activo);
+  //   2) arranca la auto-mejora (sugerencias gratis-primero);
+  //   3) SIEMBRA los defaults recomendados de la Biblioteca para TODA cuenta
+  //      (incl. existentes, vía sync) sin pisar las elecciones del usuario;
+  //   4) captura el evento de instalación PWA (para "Instalar StarSeed");
+  //   5) vigila si hay una versión nueva del sistema y avisa.
   useEffect(() => {
     if (typeof window === "undefined") return;
     let stopped = false;
@@ -440,6 +445,18 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       try {
         const autonomy = await import("@/ai/astraura/autonomy");
         if (!stopped) autonomy.startAutonomy(30);
+      } catch { /* */ }
+      try {
+        const seed = await import("@/lib/library/defaults-seed");
+        if (!stopped) await seed.ensureDefaultsSeeded();
+      } catch { /* la biblioteca sigue usable sin sembrar */ }
+      try {
+        const dev = await import("@/lib/install/device-install");
+        if (!stopped) dev.initPwaCapture?.();
+      } catch { /* */ }
+      try {
+        const upd = await import("@/lib/notifications/update-notifications");
+        if (!stopped) upd.startUpdateWatch?.();
       } catch { /* */ }
     })();
     return () => {
@@ -624,7 +641,16 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     voiceUnavailable, capabilities,
   ]);
 
-  return <AuroraContext.Provider value={supervised}>{children}</AuroraContext.Provider>;
+  return (
+    <AuroraContext.Provider value={supervised}>
+      {children}
+      {/* Modal de oferta de instalación de modelos (opt-in): escucha el evento
+          global `starseed:astraura-offer-install` y se muestra cuando procede.
+          La descarga sigue en 2º plano; Aurora funciona con la mejor alternativa
+          gratis mientras. NO bloquea nada. */}
+      <InstallModelModalHost />
+    </AuroraContext.Provider>
+  );
 }
 
 /**

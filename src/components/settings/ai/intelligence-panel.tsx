@@ -24,9 +24,16 @@ import {
   Sparkles, Wand2, SlidersHorizontal, Megaphone, Radar, RefreshCw, ExternalLink,
   ChevronDown, Gem, ListChecks, History, CheckCircle2, XCircle,
   Gauge, Zap, RotateCcw, KeyRound, Cpu, Eye, Volume2, Lightbulb,
+  Download, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
 import { TASK_LABELS, findSource, type TaskKind, type SourceTier } from "@/ai/astraura/free-catalog";
+import {
+  DOWNLOADABLE_SOURCES, DOWNLOAD_SIZES, MODEL_DOWNLOAD_EVENT, INSTALLED_MODELS_EVENT,
+  isDownloadableSource, installModelInBackground, isModelInstalled, isDownloading,
+  downloadProgress, markModelUninstalled,
+} from "@/ai/astraura/installed-models";
 import { detectAvailability, summarizeAvailability, type SourceAvailability } from "@/ai/astraura/availability";
 import {
   DEFAULT_INTELLIGENCE, getIntelligenceSettings, saveIntelligenceSettings,
@@ -75,6 +82,96 @@ const SUGGESTION_ICON: Record<SuggestionKind, typeof Gauge> = {
   upgrade: Sparkles,
   tip: Lightbulb,
 };
+
+/**
+ * Botón de instalar/quitar para una fuente DESCARGABLE (SmolLM3, SmolVLM2,
+ * WebLLM, Sipp, Gemini Nano). El usuario decide cuándo/dónde: la descarga va en
+ * 2º plano (barra de progreso vía MODEL_DOWNLOAD_EVENT) y Aurora sigue con la
+ * mejor alternativa gratis mientras tanto. SSR-safe: estado neutro hasta montar.
+ */
+function DownloadableModelButton({ sourceId, label }: { sourceId: string; label: string }) {
+  const [mounted, setMounted] = useState(false);
+  const [installed, setInstalled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [pct, setPct] = useState(0);
+
+  const sync = useCallback(() => {
+    try {
+      setInstalled(isModelInstalled(sourceId));
+      setBusy(isDownloading(sourceId));
+      setPct(downloadProgress(sourceId));
+    } catch { /* defensivo */ }
+  }, [sourceId]);
+
+  useEffect(() => {
+    setMounted(true);
+    sync();
+    if (typeof window === "undefined") return;
+    const onProgress = (e: Event) => {
+      const d = (e as CustomEvent<{ sourceId?: string; pct?: number; done?: boolean }>).detail;
+      if (!d || d.sourceId !== sourceId) return;
+      if (typeof d.pct === "number") setPct(Math.max(0, Math.min(100, d.pct)));
+      if (d.done) sync();
+      else setBusy(true);
+    };
+    window.addEventListener(MODEL_DOWNLOAD_EVENT, onProgress);
+    window.addEventListener(INSTALLED_MODELS_EVENT, sync);
+    return () => {
+      window.removeEventListener(MODEL_DOWNLOAD_EVENT, onProgress);
+      window.removeEventListener(INSTALLED_MODELS_EVENT, sync);
+    };
+  }, [sourceId, sync]);
+
+  const handleInstall = useCallback(async () => {
+    setBusy(true);
+    const res = await installModelInBackground(sourceId);
+    if (res.ok) toast.success(label, { description: res.message });
+    else toast.error(label, { description: res.message });
+    sync();
+  }, [sourceId, label, sync]);
+
+  const handleUninstall = useCallback(() => {
+    markModelUninstalled(sourceId);
+    sync();
+    toast.success(label, { description: "Modelo quitado. Aurora dejará de ofrecerlo (reinstálalo cuando quieras)." });
+  }, [sourceId, label, sync]);
+
+  const size = DOWNLOAD_SIZES[sourceId];
+
+  if (!mounted) return <div className="h-7 w-20 shrink-0 animate-pulse rounded-md bg-white/5" />;
+
+  return (
+    <div className="flex shrink-0 flex-col items-end gap-1">
+      {installed ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 border-emerald-500/30 text-[11px] text-emerald-300 hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-300 cursor-pointer"
+          onClick={handleUninstall}
+          title="Instalado — pulsa para quitar"
+        >
+          <CheckCircle2 className="h-3 w-3" /> Instalado · Quitar
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          className="h-7 gap-1.5 bg-teal-600 text-[11px] font-semibold text-white hover:bg-teal-500 cursor-pointer"
+          onClick={() => void handleInstall()}
+          disabled={busy}
+          title={size ? `Descarga ${size} · en segundo plano` : "Descarga en segundo plano"}
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+          {busy ? "Descargando…" : `Instalar${size ? ` · ${size}` : ""}`}
+        </Button>
+      )}
+      {busy && !installed && (
+        <div className="w-28">
+          <Progress value={pct} indicatorClassName="bg-teal-400" className="h-1" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function IntelligencePanel() {
   const [settings, setSettings] = useState<IntelligenceSettings>({ ...DEFAULT_INTELLIGENCE });
@@ -298,12 +395,23 @@ export function IntelligencePanel() {
                       )}
                     </p>
                   )}
+                  {/* Fuentes descargables: el usuario decide cuándo/dónde instalarlas. */}
+                  {isDownloadableSource(a.source.id) && (
+                    <p className="text-[10px] text-muted-foreground/80 mt-1">
+                      Modelo local descargable · opcional. Aurora sigue con la mejor alternativa gratis mientras.
+                    </p>
+                  )}
                 </div>
-                <Switch
-                  checked={enabled}
-                  onCheckedChange={(v) => toggleSource(a.source.id, v)}
-                  aria-label={`Usar ${a.source.label}`}
-                />
+                <div className="flex shrink-0 items-center gap-2">
+                  {isDownloadableSource(a.source.id) && (
+                    <DownloadableModelButton sourceId={a.source.id} label={a.source.label} />
+                  )}
+                  <Switch
+                    checked={enabled}
+                    onCheckedChange={(v) => toggleSource(a.source.id, v)}
+                    aria-label={`Usar ${a.source.label}`}
+                  />
+                </div>
               </div>
             );
           })}

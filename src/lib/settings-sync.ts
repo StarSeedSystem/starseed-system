@@ -48,6 +48,8 @@ export const SYNCED_KEYS = [
     "starseed.aurora.voice.v1",          // voz de Aurora: motor (navegador/Kokoro/Kitten) + voz elegida
     "starseed.aurora.vision.v1",             // visión de Aurora: activada + modelo elegido
     "starseed.astraura.installed-models.v1", // modelos de navegador instalados (opt-in) por el usuario
+    "starseed.library.seed.v1",              // versión de defaults sembrados en la cuenta (biblioteca)
+    "starseed.updates.seen.v1",              // avisos de actualización/instalación ya vistos por el usuario
 ] as const;
 
 export interface SyncResult {

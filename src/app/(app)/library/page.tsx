@@ -83,6 +83,7 @@ import {
   Shapes,
   GitBranch,
   PackageCheck,
+  Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -106,6 +107,8 @@ import { LibraryCatalog, starseedAppToDetail } from "@/components/library/librar
 import { InstalledServicesPanel } from "@/components/library/installed-services-panel";
 // ── Tienda viva de paquetes (estilo Cydia) — motor en lib/library/packages ──
 import { PackageStore, type StoreSection } from "@/components/library/package-store";
+// ── Sección de INSTALACIÓN OFICIAL (OS + compañero de Aurora + modelos locales) ──
+import { InstallOfficialSection } from "@/components/library/install-official-section";
 import { STARSEED_APP_LISTINGS } from "@/data/starseed-apps-listings";
 import { articles, courses, files } from "@/lib/data";
 import { samplePages } from "@/data/sample-entities";
@@ -123,7 +126,7 @@ type AssetType = "FILE" | "FOLDER" | "LIBRARY" | "PROGRAM" | "PAGE" | "CONCEPT";
 type ResourceType = "todos" | "articulos" | "cursos" | "documentos" | "comunidades";
 type SortMode = "recientes" | "valorados" | "populares";
 /** Pestañas de nivel superior (la tienda viva + la colección de siempre). */
-type LibraryTab = "destacado" | "categorias" | "repos" | "coleccion" | "instalado";
+type LibraryTab = "instalar-starseed" | "destacado" | "categorias" | "repos" | "coleccion" | "instalado";
 /** Pestañas internas de «Mi colección» (la Biblioteca anterior, intacta). */
 type CollectionTab = "explorar" | "personal" | "fuentes" | "updates";
 
@@ -1083,6 +1086,10 @@ function resolveInitialTab(
   tab: string | null,
 ): { top: LibraryTab; inner: CollectionTab } {
   const t = (tab ?? "").toLowerCase();
+  // Instalación oficial: acepta varios alias de enlace hacia la nueva sección.
+  if (t === "instalar-starseed" || t === "instalar" || t === "install") {
+    return { top: "instalar-starseed", inner: "explorar" };
+  }
   if (t === "destacado" || t === "categorias" || t === "repos" || t === "instalado") {
     return { top: t as LibraryTab, inner: "explorar" };
   }
@@ -1182,6 +1189,12 @@ function LibraryContent() {
         className={cn("w-full", storeQuery.trim() && "hidden")}
       >
         <TabsList className="flex flex-wrap h-auto gap-1 bg-black/30 border border-white/10 p-1 rounded-2xl">
+          <TabsTrigger
+            value="instalar-starseed"
+            className="gap-1.5 data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-200 cursor-pointer"
+          >
+            <Rocket className="w-4 h-4" /> Instalar StarSeed
+          </TabsTrigger>
           <TabsTrigger value="destacado" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
             <Store className="w-4 h-4" /> Destacado
           </TabsTrigger>
@@ -1198,6 +1211,11 @@ function LibraryContent() {
             <PackageCheck className="w-4 h-4" /> Instalado
           </TabsTrigger>
         </TabsList>
+
+        {/* ── INSTALACIÓN OFICIAL: OS + compañero de Aurora + modelos locales ── */}
+        <TabsContent value="instalar-starseed" className="mt-6">
+          <InstallOfficialSection />
+        </TabsContent>
 
         {/* ── TIENDA: Destacado · Categorías · Repos · Instalado ── */}
         {(["destacado", "categorias", "repos", "instalado"] as StoreSection[]).map((section) => (

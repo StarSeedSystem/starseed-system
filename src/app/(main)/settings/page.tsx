@@ -17,6 +17,7 @@ import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { TrinityFabSettings } from "@/components/settings/trinity/trinity-fab-settings";
 import { TrinityEdgeSettings } from "@/components/settings/trinity/trinity-edge-settings";
 import { AccountSyncPanel } from "@/components/settings/account/account-sync-panel";
+import { NotificationsBell } from "@/components/notifications/notifications-bell";
 import { ProfileIdentityPanel } from "@/components/settings/profile/profile-identity-panel";
 import { ProfileSwitcher } from "@/components/profile/profile-switcher";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -468,6 +469,21 @@ export default function SettingsPage() {
                                         accentBg="bg-[#FFBF00]/10 border-[#FFBF00]/20"
                                     />
                                 </div>
+
+                                {/* ── Actualizaciones y avisos: se nota aquí que hay novedades ── */}
+                                <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2">
+                                                <Bell className="w-5 h-5 text-primary" /> Actualizaciones y avisos
+                                            </span>
+                                            <NotificationsBell context="/settings" />
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Novedades del sistema, sugerencias de instalación según tu dispositivo y cambios importantes. Abre la campana para verlos y marcarlos como vistos.
+                                        </CardDescription>
+                                    </CardHeader>
+                                </Card>
 
                                 {/* ── Visión de Aurora (SmolVLM2 · WebGPU · 100% local) ── */}
                                 <VisionPanel />
