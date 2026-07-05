@@ -164,52 +164,149 @@ jobs:
           args: ${{ steps.cfg.outputs.flag }} ${{ matrix.args }}
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # ANDROID (.apk / .aab) — habilitar cuando se configure la firma de Google Play.
-  # Descomenta este job y añade los secretos ANDROID_* (keystore base64, alias,
-  # contraseñas). Requiere inicializar el proyecto Android una vez:
-  #   cd native && cargo tauri android init
-  # y confirmar la carpeta gen/android generada (o regenerarla en el CI).
+  # ANDROID (.apk sideload) — APK firmado con un keystore self-signed (gratis).
+  # Instalable directamente desde el archivo con "orígenes desconocidos" activado.
+  # NO es Play Store; no requiere cuenta de pago. Secretos: ANDROID_KEYSTORE_BASE64,
+  # ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
   # ═══════════════════════════════════════════════════════════════════════════
-  #
-  # build-android:
-  #   name: ${{ matrix.system }} · android
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       system: [os, nexus, cafe]
-  #   runs-on: ubuntu-22.04
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: dtolnay/rust-toolchain@stable
-  #       with:
-  #         targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
-  #     - uses: actions/setup-node@v4
-  #       with: { node-version: 20 }
-  #     - uses: actions/setup-java@v4
-  #       with: { distribution: temurin, java-version: 17 }
-  #     - name: Instalar Android SDK/NDK
-  #       uses: android-actions/setup-android@v3
-  #     - name: Instalar Tauri CLI
-  #       run: cargo install tauri-cli --version "^2" --locked
-  #     - name: Generar iconos (${{ matrix.system }})
-  #       working-directory: native/src-tauri
-  #       run: npx --yes @tauri-apps/cli@latest icon "../icons-src/${{ matrix.system }}.png"
-  #     - name: Inicializar Android (si no está en el repo)
-  #       working-directory: native
-  #       run: cargo tauri android init || true
-  #     - name: Build Android (.apk / .aab)
-  #       working-directory: native
-  #       env:
-  #         # Firma de la app Android (opcional pero necesaria para Play Store):
-  #         ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
-  #         ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-  #         ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-  #       run: |
-  #         FLAG=""
-  #         if [ "${{ matrix.system }}" != "os" ]; then FLAG="-c tauri.${{ matrix.system }}.conf.json"; fi
-  #         cargo tauri android build $FLAG
-  #     - name: Subir artefactos Android
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: starseed-${{ matrix.system }}-android
-  #         path: native/src-tauri/gen/android/app/build/outputs/**/*.{apk,aab}
+  build-android:
+    name: ${{ matrix.system }} · android
+    strategy:
+      fail-fast: false
+      matrix:
+        system: [os, nexus, cafe]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust + targets Android
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Android SDK/NDK
+        uses: android-actions/setup-android@v3
+      - name: Instalar NDK + plataformas
+        run: sdkmanager "ndk;27.0.12077973" "platforms;android-34" "build-tools;34.0.0"
+      - name: Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+      - name: Iconos (${{ matrix.system }})
+        working-directory: native/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon "../icons-src/${{ matrix.system }}.png"
+      - name: Resolver flag de config
+        id: cfg
+        shell: bash
+        run: |
+          if [ "${{ matrix.system }}" = "os" ]; then
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=-c src-tauri/tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Inicializar Android
+        working-directory: native
+        env:
+          NDK_HOME: ${{ env.ANDROID_NDK_ROOT }}
+        run: cargo tauri android init ${{ steps.cfg.outputs.flag }}
+      - name: Build APK (release)
+        working-directory: native
+        env:
+          NDK_HOME: ${{ env.ANDROID_NDK_ROOT }}
+        run: cargo tauri android build --apk ${{ steps.cfg.outputs.flag }}
+      - name: Firmar APK con keystore self-signed
+        shell: bash
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > /tmp/ks.jks
+          APK=$(find native -path '*outputs/apk/*' -name '*release*unsigned*.apk' | head -1)
+          [ -z "$APK" ] && APK=$(find native -path '*outputs/apk/*' -name '*release*.apk' | head -1)
+          echo "APK sin firmar: $APK"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          OUT="StarSeed-${{ matrix.system }}-0.1.0.apk"
+          "$BT/zipalign" -f 4 "$APK" /tmp/aligned.apk
+          "$BT/apksigner" sign --ks /tmp/ks.jks \
+            --ks-pass "pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            --ks-key-alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+            --key-pass "pass:${{ secrets.ANDROID_KEY_PASSWORD }}" \
+            --out "$OUT" /tmp/aligned.apk
+          "$BT/apksigner" verify "$OUT" && echo "APK firmado OK: $OUT"
+      - name: Subir APK al Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('native-{0}', github.run_number) }}
+          draft: true
+          files: StarSeed-${{ matrix.system }}-0.1.0.apk
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # iOS (.ipa sin firmar) — HONESTIDAD: iOS NO permite instalar un .ipa desde el
+  # archivo directamente como Android. Este .ipa SIN FIRMAR está pensado para
+  # re-firmarlo con AltStore/Sideloadly usando TU Apple ID gratuita (renueva cada
+  # 7 días) en tu ordenador. Con una cuenta Apple Developer de pago se podría
+  # firmar aquí y distribuir ad-hoc. Job "best-effort": si xcodebuild sin firma
+  # falla, no bloquea el resto del release.
+  # ═══════════════════════════════════════════════════════════════════════════
+  build-ios:
+    name: ${{ matrix.system }} · ios
+    strategy:
+      fail-fast: false
+      matrix:
+        system: [os, nexus, cafe]
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust + targets iOS
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+      - name: Iconos (${{ matrix.system }})
+        working-directory: native/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon "../icons-src/${{ matrix.system }}.png"
+      - name: Resolver flag de config
+        id: cfg
+        shell: bash
+        run: |
+          if [ "${{ matrix.system }}" = "os" ]; then
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=-c src-tauri/tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Inicializar iOS
+        working-directory: native
+        run: cargo tauri ios init ${{ steps.cfg.outputs.flag }}
+      - name: Compilar .app sin firma y empaquetar .ipa
+        working-directory: native
+        shell: bash
+        run: |
+          set -x
+          PROJ=$(find src-tauri/gen/apple -name '*.xcodeproj' -maxdepth 2 | head -1)
+          echo "Proyecto: $PROJ"
+          SCHEME=$(xcodebuild -project "$PROJ" -list 2>/dev/null | awk '/Schemes:/{f=1;next} f&&NF{gsub(/^ +/,"");print;exit}')
+          echo "Scheme: $SCHEME"
+          xcodebuild -project "$PROJ" -scheme "$SCHEME" -configuration release \
+            -sdk iphoneos -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO || true
+          APP=$(find build -name '*.app' -path '*iphoneos*' | head -1)
+          echo "App: $APP"
+          if [ -n "$APP" ]; then
+            rm -rf Payload && mkdir -p Payload && cp -R "$APP" Payload/
+            zip -qr "StarSeed-${{ matrix.system }}-0.1.0-unsigned.ipa" Payload
+            echo "IPA generado."
+          else
+            echo "No se generó .app (iOS sin firma es limitado); se omite el IPA."
+          fi
+      - name: Subir IPA al Release (si se generó)
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('native-{0}', github.run_number) }}
+          draft: true
+          files: native/StarSeed-${{ matrix.system }}-0.1.0-unsigned.ipa
