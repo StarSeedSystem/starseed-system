@@ -58,18 +58,18 @@ jobs:
       # No cancelar el resto de la matriz si un target falla.
       fail-fast: false
       matrix:
-        # Los tres sistemas StarSeed.
+        # 3 sistemas × 3 plataformas = 9 jobs. El `include` añade `args` a cada
+        # combinación según su plataforma (patrón estándar de tauri-action).
         system: [os, nexus, cafe]
+        platform: [macos-latest, ubuntu-22.04, windows-latest]
         include:
-          # macOS Apple Silicon + Intel (universal se puede añadir con --target universal-apple-darwin).
+          # macOS → binario universal (Apple Silicon + Intel).
           - platform: macos-latest
-            args: "--target aarch64-apple-darwin"
-          - platform: macos-latest
-            args: "--target x86_64-apple-darwin"
-          # Linux (produce .deb, .AppImage y .rpm).
+            args: "--target universal-apple-darwin"
+          # Linux → .deb, .AppImage y .rpm.
           - platform: ubuntu-22.04
             args: ""
-          # Windows (produce .msi y .exe NSIS).
+          # Windows → .msi y .exe (NSIS).
           - platform: windows-latest
             args: ""
 
