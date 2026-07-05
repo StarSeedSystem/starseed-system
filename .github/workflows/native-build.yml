@@ -125,7 +125,8 @@ jobs:
           if [ "${{ matrix.system }}" = "os" ]; then
             echo "flag=" >> "$GITHUB_OUTPUT"
           else
-            echo "flag=-c tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
+            # tauri-action corre desde `native/`; los overrides viven en src-tauri/.
+            echo "flag=-c src-tauri/tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
           fi
 
       # ── Build + Release con la acción oficial de Tauri ──
