@@ -1117,9 +1117,12 @@ export function useAuroraEngine(): AuroraEngine {
   }, []);
 
   const toggle = useCallback(() => {
-    // Si Aurora está hablando, un toque la interrumpe (botón = activar/pausar/interrumpir).
+    // Si Aurora está hablando, un toque la INTERRUMPE y se pone a ESCUCHAR
+    // (barge-in): corta el TTS y arranca el reconocimiento en el mismo gesto,
+    // para que el usuario pueda "cortar" a Aurora y hablar. (Antes solo cortaba.)
     if (typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined" && window.speechSynthesis.speaking) {
       interrupt();
+      if (!listening) start();
       return;
     }
     if (listening) stop();

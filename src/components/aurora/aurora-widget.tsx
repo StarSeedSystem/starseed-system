@@ -720,7 +720,7 @@ export function AuroraWidget() {
                   </div>
                 </div>
                 <button
-                  onClick={() => { hudDismissedRef.current = voiceActive; setOpen(false); }}
+                  onClick={() => { hudDismissedRef.current = voiceActive; setOpen(false); setMiniDismissed(true); }}
                   aria-label="Cerrar"
                   className="text-white/40 hover:text-white cursor-pointer"
                 >
