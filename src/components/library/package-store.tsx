@@ -45,7 +45,7 @@ import {
   MessagesSquare, Container, Bot,
   // Iconos de acción
   Download, Check, Trash2, KeyRound, ExternalLink, Search, Plus,
-  Clock, Store, PackageCheck, ArrowLeft, Settings2, Loader2,
+  Clock, Store, PackageCheck, Settings2, Loader2,
   Link2, Copy, Share2, Wand,
   type LucideIcon,
 } from "lucide-react";
@@ -69,12 +69,17 @@ import {
   type PackageKind,
 } from "@/lib/library/packages";
 import { findSource } from "@/ai/astraura/free-catalog";
+// Selector de categorías rediseñado (P6): superficie con orden + filtros
+// persistidos por categoría, «Aurora recomienda» y secciones Novedades /
+// Populares / Relevantes. Reutiliza las piezas exportadas más abajo (KIND_META,
+// PackageGrid, PkgIcon, materialClassFor) para no duplicar el flujo de instalar.
+import { CategoryPicker } from "@/components/library/category-picker";
 
 /* ───────────────────────── Metadatos por kind ───────────────────────── */
 
 export type StoreSection = "destacado" | "categorias" | "repos" | "instalado";
 
-const KIND_META: Record<PackageKind, { label: string; plural: string; icon: LucideIcon; chip: string }> = {
+export const KIND_META: Record<PackageKind, { label: string; plural: string; icon: LucideIcon; chip: string }> = {
   app: { label: "App", plural: "Apps", icon: AppWindow, chip: "bg-sky-500/15 text-sky-300 border-sky-500/30" },
   widget: { label: "Widget", plural: "Widgets", icon: LayoutGrid, chip: "bg-indigo-500/15 text-indigo-300 border-indigo-500/30" },
   page: { label: "Página", plural: "Páginas", icon: PanelsTopLeft, chip: "bg-blue-500/15 text-blue-300 border-blue-500/30" },
@@ -121,13 +126,13 @@ const ICON_MAP: Record<string, LucideIcon> = {
 /** Id del repo builtin de Herramientas IA & Agentes (para la sección destacada). */
 const IA_TOOLS_REPO_ID = "starseed-ia-tools";
 
-function PkgIcon({ name, className }: { name: string; className?: string }) {
+export function PkgIcon({ name, className }: { name: string; className?: string }) {
   const Icon = ICON_MAP[name] ?? Package;
   return <Icon className={className} />;
 }
 
 /** Clase de material del contenedor del icono (con fallback glass elegante). */
-function materialClassFor(pkg: LibraryPackage): string {
+export function materialClassFor(pkg: LibraryPackage): string {
   const own = pkg.kind === "design"
     ? String(pkg.payload.materialClass ?? "")
     : pkg.kind === "animation"
@@ -140,7 +145,7 @@ function materialClassFor(pkg: LibraryPackage): string {
 
 /* ───────────────────────── Estado compartido ───────────────────────── */
 
-interface StoreData {
+export interface StoreData {
   packages: LibraryPackage[];
   repos: LibraryRepo[];
   installed: Record<string, InstalledEntry>;
@@ -284,7 +289,7 @@ function useStoreActions() {
   return { busyId, doInstall, doUninstall, openRoute, doSaveLink, doDownload, doReplicate, doPublish };
 }
 
-type StoreActions = ReturnType<typeof useStoreActions>;
+export type StoreActions = ReturnType<typeof useStoreActions>;
 
 /* ───────────────────────── Tarjeta de paquete ───────────────────────── */
 
@@ -400,7 +405,7 @@ function PackageCard({
   );
 }
 
-function PackageGrid({
+export function PackageGrid({
   packages,
   data,
   aiReady,
@@ -825,83 +830,6 @@ function InstalledSection({
   );
 }
 
-/* ───────────────────────── Sección: Categorías ───────────────────────── */
-
-function CategoriesSection({
-  data,
-  aiReady,
-  actions,
-  onOpenDetail,
-}: {
-  data: StoreData;
-  aiReady: Record<string, boolean>;
-  actions: StoreActions;
-  onOpenDetail: (pkg: LibraryPackage) => void;
-}) {
-  const [selected, setSelected] = useState<PackageKind | null>(null);
-  const counts = useMemo(() => {
-    const map = new Map<PackageKind, number>();
-    for (const p of data.packages) map.set(p.kind, (map.get(p.kind) ?? 0) + 1);
-    return map;
-  }, [data.packages]);
-
-  if (selected) {
-    const meta = KIND_META[selected];
-    const items = data.packages.filter((p) => p.kind === selected);
-    return (
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" className="gap-2 cursor-pointer" onClick={() => setSelected(null)}>
-            <ArrowLeft className="h-4 w-4" /> Categorías
-          </Button>
-          <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold", meta.chip)}>
-            <meta.icon className="h-3.5 w-3.5" /> {meta.plural}
-            <span className="opacity-60">{items.length}</span>
-          </span>
-        </div>
-        <PackageGrid
-          packages={items}
-          data={data}
-          aiReady={aiReady}
-          actions={actions}
-          onOpenDetail={onOpenDetail}
-          emptyText="Todavía no hay paquetes en esta categoría. Añade repos para ampliar el catálogo."
-        />
-      </section>
-    );
-  }
-
-  return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <Shapes className="h-5 w-5 text-indigo-300" />
-        <h2 className="text-lg font-bold text-white">Categorías · todo lo instalable</h2>
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {(Object.keys(KIND_META) as PackageKind[]).map((kind) => {
-          const meta = KIND_META[kind];
-          const count = counts.get(kind) ?? 0;
-          return (
-            <button
-              key={kind}
-              onClick={() => setSelected(kind)}
-              className="group cursor-pointer rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent p-4 text-left transition-all duration-200 hover:border-primary/40 hover:scale-[1.02]"
-            >
-              <div className={cn("mb-3 grid h-10 w-10 place-items-center rounded-xl border", meta.chip)}>
-                <meta.icon className="h-5 w-5" />
-              </div>
-              <p className="text-sm font-semibold text-gray-100 group-hover:text-primary transition-colors">{meta.plural}</p>
-              <p className="text-[11px] text-muted-foreground">
-                {count} paquete{count === 1 ? "" : "s"}
-              </p>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 /* ───────────────────────── Personalización por señales ───────────────────────── */
 
 /**
@@ -1142,7 +1070,7 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
           </section>
         </>
       ) : section === "categorias" ? (
-        <CategoriesSection data={data} aiReady={aiReady} actions={actions} onOpenDetail={openDetail} />
+        <CategoryPicker data={data} aiReady={aiReady} actions={actions} onOpenDetail={openDetail} mounted={mounted} />
       ) : section === "repos" ? (
         <ReposSection data={data} />
       ) : (

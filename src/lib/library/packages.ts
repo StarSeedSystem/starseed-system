@@ -49,6 +49,9 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { FREE_CATALOG, findSource } from "@/ai/astraura/free-catalog";
+// Agentes builtin (P5). `builtins.ts` solo depende de `./model` (sin ciclo con
+// este módulo), así que un import estático es seguro y más robusto que require.
+import { BUILTIN_AGENTS as AGENT_BUILTINS } from "@/lib/agents/builtins";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -65,7 +68,11 @@ export type PackageKind =
   | "animation"
   | "function"
   | "ai-source"
-  | "repo";
+  | "repo"
+  // Agentes (P5): un agente Aurora+Astraura guardable/instalable. Su efecto de
+  // instalación (packages.install) registra el agente en el store de agentes
+  // (src/lib/agents/store.ts). El `payload.agent` lleva su definición.
+  | "agent";
 
 /** Un paquete instalable. El `payload` describe su efecto real (transparencia). */
 export interface LibraryPackage {
@@ -139,6 +146,7 @@ export const DESIGN_EVENT = "starseed:design";
 export const VALID_KINDS: PackageKind[] = [
   "app", "widget", "page", "publication", "board", "research",
   "project", "design", "animation", "function", "ai-source", "repo",
+  "agent",
 ];
 
 /* ─────────────────── Utilidades base (SSR-safe) ─────────────────── */
@@ -662,6 +670,45 @@ export const STARSEED_IA_TOOLS_REPO: LibraryRepo = {
   packages: IA_TOOLS_PACKAGES,
 };
 
+/* ═══════════════════ REPO BUILTIN «starseed-agents» (P5) ═══════════════════ */
+/**
+ * Agentes: cada agente Aurora+Astraura de fábrica se expone como PAQUETE
+ * instalable de kind "agent". Instalar = registrar su definición en el store de
+ * agentes (src/lib/agents/store.ts → ensureAgentInstalled) como copia editable
+ * de tu biblioteca personal. Transparencia radical: el payload.agent lleva la
+ * definición EXACTA (persona + capacidades + preferencias de modelo) y no hay
+ * efecto oculto. Los ids de capacidad son los del vocabulario compartido de
+ * skills.ts (taste · pm · web-senses · research · vision · voice), así que un
+ * agente instalado activa esas capacidades reales de Aurora al usarlo.
+ *
+ * APPEND-ONLY: se construye desde BUILTIN_AGENTS (una sola fuente de verdad).
+ */
+function buildAgentPackages(): LibraryPackage[] {
+  const agents = Array.isArray(AGENT_BUILTINS) ? AGENT_BUILTINS : [];
+  return agents.map((a) => ({
+    id: `agent-pkg-${a.id}`,
+    kind: "agent" as PackageKind,
+    name: a.name,
+    description: a.description,
+    icon: a.icon || "Bot",
+    tags: ["agente", "aurora", ...(a.capabilities ?? []).slice(0, 6)],
+    version: a.version || "1.0.0",
+    author: a.author || "StarSeed Core",
+    sourceRepoId: "starseed-agents",
+    free: true,
+    featured: a.id === "agent-aurora-guide",
+    payload: { agent: a },
+  }));
+}
+
+/** Repo builtin de Agentes (P5). */
+export const STARSEED_AGENTS_REPO: LibraryRepo = {
+  id: "starseed-agents",
+  name: "Agentes",
+  builtin: true,
+  packages: buildAgentPackages(),
+};
+
 /* ═══════════════════ Validación de repos externos ═══════════════════ */
 
 function asString(v: unknown, fallback = ""): string {
@@ -756,7 +803,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
@@ -792,6 +839,7 @@ export async function addRepoByUrl(url: string): Promise<InstallResult & { repo?
       repo.id === STARSEED_CORE_REPO.id ||
       repo.id === STARSEED_LABS_REPO.id ||
       repo.id === STARSEED_IA_TOOLS_REPO.id ||
+      repo.id === STARSEED_AGENTS_REPO.id ||
       repo.id === MINE_REPO_ID
     ) {
       return { ok: false, message: `Ese id de repo está reservado (${repo.id}).` };
@@ -993,6 +1041,25 @@ export async function install(pkg: LibraryPackage): Promise<InstallResult> {
     }
 
     switch (pkg.kind) {
+      /* ── Agente (P5): registrar su definición en el store de agentes ── */
+      case "agent": {
+        const agentDef = pkg.payload.agent;
+        if (!agentDef || typeof agentDef !== "object") {
+          return { ok: false, message: "Este paquete de agente no trae su definición." };
+        }
+        try {
+          const store = await import("@/lib/agents/store");
+          store.ensureAgentInstalled(agentDef as import("@/lib/agents/model").Agent);
+        } catch {
+          return { ok: false, message: "No pude registrar el agente en tu biblioteca." };
+        }
+        registerInstalled(pkg);
+        return {
+          ok: true,
+          message: `Agente «${pkg.name}» instalado en tu biblioteca: ábrelo para personalizarlo o átalo a un cerebro.`,
+        };
+      }
+
       /* ── Fuente de IA: activarla en Astraura ─────────────────────── */
       case "ai-source": {
         const sourceId = asString(pkg.payload.catalogSourceId).trim();

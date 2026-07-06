@@ -36,6 +36,7 @@ import { detectAvailability, userConfigForSource, type SourceAvailability } from
 import { chromeAiChat, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown } from "./usage";
 import { skillsSystemPrompt, skillsRoutingBias } from "./skills";
+import { systemContextPrompt, screenContextLine } from "./context";
 
 /* ───────────────────── Ajustes de Inteligencia ───────────────────── */
 
@@ -432,9 +433,15 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // ── Capacidades vivas de Aurora (skills instaladas desde la Biblioteca) ──
   // Se inyectan SIEMPRE (manual o auto): (1) system prompt en el cerebro y
   // (2) sesgo de routing. Defensivo: sin skills, `capText`="" y nada cambia.
+  // Cerebro contextual: (1) conocimiento del sistema/secciones/enlaces (context.ts),
+  // (2) resumen de la pantalla actual, (3) capacidades activas (skills.ts). Todo
+  // se antepone al system prompt para que Aurora sepa DÓNDE está y qué puede hacer.
   const capText = skillsSystemPrompt();
-  const messages = capText ? mergeSystemPrompt(req.messages, capText) : req.messages;
-  const reqX: AstrauraChatRequest = capText ? { ...req, messages } : req;
+  let ctxText = "";
+  try { ctxText = [systemContextPrompt(), screenContextLine()].filter(Boolean).join("\n\n"); } catch { /* defensivo */ }
+  const brainExtra = [ctxText, capText].filter(Boolean).join("\n\n");
+  const messages = brainExtra ? mergeSystemPrompt(req.messages, brainExtra) : req.messages;
+  const reqX: AstrauraChatRequest = brainExtra ? { ...req, messages } : req;
 
   if (prefs.mode === "manual") {
     return chat({
@@ -467,14 +474,24 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   const failovers: { sourceId: string; error: string }[] = [];
   // Saltamos fuentes en cooldown (cuota agotada / 429 reciente): así Aurora
   // SIEMPRE sigue funcionando con la siguiente mejor opción disponible.
-  const chain = candidates.filter((c) => !isCoolingDown(c.source.id)).slice(0, 5);
+  const chain = candidates.filter((c) => !isCoolingDown(c.source.id)).slice(0, 8);
   // Si TODO estaba en cooldown, reintenta igualmente con la mejor (por si ya pasó).
   if (!chain.length && candidates.length) chain.push(candidates[0]);
+  // ÚLTIMO RECURSO garantizado: Pollinations (gratis, SIN clave, siempre disponible).
+  // Así Aurora casi NUNCA tiene que decir "hubo un error": si por lo que sea no
+  // quedó en la cadena, lo añadimos al final para que SIEMPRE haya una IA que
+  // responda antes de rendirse.
+  if (!chain.some((c) => c.source.id === "pollinations-text")) {
+    const fb = candidates.find((c) => c.source.id === "pollinations-text");
+    if (fb) chain.push(fb);
+  }
   for (const c of chain) {
     const t0 = Date.now();
     try {
       req.onStatus?.(`Usando ${c.source.label} · ${c.model.label}…`);
       const res = await withTimeout(runCandidate(c, reqX), candidateTimeoutMs(c), c.source.label);
+      // Respuesta vacía = fallo real: NO la mostramos, pasamos a la siguiente IA.
+      if (!res || !String(res.text ?? "").trim()) throw new Error("respuesta vacía");
       // Registra el uso (peticiones/tokens) para el panel de uso y límites.
       try { noteUsage(c.source.id, c.model.id, res?.usage); } catch { /* */ }
       const rec: RouteRecord = {

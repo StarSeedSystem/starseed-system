@@ -68,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 3;
+export const SEED_VERSION = 4;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -115,6 +115,13 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   //    · open-notebook→ activa la capacidad "research" (guarda su enlace/REST).
   "iatool-pm-skills",
   "iatool-open-notebook",
+  // ── (SEED_VERSION 4) Agentes recomendados (P5): agentes Aurora+Astraura de
+  //    fábrica listos para usar/atar a cerebros. Instalar = registrar su
+  //    definición en el store de agentes (src/lib/agents/store.ts). Efecto
+  //    100% local (sin descarga ni clave): son configuración (persona +
+  //    capacidades que ya existen). Ids del repo builtin «starseed-agents».
+  "agent-pkg-agent-aurora-guide",
+  "agent-pkg-agent-logic-steward",
 ];
 
 /**
