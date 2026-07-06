@@ -68,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 4;
+export const SEED_VERSION = 5;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -122,6 +122,12 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   //    capacidades que ya existen). Ids del repo builtin «starseed-agents».
   "agent-pkg-agent-aurora-guide",
   "agent-pkg-agent-logic-steward",
+  // ── (SEED_VERSION 5) Acceso a internet (web) gratis/local: Crawl4AI, scraper
+  //    Python LOCAL/OSS para agentes. Registra la skill `aurora-web-access`
+  //    (capacidad "web-access") — solo registro/enlace, sin descarga pesada ni
+  //    clave. Aurora auto-selecciona la mejor herramienta web gratis por tarea;
+  //    hasta que el usuario configure un endpoint, pedirá la URL/el contenido.
+  "iatool-crawl4ai",
 ];
 
 /**

@@ -94,6 +94,15 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     skillIds: ["aurora-voice-kokoro"],
     packageIds: ["iatool-aurora-voice-kokoro"],
   },
+  {
+    id: "web-access",
+    label: "Acceso a internet (web)",
+    systemPrompt:
+      "Puedes traer y leer páginas web cuando hay un proveedor de acceso web disponible. AUTO-SELECCIONAS la mejor herramienta GRATIS/LOCAL/OSS por tarea (Crawl4AI · DeepCrawl · WebHarvest · Universal Scraper) y solo usas Firecrawl si el usuario tiene su clave. Si NINGÚN proveedor está configurado, no finjas que navegas: pide al usuario que pegue la URL o el contenido. No inventes fuentes ni cites lo que no se te ha dado.",
+    routing: { web: true },
+    skillIds: ["aurora-web-access"],
+    packageIds: ["iatool-crawl4ai", "iatool-deepcrawl", "iatool-webharvest", "iatool-universal-scraper", "iatool-firecrawl"],
+  },
 ];
 
 function isClient(): boolean {

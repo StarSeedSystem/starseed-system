@@ -19,12 +19,14 @@
 import { useLibrarySync } from "@/lib/library-sync";
 import { useDashboardsBackup } from "@/lib/dashboards-sync";
 import { useAgentsSync } from "@/lib/agents/sync";
+import { useConnectorsSync } from "@/lib/connectors/store";
 import { SystemChrome } from "@/components/system/system-chrome";
 
 export function SovereignSyncMount() {
     useLibrarySync();
     useDashboardsBackup();
     useAgentsSync();
+    useConnectorsSync();
     return (
         <>
             <SystemChrome />

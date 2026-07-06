@@ -660,6 +660,58 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     author: "Apple", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { externalUrl: "https://github.com/apple/container", note: "Aislar agentes/herramientas locales en el Mac (macOS 26)" },
   },
+  /* ══ ACCESO A INTERNET (WEB) · herramientas de scraping para agentes ══
+   * Dan a Aurora la capacidad "web-access": Astraura AUTO-SELECCIONA la mejor
+   * herramienta gratis/local por tarea (Crawl4AI/DeepCrawl/WebHarvest/Universal
+   * Scraper) y solo usa Firecrawl si hay clave; si no hay proveedor configurado,
+   * Aurora pide la URL/el contenido (ver src/ai/astraura/web-access.ts). Honesto:
+   * el navegador NO scrapea solo — estos servicios corren en local/self-host o
+   * (Firecrawl) en la nube con clave. Instalar registra la skill/enlace real. */
+  /* ── Crawl4AI · scraper Python LOCAL para agentes/LLMs (recomendado) ── */
+  {
+    id: "iatool-crawl4ai", kind: "function", name: "Crawl4AI (acceso web local)",
+    description:
+      "Scraper web en Python para agentes/LLMs que corre 100% LOCAL: convierte páginas en markdown limpio listo para Aurora. Gratis y open source. Instalar registra la skill de acceso web para tus cerebros y abre su repo (necesita el servicio local corriendo; pega su endpoint en Ajustes → Inteligencia → Acceso web).",
+    icon: "Globe", tags: ["skill", "aurora", "web", "scraping", "local", "markdown"], version: "1.0.0",
+    author: "unclecode", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "aurora-web-access", externalUrl: "https://github.com/unclecode/crawl4ai", note: "Scraper web Python LOCAL para agentes/LLMs (markdown). Auto-seleccionable por Astraura." },
+  },
+  /* ── DeepCrawl · edge OSS: markdown + árbol de enlaces ── */
+  {
+    id: "iatool-deepcrawl", kind: "function", name: "DeepCrawl (web · edge OSS)",
+    description:
+      "Extrae markdown y el árbol de enlaces de un sitio; corre en el edge y es open source. Instalar registra la skill de acceso web para tus cerebros y abre su repo (self-host: pega su endpoint en Ajustes → Inteligencia → Acceso web).",
+    icon: "Network", tags: ["skill", "aurora", "web", "scraping", "enlaces", "oss"], version: "1.0.0",
+    author: "lumpinif", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "aurora-web-access", externalUrl: "https://github.com/lumpinif/deepcrawl", note: "Edge OSS: markdown + árbol de enlaces. Auto-seleccionable por Astraura." },
+  },
+  /* ── WebHarvest · scraper OSS self-host, sortea anti-bot ── */
+  {
+    id: "iatool-webharvest", kind: "function", name: "WebHarvest (web · self-host)",
+    description:
+      "Scraper open source auto-alojado con formatos amigables para agentes que sortea muchos anti-bot. Instalar registra la skill de acceso web para tus cerebros (self-host: pega su endpoint en Ajustes → Inteligencia → Acceso web).",
+    icon: "Bot", tags: ["skill", "aurora", "web", "scraping", "anti-bot", "self-host"], version: "1.0.0",
+    author: "WebHarvest", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "aurora-web-access", note: "Scraper OSS self-host, formatos agent-friendly, sortea anti-bot. Auto-seleccionable por Astraura." },
+  },
+  /* ── Universal Scraper · Python ligero (Cloudscraper+Selenium), JSON/CSV ── */
+  {
+    id: "iatool-universal-scraper", kind: "function", name: "Universal Scraper (web local)",
+    description:
+      "Scraper ligero en Python (Cloudscraper + Selenium) con export a JSON/CSV; corre LOCAL. Ideal para datos estructurados y tablas. Instalar registra la skill de acceso web para tus cerebros (necesita el script local corriendo; pega su endpoint en Ajustes → Inteligencia → Acceso web).",
+    icon: "FileJson", tags: ["skill", "aurora", "web", "scraping", "json", "csv", "local"], version: "1.0.0",
+    author: "comunidad", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "aurora-web-access", note: "Python ligero (Cloudscraper+Selenium), export JSON/CSV. Auto-seleccionable por Astraura." },
+  },
+  /* ── Firecrawl · scraping gestionado (SOLO con clave; nunca por defecto) ── */
+  {
+    id: "iatool-firecrawl", kind: "function", name: "Firecrawl (web · con clave)",
+    description:
+      "Servicio de scraping/crawl gestionado que devuelve markdown limpio. NO es gratis-primero: requiere una CLAVE API (opción de nube, no por defecto). Instalar registra la skill de acceso web y abre su web para conseguir la clave (pégala en Ajustes → Inteligencia → Acceso web).",
+    icon: "Flame", tags: ["skill", "aurora", "web", "scraping", "clave", "nube"], version: "1.0.0",
+    author: "Firecrawl", sourceRepoId: "starseed-ia-tools", free: false,
+    payload: { skillId: "aurora-web-access", externalUrl: "https://www.firecrawl.dev", note: "Scraping gestionado con clave API (última opción; no por defecto)." },
+  },
 ];
 
 /** Repo builtin de Herramientas IA & Agentes (caja de herramientas de Aurora). */

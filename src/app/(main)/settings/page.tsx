@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { AppearanceEditor } from "@/components/settings/appearance/appearance-editor";
 import IntegrationsPanel from "@/components/integrations/integrations-panel";
+import { ConnectorsHub } from "@/components/connectors";
 import { AiProvidersPanel } from "@/components/settings/ai/ai-providers-panel";
 import { IntelligencePanel } from "@/components/settings/ai/intelligence-panel";
 import { NeuronsPanel } from "@/components/settings/neurons/neurons-panel";
@@ -434,6 +435,9 @@ export default function SettingsPage() {
                                 />
                                 {/* Configuración GLOBAL (sin brainId). Cada cerebro puede sobrescribirla. */}
                                 <IntegrationsPanel />
+
+                                {/* Hub de Conectores: cuentas externas OPCIONALES; lo gratis/propio/OSS funciona por defecto. */}
+                                <ConnectorsHub />
                             </TabsContent>
 
                             {/* ── Experiencia: Aurora / Astraura · Sentidos · Notificaciones ── */}
