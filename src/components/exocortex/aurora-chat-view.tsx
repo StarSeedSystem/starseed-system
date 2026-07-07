@@ -28,7 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
 import type { ChatContext, UseChatTree } from "@/lib/aurora/chat-tree";
-import { MessageMedia } from "@/components/aurora/universal-viewer";
+import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { RouteChip } from "@/components/aurora/route-chip";
 
 // ── Tipos de props ───────────────────────────────────────────────────────────
@@ -405,9 +405,9 @@ function Conversation(props: {
               <div className="axc-role">
                 {m.role === "user" ? "Tú" : auroraName} · {fmtTime(m.ts)}
               </div>
-              {m.text}
-              {/* Visor universal: imágenes/vídeo/audio/PDF/3D/CSV… del mensaje */}
-              <MessageMedia text={m.text} compact={m.role === "user"} />
+              {/* Renderizador universal: markdown, código, tablas, JSON, SVG,
+                  imágenes/vídeo/audio/PDF/3D/CSV… del mensaje */}
+              <MessageRenderer text={m.text} compact={m.role === "user"} />
             </div>
           ))
         )
@@ -424,9 +424,9 @@ function Conversation(props: {
         visibleConvo.map((m, i) => (
           <div key={i} className={cn("axc-msg", m.role === "user" ? "user" : "aurora")}>
             <div className="axc-role">{m.role === "user" ? "Tú" : auroraName}</div>
-            {m.text}
-            {/* Visor universal: imágenes/vídeo/audio/PDF/3D/CSV… del mensaje */}
-            <MessageMedia text={m.text} compact={m.role === "user"} />
+            {/* Renderizador universal: markdown, código, tablas, JSON, SVG,
+                imágenes/vídeo/audio/PDF/3D/CSV… del mensaje */}
+            <MessageRenderer text={m.text} compact={m.role === "user"} />
           </div>
         ))
       )}

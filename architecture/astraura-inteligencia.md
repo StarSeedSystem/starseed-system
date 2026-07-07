@@ -27,9 +27,12 @@ siguiente alternativa local/gratuita. Todo es soberano y configurable.
 | `usage.ts` | Uso por fuente (peticiones/tokens/día), límites gratis conocidos, y **cooldown** al agotar (429/quota) para que el router la salte. |
 | `autonomy.ts` | Auto-mejora: re-sondeo, **sugerencias** contextuales (gratis primero), y **señales** de preferencia (búsquedas/instalaciones) para personalizar la Biblioteca. |
 | `vision.ts` | Percepción visual local con **SmolVLM2** (Transformers.js): imagen, pantalla, cámara, vídeo (multi-frame). |
+| `context.ts` | **Comprensión del sistema.** Mapa vivo de áreas/rutas (`OS_SECTIONS`, con acciones + si Aurora puede actuar ahí como agente), `directLinkFor()`, `screenContext()`, `describeArea(route)` y `systemMap()` (áreas + capacidades activas + agentes disponibles). Ver §11. |
+| `sync-providers.ts` | **Servidores de sincronización por cuenta.** Adapter `SyncProvider` (oficial/propio/local, extensible) para elegir DÓNDE viven las preferencias sincronizadas. Ver §12. |
 
 Voz OSS: `src/lib/aurora/tts-oss/` (Kokoro español local, Kitten beta).
 Neuronas: `src/lib/neurons/neurons.ts`. Visor universal: `src/components/aurora/universal-viewer.tsx`.
+Renderizador universal de mensajes de chat: `src/components/aurora/message-renderer.tsx` (ver §11).
 
 ---
 
@@ -140,3 +143,91 @@ portal (`window.STARSEED.client()`), no un proyecto hardcodeado.
 | rivet-dev/agentos | Patrones de orquestación (ACP transcript, bindings, permisos deny-by-default) como referencia + paquete. |
 
 Todo prioriza **gratis + local + código abierto**; los de pago solo se sugieren.
+
+---
+
+## 11. Render universal en los chats de Aurora (jul-2026 · adenda "Perfeccionamiento")
+
+`src/components/aurora/message-renderer.tsx` es el renderizador ÚNICO y reutilizable
+que sustituye el texto plano en TODOS los chats de Aurora del OS: exocórtex/orbe
+(`aurora-chat-view.tsx`, panel normal y fullscreen), mini-reproductor
+(`aurora-mini-player.tsx`) y chat de agente (`app/(app)/agent/page.tsx`).
+
+Soporta, todo defensivo y sin dependencias nuevas (no se instaló ningún paquete):
+- **Markdown completo** vía `react-markdown` (ya en el catálogo del repo): títulos,
+  listas, citas, negrita/cursiva, enlaces con `target=_blank`.
+- **Tablas markdown (GFM)** — el repo no trae `remark-gfm`, así que se PARSEAN A MANO
+  (`splitProseWithTables`) y se pintan con la misma estética que el resto.
+- **Bloques de código** ```lang — resaltado LIGERO por tokenización con regex
+  (sin librería de highlight) + botón «Copiar».
+- **JSON** — detectado (```json o texto que parsea como JSON) y pintado PLEGABLE
+  con botón «Copiar» y resumen (array/objeto + nº de elementos/claves).
+- **SVG inline** y **HTML embebido** — sanitizados con una whitelist DOM PROPIA
+  (`sanitizeHtmlFragment`, sin DOMPurify): recorre el árbol parseado, elimina
+  tags/atributos fuera de la whitelist, `on*`, `javascript:`/`data:text/html` y
+  fuerza `rel=noopener noreferrer` en enlaces. Nunca usa `dangerouslySetInnerHTML`
+  sin pasar antes por esta función.
+- **Imágenes, audio, vídeo, PDF, 3D, CSV, tarjetas de archivo/enlace** — delegado en
+  el visor universal YA EXISTENTE (`universal-viewer.tsx::MessageMedia`); no se
+  duplica esa lógica, `MessageRenderer` lo llama internamente (`media` opt-out).
+
+Contrato: `<MessageRenderer text={mensaje} compact? media? className? />`. En sitios
+con recorte por CSS (`-webkit-line-clamp`, líneas resumidas del mini-reproductor) se
+mantiene el texto plano — el clamp necesita un único nodo, no bloques de markdown.
+
+---
+
+## 12. Servidores de sincronización por cuenta (jul-2026 · adenda "Perfeccionamiento")
+
+`src/ai/astraura/sync-providers.ts` define la interfaz `SyncProvider` (adapter) y su
+registro `SYNC_PROVIDERS`, para que cada cuenta/dispositivo elija DÓNDE se
+sincronizan sus preferencias (mismas `SYNCED_KEYS` de `lib/settings-sync.ts`):
+
+| Proveedor | Qué hace |
+|---|---|
+| `official` (**default**) | Comportamiento de SIEMPRE: delega 100% en `settings-sync.ts` / `utils/supabase/client.ts` (proyecto oficial StarSeed). Cero cambios si el usuario no toca la pantalla. |
+| `own-supabase` | Supabase PROPIO del usuario (URL + anon key aportadas por él): mismo esquema `user_settings(user_id, prefs, updated_at)` contra su proyecto. Fila indexada por un id estable por dispositivo (`starseed.sync.own-supabase.row-id.v1`), ya que no hay garantía de que el usuario tenga auth en su propio proyecto. |
+| `local` | Sin red: exporta/importa un archivo de respaldo (`File System Access API` si el navegador la soporta; si no, descarga/`<input type=file>` clásicos). Máxima soberanía; no sincroniza SOLO entre dispositivos (es backup real). |
+
+Extensible: sumar WebDAV/Drive/otro = implementar `SyncProvider` y añadirlo a
+`SYNC_PROVIDERS`; la UI y el resto del OS lo recogen solos.
+
+**Selección activa**: `starseed.sync.provider.v1` (`{version, providerId}` —
+`SYNC_PROVIDER_SCHEMA_VERSION` para migraciones futuras de este esquema). A
+propósito **NO** está en `SYNCED_KEYS`: es una elección por dispositivo/cuenta local,
+no algo que deba viajar con el sync oficial (evita que un dispositivo quede
+"encerrado" en un proveedor propio inalcanzable desde otro). Config sensible
+(URL/clave del Supabase propio) en `starseed.sync.providers.config.v1`, SIEMPRE
+local, igual que las claves de proveedores de IA.
+
+UI: `/servidores` → `AccountSyncPanel` (`src/components/aurora/account-sync-panel.tsx`),
+por encima del registro de servidores de CEREBROS (`ServersPanel`, concepto
+distinto: ese es N:N cerebro↔servidor de cómputo/generación, no sync de cuenta).
+
+---
+
+## 13. Mapa vivo del sistema (jul-2026 · adenda "Perfeccionamiento")
+
+`src/ai/astraura/context.ts` amplía `OS_SECTIONS` con, por cada área: `actions`
+(qué se puede hacer ahí, frases cortas es-ES) y `agentCapable` (si Aurora puede
+actuar ahí como agente: crear/editar/comentar/publicar/enviar en nombre del
+usuario dentro de páginas/grupos/comunidades/archivos/publicaciones/comentarios/
+mensajes). Nuevos helpers:
+
+- `describeArea(route)` → ficha completa de un área (label + acciones + nota de
+  agente + `summary` listo para hablar/mostrar). Empareja por ruta exacta o por
+  el prefijo más largo que encaje (p.ej. `/network/politics/proposal/42`).
+- `systemMap()` → mapa vivo COMPLETO (async, defensivo): todas las áreas +
+  capacidades/skills activas (import dinámico de `skills.ts`) + agentes
+  disponibles (import dinámico de `lib/agents/store.ts`) + un `prompt` de texto
+  listo para inyectar. Sin cliente o si algo falla, degrada a solo `areas`.
+
+`systemContextPrompt()` (ya cableado en `router.ts::astrauraChat()`) se enriqueció
+para incluir, por cada sección, hasta 3 acciones y la marca `(agente)`, más un
+párrafo explícito "COMO AGENTE" que autoriza a Aurora a actuar en las áreas
+marcadas — siempre pidiendo confirmación antes de acciones irreversibles o
+públicas. `src/components/aurora/invoke-agent-button.tsx` expone el punto de
+enganche reutilizable "invocar agente aquí" (`<InvokeAgentButton place={{kind,
+id, title}} />` + `invokeAgentAt()`/`buildPlaceContext()`): abre el chat completo
+de Aurora (vía `lib/aurora/open-aurora.ts::openAurora()`, sin instanciar una
+segunda Aurora) con el contexto del lugar ya precargado.

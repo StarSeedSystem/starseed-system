@@ -60,6 +60,7 @@ import { toast } from "sonner";
 import OKFPanel from "@/components/exocortex/okf-panel";
 import ProviderPanel from "@/components/exocortex/provider-panel";
 import AuroraStudio from "@/components/aurora/aurora-studio";
+import { MessageRenderer } from "@/components/aurora/message-renderer";
 import StoragePanel from "@/components/storage/storage-panel";
 import ConnectionsHub from "@/components/storage/connections-hub";
 import BrainsPanel from "@/components/brains/brains-panel";
@@ -720,11 +721,13 @@ function AgentPageInner() {
                         <AvatarFallback className="bg-muted/40 text-xs">Tú</AvatarFallback>
                       )}
                     </Avatar>
-                    <div className={`p-3 rounded-2xl max-w-[80%] text-sm shadow-sm whitespace-pre-wrap ${msg.role === 'user'
+                    <div className={`p-3 rounded-2xl max-w-[80%] text-sm shadow-sm ${msg.role === 'user'
                       ? 'bg-primary text-primary-foreground rounded-tr-none'
                       : 'bg-card border rounded-tl-none'
                       }`}>
-                      {msg.content}
+                      {/* Renderizador universal: markdown, código con copiar,
+                          tablas, JSON plegable, SVG e imágenes/audio/vídeo/archivos. */}
+                      <MessageRenderer text={msg.content} compact={msg.role === 'user'} />
                       {msg.pending && <span className="inline-block w-2 h-4 ml-1 bg-primary/70 animate-pulse align-middle" />}
                     </div>
                   </div>

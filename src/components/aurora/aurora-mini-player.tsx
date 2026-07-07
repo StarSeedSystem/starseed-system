@@ -39,7 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
-import { MessageMedia } from "./universal-viewer";
+import { MessageRenderer } from "./message-renderer";
 import { RouteChip } from "./route-chip";
 import styles from "./aurora-mini-player.module.css";
 
@@ -388,8 +388,10 @@ export function AuroraMiniPlayer({
             )}
           </AnimatePresence>
 
-          {/* Visor universal bajo la última respuesta (compacto, alturas reducidas). */}
-          {say.length > 0 && <MessageMedia text={say} compact />}
+          {/* Renderizador universal bajo la última respuesta (compacto, alturas
+              reducidas): markdown, código, tablas, JSON, SVG y el visor de
+              medios (imágenes/vídeo/audio/PDF/3D…) en un único paso. */}
+          {say.length > 0 && <MessageRenderer text={say} compact />}
 
           {/* Transparencia del modelo: chip en la esquina del mini-panel.
               inlinePanel: la tarjeta abre EN FLUJO (la carta tiene overflow:hidden). */}
@@ -517,7 +519,15 @@ function LineRow({ line, clamp = false }: { line: Line; clamp?: boolean }) {
       )}
     >
       <span className={styles.lineTag}>{isUser ? "Tú" : "Aurora"}</span>
-      <span>{line.text}</span>
+      {clamp ? (
+        // Resumido (2 líneas, -webkit-line-clamp): texto plano — el recorte por
+        // CSS necesita un único nodo de texto, no bloques de markdown anidados.
+        <span>{line.text}</span>
+      ) : (
+        // Historial expandido (con scroll): renderizador universal completo
+        // (markdown/código/tablas/JSON), sin duplicar el visor de medios.
+        <MessageRenderer text={line.text} compact media={false} className="inline" />
+      )}
     </div>
   );
 }
