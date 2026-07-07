@@ -183,7 +183,8 @@ Cada cerebro declara `Brain.config.memoryDestinations`:
 ```ts
 { local: { enabled: true },              // SIEMPRE true (no desactivable) — mirror local (§8)
   starseed: { enabled: true },           // default ON — manifiesto en entity_state
-  external: [{ id, serverId, url, label }] } // 0+ destinos propios ("brain-store")
+  external: [{ id, serverId, url, label }], // 0+ destinos propios ("brain-store")
+  p2p: { enabled: false, folderId?, label? } } // default OFF — espejo por Syncthing propio
 ```
 
 - **`local` (siempre)** — el mirror local de §8 (`memory-offline.ts`); no requiere red.
@@ -206,6 +207,18 @@ Cada cerebro declara `Brain.config.memoryDestinations`:
   como `brain_server_links` (ruta avanzada, ya existente); para el caso simple (un cerebro,
   una URL propia) `syncBrainMemoryNow` hace un `POST` best-effort directo al `endpoint` con el
   bundle de memorias (contrato `{ ok }` esperado, igual de laxo que `runtime.ts`).
+- **`p2p` (opcional, default OFF, jul-2026 · adenda "Avatar + P2P + IoT")** — espejo del
+  cerebro vía la instancia **SYNCTHING** propia del usuario: `{ enabled, folderId?, label? }`.
+  NO duplica la config de conexión (endpoint + clave API por dispositivo, siempre local):
+  esa vive en el proveedor `'p2p-syncthing'` de `sync-providers.ts` (§12 de
+  `astraura-inteligencia.md`), configurable desde `/servidores` (`AccountSyncPanel`, que ya
+  lista cualquier proveedor nuevo del registro sin tocar esa UI). Este destino solo declara SI
+  el cerebro debe pedirle a Syncthing que sincronice y, opcionalmente, QUÉ carpeta le
+  corresponde. `syncBrainMemoryNow` añade un paso `kind:'p2p'` best-effort y honesto: pide un
+  reescaneo (`POST {endpoint}/rest/db/scan?folder=<id>`) — un NUDGE, no un push del contenido
+  de las memorias por esta vía. Es un ESPEJO DE ARCHIVOS entre los dispositivos del propio
+  usuario (o de una comunidad/Sangha que quiera compartir cerebro), complementario al mirror
+  local de §8 y al manifiesto `starseed` de arriba — nunca los sustituye.
 - Decisión de diseño explícita (honestidad): **no se crea una tabla nueva** para destinos;
   todo vive en `Brain.config` (jsonb ya existente) + `entity_state` (ya existente) +
   `Brain.servers[]` (ya existente). Evolución futura si hace falta más escala: tabla dedicada

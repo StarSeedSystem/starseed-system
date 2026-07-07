@@ -419,10 +419,150 @@ const localProvider: SyncProvider = {
   },
 };
 
+/* ═══════════════════════════ Proveedor: P2P · Syncthing ═══════════════════════════
+ * Representa la sincronización vía una instancia SYNCTHING del propio usuario
+ * (REST API local, típicamente http://127.0.0.1:8384). Es un ESPEJO DE
+ * ARCHIVOS entre los dispositivos del usuario — COMPLEMENTA el realtime de
+ * Supabase, no lo sustituye: Syncthing no tiene un almacén de preferencias
+ * tipo `user_settings`, así que aquí "push"/"pull" no mueven el bundle de
+ * `SYNCED_KEYS` (sería deshonesto fingir que sí) sino que:
+ *   · testConnection() → GET {endpoint}/rest/system/status (con X-API-Key).
+ *   · push()  → "Sincronizar ahora": pide a Syncthing que reescanee sus
+ *     carpetas (POST {endpoint}/rest/db/scan), nudge real y honesto.
+ *   · pull()  → lee el estado de las carpetas configuradas (GET
+ *     {endpoint}/rest/config/folders) y lo resume — informativo, no una
+ *     descarga de preferencias.
+ * La API key NUNCA viaja en claro fuera de este dispositivo: se guarda con el
+ * mismo mecanismo local (`getProviderConfig`/`setProviderConfig`) que la
+ * clave anónima del Supabase propio.
+ */
+interface SyncthingConfig {
+  endpoint?: string;
+  apiKey?: string;
+  /** Opcional: ids de carpeta separados por coma. Vacío = todas las conocidas. */
+  folders?: string;
+}
+
+function syncthingBase(cfg: SyncthingConfig): string | null {
+  if (!cfg.endpoint) return null;
+  return cfg.endpoint.trim().replace(/\/+$/, "");
+}
+
+async function syncthingFetch(cfg: SyncthingConfig, path: string, init?: RequestInit): Promise<Response> {
+  const base = syncthingBase(cfg);
+  if (!base || !cfg.apiKey) throw new Error("Falta la URL y/o la clave API de Syncthing.");
+  return fetch(`${base}${path}`, {
+    ...init,
+    headers: { "X-API-Key": cfg.apiKey, ...(init?.headers ?? {}) },
+  });
+}
+
+interface SyncthingFolder {
+  id: string;
+  label?: string;
+}
+
+async function syncthingFolderIds(cfg: SyncthingConfig): Promise<string[]> {
+  const explicit = (cfg.folders ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (explicit.length) return explicit;
+  try {
+    const res = await syncthingFetch(cfg, "/rest/config/folders");
+    if (!res.ok) return [];
+    const folders = (await res.json()) as SyncthingFolder[];
+    return Array.isArray(folders) ? folders.map((f) => f.id).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+const p2pSyncthingProvider: SyncProvider = {
+  id: "p2p-syncthing",
+  label: "P2P · Syncthing",
+  description:
+    "Espejo de ARCHIVOS entre tus propios dispositivos vía tu instancia Syncthing (REST local). Complementa el " +
+    "sync de cuenta, no lo sustituye: no hay preferencias que subir/bajar aquí, solo carpetas que sincronizar.",
+  needsConfig: true,
+  configFields: [
+    { key: "endpoint", label: "Endpoint REST", placeholder: "http://127.0.0.1:8384" },
+    { key: "apiKey", label: "Clave API (por dispositivo)", placeholder: "clave de Ajustes → Acciones → API", secret: true },
+    { key: "folders", label: "IDs de carpeta (opcional, coma-separados)", placeholder: "default, cerebros" },
+  ],
+  testConnection: async () => {
+    const cfg = getProviderConfig("p2p-syncthing") as SyncthingConfig;
+    if (!cfg.endpoint || !cfg.apiKey) return { ok: false, message: "Falta el endpoint y/o la clave API." };
+    try {
+      const res = await syncthingFetch(cfg, "/rest/system/status");
+      if (!res.ok) {
+        return {
+          ok: false,
+          message:
+            res.status === 401 || res.status === 403
+              ? "Clave API rechazada (401/403)."
+              : `Syncthing respondió ${res.status}.`,
+        };
+      }
+      const status = await res.json().catch(() => null as { myID?: string } | null);
+      return {
+        ok: true,
+        message: status?.myID
+          ? `Conectado a Syncthing (dispositivo ${String(status.myID).slice(0, 7)}…).`
+          : "Conectado a Syncthing.",
+      };
+    } catch (e: any) {
+      return { ok: false, message: `No se pudo contactar (URL/CORS/red): ${e?.message ?? e}` };
+    }
+  },
+  push: async () => {
+    const cfg = getProviderConfig("p2p-syncthing") as SyncthingConfig;
+    if (!cfg.endpoint || !cfg.apiKey) return { ok: false, reason: "error", message: "Configura el endpoint y la clave API primero." };
+    const ids = await syncthingFolderIds(cfg);
+    if (!ids.length) {
+      return { ok: false, reason: "empty", message: "No se encontraron carpetas Syncthing que sincronizar." };
+    }
+    let okCount = 0;
+    for (const id of ids) {
+      try {
+        const res = await syncthingFetch(cfg, `/rest/db/scan?folder=${encodeURIComponent(id)}`, { method: "POST" });
+        if (res.ok) okCount += 1;
+      } catch {
+        /* una carpeta fallida no detiene el resto */
+      }
+    }
+    return okCount > 0
+      ? { ok: true, message: `Syncthing avisado de sincronizar ${okCount}/${ids.length} carpeta(s) (espejo de archivos).`, updatedAt: new Date().toISOString() }
+      : { ok: false, reason: "error", message: "Ninguna carpeta respondió al aviso de sincronización." };
+  },
+  pull: async () => {
+    const cfg = getProviderConfig("p2p-syncthing") as SyncthingConfig;
+    if (!cfg.endpoint || !cfg.apiKey) return { ok: false, reason: "error", message: "Configura el endpoint y la clave API primero." };
+    const ids = await syncthingFolderIds(cfg);
+    if (!ids.length) {
+      return { ok: false, reason: "empty", message: "No hay carpetas configuradas: Syncthing sincroniza ARCHIVOS, no preferencias." };
+    }
+    const summaries: string[] = [];
+    for (const id of ids) {
+      try {
+        const res = await syncthingFetch(cfg, `/rest/db/status?folder=${encodeURIComponent(id)}`);
+        if (!res.ok) { summaries.push(`${id}: sin estado (${res.status})`); continue; }
+        const st = (await res.json()) as { state?: string; needFiles?: number };
+        summaries.push(`${id}: ${st?.state ?? "?"}${st?.needFiles ? ` (${st.needFiles} pendientes)` : ""}`);
+      } catch {
+        summaries.push(`${id}: no se pudo consultar`);
+      }
+    }
+    return {
+      ok: true,
+      message: `Estado de carpetas (espejo de archivos, no preferencias): ${summaries.join(" · ")}`,
+      applied: summaries,
+      updatedAt: new Date().toISOString(),
+    };
+  },
+};
+
 /* ═══════════════════════════ Registro ═══════════════════════════ */
 
 /** Registro de proveedores disponibles. Añadir uno nuevo = un objeto más aquí. */
-export const SYNC_PROVIDERS: SyncProvider[] = [officialProvider, ownSupabaseProvider, localProvider];
+export const SYNC_PROVIDERS: SyncProvider[] = [officialProvider, ownSupabaseProvider, localProvider, p2pSyncthingProvider];
 
 export function getSyncProvider(id: SyncProviderId): SyncProvider {
   return SYNC_PROVIDERS.find((p) => p.id === id) ?? officialProvider;

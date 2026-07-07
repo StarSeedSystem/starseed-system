@@ -27,6 +27,9 @@ import type { EntityRef } from "@/lib/library/entity-library";
 import { createClient } from "@/utils/supabase/client";
 import { FinderView } from "./finder/finder-view";
 import type { AclViewerContext } from "./finder/finder-types";
+// Captura rápida "Guardar en Marcadores" (Adenda 69 §19): guarda enlaces/notas/
+// imágenes en la carpeta "Marcadores" de ESTA biblioteca (src/lib/library/bookmarks.ts).
+import { SaveToBookmarks } from "./save-to-bookmarks";
 
 /**
  * Resuelve si el visitante actual es "dueño/gestor" de esta biblioteca
@@ -130,6 +133,7 @@ export function EntityLibraryPanel({
                     </h2>
                     {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
                 </div>
+                <SaveToBookmarks libraryRef={entityRef} label="Guardar enlace…" />
             </div>
 
             <FinderView entityRef={entityRef} accent={accent} aclContext={aclContext} compact={compact} />

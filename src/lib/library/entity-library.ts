@@ -61,7 +61,9 @@ export type SavedItemType =
     /** Ramificación vinculada: refleja el original (`refKind`/`refId`) en vivo. */
     | "branch"
     /** v2.1 (Adenda 65, §17): repo GIT externo conectado (metadatos cacheados en `connectedRepo`). */
-    | "repo";
+    | "repo"
+    /** v2.1 (Adenda 69, §19): enlace/nota/imagen guardado desde "Marcadores" (src/lib/library/bookmarks.ts). */
+    | "bookmark";
 
 /** Entrada de control de acceso: un usuario o un grupo (por id/slug). */
 export interface ACLEntry {

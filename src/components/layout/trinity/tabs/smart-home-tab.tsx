@@ -14,8 +14,9 @@
  * el import en control-center.tsx.
  */
 
-import React, { useMemo } from "react";
-import { Waves, Sparkles, SunDim, Wifi } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Waves, Sparkles, SunDim, Wifi, Home as HomeIcon, Loader2, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { Slider } from "@/components/ui/slider";
@@ -166,6 +167,9 @@ export function SmartHomeTab() {
                 </div>
                 <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981] shrink-0" />
             </div>
+
+            {/* Hogar / IoT (Home Assistant) — opt-in, honesto, config local */}
+            <HomeAssistantBlock />
         </div>
     );
 }
@@ -252,6 +256,267 @@ function AtmosphereSlider({ icon: Icon, value, onChange, label, colorClass }: {
                 onValueChange={onChange}
                 className={cn("cursor-pointer", colorClass)}
             />
+        </div>
+    );
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+ * Hogar / IoT (Home Assistant) — bloque OPT-IN dentro de "Atmósfera del
+ * sistema". Honesto: enabled=false por defecto, config SOLO local
+ * (localStorage, nunca viaja con la cuenta), y si no hay conexión se explica
+ * el porqué en vez de fingir datos. Alineado con Oikos: una comunidad/Sangha
+ * podría exponer así su hogar común, igual que un usuario el suyo propio.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+const HA_CONFIG_KEY = "starseed.iot.homeassistant.v1";
+
+interface HomeAssistantConfig {
+    enabled: boolean;
+    url?: string;
+    token?: string;
+}
+
+const HA_DEFAULT: HomeAssistantConfig = { enabled: false };
+
+function readHaConfig(): HomeAssistantConfig {
+    if (typeof window === "undefined") return { ...HA_DEFAULT };
+    try {
+        const raw = window.localStorage.getItem(HA_CONFIG_KEY);
+        if (!raw) return { ...HA_DEFAULT };
+        const parsed = JSON.parse(raw) as Partial<HomeAssistantConfig>;
+        return {
+            enabled: parsed?.enabled === true,
+            url: typeof parsed?.url === "string" && parsed.url ? parsed.url : undefined,
+            token: typeof parsed?.token === "string" && parsed.token ? parsed.token : undefined,
+        };
+    } catch {
+        return { ...HA_DEFAULT };
+    }
+}
+
+function writeHaConfig(next: HomeAssistantConfig): void {
+    if (typeof window === "undefined") return;
+    try {
+        window.localStorage.setItem(HA_CONFIG_KEY, JSON.stringify(next));
+    } catch {
+        /* cuota/modo privado: degrada en silencio */
+    }
+}
+
+interface HaEntity {
+    entity_id: string;
+    state: string;
+    attributes?: { friendly_name?: string };
+}
+
+function haHeaders(token: string): HeadersInit {
+    return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+}
+
+function HomeAssistantBlock() {
+    const [cfg, setCfg] = useState<HomeAssistantConfig>(HA_DEFAULT);
+    const [ready, setReady] = useState(false);
+    const [draftUrl, setDraftUrl] = useState("");
+    const [draftToken, setDraftToken] = useState("");
+    const [showToken, setShowToken] = useState(false);
+    const [entities, setEntities] = useState<HaEntity[] | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [busyEntity, setBusyEntity] = useState<string | null>(null);
+
+    useEffect(() => {
+        const c = readHaConfig();
+        setCfg(c);
+        setDraftUrl(c.url ?? "");
+        setDraftToken(c.token ?? "");
+        setReady(true);
+    }, []);
+
+    const loadEntities = useCallback(async (c: HomeAssistantConfig) => {
+        if (!c.enabled || !c.url || !c.token) return;
+        setLoading(true);
+        setError(null);
+        try {
+            const base = c.url.replace(/\/+$/, "");
+            const res = await fetch(`${base}/api/states`, { headers: haHeaders(c.token) });
+            if (!res.ok) {
+                setError(res.status === 401 ? "Token no válido (401)." : `Home Assistant respondió ${res.status}.`);
+                setEntities(null);
+                return;
+            }
+            const all = (await res.json()) as HaEntity[];
+            const relevant = Array.isArray(all)
+                ? all.filter((e) => e.entity_id?.startsWith("light.") || e.entity_id?.startsWith("switch.")).slice(0, 8)
+                : [];
+            setEntities(relevant);
+        } catch (e: any) {
+            setError(`No se pudo conectar: ${e?.message ?? "revisa la URL/el token/CORS"}.`);
+            setEntities(null);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    // Autocarga HONESTA: solo si ya está activado Y configurado (opt-in real,
+    // nunca una petición de red sin que el usuario lo haya pedido antes).
+    useEffect(() => {
+        if (!ready) return;
+        if (cfg.enabled && cfg.url && cfg.token) void loadEntities(cfg);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ready, cfg.enabled, cfg.url, cfg.token]);
+
+    const save = useCallback(() => {
+        const next: HomeAssistantConfig = { enabled: cfg.enabled, url: draftUrl.trim() || undefined, token: draftToken.trim() || undefined };
+        setCfg(next);
+        writeHaConfig(next);
+    }, [cfg.enabled, draftUrl, draftToken]);
+
+    const toggleEnabled = useCallback(() => {
+        const next = { ...cfg, enabled: !cfg.enabled };
+        setCfg(next);
+        writeHaConfig(next);
+        if (!next.enabled) { setEntities(null); setError(null); }
+    }, [cfg]);
+
+    const toggleEntity = useCallback(async (entity: HaEntity) => {
+        if (!cfg.url || !cfg.token) return;
+        const domain = entity.entity_id.split(".")[0];
+        const service = entity.state === "on" ? "turn_off" : "turn_on";
+        setBusyEntity(entity.entity_id);
+        try {
+            const base = cfg.url.replace(/\/+$/, "");
+            const res = await fetch(`${base}/api/services/${domain}/${service}`, {
+                method: "POST",
+                headers: haHeaders(cfg.token),
+                body: JSON.stringify({ entity_id: entity.entity_id }),
+            });
+            if (res.ok) {
+                setEntities((prev) => prev?.map((e) => (e.entity_id === entity.entity_id ? { ...e, state: service === "turn_on" ? "on" : "off" } : e)) ?? prev);
+            } else {
+                setError(`No se pudo cambiar «${entity.attributes?.friendly_name ?? entity.entity_id}» (${res.status}).`);
+            }
+        } catch (e: any) {
+            setError(`No se pudo contactar Home Assistant: ${e?.message ?? "error de red"}.`);
+        } finally {
+            setBusyEntity(null);
+        }
+    }, [cfg.url, cfg.token]);
+
+    if (!ready) return null;
+    const configured = !!cfg.url && !!cfg.token;
+
+    return (
+        <div className="space-y-3 bg-black/20 p-4 rounded-2xl border border-white/5 backdrop-blur-md">
+            <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className="p-1.5 rounded-lg bg-sky-500/15 text-sky-300 shrink-0">
+                        <HomeIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">Hogar / IoT (Home Assistant)</div>
+                        <div className="text-[10px] text-muted-foreground truncate">
+                            Opcional · el hogar común de tu Oikos/Sangha, o el tuyo
+                        </div>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={cfg.enabled}
+                    onClick={toggleEnabled}
+                    title={cfg.enabled ? "Desactivar" : "Activar (opt-in)"}
+                    className={cn(
+                        "shrink-0 relative w-10 h-5 rounded-full transition-colors cursor-pointer",
+                        cfg.enabled ? "bg-sky-500" : "bg-white/15",
+                    )}
+                >
+                    <span className={cn("absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform", cfg.enabled && "translate-x-5")} />
+                </button>
+            </div>
+
+            {!cfg.enabled ? (
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    No configurado. Actívalo para conectar tu instancia de Home Assistant (URL + token de acceso de
+                    larga duración) y controlar luces/interruptores desde aquí. Se guarda solo en este dispositivo.{" "}
+                    <Link href="/library" className="text-sky-300 hover:underline">Ver ficha del paquete en la Biblioteca</Link>.
+                </p>
+            ) : (
+                <>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="flex flex-col gap-1">
+                            <span className="text-[10px] text-muted-foreground">URL de Home Assistant</span>
+                            <input
+                                value={draftUrl}
+                                onChange={(e) => setDraftUrl(e.target.value)}
+                                onBlur={save}
+                                placeholder="http://homeassistant.local:8123"
+                                className="h-8 px-2.5 rounded-lg bg-black/30 border border-white/10 text-xs text-white outline-none focus:border-sky-400/50"
+                                spellCheck={false}
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                            <span className="text-[10px] text-muted-foreground">Token de acceso (larga duración)</span>
+                            <div className="flex gap-1">
+                                <input
+                                    value={draftToken}
+                                    onChange={(e) => setDraftToken(e.target.value)}
+                                    onBlur={save}
+                                    type={showToken ? "text" : "password"}
+                                    placeholder="eyJhbGciOi…"
+                                    className="h-8 flex-1 min-w-0 px-2.5 rounded-lg bg-black/30 border border-white/10 text-xs text-white outline-none focus:border-sky-400/50"
+                                    spellCheck={false}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowToken((v) => !v)}
+                                    className="h-8 w-8 shrink-0 rounded-lg border border-white/10 bg-white/5 grid place-items-center text-muted-foreground hover:text-white cursor-pointer"
+                                    title={showToken ? "Ocultar" : "Mostrar"}
+                                >
+                                    {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
+                            </div>
+                        </label>
+                    </div>
+
+                    {!configured ? (
+                        <p className="text-[11px] text-amber-300/80">Añade la URL y el token para conectar.</p>
+                    ) : loading ? (
+                        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" /> Conectando…</p>
+                    ) : error ? (
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-amber-300/80">
+                            <span className="min-w-0 flex-1">{error}</span>
+                            <button type="button" onClick={() => void loadEntities(cfg)} className="shrink-0 text-sky-300 hover:underline cursor-pointer">Reintentar</button>
+                        </div>
+                    ) : entities && entities.length > 0 ? (
+                        <div className="space-y-1.5">
+                            {entities.map((e) => (
+                                <div key={e.entity_id} className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-1.5">
+                                    <span className="min-w-0 flex-1 truncate text-xs text-white/80">{e.attributes?.friendly_name ?? e.entity_id}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => void toggleEntity(e)}
+                                        disabled={busyEntity === e.entity_id}
+                                        className={cn(
+                                            "shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors cursor-pointer",
+                                            e.state === "on" ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-200" : "border-white/10 bg-white/5 text-muted-foreground",
+                                            busyEntity === e.entity_id && "opacity-50 cursor-wait",
+                                        )}
+                                    >
+                                        {busyEntity === e.entity_id ? "…" : e.state === "on" ? "Encendido" : "Apagado"}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : entities ? (
+                        <p className="text-[11px] text-muted-foreground">Conectado, pero no se encontraron luces/interruptores.</p>
+                    ) : null}
+
+                    <p className="text-[9px] text-muted-foreground/60 leading-relaxed">
+                        Guardado solo en este dispositivo (localStorage), nunca en la cuenta. Complementa Oikos: una
+                        comunidad/Sangha podría exponer así el hogar común.
+                    </p>
+                </>
+            )}
         </div>
     );
 }

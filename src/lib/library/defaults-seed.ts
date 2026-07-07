@@ -68,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 9;
+export const SEED_VERSION = 10;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -193,6 +193,21 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   //    inesperada al iniciar sesión).
   "app-camara",
   "app-galeria",
+  // ── (SEED_VERSION 10) Siete repos más — Marcadores, conocimiento, IoT y
+  //    ciencia (architecture/astraura-inteligencia.md §19). Mismo criterio que
+  //    §15-16: TODOS son paquetes `function` con `skillId`: instalar = solo
+  //    registro de skill/capacidad + enlace de referencia (cero descarga, cero
+  //    clave). Los dos conectores reales que suman (Audiobookshelf, Home
+  //    Assistant) quedan APAGADOS por defecto (`enabled` ausente/false y sin
+  //    endpoint): sembrar el paquete NUNCA activa el conector, solo dispone la
+  //    capacidad/enlace; el usuario pega su propio endpoint cuando quiera.
+  "iatool-karakeep",
+  "iatool-anytype",
+  "iatool-audiobookshelf",
+  "iatool-home-assistant",
+  "iatool-syncthing",
+  "iatool-open-llm-vtuber",
+  "iatool-altair",
 ];
 
 /**

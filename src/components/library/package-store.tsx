@@ -45,6 +45,8 @@ import {
   MessagesSquare, Container, Bot,
   // Iconos de Hugging Bay (descubrimiento de modelos)
   Compass, TrendingUp, SearchCode,
+  // Iconos de "Siete repos más" (Marcadores/conocimiento/IoT/ciencia, jul-2026)
+  Bookmark, Headphones, Home, Drama, Dna,
   // Iconos de acción
   Download, Check, Trash2, KeyRound, ExternalLink, Search, Plus,
   Clock, Store, PackageCheck, Settings2, Loader2,
@@ -156,6 +158,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   MessagesSquare, Container, Bot,
   // Hugging Bay (descubrimiento de modelos)
   Compass, TrendingUp, SearchCode,
+  // Siete repos más (Marcadores/conocimiento/IoT/ciencia, jul-2026)
+  Bookmark, Headphones, Home, Drama, Dna,
 };
 
 /** Id del repo builtin de Herramientas IA & Agentes (para la sección destacada). */

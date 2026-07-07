@@ -295,6 +295,47 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
     ],
   },
 
+  // ── Media y hogar (self-host, solo lectura) ───────────────────
+  {
+    id: "audiobookshelf",
+    ossId: "audiobookshelf",
+    label: "Audiobookshelf",
+    category: "backend",
+    capabilities: ["Listar bibliotecas de audio", "Listar audiolibros/podcasts"],
+    defaultEndpoint: "http://localhost:13378",
+    needsKey: true,
+    // Servidor personal de audiolibros/podcasts: cada instancia es del usuario,
+    // no procede un endpoint público compartido. GRATIS: self-host en su propio
+    // NAS/servidor o en una VM Always Free de Oracle Cloud (Docker).
+    freeHostingHint:
+      "Cada usuario tiene su propia biblioteca de audio: no procede un endpoint público. Self-host GRATIS en tu NAS/servidor o en una VM Always Free de Oracle Cloud (imagen ghcr.io/advplyr/audiobookshelf).",
+    docsUrl: "https://api.audiobookshelf.org/",
+    actions: [
+      { id: "libraries", label: "Listar bibliotecas", description: "Lista tus bibliotecas de audio (audiolibros/podcasts)." },
+      { id: "items", label: "Listar elementos de una biblioteca", description: "Lista los audiolibros/episodios de una biblioteca (needs libraryId)." },
+    ],
+  },
+  {
+    id: "home-assistant",
+    ossId: "home-assistant",
+    label: "Home Assistant",
+    category: "automation",
+    capabilities: ["Consultar estado de dispositivos", "Consultar una entidad concreta"],
+    defaultEndpoint: "http://homeassistant.local:8123",
+    needsKey: true,
+    // Controla dispositivos reales del hogar del usuario: jamás público ni
+    // on-by-default, y este conector es DELIBERADAMENTE de solo lectura (nunca
+    // llama a /api/services). GRATIS: corre ya en el propio hub/NAS del usuario;
+    // no aplica hosting externo.
+    freeHostingHint:
+      "Corre ya en el hub/NAS/Raspberry Pi del propio usuario (no aplica hosting externo). Genera un 'Long-Lived Access Token' en tu perfil de Home Assistant y pégalo aquí como clave. Este conector es DELIBERADAMENTE de solo lectura (nunca actúa sobre dispositivos).",
+    docsUrl: "https://developers.home-assistant.io/docs/api/rest/",
+    actions: [
+      { id: "states", label: "Ver estado de todas las entidades", description: "Lista el estado actual de todas tus entidades/dispositivos (solo lectura)." },
+      { id: "state", label: "Ver estado de una entidad", description: "Consulta el estado de una entidad concreta por su entity_id (solo lectura)." },
+    ],
+  },
+
   // ── Búsqueda (metabuscador) ───────────────────────────────────
   {
     id: "searxng",

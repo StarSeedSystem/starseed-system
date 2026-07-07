@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   CheckCircle2, CloudCog, Database, HardDrive, Loader2, Plug, ShieldCheck,
-  Upload, Download, XCircle, Eye, EyeOff,
+  Upload, Download, XCircle, Eye, EyeOff, Waypoints,
 } from "lucide-react";
 import {
   SYNC_PROVIDERS, activeSyncProviderId, setActiveSyncProvider,
@@ -35,6 +35,7 @@ const PROVIDER_ICON: Record<string, typeof CloudCog> = {
   official: ShieldCheck,
   "own-supabase": Database,
   local: HardDrive,
+  "p2p-syncthing": Waypoints,
 };
 
 export function AccountSyncPanel() {

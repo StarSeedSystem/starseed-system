@@ -39,10 +39,19 @@
 | `flow-builder` | iatool-langflow | constructor visual de flujos/agentes LLM (drag&drop) | planning |
 | `pdf-tools` | iatool-stirling-pdf | herramientas PDF self-hosted (unir/dividir/OCR/firmar) | — |
 | `llm-apps-platform` | iatool-dify | plataforma LLM completa (agentes+workflows+RAG+observabilidad) | preferStrong |
+| `bookmarks-ai` | iatool-karakeep | Marcadores con IA: guardar enlace/nota/imagen con etiquetado y búsqueda | — |
+| `local-objects` | iatool-anytype | objetos/notas local-first cifrados, sync P2P sin servidor central | — |
+| `audio-library` | iatool-audiobookshelf | biblioteca de audiolibros/podcasts (conector real de solo lectura) | — |
+| `home-automation` | iatool-home-assistant | domótica local (conector real de SOLO LECTURA sobre dispositivos) | — |
+| `p2p-sync` | iatool-syncthing | sincronización de archivos P2P sin servidor central | — |
+| `aurora-avatar` | iatool-open-llm-vtuber | referencia de avatar con voz en tiempo real (ver §18 del OS) | — |
+| `data-science-fasta` | iatool-altair | ciencia de datos: comparación FASTA alignment-free | — |
 
 Detalle completo de las 10 capacidades del "stack OSS por defecto" (jul-2026):
 `architecture/astraura-inteligencia.md` §15. Ocho capacidades más (infraestructura
 soberana y flujos visuales, jul-2026): `architecture/astraura-inteligencia.md` §16.
+Siete capacidades más (Marcadores, conocimiento, IoT y ciencia, jul-2026):
+`architecture/astraura-inteligencia.md` §19.
 
 ## Cómo lo consume cada sistema
 
@@ -73,4 +82,5 @@ soberana y flujos visuales, jul-2026): `architecture/astraura-inteligencia.md` �
   §15.5): quedan solo en el OS hasta que se actualicen esos repos.
 
 *Adenda 68 · 2026-07-05. Adenda "Stack OSS por defecto" · 2026-07-07. Adenda
-"Infraestructura soberana y flujos visuales" · 2026-07-07.*
+"Infraestructura soberana y flujos visuales" · 2026-07-07. Adenda "Segunda ola:
+productividad y ciencia" (Marcadores/IoT/audio/P2P/avatar/ciencia) · 2026-07-07.*

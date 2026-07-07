@@ -2,7 +2,7 @@
 // los tipos v2 (`alias`, `branch`). Puro, sin JSX.
 
 import {
-    Package, PenSquare, FileText, Globe, Link2, ExternalLink, CornerUpRight, GitBranch,
+    Package, PenSquare, FileText, Globe, Link2, ExternalLink, CornerUpRight, GitBranch, Bookmark,
     type LucideIcon,
 } from "lucide-react";
 import type { SavedItem, SavedItemType } from "@/lib/library/entity-library";
@@ -19,6 +19,8 @@ export const ITEM_TYPE_META: Record<SavedItemType, { label: string; icon: Lucide
     branch: { label: "Rama (vinculado)", icon: GitBranch },
     /** v2.1 (§17): repo GIT externo conectado. */
     repo: { label: "Repo conectado", icon: GitBranch },
+    /** v2.1 (§19): guardado desde "Marcadores" (enlace/nota/imagen). */
+    bookmark: { label: "Marcador", icon: Bookmark },
 };
 
 export function itemTypeMeta(type: SavedItemType) {

@@ -911,6 +911,77 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     author: "langgenius", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { skillId: "llm-apps-platform", externalUrl: "https://github.com/langgenius/dify", note: "Plataforma open-source de desarrollo de apps LLM (agentes, workflows, RAG, observabilidad)." },
   },
+  /* ══ SIETE REPOS MÁS — Marcadores, conocimiento, IoT y ciencia (jul-2026) ══
+   * Mismo patrón honesto de §15-16: conocimiento + capacidad + paquete
+   * instalado, nunca binarios que el OS ejecute por sí solo. Dos (Audiobookshelf,
+   * Home Assistant) suman además un CONECTOR real de solo lectura en
+   * src/lib/integrations/registry.ts (endpoint propio, apagado por defecto,
+   * nunca auto-conecta). Karakeep NO se conecta a una instancia externa: inspira
+   * la superficie propia «Marcadores» de la Biblioteca (src/lib/library/bookmarks.ts),
+   * implementación propia de StarSeed (no copia código AGPL). */
+  /* ── Karakeep · guardar-todo con etiquetado IA (inspira "Marcadores") ── */
+  {
+    id: "iatool-karakeep", kind: "function", name: "Karakeep (marcadores con IA)",
+    description:
+      "Guarda enlaces, notas e imágenes con etiquetado automático por IA y búsqueda de texto completo. Qué reemplaza: gestores de marcadores de pago (Pocket/Raindrop premium). Licencia AGPL-3.0: StarSeed no copia su código; esta capacidad inspira la superficie PROPIA «Marcadores» de la Biblioteca (guarda enlaces/notas/imágenes con sugerencia de etiquetas vía Aurora y búsqueda local, implementación propia). Instalar registra la skill «Marcadores con IA» y abre su repo de referencia.",
+    icon: "Bookmark", tags: ["skill", "aurora", "marcadores", "bookmarks", "media", "ia", "oss"], version: "1.0.0",
+    author: "karakeep-app", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "bookmarks-ai", externalUrl: "https://github.com/karakeep-app/karakeep", note: "Guardar-todo con etiquetado IA + búsqueda de texto completo (AGPL-3.0). Inspira la superficie propia «Marcadores»." },
+  },
+  /* ── Anytype · objetos/notas local-first cifrados ── */
+  {
+    id: "iatool-anytype", kind: "function", name: "Anytype (objetos local-first)",
+    description:
+      "Notas y objetos conectados local-first, cifrados de extremo a extremo y sincronizables P2P sin servidor central. Qué reemplaza: apps de notas/wikis en la nube de pago. Encaja con memorias y conocimiento personal soberano (Tríada §3 CLAUDE.md: Identidad Soberana). Instalar registra la skill «Objetos locales» para que Aurora conozca este patrón de conocimiento personal cifrado. Conector en vivo pendiente a propósito: su API local exige emparejar la app de escritorio con un código de verificación (flujo de dos pasos que hoy no se automatiza con honestidad desde un simple endpoint), así que queda como capacidad + enlace, no como conector configurable. Abre su repo de referencia.",
+    icon: "Boxes", tags: ["skill", "aurora", "notas", "objetos", "local-first", "e2ee", "p2p", "oss"], version: "1.0.0",
+    author: "anyproto", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "local-objects", externalUrl: "https://github.com/anyproto/anytype-ts", note: "Objetos/notas local-first cifrados, sincronización P2P sin servidor central." },
+  },
+  /* ── Audiobookshelf · servidor de audiolibros y podcasts ── */
+  {
+    id: "iatool-audiobookshelf", kind: "function", name: "Audiobookshelf (audiolibros y podcasts)",
+    description:
+      "Servidor self-host de audiolibros y podcasts con tu propia biblioteca de audio. Qué reemplaza: suscripciones de audiolibros de pago. Es un servicio/servidor: instalar registra la skill «Biblioteca de audio» y suma el CONECTOR real de solo lectura (self-host, endpoint propio, apagado por defecto) en Ajustes → Integraciones, para que Aurora liste tus audiolibros/podcasts (API /api/libraries). Licencia GPL-3.0. Abre su repo de referencia.",
+    icon: "Headphones", tags: ["skill", "aurora", "audio", "audiolibros", "podcasts", "media", "oss"], version: "1.0.0",
+    author: "advplyr", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "audio-library", externalUrl: "https://github.com/advplyr/audiobookshelf", note: "Servidor self-host de audiolibros/podcasts (GPL-3.0). Conector real de solo lectura en Ajustes → Integraciones (apagado por defecto)." },
+  },
+  /* ── Home Assistant · automatización del hogar (IoT) ── */
+  {
+    id: "iatool-home-assistant", kind: "function", name: "Home Assistant (domótica)",
+    description:
+      "Plataforma de automatización del hogar (IoT/MQTT) que corre 100% local, sin depender de la nube de un fabricante. Qué reemplaza: apps de domótica propietarias con tus datos en servidores de terceros. Es un servicio/servidor: instalar registra la skill «Domótica» y suma el CONECTOR real de solo lectura (self-host, token propio, apagado por defecto) en Ajustes → Integraciones, para que Aurora consulte el estado de tus dispositivos (API REST /api/states). El panel de Centro de Control (otra superficie del OS) puede reutilizar este mismo conector. Licencia Apache-2.0. Abre su repo de referencia.",
+    icon: "Home", tags: ["skill", "aurora", "iot", "domotica", "hogar", "automatizacion", "oss"], version: "1.0.0",
+    author: "home-assistant", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "home-automation", externalUrl: "https://github.com/home-assistant/core", note: "Automatización del hogar 100% local (Apache-2.0). Conector real de solo lectura en Ajustes → Integraciones (apagado por defecto)." },
+  },
+  /* ── Syncthing · sincronización P2P de archivos ── */
+  {
+    id: "iatool-syncthing", kind: "function", name: "Syncthing (sync P2P de archivos)",
+    description:
+      "Sincroniza archivos entre tus dispositivos directamente por P2P, sin subir tus datos a un servidor central. Qué reemplaza: servicios de sincronización en la nube de pago. Encaja con la soberanía de datos de la Tríada (§3 CLAUDE.md). Instalar registra la skill «Sincronización P2P» para que Aurora conozca este patrón (el proveedor de sincronización en sí se gestiona en Ajustes → Cerebros → Proveedores de sync, otra superficie). Licencia MPL-2.0. Abre su repo de referencia.",
+    icon: "RefreshCw", tags: ["skill", "aurora", "sync", "p2p", "archivos", "soberania", "oss"], version: "1.0.0",
+    author: "syncthing", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "p2p-sync", externalUrl: "https://github.com/syncthing/syncthing", note: "Sincronización de archivos P2P sin servidor central (MPL-2.0)." },
+  },
+  /* ── Open-LLM-VTuber · voz + avatar Live2D para agentes ── */
+  {
+    id: "iatool-open-llm-vtuber", kind: "function", name: "Open-LLM-VTuber (avatar con voz)",
+    description:
+      "Compañero IA con voz en tiempo real y avatar Live2D/3D animado, 100% local y open-source. Qué reemplaza: apps de avatar/vtuber de pago. Instalar registra la skill «Avatar de Aurora», que apunta al patrón de avatar visual con voz para Aurora (la implementación del componente visual del avatar es otra superficie del OS); aquí queda el conocimiento + capacidad + paquete instalado. Licencia MIT. Abre su repo de referencia.",
+    icon: "Drama", tags: ["skill", "aurora", "avatar", "voz", "live2d", "oss"], version: "1.0.0",
+    author: "Open-LLM-VTuber", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "aurora-avatar", externalUrl: "https://github.com/Open-LLM-VTuber/Open-LLM-VTuber", note: "Voz en tiempo real + avatar Live2D/3D animado, 100% local (MIT)." },
+  },
+  /* ── AltaiR · toolkit FASTA alignment-free (ciencia/datos) ── */
+  {
+    id: "iatool-altair", kind: "function", name: "AltaiR (alineamiento-free FASTA)",
+    description:
+      "Toolkit de bioinformática para comparar secuencias FASTA sin alineamiento (alignment-free), útil para análisis genómico/comparativo a gran escala. Qué reemplaza: herramientas de bioinformática comerciales. Instalar registra la skill «Ciencia de datos FASTA» para que Aurora conozca y explique este patrón de análisis de secuencias cuando el usuario trabaje con datos científicos/genómicos. Licencia GPL-3.0. Abre su repo de referencia.",
+    icon: "Dna", tags: ["skill", "aurora", "ciencia", "bioinformatica", "fasta", "datos", "oss"], version: "1.0.0",
+    author: "cobilab", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "data-science-fasta", externalUrl: "https://github.com/cobilab/altair", note: "Toolkit FASTA alignment-free para análisis genómico/comparativo (GPL-3.0)." },
+  },
 ];
 
 /** Repo builtin de Herramientas IA & Agentes (caja de herramientas de Aurora). */

@@ -118,6 +118,30 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
     integrationId: "ollama",
     actionId: "chat",
   },
+  {
+    name: "audio_library_list",
+    description: "Lista tus bibliotecas de audio (Audiobookshelf: audiolibros/podcasts). Sin entrada.",
+    integrationId: "audiobookshelf",
+    actionId: "libraries",
+  },
+  {
+    name: "audio_library_items",
+    description: "Lista los audiolibros/episodios de una biblioteca de Audiobookshelf. Entrada: { libraryId }.",
+    integrationId: "audiobookshelf",
+    actionId: "items",
+  },
+  {
+    name: "home_states",
+    description: "Consulta el estado de tus dispositivos/entidades de Home Assistant (solo lectura). Entrada opcional: { domain } (p.ej. \"light\").",
+    integrationId: "home-assistant",
+    actionId: "states",
+  },
+  {
+    name: "home_entity_state",
+    description: "Consulta el estado de UNA entidad de Home Assistant por su entity_id (solo lectura). Entrada: { entity_id }.",
+    integrationId: "home-assistant",
+    actionId: "state",
+  },
 ];
 
 // ════════════════════════════════════════════════════════════════════════════

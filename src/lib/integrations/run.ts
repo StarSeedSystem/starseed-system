@@ -24,6 +24,8 @@ import * as Langflow from "./clients/langflow";
 import * as Flowise from "./clients/flowise";
 import * as Stirling from "./clients/stirling-pdf";
 import * as GenericTask from "./clients/generic-task";
+import * as Audiobookshelf from "./clients/audiobookshelf";
+import * as HomeAssistant from "./clients/home-assistant";
 
 /** Comprueba que la integración pueda llamar (habilitada + endpoint). */
 function gate(cfg: IntegrationConfig, fallbackEndpoint?: string): { ok: true; cfg: IntegrationConfig } | { ok: false; error: string } {
@@ -97,6 +99,14 @@ export async function runIntegration(
       case "browser-use":
         if (a === "browser-task") return await GenericTask.runTask(id, c, input);
         break;
+      case "audiobookshelf":
+        if (a === "libraries") return await Audiobookshelf.libraries(c);
+        if (a === "items") return await Audiobookshelf.items(c, input);
+        break;
+      case "home-assistant":
+        if (a === "states") return await HomeAssistant.states(c, input);
+        if (a === "state") return await HomeAssistant.state(c, input);
+        break;
       default:
         return { ok: false, error: `Integración sin runner: "${id}".` };
     }
@@ -135,6 +145,10 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
       case "openhands":
       case "browser-use":
         return await GenericTask.health(id, c);
+      case "audiobookshelf":
+        return await Audiobookshelf.health(c);
+      case "home-assistant":
+        return await HomeAssistant.health(c);
       default:
         return { ok: false, error: `Sin prueba de salud para "${id}".` };
     }

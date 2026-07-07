@@ -189,6 +189,7 @@ sincronizan sus preferencias (mismas `SYNCED_KEYS` de `lib/settings-sync.ts`):
 | `official` (**default**) | Comportamiento de SIEMPRE: delega 100% en `settings-sync.ts` / `utils/supabase/client.ts` (proyecto oficial StarSeed). Cero cambios si el usuario no toca la pantalla. |
 | `own-supabase` | Supabase PROPIO del usuario (URL + anon key aportadas por él): mismo esquema `user_settings(user_id, prefs, updated_at)` contra su proyecto. Fila indexada por un id estable por dispositivo (`starseed.sync.own-supabase.row-id.v1`), ya que no hay garantía de que el usuario tenga auth en su propio proyecto. |
 | `local` | Sin red: exporta/importa un archivo de respaldo (`File System Access API` si el navegador la soporta; si no, descarga/`<input type=file>` clásicos). Máxima soberanía; no sincroniza SOLO entre dispositivos (es backup real). |
+| `p2p-syncthing` (jul-2026) | Instancia SYNCTHING propia del usuario (REST local, típ. `http://127.0.0.1:8384` + clave API por dispositivo). Es un ESPEJO DE ARCHIVOS entre SUS dispositivos — complementa el realtime de Supabase, no lo sustituye. Honesto: Syncthing no tiene un almacén `user_settings`, así que `push`/`pull` no mueven `SYNCED_KEYS` — `push` pide un reescaneo (`POST /rest/db/scan`) y `pull` resume el estado de las carpetas (`GET /rest/db/status`); `testConnection` usa `GET /rest/system/status`. |
 
 Extensible: sumar WebDAV/Drive/otro = implementar `SyncProvider` y añadirlo a
 `SYNC_PROVIDERS`; la UI y el resto del OS lo recogen solos.
@@ -622,3 +623,179 @@ mensajes DM (`os_dm`), Biblioteca, Red ni el Composer.
 ni de integración, ni de contenido) — para quien prefiera un chat más
 predecible. Visible en Ajustes → Inteligencia, junto a "Enrutado por
 dificultad".
+
+## 18. Avatar de Aurora (jul-2026 · adenda "Avatar + P2P + IoT")
+
+Cuerpo visual OPCIONAL de Aurora, montado junto a su chat (Exocórtex ·
+`aurora-chat-section.tsx`, pestaña "Chat"). Concepto inspirado en
+Open-LLM-VTuber (un avatar sincronizado a voz/estado) — **sin reutilizar nada
+de su código**; implementación propia y ligera en
+`src/components/aurora/aurora-avatar.tsx`.
+
+- **Config** — `src/ai/astraura/avatar-config.ts`, clave
+  `starseed.aurora.avatar.v1` (**local por dispositivo**, no viaja con
+  `SYNCED_KEYS`: es una preferencia de pantalla, no de identidad, mismo
+  criterio que la selección de proveedor de sync de §12):
+  `{ mode: "none"|"orbe"|"live2d", modeloUrl?, size, position: "inline"|"floating" }`.
+- **Modo `"orbe"` (DEFAULT)** — envuelve el `AuroraOrb` YA EXISTENTE (mismo
+  lenguaje Crystal · Trinity, ya reactivo a mic/TTS vía `aurora-orb-bus.ts`)
+  en un marco mayor con ETIQUETA DE ESTADO (idle · escuchando · hablando ·
+  pensando). "Pensando" es nuevo aquí (el motor lo expone como `thinking`,
+  pero `AuroraOrb` no lo dibuja): se añade un anillo discontinuo propio.
+  Siempre disponible, cero dependencias nuevas.
+- **Modo `"live2d"` (OPCIONAL)** — si el usuario aporta `modeloUrl` (un
+  `.model3.json` propio), se cargan PIXI.js + `pixi-live2d-display` por CDN
+  con `<script>` perezosos (la forma documentada de integrar esa librería,
+  que cuelga `PIXI.live2d` de un `PIXI` GLOBAL — un `import()` ESM devolvería
+  un namespace OBJECT CONGELADO donde eso no se puede colgar). Nunca en SSR,
+  nunca como dependencia npm. Cualquier fallo (red, modelo, runtime) DEGRADA
+  al modo `"orbe"` sin dejar una pantalla rota.
+- **Modo `"none"`** — no renderiza nada: comportamiento de hoy, cero cambios.
+- **Montaje** — `<AuroraAvatar />` en la pestaña "Chat" del Exocórtex, encima
+  de `AuroraChatView`; NO desplaza ni sustituye el orbe flotante existente
+  (`AuroraWidget`/`AuroraOrb`), es un elemento adicional. `position:"floating"`
+  lo fija en una esquina de pantalla en vez de dentro del flujo del chat.
+- **Ajustes** — `<AuroraAvatarSettingsCard />` (mismo archivo), añadida al
+  final del panel de Inteligencia (`intelligence-panel.tsx`): modo, URL del
+  modelo (si `live2d`), tamaño y posición, con vista previa en vivo.
+- Voz: NO reimplementa TTS/STT — lee el estado YA existente
+  (`useAurora()` con el mismo fallback defensivo al puente global que usa
+  `aurora-chat-section.tsx`) y se lo pasa tal cual a `AuroraOrb`.
+
+---
+
+## 19. Siete repos más — Marcadores, conocimiento, IoT y ciencia (jul-2026 · adenda "Segunda ola: productividad y ciencia")
+
+Siete repos open-source adicionales, con la MISMA honestidad radical de
+§15-16: **conocimiento + capacidad + paquete instalado**, nunca binarios que
+el OS ejecute por sí solo. A diferencia de las dos olas anteriores, esta trae
+además una superficie de producto NUEVA («Marcadores», §19.8) y dos
+CONECTORES reales de solo lectura (Audiobookshelf, Home Assistant) — los
+primeros de este catálogo que no tenían ya un conector previo en
+`src/lib/integrations/registry.ts`. Dos de los siete (Syncthing, Open-LLM-
+VTuber) son solo paquete+capacidad+ficha: su feature real (proveedor de sync,
+componente de avatar — este último ya documentado en §18) la construye otra
+ola/agente en paralelo.
+
+### 19.1 Los siete repos
+
+| Repo | Categoría | Capacidad (`skills.ts`) | Cómo se integra |
+|---|---|---|---|
+| [Karakeep](https://github.com/karakeep-app/karakeep) | Biblioteca / marcadores | `bookmarks-ai` | Guardar-todo (enlaces/notas/imágenes) con etiquetado IA y búsqueda de texto completo (AGPL-3.0). StarSeed NO copia su código: inspira la superficie PROPIA «Marcadores» de la Biblioteca (§19.8), implementación propia. |
+| [Anytype](https://github.com/anyproto/anytype-ts) | Conocimiento / memorias | `local-objects` | Objetos/notas local-first cifrados de extremo a extremo, sincronización P2P sin servidor central. Sin conector en vivo A PROPÓSITO: su API local exige un emparejamiento de dos pasos (challenge + código de verificación en la app de escritorio) que hoy no se automatiza con honestidad desde un simple endpoint — queda como capacidad + enlace. |
+| [Audiobookshelf](https://github.com/advplyr/audiobookshelf) | Media / audio | `audio-library` | Servidor self-host de audiolibros/podcasts (GPL-3.0). CONECTOR real nuevo (`audiobookshelf`, categoría `backend`) con acciones de solo lectura `libraries`/`items` (API `/api/libraries`), invocables por Aurora vía `audio_library_list`/`audio_library_items`. |
+| [Home Assistant](https://github.com/home-assistant/core) | IoT / domótica | `home-automation` | Automatización del hogar 100% local (Apache-2.0). CONECTOR real nuevo (`home-assistant`, categoría `automation`) con acciones DELIBERADAMENTE de solo lectura `states`/`state` (API REST `/api/states`), invocables por Aurora vía `home_states`/`home_entity_state` — nunca llama a `/api/services` (no actúa sobre dispositivos). El panel de Centro de Control (otra superficie) puede reutilizar el mismo conector. |
+| [Syncthing](https://github.com/syncthing/syncthing) | Archivos / sincronización | `p2p-sync` | Sincronización de archivos P2P sin servidor central (MPL-2.0). Solo paquete + capacidad + ficha: el proveedor de sincronización en sí (`src/lib/sync/sync-providers.ts`) lo gestiona otra ola/agente; esta capacidad es referencial. |
+| [Open-LLM-VTuber](https://github.com/Open-LLM-VTuber/Open-LLM-VTuber) | Aurora / avatar | `aurora-avatar` | Voz en tiempo real + avatar Live2D/3D animado, 100% local (MIT). Solo paquete + capacidad apuntando al patrón de avatar visual de Aurora: el componente real (`AuroraOrb` envuelto + Live2D opcional) ya existe como `<AuroraAvatar />` (§18), implementación propia — esta ola solo añade su ficha de Biblioteca. |
+| [AltaiR](https://github.com/cobilab/altair) | Ciencia / datos | `data-science-fasta` | Toolkit de bioinformática para comparar secuencias FASTA sin alineamiento (alignment-free, GPL-3.0). Solo paquete + capacidad: conocimiento de referencia para cuando el usuario trabaje con datos científicos/genómicos. |
+
+Los siete son paquetes `kind: "function"` en el repo builtin `starseed-ia-tools`,
+con `free:true`, descripción en español (qué hace + qué reemplaza + licencia +
+enlace GitHub) y `payload.externalUrl`. Ninguno se ejecuta dentro del
+navegador del OS. Los siete declaran `payload.skillId` (capacidad viva real).
+
+### 19.2 Siete capacidades nuevas en `skills.ts`
+
+Vocabulario ampliado (mismo contrato de `architecture/astraura-capabilities.md`):
+`bookmarks-ai · local-objects · audio-library · home-automation · p2p-sync ·
+aurora-avatar · data-science-fasta`. Mismo patrón que el resto: `systemPrompt`
+(qué sabe/puede recomendar Aurora), `routing` (ninguna de las siete sesga el
+routing — son conocimiento/conectores, no exigen modelo fuerte) y
+`packageIds`. `home-automation` es explícita en su `systemPrompt` sobre ser
+SOLO LECTURA, para que Aurora nunca sugiera que puede actuar sobre un
+dispositivo real.
+
+### 19.3 Dos conectores reales nuevos en `src/lib/integrations/`
+
+- **`registry.ts`** gana dos descriptores: `audiobookshelf` (categoría
+  `backend`, `needsKey:true`, endpoint por defecto `http://localhost:13378`)
+  y `home-assistant` (categoría `automation`, `needsKey:true`, endpoint por
+  defecto `http://homeassistant.local:8123`). Ambos `enabled` ausente/false
+  por defecto — el usuario pega su propio endpoint + token cuando quiera,
+  desde Ajustes → Integraciones (superficie ya existente, sin tocarla: es
+  genérica sobre `INTEGRATIONS`, así que los nuevos descriptores aparecen
+  solos, agrupados por categoría).
+- **`clients/audiobookshelf.ts`** (nuevo): `libraries()` (GET `/api/libraries`)
+  y `items()` (GET `/api/libraries/{id}/items`). **`clients/home-assistant.ts`**
+  (nuevo): `states()` (GET `/api/states`, con filtro opcional por dominio) y
+  `state()` (GET `/api/states/{entity_id}`) — SOLO estas dos rutas GET; nunca
+  `/api/services/*`.
+- **`run.ts`** despacha `audiobookshelf/{libraries,items}` y
+  `home-assistant/{states,state}` a esos clientes (mismo `gate()` de
+  habilitado+endpoint que el resto; nada nuevo en el contrato).
+- **`aurora-tools.ts`** suma cuatro tools a `AURORA_INTEGRATION_TOOLS`:
+  `audio_library_list`, `audio_library_items`, `home_states`,
+  `home_entity_state` — aparecen solas en `auroraToolsPromptSection()` en
+  cuanto el usuario configura el endpoint correspondiente (mismo mecanismo
+  genérico de `listAvailableAuroraTools`, sin tocar ese motor).
+
+### 19.4 SEED_VERSION 9→10
+
+Los siete paquetes `iatool-*` de esta ola entran en `RECOMMENDED_PACKAGE_IDS`:
+mismo criterio que §15.6/§16.7 (solo registro de skill/capacidad + enlace de
+referencia, cero descarga, cero clave, cero servicio lanzado por el OS).
+Sembrar `iatool-audiobookshelf`/`iatool-home-assistant` NUNCA activa su
+conector: los dos conectores reales quedan `enabled` ausente/false y sin
+endpoint hasta que el usuario los configure a propósito — sembrar el paquete
+solo dispone la capacidad/enlace, igual que Coolify/Open WebUI en §16.7.
+
+### 19.5 Anytype — por qué sin conector en vivo
+
+A diferencia de Audiobookshelf/Home Assistant (token simple + endpoint),
+Anytype expone su API local tras un emparejamiento de dos pasos (`POST
+/v1/auth/challenges` → código mostrado en la app de escritorio → `POST
+/v1/auth/api_keys`) que no encaja con el patrón "pega tu endpoint/token" del
+resto del catálogo sin construir un flujo de pairing dedicado. Honestidad
+radical: se documenta como capacidad + enlace, sin fingir un conector que no
+existe. Candidato a ola futura si se justifica el flujo de pairing completo.
+
+### 19.6 Home Assistant — solo lectura por diseño
+
+`clients/home-assistant.ts` SOLO implementa `GET /api/states` y `GET
+/api/states/{entity_id}`. Deliberadamente NO expone `POST
+/api/services/{domain}/{service}` (el endpoint que enciende luces, abre
+cerraduras, etc.): Aurora puede CONSULTAR el hogar del usuario, nunca
+ACTUAR sobre él desde esta ola. El panel de Centro de Control (otra
+superficie, no tocada aquí) es libre de construir su propio flujo de
+control con confirmación explícita del usuario si lo necesita.
+
+### 19.7 Finder — nuevo tipo de ítem `bookmark`
+
+`SavedItemType` (`entity-library.ts`) gana el valor `"bookmark"` (aditivo).
+`item-meta.ts::ITEM_TYPE_META` y `finder-view.tsx::TYPE_FILTERS` lo
+reconocen (icono `Bookmark`, filtro "Marcadores"); el resto del Finder
+(apertura por `route`/`url`, permisos, ramas, papelera…) funciona igual que
+con cualquier otro tipo, sin cambios adicionales.
+
+### 19.8 «Marcadores» — superficie nueva en la Biblioteca
+
+`src/lib/library/bookmarks.ts` (nuevo): guarda un enlace, nota o imagen como
+`SavedItem` (`type:"bookmark"`) dentro de una carpeta raíz "Marcadores"
+auto-creada en la biblioteca de la entidad (por defecto, "Mi biblioteca").
+Implementación propia (no copia código de Karakeep):
+
+- `saveBookmark(input, ref?)` — guarda el ítem; si faltan etiquetas y no se
+  desactiva explícitamente, pide a Aurora (`astrauraChat`, import dinámico,
+  timeout de 6s) de 2 a 5 etiquetas breves en español; si Aurora no responde
+  a tiempo o falla, cae a una heurística local determinista (dominio del
+  enlace + palabra clave del título) — el guardado NUNCA depende de la IA.
+- `ensureBookmarksFolder(ref)` — busca/crea la carpeta "Marcadores" (root),
+  idempotente.
+- `searchBookmarks(items, query)` — búsqueda de texto completo LOCAL simple
+  (subcadena, sin servicio externo) sobre título/nota/contenido/URL/etiquetas.
+- Ítems sin URL (notas/imágenes pegadas) reciben un `refId` sintético único
+  para no colisionar con el dedupe por `(type+refId+route+url)` de
+  `saveItem()` (una nota sin URL, sin este `refId`, pisaría siempre la
+  primera nota guardada).
+
+`src/components/library/save-to-bookmarks.tsx` (nuevo): botón/popover
+reutilizable "Guardar en Marcadores…" (variantes `button`/`icon`/`menu-item`,
+igual que `SaveToLibrary`) con tipo (enlace/nota/imagen), URL, título, nota y
+un botón "Sugerir con Aurora" que rellena el campo de etiquetas antes de
+guardar (transparente: el usuario ve y puede editar la sugerencia).
+
+Integración en `/library`: `EntityLibraryPanel` (área «Biblioteca») monta
+`<SaveToBookmarks libraryRef={entityRef} label="Guardar enlace…" />` en su
+cabecera — guarda directamente en la biblioteca que se está viendo. Los
+marcadores guardados aparecen en el Finder existente (carpeta "Marcadores",
+filtro "Marcadores" en la barra de tipos) sin tocar su lógica interna.

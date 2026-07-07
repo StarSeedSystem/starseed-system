@@ -29,6 +29,10 @@ import {
 } from "@/lib/brains/brains";
 import { getEntityState, setEntityState, currentUserRef } from "@/lib/sync/entity-state";
 import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+// Reutiliza la config YA guardada del proveedor 'p2p-syncthing' (endpoint +
+// clave API, local por dispositivo) — este módulo NO duplica ese registro,
+// solo lo consulta para el paso de sincronización best-effort de abajo.
+import { getProviderConfig } from "@/ai/astraura/sync-providers";
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                               */
@@ -45,10 +49,27 @@ export interface ExternalMemoryDestination {
   keyRef?: string;
 }
 
+/**
+ * Destino "p2p" — espejo del cerebro vía la instancia SYNCTHING del propio
+ * usuario (ver `sync-providers.ts::p2pSyncthingProvider`). NO duplica esa
+ * config (endpoint/clave API): solo declara SI este cerebro debe pedirle a
+ * Syncthing que sincronice, y opcionalmente QUÉ carpeta le corresponde.
+ * Default OFF (a diferencia de `starseed`, que es automático): requiere que
+ * el usuario tenga su propio Syncthing configurado.
+ */
+export interface P2pMemoryDestination {
+  enabled: boolean;
+  /** Id de la carpeta Syncthing que espeja este cerebro (opcional). */
+  folderId?: string;
+  label?: string;
+}
+
 export interface MemoryDestinationsConfig {
   local: { enabled: true };
   starseed: { enabled: boolean };
   external: ExternalMemoryDestination[];
+  /** Espejo por Syncthing (carpeta local sincronizada) — default OFF. */
+  p2p: P2pMemoryDestination;
 }
 
 /** Manifiesto honesto del destino StarSeed de un cerebro (solo metadatos). */
@@ -68,7 +89,17 @@ const MANIFEST_KEY_PREFIX = "brain-store:";
 /* ------------------------------------------------------------------ */
 
 export function defaultMemoryDestinations(): MemoryDestinationsConfig {
-  return { local: { enabled: true }, starseed: { enabled: true }, external: [] };
+  return { local: { enabled: true }, starseed: { enabled: true }, external: [], p2p: { enabled: false } };
+}
+
+function normalizeP2p(raw: unknown): P2pMemoryDestination {
+  if (!raw || typeof raw !== "object") return { enabled: false };
+  const r = raw as Partial<P2pMemoryDestination>;
+  return {
+    enabled: r.enabled === true,
+    folderId: typeof r.folderId === "string" && r.folderId ? r.folderId : undefined,
+    label: typeof r.label === "string" && r.label ? r.label : undefined,
+  };
 }
 
 function normalizeExternal(raw: unknown): ExternalMemoryDestination[] {
@@ -98,6 +129,7 @@ export function normalizeMemoryDestinations(raw: unknown): MemoryDestinationsCon
       local: { enabled: true }, // local SIEMPRE activo, no desactivable.
       starseed: { enabled: r.starseed?.enabled !== false }, // default ON.
       external: normalizeExternal(r.external),
+      p2p: normalizeP2p(r.p2p), // default OFF (requiere Syncthing propio).
     };
   } catch {
     return defaultMemoryDestinations();
@@ -121,6 +153,11 @@ export async function setMemoryDestinations(
       local: { enabled: true },
       starseed: { enabled: patch.starseed?.enabled ?? current.starseed.enabled },
       external: patch.external ?? current.external,
+      p2p: {
+        enabled: patch.p2p?.enabled ?? current.p2p.enabled,
+        folderId: patch.p2p && "folderId" in patch.p2p ? patch.p2p.folderId : current.p2p.folderId,
+        label: patch.p2p && "label" in patch.p2p ? patch.p2p.label : current.p2p.label,
+      },
     };
     return await saveBrain({
       ...brain,
@@ -239,7 +276,7 @@ export async function removeExternalDestination(brain: Brain, destinationId: str
 /* ------------------------------------------------------------------ */
 
 export interface MemoryDestinationSyncStep {
-  kind: "starseed" | "external" | "local";
+  kind: "starseed" | "external" | "local" | "p2p";
   ok: boolean;
   detail: string;
 }
@@ -310,6 +347,36 @@ export async function syncBrainMemoryNow(brain: Brain): Promise<MemoryDestinatio
       }
     } else if (dest.external.length) {
       steps.push({ kind: "external", ok: false, detail: "Sin red disponible para sincronizar destinos externos." });
+    }
+
+    // Espejo P2P (Syncthing propio) — best-effort, honesto: solo NUDGEA a
+    // Syncthing a reescanear/sincronizar la carpeta; no mueve el contenido de
+    // las memorias por aquí (eso lo hace Syncthing por su cuenta, por archivo).
+    if (dest.p2p.enabled) {
+      const cfg = getProviderConfig("p2p-syncthing") as { endpoint?: string; apiKey?: string };
+      if (!cfg.endpoint || !cfg.apiKey) {
+        steps.push({ kind: "p2p", ok: false, detail: "Syncthing no está configurado (ver Cuenta → Servidor de sincronización)." });
+      } else if (!canFetch()) {
+        steps.push({ kind: "p2p", ok: false, detail: "Sin red disponible para avisar a Syncthing." });
+      } else {
+        try {
+          const base = cfg.endpoint.trim().replace(/\/+$/, "");
+          const qs = dest.p2p.folderId ? `?folder=${encodeURIComponent(dest.p2p.folderId)}` : "";
+          const res = await fetch(`${base}/rest/db/scan${qs}`, {
+            method: "POST",
+            headers: { "X-API-Key": cfg.apiKey },
+          });
+          steps.push({
+            kind: "p2p",
+            ok: res.ok,
+            detail: res.ok
+              ? `Syncthing avisado de sincronizar${dest.p2p.folderId ? ` «${dest.p2p.folderId}»` : ""} (espejo de archivos, no de este manifiesto).`
+              : `Syncthing respondió ${res.status} (revisa endpoint/clave API).`,
+          });
+        } catch (e) {
+          steps.push({ kind: "p2p", ok: false, detail: `No se pudo contactar con Syncthing: ${e instanceof Error ? e.message : String(e)}` });
+        }
+      }
     }
 
     const ok = steps.length === 0 || steps.every((s) => s.ok);

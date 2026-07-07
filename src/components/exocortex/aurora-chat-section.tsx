@@ -47,6 +47,7 @@ import { AuroraAlwaysOn } from "@/components/exocortex/aurora-always-on";
 import { AuroraChatView } from "@/components/exocortex/aurora-chat-view";
 import { AuroraChatFullscreen } from "@/components/exocortex/aurora-chat-fullscreen";
 import { AuroraChatExplorer } from "@/components/exocortex/aurora-chat-explorer";
+import { AuroraAvatar } from "@/components/aurora/aurora-avatar";
 import type { CatalogChat } from "@/lib/aurora/chat-catalog";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import {
@@ -941,6 +942,13 @@ export function AuroraChatSection({ className }: { className?: string }) {
             >
               <Maximize2 className="h-3.5 w-3.5" /> Pantalla completa
             </button>
+          </div>
+
+          {/* Avatar de Aurora (opcional): orbe animado mejorado por defecto,
+              Live2D si el usuario configuró un modelo propio, o nada si el
+              modo es "none". Nunca desplaza el orbe flotante existente. */}
+          <div className="mb-2.5 flex justify-center">
+            <AuroraAvatar className="pointer-events-auto" />
           </div>
 
           {/* Vista COMPARTIDA (compacta): árbol desplegable + conversación */}

@@ -263,6 +263,67 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: { preferStrong: true },
     packageIds: ["iatool-dify"],
   },
+  /* ═══ Siete repos más — Marcadores, conocimiento, IoT y ciencia (jul-2026) ═══
+   * Ver architecture/astraura-inteligencia.md §19. Mismo contrato de siempre:
+   * conocimiento + capacidad + paquete instalado. Dos (audio-library,
+   * home-automation) además tienen conector real de solo lectura en
+   * src/lib/integrations/registry.ts, invocable por Aurora vía aurora-tools.ts. */
+  {
+    id: "bookmarks-ai",
+    label: "Marcadores con IA (Karakeep)",
+    systemPrompt:
+      "Conoces el patrón de Karakeep: guardar cualquier enlace, nota o imagen con etiquetado automático y búsqueda de texto completo. El OS tiene su propia superficie «Marcadores» en la Biblioteca (implementación propia, no el código de Karakeep): cuando el usuario quiera guardar algo rápido para más tarde, sugiere «Guardar en Marcadores» y, si te lo piden, propone etiquetas breves y relevantes en español.",
+    routing: {},
+    packageIds: ["iatool-karakeep"],
+  },
+  {
+    id: "local-objects",
+    label: "Objetos locales (Anytype)",
+    systemPrompt:
+      "Conoces Anytype: notas/objetos conectados local-first, cifrados de extremo a extremo y sincronizables P2P sin servidor central. Cuando el usuario quiera un espacio de conocimiento personal totalmente soberano (sin nube de terceros), puedes explicar este patrón y señalar su repo.",
+    routing: {},
+    packageIds: ["iatool-anytype"],
+  },
+  {
+    id: "audio-library",
+    label: "Biblioteca de audio (Audiobookshelf)",
+    systemPrompt:
+      "Si el usuario tiene Audiobookshelf conectado (Ajustes → Integraciones, conector de solo lectura), puedes listar sus bibliotecas y audiolibros/podcasts cuando lo pida. Si no está configurado, explica que es un servidor self-host de audiolibros/podcasts y cómo activarlo (endpoint propio), sin fingir acceso que no tienes.",
+    routing: {},
+    packageIds: ["iatool-audiobookshelf"],
+  },
+  {
+    id: "home-automation",
+    label: "Domótica (Home Assistant)",
+    systemPrompt:
+      "Si el usuario tiene Home Assistant conectado (Ajustes → Integraciones, conector de solo lectura), puedes consultar el estado de sus dispositivos/entidades cuando lo pida. Si no está configurado, explica que es una plataforma de automatización del hogar 100% local y cómo activar el conector (endpoint + token propios), sin fingir control que no tienes: esta capacidad es de SOLO LECTURA.",
+    routing: {},
+    packageIds: ["iatool-home-assistant"],
+  },
+  {
+    id: "p2p-sync",
+    label: "Sincronización P2P (Syncthing)",
+    systemPrompt:
+      "Conoces Syncthing: sincroniza archivos entre dispositivos directamente por P2P, sin servidor central. Si el usuario pregunta cómo mantener sus archivos sincronizados con soberanía de datos, puedes explicar este patrón y señalar su repo.",
+    routing: {},
+    packageIds: ["iatool-syncthing"],
+  },
+  {
+    id: "aurora-avatar",
+    label: "Avatar con voz (Open-LLM-VTuber)",
+    systemPrompt:
+      "Conoces el patrón de Open-LLM-VTuber: compañero IA con voz en tiempo real y avatar Live2D/3D animado, 100% local. Es la referencia para la futura vista de avatar visual de Aurora en el OS; si el usuario pregunta por un avatar animado de Aurora, explica este patrón y señala su repo.",
+    routing: {},
+    packageIds: ["iatool-open-llm-vtuber"],
+  },
+  {
+    id: "data-science-fasta",
+    label: "Ciencia de datos FASTA (AltaiR)",
+    systemPrompt:
+      "Conoces AltaiR: toolkit de bioinformática para comparar secuencias FASTA sin alineamiento (alignment-free), útil para análisis genómico/comparativo a gran escala. Si el usuario trabaja con datos científicos/genómicos, puedes explicar este patrón y señalar su repo.",
+    routing: {},
+    packageIds: ["iatool-altair"],
+  },
 ];
 
 function isClient(): boolean {

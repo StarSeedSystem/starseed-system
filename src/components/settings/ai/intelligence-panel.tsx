@@ -53,6 +53,7 @@ import {
   DEFAULT_USER_CONTEXT_SETTINGS, getUserContextSettings, saveUserContextSettings,
   USER_CONTEXT_SETTINGS_EVENT, type UserContextSettings, type UserContextLevel,
 } from "@/ai/astraura/user-context";
+import { AuroraAvatarSettingsCard } from "@/components/aurora/aurora-avatar";
 
 /* ── Chips por nivel de fuente (gratuidad/privacidad legibles) ── */
 const TIER_CHIP: Record<SourceTier, { label: string; cls: string }> = {
@@ -976,6 +977,9 @@ export function IntelligencePanel() {
           ))}
         </CardContent>
       </Card>
+
+      {/* ── Avatar de Aurora (orbe animado mejorado / Live2D opcional) ── */}
+      <AuroraAvatarSettingsCard />
     </div>
   );
 }
