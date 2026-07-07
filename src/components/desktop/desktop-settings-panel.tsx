@@ -20,7 +20,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
     X, Settings2, ImageIcon, Grid3x3, Magnet, Palette, ArrowUpDown,
     SquareStack, Pencil, Copy, Trash2, Check, Plus, ChevronUp, ChevronDown,
-    Maximize, Sparkles,
+    Maximize, Sparkles, PictureInPicture2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -216,6 +216,16 @@ export function DesktopSettingsPanel({
                                 >
                                     <Magnet className="size-3.5" /> Rejilla magnética
                                     <span className={cn("ml-auto flex items-center rounded-full border px-0.5 transition-colors", snap ? "justify-end border-emerald-300/50 bg-emerald-400/25" : "justify-start border-white/15 bg-white/[0.06]")} style={{ height: 18, width: 32 }}>
+                                        <span className="rounded-full bg-white/90 shadow" style={{ width: 13, height: 13 }} />
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setDesktopView(desktop.id, { windowSnap: view.windowSnap === false })}
+                                    className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-[12px] font-bold text-foreground/90 transition-colors hover:bg-white/[0.06] cursor-pointer"
+                                >
+                                    <PictureInPicture2 className="size-3.5" /> Snap de ventanas a bordes
+                                    <span className={cn("ml-auto flex items-center rounded-full border px-0.5 transition-colors", view.windowSnap !== false ? "justify-end border-emerald-300/50 bg-emerald-400/25" : "justify-start border-white/15 bg-white/[0.06]")} style={{ height: 18, width: 32 }}>
                                         <span className="rounded-full bg-white/90 shadow" style={{ width: 13, height: 13 }} />
                                     </span>
                                 </button>

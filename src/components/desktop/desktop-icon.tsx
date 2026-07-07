@@ -14,17 +14,20 @@
 import React, { useState } from "react";
 import {
     Folder, Globe, LayoutGrid, FileText, Image as ImageIcon, Film, Music,
-    Box, FileCode2, File as FileIcon, Link2, type LucideIcon,
+    Box, FileCode2, File as FileIcon, Link2, Settings2, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DesktopIcon, DesktopIconSize } from "./desktop-store";
 import { getApp } from "@/components/dashboard/apps/app-catalog";
 import { DesktopWidgetHost, widgetAccent } from "./desktop-widget-host";
+import { DesktopWidgetConfigPanel } from "./desktop-widget-config-panel";
 
 // ── Métricas compartidas (rejilla magnética + tiles) ─────────────
 export const ICON_TILE_PX: Record<DesktopIconSize, number> = { sm: 48, md: 64, lg: 84 };
 export const ICON_LABEL_W: Record<DesktopIconSize, number> = { sm: 78, md: 96, lg: 118 };
 export const ICON_CELL = { w: 106, h: 124 };
+/** Píxeles por celda de rejilla para widgetSpan (1x1..4x4). */
+const SPAN_CELL_PX = 78;
 export const PREVIEW_PX: Record<DesktopIconSize, { w: number; h: number }> = {
     sm: { w: 172, h: 128 },
     md: { w: 236, h: 172 },
@@ -120,25 +123,39 @@ export interface DesktopIconTileProps {
     renaming?: boolean;
     onRenameCommit?: (name: string) => void;
     onRenameCancel?: () => void;
+    /** Necesario para abrir el panel de configuración del widget (engranaje). */
+    desktopId?: string;
 }
 
 export function DesktopIconTile({
-    icon, selected = false, compact = false, renaming = false, onRenameCommit, onRenameCancel,
+    icon, selected = false, compact = false, renaming = false, onRenameCommit, onRenameCancel, desktopId,
 }: DesktopIconTileProps): React.ReactElement {
     const [imgFailed, setImgFailed] = useState(false);
+    const [configAt, setConfigAt] = useState<{ x: number; y: number } | null>(null);
+    const gearTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     const { iconUrl, Lucide, accent } = resolveIconVisual(icon);
     const px = compact ? ICON_TILE_PX.sm : ICON_TILE_PX[icon.size];
     const labelW = compact ? ICON_LABEL_W.sm : ICON_LABEL_W[icon.size];
 
     // ── Preview vivo: widget real en miniatura ──
     if (!compact && icon.kind === "widget" && icon.viewMode === "preview" && icon.refId) {
-        const dims = PREVIEW_PX[icon.size];
+        const dims = icon.widgetSpan
+            ? { w: icon.widgetSpan.cols * SPAN_CELL_PX, h: icon.widgetSpan.rows * SPAN_CELL_PX }
+            : PREVIEW_PX[icon.size];
+        const appearance = icon.appearance;
+        const tint = appearance?.tint ?? accent;
+        const radius = appearance?.radius ?? 16;
+        const opacity = appearance?.opacity ?? 1;
+        const openGear = (e: React.MouseEvent | React.PointerEvent) => {
+            e.stopPropagation();
+            setConfigAt({ x: Math.min(e.clientX, window.innerWidth - 280), y: Math.min(e.clientY, window.innerHeight - 320) });
+        };
         return (
-            <div className="flex flex-col items-center" style={{ width: dims.w }}>
+            <div className="group/widget flex flex-col items-center" style={{ width: dims.w }}>
                 <div
-                    style={{ width: dims.w, height: dims.h }}
+                    style={{ width: dims.w, height: dims.h, borderRadius: radius, opacity }}
                     className={cn(
-                        "relative overflow-hidden rounded-2xl border bg-black/35 backdrop-blur-xl shadow-xl transition-all duration-200",
+                        "relative overflow-hidden border bg-black/35 backdrop-blur-xl shadow-xl transition-all duration-200",
                         selected
                             ? "border-sky-300/70 ring-2 ring-sky-300/50 shadow-[0_0_24px_rgba(56,189,248,0.35)]"
                             : "border-white/12 hover:border-white/25",
@@ -147,11 +164,39 @@ export function DesktopIconTile({
                     <span
                         aria-hidden
                         className="pointer-events-none absolute inset-x-3 top-0 h-px opacity-70"
-                        style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }}
+                        style={{ background: `linear-gradient(90deg, transparent, ${tint}, transparent)` }}
                     />
                     <DesktopWidgetHost type={icon.refId} instanceId={`prev-${icon.id}`} interactive={false} />
+                    {/* Engranaje: hover en ratón, siempre visible en táctil (touch:opacity-100) */}
+                    {desktopId && (
+                        <button
+                            type="button"
+                            onClick={openGear}
+                            onPointerDown={(e) => {
+                                e.stopPropagation();
+                                if (e.pointerType !== "touch") return;
+                                gearTimer.current = setTimeout(() => openGear(e), 480);
+                            }}
+                            onPointerUp={() => { if (gearTimer.current) clearTimeout(gearTimer.current); }}
+                            onPointerLeave={() => { if (gearTimer.current) clearTimeout(gearTimer.current); }}
+                            title="Configurar widget"
+                            aria-label={`Configurar ${icon.name}`}
+                            className="absolute right-1.5 top-1.5 z-20 grid size-6 place-items-center rounded-full border border-white/20 bg-black/60 text-white/80 opacity-0 backdrop-blur transition-opacity hover:bg-black/80 hover:text-white group-hover/widget:opacity-100 cursor-pointer sm:opacity-0"
+                        >
+                            <Settings2 className="size-3.5" />
+                        </button>
+                    )}
                 </div>
                 <IconLabel icon={icon} selected={selected} renaming={renaming} onRenameCommit={onRenameCommit} onRenameCancel={onRenameCancel} />
+                {desktopId && configAt && (
+                    <DesktopWidgetConfigPanel
+                        desktopId={desktopId}
+                        icon={icon}
+                        x={configAt.x}
+                        y={configAt.y}
+                        onClose={() => setConfigAt(null)}
+                    />
+                )}
             </div>
         );
     }

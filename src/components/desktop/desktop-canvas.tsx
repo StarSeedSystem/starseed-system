@@ -16,7 +16,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
     Plus, Eye, EyeOff, ChevronDown, Pencil, Trash2, Check,
     MousePointer2, ExternalLink, X, Magnet, ImageIcon,
-    SquareStack, Settings2,
+    SquareStack, Settings2, LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -24,7 +24,7 @@ import {
     useDesktopsState, useDesktopsBackup,
     seedIfEmpty, createDesktop, renameDesktop, deleteDesktop, setActiveDesktop,
     setWallpaper, setSnap, moveIcon, removeIcon, updateIcon,
-    setWindowMinimized, focusWindow, DEFAULT_DESKTOP_VIEW,
+    setWindowMinimized, closeWindow, focusWindow, toggleWindowMaximized, DEFAULT_DESKTOP_VIEW,
 } from "./desktop-store";
 import { DesktopIconTile, ICON_CELL } from "./desktop-icon";
 import { useOpenDesktopIcon } from "./desktop-open";
@@ -36,6 +36,9 @@ import { EmptyDesktopState } from "./desktop-empty";
 import { CanvasContextMenu, IconContextMenu } from "./desktop-context-menu";
 import { DesktopTaskbar } from "./desktop-taskbar";
 import { DesktopSettingsPanel } from "./desktop-settings-panel";
+import { DesktopExpose } from "./desktop-expose";
+import { DesktopSnapPreview } from "./desktop-snap-preview";
+import type { SnapZone } from "./desktop-window-snap";
 
 const TOPBAR_H = 44;
 const WINDOW_TOP_INSET = TOPBAR_H + 6;
@@ -231,6 +234,7 @@ function PositionedIcon({
                 renaming={renaming}
                 onRenameCommit={onRenameCommit}
                 onRenameCancel={onRenameCancel}
+                desktopId={desktopId}
             />
         </div>
     );
@@ -459,6 +463,8 @@ export function DesktopCanvas(): React.ReactElement {
     const [addOpen, setAddOpen] = useState(false);
     const [addTab, setAddTab] = useState<AddPanelTab>("apps");
     const [addFolderTarget, setAddFolderTarget] = useState<string | null>(null);
+    const [exposeOpen, setExposeOpen] = useState(false);
+    const [snapZone, setSnapZone] = useState<SnapZone | null>(null);
     const swipeRef = useRef<{ x: number; y: number } | null>(null);
     // Marquee de selección (marco arrastrando sobre el fondo).
     const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -498,26 +504,69 @@ export function DesktopCanvas(): React.ReactElement {
         setCtxMenu({ x: e.clientX, y: e.clientY, icon: null });
     }, []);
 
-    // Teclado: Supr elimina selección · Escape cierra paneles.
+    // Teclado: Supr elimina selección · Escape cierra paneles/Exposé ·
+    // Ctrl/Cmd+`` alterna Exposé · Ctrl/Cmd+N nuevo escritorio ·
+    // Ctrl/Cmd+Alt+←/→ cambia de escritorio · Ctrl/Cmd+W cierra la
+    // ventana enfocada · Ctrl/Cmd+M la minimiza · F11 maximiza/restaura.
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement | null;
             const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
             if (e.key === "Escape") {
+                if (exposeOpen) { setExposeOpen(false); return; }
                 setCtxMenu(null);
                 setManagerOpen(false);
                 setSelection(new Set());
                 return;
             }
             if (typing || !desktop) return;
+            const meta = e.metaKey || e.ctrlKey;
             if ((e.key === "Delete" || e.key === "Backspace") && selection.size > 0) {
                 selection.forEach((id) => removeIcon(desktop.id, id));
                 setSelection(new Set());
+                return;
+            }
+            // Exposé: F3 (estilo macOS) o Ctrl/Cmd+`
+            if (e.key === "F3" || (meta && e.key === "`")) {
+                e.preventDefault();
+                setExposeOpen((v) => !v);
+                return;
+            }
+            if (meta && !e.altKey && (e.key === "n" || e.key === "N")) {
+                e.preventDefault();
+                createDesktop();
+                return;
+            }
+            if (meta && e.altKey && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+                e.preventDefault();
+                const idx = state.desktops.findIndex((d) => d.id === desktop.id);
+                const next = e.key === "ArrowRight" ? idx + 1 : idx - 1;
+                const target2 = state.desktops[next];
+                if (target2) setActiveDesktop(target2.id);
+                return;
+            }
+            const focused = desktop.windows.filter((w) => !w.minimized).reduce<typeof desktop.windows[number] | null>(
+                (top, w) => (!top || w.z > top.z ? w : top), null,
+            );
+            if (meta && (e.key === "w" || e.key === "W") && focused) {
+                e.preventDefault();
+                closeWindow(desktop.id, focused.id);
+                return;
+            }
+            if (meta && (e.key === "m" || e.key === "M") && focused) {
+                e.preventDefault();
+                setWindowMinimized(desktop.id, focused.id, true);
+                return;
+            }
+            if (e.key === "F11" && focused) {
+                e.preventDefault();
+                toggleWindowMaximized(desktop.id, focused.id);
+                return;
             }
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [desktop, selection]);
+    }, [desktop, selection, exposeOpen, state.desktops]);
 
     const selectIcon = useCallback((id: string, additive: boolean) => {
         setCtxMenu(null);
@@ -749,6 +798,8 @@ export function DesktopCanvas(): React.ReactElement {
                                     isTop={win.z === topZ}
                                     isMobile={isMobile}
                                     topInset={WINDOW_TOP_INSET}
+                                    snapEnabled={view.windowSnap !== false}
+                                    onSnapPreview={setSnapZone}
                                     headerExtra={chrome.href ? (
                                         <button
                                             type="button"
@@ -797,7 +848,19 @@ export function DesktopCanvas(): React.ReactElement {
                         </div>
                     </div>
                 )}
+
+                {/* Vista previa translúcida de snap (mitades/cuartos) al arrastrar */}
+                {!isMobile && <DesktopSnapPreview zone={snapZone} topInset={WINDOW_TOP_INSET} accent={themeAccent} />}
             </div>
+
+            {/* ── Exposé: vista de conjunto de ventanas ── */}
+            <DesktopExpose
+                desktopId={desktop.id}
+                windows={desktop.windows}
+                topZ={topZ}
+                open={exposeOpen}
+                onClose={() => setExposeOpen(false)}
+            />
 
             {/* ── Dock / barra de tareas (ventanas abiertas) ── */}
             {!cleanView && (
@@ -811,8 +874,13 @@ export function DesktopCanvas(): React.ReactElement {
 
             {/* ── Barra superior fina (glass) ── */}
             <header
-                className="absolute inset-x-0 top-0 z-[40] flex items-center gap-1.5 border-b border-white/10 bg-black/30 px-2 backdrop-blur-2xl"
-                style={{ height: TOPBAR_H }}
+                className="absolute inset-x-0 top-0 z-[40] flex items-center gap-1.5 border-b border-white/10 bg-black/30 backdrop-blur-2xl"
+                style={{
+                    height: `calc(${TOPBAR_H}px + env(safe-area-inset-top, 0px))`,
+                    paddingTop: "env(safe-area-inset-top, 0px)",
+                    paddingLeft: "calc(0.5rem + env(safe-area-inset-left, 0px))",
+                    paddingRight: "calc(0.5rem + env(safe-area-inset-right, 0px))",
+                }}
             >
                 <span aria-hidden className="pointer-events-none absolute inset-x-10 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent" />
 
@@ -912,6 +980,22 @@ export function DesktopCanvas(): React.ReactElement {
                     <span className="max-sm:hidden">Añadir</span>
                 </button>
 
+                {/* Exposé: vista de conjunto de ventanas */}
+                {desktop.windows.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setExposeOpen(true)}
+                        title="Vista de conjunto (F3)"
+                        aria-label="Vista de conjunto de ventanas"
+                        className={cn(
+                            "grid size-7 place-items-center rounded-full border transition-colors cursor-pointer",
+                            "border-white/12 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.09] hover:text-foreground",
+                        )}
+                    >
+                        <LayoutGrid className="size-3.5" />
+                    </button>
+                )}
+
                 {/* Vista limpia */}
                 <button
                     type="button"
@@ -974,6 +1058,7 @@ export function DesktopCanvas(): React.ReactElement {
                             onAddWidgets={() => openAdd("widgets")}
                             onChangeBackground={() => setSettingsOpen(true)}
                             onOpenSettings={() => setSettingsOpen(true)}
+                            onOpenExpose={() => setExposeOpen(true)}
                         />
                     )}
                 </>

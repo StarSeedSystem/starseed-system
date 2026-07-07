@@ -14,7 +14,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
     X, Rocket, LayoutGrid, FolderOpen, Globe, FolderPlus, Search, Plus,
-    Check, ExternalLink, MonitorPlay, Library as LibraryIcon,
+    Check, ExternalLink, MonitorPlay, Library as LibraryIcon, Eye, EyeOff,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ import { APP_CATALOG } from "@/components/dashboard/apps/app-catalog";
 import { useSavedLibrary } from "@/lib/library-store";
 import { detectKind } from "@/components/dashboard/apps/content/content-types";
 import { addIcon, openWindow, type Desktop, type NewIconInput } from "./desktop-store";
-import { getWidgetCatalog, widgetAccent, widgetWindowSize } from "./desktop-widget-host";
+import { getWidgetCatalog, widgetAccent, widgetWindowSize, DesktopWidgetHost } from "./desktop-widget-host";
 import { useOpenDesktopIcon } from "./desktop-open";
 
 export type AddPanelTab = "apps" | "widgets" | "files" | "web" | "folder";
@@ -288,6 +288,7 @@ function WidgetsTab({ added, onAdd, onOpenWindow }: {
     onOpenWindow: (type: string, label: string) => void;
 }): React.ReactElement {
     const [q, setQ] = useState("");
+    const [previewType, setPreviewType] = useState<string | null>(null);
     const catalog = useMemo(() => getWidgetCatalog(), []);
     const filtered = useMemo(() => {
         const t = q.trim().toLowerCase();
@@ -314,46 +315,66 @@ function WidgetsTab({ added, onAdd, onOpenWindow }: {
             {filtered.map((w) => {
                 const accent = widgetAccent(w.category);
                 const keyIcon = `widget:${w.type}`;
+                const previewing = previewType === w.type;
                 return (
                     <div
                         key={w.type}
-                        className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-2 transition-colors hover:bg-white/[0.06]"
+                        className="rounded-2xl border border-white/10 bg-white/[0.03] transition-colors hover:bg-white/[0.06]"
                     >
-                        <span
-                            className="grid size-8 shrink-0 place-items-center rounded-xl border border-white/15"
-                            style={{ background: `linear-gradient(135deg, ${accent}, color-mix(in srgb, ${accent} 30%, transparent))` }}
-                        >
-                            <LayoutGrid className="size-4 text-white" strokeWidth={2} />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                            <p className="truncate text-[12px] font-bold leading-tight">{w.label}</p>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
-                                {prettyCategory(w.category)}
-                            </p>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                            <MiniAction
-                                title="Añadir como icono"
-                                added={added.has(keyIcon)}
-                                onClick={() =>
-                                    onAdd(keyIcon, { kind: "widget", refId: w.type, name: w.label, accent, viewMode: "icon" })
-                                }
+                        <div className="flex items-center gap-2.5 p-2">
+                            <span
+                                className="grid size-8 shrink-0 place-items-center rounded-xl border border-white/15"
+                                style={{ background: `linear-gradient(135deg, ${accent}, color-mix(in srgb, ${accent} 30%, transparent))` }}
                             >
-                                <Plus className="size-3.5" />
-                            </MiniAction>
-                            <MiniAction
-                                title="Añadir con vista previa viva"
-                                added={added.has(`${keyIcon}:prev`)}
-                                onClick={() =>
-                                    onAdd(`${keyIcon}:prev`, { kind: "widget", refId: w.type, name: w.label, accent, viewMode: "preview" })
-                                }
-                            >
-                                <MonitorPlay className="size-3.5" />
-                            </MiniAction>
-                            <MiniAction title="Abrir en ventana" onClick={() => onOpenWindow(w.type, w.label)}>
-                                <ExternalLink className="size-3.5" />
-                            </MiniAction>
+                                <LayoutGrid className="size-4 text-white" strokeWidth={2} />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-[12px] font-bold leading-tight">{w.label}</p>
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+                                    {prettyCategory(w.category)}
+                                </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1">
+                                <MiniAction
+                                    title={previewing ? "Ocultar vista previa" : "Ver vista previa"}
+                                    added={false}
+                                    onClick={() => setPreviewType(previewing ? null : w.type)}
+                                >
+                                    {previewing ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                                </MiniAction>
+                                <MiniAction
+                                    title="Añadir como icono"
+                                    added={added.has(keyIcon)}
+                                    onClick={() =>
+                                        onAdd(keyIcon, { kind: "widget", refId: w.type, name: w.label, accent, viewMode: "icon" })
+                                    }
+                                >
+                                    <Plus className="size-3.5" />
+                                </MiniAction>
+                                <MiniAction
+                                    title="Añadir con vista previa viva"
+                                    added={added.has(`${keyIcon}:prev`)}
+                                    onClick={() =>
+                                        onAdd(`${keyIcon}:prev`, { kind: "widget", refId: w.type, name: w.label, accent, viewMode: "preview" })
+                                    }
+                                >
+                                    <MonitorPlay className="size-3.5" />
+                                </MiniAction>
+                                <MiniAction title="Abrir en ventana" onClick={() => onOpenWindow(w.type, w.label)}>
+                                    <ExternalLink className="size-3.5" />
+                                </MiniAction>
+                            </div>
                         </div>
+                        {previewing && (
+                            <div className="border-t border-white/10 p-2">
+                                <div
+                                    className="relative h-40 overflow-hidden rounded-xl border border-white/12 bg-black/40"
+                                    style={{ boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${accent} 25%, transparent)` }}
+                                >
+                                    <DesktopWidgetHost type={w.type} instanceId={`gallery-prev-${w.type}`} interactive={false} />
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
             })}

@@ -42,7 +42,10 @@ export function DesktopTaskbar({
     };
 
     return (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[38] flex justify-center pb-3">
+        <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-[38] flex justify-center pb-3"
+            style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
+        >
             <AnimatePresence>
                 <motion.div
                     key="dock"

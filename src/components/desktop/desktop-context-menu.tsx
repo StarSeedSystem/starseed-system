@@ -17,13 +17,13 @@ import React from "react";
 import {
     FolderPlus, StickyNote, Link2, LayoutGrid, ArrowUpDown, List, Grid3x3,
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
-    Trash2, Magnet, FolderInput, Sparkles, Check, type LucideIcon,
+    Trash2, Magnet, FolderInput, Sparkles, Check, PictureInPicture2, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize } from "./desktop-store";
 import {
     addIcon, createNoteIcon, sortIcons, autoArrangeIcons, setSnap, updateIcon,
-    duplicateIcon, removeIcon, moveIconToFolder, setDesktopView,
+    duplicateIcon, removeIcon, moveIconToFolder, setDesktopView, DEFAULT_DESKTOP_VIEW,
 } from "./desktop-store";
 
 const MENU_W = 210;
@@ -129,7 +129,7 @@ function MenuShell({
 // ── Menú del LIENZO (fondo vacío) ────────────────────────────────
 export function CanvasContextMenu({
     x, y, desktop, canvasRef, snap, onClose,
-    onAddApps, onAddWidgets, onChangeBackground, onOpenSettings,
+    onAddApps, onAddWidgets, onChangeBackground, onOpenSettings, onOpenExpose,
 }: {
     x: number;
     y: number;
@@ -141,6 +141,8 @@ export function CanvasContextMenu({
     onAddWidgets: () => void;
     onChangeBackground: () => void;
     onOpenSettings: () => void;
+    /** Abre Exposé (vista de conjunto). Omitido → oculta el ítem. */
+    onOpenExpose?: () => void;
 }): React.ReactElement {
     const view = desktop.view ?? {};
     const run = (fn: () => void) => { fn(); onClose(); };
@@ -161,6 +163,9 @@ export function CanvasContextMenu({
 
             <MenuDivider />
             <MenuItem icon={Sparkles} label="Pídeselo a Aurora" onClick={() => run(askAurora)} />
+            {onOpenExpose && desktop.windows.length > 0 && (
+                <MenuItem icon={LayoutGrid} label="Vista de conjunto" shortcut="F3" onClick={() => run(onOpenExpose)} />
+            )}
             <MenuItem icon={LayoutGrid} label="Auto-organizar" onClick={() => run(() => autoArrangeIcons(desktop.id))} />
             <SubMenu icon={ArrowUpDown} label="Ordenar por">
                 {([["name", "Nombre"], ["type", "Tipo"], ["date", "Fecha"]] as Array<[DesktopSortMode, string]>).map(([m, lbl]) => (
@@ -172,6 +177,12 @@ export function CanvasContextMenu({
                 <MenuItem icon={List} label="Rejilla oculta" active={!view.showGrid} onClick={() => run(() => setDesktopView(desktop.id, { showGrid: false }))} />
             </SubMenu>
             <MenuItem icon={Magnet} label="Rejilla magnética" active={snap} onClick={() => run(() => setSnap(!snap))} />
+            <MenuItem
+                icon={PictureInPicture2}
+                label="Snap de ventanas a bordes"
+                active={(view.windowSnap ?? DEFAULT_DESKTOP_VIEW.windowSnap) !== false}
+                onClick={() => run(() => setDesktopView(desktop.id, { windowSnap: !(view.windowSnap ?? DEFAULT_DESKTOP_VIEW.windowSnap) }))}
+            />
 
             <MenuDivider />
             <MenuItem icon={ImageIcon} label="Cambiar fondo…" onClick={() => run(onChangeBackground)} />

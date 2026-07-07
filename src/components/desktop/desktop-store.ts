@@ -22,6 +22,29 @@ export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
 export type DesktopIconSize = "sm" | "md" | "lg";
 export type DesktopIconViewMode = "icon" | "preview";
 
+/**
+ * Apariencia personalizable de un widget (icono en vista previa viva o
+ * ventana). Todo opcional: sin `appearance`, el widget usa el cristal por
+ * defecto del sistema. Aditivo — no afecta a apps/archivos/carpetas.
+ */
+export interface DesktopWidgetAppearance {
+    /** Opacidad del fondo cristal (0.2..1). */
+    opacity?: number;
+    /** Tinte hex sobre el cristal (sustituye al accent por defecto). */
+    tint?: string;
+    /** Radio de esquina en px (12..32). */
+    radius?: number;
+}
+
+/**
+ * Huella en celdas de rejilla para widgets con vista previa (1x1..4x4).
+ * Independiente de DesktopIconSize (que sigue rigiendo el tile clásico).
+ */
+export interface DesktopWidgetSpan {
+    cols: 1 | 2 | 3 | 4;
+    rows: 1 | 2 | 3 | 4;
+}
+
 export interface DesktopIcon {
     id: string;
     kind: DesktopIconKind;
@@ -51,6 +74,10 @@ export interface DesktopIcon {
      * jerárquica ilimitada). Retrocompatible: el contenido antiguo se conserva.
      */
     children?: DesktopIcon[];
+    /** Widgets: apariencia personalizada del cristal (v1.2, opcional). */
+    appearance?: DesktopWidgetAppearance;
+    /** Widgets con preview: huella en celdas 1x1..4x4 (v1.2, opcional). */
+    widgetSpan?: DesktopWidgetSpan;
 }
 
 export type DesktopWindowContentType = "app" | "file" | "widget" | "browser" | "folder";
@@ -104,6 +131,8 @@ export interface DesktopView {
     sortMode?: DesktopSortMode;
     /** Tema/tinte del escritorio. */
     theme?: DesktopTheme;
+    /** Snap de VENTANAS a mitades/cuartos al arrastrar a los bordes (v1.2). */
+    windowSnap?: boolean;
 }
 
 export const DEFAULT_DESKTOP_VIEW: Required<DesktopView> = {
@@ -112,6 +141,7 @@ export const DEFAULT_DESKTOP_VIEW: Required<DesktopView> = {
     density: "cozy",
     sortMode: "manual",
     theme: "auto",
+    windowSnap: true,
 };
 
 export interface Desktop {
@@ -169,6 +199,25 @@ function str(v: unknown, fallback: string): string {
 /** Límite de profundidad de anidamiento (defensivo contra ciclos/datos corruptos). */
 const MAX_FOLDER_DEPTH = 8;
 
+function normalizeWidgetAppearance(raw: unknown): DesktopWidgetAppearance | undefined {
+    if (!raw || typeof raw !== "object") return undefined;
+    const r = raw as Record<string, unknown>;
+    const out: DesktopWidgetAppearance = {};
+    if (typeof r.opacity === "number" && Number.isFinite(r.opacity)) out.opacity = Math.min(1, Math.max(0.2, r.opacity));
+    if (typeof r.tint === "string" && r.tint) out.tint = r.tint;
+    if (typeof r.radius === "number" && Number.isFinite(r.radius)) out.radius = Math.min(32, Math.max(8, r.radius));
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function normalizeWidgetSpan(raw: unknown): DesktopWidgetSpan | undefined {
+    if (!raw || typeof raw !== "object") return undefined;
+    const r = raw as Record<string, unknown>;
+    const cols = num(r.cols, 0);
+    const rows = num(r.rows, 0);
+    if (cols < 1 || cols > 4 || rows < 1 || rows > 4) return undefined;
+    return { cols: Math.round(cols) as 1 | 2 | 3 | 4, rows: Math.round(rows) as 1 | 2 | 3 | 4 };
+}
+
 function normalizeIcon(raw: unknown, depth = 0): DesktopIcon | null {
     if (!raw || typeof raw !== "object") return null;
     const r = raw as Record<string, unknown>;
@@ -190,6 +239,8 @@ function normalizeIcon(raw: unknown, depth = 0): DesktopIcon | null {
         thumbUrl: typeof r.thumbUrl === "string" ? r.thumbUrl : undefined,
         text: typeof r.text === "string" ? r.text : undefined,
         createdAt: typeof r.createdAt === "number" && Number.isFinite(r.createdAt) ? r.createdAt : undefined,
+        appearance: normalizeWidgetAppearance(r.appearance),
+        widgetSpan: normalizeWidgetSpan(r.widgetSpan),
     };
     // Carpetas: ramificación jerárquica. Admite carpetas anidadas (v1.1) pero
     // conserva intactos los datos antiguos (que solo tenían hijos no-carpeta).
@@ -247,6 +298,7 @@ function normalizeView(raw: unknown): DesktopView | undefined {
         v.theme === "auto" || v.theme === "azure" || v.theme === "emerald" ||
         v.theme === "amber" || v.theme === "crimson" || v.theme === "violet"
     ) out.theme = v.theme;
+    if (typeof v.windowSnap === "boolean") out.windowSnap = v.windowSnap;
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
@@ -583,6 +635,32 @@ export function updateIcon(desktopId: string, iconId: string, patch: Partial<Des
         icons: mapIconTree(d.icons, (i) =>
             i.id === iconId ? { ...i, ...patch, id: i.id, kind: i.kind } : i,
         ),
+    }));
+}
+
+/** Fija (mezcla) la apariencia personalizada de un widget (icono con preview). */
+export function setWidgetAppearance(desktopId: string, iconId: string, patch: Partial<DesktopWidgetAppearance>): void {
+    mutateDesktop(desktopId, (d) => ({
+        ...d,
+        icons: mapIconTree(d.icons, (i) =>
+            i.id === iconId ? { ...i, appearance: { ...(i.appearance ?? {}), ...patch } } : i,
+        ),
+    }));
+}
+
+/** Restablece la apariencia de un widget al cristal por defecto del sistema. */
+export function resetWidgetAppearance(desktopId: string, iconId: string): void {
+    mutateDesktop(desktopId, (d) => ({
+        ...d,
+        icons: mapIconTree(d.icons, (i) => (i.id === iconId ? { ...i, appearance: undefined } : i)),
+    }));
+}
+
+/** Fija la huella en celdas (1x1..4x4) de un widget con vista previa viva. */
+export function setWidgetSpan(desktopId: string, iconId: string, span: DesktopWidgetSpan): void {
+    mutateDesktop(desktopId, (d) => ({
+        ...d,
+        icons: mapIconTree(d.icons, (i) => (i.id === iconId ? { ...i, widgetSpan: span } : i)),
     }));
 }
 

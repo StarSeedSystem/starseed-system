@@ -97,6 +97,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: "#0A0712",
   colorScheme: "dark",
+  // viewportFit=cover habilita env(safe-area-inset-*) en toda la app —
+  // lo usan los escritorios (barra superior/dock) en notch/isla dinámica.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
