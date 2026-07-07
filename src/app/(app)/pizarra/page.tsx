@@ -9,6 +9,9 @@
 // abrir un lienzo concreto. Se lee con useSearchParams() (envuelto en Suspense
 // para evitar el bailout de prerender estático) y se pasa como `canvasId` a
 // <CanvasBoard/>.
+//
+// `?board-space=<id>` (SOP §11, Adenda 65): abre una PIZARRA COMPARTIDA
+// (os_spaces kind='board') en modo colaborativo en vez de un lienzo personal.
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -20,7 +23,8 @@ export const dynamic = "force-dynamic";
 function PizarraBoard() {
   const params = useSearchParams();
   const canvasId = params.get("canvas") ?? undefined;
-  return <CanvasBoard canvasId={canvasId} />;
+  const boardSpaceId = params.get("board-space") ?? null;
+  return <CanvasBoard canvasId={canvasId} boardSpaceId={boardSpaceId} />;
 }
 
 export default function PizarraPage() {

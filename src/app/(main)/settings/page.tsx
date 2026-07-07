@@ -20,6 +20,8 @@ import { TrinityFabSettings } from "@/components/settings/trinity/trinity-fab-se
 import { TrinityEdgeSettings } from "@/components/settings/trinity/trinity-edge-settings";
 import { AccountSyncPanel } from "@/components/settings/account/account-sync-panel";
 import { RealtimeSyncPanel } from "@/components/settings/account/realtime-sync-panel";
+import { AccountProfilesSwitcher } from "@/components/profiles/account-profiles-switcher";
+import { ProfilesSyncPanel } from "@/components/profiles/profiles-sync-panel";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
 import { ProfileIdentityPanel } from "@/components/settings/profile/profile-identity-panel";
 import { ProfileSwitcher } from "@/components/profile/profile-switcher";
@@ -522,11 +524,22 @@ export default function SettingsPage() {
                                     />
                                 </div>
 
+                                {/* Perfiles múltiples de la cuenta (personal/cívico/artístico/profesional) */}
+                                <div className="space-y-3">
+                                    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-1">
+                                        Perfiles de la cuenta
+                                    </p>
+                                    <AccountProfilesSwitcher />
+                                </div>
+
                                 {/* Sincronización de preferencias con la cuenta */}
                                 <AccountSyncPanel />
 
                                 {/* Sincronización en TIEMPO REAL entre dispositivos (motor realtime-sync.ts) */}
                                 <RealtimeSyncPanel />
+
+                                {/* Configuración de sync por perfiles + overrides por dispositivo (SOP §10) */}
+                                <ProfilesSyncPanel />
                             </TabsContent>
 
                             {/* ── Privacidad y Seguridad (fusión de "privacy" + "security") ── */}

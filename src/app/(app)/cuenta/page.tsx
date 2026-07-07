@@ -12,6 +12,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { AccountProfilesSwitcher } from "@/components/profiles/account-profiles-switcher";
+// Subida universal de archivos (Adenda 64 §9): cambiar foto/portada con un
+// archivo real (dispositivo o biblioteca) en vez de solo pegar una URL.
+import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
+import type { UniversalAttachment } from "@/lib/files/os-files";
 
 type Row = Record<string, any>;
 
@@ -193,6 +198,15 @@ export default function CuentaPage() {
       </p>
       {msg ? <div style={{ ...card, borderColor: "rgba(124,92,255,.5)", padding: 12, marginBottom: 14 }}>{msg}</div> : null}
 
+      {/* Perfiles múltiples de la cuenta (personal/cívico/artístico/profesional) */}
+      <section style={card}>
+        <h2 style={{ fontSize: 16, marginBottom: 12 }}>Perfiles</h2>
+        <p style={{ opacity: .6, fontSize: 12, marginBottom: 12 }}>
+          Facetas públicas de tu Cuenta soberana. Cada escritorio, dashboard o pizarra se ancla a un perfil.
+        </p>
+        <AccountProfilesSwitcher />
+      </section>
+
       {/* Perfil */}
       <section style={card}>
         <h2 style={{ fontSize: 16, marginBottom: 12 }}>Perfil</h2>
@@ -202,10 +216,40 @@ export default function CuentaPage() {
         <input style={input} value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })} placeholder="Tu nombre" />
         <label style={label}>Bio</label>
         <textarea style={{ ...input, minHeight: 70, resize: "vertical" }} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} placeholder="Cuéntate en una línea…" />
-        <label style={label}>Foto de perfil (URL)</label>
-        <input style={input} value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} placeholder="https://…" />
-        <label style={label}>Portada (URL)</label>
-        <input style={input} value={form.cover_url} onChange={(e) => setForm({ ...form, cover_url: e.target.value })} placeholder="https://…" />
+        <label style={label}>Foto de perfil</label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <input style={{ ...input, marginBottom: 0, flex: 1 }} value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} placeholder="https://…" />
+          <AttachFilePickerButton
+            onPick={(picked: UniversalAttachment[]) => {
+              const url = picked[0]?.url;
+              if (url) setForm({ ...form, avatar_url: url });
+            }}
+            accept="image/*"
+            folder="avatares"
+            title="Cambiar foto de perfil"
+            hideTabs={["neuronas"]}
+            className="cursor-pointer"
+          >
+            <span style={ghost}>Subir</span>
+          </AttachFilePickerButton>
+        </div>
+        <label style={label}>Portada</label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <input style={{ ...input, marginBottom: 0, flex: 1 }} value={form.cover_url} onChange={(e) => setForm({ ...form, cover_url: e.target.value })} placeholder="https://…" />
+          <AttachFilePickerButton
+            onPick={(picked: UniversalAttachment[]) => {
+              const url = picked[0]?.url;
+              if (url) setForm({ ...form, cover_url: url });
+            }}
+            accept="image/*"
+            folder="portadas"
+            title="Cambiar foto de portada"
+            hideTabs={["neuronas"]}
+            className="cursor-pointer"
+          >
+            <span style={ghost}>Subir</span>
+          </AttachFilePickerButton>
+        </div>
         <button style={{ ...btn, opacity: saving ? .6 : 1 }} disabled={saving} onClick={saveProfile}>Guardar perfil</button>
       </section>
 

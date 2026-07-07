@@ -56,6 +56,10 @@ import { createClient } from "@/utils/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { deviceId } from "@/lib/sync/entity-state";
 import { SYNCED_KEYS, SYNCED_PREFIXES, SYNCED_PREFIX_EXCLUDE } from "@/lib/settings-sync";
+// Config de sync por perfiles (Adenda 65 · SOP §10): gating de claves de
+// ámbito perfil (p. ej. escritorios anclados a perfil) antes de push/aplicar.
+import { isProfileScopedKey, shouldSyncKey } from "@/lib/sync/sync-profiles-config";
+import { activeProfileId } from "@/lib/profiles/profiles";
 
 // ── Configuración ────────────────────────────────────────────────────────────
 /** Toggle persistido (ON por defecto con sesión). */
@@ -275,6 +279,10 @@ async function pushChanges(userId: string, keys: string[]): Promise<void> {
 
         const changes: Record<string, unknown> = {};
         for (const key of keys) {
+            // Gating por perfil (SOP §10): una clave de ámbito perfil (p. ej.
+            // starseed.desktops.v1) solo se empuja si la config de sync por
+            // perfiles lo permite para el perfil activo de ESTE dispositivo.
+            if (isProfileScopedKey(key) && !shouldSyncKey(key, activeProfileId())) continue;
             const v = readLocal(key);
             if (v === undefined) continue;
             prefs[key] = v;
@@ -328,6 +336,9 @@ function applyRemoteChanges(changes: Record<string, unknown>, fromDevice: string
     const appliedKeys: string[] = [];
     for (const [key, value] of Object.entries(changes)) {
         if (!isSyncedKey(key)) continue; // defensa en profundidad: nunca aplicar claves no permitidas
+        // Gating por perfil (SOP §10): no aplicar un cambio remoto de ámbito
+        // perfil si la config de sync por perfiles lo excluye en ESTE dispositivo.
+        if (isProfileScopedKey(key) && !shouldSyncKey(key, activeProfileId())) continue;
         try {
             const serialized = serializeForStorage(value);
             if (localStorage.getItem(key) === serialized) continue; // sin cambio real
@@ -375,6 +386,71 @@ function getOrCreateBroadcastChannel(userId: string): RealtimeChannel | null {
         return broadcastChannel;
     } catch {
         return null;
+    }
+}
+
+// ── Eventos CUSTOM sobre el MISMO canal `acct:<uid>` (multiplexado) ─────────
+// Cualquier feature de la cuenta (p. ej. "solicitar archivo a esta neurona",
+// ver src/lib/files/os-files.ts) puede emitir/escuchar su propio evento de
+// broadcast reutilizando el canal ya gestionado aquí (creación/teardown/
+// reconexión), en vez de abrir un segundo canal Supabase Realtime duplicado
+// para el mismo topic `acct:<uid>`.
+const accountBroadcastListeners = new Map<string, Set<(payload: unknown) => void>>();
+
+function ensureAccountEventWiring(channel: RealtimeChannel, event: string): void {
+    // Cada `event` custom se registra una sola vez por canal (Supabase permite
+    // múltiples `.on()` con distinto `event` sobre la misma instancia).
+    const key = `__wired_${event}`;
+    if ((channel as unknown as Record<string, boolean>)[key]) return;
+    channel.on("broadcast", { event }, (msg: { payload?: unknown }) => {
+        const listeners = accountBroadcastListeners.get(event);
+        if (!listeners || listeners.size === 0) return;
+        for (const cb of listeners) {
+            try { cb(msg?.payload); } catch { /* un listener roto no debe tirar al resto */ }
+        }
+    });
+    (channel as unknown as Record<string, boolean>)[key] = true;
+}
+
+/**
+ * Se suscribe a un evento CUSTOM de broadcast en el canal de cuenta
+ * `acct:<uid>` (multiplexado sobre el mismo canal que usa el motor de sync).
+ * Devuelve función de limpieza. Nunca lanza; sin sesión, no-op silencioso
+ * hasta que haya usuario (reintenta en segundo plano).
+ */
+export function onAccountBroadcast(event: string, handler: (payload: unknown) => void): () => void {
+    let cancelled = false;
+    const listeners = accountBroadcastListeners.get(event) ?? new Set();
+    listeners.add(handler);
+    accountBroadcastListeners.set(event, listeners);
+
+    (async () => {
+        const userId = await getUserId();
+        if (!userId || cancelled) return;
+        const channel = getOrCreateBroadcastChannel(userId);
+        if (channel) ensureAccountEventWiring(channel, event);
+    })();
+
+    return () => {
+        cancelled = true;
+        accountBroadcastListeners.get(event)?.delete(handler);
+    };
+}
+
+/**
+ * Emite un evento CUSTOM de broadcast en el canal de cuenta `acct:<uid>` del
+ * usuario actual. Nunca lanza; sin sesión o sin canal disponible, no hace
+ * nada (best-effort, como el resto del motor).
+ */
+export async function sendAccountBroadcast(event: string, payload: unknown): Promise<void> {
+    try {
+        const userId = await getUserId();
+        if (!userId) return;
+        const channel = getOrCreateBroadcastChannel(userId);
+        if (channel) ensureAccountEventWiring(channel, event);
+        await channel?.send({ type: "broadcast", event, payload });
+    } catch {
+        /* best-effort */
     }
 }
 

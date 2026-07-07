@@ -63,6 +63,9 @@ export const SYNCED_KEYS = [
     "starseed.aurora.orb.pos.v1",        // posición del orbe de Aurora en pantalla — aurora-orb-bus.ts
     "starseed.a11y.settings",            // accesibilidad (contraste, movimiento reducido…) — accessibility-settings.tsx
     "starseed.perf.v1",                  // modo de rendimiento auto/alto/eco — device-tier.ts
+    // ── Perfiles múltiples + sync por perfiles (Adenda 65 · profiles.ts / sync-profiles-config.ts) ──
+    "starseed.profile.active.v1",        // perfil activo en ESTE dispositivo (por dispositivo, pero viaja como respaldo)
+    "starseed.sync.profiles.v1",         // config de sync por perfiles (modo todos/seleccionados + overrides por dispositivo)
 ] as const;
 
 /**

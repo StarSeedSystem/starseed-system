@@ -132,6 +132,8 @@ import {
   type LibraryDestination,
 } from "@/lib/library/entity-library";
 import { createClient } from "@/utils/supabase/client";
+// Cerebros de contexto por biblioteca de perfil (Adenda 65 · SOP §12)
+import { LibraryBrainsPopover } from "@/components/library/library-brains-popover";
 // ── Catálogo público de la Librería — sección "Comunidad" (Adenda 64 §7) ──
 import { PublicCatalogSection } from "@/components/library/finder/public-catalog-section";
 
@@ -1211,6 +1213,11 @@ function EntityLibraryArea() {
             );
           })
         )}
+
+        {/* Cerebros de contexto por biblioteca de perfil (SOP §12) */}
+        <div className="ml-auto">
+          <LibraryBrainsPopover ref={selected ? selected.ref : null} />
+        </div>
       </GlassCard>
 
       <EntityLibraryPanel
