@@ -2,8 +2,7 @@
 'use client';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { comments as defaultComments, articles as rawArticles, courses as rawCourses } from "@/lib/data";
-import { BookOpen, FileText, ArrowUpRight } from "lucide-react";
+import { comments as defaultComments } from "@/lib/data";
 import { CommentSystem } from "@/components/comment-system";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -14,6 +13,8 @@ import { ConnectionsWidget } from "@/components/profile/widgets/connections-widg
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { CollectionsGrid } from "@/components/profile/collections/collections-grid";
 import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
+import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
+import { libraryRef } from "@/lib/library/entity-library";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { StoriesStrip } from "@/components/stories/stories-strip";
 import { PostFeed } from "@/components/social/PostFeed";
@@ -32,78 +33,42 @@ import { useProfileDisplay, normalizeHandleKey } from "@/components/profile/prof
 // de posición: AvatarFallback muestra las iniciales.
 const pageData: { [key: string]: any } = {};
 
-// lib/data expone hoy catálogos VACÍOS sin tipar (se infieren como never[]).
-// Vistas locales tipadas para que este archivo compile limpio; cuando lib/data
-// declare sus tipos propios, estas anotaciones sobran. Los arrays siguen
-// vacíos hasta que existan publicaciones reales (estado vacío honesto).
-interface ProfileLibArticle {
-    id: string;
-    href: string;
-    title: string;
-    author?: string;
-    tags: string[];
-}
-interface ProfileLibCourse {
-    id: string;
-    href: string;
-    title: string;
-    description?: string;
-}
-const articles = rawArticles as ProfileLibArticle[];
-const courses = rawCourses as ProfileLibCourse[];
-
 /** Lee un campo string de un objeto tolerante (perfil Supabase sin tipar). */
 function str(v: unknown): string {
     return typeof v === "string" ? v : "";
 }
 
-/** Biblioteca del perfil (artículos y cursos reales; vacío honesto). */
-function ProfileLibraryCard({ name }: { name: string }) {
+/**
+ * Biblioteca del perfil: lo GUARDADO por la cuenta (distinto de la Librería).
+ * `kind="user"` en entity_state usa el uid real (RLS: solo su dueño puede
+ * leer/escribir) — por eso solo se muestra el panel cuando es el perfil
+ * propio y hay sesión; en perfil ajeno, estado honesto (privado por diseño).
+ */
+function ProfileLibraryCard({ name, uid, isOwner }: { name: string; uid: string | null; isOwner: boolean }) {
+    if (isOwner && uid) {
+        return (
+            <EntityLibraryPanel
+                ref={libraryRef("user", uid)}
+                title={`Biblioteca de ${name}`}
+                subtitle="Tus referencias guardadas, organizadas en carpetas propias."
+            />
+        );
+    }
     return (
         <Card>
             <CardHeader className="flex flex-row items-start justify-between gap-3">
                 <div>
                     <CardTitle className="font-headline">Biblioteca de {name}</CardTitle>
-                    <CardDescription>Artículos y cursos publicados o curados por este perfil.</CardDescription>
+                    <CardDescription>Espacio personal y privado de referencias guardadas.</CardDescription>
                 </div>
                 <Link href="/library" className="shrink-0 whitespace-nowrap text-sm text-primary hover:underline cursor-pointer">Ver biblioteca →</Link>
             </CardHeader>
-            <CardContent className="space-y-6">
-                {/* Estado vacío honesto: las secciones solo se pintan si hay
-                    contenido REAL (articles/courses de lib/data están vacíos
-                    hasta que existan publicaciones de verdad). */}
-                {articles.length === 0 && courses.length === 0 && (
-                    <p className="rounded-xl border border-dashed border-white/12 p-6 text-center text-sm text-muted-foreground">
-                        Aún no hay artículos ni cursos en esta biblioteca.
-                    </p>
-                )}
-                {articles.length > 0 && (
-                <div>
-                    <p className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground"><FileText className="h-3.5 w-3.5" /> Artículos</p>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {articles.slice(0, 3).map((a) => (
-                            <Link key={a.id} href={a.href} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                <p className="font-medium leading-snug group-hover:text-primary transition-colors">{a.title}</p>
-                                <p className="mt-1 text-xs text-muted-foreground">{a.author}</p>
-                                <div className="mt-2 flex flex-wrap gap-1">{a.tags.slice(0, 2).map((t) => <span key={t} className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">#{t}</span>)}</div>
-                            </Link>
-                        ))}
-                    </div>
-                </div>
-                )}
-                {courses.length > 0 && (
-                <div>
-                    <p className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground"><BookOpen className="h-3.5 w-3.5" /> Cursos</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        {courses.slice(0, 2).map((c) => (
-                            <Link key={c.id} href={c.href} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                <p className="flex items-center gap-1 font-medium leading-snug group-hover:text-primary transition-colors">{c.title} <ArrowUpRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" /></p>
-                                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{c.description}</p>
-                            </Link>
-                        ))}
-                    </div>
-                </div>
-                )}
+            <CardContent>
+                <p className="rounded-xl border border-dashed border-white/12 p-6 text-center text-sm text-muted-foreground">
+                    {uid
+                        ? "La Biblioteca de un perfil es privada: solo su dueño/a puede verla."
+                        : "Inicia sesión para ver tu Biblioteca."}
+                </p>
             </CardContent>
         </Card>
     );
@@ -210,7 +175,7 @@ export default function ProfilePage() {
         },
         { id: 'posts', title: 'Publicaciones', node: <PostFeed channelKey={`profile-${username}`} /> },
         { id: 'connections', title: 'Conexiones', node: <ConnectionsWidget pageType={pageType} /> },
-        { id: 'library', title: 'Biblioteca', node: <ProfileLibraryCard name={profileData.name} /> },
+        { id: 'library', title: 'Biblioteca', node: <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} isOwner={isOwner} /> },
         { id: 'collections', title: 'Colecciones', node: <CollectionsGrid /> },
         { id: 'enlaces', title: 'Enlaces', node: <ProfileLinksSection handle={pageHandle} isOwner={isOwner} name={profileData.name} /> },
         { id: 'archivos', title: 'Archivos', node: <ProfileFilesSection isOwner={isOwner} name={profileData.name} /> },
@@ -303,7 +268,7 @@ export default function ProfilePage() {
                             <ConnectionsWidget pageType={pageType} />
                         </TabsContent>
                         <TabsContent value="library" className="mt-6">
-                            <ProfileLibraryCard name={profileData.name} />
+                            <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} isOwner={isOwner} />
                         </TabsContent>
                         <TabsContent value="collections" className="mt-6">
                             <CollectionsGrid />

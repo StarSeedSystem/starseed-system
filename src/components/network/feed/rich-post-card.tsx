@@ -18,6 +18,7 @@ import { useLikes } from "@/hooks/use-os-entities";
 import { commentTree, type CommentNode } from "@/lib/posts/post-entity";
 import { getCurrentUserId } from "@/lib/os-social";
 import { CommentThread } from "./comment-thread";
+import { SaveToLibrary } from "@/components/library/save-to-library";
 
 interface RichPostCardProps {
     post: FeedPost;
@@ -230,9 +231,21 @@ export function RichPostCard({ post }: RichPostCardProps) {
                         </button>
                     </div>
 
-                    <Link href={`/post/${post.postId}`} className="text-white/40 hover:text-white transition-colors cursor-pointer" title="Abrir publicación completa">
-                        <ExternalLink className="w-4 h-4" />
-                    </Link>
+                    <div className="flex items-center gap-1">
+                        <SaveToLibrary
+                            variant="icon"
+                            item={{
+                                type: "post",
+                                refId: post.postId,
+                                route: `/post/${post.postId}`,
+                                title: post.content?.slice(0, 80) || `Publicación de ${post.author.name}`,
+                            }}
+                            className="text-white/40 hover:text-white"
+                        />
+                        <Link href={`/post/${post.postId}`} className="text-white/40 hover:text-white transition-colors cursor-pointer" title="Abrir publicación completa">
+                            <ExternalLink className="w-4 h-4" />
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Comments Section (Collapsible) — hilo ramificado real */}

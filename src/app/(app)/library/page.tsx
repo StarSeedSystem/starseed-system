@@ -84,6 +84,10 @@ import {
   GitBranch,
   PackageCheck,
   Rocket,
+  Landmark,
+  Sprout,
+  CalendarDays,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -119,6 +123,18 @@ import { emitAttach, openComposer } from "@/lib/share/bridge";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
 import { toast } from "sonner";
 
+// ── Biblioteca por entidad (Adenda 64): área NUEVA y separada de la Librería.
+// Conmutador superior "Librería | Biblioteca" — ver architecture/libreria-biblioteca-sync.md
+import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
+import {
+  useMyLibraryDestinations,
+  libraryRef,
+  type LibraryDestination,
+} from "@/lib/library/entity-library";
+import { createClient } from "@/utils/supabase/client";
+// ── Catálogo público de la Librería — sección "Comunidad" (Adenda 64 §7) ──
+import { PublicCatalogSection } from "@/components/library/finder/public-catalog-section";
+
 // --- Types ---
 
 type ViewMode = "GRID" | "LIST";
@@ -126,7 +142,7 @@ type AssetType = "FILE" | "FOLDER" | "LIBRARY" | "PROGRAM" | "PAGE" | "CONCEPT";
 type ResourceType = "todos" | "articulos" | "cursos" | "documentos" | "comunidades";
 type SortMode = "recientes" | "valorados" | "populares";
 /** Pestañas de nivel superior (la tienda viva + la colección de siempre). */
-type LibraryTab = "instalar-starseed" | "destacado" | "categorias" | "repos" | "coleccion" | "instalado";
+type LibraryTab = "instalar-starseed" | "destacado" | "categorias" | "repos" | "comunidad" | "coleccion" | "instalado";
 /** Pestañas internas de «Mi colección» (la Biblioteca anterior, intacta). */
 type CollectionTab = "explorar" | "personal" | "fuentes" | "updates";
 
@@ -1075,6 +1091,138 @@ function OsDownloadStrip({ onOpenDetail }: { onOpenDetail: (item: LibraryDetailI
 }
 
 // ══════════════════════════════════════════════════════════════════
+// Área BIBLIOTECA — lo GUARDADO por una entidad (Adenda 64)
+// ------------------------------------------------------------------
+// Distinta de la Librería (catálogo en línea, arriba): aquí se elige la
+// entidad (Mi biblioteca + páginas/grupos donde soy dueño/miembro) y se
+// muestra su EntityLibraryPanel (carpetas + guardados propios).
+// SOP: architecture/libreria-biblioteca-sync.md (§5)
+// ══════════════════════════════════════════════════════════════════
+
+/** Icono por tipo de entidad de biblioteca (coherente con entity-kinds.ts). */
+function destinationIcon(kind: LibraryDestination["ref"]["kind"]) {
+  switch (kind) {
+    case "user":
+      return Lock;
+    case "group":
+      return Users;
+    case "page":
+      return Globe;
+    case "community":
+      return Sprout;
+    case "event":
+      return CalendarDays;
+    case "ef":
+      return Landmark;
+    case "party":
+      return Store;
+    default:
+      return BookMarked;
+  }
+}
+
+function EntityLibraryArea() {
+  const { destinations, loading } = useMyLibraryDestinations();
+  const [selectedKey, setSelectedKey] = useState<string>("");
+  const [authChecked, setAuthChecked] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    createClient()
+      .auth.getUser()
+      .then(({ data }) => {
+        if (alive) {
+          setHasSession(!!data.user);
+          setAuthChecked(true);
+        }
+      })
+      .catch(() => {
+        if (alive) setAuthChecked(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedKey && destinations.length > 0) {
+      setSelectedKey(`${destinations[0].ref.kind}:${destinations[0].ref.id}`);
+    }
+  }, [destinations, selectedKey]);
+
+  const selected = useMemo(
+    () => destinations.find((d) => `${d.ref.kind}:${d.ref.id}` === selectedKey) ?? destinations[0] ?? null,
+    [destinations, selectedKey],
+  );
+
+  if (authChecked && !hasSession) {
+    return (
+      <GlassCard className="flex flex-col items-center justify-center gap-3 p-12 text-center">
+        <BookMarked className="h-10 w-10 text-muted-foreground opacity-30" />
+        <h2 className="text-lg font-bold">Tu Biblioteca te espera</h2>
+        <p className="max-w-md text-sm text-muted-foreground">
+          Inicia sesión para ver y organizar lo que has guardado — personal o de tus
+          comunidades, grupos y páginas.
+        </p>
+        <Button asChild className="mt-2 gap-2 cursor-pointer">
+          <Link href="/login">
+            <Lock className="h-4 w-4" /> Iniciar sesión
+          </Link>
+        </Button>
+      </GlassCard>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Selector de entidad: Mi biblioteca + entidades donde soy dueño/miembro */}
+      <GlassCard className="flex flex-wrap items-center gap-2 p-3">
+        <span className="flex items-center gap-1.5 pl-1 pr-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <BookMarked className="h-3.5 w-3.5" /> Biblioteca de
+        </span>
+        {loading ? (
+          <span className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando tus bibliotecas…
+          </span>
+        ) : destinations.length === 0 ? (
+          <span className="text-xs text-muted-foreground">Sin bibliotecas disponibles todavía.</span>
+        ) : (
+          destinations.map((d) => {
+            const Icon = destinationIcon(d.ref.kind);
+            const key = `${d.ref.kind}:${d.ref.id}`;
+            const active = key === selectedKey;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSelectedKey(key)}
+                className={cn(
+                  "flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  active
+                    ? "border-primary/50 bg-primary/15 text-primary"
+                    : "border-white/10 bg-white/[0.02] text-muted-foreground hover:bg-white/5 hover:text-white",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {d.label}
+                {d.hint && <span className="opacity-60">· {d.hint}</span>}
+              </button>
+            );
+          })
+        )}
+      </GlassCard>
+
+      <EntityLibraryPanel
+        ref={selected ? selected.ref : null}
+        title={selected ? `Biblioteca · ${selected.label}` : "Biblioteca"}
+        subtitle="Tus referencias guardadas, organizadas en carpetas propias. Se guardan enlaces (Entidad Única), no copias."
+      />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
 // Página unificada
 // ══════════════════════════════════════════════════════════════════
 
@@ -1092,7 +1240,7 @@ function resolveInitialTab(
   if (t === "instalar-starseed" || t === "instalar" || t === "install") {
     return { top: "instalar-starseed", inner: "explorar" };
   }
-  if (t === "destacado" || t === "categorias" || t === "repos" || t === "instalado") {
+  if (t === "destacado" || t === "categorias" || t === "repos" || t === "instalado" || t === "comunidad") {
     return { top: t as LibraryTab, inner: "explorar" };
   }
   if (t === "store" || t === "tienda") return { top: "destacado", inner: "explorar" };
@@ -1107,9 +1255,17 @@ function resolveInitialTab(
   return { top: "destacado", inner: "explorar" };
 }
 
+/** Área de nivel superior de /library: catálogo en línea vs. lo guardado por una entidad. */
+type LibraryArea = "libreria" | "biblioteca";
+
+function resolveInitialArea(area: string | null): LibraryArea {
+  return (area ?? "").toLowerCase() === "biblioteca" ? "biblioteca" : "libreria";
+}
+
 function LibraryContent() {
   const searchParams = useSearchParams();
   const initial = resolveInitialTab(searchParams.get("view"), searchParams.get("tab"));
+  const [area, setArea] = useState<LibraryArea>(() => resolveInitialArea(searchParams.get("area")));
   const [tab, setTab] = useState<LibraryTab>(initial.top);
   const [collectionTab, setCollectionTab] = useState<CollectionTab>(initial.inner);
   // Buscador grande del hero: filtra los paquetes instalables en vivo.
@@ -1124,11 +1280,12 @@ function LibraryContent() {
     setDetailOpen(true);
   };
 
-  // Reacciona a cambios de query (?view / ?tab) sin recargar.
+  // Reacciona a cambios de query (?view / ?tab / ?area) sin recargar.
   useEffect(() => {
     const next = resolveInitialTab(searchParams.get("view"), searchParams.get("tab"));
     setTab(next.top);
     setCollectionTab(next.inner);
+    setArea(resolveInitialArea(searchParams.get("area")));
   }, [searchParams]);
 
   // Navegación interna de la colección (usada por los paneles conservados).
@@ -1178,6 +1335,40 @@ function LibraryContent() {
         </div>
       </GlassCard>
 
+      {/* ── Conmutador superior: Librería (catálogo en línea) | Biblioteca (lo guardado) ──
+          Dos áreas claramente separadas dentro de la MISMA sección /library.
+          SOP: architecture/libreria-biblioteca-sync.md */}
+      <div className="flex w-full justify-center sm:justify-start">
+        <div className="inline-flex gap-1 rounded-2xl border border-white/10 bg-black/30 p-1">
+          <button
+            type="button"
+            onClick={() => setArea("libreria")}
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer",
+              area === "libreria" ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white",
+            )}
+          >
+            <Store className="h-4 w-4" /> Librería
+          </button>
+          <button
+            type="button"
+            onClick={() => setArea("biblioteca")}
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer",
+              area === "biblioteca" ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white",
+            )}
+          >
+            <BookMarked className="h-4 w-4" /> Biblioteca
+          </button>
+        </div>
+      </div>
+
+      {/* ── Área BIBLIOTECA: lo guardado por una entidad (usuario/página/grupo…) ── */}
+      {area === "biblioteca" && <EntityLibraryArea />}
+
+      {/* ── Área LIBRERÍA: el catálogo en línea de siempre, intacto ── */}
+      {area === "libreria" && (
+      <>
       {/* Descarga del OS — SIEMPRE arriba (build real, PWA, código y ficha) */}
       <OsDownloadStrip onOpenDetail={openDetail} />
 
@@ -1206,6 +1397,9 @@ function LibraryContent() {
           <TabsTrigger value="repos" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
             <GitBranch className="w-4 h-4" /> Repos
           </TabsTrigger>
+          <TabsTrigger value="comunidad" className="gap-1.5 data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-200 cursor-pointer">
+            <Users className="w-4 h-4" /> Comunidad
+          </TabsTrigger>
           <TabsTrigger value="coleccion" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
             <BookMarked className="w-4 h-4" /> Mi colección
           </TabsTrigger>
@@ -1225,6 +1419,11 @@ function LibraryContent() {
             <PackageStore section={section} />
           </TabsContent>
         ))}
+
+        {/* ── COMUNIDAD: catálogo público (library_public_items) — Adenda 64 §7 ── */}
+        <TabsContent value="comunidad" className="mt-6">
+          <PublicCatalogSection />
+        </TabsContent>
 
         {/* ── MI COLECCIÓN: la Biblioteca de siempre, intacta ── */}
         <TabsContent value="coleccion" className="mt-6">
@@ -1308,8 +1507,10 @@ function LibraryContent() {
           </Tabs>
         </TabsContent>
       </Tabs>
+      </>
+      )}
 
-      {/* Ficha detallada tipo App Store / Play Store */}
+      {/* Ficha detallada tipo App Store / Play Store (visible en ambas áreas) */}
       <AppFilePage item={detailItem} open={detailOpen} onOpenChange={setDetailOpen} />
     </div>
   );

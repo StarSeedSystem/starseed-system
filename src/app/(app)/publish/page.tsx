@@ -1,6 +1,10 @@
 // src/app/(app)/publish/page.tsx
 'use client'
-import { useState, useMemo, useRef } from "react";
+// Evita el bailout de prerender estático por useSearchParams (build de Vercel);
+// mismo motivo/patrón que /library/page.tsx.
+export const dynamic = "force-dynamic";
+import { useState, useMemo, useRef, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -531,8 +535,9 @@ function PreviewCard({ pubType, titulo, body, tags, audiencia, destinos, attachm
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function PublishPage() {
+function PublishPage() {
     const { toast } = useToast();
+    const searchParams = useSearchParams();
 
     // ── New composer state (declared early so useMemo below can reference it) ──
     const [pubType, setPubType] = useState<PubType>("publicacion");
@@ -559,6 +564,36 @@ export default function PublishPage() {
     const [activeAttachKind, setActiveAttachKind] = useState<AttachmentKind | null>(null);
     const [attachUrlInput, setAttachUrlInput] = useState("");
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    // ── Precarga desde ?attach= (Adenda 64 §6): el Finder de Bibliotecas navega
+    // aquí con /publish?attach=<JSON encodeURIComponent> para precargar un
+    // adjunto al publicar un ítem guardado. Edición mínima y segura: solo lee
+    // el query param UNA VEZ al montar y añade un Attachment con la misma forma
+    // que ya produce addUrlAttachment() — no toca el resto del compositor.
+    useEffect(() => {
+        const raw = searchParams.get("attach");
+        if (!raw) return;
+        try {
+            const parsed = JSON.parse(decodeURIComponent(raw)) as {
+                title?: string;
+                url?: string;
+                route?: string;
+                note?: string;
+            };
+            const href = parsed.url || parsed.route;
+            if (!href) return;
+            const name = parsed.title?.trim() || (() => {
+                try { return new URL(href, typeof window !== "undefined" ? window.location.origin : undefined).hostname; }
+                catch { return href; }
+            })();
+            const id = `att-attach-${Date.now().toString(36)}`;
+            setAttachments((prev) => (prev.some((a) => a.value === href) ? prev : [...prev, { id, kind: "enlace", name, value: href }]));
+            if (parsed.note && !titulo) setTitulo(parsed.note.slice(0, 120));
+        } catch {
+            /* JSON inválido o ausente: no-op, el compositor sigue funcionando igual que hoy */
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar; searchParams no cambia tras la carga inicial de esta página
+    }, []);
 
     // ── References state ──
     const [networkRefs, setNetworkRefs] = useState<NetworkRef[]>([]);
@@ -1729,5 +1764,15 @@ export default function PublishPage() {
                 </div>
             </div>
         </>
+    );
+}
+
+// Wrapper de ruta: PublishPage (el compositor real) necesita useSearchParams
+// para leer ?attach=, así que se envuelve en Suspense (Next.js lo exige).
+export default function PublishPageRoute() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center h-screen text-muted-foreground">Cargando compositor…</div>}>
+            <PublishPage />
+        </Suspense>
     );
 }

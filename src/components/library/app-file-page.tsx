@@ -59,6 +59,9 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { installItem, type StoreItem } from "@/lib/store/store-data";
 import { saveResource } from "@/lib/library-store";
+// Guardar una referencia de esta ficha en la Biblioteca de una entidad
+// (cuenta/página/grupo…) — distinto de "Instalar/Replicar" (Librería personal).
+import { SaveToLibrary } from "@/components/library/save-to-library";
 import type {
   ListingMediaItem,
   ListingVersion,
@@ -402,6 +405,16 @@ export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
             <Button variant="ghost" onClick={handleShare} className="gap-2 text-muted-foreground hover:text-white cursor-pointer">
               <Share2 className="h-4 w-4" /> Compartir
             </Button>
+            <SaveToLibrary
+              variant="button"
+              label="Guardar en Biblioteca…"
+              item={{
+                type: "file",
+                refId: current.id,
+                url: current.openUrl || current.sourceUrl || undefined,
+                title: current.title,
+              }}
+            />
           </div>
 
           {/* Métricas rápidas */}

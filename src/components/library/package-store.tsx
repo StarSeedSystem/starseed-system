@@ -98,6 +98,9 @@ import {
 import { getAgent, subscribeAgents } from "@/lib/agents/store";
 import { AgentConfigPanel } from "@/components/agents/AgentConfigPanel";
 import { AgentBindMenu } from "@/components/agents/AgentBindMenu";
+// Guardar una referencia de este paquete en la Biblioteca de una entidad
+// (usuario/página/grupo…) — distinto de "Guardar enlace" (Librería personal).
+import { SaveToLibrary } from "@/components/library/save-to-library";
 
 /* ───────────────────────── Metadatos por kind ───────────────────────── */
 
@@ -1080,10 +1083,17 @@ function PackageDetailSheet({
                     <Share2 className="h-3.5 w-3.5" /> Publicar como rama
                   </Button>
                 )}
+                <SaveToLibrary
+                  variant="button"
+                  label="Guardar en Biblioteca…"
+                  item={{ type: "package", refId: pkg.id, route: route || undefined, title: pkg.name }}
+                />
               </div>
               <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
                 Replicar crea un fork local editable en tu biblioteca. Publicar marca la rama como
                 pública (local por ahora; la publicación real a la red StarSeed llegará vía Supabase).
+                «Guardar en Biblioteca…» crea una referencia en la Biblioteca de tu cuenta o de una
+                comunidad/página tuya (Entidad Única: no duplica el paquete).
               </p>
             </div>
           )}

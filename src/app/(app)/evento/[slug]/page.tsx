@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ShareButton } from "@/components/social/SocialActions";
 import { GovernanceToolkit } from "@/components/social/toolkits";
+import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
+import { libraryRef } from "@/lib/library/entity-library";
 import { useOsEntity, useAttendance, useEntityOwner } from "@/hooks/use-os-entities";
 import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 import type { OsEvent } from "@/lib/os-social";
@@ -19,7 +21,6 @@ import { CollectionsGrid } from "@/components/profile/collections/collections-gr
 import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
 import { pageHref, groupHref } from "@/lib/entity-links";
-import { articles, courses } from "@/lib/data";
 import {
     CalendarDays,
     Clock,
@@ -34,8 +35,6 @@ import {
     Check,
     Lock,
     Pencil,
-    BookOpen,
-    FileText,
     Network,
 } from "lucide-react";
 
@@ -387,54 +386,14 @@ export default function EventoPage() {
                     </GlassCard>
                 </TabsContent>
 
-                {/* ── Biblioteca ── */}
+                {/* ── Biblioteca: lo GUARDADO por este evento (distinto de la Librería) ── */}
                 <TabsContent value="biblioteca" className="mt-6 animate-in fade-in-50 duration-500">
-                    <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
-                        <div className="mb-4 flex items-start justify-between gap-3">
-                            <div>
-                                <h2 className="font-headline text-lg font-semibold" style={{ color: accent }}>Biblioteca del evento</h2>
-                                <p className="text-sm text-muted-foreground">Artículos y cursos relacionados con este evento.</p>
-                            </div>
-                            <Link href="/library" className="shrink-0 whitespace-nowrap text-sm hover:underline cursor-pointer" style={{ color: accent }}>
-                                Ver biblioteca →
-                            </Link>
-                        </div>
-                        <div className="space-y-6">
-                            <div>
-                                <p className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
-                                    <FileText className="h-3.5 w-3.5" /> Artículos
-                                </p>
-                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                    {articles.slice(0, 3).map((a) => (
-                                        <Link key={a.id} href={a.href} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                            <p className="font-medium leading-snug group-hover:text-primary transition-colors">{a.title}</p>
-                                            <p className="mt-1 text-xs text-muted-foreground">{a.author}</p>
-                                            <div className="mt-2 flex flex-wrap gap-1">
-                                                {a.tags.slice(0, 2).map((t) => (
-                                                    <span key={t} className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">#{t}</span>
-                                                ))}
-                                            </div>
-                                        </Link>
-                                    ))}
-                                </div>
-                            </div>
-                            <div>
-                                <p className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
-                                    <BookOpen className="h-3.5 w-3.5" /> Cursos
-                                </p>
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                    {courses.slice(0, 2).map((c) => (
-                                        <Link key={c.id} href={c.href} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                            <p className="flex items-center gap-1 font-medium leading-snug group-hover:text-primary transition-colors">
-                                                {c.title} <ArrowUpRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
-                                            </p>
-                                            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{c.description}</p>
-                                        </Link>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </GlassCard>
+                    <EntityLibraryPanel
+                        ref={libraryRef("event", event.slug)}
+                        accent={accent}
+                        title={`Biblioteca de ${event.title}`}
+                        subtitle="Referencias guardadas relacionadas con este evento, organizadas en carpetas propias."
+                    />
                 </TabsContent>
 
                 {/* ── Colecciones ── */}
