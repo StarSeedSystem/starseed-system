@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,11 +19,11 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import {
-    ArrowLeft, Bot, Loader2, Paperclip, Reply, Send, Sparkles, Users2, X,
+    ArrowLeft, Bot, ExternalLink, Loader2, Mail, Paperclip, Reply, Send, Sparkles, Users2, X,
 } from "lucide-react";
 import {
     listMessages, sendMessage, editMessage, softDeleteMessage, subscribeThread,
-    markRead, setThreadAgent, mentionsAurora, messageFromRealtimeRow,
+    markRead, setThreadAgent, mentionsAurora, messageFromRealtimeRow, threadEntityLink,
     type DmAttachment, type DmMessage, type DmThreadSummary, type ThreadAgentConfig,
 } from "@/lib/messages/dm";
 import { askAuroraInThread } from "@/lib/messages/aurora-thread";
@@ -34,6 +35,9 @@ import { MessageBubble } from "@/components/messages/dm/message-bubble";
 // como fallback offline para archivos pequeños (ver MAX_INLINE_BYTES abajo).
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import type { UniversalAttachment } from "@/lib/files/os-files";
+// Invitaciones a grupo/página/evento (Adenda jul-2026 §3), enviables desde el
+// composer de este hilo igual que un adjunto cualquiera.
+import { InviteComposerButton, type InviteAttachmentPayload } from "@/components/invitations/invite-composer-button";
 
 const MAX_INLINE_BYTES = 300_000; // ~0.3MB: fallback offline (dataURL) para adjuntos muy pequeños.
 
@@ -205,11 +209,22 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
                     mime: a.mime,
                     url: a.url,
                     size: a.size,
-                    refKind: a.fileId ? "file" : undefined,
-                    refId: a.fileId,
+                    // Referencia de "Contenido de la red" (página/grupo/evento/
+                    // publicación): conserva refKind/refId/route tal cual para
+                    // que se embeba en vivo; si no es una referencia, mantiene
+                    // el comportamiento de siempre (refKind "file" para archivos
+                    // ya indexados en os_files).
+                    refKind: a.refKind ?? (a.fileId ? "file" : undefined),
+                    refId: a.refId ?? a.fileId,
+                    route: a.route,
                 }),
             ),
         ]);
+    };
+
+    /** Tarjeta-invitación entregada por el composer de invitaciones. */
+    const handleInviteAttachment = (invite: InviteAttachmentPayload) => {
+        setPendingAttachments((prev) => [...prev, invite]);
     };
 
     const handleAskAurora = async () => {
@@ -249,6 +264,11 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
     const replyToMessageFor = (m: DmMessage): DmMessage | null =>
         m.replyTo ? messages.find((mm) => mm.id === m.replyTo) ?? null : null;
 
+    // Vínculo hilo↔entidad (Adenda jul-2026 §1): si este grupo de chat también
+    // creó una comunidad/grupo real de la red, muestra acceso directo a su página.
+    const entityLink = threadEntityLink(thread);
+    const entityHref = entityLink ? (entityLink.kind === "group" ? `/grupo/${entityLink.slug}` : `/pagina/${entityLink.slug}`) : null;
+
     return (
         <div className="flex flex-col h-full">
             <header className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-background/80 backdrop-blur-xl shrink-0">
@@ -270,6 +290,20 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
                         {thread.agent?.enabled && " · Aurora activa"}
                     </p>
                 </div>
+
+                {entityHref && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        asChild
+                        title="Ver la comunidad/grupo de la red vinculado a este chat"
+                        className="cursor-pointer h-8 w-8 shrink-0"
+                    >
+                        <Link href={entityHref}>
+                            <ExternalLink className="h-4 w-4" />
+                        </Link>
+                    </Button>
+                )}
 
                 <Popover open={agentPanelOpen} onOpenChange={setAgentPanelOpen}>
                     <PopoverTrigger asChild>
@@ -386,6 +420,14 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
                     >
                         <Paperclip className="w-4 h-4" />
                     </AttachFilePickerButton>
+
+                    <InviteComposerButton
+                        onPick={handleInviteAttachment}
+                        title="Invitar a grupo/página/evento"
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                    >
+                        <Mail className="w-4 h-4" />
+                    </InviteComposerButton>
 
                     <Input
                         value={input}

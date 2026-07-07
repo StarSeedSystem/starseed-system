@@ -25,7 +25,7 @@ import {
   ChevronDown, Gem, ListChecks, History, CheckCircle2, XCircle,
   Gauge, Zap, RotateCcw, KeyRound, Cpu, Eye, Volume2, Lightbulb,
   Download, Loader2, Wrench, GitBranch, Library as LibraryIcon,
-  Compass,
+  Compass, UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -49,6 +49,10 @@ import {
   computeSuggestions, SUGGESTIONS_EVENT,
   type Suggestion, type SuggestionKind,
 } from "@/ai/astraura/autonomy";
+import {
+  DEFAULT_USER_CONTEXT_SETTINGS, getUserContextSettings, saveUserContextSettings,
+  USER_CONTEXT_SETTINGS_EVENT, type UserContextSettings, type UserContextLevel,
+} from "@/ai/astraura/user-context";
 
 /* ── Chips por nivel de fuente (gratuidad/privacidad legibles) ── */
 const TIER_CHIP: Record<SourceTier, { label: string; cls: string }> = {
@@ -207,6 +211,9 @@ export function IntelligencePanel() {
   // Capacidades vivas (skills instaladas que Aurora EJECUTA). Se refrescan al
   // instalar/desinstalar desde la Biblioteca (evento "starseed:library").
   const [activeCaps, setActiveCaps] = useState<SkillCapability[]>([]);
+  // Contexto Total de Aurora: "Aurora conoce mi contexto" (on/off) + nivel
+  // por defecto (breve/completo) que se inyecta automáticamente en cada turno.
+  const [userCtx, setUserCtx] = useState<UserContextSettings>({ ...DEFAULT_USER_CONTEXT_SETTINGS });
 
   /* ── Carga inicial + escucha de eventos (SSR-safe: todo en useEffect) ── */
   const detect = useCallback(async () => {
@@ -236,6 +243,7 @@ export function IntelligencePanel() {
 
   useEffect(() => {
     setSettings(getIntelligenceSettings());
+    setUserCtx(getUserContextSettings());
     setRoutes(readRouteLog());
     void detect();
     refreshUsage();
@@ -245,6 +253,7 @@ export function IntelligencePanel() {
     if (typeof window === "undefined") return;
     const onRoute = () => { setRoutes(readRouteLog()); refreshUsage(); };
     const onSettings = () => setSettings(getIntelligenceSettings());
+    const onUserCtx = () => setUserCtx(getUserContextSettings());
     const onUsage = () => refreshUsage();
     const onLibrary = () => refreshCaps();
     window.addEventListener("starseed:library", onLibrary);
@@ -256,11 +265,13 @@ export function IntelligencePanel() {
     };
     window.addEventListener(ROUTE_EVENT, onRoute);
     window.addEventListener("starseed:astraura-intelligence", onSettings);
+    window.addEventListener(USER_CONTEXT_SETTINGS_EVENT, onUserCtx);
     window.addEventListener(USAGE_EVENT, onUsage);
     window.addEventListener(SUGGESTIONS_EVENT, onSuggestions);
     return () => {
       window.removeEventListener(ROUTE_EVENT, onRoute);
       window.removeEventListener("starseed:astraura-intelligence", onSettings);
+      window.removeEventListener(USER_CONTEXT_SETTINGS_EVENT, onUserCtx);
       window.removeEventListener(USAGE_EVENT, onUsage);
       window.removeEventListener(SUGGESTIONS_EVENT, onSuggestions);
       window.removeEventListener("starseed:library", onLibrary);
@@ -270,6 +281,11 @@ export function IntelligencePanel() {
   /** Guarda un parche de ajustes y sincroniza el estado local. */
   function update(patch: Partial<IntelligenceSettings>) {
     setSettings(saveIntelligenceSettings(patch));
+  }
+
+  /** Guarda un parche del Contexto Total de Aurora y sincroniza el estado local. */
+  function updateUserCtx(patch: Partial<UserContextSettings>) {
+    setUserCtx(saveUserContextSettings(patch));
   }
 
   /* ── Derivados ── */
@@ -377,6 +393,59 @@ export function IntelligencePanel() {
             </Select>
           </div>
         </CardContent>
+      </Card>
+
+      {/* ── Contexto Total de Aurora: "Aurora conoce mi contexto" ── */}
+      <Card className="bg-background/40 backdrop-blur-sm">
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0">
+              <UserRound className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <CardTitle className="text-base">Aurora conoce mi contexto</CardTitle>
+                <CardDescription className="mt-1 leading-relaxed">
+                  Aurora recibe automáticamente un resumen de tu ámbito propio (perfiles, grupos/páginas,
+                  archivos, publicaciones, mensajes —solo hilos, nunca su contenido—, notificaciones,
+                  recordatorios, escritorios y espacios) para responder con más criterio, sin que se lo pidas.
+                  Nunca comparte claves ni datos de otras personas.
+                </CardDescription>
+              </div>
+            </div>
+            <Switch
+              checked={userCtx.enabled}
+              onCheckedChange={(v) => {
+                updateUserCtx({ enabled: v });
+                toast.success(v ? "Aurora conocerá tu contexto en cada conversación" : "Contexto automático desactivado");
+              }}
+              aria-label="Aurora conoce mi contexto"
+            />
+          </div>
+        </CardHeader>
+        {userCtx.enabled && (
+          <CardContent>
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-white/5 bg-black/20 p-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Nivel por defecto</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  «Breve» (recomendado) mantiene la conversación rápida; Aurora puede pedir el contexto
+                  «Completo» ella misma cuando lo necesite. «Completo» lo inyecta siempre, con más detalle.
+                </p>
+              </div>
+              <Select
+                value={userCtx.defaultLevel}
+                onValueChange={(v) => updateUserCtx({ defaultLevel: v as UserContextLevel })}
+              >
+                <SelectTrigger className="w-[130px] bg-background/60 border-white/10 cursor-pointer shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="breve">Breve</SelectItem>
+                  <SelectItem value="completo">Completo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* ── Fuentes detectadas ── */}
@@ -579,6 +648,26 @@ export function IntelligencePanel() {
               checked={settings.difficultyRouting !== false}
               onCheckedChange={(v) => { update({ difficultyRouting: v }); toast.success(v ? "Enrutado por dificultad activado" : "Enrutado por dificultad desactivado"); }}
               aria-label="Enrutado por dificultad"
+            />
+          </div>
+
+          {/* Selección automática de herramientas (Adenda "Aurora siempre responde", jul-2026) */}
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-white/5 bg-black/20 p-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <Wand2 className="h-4 w-4 text-teal-300 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Selección automática de herramientas</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  En cada mensaje, Aurora evalúa sola qué herramientas del contexto (web, archivos,
+                  widgets del escritorio…) conviene invocar. Desactívalo para que solo actúe cuando
+                  se lo pidas explícitamente.
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={settings.autoTools !== false}
+              onCheckedChange={(v) => { update({ autoTools: v }); toast.success(v ? "Selección automática de herramientas activada" : "Selección automática de herramientas desactivada"); }}
+              aria-label="Selección automática de herramientas"
             />
           </div>
 

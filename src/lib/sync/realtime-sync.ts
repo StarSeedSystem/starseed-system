@@ -114,6 +114,7 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.library.usage.v1": ["starseed:library"],
     "starseed.neurons.prefs.v1": ["starseed:neurons"],
     "starseed.astraura.intelligence.v1": ["starseed:astraura-intelligence"],
+    "starseed.alarms.v1": ["starseed:alarms"],
 };
 /** Prefijo → evento(s); se usa cuando la clave concreta no está en EVENT_BY_KEY. */
 const EVENT_BY_PREFIX: Array<{ prefix: string; events: string[] }> = [

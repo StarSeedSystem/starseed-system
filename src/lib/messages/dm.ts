@@ -288,7 +288,13 @@ export async function listThreads(): Promise<DmThreadSummary[]> {
             membersByThread.set(row.thread_id, list);
         }
 
-        const threads = ((threadRows as ThreadRow[]) || []).map(normalizeThread);
+        // Excluye los hilos de Correos (marcados con meta.mail=true por
+        // `@/lib/mail/os-mail.ts`, que reutiliza esta MISMA tabla): Mensajes y
+        // Correos son superficies distintas del mismo backend. Aditivo — ningún
+        // hilo de chat existente tiene `meta.mail`, así que no cambia nada más.
+        const threads = ((threadRows as ThreadRow[]) || [])
+            .map(normalizeThread)
+            .filter((t) => (t.meta as { mail?: boolean } | null)?.mail !== true);
 
         // Último mensaje de cada hilo (una consulta por hilo, en paralelo, acotada
         // a los hilos del usuario — lista personal, tamaño razonable).
@@ -486,6 +492,49 @@ export async function listMembers(threadId: string): Promise<DmMember[]> {
         }));
     } catch {
         return [];
+    }
+}
+
+/* ─────────────────────── Vínculo hilo ↔ entidad (grupo/comunidad) ───────── */
+//
+// Cuando un grupo de chat TAMBIÉN crea una comunidad/grupo de la red (Adenda
+// jul-2026, @/components/messages/dm/new-chat-dialog.tsx: opción "crear
+// también comunidad/grupo de la red"), el vínculo vive en
+// `thread.meta.entityLink = { kind: "group"|"page", slug }` — mismo patrón de
+// lectura-modificación-escritura que `markRead`/`setThreadAgent` arriba. Deja
+// acceder directamente a la página de la entidad desde la cabecera del hilo
+// (@/components/messages/dm/thread-view.tsx).
+
+export interface ThreadEntityLink {
+    kind: "group" | "page";
+    slug: string;
+}
+
+/** Lee el vínculo hilo↔entidad de un hilo ya cargado (sin red adicional). */
+export function threadEntityLink(thread: Pick<DmThread, "meta">): ThreadEntityLink | null {
+    const raw = (thread.meta as { entityLink?: unknown } | null)?.entityLink;
+    if (!raw || typeof raw !== "object") return null;
+    const link = raw as Partial<ThreadEntityLink>;
+    if ((link.kind === "group" || link.kind === "page") && typeof link.slug === "string" && link.slug) {
+        return { kind: link.kind, slug: link.slug };
+    }
+    return null;
+}
+
+/** Vincula un hilo a la entidad de red recién creada (best-effort; nunca lanza). */
+export async function setThreadEntityLink(threadId: string, link: ThreadEntityLink): Promise<boolean> {
+    if (!threadId) return false;
+    try {
+        const supabase = createClient();
+        const { data } = await supabase.from("os_dm_threads").select("meta").eq("id", threadId).maybeSingle();
+        const meta = (data?.meta && typeof data.meta === "object" ? (data.meta as Record<string, unknown>) : {}) ?? {};
+        const { error } = await supabase
+            .from("os_dm_threads")
+            .update({ meta: { ...meta, entityLink: link } })
+            .eq("id", threadId);
+        return !error;
+    } catch {
+        return false;
     }
 }
 

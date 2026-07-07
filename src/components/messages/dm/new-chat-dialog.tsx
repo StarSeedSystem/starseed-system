@@ -15,11 +15,19 @@ import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { Loader2, Search, User, Users2, X } from "lucide-react";
+import { Loader2, Search, User, Users2, X, Landmark, CircleDot, Boxes } from "lucide-react";
 import { searchUsers, seedMyProfile, type OsProfile } from "@/lib/social/os-profiles";
-import { createDm, createGroup } from "@/lib/messages/dm";
+import { createDm, createGroup, setThreadEntityLink, sendMessage } from "@/lib/messages/dm";
+// Crear también una comunidad/grupo REAL de la red al crear un grupo de chat
+// (Adenda jul-2026 §1): el hilo queda vinculado (meta.entityLink) y los demás
+// participantes reciben una tarjeta-invitación que deben aceptar ellos mismos
+// (RLS de os_memberships exige auto-servicio; ver @/lib/invitations/invitations.ts).
+import { createGroup as createOsGroup, setMembership, type OsGroup } from "@/lib/os-social";
+import { buildInviteAttachment } from "@/lib/invitations/invitations";
 
 export interface NewChatDialogProps {
     open: boolean;
@@ -35,6 +43,9 @@ export function NewChatDialog({ open, onOpenChange, onCreated }: NewChatDialogPr
     const [selected, setSelected] = useState<OsProfile[]>([]);
     const [groupTitle, setGroupTitle] = useState("");
     const [creating, setCreating] = useState(false);
+    // Crear también comunidad/grupo de la red (Adenda jul-2026 §1).
+    const [alsoCreateEntity, setAlsoCreateEntity] = useState(false);
+    const [entityKind, setEntityKind] = useState<OsGroup["kind"]>("colectivo");
 
     useEffect(() => {
         if (open) void seedMyProfile();
@@ -47,6 +58,8 @@ export function NewChatDialog({ open, onOpenChange, onCreated }: NewChatDialogPr
             setSelected([]);
             setGroupTitle("");
             setTab("dm");
+            setAlsoCreateEntity(false);
+            setEntityKind("colectivo");
         }
     }, [open]);
 
@@ -101,7 +114,8 @@ export function NewChatDialog({ open, onOpenChange, onCreated }: NewChatDialogPr
         }
         setCreating(true);
         try {
-            const res = await createGroup(groupTitle.trim() || "Nuevo grupo", selected.map((s) => s.userId));
+            const title = groupTitle.trim() || "Nuevo grupo";
+            const res = await createGroup(title, selected.map((s) => s.userId));
             if (res.needsAuth) {
                 toast.error("Inicia sesión para crear un grupo.");
                 return;
@@ -110,6 +124,28 @@ export function NewChatDialog({ open, onOpenChange, onCreated }: NewChatDialogPr
                 toast.error(res.error || "No se pudo crear el grupo.");
                 return;
             }
+
+            // Opción "crear también comunidad/grupo de la red": crea el os_groups
+            // real, se auto-une el creador, vincula el hilo↔entidad y envía una
+            // tarjeta-invitación a cada participante para que se unan ellos
+            // mismos (RLS de os_memberships exige auto-servicio).
+            if (alsoCreateEntity) {
+                const entityRes = await createOsGroup({ name: title, kind: entityKind, description: `Creado desde el chat «${title}».` });
+                if (entityRes.ok && entityRes.slug) {
+                    await setMembership(entityRes.slug, true, "owner");
+                    await setThreadEntityLink(res.thread.id, { kind: "group", slug: entityRes.slug });
+                    const invite = buildInviteAttachment({ targetKind: "group", refId: entityRes.slug, name: title });
+                    await sendMessage(res.thread.id, {
+                        body: `Este chat también tiene una comunidad en la red: **${title}**.`,
+                        attachments: [invite],
+                        kind: "system",
+                    });
+                    toast.success("Grupo de chat y comunidad de la red creados.");
+                } else {
+                    toast.error(entityRes.error || "El chat se creó, pero no se pudo crear la comunidad de la red.");
+                }
+            }
+
             onOpenChange(false);
             onCreated(res.thread.id);
         } finally {
@@ -138,6 +174,44 @@ export function NewChatDialog({ open, onOpenChange, onCreated }: NewChatDialogPr
                             placeholder="Nombre del grupo (opcional)"
                             className="mt-3 h-9 text-sm"
                         />
+                    )}
+
+                    {tab === "group" && (
+                        <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <Label htmlFor="also-create-entity" className="text-xs font-semibold cursor-pointer">
+                                    Crear también comunidad/grupo de la red
+                                </Label>
+                                <Switch id="also-create-entity" checked={alsoCreateEntity} onCheckedChange={setAlsoCreateEntity} />
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                                Además del chat, crea una entidad real en la red (visible en /grupo/…). Tú te unes al
+                                instante; el resto recibe una invitación en el propio chat para unirse.
+                            </p>
+                            {alsoCreateEntity && (
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                    {([
+                                        ["asamblea", "Asamblea", Landmark],
+                                        ["circulo", "Círculo", CircleDot],
+                                        ["colectivo", "Colectivo", Boxes],
+                                    ] as const).map(([kind, label, Icon]) => (
+                                        <button
+                                            key={kind}
+                                            type="button"
+                                            onClick={() => setEntityKind(kind)}
+                                            className={cn(
+                                                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                                                entityKind === kind
+                                                    ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200"
+                                                    : "border-white/10 bg-white/[0.02] text-white/55 hover:border-white/25 hover:text-white",
+                                            )}
+                                        >
+                                            <Icon className="w-3 h-3" /> {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     )}
 
                     {tab === "group" && selected.length > 0 && (

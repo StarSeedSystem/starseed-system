@@ -49,6 +49,14 @@ export const PROFILE_SECTION_IDS = [
     "enlaces",
     "archivos",
     "discusion",
+    // Aditivo (Formatos de perfil): contenido público sincronizado vía
+    // entity-layout.ts (entity_state 'layout', kind='user') — a diferencia de
+    // blocks/sections/links de más arriba, que son SOLO locales a este
+    // dispositivo. Solo orden/visibilidad se guardan aquí; el CONTENIDO vive
+    // en entity_state.
+    "sobremi",
+    "galeria",
+    "secciones",
 ] as const;
 export type ProfileSectionId = (typeof PROFILE_SECTION_IDS)[number];
 

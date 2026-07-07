@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { AppearanceEditor } from "@/components/settings/appearance/appearance-editor";
 import { AccessibilitySettings } from "@/components/settings/appearance/accessibility-settings";
 import IntegrationsPanel from "@/components/integrations/integrations-panel";
@@ -263,9 +264,29 @@ function CategoryChipsBar({ activeTab, onNavigate }: { activeTab: string; onNavi
     );
 }
 
+/* ── Pestañas válidas (para deep-link ?tab=… desde /cuenta u otras páginas) ── */
+const VALID_TABS = new Set([
+    "appearance", "desktops", "trinity", "ai", "account",
+    "privacy-security", "notifications", "accessibility", "advanced",
+]);
+
 /* ── Página principal ───────────────────────────────────────────────────────── */
+// Envuelta en Suspense: SettingsPageInner usa useSearchParams (deep-link ?tab=…),
+// lo que exige un límite Suspense para no forzar el bailout de prerender estático.
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = React.useState("appearance");
+    return (
+        <React.Suspense fallback={<div className="p-10 text-center text-sm text-muted-foreground">Cargando ajustes…</div>}>
+            <SettingsPageInner />
+        </React.Suspense>
+    );
+}
+
+function SettingsPageInner() {
+    const searchParams = useSearchParams();
+    const [activeTab, setActiveTab] = React.useState<string>(() => {
+        const fromUrl = searchParams?.get("tab");
+        return fromUrl && VALID_TABS.has(fromUrl) ? fromUrl : "appearance";
+    });
 
     // Ancla REAL: activa la pestaña y desplaza con scroll suave hasta el
     // panel de secciones (respeta prefers-reduced-motion).

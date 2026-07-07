@@ -25,8 +25,18 @@ import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { SaveToLibrary } from "@/components/library/save-to-library";
 import type { DmAttachment, DmMessage } from "@/lib/messages/dm";
 import type { OsProfile } from "@/lib/social/os-profiles";
+// Invitaciones (grupo/página/evento) y referencias vivas de "Contenido de la
+// red" (Adenda jul-2026): mismo render compartido con Correos/Comentarios.
+import { UniversalAttachmentView, isInviteLike, isNetworkRefLike } from "@/components/files/universal-attachment-view";
+// Previsualización rica (pdf/código/genérico descargable — Requisito 4):
+// reutiliza el mismo visor universal que ya usan comentarios/biblioteca.
+import { FilePreview } from "@/components/files/file-preview";
 
 function AttachmentView({ attachment }: { attachment: DmAttachment }) {
+    if (isInviteLike(attachment) || isNetworkRefLike(attachment)) {
+        return <UniversalAttachmentView attachment={attachment} />;
+    }
+
     if (attachment.kind === "server") {
         return (
             <Link
@@ -66,8 +76,23 @@ function AttachmentView({ attachment }: { attachment: DmAttachment }) {
         );
     }
 
-    // file / route / ref genérico
-    const href = attachment.route || attachment.url;
+    // pdf / código / archivo genérico descargable (con URL real): visor rico
+    // compartido en vez de una simple tarjeta de descarga (Requisito 4).
+    if (attachment.url) {
+        return (
+            <div className="w-[min(280px,68vw)]">
+                <FilePreview
+                    file={{ url: attachment.url, name: attachment.name, mime: attachment.mime, type: attachment.kind }}
+                    context="message"
+                    compact
+                    actions={false}
+                />
+            </div>
+        );
+    }
+
+    // Referencia interna sin archivo real (solo `route`, p.ej. un enlace de app).
+    const href = attachment.route;
     const content = (
         <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 w-[min(280px,68vw)] hover:bg-white/[0.06] transition-colors">
             <FileIcon className="w-4 h-4 text-muted-foreground shrink-0" />
