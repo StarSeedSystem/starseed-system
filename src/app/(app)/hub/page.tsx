@@ -30,6 +30,7 @@ import EgoContextOption from "@/components/aurora/ego-context-option";
 import { createEgoForContext } from "@/lib/aurora/ego";
 import { HubRedSection } from "./red-section";
 import { HubDiscoverSection } from "./discover-section";
+import { UserDirectoryResults, GroupDirectoryResults, UserRecommendationsStrip } from "@/components/hub/user-directory-results";
 
 // Pestañas válidas del Hub (para deep-linking `?tab=` desde el dock / enlaces).
 const HUB_TABS = ["buscador", "contributions", "red", "my-pages", "groups", "calendar", "parties", "vote-management"] as const;
@@ -613,6 +614,11 @@ export default function HubPage() {
                             </p>
                         </div>
                         <UniversalSearchBox initialQuery={headerQuery} />
+                        {/* ── Directorio de usuarios (os_profiles): avatar + Mensaje/Seguir ── */}
+                        <UserDirectoryResults query={headerQuery} />
+                        {/* ── Grupos/páginas/comunidades por nombre/slug/tags ── */}
+                        <GroupDirectoryResults query={headerQuery} />
+                        {headerQuery.trim().length < 2 && <UserRecommendationsStrip />}
                     </div>
                 </TabsContent>
 

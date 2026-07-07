@@ -55,6 +55,7 @@ import {
     type SearchCategoryKey,
     type SearchHit,
 } from "@/lib/search/universal-search";
+import { UserDirectoryResults } from "@/components/hub/user-directory-results";
 import {
     type ExplorerDomain,
     DOMAIN_CONTEXT,
@@ -542,6 +543,14 @@ export default function ExplorerPage() {
                 {isSearching && flatResults.length === 0 && (
                     <div className="w-full flex items-center justify-center py-16 text-muted-foreground gap-2">
                         <Loader2 className="w-5 h-5 animate-spin" /> Buscando en la red…
+                    </div>
+                )}
+
+                {/* Directorio de usuarios (os_profiles): avatar + Mensaje/Seguir — solo
+                    cuando el dominio activo incluye "perfiles" (ALL/POLITICS). */}
+                {DOMAIN_CATS[activeDomain].includes("perfiles") && (
+                    <div className="w-full max-w-screen-3xl">
+                        <UserDirectoryResults query={query} />
                     </div>
                 )}
 

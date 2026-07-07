@@ -34,7 +34,7 @@ export type DockIconKey =
   | 'Compass' | 'PenLine' | 'ShieldCheck' | 'LayoutGrid' | 'Server'
   | 'Vote' | 'Lightbulb' | 'Cpu' | 'Brain' | 'ShoppingBag'
   | 'Award' | 'AppWindow' | 'CalendarClock' | 'GitBranch' | 'Sparkles'
-  | 'Zap' | 'Wrench' | 'Plug' | 'Eye' | 'HardDrive';
+  | 'Zap' | 'Wrench' | 'Plug' | 'Eye' | 'HardDrive' | 'Boxes';
 
 const STORAGE_KEY = 'starseed.dock.items.v2';
 const FOLDERS_KEY = 'starseed.dock.folders.v1';
@@ -175,6 +175,7 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'hermes-mcp',    label: 'MCPs',                iconKey: 'Plug',            path: '/agent?tab=mcp',         color: 'emerald', enabled: false, origin: 'preset' },
   { id: 'hermes-senses', label: 'Sentidos',            iconKey: 'Eye',             path: '/ai-setup?tab=senses',   color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'memoria',       label: 'Memoria',             iconKey: 'HardDrive',       path: '/network/graph',         color: 'cyan',    enabled: false, origin: 'preset' },
+  { id: 'servidores-apps', label: 'Servidores de Apps', iconKey: 'Boxes',          path: '/servidores-apps',       color: 'emerald', enabled: false, origin: 'preset' },
 ];
 
 /**

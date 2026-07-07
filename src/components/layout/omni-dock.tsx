@@ -10,7 +10,7 @@ import {
     LayoutDashboard, CircleUser, MessagesSquare, Bell, Users, BookOpen, Library,
     Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
     Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
-    CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive,
+    CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
     // ── Controles del propio dock / editor ──
     Plus, Pencil, Check, RotateCcw, X, ArrowLeft, ArrowRight,
     ChevronLeft, ChevronRight, GripVertical,
@@ -44,7 +44,7 @@ const ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?: string }>>
     LayoutDashboard, CircleUser, MessagesSquare, Bell, Users, BookOpen, Library,
     Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
     Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
-    CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive,
+    CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
 };
 
 /** Icono de respaldo defensivo (jamás debería usarse: ICON_MAP es total). */

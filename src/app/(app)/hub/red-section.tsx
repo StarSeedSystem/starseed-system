@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
     Network, Scale, School, Palette, ArrowUpRight, Sparkles, Radio,
-    Landmark, BookOpen, Map, Boxes, Vote, CalendarDays, Users2,
+    Landmark, BookOpen, Map, Boxes, Vote, CalendarDays, Users2, Server,
 } from 'lucide-react';
 
 // ── Nodos temáticos de la Red (cada uno enlaza a su ruta real ya existente) ──
@@ -107,6 +107,7 @@ const RED_SHORTCUTS: { label: string; href: string; icon: React.ReactNode; hint:
     { label: 'Partidos', href: '/hub?tab=parties', icon: <Users2 className="w-4 h-4" />, hint: 'Acción colectiva' },
     { label: 'Votos', href: '/hub?tab=vote-management', icon: <Vote className="w-4 h-4" />, hint: 'Gestión de voto' },
     { label: 'Calendario', href: '/hub?tab=calendar', icon: <CalendarDays className="w-4 h-4" />, hint: 'Red y eventos' },
+    { label: 'Servidores de Apps', href: '/servidores-apps', icon: <Server className="w-4 h-4" />, hint: 'Apps en vivo compartidas' },
 ];
 
 export function HubRedSection() {
