@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import {
     Send, CornerDownRight, Loader2, User as UserIcon, ChevronDown, ChevronUp,
     ThumbsUp, Heart, Sparkles, Paperclip, Image as ImageIcon, Music, Video as VideoIcon,
-    File as FileIcon, Link as LinkIcon, X, Pencil, History, Clock, Flame, Trash2,
+    File as FileIcon, Link as LinkIcon, X, Pencil, History, Clock, Flame, Trash2, Globe2,
 } from "lucide-react";
 import {
     addComment,
@@ -50,6 +50,11 @@ import { FilePreview, type FileLike } from "@/components/files/file-preview";
 // locales efímeros como hacía `AttachmentPicker` con URL.createObjectURL.
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import type { UniversalAttachment } from "@/lib/files/os-files";
+// Referencias vivas de "Contenido de la red" (Adenda jul-2026): mismo render
+// compartido con Mensajes/Correos. Los comentarios NO envían invitaciones
+// (solo mensajes/correos, ver @/lib/invitations/invitations.ts) — aquí solo
+// aplica el caso "ref" (página/grupo/evento/publicación embebidos en vivo).
+import { UniversalAttachmentView, isNetworkRefLike } from "@/components/files/universal-attachment-view";
 
 /** Traduce el `kind` amplio de UniversalAttachment al vocabulario de CommentAttachment. */
 function universalToCommentKind(kind: string): CommentAttachment["kind"] {
@@ -89,6 +94,7 @@ const ATTACHMENT_KIND_META: Record<string, { icon: React.ComponentType<any>; lab
     video: { icon: VideoIcon, label: "Vídeo", accept: "video/*" },
     archivo: { icon: FileIcon, label: "Archivo", accept: "*/*" },
     enlace: { icon: LinkIcon, label: "Enlace", accept: "" },
+    ref: { icon: Globe2, label: "Referencia", accept: "" },
 };
 
 function relevanceOf(node: CommentNode): number {
@@ -143,10 +149,16 @@ function AttachmentPicker({ attachments, onChange }: AttachmentPickerProps) {
     function handleUniversalAttachments(picked: UniversalAttachment[]) {
         const next: CommentAttachment[] = picked.map((a) => ({
             id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-            kind: universalToCommentKind(a.kind),
-            url: a.url || "",
+            // Una referencia de "Contenido de la red" conserva su kind "ref" tal
+            // cual (se embebe en vivo); el resto se traduce al vocabulario de
+            // CommentAttachment como hasta ahora.
+            kind: a.kind === "ref" ? "ref" : universalToCommentKind(a.kind),
+            url: a.url || a.route || "",
             name: a.name ?? null,
             mime: a.mime ?? null,
+            refKind: a.refKind,
+            refId: a.refId,
+            route: a.route,
         }));
         onChange([...attachments, ...next]);
     }
@@ -429,15 +441,19 @@ function CommentItem({ node, depth, order, onReply, onChanged, currentUserId }: 
 
                         {attachments.length > 0 && (
                             <div className="mt-2 space-y-2">
-                                {attachments.map((a) => (
-                                    <FilePreview
-                                        key={a.id}
-                                        file={{ url: a.url, name: a.name, mime: a.mime, type: a.kind, thumbnail: a.thumbnail } as FileLike}
-                                        context="message"
-                                        compact
-                                        actions={false}
-                                    />
-                                ))}
+                                {attachments.map((a) =>
+                                    isNetworkRefLike(a) ? (
+                                        <UniversalAttachmentView key={a.id} attachment={a} />
+                                    ) : (
+                                        <FilePreview
+                                            key={a.id}
+                                            file={{ url: a.url, name: a.name, mime: a.mime, type: a.kind, thumbnail: a.thumbnail } as FileLike}
+                                            context="message"
+                                            compact
+                                            actions={false}
+                                        />
+                                    ),
+                                )}
                             </div>
                         )}
 

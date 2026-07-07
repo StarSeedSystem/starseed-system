@@ -1,7 +1,7 @@
 // src/app/(app)/grupo/[slug]/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,12 @@ import { CollectionsGrid } from "@/components/profile/collections/collections-gr
 import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
 import { pageHref, groupHref } from "@/lib/entity-links";
+import { useEntityLayout, applyTabLayout, suggestedIntegrations } from "@/lib/entity-layout";
+import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
+import { FreeSectionsBlock } from "@/components/social/free-sections-block";
+import { EntityGalleryBlock } from "@/components/social/entity-gallery-block";
+import { GroupEducationPanel } from "@/components/education/group-education-panel";
+import { DecisionesSection } from "@/components/governance/decisiones-section";
 import {
     UsersRound,
     Info,
@@ -34,6 +40,7 @@ import {
     Lock,
     Pencil,
     Network,
+    Settings2,
 } from "lucide-react";
 
 const GOLD = "#E9C46A";
@@ -202,6 +209,159 @@ export default function GrupoPage() {
     const { data: group, loading, usingFallback, refetch } = useOsEntity(slugStr, "group");
     const { isOwner } = useEntityOwner("group", group?.slug ?? "");
     const [editOpen, setEditOpen] = useState(false);
+    const [layoutEditorOpen, setLayoutEditorOpen] = useState(false);
+
+    // ── Formato personalizado (entity_state 'layout'): acento/portada, orden y
+    // visibilidad de pestañas, secciones libres e integraciones sugeridas.
+    const entityRef = useMemo(
+        () => (group?.slug ? ({ kind: "group" as const, id: group.slug }) : null),
+        [group?.slug],
+    );
+    const {
+        layout, setAccent, setCoverUrl, reorderTabs, setTabVisible,
+        addSection, updateSection, removeSection, toggleIntegration,
+        addGalleryImage, removeGalleryImage,
+    } = useEntityLayout(entityRef);
+
+    const groupKind = group?.kind ?? "colectivo";
+    const groupHasToolkit = hasToolkit(groupKind);
+    const accentForTabs = layout.accent || group?.accent || "#22d3ee";
+    const suggestions = useMemo(() => suggestedIntegrations(groupHasToolkit), [groupHasToolkit]);
+
+    // Definición de pestañas (base + integraciones activas), en su orden natural.
+    const baseTabs = useMemo(() => {
+        if (!group) return [] as Array<{ id: string; label: string; node: React.ReactNode }>;
+        const list: Array<{ id: string; label: string; node: React.ReactNode }> = [];
+        if (groupHasToolkit) {
+            list.push({
+                id: "tools",
+                label: toolkitMeta(groupKind).toolkitTab,
+                node: <GovernanceToolkit kind={group.kind} slug={group.slug} accent={accentForTabs} name={group.name} entityKind="group" />,
+            });
+        }
+        list.push({ id: "feed", label: "Feed del grupo", node: <GroupFeed slug={group.slug} accent={accentForTabs} /> });
+        list.push({
+            id: "about",
+            label: "Acerca de",
+            node: (
+                <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
+                    <div className="mb-3 flex items-center gap-2" style={{ color: accentForTabs }}>
+                        <Info className="h-5 w-5" />
+                        <h2 className="font-headline text-lg font-semibold">Acerca del grupo</h2>
+                    </div>
+                    <p className="leading-relaxed text-foreground/90">{group.description}</p>
+                </GlassCard>
+            ),
+        });
+        list.push({ id: "members", label: "Miembros", node: <MemberAvatars system="politico" total={group.memberCount} accent={accentForTabs} seed={group.id} /> });
+        list.push({
+            id: "agenda",
+            label: "Agenda",
+            node: <UnifiedCalendar title={`Agenda de ${group.name}`} subtitle="Eventos y actividades de este grupo." />,
+        });
+        list.push({
+            id: "conexiones",
+            label: "Conexiones",
+            node: (
+                <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
+                    <div className="mb-4 flex items-center gap-2" style={{ color: accentForTabs }}>
+                        <Network className="h-5 w-5" />
+                        <h2 className="font-headline text-lg font-semibold">Entidades conectadas</h2>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {samplePages.slice(0, 3).map((p) => (
+                            <Link key={p.id} href={pageHref(p)} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
+                                <Badge variant="secondary" className="mb-2 text-[10px] capitalize">{p.kind}</Badge>
+                                <p className="font-medium leading-snug group-hover:text-primary transition-colors">{p.title}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{p.members.toLocaleString("es-ES")} miembros</p>
+                            </Link>
+                        ))}
+                        {sampleGroups.slice(0, 3).map((g) => (
+                            <Link key={g.id} href={groupHref(g)} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
+                                <Badge variant="secondary" className="mb-2 text-[10px] capitalize">{g.kind}</Badge>
+                                <p className="font-medium leading-snug group-hover:text-primary transition-colors">{g.name}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{g.members.toLocaleString("es-ES")} miembros</p>
+                            </Link>
+                        ))}
+                        {listFederativeEntities().slice(0, 2).map((ef) => (
+                            <Link key={ef.slug} href={`/entidad/${ef.slug}`} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
+                                <Badge variant="secondary" className="mb-2 text-[10px]">E.F.</Badge>
+                                <p className="font-medium leading-snug group-hover:text-primary transition-colors">{ef.name}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{ef.citizens.toLocaleString("es-ES")} ciudadanos</p>
+                            </Link>
+                        ))}
+                        {listPartidos().slice(0, 2).map((p) => (
+                            <Link key={p.slug} href={`/partido/${p.slug}`} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
+                                <Badge variant="secondary" className="mb-2 text-[10px]">Partido</Badge>
+                                <p className="font-medium leading-snug group-hover:text-primary transition-colors">{p.name}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{p.members.toLocaleString("es-ES")} miembros</p>
+                            </Link>
+                        ))}
+                    </div>
+                </GlassCard>
+            ),
+        });
+        list.push({
+            id: "biblioteca",
+            label: "Biblioteca",
+            node: (
+                <EntityLibraryPanel
+                    ref={libraryRef("group", group.slug)}
+                    accent={accentForTabs}
+                    title={`Biblioteca de ${group.name}`}
+                    subtitle="Referencias guardadas por los miembros del grupo, organizadas en carpetas propias."
+                />
+            ),
+        });
+        list.push({ id: "colecciones", label: "Colecciones", node: <CollectionsGrid /> });
+        list.push({
+            id: "secciones",
+            label: "Secciones",
+            node: (
+                <FreeSectionsBlock
+                    sections={layout.sections}
+                    isOwner={isOwner}
+                    accent={accentForTabs}
+                    onAdd={addSection}
+                    onUpdate={updateSection}
+                    onRemove={removeSection}
+                    emptyHint="Añade bloques de contenido propios para este grupo (markdown libre)."
+                />
+            ),
+        });
+        if (layout.integrations.educacion) {
+            list.push({ id: "integracion-educacion", label: "Educación", node: <GroupEducationPanel slug={group.slug} accent={accentForTabs} entityKind="group" /> });
+        }
+        if (layout.integrations.gobernanza) {
+            list.push({ id: "integracion-gobernanza", label: "Gobernanza", node: <DecisionesSection kind={group.kind} slug={group.slug} accent={accentForTabs} name={group.name} /> });
+        }
+        if (layout.integrations.galeria) {
+            list.push({
+                id: "integracion-galeria",
+                label: "Galería",
+                node: (
+                    <EntityGalleryBlock
+                        images={layout.gallery}
+                        isOwner={isOwner}
+                        onAdd={addGalleryImage}
+                        onRemove={removeGalleryImage}
+                        emptyHint="Añade imágenes destacadas de este grupo."
+                    />
+                ),
+            });
+        }
+        return list;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [group, groupHasToolkit, groupKind, accentForTabs, layout.sections, layout.integrations, layout.gallery, isOwner]);
+
+    const orderedTabs = useMemo(() => applyTabLayout(baseTabs, layout.tabs), [baseTabs, layout.tabs]);
+    const visibleTabs = useMemo(() => orderedTabs.filter((t) => t.visible), [orderedTabs]);
+
+    const [activeTab, setActiveTab] = useState("");
+    useEffect(() => {
+        if (visibleTabs.length === 0) return;
+        if (!visibleTabs.some((t) => t.id === activeTab)) setActiveTab(visibleTabs[0].id);
+    }, [visibleTabs, activeTab]);
 
     if (loading) {
         return (
@@ -214,8 +374,9 @@ export default function GrupoPage() {
 
     if (!group) notFound();
 
-    const accent = group.accent;
+    const accent = accentForTabs;
     const isAssembly = group.kind === "asamblea";
+    const effectiveCover = layout.coverUrl || group.coverUrl;
 
     return (
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
@@ -226,6 +387,21 @@ export default function GrupoPage() {
                     mode="edit"
                     entity={{ type: "group", data: group as OsGroup }}
                     onSaved={() => refetch()}
+                />
+            )}
+            {isOwner && (
+                <EntityLayoutEditor
+                    open={layoutEditorOpen}
+                    onOpenChange={setLayoutEditorOpen}
+                    baseAccent={group.accent}
+                    tabs={orderedTabs}
+                    layout={layout}
+                    suggestions={suggestions}
+                    onSetAccent={setAccent}
+                    onSetCoverUrl={setCoverUrl}
+                    onReorderTabs={reorderTabs}
+                    onSetTabVisible={setTabVisible}
+                    onToggleIntegration={toggleIntegration}
                 />
             )}
             {usingFallback && (
@@ -240,10 +416,10 @@ export default function GrupoPage() {
             {/* ── Portada ── */}
             <GlassCard className="overflow-hidden">
                 <div className="relative aspect-[3/1] w-full overflow-hidden bg-muted/40">
-                    {group.coverUrl && (
+                    {effectiveCover && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                            src={group.coverUrl}
+                            src={effectiveCover}
                             alt={group.name}
                             onError={onImgError}
                             className="absolute inset-0 h-full w-full object-cover"
@@ -311,118 +487,37 @@ export default function GrupoPage() {
                                     Editar
                                 </Button>
                             )}
+                            {isOwner && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setLayoutEditorOpen(true)}
+                                    className="gap-2 cursor-pointer"
+                                    style={{ borderColor: `${accent}55`, color: accent }}
+                                >
+                                    <Settings2 className="h-4 w-4" />
+                                    Personalizar
+                                </Button>
+                            )}
                             <ShareButton title={group.name} accent={accent} />
                         </div>
                     </div>
                 </div>
             </GlassCard>
 
-            {/* ── Pestañas ── */}
-            <Tabs defaultValue="tools">
+            {/* ── Pestañas (orden/visibilidad personalizables desde "Personalizar") ── */}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto">
-                    {hasToolkit(group.kind) && (
-                        <TabsTrigger value="tools">{toolkitMeta(group.kind).toolkitTab}</TabsTrigger>
-                    )}
-                    <TabsTrigger value="feed">Feed del grupo</TabsTrigger>
-                    <TabsTrigger value="about">Acerca de</TabsTrigger>
-                    <TabsTrigger value="members">Miembros</TabsTrigger>
-                    <TabsTrigger value="agenda">Agenda</TabsTrigger>
-                    <TabsTrigger value="conexiones">Conexiones</TabsTrigger>
-                    <TabsTrigger value="biblioteca">Biblioteca</TabsTrigger>
-                    <TabsTrigger value="colecciones">Colecciones</TabsTrigger>
+                    {visibleTabs.map((t) => (
+                        <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>
+                    ))}
                 </TabsList>
 
-                {hasToolkit(group.kind) && (
-                    <TabsContent value="tools" className="mt-6">
-                        <GovernanceToolkit kind={group.kind} slug={group.slug} accent={accent} name={group.name} />
+                {visibleTabs.map((t) => (
+                    <TabsContent key={t.id} value={t.id} className="mt-6 animate-in fade-in-50 duration-500">
+                        {t.node}
                     </TabsContent>
-                )}
-
-                <TabsContent value="feed" className="mt-6">
-                    <GroupFeed slug={group.slug} accent={accent} />
-                </TabsContent>
-
-                <TabsContent value="about" className="mt-6">
-                    <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
-                        <div className="mb-3 flex items-center gap-2" style={{ color: accent }}>
-                            <Info className="h-5 w-5" />
-                            <h2 className="font-headline text-lg font-semibold">Acerca del grupo</h2>
-                        </div>
-                        <p className="leading-relaxed text-foreground/90">{group.description}</p>
-                    </GlassCard>
-                </TabsContent>
-
-                <TabsContent value="members" className="mt-6">
-                    <MemberAvatars
-                        system="politico"
-                        total={group.memberCount}
-                        accent={accent}
-                        seed={group.id}
-                    />
-                </TabsContent>
-
-                {/* ── Agenda ── */}
-                <TabsContent value="agenda" className="mt-6 animate-in fade-in-50 duration-500">
-                    <UnifiedCalendar
-                        title={`Agenda de ${group.name}`}
-                        subtitle="Eventos y actividades de este grupo."
-                    />
-                </TabsContent>
-
-                {/* ── Conexiones ── */}
-                <TabsContent value="conexiones" className="mt-6 animate-in fade-in-50 duration-500">
-                    <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
-                        <div className="mb-4 flex items-center gap-2" style={{ color: accent }}>
-                            <Network className="h-5 w-5" />
-                            <h2 className="font-headline text-lg font-semibold">Entidades conectadas</h2>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            {samplePages.slice(0, 3).map((p) => (
-                                <Link key={p.id} href={pageHref(p)} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                    <Badge variant="secondary" className="mb-2 text-[10px] capitalize">{p.kind}</Badge>
-                                    <p className="font-medium leading-snug group-hover:text-primary transition-colors">{p.title}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">{p.members.toLocaleString("es-ES")} miembros</p>
-                                </Link>
-                            ))}
-                            {sampleGroups.slice(0, 3).map((g) => (
-                                <Link key={g.id} href={groupHref(g)} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                    <Badge variant="secondary" className="mb-2 text-[10px] capitalize">{g.kind}</Badge>
-                                    <p className="font-medium leading-snug group-hover:text-primary transition-colors">{g.name}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">{g.members.toLocaleString("es-ES")} miembros</p>
-                                </Link>
-                            ))}
-                            {listFederativeEntities().slice(0, 2).map((ef) => (
-                                <Link key={ef.slug} href={`/entidad/${ef.slug}`} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                    <Badge variant="secondary" className="mb-2 text-[10px]">E.F.</Badge>
-                                    <p className="font-medium leading-snug group-hover:text-primary transition-colors">{ef.name}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">{ef.citizens.toLocaleString("es-ES")} ciudadanos</p>
-                                </Link>
-                            ))}
-                            {listPartidos().slice(0, 2).map((p) => (
-                                <Link key={p.slug} href={`/partido/${p.slug}`} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                    <Badge variant="secondary" className="mb-2 text-[10px]">Partido</Badge>
-                                    <p className="font-medium leading-snug group-hover:text-primary transition-colors">{p.name}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">{p.members.toLocaleString("es-ES")} miembros</p>
-                                </Link>
-                            ))}
-                        </div>
-                    </GlassCard>
-                </TabsContent>
-
-                {/* ── Biblioteca: lo GUARDADO por este grupo (distinto de la Librería) ── */}
-                <TabsContent value="biblioteca" className="mt-6 animate-in fade-in-50 duration-500">
-                    <EntityLibraryPanel
-                        ref={libraryRef("group", group.slug)}
-                        accent={accent}
-                        title={`Biblioteca de ${group.name}`}
-                        subtitle="Referencias guardadas por los miembros del grupo, organizadas en carpetas propias."
-                    />
-                </TabsContent>
-
-                {/* ── Colecciones ── */}
-                <TabsContent value="colecciones" className="mt-6 animate-in fade-in-50 duration-500">
-                    <CollectionsGrid />
-                </TabsContent>
+                ))}
             </Tabs>
 
             <p className="text-center text-xs text-muted-foreground">

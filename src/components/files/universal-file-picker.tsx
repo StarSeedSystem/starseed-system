@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import {
     Upload, Loader2, X, File as FileIcon, Image as ImageIcon, Music, Video as VideoIcon,
     Link as LinkIcon, BookMarked, Cpu, Search, Send, Check, AlertCircle,
+    Globe2, Users2, FileText, CalendarDays, Rss,
 } from "lucide-react";
 import {
     uploadFile,
@@ -54,6 +55,10 @@ import {
     type EntityRef,
     type SavedItem,
 } from "@/lib/library/entity-library";
+// "Contenido de la red" (Adenda jul-2026): buscar páginas/grupos/eventos/
+// publicaciones propios y públicos para adjuntar como REFERENCIA EN VIVO
+// (se embebe con EmbeddedContentWindow — ver universal-attachment-view.tsx).
+import { searchNetworkContent, type NetworkContentRef } from "@/lib/files/network-content-ref";
 
 // ───────────────────────────── Tipos públicos ────────────────────────────────
 
@@ -68,8 +73,8 @@ export interface UniversalFilePickerProps {
     folder?: string;
     /** Título del diálogo. */
     title?: string;
-    /** Oculta alguna pestaña si no aplica al contexto (por defecto las 3 visibles). */
-    hideTabs?: Array<"dispositivo" | "bibliotecas" | "neuronas">;
+    /** Oculta alguna pestaña si no aplica al contexto (por defecto las 4 visibles). */
+    hideTabs?: Array<"dispositivo" | "bibliotecas" | "neuronas" | "red">;
 }
 
 // ───────────────────────── Utilidades de icono/formato ───────────────────────
@@ -521,12 +526,93 @@ function NeuronsTab({ onPicked }: { onPicked: (attachments: UniversalAttachment[
     );
 }
 
+// ───────────────────────────── (d) Pestaña Contenido de la red ──────────────
+
+const NETWORK_REF_ICON: Record<string, typeof Users2> = {
+    page: FileText,
+    group: Users2,
+    event: CalendarDays,
+    post: Rss,
+};
+
+function NetworkContentTab({ onPicked }: { onPicked: (attachments: UniversalAttachment[]) => void }) {
+    const [query, setQuery] = useState("");
+    const [results, setResults] = useState<NetworkContentRef[]>([]);
+    const [searching, setSearching] = useState(false);
+
+    useEffect(() => {
+        const term = query.trim();
+        if (term.length < 1) {
+            setResults([]);
+            return;
+        }
+        setSearching(true);
+        const t = setTimeout(async () => {
+            setResults(await searchNetworkContent(term));
+            setSearching(false);
+        }, 250);
+        return () => clearTimeout(t);
+    }, [query]);
+
+    const pick = (r: NetworkContentRef) => {
+        onPicked([{ kind: "ref", name: r.name, url: r.route, refKind: r.refKind, refId: r.refId, route: r.route }]);
+    };
+
+    return (
+        <div className="space-y-3">
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-white/30" />
+                <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Buscar páginas, grupos, eventos, publicaciones…"
+                    className="h-8 rounded-lg border-white/10 bg-black/20 pl-8 text-xs"
+                />
+                {searching && (
+                    <Loader2 className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-white/30" />
+                )}
+            </div>
+
+            {query.trim().length === 0 ? (
+                <p className="flex flex-col items-center gap-2 py-10 text-center text-xs text-white/35">
+                    <Globe2 className="size-6 opacity-40" />
+                    Busca contenido propio o público de la red para adjuntarlo como referencia en vivo.
+                </p>
+            ) : results.length === 0 && !searching ? (
+                <p className="py-8 text-center text-xs text-white/35">Sin resultados para «{query}».</p>
+            ) : (
+                <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
+                    {results.map((r) => {
+                        const Icon = NETWORK_REF_ICON[r.refKind] ?? FileText;
+                        return (
+                            <button
+                                key={`${r.refKind}:${r.refId}`}
+                                type="button"
+                                onClick={() => pick(r)}
+                                className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-left transition-colors duration-200 hover:border-cyan-400/30 hover:bg-white/[0.06]"
+                            >
+                                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/5">
+                                    <Icon className="size-3.5 text-white/60" />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-xs font-medium text-white/85">{r.name}</p>
+                                    {r.description && <p className="truncate text-[10px] text-white/40">{r.description}</p>}
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ───────────────────────────── Componente raíz ───────────────────────────────
 
 export function UniversalFilePicker({
     open, onOpenChange, onPick, accept, folder, title = "Adjuntar archivo", hideTabs = [],
 }: UniversalFilePickerProps) {
-    const tabs = (["dispositivo", "bibliotecas", "neuronas"] as const).filter((t) => !hideTabs.includes(t));
+    const tabs = (["dispositivo", "bibliotecas", "neuronas", "red"] as const).filter((t) => !hideTabs.includes(t));
 
     const handlePicked = (attachments: UniversalAttachment[]) => {
         if (attachments.length === 0) return;
@@ -562,6 +648,11 @@ export function UniversalFilePicker({
                                 <Cpu className="size-3.5" /> Neuronas
                             </TabsTrigger>
                         )}
+                        {tabs.includes("red") && (
+                            <TabsTrigger value="red" className="cursor-pointer gap-1.5">
+                                <Globe2 className="size-3.5" /> Contenido de la red
+                            </TabsTrigger>
+                        )}
                     </TabsList>
 
                     {tabs.includes("dispositivo") && (
@@ -579,6 +670,11 @@ export function UniversalFilePicker({
                             <NeuronsTab onPicked={handlePicked} />
                         </TabsContent>
                     )}
+                    {tabs.includes("red") && (
+                        <TabsContent value="red">
+                            <NetworkContentTab onPicked={handlePicked} />
+                        </TabsContent>
+                    )}
                 </Tabs>
             </DialogContent>
         </Dialog>
@@ -594,7 +690,7 @@ export interface AttachFilePickerButtonProps {
     accept?: string;
     folder?: string;
     title?: string;
-    hideTabs?: Array<"dispositivo" | "bibliotecas" | "neuronas">;
+    hideTabs?: Array<"dispositivo" | "bibliotecas" | "neuronas" | "red">;
     className?: string;
     /** Icono/etiqueta ya los define el llamador vía children; por defecto un clip. */
     children?: ReactNode;

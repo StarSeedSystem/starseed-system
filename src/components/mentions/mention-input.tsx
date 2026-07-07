@@ -18,12 +18,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
+    forwardRef,
     useCallback,
     useEffect,
+    useImperativeHandle,
     useMemo,
     useRef,
     useState,
     type ComponentType,
+    type ForwardedRef,
     type KeyboardEvent,
 } from "react";
 import { cn } from "@/lib/utils";
@@ -99,6 +102,18 @@ export interface MentionInputProps {
     id?: string;
 }
 
+/** API imperativa opcional (barra de formato del compositor): envolver la
+ *  selección con marcas markdown o insertar texto en el cursor. Aditivo — los
+ *  consumidores que no pasan `ref` siguen funcionando exactamente igual. */
+export interface MentionInputHandle {
+    /** Envuelve la selección actual con `before`/`after` (markdown); si no hay
+     *  selección, inserta `placeholder` envuelto y lo deja seleccionado. */
+    wrapSelection: (before: string, after?: string, placeholder?: string) => void;
+    /** Inserta texto en la posición del cursor (o al final si no hay foco). */
+    insertAtCursor: (text: string) => void;
+    focus: () => void;
+}
+
 // Debounce simple para no saturar la búsqueda al teclear.
 function useDebounced<T>(value: T, ms: number): T {
     const [v, setV] = useState(value);
@@ -113,15 +128,18 @@ function useDebounced<T>(value: T, ms: number): T {
  * Textarea con menciones universales #/@. Dependency-free: usa el propio
  * textarea + un popover absoluto propio (sin cmdk ni editores).
  */
-export default function MentionInput({
-    value,
-    onChange,
-    placeholder,
-    className,
-    onMentionsChange,
-    rows = 5,
-    id,
-}: MentionInputProps) {
+function MentionInputInner(
+    {
+        value,
+        onChange,
+        placeholder,
+        className,
+        onMentionsChange,
+        rows = 5,
+        id,
+    }: MentionInputProps,
+    ref: ForwardedRef<MentionInputHandle>,
+) {
     const taRef = useRef<HTMLTextAreaElement | null>(null);
     const [active, setActive] = useState<ActiveTrigger | null>(null);
     const [hits, setHits] = useState<EntityHit[]>([]);
@@ -139,6 +157,54 @@ export default function MentionInput({
         onMentionsChange?.(mentions);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value]);
+
+    // API imperativa (barra de formato del compositor). No afecta a los
+    // consumidores que no pasan `ref` (comment-thread, red, etc.).
+    useImperativeHandle(
+        ref,
+        () => ({
+            wrapSelection(before: string, after = before, placeholder = "") {
+                const ta = taRef.current;
+                const start = ta?.selectionStart ?? value.length;
+                const end = ta?.selectionEnd ?? value.length;
+                const selected = value.slice(start, end) || placeholder;
+                const next = value.slice(0, start) + before + selected + after + value.slice(end);
+                onChange(next);
+                requestAnimationFrame(() => {
+                    if (!ta) return;
+                    ta.focus();
+                    const caretStart = start + before.length;
+                    const caretEnd = caretStart + selected.length;
+                    try {
+                        ta.setSelectionRange(caretStart, caretEnd);
+                    } catch {
+                        /* noop */
+                    }
+                });
+            },
+            insertAtCursor(text: string) {
+                const ta = taRef.current;
+                const start = ta?.selectionStart ?? value.length;
+                const end = ta?.selectionEnd ?? value.length;
+                const next = value.slice(0, start) + text + value.slice(end);
+                onChange(next);
+                requestAnimationFrame(() => {
+                    if (!ta) return;
+                    ta.focus();
+                    const caret = start + text.length;
+                    try {
+                        ta.setSelectionRange(caret, caret);
+                    } catch {
+                        /* noop */
+                    }
+                });
+            },
+            focus() {
+                taRef.current?.focus();
+            },
+        }),
+        [value, onChange],
+    );
 
     // Recalcula el disparador activo a partir del cursor.
     const refreshTrigger = useCallback(() => {
@@ -335,3 +401,8 @@ export default function MentionInput({
 function escapeRe(s: string): string {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+const MentionInput = forwardRef(MentionInputInner);
+MentionInput.displayName = "MentionInput";
+
+export default MentionInput;

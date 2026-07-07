@@ -54,6 +54,8 @@ import { BrainsWidget } from "@/components/dashboard/widgets/brains-widget";
 import { VaultsWidget } from "@/components/dashboard/widgets/vaults-widget";
 import { DocumentsWidget } from "@/components/dashboard/widgets/documents-widget";
 import { NotificationsWidget } from "@/components/dashboard/widgets/notifications-widget";
+import { RecentGalleryWidget } from "@/components/dashboard/widgets/recent-gallery-widget";
+import { CameraQuickWidget } from "@/components/dashboard/widgets/camera-quick-widget";
 import { AiGeneratedWidget } from "@/components/dashboard/widgets/ai-generated-widget";
 import { AppLauncherWidget } from "@/components/dashboard/widgets/app-launcher-widget";
 import { UniversalOpenerWidget } from "@/components/dashboard/widgets/universal-opener-widget";
@@ -254,6 +256,10 @@ function WidgetRegistryInner({ widget }: WidgetProps) {
             return <DocumentsWidget />;
         case 'NOTIFICATIONS':
             return <NotificationsWidget />;
+        case 'RECENT_GALLERY':
+            return <RecentGalleryWidget />;
+        case 'CAMERA_QUICK':
+            return <CameraQuickWidget />;
         case 'LIVE_DATA':
             return <LiveDataWidget />;
         case 'AI_GENERATED':

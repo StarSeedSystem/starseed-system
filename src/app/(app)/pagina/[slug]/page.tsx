@@ -1,7 +1,7 @@
 // src/app/(app)/pagina/[slug]/page.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,12 @@ import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { CollectionsGrid } from "@/components/profile/collections/collections-grid";
 import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
+import { useEntityLayout, applyTabLayout, suggestedIntegrations } from "@/lib/entity-layout";
+import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
+import { FreeSectionsBlock } from "@/components/social/free-sections-block";
+import { EntityGalleryBlock } from "@/components/social/entity-gallery-block";
+import { GroupEducationPanel } from "@/components/education/group-education-panel";
+import { DecisionesSection } from "@/components/governance/decisiones-section";
 import {
     Users,
     CalendarDays,
@@ -44,6 +50,7 @@ import {
     Lock,
     Pencil,
     Network,
+    Settings2,
 } from "lucide-react";
 
 const GOLD = "#E9C46A";
@@ -222,11 +229,209 @@ export default function PaginaPage() {
     const { data: allEvents } = useOsEvents();
     const { isOwner } = useEntityOwner("page", page?.slug ?? "");
     const [editOpen, setEditOpen] = useState(false);
+    const [layoutEditorOpen, setLayoutEditorOpen] = useState(false);
 
     const events = useMemo(
         () => (page ? allEvents.filter((e) => e.organizerSlug === page.slug) : []),
         [allEvents, page],
     );
+
+    // ── Formato personalizado (entity_state 'layout'): acento/portada, orden y
+    // visibilidad de pestañas, secciones libres e integraciones sugeridas.
+    const entityRef = useMemo(
+        () => (page?.slug ? ({ kind: "page" as const, id: page.slug }) : null),
+        [page?.slug],
+    );
+    const {
+        layout, setAccent, setCoverUrl, reorderTabs, setTabVisible,
+        addSection, updateSection, removeSection, toggleIntegration,
+        addGalleryImage, removeGalleryImage,
+    } = useEntityLayout(entityRef);
+
+    const pageKind = page?.kind ?? "pagina";
+    const pageHasToolkit = hasToolkit(pageKind);
+    const accentForTabs = layout.accent || page?.accent || "#E9C46A";
+    const suggestions = useMemo(() => suggestedIntegrations(pageHasToolkit), [pageHasToolkit]);
+
+    const baseTabs = useMemo(() => {
+        if (!page) return [] as Array<{ id: string; label: string; node: React.ReactNode }>;
+        const list: Array<{ id: string; label: string; node: React.ReactNode }> = [];
+        if (pageHasToolkit) {
+            list.push({
+                id: "tools",
+                label: toolkitMeta(pageKind).toolkitTab,
+                node: <GovernanceToolkit kind={page.kind} slug={page.slug} accent={accentForTabs} name={page.name} entityKind="page" />,
+            });
+        }
+        list.push({ id: "posts", label: "Publicaciones", node: <PageFeed slug={page.slug} accent={accentForTabs} /> });
+        list.push({
+            id: "about",
+            label: "Acerca de",
+            node: (
+                <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
+                    <div className="mb-3 flex items-center gap-2" style={{ color: accentForTabs }}>
+                        <Info className="h-5 w-5" />
+                        <h2 className="font-headline text-lg font-semibold">Acerca de</h2>
+                    </div>
+                    <p className="leading-relaxed text-foreground/90">{page.description}</p>
+                </GlassCard>
+            ),
+        });
+        list.push({ id: "members", label: "Miembros", node: <MemberAvatars system="politico" total={page.memberCount} accent={accentForTabs} seed={page.id} /> });
+        list.push({
+            id: "events",
+            label: "Eventos",
+            node: events.length === 0 ? (
+                <div className="rounded-2xl border border-border/50 p-8 text-center text-sm text-muted-foreground">
+                    Esta página todavía no organiza eventos próximos.
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {events.map((e) => (
+                        <Link key={e.id} href={eventHref(e.slug)} className="cursor-pointer">
+                            <GlassCard variant="hover" className="flex h-full flex-col overflow-hidden">
+                                <div className="relative aspect-video w-full overflow-hidden bg-muted/40">
+                                    {e.coverUrl && (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={e.coverUrl}
+                                            alt={e.title}
+                                            loading="lazy"
+                                            onError={onImgError}
+                                            className="absolute inset-0 h-full w-full object-cover"
+                                        />
+                                    )}
+                                </div>
+                                <div className="flex flex-1 flex-col gap-2 p-4">
+                                    <h3 className="font-semibold leading-snug">{e.title}</h3>
+                                    {e.startsAt && (
+                                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                            <CalendarDays className="h-3.5 w-3.5" />
+                                            {dateFmt.format(new Date(e.startsAt))}
+                                        </p>
+                                    )}
+                                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                        <MapPin className="h-3.5 w-3.5" />
+                                        <span className="truncate">{e.location}</span>
+                                    </p>
+                                    <span className="mt-1 flex items-center gap-1 text-xs font-medium" style={{ color: accentForTabs }}>
+                                        Ver evento <ArrowUpRight className="h-3.5 w-3.5" />
+                                    </span>
+                                </div>
+                            </GlassCard>
+                        </Link>
+                    ))}
+                </div>
+            ),
+        });
+        list.push({
+            id: "agenda",
+            label: "Agenda",
+            node: <UnifiedCalendar title={`Agenda de ${page.name}`} subtitle="Eventos y actividades organizados por esta página." />,
+        });
+        list.push({
+            id: "conexiones",
+            label: "Conexiones",
+            node: (
+                <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
+                    <div className="mb-4 flex items-center gap-2" style={{ color: accentForTabs }}>
+                        <Network className="h-5 w-5" />
+                        <h2 className="font-headline text-lg font-semibold">Entidades conectadas</h2>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {samplePages.slice(0, 3).map((p) => (
+                            <Link key={p.id} href={pageHref(p)} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
+                                <Badge variant="secondary" className="mb-2 text-[10px] capitalize">{p.kind}</Badge>
+                                <p className="font-medium leading-snug group-hover:text-primary transition-colors">{p.title}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{p.members.toLocaleString("es-ES")} miembros</p>
+                            </Link>
+                        ))}
+                        {sampleGroups.slice(0, 3).map((g) => (
+                            <Link key={g.id} href={groupHref(g)} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
+                                <Badge variant="secondary" className="mb-2 text-[10px] capitalize">{g.kind}</Badge>
+                                <p className="font-medium leading-snug group-hover:text-primary transition-colors">{g.name}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{g.members.toLocaleString("es-ES")} miembros</p>
+                            </Link>
+                        ))}
+                        {listFederativeEntities().slice(0, 2).map((ef) => (
+                            <Link key={ef.slug} href={`/entidad/${ef.slug}`} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
+                                <Badge variant="secondary" className="mb-2 text-[10px]">E.F.</Badge>
+                                <p className="font-medium leading-snug group-hover:text-primary transition-colors">{ef.name}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{ef.citizens.toLocaleString("es-ES")} ciudadanos</p>
+                            </Link>
+                        ))}
+                        {listPartidos().slice(0, 2).map((p) => (
+                            <Link key={p.slug} href={`/partido/${p.slug}`} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
+                                <Badge variant="secondary" className="mb-2 text-[10px]">Partido</Badge>
+                                <p className="font-medium leading-snug group-hover:text-primary transition-colors">{p.name}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{p.members.toLocaleString("es-ES")} miembros</p>
+                            </Link>
+                        ))}
+                    </div>
+                </GlassCard>
+            ),
+        });
+        list.push({
+            id: "biblioteca",
+            label: "Biblioteca",
+            node: (
+                <EntityLibraryPanel
+                    ref={libraryRef("page", page.slug)}
+                    accent={accentForTabs}
+                    title={`Biblioteca de ${page.name}`}
+                    subtitle="Referencias guardadas por esta página, organizadas en carpetas propias."
+                />
+            ),
+        });
+        list.push({ id: "colecciones", label: "Colecciones", node: <CollectionsGrid /> });
+        list.push({
+            id: "secciones",
+            label: "Secciones",
+            node: (
+                <FreeSectionsBlock
+                    sections={layout.sections}
+                    isOwner={isOwner}
+                    accent={accentForTabs}
+                    onAdd={addSection}
+                    onUpdate={updateSection}
+                    onRemove={removeSection}
+                    emptyHint="Añade bloques de contenido propios para esta página (markdown libre)."
+                />
+            ),
+        });
+        if (layout.integrations.educacion) {
+            list.push({ id: "integracion-educacion", label: "Educación", node: <GroupEducationPanel slug={page.slug} accent={accentForTabs} entityKind="page" /> });
+        }
+        if (layout.integrations.gobernanza) {
+            list.push({ id: "integracion-gobernanza", label: "Gobernanza", node: <DecisionesSection kind={page.kind} slug={page.slug} accent={accentForTabs} name={page.name} /> });
+        }
+        if (layout.integrations.galeria) {
+            list.push({
+                id: "integracion-galeria",
+                label: "Galería",
+                node: (
+                    <EntityGalleryBlock
+                        images={layout.gallery}
+                        isOwner={isOwner}
+                        onAdd={addGalleryImage}
+                        onRemove={removeGalleryImage}
+                        emptyHint="Añade imágenes destacadas de esta página."
+                    />
+                ),
+            });
+        }
+        return list;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [page, pageHasToolkit, pageKind, accentForTabs, events, layout.sections, layout.integrations, layout.gallery, isOwner]);
+
+    const orderedTabs = useMemo(() => applyTabLayout(baseTabs, layout.tabs), [baseTabs, layout.tabs]);
+    const visibleTabs = useMemo(() => orderedTabs.filter((t) => t.visible), [orderedTabs]);
+
+    const [activeTab, setActiveTab] = useState("");
+    useEffect(() => {
+        if (visibleTabs.length === 0) return;
+        if (!visibleTabs.some((t) => t.id === activeTab)) setActiveTab(visibleTabs[0].id);
+    }, [visibleTabs, activeTab]);
 
     if (loading) {
         return (
@@ -239,8 +444,9 @@ export default function PaginaPage() {
 
     if (!page) notFound();
 
-    const accent = page.accent;
+    const accent = accentForTabs;
     const isCommunity = page.kind === "comunidad";
+    const effectiveCover = layout.coverUrl || page.coverUrl;
 
     return (
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
@@ -251,6 +457,21 @@ export default function PaginaPage() {
                     mode="edit"
                     entity={{ type: "page", data: page as OsPage }}
                     onSaved={() => refetch()}
+                />
+            )}
+            {isOwner && (
+                <EntityLayoutEditor
+                    open={layoutEditorOpen}
+                    onOpenChange={setLayoutEditorOpen}
+                    baseAccent={page.accent}
+                    tabs={orderedTabs}
+                    layout={layout}
+                    suggestions={suggestions}
+                    onSetAccent={setAccent}
+                    onSetCoverUrl={setCoverUrl}
+                    onReorderTabs={reorderTabs}
+                    onSetTabVisible={setTabVisible}
+                    onToggleIntegration={toggleIntegration}
                 />
             )}
             {usingFallback && (
@@ -265,10 +486,10 @@ export default function PaginaPage() {
             {/* ── Portada ── */}
             <GlassCard className="overflow-hidden">
                 <div className="relative aspect-[3/1] w-full overflow-hidden bg-muted/40">
-                    {page.coverUrl && (
+                    {effectiveCover && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                            src={page.coverUrl}
+                            src={effectiveCover}
                             alt={page.name}
                             onError={onImgError}
                             className="absolute inset-0 h-full w-full object-cover"
@@ -317,6 +538,18 @@ export default function PaginaPage() {
                                     Editar
                                 </Button>
                             )}
+                            {isOwner && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setLayoutEditorOpen(true)}
+                                    className="gap-2 cursor-pointer"
+                                    style={{ borderColor: `${accent}55`, color: accent }}
+                                >
+                                    <Settings2 className="h-4 w-4" />
+                                    Personalizar
+                                </Button>
+                            )}
                             <ShareButton title={page.name} accent={accent} />
                         </div>
                     </div>
@@ -332,161 +565,19 @@ export default function PaginaPage() {
                 </div>
             </GlassCard>
 
-            {/* ── Pestañas ── */}
-            <Tabs defaultValue={hasToolkit(page.kind) ? "tools" : "posts"}>
+            {/* ── Pestañas (orden/visibilidad personalizables desde "Personalizar") ── */}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto">
-                    {hasToolkit(page.kind) && (
-                        <TabsTrigger value="tools">{toolkitMeta(page.kind).toolkitTab}</TabsTrigger>
-                    )}
-                    <TabsTrigger value="posts">Publicaciones</TabsTrigger>
-                    <TabsTrigger value="about">Acerca de</TabsTrigger>
-                    <TabsTrigger value="members">Miembros</TabsTrigger>
-                    <TabsTrigger value="events">Eventos</TabsTrigger>
-                    <TabsTrigger value="agenda">Agenda</TabsTrigger>
-                    <TabsTrigger value="conexiones">Conexiones</TabsTrigger>
-                    <TabsTrigger value="biblioteca">Biblioteca</TabsTrigger>
-                    <TabsTrigger value="colecciones">Colecciones</TabsTrigger>
+                    {visibleTabs.map((t) => (
+                        <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>
+                    ))}
                 </TabsList>
 
-                {hasToolkit(page.kind) && (
-                    <TabsContent value="tools" className="mt-6">
-                        <GovernanceToolkit kind={page.kind} slug={page.slug} accent={accent} name={page.name} />
+                {visibleTabs.map((t) => (
+                    <TabsContent key={t.id} value={t.id} className="mt-6 animate-in fade-in-50 duration-500">
+                        {t.node}
                     </TabsContent>
-                )}
-
-                <TabsContent value="posts" className="mt-6">
-                    <PageFeed slug={page.slug} accent={accent} />
-                </TabsContent>
-
-                <TabsContent value="about" className="mt-6">
-                    <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
-                        <div className="mb-3 flex items-center gap-2" style={{ color: accent }}>
-                            <Info className="h-5 w-5" />
-                            <h2 className="font-headline text-lg font-semibold">Acerca de</h2>
-                        </div>
-                        <p className="leading-relaxed text-foreground/90">{page.description}</p>
-                    </GlassCard>
-                </TabsContent>
-
-                <TabsContent value="members" className="mt-6">
-                    <MemberAvatars
-                        system="politico"
-                        total={page.memberCount}
-                        accent={accent}
-                        seed={page.id}
-                    />
-                </TabsContent>
-
-                <TabsContent value="events" className="mt-6">
-                    {events.length === 0 ? (
-                        <div className="rounded-2xl border border-border/50 p-8 text-center text-sm text-muted-foreground">
-                            Esta página todavía no organiza eventos próximos.
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            {events.map((e) => (
-                                <Link key={e.id} href={eventHref(e.slug)} className="cursor-pointer">
-                                    <GlassCard variant="hover" className="flex h-full flex-col overflow-hidden">
-                                        <div className="relative aspect-video w-full overflow-hidden bg-muted/40">
-                                            {e.coverUrl && (
-                                                // eslint-disable-next-line @next/next/no-img-element
-                                                <img
-                                                    src={e.coverUrl}
-                                                    alt={e.title}
-                                                    loading="lazy"
-                                                    onError={onImgError}
-                                                    className="absolute inset-0 h-full w-full object-cover"
-                                                />
-                                            )}
-                                        </div>
-                                        <div className="flex flex-1 flex-col gap-2 p-4">
-                                            <h3 className="font-semibold leading-snug">{e.title}</h3>
-                                            {e.startsAt && (
-                                                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                                    <CalendarDays className="h-3.5 w-3.5" />
-                                                    {dateFmt.format(new Date(e.startsAt))}
-                                                </p>
-                                            )}
-                                            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                                <MapPin className="h-3.5 w-3.5" />
-                                                <span className="truncate">{e.location}</span>
-                                            </p>
-                                            <span
-                                                className="mt-1 flex items-center gap-1 text-xs font-medium"
-                                                style={{ color: accent }}
-                                            >
-                                                Ver evento <ArrowUpRight className="h-3.5 w-3.5" />
-                                            </span>
-                                        </div>
-                                    </GlassCard>
-                                </Link>
-                            ))}
-                        </div>
-                    )}
-                </TabsContent>
-
-                {/* ── Agenda ── */}
-                <TabsContent value="agenda" className="mt-6 animate-in fade-in-50 duration-500">
-                    <UnifiedCalendar
-                        title={`Agenda de ${page.name}`}
-                        subtitle="Eventos y actividades organizados por esta página."
-                    />
-                </TabsContent>
-
-                {/* ── Conexiones ── */}
-                <TabsContent value="conexiones" className="mt-6 animate-in fade-in-50 duration-500">
-                    <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
-                        <div className="mb-4 flex items-center gap-2" style={{ color: accent }}>
-                            <Network className="h-5 w-5" />
-                            <h2 className="font-headline text-lg font-semibold">Entidades conectadas</h2>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            {samplePages.slice(0, 3).map((p) => (
-                                <Link key={p.id} href={pageHref(p)} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                    <Badge variant="secondary" className="mb-2 text-[10px] capitalize">{p.kind}</Badge>
-                                    <p className="font-medium leading-snug group-hover:text-primary transition-colors">{p.title}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">{p.members.toLocaleString("es-ES")} miembros</p>
-                                </Link>
-                            ))}
-                            {sampleGroups.slice(0, 3).map((g) => (
-                                <Link key={g.id} href={groupHref(g)} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                    <Badge variant="secondary" className="mb-2 text-[10px] capitalize">{g.kind}</Badge>
-                                    <p className="font-medium leading-snug group-hover:text-primary transition-colors">{g.name}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">{g.members.toLocaleString("es-ES")} miembros</p>
-                                </Link>
-                            ))}
-                            {listFederativeEntities().slice(0, 2).map((ef) => (
-                                <Link key={ef.slug} href={`/entidad/${ef.slug}`} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                    <Badge variant="secondary" className="mb-2 text-[10px]">E.F.</Badge>
-                                    <p className="font-medium leading-snug group-hover:text-primary transition-colors">{ef.name}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">{ef.citizens.toLocaleString("es-ES")} ciudadanos</p>
-                                </Link>
-                            ))}
-                            {listPartidos().slice(0, 2).map((p) => (
-                                <Link key={p.slug} href={`/partido/${p.slug}`} className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25">
-                                    <Badge variant="secondary" className="mb-2 text-[10px]">Partido</Badge>
-                                    <p className="font-medium leading-snug group-hover:text-primary transition-colors">{p.name}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">{p.members.toLocaleString("es-ES")} miembros</p>
-                                </Link>
-                            ))}
-                        </div>
-                    </GlassCard>
-                </TabsContent>
-
-                {/* ── Biblioteca: lo GUARDADO por esta página (distinto de la Librería) ── */}
-                <TabsContent value="biblioteca" className="mt-6 animate-in fade-in-50 duration-500">
-                    <EntityLibraryPanel
-                        ref={libraryRef("page", page.slug)}
-                        accent={accent}
-                        title={`Biblioteca de ${page.name}`}
-                        subtitle="Referencias guardadas por esta página, organizadas en carpetas propias."
-                    />
-                </TabsContent>
-
-                {/* ── Colecciones ── */}
-                <TabsContent value="colecciones" className="mt-6 animate-in fade-in-50 duration-500">
-                    <CollectionsGrid />
-                </TabsContent>
+                ))}
             </Tabs>
 
             <p className="text-center text-xs text-muted-foreground">

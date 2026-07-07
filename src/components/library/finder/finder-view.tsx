@@ -22,7 +22,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
     Search, LayoutGrid, List as ListIcon, Columns3, ArrowUpDown,
-    X, ClipboardPaste, Upload,
+    X, ClipboardPaste, Upload, GitBranch, Link2 as ConnectIcon, Copy as CopyIcon,
+    Image as ImageIcon, User as UserIcon, Play as PlayIcon, Archive as ArchiveIcon,
+    BrainCircuit,
 } from "lucide-react";
 import {
     useEntityLibrary,
@@ -32,6 +34,8 @@ import {
     type SavedItem,
     type SavedItemType,
     type ItemACL,
+    type LibraryFolder,
+    type VersionablePatch,
 } from "@/lib/library/entity-library";
 import { createClient } from "@/utils/supabase/client";
 // Subida universal de archivos (Adenda 64 §9): botón "Subir archivos…" de la
@@ -44,17 +48,33 @@ import {
     readClipboard, writeClipboard, clearClipboard, deepLinkFor,
     type AclViewerContext, canWrite as aclCanWrite,
 } from "./finder-types";
+import { itemFormat } from "./item-meta";
 import { FolderTree, DRAG_MIME } from "./folder-tree";
 import { FinderBreadcrumb } from "./finder-breadcrumb";
 import { ItemCard } from "./item-card";
 import { ColumnsView } from "./columns-view";
 import { ItemPreviewPane } from "./item-preview-pane";
-import { FinderContextMenu, type FinderMenuTarget } from "./finder-context-menu";
+import { FinderContextMenu, type FinderMenuTarget, type FinderExtraAction } from "./finder-context-menu";
 import { useContextTrigger } from "./use-context-trigger";
 import { MoveToDialog } from "./move-to-dialog";
 import { TagsDialog } from "./tags-dialog";
 import { PermissionsPopover } from "./permissions-popover";
 import { PublishDialog } from "./publish-dialog";
+// Adenda 65: versiones, ramas, comentarios, instalar/guardar en…
+import { VersionsDialog } from "./versions-dialog";
+import { EditItemDialog } from "./edit-item-dialog";
+import { BranchesDialog } from "./branches-dialog";
+import { CommentsDialog } from "./comments-dialog";
+import { InstallToDialog } from "./install-to-dialog";
+// Adenda 65 §16-17: repositorios creables + repos externos conectados.
+import { CreateRepoDialog, type CreateRepoSubmitValue } from "@/components/library/repos/create-repo-dialog";
+import { RepoDetailSheet } from "@/components/library/repos/repo-detail-sheet";
+import { ConnectRepoDialog } from "@/components/library/repos/connect-repo-dialog";
+import { ConnectedRepoSheet } from "@/components/library/repos/connected-repo-sheet";
+import { createRepo, convertFolderToRepo } from "@/lib/library/user-repos";
+import { readDesktopsSnapshot, addIcon, setWallpaper, openWindow } from "@/components/desktop/desktop-store";
+import { updateProfile, activeProfileId } from "@/lib/profiles/profiles";
+import { listZipEntries } from "@/lib/files/simple-zip";
 
 const TYPE_FILTERS: Array<{ key: "todos" | SavedItemType; label: string }> = [
     { key: "todos", label: "Todo" },
@@ -66,6 +86,7 @@ const TYPE_FILTERS: Array<{ key: "todos" | SavedItemType; label: string }> = [
     { key: "external", label: "Enlaces" },
     { key: "alias", label: "Accesos directos" },
     { key: "branch", label: "Ramas" },
+    { key: "repo", label: "Repos conectados" },
 ];
 
 function readLocalPref<T extends string>(key: string, fallback: T): T {
@@ -100,11 +121,24 @@ export interface FinderViewProps {
 
 export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact }: FinderViewProps) {
     const {
-        doc, loading, saveItem, removeItem, moveItem, createFolder, renameFolder, removeFolder,
+        doc, loading, reload, saveItem, removeItem, moveItem, createFolder, renameFolder, removeFolder,
         moveFolder, setItemTags, setItemAcl, setFolderAcl, createAlias, replicateItem, duplicateItem,
+        updateItemContent, restoreItemVersion, mergeBranch,
     } = useEntityLibrary(entityRef);
 
     const ctx: AclViewerContext = aclContext ?? { isOwner: true, userId: null, groupSlugs: [] };
+
+    // uid actual (best-effort, para "Comentarios" — distingue "Tú" y habilita borrar los propios).
+    const [myUserId, setMyUserId] = useState<string | null>(null);
+    useEffect(() => {
+        let alive = true;
+        createClient().auth.getUser().then(({ data }) => {
+            if (alive) setMyUserId(data.user?.id ?? null);
+        });
+        return () => {
+            alive = false;
+        };
+    }, []);
 
     const [activeFolder, setActiveFolder] = useState<string | null>(null);
     const [columnsChain, setColumnsChain] = useState<(string | null)[]>([null]);
@@ -132,6 +166,17 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         | { mode: "folder"; folderId: string | null; folderName: string }
         | null
     >(null);
+    // Adenda 65: versiones / ramas / comentarios / instalar-guardar-en / repositorios.
+    const [editItemTarget, setEditItemTarget] = useState<SavedItem | null>(null);
+    const [versionsTarget, setVersionsTarget] = useState<SavedItem | null>(null);
+    const [branchesTarget, setBranchesTarget] = useState<SavedItem | null>(null);
+    const [commentsTarget, setCommentsTarget] = useState<{ kind: "item" | "folder"; id: string; title: string } | null>(null);
+    const [installTo, setInstallTo] = useState<{ item: SavedItem; defaultDest?: "biblioteca" | "escritorio" | "cerebro" | "servidor" } | null>(null);
+    const [repoDialog, setRepoDialog] = useState<{ mode: "create" | "convert"; parentId: string | null; folder?: LibraryFolder } | null>(null);
+    const [repoDetailFolderId, setRepoDetailFolderId] = useState<string | null>(null);
+    const [connectRepoOpen, setConnectRepoOpen] = useState(false);
+    const [connectedRepoItem, setConnectedRepoItem] = useState<SavedItem | null>(null);
+    const [repoBusy, setRepoBusy] = useState(false);
 
     const { menu, bind, close: closeMenu } = useContextTrigger<ContextPayload>();
 
@@ -214,6 +259,11 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     const handleOpenItem = useCallback(
         (item: SavedItem) => {
             const resolved = item.type === "alias" && item.targetItemId ? itemsById.get(item.targetItemId) ?? item : item;
+            // Repo conectado (§17): "Abrir" muestra la ficha en vez de saltar directo a GitHub.
+            if (resolved.type === "repo" && resolved.connectedRepo) {
+                setConnectedRepoItem(resolved);
+                return;
+            }
             const href = resolved.route ?? resolved.url;
             if (!href) {
                 toast.message("Sin destino abrible", { description: "Este ítem no tiene ruta ni URL asociada." });
@@ -303,6 +353,12 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         title: source.title,
                         note: source.note,
                         tags: source.tags,
+                        mime: source.mime,
+                        thumbnail: source.thumbnail,
+                        content: source.content,
+                        language: source.language,
+                        description: source.description,
+                        connectedRepo: source.connectedRepo,
                     },
                     folderId,
                 );
@@ -425,6 +481,188 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         window.location.assign(`/publish?attach=${q}`);
     }, [itemsById]);
 
+    // ── Versiones / edición (§13) ────────────────────────────────────────────
+
+    const handleSaveEdit = useCallback(
+        async (patch: VersionablePatch) => {
+            if (!editItemTarget) return;
+            await updateItemContent(editItemTarget.id, patch);
+            toast.success("Editado", { description: "Se guardó una versión con el estado anterior." });
+        },
+        [editItemTarget, updateItemContent],
+    );
+
+    const handleRestoreVersion = useCallback(
+        async (versionId: string) => {
+            if (!versionsTarget) return;
+            const res = await restoreItemVersion(versionsTarget.id, versionId);
+            if (res.ok) toast.success("Versión restaurada");
+            else toast.error("No se pudo restaurar la versión");
+        },
+        [versionsTarget, restoreItemVersion],
+    );
+
+    // ── Ramas: fusión (§14) ──────────────────────────────────────────────────
+
+    const handleMergeBranch = useCallback(
+        async (branchItemId: string, removeAfter: boolean) => {
+            const res = await mergeBranch(branchItemId, { removeBranchAfter: removeAfter });
+            if (res.ok) {
+                toast.success("Rama fusionada", { description: "El origen quedó actualizado; puedes deshacerlo desde Versiones." });
+                setBranchesTarget(null);
+            } else {
+                toast.error("No se pudo fusionar", { description: res.message });
+            }
+        },
+        [mergeBranch],
+    );
+
+    // ── Más acciones por formato (§18) ───────────────────────────────────────
+
+    const buildExtraActions = useCallback((item: SavedItem): FinderExtraAction[] => {
+        const fmt = itemFormat(item);
+        const actions: FinderExtraAction[] = [];
+
+        const imageUrl = fmt === "image" ? item.url : undefined;
+        if (imageUrl) {
+            actions.push({
+                label: "Fondo de escritorio",
+                icon: ImageIcon,
+                onClick: () => {
+                    const snap = readDesktopsSnapshot();
+                    if (!snap.activeId) {
+                        toast.error("No hay un escritorio activo.");
+                        return;
+                    }
+                    setWallpaper(snap.activeId, { type: "custom", value: imageUrl });
+                    toast.success("Fondo de escritorio actualizado");
+                },
+            });
+            actions.push({
+                label: "Foto de perfil",
+                icon: UserIcon,
+                onClick: () => {
+                    const pid = activeProfileId();
+                    if (!pid) {
+                        toast.error("No hay un perfil activo.");
+                        return;
+                    }
+                    void updateProfile(pid, { avatarUrl: imageUrl }).then((r) => {
+                        if (r) toast.success("Foto de perfil actualizada");
+                        else toast.error("No se pudo actualizar la foto de perfil");
+                    });
+                },
+            });
+        }
+
+        if ((fmt === "markdown" || fmt === "code") && (item.content || item.url)) {
+            actions.push({
+                label: "Copiar contenido",
+                icon: CopyIcon,
+                onClick: () => {
+                    void (async () => {
+                        let text = item.content ?? "";
+                        if (!text && item.url) {
+                            try {
+                                const res = await fetch(item.url);
+                                if (res.ok) text = await res.text();
+                            } catch {
+                                /* CORS/red: se avisa abajo si sigue vacío */
+                            }
+                        }
+                        if (!text) {
+                            toast.error("No hay contenido de texto disponible para copiar.");
+                            return;
+                        }
+                        if (typeof navigator !== "undefined" && navigator.clipboard) {
+                            await navigator.clipboard.writeText(text);
+                            toast.success("Contenido copiado");
+                        }
+                    })();
+                },
+            });
+        }
+
+        if (fmt === "markdown") {
+            actions.push({
+                label: "Convertir en memoria de cerebro",
+                icon: BrainCircuit,
+                onClick: () => setInstallTo({ item, defaultDest: "cerebro" }),
+            });
+        }
+
+        if ((fmt === "audio" || fmt === "video") && (item.url || item.route)) {
+            actions.push({
+                label: "Reproducir en ventana",
+                icon: PlayIcon,
+                onClick: () => {
+                    const snap = readDesktopsSnapshot();
+                    if (!snap.activeId) {
+                        toast.error("No hay un escritorio activo.");
+                        return;
+                    }
+                    openWindow(snap.activeId, { type: "file", ref: item.url ?? item.route ?? "", name: item.title, meta: { mime: item.mime ?? "" } });
+                    toast.success("Abierto en una ventana del escritorio");
+                },
+            });
+        }
+
+        const isZip = /\.zip($|\?)/i.test(item.url ?? "") || item.mime === "application/zip";
+        if (isZip && item.url) {
+            actions.push({
+                label: "Ver contenido del zip",
+                icon: ArchiveIcon,
+                onClick: () => {
+                    void (async () => {
+                        try {
+                            const res = await fetch(item.url as string);
+                            if (!res.ok) throw new Error("fetch");
+                            const buf = await res.arrayBuffer();
+                            const entries = listZipEntries(buf);
+                            if (entries.length === 0) {
+                                toast.message("No se pudo leer el contenido (¿CORS o zip vacío?).");
+                                return;
+                            }
+                            toast.message(`${entries.length} archivo(s) en el zip`, {
+                                description: entries.slice(0, 8).map((e) => e.name).join(", ") + (entries.length > 8 ? "…" : ""),
+                            });
+                        } catch {
+                            toast.error("No se pudo leer el zip (posiblemente bloqueado por CORS).");
+                        }
+                    })();
+                },
+            });
+        }
+
+        return actions;
+    }, []);
+
+    // ── Repositorios (§16-17) ────────────────────────────────────────────────
+
+    const handleCreateRepoSubmit = useCallback(
+        async (value: CreateRepoSubmitValue) => {
+            if (!repoDialog) return;
+            setRepoBusy(true);
+            if (repoDialog.mode === "create") {
+                const res = await createRepo(entityRef, value, repoDialog.parentId);
+                setRepoBusy(false);
+                if (res.ok) {
+                    toast.success("Repositorio creado", { description: `«${value.name}» ya está en tu biblioteca.` });
+                    setRepoDialog(null);
+                    if (res.folderId) setActiveFolder(res.folderId);
+                } else {
+                    toast.error("No se pudo crear el repositorio", { description: res.error });
+                }
+            } else if (repoDialog.folder) {
+                await convertFolderToRepo(entityRef, repoDialog.folder, value);
+                setRepoBusy(false);
+                toast.success("Carpeta convertida en repositorio");
+                setRepoDialog(null);
+            }
+        },
+        [repoDialog, entityRef],
+    );
+
     // ── Menú contextual: resolución del target ─────────────────────────────
 
     const menuTarget: FinderMenuTarget | null = useMemo(() => {
@@ -523,6 +761,29 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                     </AttachFilePickerButton>
                 )}
 
+                {currentWriteAllowed && (
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-9 cursor-pointer gap-1.5 border-lime-500/30 text-xs text-lime-300 hover:bg-lime-500/10"
+                        onClick={() => setRepoDialog({ mode: "create", parentId: activeFolder })}
+                    >
+                        <GitBranch className="h-3.5 w-3.5" /> Nuevo repositorio…
+                    </Button>
+                )}
+                {currentWriteAllowed && (
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-9 cursor-pointer gap-1.5 border-white/15 text-xs hover:bg-white/10"
+                        onClick={() => setConnectRepoOpen(true)}
+                    >
+                        <ConnectIcon className="h-3.5 w-3.5" /> Conectar repo externo…
+                    </Button>
+                )}
+
                 {selectedIds.size > 0 && (
                     <div className="flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-xs text-primary">
                         {selectedIds.size} seleccionado{selectedIds.size > 1 ? "s" : ""}
@@ -554,6 +815,21 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                     ))}
                 </div>
             </div>
+
+            {/* ── Aviso: esta carpeta es un repositorio (§16) ── */}
+            {activeFolder && (() => {
+                const active = doc.folders.find((f) => f.id === activeFolder);
+                if (!active?.repo) return null;
+                return (
+                    <button
+                        type="button"
+                        onClick={() => setRepoDetailFolderId(active.id)}
+                        className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-lime-500/25 bg-lime-500/[0.06] px-3 py-1.5 text-xs font-medium text-lime-300 hover:bg-lime-500/10"
+                    >
+                        <GitBranch className="h-3.5 w-3.5" /> Esta carpeta es un repositorio — ver ficha
+                    </button>
+                );
+            })()}
 
             {/* ── Cuerpo: sidebar + contenido + preview ── */}
             <div className={cn("flex flex-col gap-3 md:flex-row", compact && "md:max-h-[560px]")}>
@@ -588,6 +864,15 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         onPermissionsFolder={(folderId) => {
                             const f = doc.folders.find((x) => x.id === folderId);
                             if (f) setPermissionsTarget({ kind: "folder", id: f.id, title: f.name, acl: f.acl });
+                        }}
+                        onCommentsFolder={(folderId) => {
+                            const f = doc.folders.find((x) => x.id === folderId);
+                            if (f) setCommentsTarget({ kind: "folder", id: f.id, title: f.name });
+                        }}
+                        onOpenRepo={(folderId) => setRepoDetailFolderId(folderId)}
+                        onConvertToRepo={(folderId) => {
+                            const f = doc.folders.find((x) => x.id === folderId);
+                            if (f) setRepoDialog({ mode: "convert", parentId: f.parentId, folder: f });
                         }}
                     />
                 )}
@@ -677,6 +962,8 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                             resolvedTarget={resolvedPreviewTarget}
                             onOpen={() => handleOpenItem(selectedItem)}
                             onClose={() => setPreviewId(null)}
+                            doc={doc}
+                            onSelectRelated={(r) => setPreviewId(r.id)}
                         />
                     </div>
                 )}
@@ -756,6 +1043,55 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                             toast.success("Carpeta eliminada");
                         }
                     }}
+                    onEdit={
+                        menuTarget.kind === "item"
+                            ? () => {
+                                  const it = itemsById.get(menuTarget.id);
+                                  if (it) setEditItemTarget(it);
+                              }
+                            : undefined
+                    }
+                    onVersions={
+                        menuTarget.kind === "item"
+                            ? () => {
+                                  const it = itemsById.get(menuTarget.id);
+                                  if (it) setVersionsTarget(it);
+                              }
+                            : undefined
+                    }
+                    onBranches={
+                        menuTarget.kind === "item"
+                            ? () => {
+                                  const it = itemsById.get(menuTarget.id);
+                                  if (it) setBranchesTarget(it);
+                              }
+                            : undefined
+                    }
+                    onComments={() => {
+                        if (menuTarget.kind === "item") {
+                            const it = itemsById.get(menuTarget.id);
+                            if (it) setCommentsTarget({ kind: "item", id: it.id, title: it.title });
+                        } else {
+                            const f = doc.folders.find((x) => x.id === menuTarget.id);
+                            if (f) setCommentsTarget({ kind: "folder", id: f.id, title: f.name });
+                        }
+                    }}
+                    onInstallTo={
+                        menuTarget.kind === "item"
+                            ? () => {
+                                  const it = itemsById.get(menuTarget.id);
+                                  if (it) setInstallTo({ item: it });
+                              }
+                            : undefined
+                    }
+                    extraActions={
+                        menuTarget.kind === "item"
+                            ? (() => {
+                                  const it = itemsById.get(menuTarget.id);
+                                  return it ? buildExtraActions(it) : undefined;
+                              })()
+                            : undefined
+                    }
                 />
             )}
 
@@ -825,6 +1161,109 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         doc={doc}
                     />
                 )
+            )}
+
+            {/* ── Editar ítem (§13) ── */}
+            {editItemTarget && (
+                <EditItemDialog
+                    open
+                    onOpenChange={(o) => !o && setEditItemTarget(null)}
+                    item={editItemTarget}
+                    onSave={(patch) => void handleSaveEdit(patch)}
+                />
+            )}
+
+            {/* ── Versiones (§13) ── */}
+            {versionsTarget && (
+                <VersionsDialog
+                    open
+                    onOpenChange={(o) => !o && setVersionsTarget(null)}
+                    item={itemsById.get(versionsTarget.id) ?? versionsTarget}
+                    onRestore={(versionId) => void handleRestoreVersion(versionId)}
+                />
+            )}
+
+            {/* ── Ramas: linaje + fusión (§14) ── */}
+            {branchesTarget && (
+                <BranchesDialog
+                    open
+                    onOpenChange={(o) => !o && setBranchesTarget(null)}
+                    doc={doc}
+                    item={itemsById.get(branchesTarget.id) ?? branchesTarget}
+                    onMerge={(branchId, removeAfter) => void handleMergeBranch(branchId, removeAfter)}
+                />
+            )}
+
+            {/* ── Comentarios (§15) ── */}
+            {commentsTarget && (
+                <CommentsDialog
+                    open
+                    onOpenChange={(o) => !o && setCommentsTarget(null)}
+                    entityRef={entityRef}
+                    title={commentsTarget.title}
+                    targetId={commentsTarget.id}
+                    myUserId={myUserId}
+                />
+            )}
+
+            {/* ── Instalar / guardar en… (§18) ── */}
+            {installTo && (
+                <InstallToDialog
+                    open
+                    onOpenChange={(o) => !o && setInstallTo(null)}
+                    item={installTo.item}
+                    defaultDest={installTo.defaultDest}
+                />
+            )}
+
+            {/* ── Repositorios: crear / convertir (§16) ── */}
+            {repoDialog && (
+                <CreateRepoDialog
+                    open
+                    onOpenChange={(o) => !o && setRepoDialog(null)}
+                    fixedName={repoDialog.mode === "convert" ? repoDialog.folder?.name : undefined}
+                    title={repoDialog.mode === "convert" ? "Convertir en repositorio" : "Nuevo repositorio"}
+                    submitLabel={repoDialog.mode === "convert" ? "Convertir" : "Crear repositorio"}
+                    busy={repoBusy}
+                    onSubmit={(value) => void handleCreateRepoSubmit(value)}
+                />
+            )}
+
+            {/* ── Repositorios: ficha (§16) ── */}
+            {repoDetailFolderId && (() => {
+                const f = doc.folders.find((x) => x.id === repoDetailFolderId);
+                if (!f?.repo) return null;
+                return (
+                    <RepoDetailSheet
+                        open
+                        onOpenChange={(o) => !o && setRepoDetailFolderId(null)}
+                        entityRef={entityRef}
+                        doc={doc}
+                        folder={f}
+                        onOpenFolder={(folderId) => setActiveFolder(folderId)}
+                        onChanged={reload}
+                    />
+                );
+            })()}
+
+            {/* ── Repos externos conectados (§17) ── */}
+            {connectRepoOpen && (
+                <ConnectRepoDialog
+                    open
+                    onOpenChange={setConnectRepoOpen}
+                    entityRef={entityRef}
+                    folderId={activeFolder}
+                    onConnected={(itemId) => setPreviewId(itemId)}
+                />
+            )}
+            {connectedRepoItem && (
+                <ConnectedRepoSheet
+                    open
+                    onOpenChange={(o) => !o && setConnectedRepoItem(null)}
+                    entityRef={entityRef}
+                    item={itemsById.get(connectedRepoItem.id) ?? connectedRepoItem}
+                    onChanged={reload}
+                />
             )}
         </div>
     );

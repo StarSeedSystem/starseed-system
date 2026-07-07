@@ -127,7 +127,7 @@ export interface CommentNode extends PostEntity {
 export interface CommentAttachment {
     id: string;
     /** Categoría amplia; `FilePreview`/`detectFormat` refina el render exacto. */
-    kind: "imagen" | "audio" | "video" | "archivo" | "enlace" | string;
+    kind: "imagen" | "audio" | "video" | "archivo" | "enlace" | "ref" | string;
     url: string;
     name?: string | null;
     mime?: string | null;
@@ -135,6 +135,16 @@ export interface CommentAttachment {
     title?: string | null;
     description?: string | null;
     thumbnail?: string | null;
+    /**
+     * Referencia a otra entidad de la red (jul-2026 · pestaña "Contenido de la
+     * red" del picker universal, @/lib/files/network-content-ref.ts): página/
+     * grupo/evento/publicación, adjuntable como referencia EN VIVO (se embebe
+     * vía EmbeddedContentWindow en vez de tratarse como archivo genérico).
+     * Compatible con `DmAttachment` (mismos nombres de campo).
+     */
+    refKind?: "page" | "group" | "event" | "post" | string;
+    refId?: string;
+    route?: string;
 }
 
 /** Una entrada del historial simple de edición de un comentario. */

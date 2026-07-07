@@ -68,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 8;
+export const SEED_VERSION = 9;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -183,6 +183,16 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   "iatool-langflow",
   "iatool-stirling-pdf",
   "iatool-dify",
+  // ── (SEED_VERSION 9) Cámara + Galería — EXCEPCIÓN DELIBERADA a la regla de
+  //    "apps/pages con route quedan fuera de RECOMMENDED" (§ arriba): estas dos
+  //    NO son contenido de terceros que implique navegar a explorar algo nuevo,
+  //    son módulos DE SISTEMA del propio OS (como Escritorio/Dashboard) — el
+  //    equivalente a la cámara/fotos de un teléfono. `install()` para kind:"app"
+  //    solo REGISTRA el paquete como instalado (registerInstalled); no navega
+  //    por sí solo, así que sembrarlas aquí es seguro (cero navegación
+  //    inesperada al iniciar sesión).
+  "app-camara",
+  "app-galeria",
 ];
 
 /**

@@ -102,6 +102,9 @@ export type WidgetType =
     | 'BRAINS'                // IA — cerebros del usuario (tabla brains)
     | 'VAULTS'                // Sistema — baúles del usuario (tabla vaults)
     | 'DOCUMENTS'             // Archivos — documentos del usuario (tabla documents)
+    // ── Medios (Cámara + Galería) ──
+    | 'RECENT_GALLERY'        // Archivos — últimas capturas de la Galería personal
+    | 'CAMERA_QUICK'          // Aplicaciones — acceso rápido a la Cámara
     | 'AI_GENERATED';         // 🔮 La Fragua de Interfaces — Custom AI-forged widgets
 
 /**

@@ -737,6 +737,93 @@ export const AURORA_GENERATE_TOOLS: AuroraScreenTool[] = [
   },
 ];
 
+// ════════════════════════════════════════════════════════════════════════════
+// CONTEXTO TOTAL DEL USUARIO Y LA RED — Aurora consulta tu ámbito propio y
+// ----------------------------------------------------------------------------
+// contenido PÚBLICO a demanda (src/ai/astraura/user-context.ts). El contexto
+// 'breve' ya se inyecta automáticamente en cada turno (ver router.ts), pero
+// estas tools dejan que Aurora pida el contexto COMPLETO, busque publicaciones
+// públicas de la red o consulte una página/grupo concreto cuando lo necesite.
+// Tools LOCALES (kind:"screen" ⇒ ejecución en navegador, sin integración ni
+// config): mismo contrato que control de pantalla/generación. Privacidad: solo
+// ámbito propio + público; nunca exponen claves ni el cuerpo de mensajes.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Tipado del módulo de contexto de usuario (import dinámico). */
+type UserContextModule = typeof import("@/ai/astraura/user-context");
+
+/**
+ * Ejecuta una consulta de contexto de usuario/red con import perezoso del
+ * módulo y adapta su resultado (string ya listo para hablar/leer) al contrato
+ * IntegrationResult (data.text). NUNCA lanza.
+ */
+async function runUserContextQuery(
+  exec: (mod: UserContextModule) => Promise<string>,
+): Promise<IntegrationResult> {
+  if (typeof window === "undefined") {
+    return { ok: false, error: "El contexto del usuario solo está disponible en el navegador." };
+  }
+  try {
+    const mod = await import("@/ai/astraura/user-context");
+    const text = (await exec(mod)).trim();
+    return { ok: true, data: { text: text || "No encontré nada relevante ahora mismo." } };
+  } catch {
+    return { ok: false, error: "No pude consultar el contexto del usuario." };
+  }
+}
+
+/** Tools de CONTEXTO que Aurora puede invocar (siempre disponibles en navegador con sesión). */
+export const AURORA_CONTEXT_TOOLS: AuroraScreenTool[] = [
+  {
+    name: "get_user_context",
+    description:
+      "Devuelve un resumen de TU propio ámbito (perfiles, grupos/páginas, archivos, publicaciones, mensajes —solo hilos y títulos, nunca su contenido—, notificaciones, recordatorios, escritorios y espacios). Entrada: { nivel? } ('breve'|'completo', por defecto 'completo' al invocarla tú misma). Úsala cuando el resumen breve del system prompt no baste.",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "get_user_context",
+    kind: "screen",
+    run: (input) =>
+      runUserContextQuery((m) =>
+        m.buildUserContext(
+          pickInput(input, "nivel", "level", "detalle") === "breve" ? "breve" : "completo",
+        ),
+      ),
+  },
+  {
+    name: "search_network_posts",
+    description:
+      "Busca publicaciones PÚBLICAS en la red de StarSeed por texto. Entrada: { consulta }. Devuelve hasta 8 resultados con autor, área/entidad y un fragmento. Nunca inventes resultados que no aparezcan aquí.",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "search_network_posts",
+    kind: "screen",
+    run: (input) =>
+      runUserContextQuery(async (m) => {
+        const q = String(pickInput(input, "consulta", "query", "q", "texto", "busqueda", "búsqueda") ?? "").trim();
+        if (!q) return "Dime qué quieres buscar en la red.";
+        const hits = await m.searchNetworkPosts(q);
+        if (!hits.length) return `Sin resultados públicos para "${q}".`;
+        return hits
+          .map((h) => `- [${h.entityType ?? "red"}${h.entitySlug ? "/" + h.entitySlug : ""}] ${h.authorName ?? "Alguien"}: "${h.snippet}"`)
+          .join("\n");
+      }),
+  },
+  {
+    name: "get_entity_context",
+    description:
+      "Info PÚBLICA de una página o grupo del OS: nombre, nº de miembros y publicaciones recientes. Entrada: { tipo: 'pagina'|'grupo', slug }. Úsala antes de hablar de una página/grupo concreto para no inventar datos.",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "get_entity_context",
+    kind: "screen",
+    run: (input) =>
+      runUserContextQuery(async (m) => {
+        const tipo = pickInput(input, "tipo", "kind", "clase") === "grupo" ? "grupo" : "pagina";
+        const slug = String(pickInput(input, "slug", "id", "nombre", "name") ?? "").trim();
+        if (!slug) return "¿De qué página o grupo (slug) quieres que consulte?";
+        const ctx = await m.getEntityContext(tipo, slug);
+        return ctx.found ? ctx.summary : `No encontré ${tipo === "grupo" ? "el grupo" : "la página"} "${slug}".`;
+      }),
+  },
+];
+
 /** Conjunto de nombres de las tools de GENERAR/USAR CONTENIDO (para la sección de prompt). */
 const GENERATE_TOOL_NAMES: ReadonlySet<string> = new Set(AURORA_GENERATE_TOOLS.map((t) => t.name));
 
@@ -745,9 +832,17 @@ function isGenerateTool(t: AuroraIntegrationTool): boolean {
   return GENERATE_TOOL_NAMES.has(t.name);
 }
 
-// Índice por nombre para O(1) — integraciones + control de pantalla + generación.
+/** Conjunto de nombres de las tools de CONTEXTO del usuario/red (para la sección de prompt). */
+const CONTEXT_TOOL_NAMES: ReadonlySet<string> = new Set(AURORA_CONTEXT_TOOLS.map((t) => t.name));
+
+/** ¿Es una tool de contexto del usuario/red? */
+function isContextTool(t: AuroraIntegrationTool): boolean {
+  return CONTEXT_TOOL_NAMES.has(t.name);
+}
+
+// Índice por nombre para O(1) — integraciones + control de pantalla + generación + contexto.
 const TOOL_INDEX: Record<string, AuroraIntegrationTool> = Object.fromEntries(
-  [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS].map((t) => [t.name, t]),
+  [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS, ...AURORA_CONTEXT_TOOLS].map((t) => [t.name, t]),
 );
 
 /** Busca una tool de Aurora por nombre. */
@@ -772,20 +867,73 @@ export function isAuroraToolAvailable(name: string, brainId?: string): boolean {
 
 /** Lista las tools disponibles ahora mismo (por config). */
 export function listAvailableAuroraTools(brainId?: string): AuroraIntegrationTool[] {
-  return [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS].filter((t) =>
+  return [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS, ...AURORA_CONTEXT_TOOLS].filter((t) =>
     isAuroraToolAvailable(t.name, brainId),
   );
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// SUSTITUCIÓN AUTOMÁTICA DE HERRAMIENTAS (Adenda "Aurora siempre responde")
+// ----------------------------------------------------------------------------
+// Si una tool de la MISMA familia funcional falla en tiempo de ejecución (el
+// servicio/conexión/sync no respondió), Aurora prueba SOLA una alternativa
+// disponible en vez de rendirse, y lo REGISTRA con transparencia (nunca oculta
+// la sustitución). Con guarda anti-ciclo: cada tool se prueba como mucho una
+// vez por invocación, así que la cadena siempre termina.
+// Ver architecture/astraura-inteligencia.md §17.2.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Alternativas por tool, en orden de preferencia (misma tarea, otro motor). */
+const TOOL_ALTERNATES: Record<string, string[]> = {
+  web_search: ["scrape_url", "buscar_web"],
+  scrape_url: ["crawl_url", "buscar_web"],
+  crawl_url: ["scrape_url", "buscar_web"],
+};
+
+/** Adapta el input de una tool a la forma que espera una alternativa distinta. */
+function adaptInputForAlternate(altName: string, input: unknown): Record<string, unknown> {
+  const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const term = pickInput(raw, "q", "consulta", "query", "texto", "text", "url", "urls");
+  if (altName === "buscar_web") return { consulta: term ?? raw };
+  if (altName === "crawl_url" || altName === "scrape_url") return { url: term ?? raw };
+  if (altName === "web_search") return { q: term ?? raw };
+  return raw;
+}
+
+/**
+ * Primera alternativa de `name` que esté DISPONIBLE ahora mismo (configurada o
+ * local sin config, como las tools de pantalla/contenido). Para que
+ * `actions.ts::tryRunIntegrationTool` pueda sustituir incluso cuando la tool
+ * pedida NI SIQUIERA está configurada (no solo cuando falla en tiempo real).
+ */
+export function findAvailableAlternate(name: string, brainId?: string): string | undefined {
+  const alts = TOOL_ALTERNATES[name];
+  if (!alts?.length) return undefined;
+  return alts.find((a) => isAuroraToolAvailable(a, brainId));
+}
+
 /**
  * Ejecuta una tool de Aurora por nombre. Carga la config (global o por
- * cerebro). NUNCA lanza: devuelve IntegrationResult honesto.
+ * cerebro). NUNCA lanza: devuelve IntegrationResult honesto. Si la tool
+ * FALLA en tiempo de ejecución (servicio/conexión/sync caído), prueba sola
+ * una alternativa de la misma familia (`TOOL_ALTERNATES`) y REGISTRA la
+ * sustitución en el propio texto de la respuesta — nunca en silencio.
  */
 export async function runAuroraTool(
   name: string,
   input: any,
   opts?: { brainId?: string; cfg?: IntegrationConfig },
 ): Promise<IntegrationResult> {
+  return runAuroraToolTried(name, input, opts, new Set());
+}
+
+async function runAuroraToolTried(
+  name: string,
+  input: any,
+  opts: { brainId?: string; cfg?: IntegrationConfig } | undefined,
+  tried: Set<string>,
+): Promise<IntegrationResult> {
+  tried.add(name);
   const t = getAuroraTool(name);
   if (!t) return { ok: false, error: `No existe la herramienta "${name}".` };
   // Tools de PANTALLA: ejecución local (DOM), sin config ni endpoint.
@@ -797,7 +945,30 @@ export async function runAuroraTool(
     }
   }
   const cfg = opts?.cfg ?? loadIntegrationConfig(t.integrationId, opts?.brainId);
-  return runIntegration(t.integrationId, t.actionId, input, cfg);
+  const res = await runIntegration(t.integrationId, t.actionId, input, cfg);
+  if (res.ok) return res;
+
+  // ── Sustitución automática: prueba alternativas AÚN no intentadas en esta
+  // cadena, y solo las que estén disponibles de verdad. ──
+  const alts = (TOOL_ALTERNATES[name] || []).filter((a) => !tried.has(a));
+  for (const altName of alts) {
+    if (!isAuroraToolAvailable(altName, opts?.brainId)) continue;
+    const altInput = adaptInputForAlternate(altName, input);
+    const altRes = await runAuroraToolTried(altName, altInput, opts, tried);
+    if (altRes.ok) {
+      const altText = typeof altRes.data?.text === "string" ? altRes.data.text : "";
+      return {
+        ok: true,
+        data: {
+          ...(altRes.data ?? {}),
+          text: `[Sustitución automática: «${name}» falló, usé «${altName}» en su lugar] ${altText}`.trim(),
+          substitutedFrom: name,
+          substitutedTo: altName,
+        },
+      };
+    }
+  }
+  return res; // ninguna alternativa disponible/funcionó: el fallo original, honesto.
 }
 
 /**
@@ -834,15 +1005,17 @@ export function auroraGeneratePromptSection(brainId?: string): string {
   ].join("\n");
 }
 
-/** Fragmento para el system prompt: tools de integración + control de pantalla + generación. */
+/** Fragmento para el system prompt: tools de integración + control de pantalla + generación + contexto. */
 export function auroraToolsPromptSection(brainId?: string): string {
   const tools = listAvailableAuroraTools(brainId);
   if (tools.length === 0) return "";
   const integraciones = tools.filter((t) => !isAuroraScreenTool(t));
-  // Las tools locales (kind:"screen") se separan en dos familias: control de
-  // pantalla/tareas vs. generar/usar contenido, cada una con su propia cabecera.
+  // Las tools locales (kind:"screen") se separan en TRES familias: control de
+  // pantalla/tareas · generar/usar contenido · contexto del usuario/red, cada
+  // una con su propia cabecera.
   const contenido = tools.filter((t) => isAuroraScreenTool(t) && isGenerateTool(t));
-  const pantalla = tools.filter((t) => isAuroraScreenTool(t) && !isGenerateTool(t));
+  const contexto = tools.filter((t) => isAuroraScreenTool(t) && isContextTool(t));
+  const pantalla = tools.filter((t) => isAuroraScreenTool(t) && !isGenerateTool(t) && !isContextTool(t));
   const parts: string[] = [];
   if (integraciones.length > 0) {
     parts.push(
@@ -860,6 +1033,12 @@ export function auroraToolsPromptSection(brainId?: string): string {
     parts.push(
       "GENERAR Y USAR CONTENIDO: puedes CREAR contenido (notas, documentos, archivos) y COLOCARLO libremente — guardarlo en la Biblioteca, publicarlo, ponerlo en una pizarra, añadir widgets, buscar en la web o en la Biblioteca y abrir enlaces — a petición del usuario y en cualquier momento. Además puedes GENERAR CON LOS SERVICIOS que el usuario haya conectado por función en /servicios: imágenes (generar_imagen), workflows (lanzar_workflow), sitios web (generar_sitio_web) y vídeos (generar_video), guardando el resultado en la Biblioteca. No solo lo describas: hazlo — y si falta un servicio para esa función, guía a configurarlo en /servicios en vez de inventar el resultado.",
       ...contenido.map((t) => `- ${t.name}: ${t.description}`),
+    );
+  }
+  if (contexto.length > 0) {
+    parts.push(
+      "CONTEXTO DEL USUARIO Y LA RED: ya tienes un resumen breve de tu ámbito propio arriba (si el usuario lo activó); estas tools te dejan pedir MÁS — el contexto COMPLETO, buscar publicaciones PÚBLICAS de la red, o consultar una página/grupo por su slug. Respeta la privacidad: solo ámbito propio + público, nunca reveles claves/secretos, y en mensajes nunca compartas el contenido de un hilo (solo su existencia/título).",
+      ...contexto.map((t) => `- ${t.name}: ${t.description}`),
     );
   }
   return parts.join("\n");

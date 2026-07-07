@@ -350,6 +350,55 @@ export async function declineInvite(spaceId: string): Promise<boolean> {
     }
 }
 
+/**
+ * Solicita acceso de edición a un espacio (status='pending') — variante
+ * "solicitud" (en vez de "invitación"): cualquiera que vea el espacio puede
+ * pedir paso; el dueño aprueba (`approveSpaceEditor`) o deniega
+ * (`removeSpaceEditor`). Usa el mismo `SpaceEditorStatus.pending` ya
+ * declarado en el tipo. Defensivo: si ya es `member`, no lo degrada.
+ */
+export async function requestSpaceAccess(
+    spaceId: string,
+    role: SpaceEditorRole = "editor",
+): Promise<{ ok: boolean; alreadyMember?: boolean }> {
+    try {
+        const uid = await getUserId();
+        if (!uid || !spaceId) return { ok: false };
+        const supabase = createClient();
+        const { data: existing } = await supabase
+            .from("os_space_editors")
+            .select("status")
+            .eq("space_id", spaceId)
+            .eq("account", uid)
+            .maybeSingle();
+        if ((existing as { status?: string } | null)?.status === "member") {
+            return { ok: true, alreadyMember: true };
+        }
+        const { error } = await supabase
+            .from("os_space_editors")
+            .upsert({ space_id: spaceId, account: uid, role, status: "pending" }, { onConflict: "space_id,account" });
+        return { ok: !error };
+    } catch {
+        return { ok: false };
+    }
+}
+
+/** El dueño aprueba una solicitud pendiente (status: pending → member). RLS valida propiedad. */
+export async function approveSpaceEditor(spaceId: string, account: string): Promise<boolean> {
+    try {
+        const supabase = createClient();
+        const { error } = await supabase
+            .from("os_space_editors")
+            .update({ status: "member" })
+            .eq("space_id", spaceId)
+            .eq("account", account)
+            .eq("status", "pending");
+        return !error;
+    } catch {
+        return false;
+    }
+}
+
 /** Quita a un editor/invitado de un espacio (solo el dueño, por spe_owner). */
 export async function removeSpaceEditor(spaceId: string, account: string): Promise<boolean> {
     try {

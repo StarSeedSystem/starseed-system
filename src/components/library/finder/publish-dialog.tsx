@@ -19,7 +19,7 @@ import type { EntityRef } from "@/lib/sync/entity-state";
 import type { EntityLibraryDoc, SavedItem } from "@/lib/library/entity-library";
 import { toFileLike } from "./item-meta";
 
-const CATEGORY_LABEL: Record<PublicCategory, string> = {
+export const CATEGORY_LABEL: Record<PublicCategory, string> = {
     app: "Apps", widget: "Widgets", page: "Páginas", publication: "Publicaciones",
     board: "Pizarras", research: "Investigación", project: "Proyectos", design: "Diseño",
     animation: "Animación", function: "Funciones", "ai-source": "Fuentes IA", repo: "Repos",

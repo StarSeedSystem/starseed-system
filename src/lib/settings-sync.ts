@@ -70,6 +70,10 @@ export const SYNCED_KEYS = [
     //    `huggingBay` vive DENTRO de starseed.astraura.intelligence.v1 (ya
     //    sincronizado arriba); solo el registro de candidatos es una clave nueva.
     "starseed.astraura.huggingbay-candidates.v1", // modelos de Hugging Bay marcados "Usar en Astraura"
+    // ── Contexto Total de Aurora (jul-2026 · ai/astraura/user-context.ts) ─────
+    "starseed.astraura.usercontext.v1", // "Aurora conoce mi contexto" (on/off) + nivel por defecto (breve/completo)
+    // ── Alarmas funcionales (jul-2026 · lib/alarms/alarms.ts) ─────────────────
+    "starseed.alarms.v1", // alarmas del usuario (mensajes/correos/invitaciones a eventos) + snooze/descarte
 ] as const;
 
 /**

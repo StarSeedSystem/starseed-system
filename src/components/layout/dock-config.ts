@@ -34,7 +34,9 @@ export type DockIconKey =
   | 'Compass' | 'PenLine' | 'ShieldCheck' | 'LayoutGrid' | 'Server'
   | 'Vote' | 'Lightbulb' | 'Cpu' | 'Brain' | 'ShoppingBag'
   | 'Award' | 'AppWindow' | 'CalendarClock' | 'GitBranch' | 'Sparkles'
-  | 'Zap' | 'Wrench' | 'Plug' | 'Eye' | 'HardDrive' | 'Boxes';
+  | 'Zap' | 'Wrench' | 'Plug' | 'Eye' | 'HardDrive' | 'Boxes'
+  // ── Medios (Cámara + Galería) ──
+  | 'Camera' | 'Images';
 
 const STORAGE_KEY = 'starseed.dock.items.v2';
 const FOLDERS_KEY = 'starseed.dock.folders.v1';
@@ -176,6 +178,9 @@ export const DOCK_PRESETS: DockItemConfig[] = [
   { id: 'hermes-senses', label: 'Sentidos',            iconKey: 'Eye',             path: '/ai-setup?tab=senses',   color: 'amber',   enabled: false, origin: 'preset' },
   { id: 'memoria',       label: 'Memoria',             iconKey: 'HardDrive',       path: '/network/graph',         color: 'cyan',    enabled: false, origin: 'preset' },
   { id: 'servidores-apps', label: 'Servidores de Apps', iconKey: 'Boxes',          path: '/servidores-apps',       color: 'emerald', enabled: false, origin: 'preset' },
+  // ── Medios (grupo al FINAL del dock, visible por defecto) ──
+  { id: 'camara',        label: 'Cámara',              iconKey: 'Camera',          path: '/camara',                color: 'crimson', enabled: true,  origin: 'preset' },
+  { id: 'galeria',       label: 'Galería',             iconKey: 'Images',          path: '/galeria',               color: 'crimson', enabled: true,  origin: 'preset' },
 ];
 
 /**
@@ -420,6 +425,42 @@ function applyDockEscritorioFirstV6(items: DockItemConfig[], hadSaved: boolean):
   return migrated;
 }
 
+/**
+ * Migración v7 — grupo "Medios" (Cámara + Galería) al FINAL del dock,
+ * habilitado por defecto, incluso en cuentas con dock ya guardado (donde el
+ * flujo normal añadiría cualquier preset nuevo como deshabilitado). Se aplica
+ * una sola vez por navegador; no reordena ni toca nada más de la config del usuario.
+ */
+const DOCK_MIGRATION_V7_KEY = 'starseed.dock.items.migrated.v7';
+const MEDIA_GROUP_IDS = ['camara', 'galeria'];
+
+function applyDockMediaGroupV7(items: DockItemConfig[], hadSaved: boolean): DockItemConfig[] {
+  if (typeof window === 'undefined') return items;
+  try {
+    if (window.localStorage.getItem(DOCK_MIGRATION_V7_KEY)) return items;
+  } catch {
+    return items;
+  }
+
+  let migrated = items;
+  for (const id of MEDIA_GROUP_IDS) {
+    const idx = migrated.findIndex((i) => i.id === id);
+    if (idx === -1) {
+      const preset = DOCK_PRESETS.find((p) => p.id === id);
+      if (preset) migrated = [...migrated, { ...preset, enabled: true }];
+    } else if (!migrated[idx].enabled) {
+      migrated = migrated.map((it, i) => (i === idx ? { ...it, enabled: true } : it));
+    }
+  }
+
+  try {
+    if (hadSaved) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+    window.localStorage.setItem(DOCK_MIGRATION_V7_KEY, '1');
+  } catch { /* noop */ }
+
+  return migrated;
+}
+
 export function loadDockConfig(): DockItemConfig[] {
   if (typeof window === 'undefined') return DOCK_PRESETS;
   try {
@@ -429,24 +470,29 @@ export function loadDockConfig(): DockItemConfig[] {
 
     // Migración v4 (one-shot): si se ejecuta ahora, su resultado ya está
     // persistido; la v5 se aplica encima (quita Tienda/Red·Nodos del dock);
-    // la v6 fuerza 'escritorios' al primer puesto.
+    // la v6 fuerza 'escritorios' al primer puesto; la v7 añade Medios al final.
     const fused = applyDockFusionMigrationV4(saved);
-    if (fused) return applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(fused, true), true);
+    if (fused) {
+      return applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(fused, true), true), true);
+    }
 
     if (saved) {
       // Flujo normal (post-migración): cualquier preset nuevo se añade al
-      // final como deshabilitado, se aplica la migración v3 legada, la v5 y la v6.
+      // final como deshabilitado, se aplica la migración v3 legada, la v5, la v6 y la v7.
       const known = new Set(saved.map((i) => i.id));
       const missing = DOCK_PRESETS.filter((p) => !known.has(p.id)).map((p) => ({ ...p, enabled: false }));
-      return applyDockEscritorioFirstV6(
-        applyDockLibraryMigrationV5(applyOneShotMigration([...saved, ...missing]), true),
+      return applyDockMediaGroupV7(
+        applyDockEscritorioFirstV6(
+          applyDockLibraryMigrationV5(applyOneShotMigration([...saved, ...missing]), true),
+          true,
+        ),
         true,
       );
     }
   } catch { /* noop */ }
   // Sin config guardada: presets vivos (ya sin 'tienda'); la v5 purga carpetas
-  // huérfanas y la v6 confirma 'escritorios' al inicio (ya lo está en presets).
-  return applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false);
+  // huérfanas, la v6 confirma 'escritorios' al inicio y la v7 confirma Medios al final (ambos ya lo están en presets).
+  return applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false), false);
 }
 
 export function saveDockConfig(items: DockItemConfig[]) {

@@ -129,6 +129,8 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
     BRAINS: { label: "Cerebros", category: "ia", w: 3, h: 5, minW: 2, minH: 3, relevance: 82 },
     VAULTS: { label: "Baúles", category: "sistema", w: 3, h: 5, minW: 2, minH: 3, relevance: 74 },
     DOCUMENTS: { label: "Archivos", category: "archivos", w: 3, h: 5, minW: 2, minH: 3, relevance: 78 },
+    RECENT_GALLERY: { label: "Galería reciente", category: "archivos", w: 4, h: 4, minW: 2, minH: 3, relevance: 77 },
+    CAMERA_QUICK: { label: "Cámara", category: "aplicaciones", w: 2, h: 3, minW: 2, minH: 2, relevance: 73 },
 };
 
 export function getManifest(type: WidgetType): WidgetManifestEntry | undefined {

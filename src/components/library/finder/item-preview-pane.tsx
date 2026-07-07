@@ -9,10 +9,11 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Tags, X } from "lucide-react";
+import { ExternalLink, Tags, X, Link2 } from "lucide-react";
 import { FilePreview } from "@/components/files/file-preview";
 import { itemTypeMeta, toFileLike } from "./item-meta";
-import type { SavedItem } from "@/lib/library/entity-library";
+import { relatedItemsOf } from "./finder-types";
+import type { EntityLibraryDoc, SavedItem } from "@/lib/library/entity-library";
 
 export interface ItemPreviewPaneProps {
     item: SavedItem;
@@ -20,12 +21,16 @@ export interface ItemPreviewPaneProps {
     onOpen: () => void;
     onClose: () => void;
     resolvedTarget?: SavedItem | null;
+    /** Documento completo de la biblioteca (opcional): habilita "Archivos relacionados" (§18). */
+    doc?: EntityLibraryDoc;
+    onSelectRelated?: (item: SavedItem) => void;
 }
 
-export function ItemPreviewPane({ item, accent, onOpen, onClose, resolvedTarget }: ItemPreviewPaneProps) {
+export function ItemPreviewPane({ item, accent, onOpen, onClose, resolvedTarget, doc, onSelectRelated }: ItemPreviewPaneProps) {
     const shown = resolvedTarget ?? item;
     const meta = itemTypeMeta(item.type);
     const hasEmbeddable = !!(shown.url || shown.content || shown.route);
+    const related = doc ? relatedItemsOf(doc, item, 5) : [];
 
     return (
         <div className="flex h-full flex-col gap-3 overflow-y-auto rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -57,6 +62,26 @@ export function ItemPreviewPane({ item, accent, onOpen, onClose, resolvedTarget 
                             #{t}
                         </span>
                     ))}
+                </div>
+            )}
+
+            {related.length > 0 && (
+                <div className="space-y-1.5">
+                    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <Link2 className="h-3 w-3" /> Archivos relacionados
+                    </p>
+                    <div className="flex flex-col gap-1">
+                        {related.map((r) => (
+                            <button
+                                key={r.id}
+                                type="button"
+                                onClick={() => onSelectRelated?.(r)}
+                                className="flex cursor-pointer items-center gap-1.5 truncate rounded-lg px-2 py-1 text-left text-[11px] text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+                            >
+                                <span className="truncate">{r.title}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
             )}
 

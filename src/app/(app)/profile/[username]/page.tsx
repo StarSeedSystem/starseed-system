@@ -2,6 +2,7 @@
 'use client';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { comments as defaultComments } from "@/lib/data";
 import { CommentSystem } from "@/components/comment-system";
 import Link from "next/link";
@@ -18,7 +19,7 @@ import { libraryRef } from "@/lib/library/entity-library";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { StoriesStrip } from "@/components/stories/stories-strip";
 import { PostFeed } from "@/components/social/PostFeed";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAccount } from "@/context/account-context";
 import { ProfileModeBar } from "@/components/profile/profile-mode-bar";
 import { ProfileFreeLayout, type FreeSectionDef } from "@/components/profile/profile-free-layout";
@@ -26,6 +27,11 @@ import { ProfileLinksSection } from "@/components/profile/profile-links-section"
 import { ProfileFilesSection } from "@/components/profile/profile-files-section";
 import { ProfileXRView } from "@/components/profile/profile-xr-view";
 import { useProfileDisplay, normalizeHandleKey } from "@/components/profile/profile-display-store";
+import { useEntityLayout } from "@/lib/entity-layout";
+import { FreeSectionsBlock } from "@/components/social/free-sections-block";
+import { EntityGalleryBlock } from "@/components/social/entity-gallery-block";
+import { MessageRenderer } from "@/components/aurora/message-renderer";
+import { Pencil, BookText } from "lucide-react";
 
 // Sin perfiles de ejemplo. Los datos del perfil/página se derivan del slug de
 // la URL (nombre legible) y, donde aplica, de la red real (cuenta soberana vía
@@ -94,6 +100,139 @@ function ProfileDiscussionCard() {
     );
 }
 
+/**
+ * "Sobre mí ampliado" — descripción larga en markdown, contenido PÚBLICO
+ * (entity_state 'layout', kind='user', lectura pública vía RLS). Honesto:
+ * esta página aún no resuelve la cuenta real de OTRAS personas (el resto de
+ * bloques ya degradaba a vacío para no-dueños antes de este cambio), así que
+ * por ahora solo el dueño ve/edita contenido real; para visitas se explica
+ * con claridad en vez de fingir datos.
+ */
+function ProfileAboutExtendedCard({
+    isOwner, aboutExtended, onSave, name,
+}: { isOwner: boolean; aboutExtended: string; onSave: (text: string) => Promise<void> | void; name: string }) {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(aboutExtended);
+    const [saving, setSaving] = useState(false);
+
+    const startEdit = () => { setDraft(aboutExtended); setEditing(true); };
+    const save = async () => {
+        setSaving(true);
+        try { await onSave(draft); } finally { setSaving(false); setEditing(false); }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-headline">
+                    <BookText className="h-4 w-4 text-primary" /> Sobre mí ampliado
+                </CardTitle>
+                <CardDescription>
+                    {isOwner ? "Una descripción más larga y en markdown, visible en tu perfil." : `Descripción ampliada de ${name}.`}
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                {!isOwner ? (
+                    aboutExtended ? (
+                        <MessageRenderer text={aboutExtended} media={false} />
+                    ) : (
+                        <p className="rounded-xl border border-dashed border-white/12 p-6 text-center text-sm text-muted-foreground">
+                            {name} no ha escrito todavía una descripción ampliada.
+                        </p>
+                    )
+                ) : editing ? (
+                    <div className="space-y-2">
+                        <textarea
+                            value={draft}
+                            onChange={(e) => setDraft(e.target.value)}
+                            rows={8}
+                            className="w-full resize-none rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm focus:border-primary/40 focus:outline-none"
+                            placeholder="Cuéntate con calma… admite markdown"
+                        />
+                        <div className="flex items-center gap-2">
+                            <Button size="sm" className="cursor-pointer" onClick={() => void save()} disabled={saving}>Guardar</Button>
+                            <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => setEditing(false)}>Cancelar</Button>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {aboutExtended ? (
+                            <MessageRenderer text={aboutExtended} media={false} />
+                        ) : (
+                            <p className="rounded-xl border border-dashed border-white/12 p-6 text-center text-sm text-muted-foreground">
+                                Aún no has escrito una descripción ampliada.
+                            </p>
+                        )}
+                        <Button variant="outline" size="sm" className="mt-3 cursor-pointer gap-1.5" onClick={startEdit}>
+                            <Pencil className="h-3.5 w-3.5" /> Editar
+                        </Button>
+                    </>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+/** "Galería destacada" — imágenes públicas del perfil (entity_state 'layout' → gallery[]). */
+function ProfileGalleryCard({
+    isOwner, images, onAdd, onRemove, name,
+}: {
+    isOwner: boolean;
+    images: Array<{ url: string; caption?: string }>;
+    onAdd: (url: string, caption?: string) => Promise<void> | void;
+    onRemove: (index: number) => Promise<void> | void;
+    name: string;
+}) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">Galería destacada</CardTitle>
+                <CardDescription>{isOwner ? "Tus imágenes destacadas, visibles en tu perfil." : `Imágenes destacadas de ${name}.`}</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <EntityGalleryBlock
+                    images={images}
+                    isOwner={isOwner}
+                    onAdd={onAdd}
+                    onRemove={onRemove}
+                    emptyHint={isOwner ? "Añade tus primeras imágenes destacadas." : `${name} no tiene imágenes destacadas todavía.`}
+                />
+            </CardContent>
+        </Card>
+    );
+}
+
+/** "Secciones" — bloques de contenido libre del perfil (entity_state 'layout' → sections[]). */
+function ProfileSeccionesCard({
+    isOwner, sections, onAdd, onUpdate, onRemove, name,
+}: {
+    isOwner: boolean;
+    sections: Array<{ id: string; title: string; body: string; createdAt: string; updatedAt: string }>;
+    onAdd: (title: string, body: string) => Promise<void> | void;
+    onUpdate: (id: string, patch: { title?: string; body?: string }) => Promise<void> | void;
+    onRemove: (id: string) => Promise<void> | void;
+    name: string;
+}) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">Secciones</CardTitle>
+                <CardDescription>{isOwner ? "Bloques de contenido libre en tu perfil (markdown)." : `Secciones de ${name}.`}</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <FreeSectionsBlock
+                    sections={sections}
+                    isOwner={isOwner}
+                    onAdd={onAdd}
+                    onUpdate={onUpdate}
+                    onRemove={onRemove}
+                    emptyHint={isOwner ? "Añade bloques de contenido propios a tu perfil." : `${name} no tiene secciones todavía.`}
+                />
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function ProfilePage() {
     const params = useParams();
     // Safe param extraction
@@ -136,6 +275,26 @@ export default function ProfilePage() {
     // ── Perfil como página libre: modo persistido por handle ──
     const { config, setMode } = useProfileDisplay(pageHandle);
     const mode = config.mode;
+
+    // ── Formatos de perfil (Adenda): contenido PÚBLICO sincronizado vía
+    // entity_state 'layout' (kind='user', RLS de lectura pública ya aplicada).
+    // Ámbito 'user' con el uid REAL solo cuando es el perfil propio: esta
+    // página aún no resuelve el uid real de OTRAS cuentas a partir del
+    // username (mismo límite preexistente que ProfileLibraryCard) — degradar
+    // a `null` aquí es honesto, no una regresión nueva.
+    const profileEntityRef = useMemo(
+        () => (isOwner && user?.id ? { kind: "user" as const, id: user.id } : null),
+        [isOwner, user?.id],
+    );
+    const {
+        layout: profileLayout,
+        addSection: addProfileSection,
+        updateSection: updateProfileSection,
+        removeSection: removeProfileSection,
+        addGalleryImage: addProfileGalleryImage,
+        removeGalleryImage: removeProfileGalleryImage,
+        setAboutExtended: setProfileAboutExtended,
+    } = useEntityLayout(profileEntityRef);
 
     // Secciones del modo Libre (los MISMOS consumidores que las pestañas).
     const freeSections: FreeSectionDef[] = [
@@ -180,6 +339,45 @@ export default function ProfilePage() {
         { id: 'enlaces', title: 'Enlaces', node: <ProfileLinksSection handle={pageHandle} isOwner={isOwner} name={profileData.name} /> },
         { id: 'archivos', title: 'Archivos', node: <ProfileFilesSection isOwner={isOwner} name={profileData.name} /> },
         { id: 'discusion', title: 'Discusión Abierta', node: <ProfileDiscussionCard /> },
+        {
+            id: 'sobremi',
+            title: 'Sobre mí',
+            node: (
+                <ProfileAboutExtendedCard
+                    isOwner={isOwner}
+                    aboutExtended={profileLayout.aboutExtended}
+                    onSave={setProfileAboutExtended}
+                    name={profileData.name}
+                />
+            ),
+        },
+        {
+            id: 'galeria',
+            title: 'Galería',
+            node: (
+                <ProfileGalleryCard
+                    isOwner={isOwner}
+                    images={profileLayout.gallery}
+                    onAdd={(url, caption) => addProfileGalleryImage(url, caption)}
+                    onRemove={removeProfileGalleryImage}
+                    name={profileData.name}
+                />
+            ),
+        },
+        {
+            id: 'secciones',
+            title: 'Secciones',
+            node: (
+                <ProfileSeccionesCard
+                    isOwner={isOwner}
+                    sections={profileLayout.sections}
+                    onAdd={addProfileSection}
+                    onUpdate={updateProfileSection}
+                    onRemove={removeProfileSection}
+                    name={profileData.name}
+                />
+            ),
+        },
     ];
 
     return (
@@ -229,6 +427,9 @@ export default function ProfilePage() {
                             <TabsTrigger value="collections" className="shrink-0 flex-none">Colecciones</TabsTrigger>
                             <TabsTrigger value="enlaces" className="shrink-0 flex-none">Enlaces</TabsTrigger>
                             <TabsTrigger value="archivos" className="shrink-0 flex-none">Archivos</TabsTrigger>
+                            <TabsTrigger value="sobremi" className="shrink-0 flex-none">Sobre mí</TabsTrigger>
+                            <TabsTrigger value="galeria" className="shrink-0 flex-none">Galería</TabsTrigger>
+                            <TabsTrigger value="secciones" className="shrink-0 flex-none">Secciones</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="dashboard" className="mt-6">
@@ -278,6 +479,33 @@ export default function ProfilePage() {
                         </TabsContent>
                         <TabsContent value="archivos" className="mt-6">
                             <ProfileFilesSection isOwner={isOwner} name={profileData.name} />
+                        </TabsContent>
+                        <TabsContent value="sobremi" className="mt-6 animate-in fade-in-50 duration-500">
+                            <ProfileAboutExtendedCard
+                                isOwner={isOwner}
+                                aboutExtended={profileLayout.aboutExtended}
+                                onSave={setProfileAboutExtended}
+                                name={profileData.name}
+                            />
+                        </TabsContent>
+                        <TabsContent value="galeria" className="mt-6 animate-in fade-in-50 duration-500">
+                            <ProfileGalleryCard
+                                isOwner={isOwner}
+                                images={profileLayout.gallery}
+                                onAdd={(url, caption) => addProfileGalleryImage(url, caption)}
+                                onRemove={removeProfileGalleryImage}
+                                name={profileData.name}
+                            />
+                        </TabsContent>
+                        <TabsContent value="secciones" className="mt-6 animate-in fade-in-50 duration-500">
+                            <ProfileSeccionesCard
+                                isOwner={isOwner}
+                                sections={profileLayout.sections}
+                                onAdd={addProfileSection}
+                                onUpdate={updateProfileSection}
+                                onRemove={removeProfileSection}
+                                name={profileData.name}
+                            />
                         </TabsContent>
                     </Tabs>
                 </div>

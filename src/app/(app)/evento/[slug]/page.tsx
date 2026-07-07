@@ -4,6 +4,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +17,10 @@ import { libraryRef } from "@/lib/library/entity-library";
 import { useOsEntity, useAttendance, useEntityOwner } from "@/hooks/use-os-entities";
 import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 import type { OsEvent } from "@/lib/os-social";
+// Al confirmar "Asistiré": agenda recordatorio real (/recordatorios) + alarma
+// funcional (Adenda jul-2026 §3) — mismo helper que usa la tarjeta-invitación
+// de Mensajes/Correos, para que el comportamiento sea idéntico en ambos sitios.
+import { acceptEventAndSchedule } from "@/lib/events/event-accept";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { CollectionsGrid } from "@/components/profile/collections/collections-grid";
 import { samplePages, sampleGroups } from "@/data/sample-entities";
@@ -60,10 +65,16 @@ function AttendanceButtons({
     eventSlug,
     accent,
     count,
+    title,
+    startsAt,
+    location,
 }: {
     eventSlug: string;
     accent: string;
     count: number;
+    title: string;
+    startsAt: string | null;
+    location: string;
 }) {
     const { status, loading, toggle } = useAttendance(eventSlug);
     const [hint, setHint] = useState(false);
@@ -77,6 +88,17 @@ function AttendanceButtons({
         if (res.needsAuth) {
             setHint(true);
             setTimeout(() => setHint(false), 4000);
+            return;
+        }
+        // Recién confirmó asistencia (no al des-marcarla): agenda recordatorio +
+        // alarma real, igual que al aceptar la tarjeta-invitación en Mensajes/
+        // Correos (@/lib/events/event-accept.ts). Honesto: si luego se
+        // des-confirma, el recordatorio/alarma ya creados no se retiran solos.
+        if (target === "asiste" && res.ok && res.active) {
+            const sched = await acceptEventAndSchedule({ slug: eventSlug, title, startsAt, location });
+            if (sched.reminderCreated || sched.alarmCreated) {
+                toast.success("Asistencia confirmada. Recordatorio y alarma creados en /recordatorios.");
+            }
         }
     };
 
@@ -318,6 +340,9 @@ export default function EventoPage() {
                             eventSlug={event.slug}
                             accent={accent}
                             count={event.attendeeCount}
+                            title={event.title}
+                            startsAt={event.startsAt}
+                            location={event.location}
                         />
                     </GlassCard>
                 </aside>

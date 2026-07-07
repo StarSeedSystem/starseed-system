@@ -11,10 +11,13 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Folder, FolderOpen, ChevronRight, MoreVertical, PenSquare, Trash2, FolderPlus, X, Package, ShieldCheck } from "lucide-react";
+import {
+    Folder, FolderOpen, ChevronRight, MoreVertical, PenSquare, Trash2, FolderPlus, X, Package, ShieldCheck,
+    GitBranch, MessageSquare,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
-    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { buildFolderTree, type FolderNode } from "./finder-types";
 import type { LibraryFolder } from "@/lib/library/entity-library";
@@ -37,6 +40,12 @@ export interface FolderTreeProps {
     onContextMenuFolder?: (e: React.MouseEvent | React.TouchEvent, folderId: string) => void;
     onPublishFolder?: (folderId: string) => void;
     onPermissionsFolder?: (folderId: string) => void;
+    /** v2.1 (§16): abre la ficha del repositorio (si `folder.repo` ya existe). */
+    onOpenRepo?: (folderId: string) => void;
+    /** v2.1 (§16): abre el diálogo para convertir esta carpeta en repositorio. */
+    onConvertToRepo?: (folderId: string) => void;
+    /** v2.1 (§15): abre el hilo de comentarios de esta carpeta. */
+    onCommentsFolder?: (folderId: string) => void;
 }
 
 function FolderRow({
@@ -133,7 +142,13 @@ function FolderRow({
                         onClick={() => props.onSelect(folder.id)}
                         className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 py-1.5 text-left text-xs font-medium"
                     >
-                        {isActive ? <FolderOpen className="h-3.5 w-3.5 shrink-0" /> : <Folder className="h-3.5 w-3.5 shrink-0" />}
+                        {folder.repo ? (
+                            <GitBranch className="h-3.5 w-3.5 shrink-0 text-lime-300" />
+                        ) : isActive ? (
+                            <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                        ) : (
+                            <Folder className="h-3.5 w-3.5 shrink-0" />
+                        )}
                         <span className="min-w-0 flex-1 truncate">{folder.name}</span>
                         <span className="shrink-0 tabular-nums opacity-60">{count}</span>
                     </button>
@@ -170,12 +185,34 @@ function FolderRow({
                                     <ShieldCheck className="h-3.5 w-3.5" /> Permisos…
                                 </DropdownMenuItem>
                             )}
+                            {props.onCommentsFolder && (
+                                <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={() => props.onCommentsFolder?.(folder.id)}>
+                                    <MessageSquare className="h-3.5 w-3.5" /> Comentarios…
+                                </DropdownMenuItem>
+                            )}
                             {props.onPublishFolder && (
                                 <DropdownMenuItem
                                     className="cursor-pointer gap-2 text-xs text-emerald-300 focus:text-emerald-200"
                                     onClick={() => props.onPublishFolder?.(folder.id)}
                                 >
                                     <Package className="h-3.5 w-3.5" /> Publicar carpeta completa…
+                                </DropdownMenuItem>
+                            )}
+                            {(props.onOpenRepo || props.onConvertToRepo) && <DropdownMenuSeparator className="bg-white/10" />}
+                            {folder.repo && props.onOpenRepo && (
+                                <DropdownMenuItem
+                                    className="cursor-pointer gap-2 text-xs text-lime-300 focus:text-lime-200"
+                                    onClick={() => props.onOpenRepo?.(folder.id)}
+                                >
+                                    <GitBranch className="h-3.5 w-3.5" /> Ficha del repositorio…
+                                </DropdownMenuItem>
+                            )}
+                            {!folder.repo && props.onConvertToRepo && (
+                                <DropdownMenuItem
+                                    className="cursor-pointer gap-2 text-xs text-lime-300 focus:text-lime-200"
+                                    onClick={() => props.onConvertToRepo?.(folder.id)}
+                                >
+                                    <GitBranch className="h-3.5 w-3.5" /> Convertir en repositorio…
                                 </DropdownMenuItem>
                             )}
                             <DropdownMenuItem

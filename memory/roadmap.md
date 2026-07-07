@@ -235,3 +235,12 @@ Este roadmap **no es estático**. Cualquier ciudadano puede:
 ---
 
 *Última revisión: 2026-05-24*
+
+## Mejoras detectadas por agentes · 2026-07-07 (próximos desarrollos)
+- Feed: unificar los 2 compositores (/publish rápido vs /publicar completo); dedup real de multi-destino (post único + N referencias en render del feed); índice server-side "posts con adjunto vivo"; drag&drop real con dnd-kit (ya instalado) para adjuntos/bloques.
+- Vivo: TURN/SFU (LiveKit) para WebRTC de canales; historial persistente del chat de canal; aprobaciones de acceso inline en el propio post; extender tratamiento vivo a carruseles multi-adjunto; coedición nativa por tipo de archivo (PDF/imagen).
+- Política/Educación: insignias por examen (migración con codes propios); promover temas personales a grupos; diferenciar /conocimiento vs Mapa del Conocimiento en navegación; panel Astraura en el mapa educativo; miembros reales asignables en tareas.
+- Perfiles/entidades: resolver uid real de otras cuentas desde username (bio/secciones/galería de terceros hoy placeholder); rol admin además de owner; selector de grupo con autocompletado en permisos.
+- Correos: retirar/migrar código legado ss_mail/account_emails/starseed_mail_config (tablas inexistentes); envío externo real vía connector Gmail (OAuth) futuro.
+- Deuda TS real detectada: notifications.ts y widget-data/os-live.ts (Promises sin await tratadas como .catch), theme-gallery/theme-utils (distortWidth sin declarar), lib/aurora/actions.ts (import Router inexistente), keyStorage.ts (WebCrypto Uint8Array), political-proposal-card (Recharts any).
+- Otros: mensajes → atajo "compartir espacio" (os_spaces) como el de servidores; Web Push para alarmas/notifs con app cerrada; marcador de historias en network-map; targets táctiles ≥40px en cabecera de ventana embebida; limpiar PreviewBody muerto en composer.

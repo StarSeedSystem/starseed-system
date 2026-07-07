@@ -59,7 +59,9 @@ export type SavedItemType =
     /** Acceso directo: no tiene contenido propio, apunta a `targetItemId`. */
     | "alias"
     /** Ramificación vinculada: refleja el original (`refKind`/`refId`) en vivo. */
-    | "branch";
+    | "branch"
+    /** v2.1 (Adenda 65, §17): repo GIT externo conectado (metadatos cacheados en `connectedRepo`). */
+    | "repo";
 
 /** Entrada de control de acceso: un usuario o un grupo (por id/slug). */
 export interface ACLEntry {
@@ -78,6 +80,72 @@ export interface ItemACL {
 
 function emptyAcl(): ItemACL {
     return { read: [], write: [] };
+}
+
+/** v2.1 (§13): snapshot de un estado anterior de un ítem, para historial/restaurar/comparar. */
+export interface ItemVersionEntry {
+    id: string;
+    at: string;
+    by: string;
+    /** Etiqueta legible opcional (p.ej. "antes de fusionar rama"). */
+    label?: string;
+    title: string;
+    note?: string;
+    content?: string;
+    url?: string;
+    mime?: string;
+    language?: string;
+    description?: string;
+}
+
+/** v2.1 (§17): instantánea cacheada de un repositorio GIT externo conectado (GitHub, lectura pública). */
+export interface ConnectedRepoMeta {
+    provider: "github";
+    owner: string;
+    repo: string;
+    fullName: string;
+    description?: string;
+    htmlUrl: string;
+    homepage?: string;
+    stars: number;
+    forks: number;
+    language?: string;
+    license?: string;
+    topics: string[];
+    defaultBranch: string;
+    ownerLogin: string;
+    ownerAvatar?: string;
+    readme?: string | null;
+    releases: Array<{ tag: string; name?: string; body?: string; publishedAt?: string; htmlUrl?: string }>;
+    syncedAt: string;
+}
+
+/** v2.1 (§16): entrada de "release" de un repositorio propio (changelog con nota). */
+export interface RepoRelease {
+    id: string;
+    tag: string;
+    note: string;
+    createdAt: string;
+    by: string;
+    /** true si esta release también se volcó a `library_public_items` (repo público). */
+    published?: boolean;
+}
+
+/** v2.1 (§16): metadatos de un repositorio creado por el usuario (folder-repo, estilo GitHub). */
+export interface RepoMeta {
+    description?: string;
+    visibility: "privado" | "publico";
+    category?: string;
+    license?: string;
+    topics: string[];
+    /** Contenido Markdown editable del README.md del repo. */
+    readme: string;
+    releases: RepoRelease[];
+    /** Si nació de "Replicar" (fork) sobre otro repo, propio o ajeno. */
+    forkedFrom?: { kind: SyncEntityKind; id: string; folderId: string } | null;
+    createdAt: string;
+    /** Última vez que se publicó (o republicó) al catálogo público, si aplica. */
+    lastPublishedAt?: string;
 }
 
 export interface SavedItem {
@@ -106,8 +174,15 @@ export interface SavedItem {
     /** v2 (`type==="branch"`): de qué se ramificó (Entidad Única reflejada en vivo). */
     refKind?: SavedItemType;
     refId2?: string;
+    /** v2.1 (§14): id LOCAL (dentro de esta biblioteca) del ítem inmediato del que se ramificó
+     *  (lineage sin ambigüedad; `refId2` apunta al recurso externo, no siempre resoluble aquí). */
+    branchOf?: string;
     /** v2: permisos por ítem (ausente = visible/editable por todos con acceso a la biblioteca). */
     acl?: ItemACL;
+    /** v2.1 (§13): historial de versiones (snapshots previos), acotado — ver `updateItemContent`. */
+    versions?: ItemVersionEntry[];
+    /** v2.1 (§17, `type==="repo"`): instantánea cacheada de un repo GIT externo conectado. */
+    connectedRepo?: ConnectedRepoMeta;
 }
 
 export interface LibraryFolder {
@@ -121,6 +196,8 @@ export interface LibraryFolder {
     category?: string;
     /** v2: permisos por carpeta (aplica a la carpeta en sí; los ítems tienen el suyo propio). */
     acl?: ItemACL;
+    /** v2.1 (§16): presencia = esta carpeta es la raíz de un repositorio estilo GitHub. */
+    repo?: RepoMeta;
 }
 
 export interface EntityLibraryDoc {
@@ -338,6 +415,15 @@ export interface SaveItemInput {
     note?: string;
     tags?: string[];
     folderId?: string | null;
+    /** v2.1 (§16-17): metadatos de formato/contenido, para que forks/copias entre bibliotecas
+     *  (p.ej. `forkRepo` en user-repos.ts) no pierdan el contenido inline de los ítems. */
+    mime?: string;
+    thumbnail?: string;
+    content?: string;
+    language?: string;
+    description?: string;
+    /** v2.1 (§17): pasa la instantánea cacheada al guardar/copiar un ítem `type:"repo"`. */
+    connectedRepo?: ConnectedRepoMeta;
 }
 
 /** Guarda una referencia en la biblioteca de la entidad. Deduplica por (type+refId|route|url). */
@@ -379,6 +465,12 @@ export async function saveItem(
             folderId: folderId ?? item.folderId ?? null,
             addedAt: new Date().toISOString(),
             addedBy: who,
+            mime: item.mime,
+            thumbnail: item.thumbnail,
+            content: item.content,
+            language: item.language,
+            description: item.description,
+            connectedRepo: item.connectedRepo,
         };
         resultId = entry.id;
         return { ...doc, items: [entry, ...doc.items], updatedAt: new Date().toISOString() };
@@ -563,6 +655,11 @@ export async function replicateItem(
             addedBy: who,
             refKind: source.type,
             refId2: source.refId ?? source.id,
+            // v2.1 (§14): lineage local sin ambigüedad — ver branchesOf()/mergeBranch() en finder-types.ts.
+            branchOf: source.id,
+            // La rama nace con su propia ACL/historial (no hereda restricciones ni versiones del origen).
+            acl: undefined,
+            versions: undefined,
         };
         newId = branch.id;
         return { ...doc, items: [branch, ...doc.items], updatedAt: new Date().toISOString() };
@@ -592,11 +689,229 @@ export async function duplicateItem(
             addedAt: new Date().toISOString(),
             addedBy: who,
             acl: undefined, // la copia nace sin restricciones propias
+            versions: undefined, // ni con el historial de ediciones del origen
+            branchOf: undefined,
         };
         newId = copy.id;
         return { ...doc, items: [copy, ...doc.items], updatedAt: new Date().toISOString() };
     });
     return { ok: !!newId, id: newId };
+}
+
+// ─────────────────────────── Versiones (§13) ───────────────────────────
+
+const MAX_ITEM_VERSIONS = 25;
+const VERSIONABLE_FIELDS = ["title", "note", "content", "url", "mime", "language", "description"] as const;
+type VersionableField = (typeof VERSIONABLE_FIELDS)[number];
+export type VersionablePatch = Partial<Pick<SavedItem, VersionableField>>;
+
+function snapshotVersion(item: SavedItem, who: string, label?: string): ItemVersionEntry {
+    return {
+        id: makeId("ver"),
+        at: new Date().toISOString(),
+        by: who,
+        label,
+        title: item.title,
+        note: item.note,
+        content: item.content,
+        url: item.url,
+        mime: item.mime,
+        language: item.language,
+        description: item.description,
+    };
+}
+
+function versionableFieldsChanged(item: SavedItem, patch: VersionablePatch): boolean {
+    return VERSIONABLE_FIELDS.some((f) => f in patch && patch[f] !== item[f]);
+}
+
+/**
+ * Edita título/nota/contenido/url/mime/idioma/descripción de un ítem YA guardado.
+ * Si algún campo versionable cambia de verdad, empuja el estado ANTERIOR al
+ * historial (`versions`, FIFO acotado a MAX_ITEM_VERSIONS) antes de aplicar `patch`.
+ */
+export async function updateItemContent(
+    ref: EntityRef,
+    itemId: string,
+    patch: VersionablePatch,
+    opts?: { label?: string },
+): Promise<{ ok: boolean }> {
+    const who = (await currentUserRef())?.id ?? "anon";
+    let ok = false;
+    await mutate(ref, (doc) => {
+        const item = doc.items.find((it) => it.id === itemId);
+        if (!item) return doc;
+        ok = true;
+        const changed = versionableFieldsChanged(item, patch);
+        const versions = changed
+            ? [snapshotVersion(item, who, opts?.label), ...(item.versions ?? [])].slice(0, MAX_ITEM_VERSIONS)
+            : item.versions;
+        const nextItem: SavedItem = { ...item, ...patch, versions };
+        return {
+            ...doc,
+            items: doc.items.map((it) => (it.id === itemId ? nextItem : it)),
+            updatedAt: new Date().toISOString(),
+        };
+    });
+    return { ok };
+}
+
+/** Restaura una versión anterior. Snapshotea el estado ACTUAL antes (para poder deshacer la restauración). */
+export async function restoreItemVersion(ref: EntityRef, itemId: string, versionId: string): Promise<{ ok: boolean }> {
+    const who = (await currentUserRef())?.id ?? "anon";
+    let ok = false;
+    await mutate(ref, (doc) => {
+        const item = doc.items.find((it) => it.id === itemId);
+        if (!item) return doc;
+        const version = (item.versions ?? []).find((v) => v.id === versionId);
+        if (!version) return doc;
+        ok = true;
+        const preRestoreSnapshot = snapshotVersion(item, who, "antes de restaurar");
+        const nextItem: SavedItem = {
+            ...item,
+            title: version.title,
+            note: version.note,
+            content: version.content,
+            url: version.url,
+            mime: version.mime,
+            language: version.language,
+            description: version.description,
+            versions: [preRestoreSnapshot, ...(item.versions ?? [])].slice(0, MAX_ITEM_VERSIONS),
+        };
+        return {
+            ...doc,
+            items: doc.items.map((it) => (it.id === itemId ? nextItem : it)),
+            updatedAt: new Date().toISOString(),
+        };
+    });
+    return { ok };
+}
+
+// ─────────────────────────── Ramas: linaje + fusión (§14) ───────────────────────────
+
+/**
+ * Resuelve el ítem ORIGEN de una rama. Prioriza `branchOf` (lineage local,
+ * sin ambigüedad). Fallback de mejor esfuerzo para ramas anteriores a v2.1
+ * (sin `branchOf`): busca otro ítem cuyo `refId`/`id` coincida con `refId2`.
+ */
+export function resolveBranchOrigin(doc: EntityLibraryDoc, branch: SavedItem): SavedItem | undefined {
+    if (branch.branchOf) {
+        const byId = doc.items.find((it) => it.id === branch.branchOf);
+        if (byId) return byId;
+    }
+    if (branch.refId2) {
+        return doc.items.find((it) => it.id !== branch.id && (it.refId === branch.refId2 || it.id === branch.refId2));
+    }
+    return undefined;
+}
+
+/**
+ * Fusiona una RAMA con su ítem ORIGEN: escribe los campos actuales de la rama
+ * (título/nota/contenido/url/mime/idioma/descripción/tags) sobre el origen,
+ * snapshoteando antes el estado previo del origen en su propio historial de
+ * versiones (§13) — la fusión es reversible con "Restaurar". `removeBranchAfter`
+ * (por defecto false, no destructivo) borra la rama tras fusionar con éxito.
+ */
+export async function mergeBranch(
+    ref: EntityRef,
+    branchItemId: string,
+    opts?: { removeBranchAfter?: boolean },
+): Promise<{ ok: boolean; originId?: string; message?: string }> {
+    const who = (await currentUserRef())?.id ?? "anon";
+    let result: { ok: boolean; originId?: string; message?: string } = { ok: false, message: "No se encontró la rama." };
+    await mutate(ref, (doc) => {
+        const branch = doc.items.find((it) => it.id === branchItemId);
+        if (!branch || branch.type !== "branch") {
+            result = { ok: false, message: "Ese ítem no es una rama." };
+            return doc;
+        }
+        const origin = resolveBranchOrigin(doc, branch);
+        if (!origin) {
+            result = { ok: false, message: "No se pudo resolver el ítem de origen de esta rama (quizás ya se eliminó)." };
+            return doc;
+        }
+        const originSnapshot = snapshotVersion(origin, who, "antes de fusionar rama");
+        const mergedOrigin: SavedItem = {
+            ...origin,
+            title: branch.title,
+            note: branch.note,
+            content: branch.content,
+            url: branch.url,
+            mime: branch.mime,
+            language: branch.language,
+            description: branch.description,
+            tags: branch.tags,
+            versions: [originSnapshot, ...(origin.versions ?? [])].slice(0, MAX_ITEM_VERSIONS),
+        };
+        let items = doc.items.map((it) => (it.id === origin.id ? mergedOrigin : it));
+        if (opts?.removeBranchAfter) items = items.filter((it) => it.id !== branchItemId);
+        result = { ok: true, originId: origin.id };
+        return { ...doc, items, updatedAt: new Date().toISOString() };
+    });
+    return result;
+}
+
+// ─────────────────────────── Repositorios: folder-repo (§16) ───────────────────────────
+
+/** Establece (sustituye) los metadatos de repositorio de una carpeta. `null` la des-marca como repo. */
+export async function setFolderRepoMeta(ref: EntityRef, folderId: string, repo: RepoMeta | null): Promise<void> {
+    await mutate(ref, (doc) => ({
+        ...doc,
+        folders: doc.folders.map((f) => (f.id === folderId ? { ...f, repo: repo ?? undefined } : f)),
+        updatedAt: new Date().toISOString(),
+    }));
+}
+
+// ─────────────────────────── Repos externos conectados (§17) ───────────────────────────
+
+/** Guarda una referencia (ítem `type:"repo"`) a un repo GIT externo, con su ficha cacheada. */
+export async function addConnectedRepoItem(
+    ref: EntityRef,
+    meta: ConnectedRepoMeta,
+    folderId: string | null = null,
+): Promise<{ ok: boolean; id: string }> {
+    const who = (await currentUserRef())?.id ?? "anon";
+    let newId = "";
+    await mutate(ref, (doc) => {
+        const item: SavedItem = {
+            id: makeId("repo"),
+            type: "repo",
+            title: meta.fullName,
+            url: meta.htmlUrl,
+            tags: meta.topics.slice(0, 8),
+            folderId,
+            addedAt: new Date().toISOString(),
+            addedBy: who,
+            description: meta.description,
+            connectedRepo: meta,
+        };
+        newId = item.id;
+        return { ...doc, items: [item, ...doc.items], updatedAt: new Date().toISOString() };
+    });
+    return { ok: !!newId, id: newId };
+}
+
+/** Re-sincroniza los metadatos cacheados de un repo conectado ("Sincronizar metadatos"). */
+export async function resyncConnectedRepoItem(
+    ref: EntityRef,
+    itemId: string,
+    meta: ConnectedRepoMeta,
+): Promise<{ ok: boolean }> {
+    let ok = false;
+    await mutate(ref, (doc) => {
+        const item = doc.items.find((it) => it.id === itemId);
+        if (!item || item.type !== "repo") return doc;
+        ok = true;
+        const next: SavedItem = {
+            ...item,
+            title: meta.fullName,
+            url: meta.htmlUrl,
+            description: meta.description,
+            connectedRepo: meta,
+        };
+        return { ...doc, items: doc.items.map((it) => (it.id === itemId ? next : it)), updatedAt: new Date().toISOString() };
+    });
+    return { ok };
 }
 
 // ─────────────────────────── Hook reactivo ───────────────────────────
@@ -619,6 +934,16 @@ export interface UseEntityLibrary {
     createAlias: (targetItemId: string, folderId?: string | null) => Promise<{ ok: boolean; id: string }>;
     replicateItem: (sourceItemId: string, folderId?: string | null) => Promise<{ ok: boolean; id: string }>;
     duplicateItem: (sourceItemId: string, folderId?: string | null) => Promise<{ ok: boolean; id: string }>;
+    /** v2.1 (§13) */
+    updateItemContent: (itemId: string, patch: VersionablePatch, opts?: { label?: string }) => Promise<{ ok: boolean }>;
+    restoreItemVersion: (itemId: string, versionId: string) => Promise<{ ok: boolean }>;
+    /** v2.1 (§14) */
+    mergeBranch: (branchItemId: string, opts?: { removeBranchAfter?: boolean }) => Promise<{ ok: boolean; originId?: string; message?: string }>;
+    /** v2.1 (§16) */
+    setFolderRepoMeta: (folderId: string, repo: RepoMeta | null) => Promise<void>;
+    /** v2.1 (§17) */
+    addConnectedRepoItem: (meta: ConnectedRepoMeta, folderId?: string | null) => Promise<{ ok: boolean; id: string }>;
+    resyncConnectedRepoItem: (itemId: string, meta: ConnectedRepoMeta) => Promise<{ ok: boolean }>;
 }
 
 /**
@@ -733,6 +1058,34 @@ export function useEntityLibrary(ref: EntityRef | null): UseEntityLibrary {
             ref ? duplicateItem(ref, sourceItemId, folderId) : Promise.resolve({ ok: false, id: "" }),
         [ref],
     );
+    const boundUpdateItemContent = useCallback(
+        (itemId: string, patch: VersionablePatch, opts?: { label?: string }) =>
+            ref ? updateItemContent(ref, itemId, patch, opts) : Promise.resolve({ ok: false }),
+        [ref],
+    );
+    const boundRestoreItemVersion = useCallback(
+        (itemId: string, versionId: string) => (ref ? restoreItemVersion(ref, itemId, versionId) : Promise.resolve({ ok: false })),
+        [ref],
+    );
+    const boundMergeBranch = useCallback(
+        (branchItemId: string, opts?: { removeBranchAfter?: boolean }) =>
+            ref ? mergeBranch(ref, branchItemId, opts) : Promise.resolve({ ok: false, message: "Sin biblioteca activa." }),
+        [ref],
+    );
+    const boundSetFolderRepoMeta = useCallback(
+        (folderId: string, repo: RepoMeta | null) => (ref ? setFolderRepoMeta(ref, folderId, repo) : Promise.resolve()),
+        [ref],
+    );
+    const boundAddConnectedRepoItem = useCallback(
+        (meta: ConnectedRepoMeta, folderId: string | null = null) =>
+            ref ? addConnectedRepoItem(ref, meta, folderId) : Promise.resolve({ ok: false, id: "" }),
+        [ref],
+    );
+    const boundResyncConnectedRepoItem = useCallback(
+        (itemId: string, meta: ConnectedRepoMeta) =>
+            ref ? resyncConnectedRepoItem(ref, itemId, meta) : Promise.resolve({ ok: false }),
+        [ref],
+    );
 
     return {
         doc,
@@ -751,6 +1104,12 @@ export function useEntityLibrary(ref: EntityRef | null): UseEntityLibrary {
         createAlias: boundCreateAlias,
         replicateItem: boundReplicateItem,
         duplicateItem: boundDuplicateItem,
+        updateItemContent: boundUpdateItemContent,
+        restoreItemVersion: boundRestoreItemVersion,
+        mergeBranch: boundMergeBranch,
+        setFolderRepoMeta: boundSetFolderRepoMeta,
+        addConnectedRepoItem: boundAddConnectedRepoItem,
+        resyncConnectedRepoItem: boundResyncConnectedRepoItem,
     };
 }
 

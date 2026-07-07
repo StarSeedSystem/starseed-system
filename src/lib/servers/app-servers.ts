@@ -322,6 +322,36 @@ export async function fetchServerBySlug(slug: string): Promise<AppServerSummary 
     }
 }
 
+/** Un servidor por id (para adjuntos vivos: canal/edición que guardan el id, no el slug). */
+export async function fetchServerById(id: string): Promise<AppServerSummary | null> {
+    if (!id) return null;
+    try {
+        const supabase = createClient();
+        const uid = await getCurrentUserId();
+        const { data, error } = await supabase.from("os_app_servers").select("*").eq("id", id).maybeSingle();
+        if (error || !data) return null;
+        const server = normalizeServer(data as ServerRow);
+
+        const { data: memberRows } = await supabase
+            .from("os_app_server_members")
+            .select("server_id, user_id, role, status")
+            .eq("server_id", server.id);
+        const members = (memberRows as MemberRow[]) || [];
+        const activeMembers = members.filter((m) => m.status === "member");
+        const mine = uid ? members.find((m) => m.user_id === uid) : undefined;
+
+        return {
+            ...server,
+            memberCount: activeMembers.length,
+            myStatus: mine ? ((mine.status as MemberStatus) ?? null) : null,
+            myRole: mine ? mine.role ?? "member" : null,
+            isOwner: !!uid && server.owner === uid,
+        };
+    } catch {
+        return null;
+    }
+}
+
 /* ──────────────────────── Unirse / solicitar / aprobar ─────────────────── */
 
 export interface JoinResult {

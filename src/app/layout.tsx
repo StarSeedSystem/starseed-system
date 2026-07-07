@@ -54,6 +54,11 @@ import { RegisterSW } from "@/components/pwa/register-sw";
 // archivos, Adenda 64 §9): escucha 'file-request' en el canal de cuenta y
 // muestra el diálogo para elegir/subir. Sin UI hasta que llega una solicitud.
 import { FileRequestListener } from "@/components/files/file-request-listener";
+// Alarmas propias del usuario (invitaciones a eventos, recordatorios…):
+// @/lib/alarms/alarms.ts. Global (root), a diferencia del <AlarmScheduler/>
+// del Sincrómetro (que vive solo dentro de (app), atado a CalendarProvider) —
+// las alarmas deben sonar también desde /messages y /correos (fuera de (app)).
+import { AlarmsEngine } from "@/components/alarms/alarms-engine";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -198,6 +203,7 @@ export default function RootLayout({
                         {/* Cursor personalizado + animaciones de clic (config en
                             Apariencia → Cursor; 'starseed.cursorfx.v1'). Global. */}
                         <CursorFxHost />
+                        <AlarmsEngine />
                         <Toaster />
                         <Sonner />
                         </AuroraProvider>

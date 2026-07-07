@@ -9,7 +9,7 @@
 
 import {
     Globe, Coffee, AudioWaveform, Radio, MessageSquare, Network,
-    Library, BrainCircuit, CloudSun, Music, Waves, Orbit,
+    Library, BrainCircuit, CloudSun, Music, Waves, Orbit, Camera, Images,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 
@@ -173,6 +173,28 @@ export const APP_CATALOG: StarseedApp[] = [
         category: "media",
         status: "soon", // streaming en Fase 2
         open: { primary: "window", allowed: ["window", "tab"] },
+    },
+    {
+        id: "camara",
+        name: "Cámara",
+        short: "Cámara",
+        description: "Foto y vídeo real con controles auto y manuales, guardado en tu biblioteca personal.",
+        icon: Camera,
+        accent: "#FB7185",
+        category: "media",
+        status: "native",
+        open: { primary: "route", allowed: ["route"], route: "/camara" },
+    },
+    {
+        id: "galeria",
+        name: "Galería",
+        short: "Galería",
+        description: "Tus fotos y vídeos por fecha y álbumes, con visor, edición básica e Historias.",
+        icon: Images,
+        accent: "#F472B6",
+        category: "media",
+        status: "native",
+        open: { primary: "route", allowed: ["route"], route: "/galeria" },
     },
     {
         id: "immersive",

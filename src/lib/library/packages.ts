@@ -342,6 +342,20 @@ const CORE_ROUTE_PACKAGES: LibraryPackage[] = [
     payload: { route: "/escritorios" },
   },
   {
+    id: "app-camara", kind: "app", name: "Cámara",
+    description: "Cámara real del OS: foto y vídeo con controles auto y manuales, guardado en tu biblioteca personal.",
+    icon: "Camera", tags: ["app", "camara", "foto", "video"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/camara" },
+  },
+  {
+    id: "app-galeria", kind: "app", name: "Galería",
+    description: "Tus fotos y vídeos organizados por fecha y álbumes, con visor, edición básica e Historias.",
+    icon: "Images", tags: ["app", "galeria", "fotos", "videos"], version: "1.0.0",
+    author: "StarSeed Core", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/galeria" },
+  },
+  {
     id: "page-wiki", kind: "page", name: "Wiki de la Red",
     description: "El conocimiento común editable de la red: artículos vivos como Entidades Únicas (Lienzo Universal).",
     icon: "BookOpen", tags: ["pagina", "wiki", "conocimiento"], version: "1.0.0",

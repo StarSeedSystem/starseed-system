@@ -17,6 +17,8 @@ export const ITEM_TYPE_META: Record<SavedItemType, { label: string; icon: Lucide
     external: { label: "Enlace externo", icon: ExternalLink },
     alias: { label: "Acceso directo", icon: CornerUpRight },
     branch: { label: "Rama (vinculado)", icon: GitBranch },
+    /** v2.1 (§17): repo GIT externo conectado. */
+    repo: { label: "Repo conectado", icon: GitBranch },
 };
 
 export function itemTypeMeta(type: SavedItemType) {

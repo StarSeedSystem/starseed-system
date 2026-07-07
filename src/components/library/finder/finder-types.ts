@@ -7,6 +7,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { EntityLibraryDoc, LibraryFolder, SavedItem, ItemACL } from "@/lib/library/entity-library";
+import { resolveBranchOrigin } from "@/lib/library/entity-library";
 import type { EntityRef } from "@/lib/sync/entity-state";
 
 /** Modo de visualización del Finder. */
@@ -175,7 +176,7 @@ export function clearClipboard(): void {
 // ─────────────────────────── Ordenación ───────────────────────────
 
 const TYPE_ORDER: Record<SavedItem["type"], number> = {
-    branch: 0, alias: 1, package: 2, post: 3, file: 4, page: 5, route: 6, external: 7,
+    branch: 0, alias: 1, package: 2, post: 3, file: 4, page: 5, route: 6, external: 7, repo: 8,
 };
 
 export function sortItems(items: SavedItem[], sort: FinderSort): SavedItem[] {
@@ -209,4 +210,106 @@ export function deepLinkFor(ref: EntityRef, itemId: string): string {
     url.searchParams.set("e", `${ref.kind}:${ref.id}`);
     url.searchParams.set("item", itemId);
     return url.toString();
+}
+
+/** Enlace profundo de una CARPETA (p.ej. un repositorio) de biblioteca. */
+export function deepLinkForFolder(ref: EntityRef, folderId: string): string {
+    if (typeof window === "undefined") {
+        return `/library?area=biblioteca&e=${ref.kind}:${ref.id}&folder=${folderId}`;
+    }
+    const url = new URL("/library", window.location.origin);
+    url.searchParams.set("area", "biblioteca");
+    url.searchParams.set("e", `${ref.kind}:${ref.id}`);
+    url.searchParams.set("folder", folderId);
+    return url.toString();
+}
+
+// ─────────────────────────── Ramas: linaje (§14) ───────────────────────────
+
+/** Ítem de origen de una rama (delega en la resolución robusta de entity-library.ts). */
+export function originOfBranch(doc: EntityLibraryDoc, branch: SavedItem): SavedItem | undefined {
+    return resolveBranchOrigin(doc, branch);
+}
+
+/** Todas las ramas (directas) que apuntan a `itemId` como origen. */
+export function branchesOf(doc: EntityLibraryDoc, itemId: string): SavedItem[] {
+    const target = doc.items.find((it) => it.id === itemId);
+    return doc.items.filter((it) => {
+        if (it.type !== "branch" || it.id === itemId) return false;
+        if (it.branchOf) return it.branchOf === itemId;
+        // Fallback de mejor esfuerzo para ramas creadas antes de v2.1 (sin `branchOf`).
+        if (!target) return false;
+        return it.refId2 === (target.refId ?? target.id);
+    });
+}
+
+// ─────────────────────────── Diff simple de texto (§13) ───────────────────────────
+
+export type DiffLineKind = "same" | "add" | "remove";
+export interface DiffLine {
+    kind: DiffLineKind;
+    text: string;
+}
+
+/**
+ * Diff de líneas ingenuo (LCS clásico) pensado para notas/código CORTOS (no un
+ * motor de diff completo). Acota la entrada a 4000 líneas por lado para que el
+ * coste O(n·m) del LCS nunca bloquee la UI con textos grandes.
+ */
+export function simpleLineDiff(a: string, b: string): DiffLine[] {
+    const LIMIT = 4000;
+    const linesA = (a ?? "").split("\n").slice(0, LIMIT);
+    const linesB = (b ?? "").split("\n").slice(0, LIMIT);
+    const n = linesA.length;
+    const m = linesB.length;
+    // Tabla LCS (n+1 x m+1). Textos cortos por diseño: coste asumible.
+    const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) {
+        for (let j = m - 1; j >= 0; j--) {
+            lcs[i][j] = linesA[i] === linesB[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+        }
+    }
+    const out: DiffLine[] = [];
+    let i = 0;
+    let j = 0;
+    while (i < n && j < m) {
+        if (linesA[i] === linesB[j]) {
+            out.push({ kind: "same", text: linesA[i] });
+            i++;
+            j++;
+        } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+            out.push({ kind: "remove", text: linesA[i] });
+            i++;
+        } else {
+            out.push({ kind: "add", text: linesB[j] });
+            j++;
+        }
+    }
+    while (i < n) {
+        out.push({ kind: "remove", text: linesA[i] });
+        i++;
+    }
+    while (j < m) {
+        out.push({ kind: "add", text: linesB[j] });
+        j++;
+    }
+    return out;
+}
+
+// ─────────────────────────── Archivos relacionados ───────────────────────────
+
+/** Hasta `limit` ítems relacionados (misma carpeta o etiquetas compartidas), excluyendo el propio. */
+export function relatedItemsOf(doc: EntityLibraryDoc, item: SavedItem, limit = 6): SavedItem[] {
+    const tagSet = new Set(item.tags);
+    return doc.items
+        .filter((it) => it.id !== item.id && it.type !== "alias")
+        .map((it) => {
+            const sharedTags = it.tags.filter((t) => tagSet.has(t)).length;
+            const sameFolder = (it.folderId ?? null) === (item.folderId ?? null) && item.folderId != null ? 1 : 0;
+            return { it, score: sharedTags * 3 + sameFolder };
+        })
+        .filter((x) => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map((x) => x.it);
 }

@@ -431,14 +431,66 @@ export function subscribeMyFiles(cb: () => void): () => void {
     }
 }
 
+export interface UpdateFileAccessInput {
+    isPublic?: boolean;
+    aclRead?: string[];
+    aclWrite?: string[];
+    groupSlug?: string | null;
+}
+
+/**
+ * Actualiza los permisos de un archivo YA subido (is_public/acl_read/acl_write/
+ * group_slug). Best-effort y aditivo — no toca `uploadFile`. RLS restringe la
+ * escritura al dueño (osf_own), así que solo puede modificarse el propio.
+ */
+export async function updateFileAccess(id: string, patch: UpdateFileAccessInput): Promise<boolean> {
+    if (!id) return false;
+    try {
+        const supabase = createClient();
+        const update: Record<string, unknown> = {};
+        if (patch.isPublic !== undefined) update.is_public = patch.isPublic;
+        if (patch.aclRead !== undefined) update.acl_read = patch.aclRead;
+        if (patch.aclWrite !== undefined) update.acl_write = patch.aclWrite;
+        if (patch.groupSlug !== undefined) update.group_slug = patch.groupSlug;
+        if (Object.keys(update).length === 0) return true;
+        const { error } = await supabase.from("os_files").update(update).eq("id", id);
+        return !error;
+    } catch {
+        return false;
+    }
+}
+
+/** Busca la fila `os_files` cuya `url` coincide (para resolver el id real desde una referencia de biblioteca). */
+export async function findFileByUrl(url: string): Promise<OsFile | null> {
+    if (!url) return null;
+    try {
+        const supabase = createClient();
+        const { data, error } = await supabase.from("os_files").select("*").eq("url", url).maybeSingle();
+        if (error || !data) return null;
+        return normalizeRow(data as OsFileRow);
+    } catch {
+        return null;
+    }
+}
+
 /** Formato de adjunto compartido por mensajes/comentarios/Aurora (compatible con DmAttachment/CommentAttachment). */
 export interface UniversalAttachment {
-    kind: "image" | "audio" | "video" | "file" | string;
+    kind: "image" | "audio" | "video" | "file" | "ref" | string;
     name?: string;
     mime?: string;
     url?: string;
     size?: number;
     fileId?: string;
+    /**
+     * Referencia a otra entidad de la red (jul-2026 · pestaña "Contenido de la
+     * red" del picker, @/lib/files/network-content-ref.ts): página/grupo/evento/
+     * publicación propios o públicos, adjuntables como referencia EN VIVO.
+     * Compatible con `DmAttachment`/`CommentAttachment` (mismos nombres de campo).
+     */
+    refKind?: "page" | "group" | "event" | "post" | string;
+    refId?: string;
+    /** Ruta in-app de la referencia (para embeberla/enlazarla directamente). */
+    route?: string;
 }
 
 function attachmentKindOf(mime: string | null | undefined): UniversalAttachment["kind"] {

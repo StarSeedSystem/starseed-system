@@ -17,6 +17,8 @@ import {
 import {
     ExternalLink, Eye, GitBranch, Copy, ClipboardCopy, ClipboardPaste,
     Link2, FolderInput, Tags, Share2, ShieldCheck, Trash2, Package, Megaphone,
+    PenSquare, History, MessageSquare, Boxes,
+    type LucideIcon,
 } from "lucide-react";
 
 export interface FinderMenuTarget {
@@ -26,6 +28,13 @@ export interface FinderMenuTarget {
     canWrite: boolean;
     /** true si es un alias (oculta Replicar/Duplicar: no tienen contenido propio). */
     isAlias?: boolean;
+}
+
+/** Acción genérica calculada por el llamador según formato/tipo (Adenda 65, §18). */
+export interface FinderExtraAction {
+    label: string;
+    icon: LucideIcon;
+    onClick: () => void;
 }
 
 export interface FinderContextMenuProps {
@@ -53,6 +62,18 @@ export interface FinderContextMenuProps {
     onPublishFolderToCatalog?: () => void;
     onPermissions: () => void;
     onRemove: () => void;
+    /** v2.1 (§13): edita título/nota/contenido (crea versión con el estado anterior). */
+    onEdit?: () => void;
+    /** v2.1 (§13): historial de versiones (restaurar/comparar). */
+    onVersions?: () => void;
+    /** v2.1 (§14): vista de ramas (linaje) + fusión con confirmación. */
+    onBranches?: () => void;
+    /** v2.1 (§15): hilo de comentarios (ítems y carpetas). */
+    onComments?: () => void;
+    /** v2.1 (§18): "Instalar/guardar en…" (biblioteca/escritorio/cerebro/servidor). */
+    onInstallTo?: () => void;
+    /** v2.1 (§18): acciones adicionales calculadas por formato (imagen/código/audio/vídeo/zip…). */
+    extraActions?: FinderExtraAction[];
 }
 
 export function FinderContextMenu({
@@ -60,6 +81,7 @@ export function FinderContextMenu({
     onOpen, onClose, onPreview, onReplicate, onDuplicate,
     onCopy, onCut, onPaste, onCreateShortcut, onMove, onTags,
     onShare, onPublish, onPublishToCatalog, onPublishFolderToCatalog, onPermissions, onRemove,
+    onEdit, onVersions, onBranches, onComments, onInstallTo, extraActions,
 }: FinderContextMenuProps) {
     const isItem = target.kind === "item";
     const wrap = (fn?: () => void) => () => {
@@ -102,7 +124,34 @@ export function FinderContextMenu({
                                 <Copy className="h-3.5 w-3.5" /> Duplicar
                             </DropdownMenuItem>
                         )}
+                        {target.canWrite && onEdit && (
+                            <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onEdit)}>
+                                <PenSquare className="h-3.5 w-3.5" /> Editar…
+                            </DropdownMenuItem>
+                        )}
                     </>
+                )}
+
+                {isItem && !target.isAlias && (onVersions || onBranches) && (
+                    <>
+                        <DropdownMenuSeparator className="bg-white/10" />
+                        {onVersions && (
+                            <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onVersions)}>
+                                <History className="h-3.5 w-3.5" /> Versiones…
+                            </DropdownMenuItem>
+                        )}
+                        {onBranches && (
+                            <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onBranches)}>
+                                <GitBranch className="h-3.5 w-3.5" /> Ramas…
+                            </DropdownMenuItem>
+                        )}
+                    </>
+                )}
+
+                {onComments && (
+                    <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onComments)}>
+                        <MessageSquare className="h-3.5 w-3.5" /> Comentarios…
+                    </DropdownMenuItem>
                 )}
 
                 <DropdownMenuSeparator className="bg-white/10" />
@@ -158,6 +207,23 @@ export function FinderContextMenu({
                         <Package className="h-3.5 w-3.5" /> Publicar carpeta completa…
                     </DropdownMenuItem>
                 )}
+
+                {isItem && (onInstallTo || (extraActions && extraActions.length > 0)) && (
+                    <>
+                        <DropdownMenuSeparator className="bg-white/10" />
+                        {onInstallTo && (
+                            <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onInstallTo)}>
+                                <Boxes className="h-3.5 w-3.5" /> Instalar / guardar en…
+                            </DropdownMenuItem>
+                        )}
+                        {extraActions?.map((a, i) => (
+                            <DropdownMenuItem key={`${a.label}-${i}`} className="cursor-pointer gap-2 text-xs" onClick={wrap(a.onClick)}>
+                                <a.icon className="h-3.5 w-3.5" /> {a.label}
+                            </DropdownMenuItem>
+                        ))}
+                    </>
+                )}
+
                 {target.canWrite && (
                     <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onPermissions)}>
                         <ShieldCheck className="h-3.5 w-3.5" /> Permisos…
