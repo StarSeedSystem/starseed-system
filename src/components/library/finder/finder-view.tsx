@@ -26,11 +26,14 @@ import {
 } from "lucide-react";
 import {
     useEntityLibrary,
+    listLibrary,
+    removeItem as removeItemFromLibrary,
     type EntityRef,
     type SavedItem,
     type SavedItemType,
     type ItemACL,
 } from "@/lib/library/entity-library";
+import { createClient } from "@/utils/supabase/client";
 // Subida universal de archivos (Adenda 64 §9): botón "Subir archivos…" de la
 // toolbar — sube al storage real y crea ítems type:'file' en la carpeta activa.
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
@@ -262,19 +265,115 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                 } else {
                     await Promise.all(entry.itemIds.map((id) => duplicateItem(id, folderId)));
                 }
-            } else {
-                // Pegar desde OTRA biblioteca: solo tenemos ids locales de esa otra doc,
-                // que no están cargados aquí — degradamos con aviso honesto.
-                toast.message("Pegado entre bibliotecas distintas aún no soportado", {
-                    description: "Usa «Compartir» → «Guardar en biblioteca…» para llevar un ítem de una biblioteca a otra.",
+                if (entry.mode === "cortar") clearClipboard();
+                setClipboardHasContent(!!readClipboard());
+                toast.success("Pegado");
+                return;
+            }
+
+            // ── Pegado ENTRE bibliotecas distintas ──────────────────────────────
+            // Leemos el doc completo de la biblioteca ORIGEN (puede no estar cargada
+            // en este dispositivo) y creamos copias nuevas (nuevo id) en la biblioteca
+            // ACTUAL (destino), preservando el payload pero sin ACL/folderId/addedAt/
+            // addedBy del original — igual que `duplicateItem` resetea `acl` en su
+            // copia dentro de la misma biblioteca.
+            let sourceDoc;
+            try {
+                sourceDoc = await listLibrary(entry.ref);
+            } catch {
+                sourceDoc = { items: [], folders: [], rev: 0, updatedAt: "" };
+            }
+            const sourceItemsById = new Map(sourceDoc.items.map((it) => [it.id, it] as const));
+
+            let copied = 0;
+            let missing = 0;
+            const copiedSourceIds: string[] = [];
+            for (const id of entry.itemIds) {
+                const source = sourceItemsById.get(id);
+                if (!source) {
+                    missing++;
+                    continue;
+                }
+                const res = await saveItem(
+                    {
+                        type: source.type,
+                        refId: source.refId,
+                        route: source.route,
+                        url: source.url,
+                        title: source.title,
+                        note: source.note,
+                        tags: source.tags,
+                    },
+                    folderId,
+                );
+                if (res.ok) {
+                    copied++;
+                    copiedSourceIds.push(id);
+                } else {
+                    missing++;
+                }
+            }
+
+            let removedFromSource = 0;
+            let removalDenied = false;
+            if (entry.mode === "cortar" && copiedSourceIds.length > 0) {
+                const canDeleteFromSource = await canWriteSourceLibrary(entry.ref, sourceItemsById);
+                if (canDeleteFromSource) {
+                    await Promise.all(
+                        copiedSourceIds.map(async (id) => {
+                            try {
+                                await removeItemFromLibrary(entry.ref, id);
+                                removedFromSource++;
+                            } catch {
+                                /* fallo puntual de borrado: se reporta abajo como no removido */
+                            }
+                        }),
+                    );
+                    if (removedFromSource < copiedSourceIds.length) removalDenied = true;
+                } else {
+                    removalDenied = true;
+                }
+            }
+
+            if (entry.mode === "cortar" && removedFromSource === copiedSourceIds.length && !removalDenied) {
+                clearClipboard();
+            }
+            setClipboardHasContent(!!readClipboard());
+
+            // ── Toast honesto según lo que realmente ocurrió ──────────────────
+            if (copied === 0) {
+                toast.message("No se pudo pegar", {
+                    description: "No se encontró ninguno de los ítems en la biblioteca de origen.",
                 });
                 return;
             }
-            if (entry.mode === "cortar") clearClipboard();
-            setClipboardHasContent(!!readClipboard());
-            toast.success("Pegado");
+            if (entry.mode === "copiar") {
+                if (missing === 0) {
+                    toast.success(`Pegado (${copied} ítem${copied > 1 ? "s" : ""} copiados de otra biblioteca)`);
+                } else {
+                    toast.success("Pegado parcialmente", {
+                        description: `${copied} copiados, ${missing} no encontrados en el origen.`,
+                    });
+                }
+                return;
+            }
+            // mode === "cortar"
+            if (missing === 0 && !removalDenied) {
+                toast.success(`Movido (${copied} ítem${copied > 1 ? "s" : ""} desde otra biblioteca)`);
+            } else if (removalDenied) {
+                toast.message("Copiado, pero no movido del todo", {
+                    description:
+                        missing === 0
+                            ? `${copied} copiados; el original no se pudo quitar de la biblioteca de origen (sin permiso de escritura ahí).`
+                            : `${copied} copiados, ${missing} no encontrados en el origen; el resto no se pudo quitar de la biblioteca de origen (sin permiso de escritura ahí).`,
+                });
+            } else {
+                toast.success("Pegado parcialmente", {
+                    description: `${copied} copiados, ${missing} no encontrados en el origen.`,
+                });
+            }
         },
-        [entityRef, moveItem, duplicateItem],
+        [entityRef, moveItem, duplicateItem, saveItem],
     );
 
     const handleShare = useCallback((id: string) => {
@@ -741,6 +840,42 @@ function aclAllowsReadFolder(f: { acl?: ItemACL }, ctx: AclViewerContext): boole
     if (!f.acl || f.acl.read.length === 0) return true;
     if (!ctx.userId) return false;
     return f.acl.read.some((e) => (e.kind === "user" && e.id === ctx.userId) || (e.kind === "group" && ctx.groupSlugs.includes(e.id)));
+}
+
+/**
+ * Determina (de forma pragmática, sin re-derivar todo el contexto ACL de una
+ * biblioteca AJENA) si el usuario actual puede borrar de la biblioteca ORIGEN
+ * al pegar-cortar entre bibliotecas distintas:
+ *   · `ref.kind==="user"` y coincide con el uid actual → es "Mi biblioteca": dueño, permite.
+ *   · Resto de entidades: no tenemos membresías/owner_id a mano aquí sin ampliar
+ *     el alcance de esta tarea, así que respetamos el ACL propio de CADA ítem
+ *     recortado (mismo criterio que `aclAllows()` de finder-types.ts): si el
+ *     ítem tiene una lista `write` no vacía, el usuario debe aparecer en ella
+ *     (por id de usuario; no podemos resolver pertenencia a grupo de OTRA
+ *     entidad aquí, así que esa parte se omite); si el ítem no tiene ACL (o
+ *     `write` vacío) se permite por defecto — igual que el resto del código
+ *     trata "ACL ausente" como "sin restricción, permitir" (postura permisiva
+ *     por defecto, restrictiva solo cuando hay una denegación explícita).
+ */
+async function canWriteSourceLibrary(ref: EntityRef, sourceItemsById: Map<string, SavedItem>): Promise<boolean> {
+    try {
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        const uid = userData?.user?.id ?? null;
+
+        if (ref.kind === "user") return !!uid && uid === ref.id;
+
+        if (!uid) return true; // sin sesión: no hay forma de restringir por usuario, se mantiene el default permisivo v1
+        for (const item of sourceItemsById.values()) {
+            const writeList = item.acl?.write ?? [];
+            if (writeList.length === 0) continue; // ACL ausente/sin restricción: permitido por defecto
+            const allowed = writeList.some((e) => e.kind === "user" && e.id === uid);
+            if (!allowed) return false;
+        }
+        return true;
+    } catch {
+        return true; // fallo al resolver sesión/tablas: no bloqueamos el borrado, mismo criterio permisivo del resto del archivo
+    }
 }
 
 export default FinderView;

@@ -11,9 +11,9 @@
 //     espacio en modo colaborativo.
 // ════════════════════════════════════════════════════════════════
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    Share2, Users2, Globe, Lock, UserPlus, ExternalLink, Loader2, Radio,
+    Share2, Users2, Globe, Lock, UserPlus, ExternalLink, Loader2, Radio, Mail, Check, X as XIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -22,9 +22,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 import { readDesktopsSnapshot } from './desktop-store';
 import {
-    createSpace, inviteToSpaceByUsername, useMySpaces, type SpaceAccess,
+    createSpace, inviteToSpaceByUsername, useMySpaces, useMyInvites, acceptInvite, declineInvite, type SpaceAccess,
 } from '@/lib/spaces/spaces';
 import { useMyProfiles } from '@/lib/profiles/profiles';
 import { useSyncProfilesConfig } from '@/lib/sync/sync-profiles-config';
@@ -197,6 +198,105 @@ function ShareAsSpaceDialog({ open, onClose }: { open: boolean; onClose: () => v
     );
 }
 
+/** Sección "Invitaciones" — espacios donde estoy invitado (status='invited') y aún no he respondido. */
+function PendingInvitesSection() {
+    const { invites, loading, reload } = useMyInvites();
+    const { reload: reloadSpaces } = useMySpaces('desktop');
+    const [busyId, setBusyId] = useState<string | null>(null);
+    const prevCount = useRef<number | null>(null);
+
+    // Aproximación honesta de "nueva invitación": avisamos cuando la lista
+    // CRECE respecto a la carga anterior (no distinguimos cuál es la nueva
+    // fila exacta sin inspeccionar el payload de realtime en detalle).
+    useEffect(() => {
+        if (loading) return;
+        if (prevCount.current !== null && invites.length > prevCount.current) {
+            toast.info('Nueva invitación a un espacio compartido.');
+        }
+        prevCount.current = invites.length;
+    }, [invites.length, loading]);
+
+    const handleAccept = useCallback(async (spaceId: string) => {
+        setBusyId(spaceId);
+        try {
+            const ok = await acceptInvite(spaceId);
+            if (ok) {
+                toast.success('Invitación aceptada.');
+                reload();
+                reloadSpaces();
+            } else {
+                toast.error('No se pudo aceptar la invitación. Inténtalo de nuevo.');
+            }
+        } finally {
+            setBusyId(null);
+        }
+    }, [reload, reloadSpaces]);
+
+    const handleDecline = useCallback(async (spaceId: string) => {
+        setBusyId(spaceId);
+        try {
+            const ok = await declineInvite(spaceId);
+            if (ok) {
+                toast.info('Invitación rechazada.');
+                reload();
+            } else {
+                toast.error('No se pudo rechazar la invitación. Inténtalo de nuevo.');
+            }
+        } finally {
+            setBusyId(null);
+        }
+    }, [reload]);
+
+    if (!loading && invites.length === 0) return null;
+
+    return (
+        <div className="space-y-1">
+            <p className="flex items-center gap-1.5 px-1 text-[10px] font-semibold text-muted-foreground">
+                <Mail className="size-3" /> Invitaciones
+            </p>
+            {loading ? (
+                <p className="px-1 text-[11px] text-muted-foreground">Cargando…</p>
+            ) : (
+                <div className="space-y-1">
+                    {invites.map((inv) => (
+                        <div
+                            key={inv.spaceId}
+                            className="flex items-center gap-2 rounded-lg border border-amber-300/20 bg-amber-400/[0.05] px-2.5 py-1.5"
+                        >
+                            <Mail className="size-3 shrink-0 text-amber-300/80" />
+                            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold">{inv.title}</span>
+                            <Badge variant="outline" className="shrink-0 border-white/10 text-[9px] text-muted-foreground">
+                                {inv.kind}
+                            </Badge>
+                            <Badge variant="outline" className="shrink-0 border-white/10 text-[9px] text-muted-foreground">
+                                {inv.role}
+                            </Badge>
+                            <button
+                                type="button"
+                                disabled={busyId === inv.spaceId}
+                                onClick={() => handleAccept(inv.spaceId)}
+                                className="flex shrink-0 items-center justify-center rounded-md border border-emerald-400/30 bg-emerald-400/10 p-1 text-emerald-300 transition-colors hover:bg-emerald-400/20 cursor-pointer disabled:opacity-50"
+                                title="Aceptar invitación"
+                            >
+                                {busyId === inv.spaceId ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={busyId === inv.spaceId}
+                                onClick={() => handleDecline(inv.spaceId)}
+                                className="flex shrink-0 items-center justify-center rounded-md border border-red-400/30 bg-red-400/10 p-1 text-red-300 transition-colors hover:bg-red-400/20 cursor-pointer disabled:opacity-50"
+                                title="Rechazar invitación"
+                            >
+                                <XIcon className="size-3" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 /** Bloque "Sincronización" completo para DesktopSettingsPanel. */
 export function DesktopSharePanel() {
     const [shareOpen, setShareOpen] = useState(false);
@@ -215,6 +315,9 @@ export function DesktopSharePanel() {
             <h4 className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground/80">
                 <Radio className="size-3" /> Sincronización
             </h4>
+
+            {/* Invitaciones pendientes (espacios donde me han invitado) */}
+            <PendingInvitesSection />
 
             {/* Con qué perfiles se comparte este conjunto de escritorios */}
             <div className="space-y-1.5 rounded-xl border border-white/10 p-2.5">

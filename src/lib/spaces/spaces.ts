@@ -293,20 +293,60 @@ export async function listSpaceEditors(spaceId: string): Promise<SpaceEditor[]> 
  * Acepta una invitación pendiente (transición invited→member) al ABRIR el
  * espacio. Solo actualiza LA PROPIA fila (spe_self), nunca inserta — si no
  * existía invitación previa, es un no-op silencioso.
+ *
+ * Mantiene su firma void (llamada como `void acceptSpaceInvite(spaceId)` desde
+ * useSpaceDoc/useSharedBoardSpace al abrir un espacio). Delega en
+ * `acceptInvite` para no duplicar la lógica.
  */
 export async function acceptSpaceInvite(spaceId: string): Promise<void> {
+    await acceptInvite(spaceId);
+}
+
+/**
+ * Acepta una invitación pendiente (transición invited→member). Variante
+ * pública que devuelve boolean de éxito, pensada para UI explícita (botón
+ * "Aceptar" en una lista de invitaciones) donde se necesita reaccionar al
+ * resultado (toast, quitar de la lista, etc). Misma cláusula WHERE que
+ * `acceptSpaceInvite`: solo actualiza LA PROPIA fila, nunca inserta.
+ */
+export async function acceptInvite(spaceId: string): Promise<boolean> {
     try {
         const uid = await getUserId();
-        if (!uid) return;
+        if (!uid) return false;
         const supabase = createClient();
-        await supabase
+        const { error } = await supabase
             .from("os_space_editors")
             .update({ status: "member" })
             .eq("space_id", spaceId)
             .eq("account", uid)
             .eq("status", "invited");
+        return !error;
     } catch {
-        /* best-effort */
+        return false;
+    }
+}
+
+/**
+ * Rechaza (elimina) MI PROPIA invitación pendiente. Distinto de
+ * `removeSpaceEditor` (que es solo del dueño y borra CUALQUIER cuenta) —
+ * aquí el invitado borra su propia fila `invited` (spe_self, vía UPDATE de
+ * la propia fila que también cubre DELETE bajo la misma política si RLS lo
+ * permite; degrada a false sin lanzar si no).
+ */
+export async function declineInvite(spaceId: string): Promise<boolean> {
+    try {
+        const uid = await getUserId();
+        if (!uid) return false;
+        const supabase = createClient();
+        const { error } = await supabase
+            .from("os_space_editors")
+            .delete()
+            .eq("space_id", spaceId)
+            .eq("account", uid)
+            .eq("status", "invited");
+        return !error;
+    } catch {
+        return false;
     }
 }
 
@@ -318,6 +358,86 @@ export async function removeSpaceEditor(spaceId: string, account: string): Promi
         return !error;
     } catch {
         return false;
+    }
+}
+
+/* ─────────────────────────── Mis invitaciones (perspectiva del invitado) ─────────────────────────── */
+
+export interface MyInvite {
+    spaceId: string;
+    role: SpaceEditorRole;
+    title: string;
+    kind: SpaceKind;
+    createdAt: string;
+}
+
+/**
+ * Lista MIS invitaciones pendientes (status='invited', cuenta = yo) — a
+ * diferencia de `listSpaceEditors` (perspectiva del dueño sobre UN espacio),
+ * esta recorre TODOS los espacios en los que me han invitado y aún no he
+ * aceptado/rechazado.
+ *
+ * Enfoque de dos consultas (en vez de un embed `.select("*, os_spaces(...)")`)
+ * porque la lectura de `os_spaces` para un espacio access='invite' depende de
+ * `space_can_read`, que podría no reconocerme todavía como lector antes de
+ * aceptar — un embed fallaría silenciosamente o devolvería null en ese caso.
+ * Con dos consultas degradamos con gracia: si la segunda consulta (os_spaces)
+ * falla o no devuelve fila para un `space_id`, igualmente se conserva la
+ * invitación con un título placeholder — lo importante (spaceId + role) NUNCA
+ * se omite por un fallo en el enriquecido de título/kind.
+ */
+export async function listMyInvites(): Promise<MyInvite[]> {
+    try {
+        const uid = await getUserId();
+        if (!uid) return [];
+        const supabase = createClient();
+        const { data, error } = await supabase
+            .from("os_space_editors")
+            .select("space_id, role, created_at")
+            .eq("account", uid)
+            .eq("status", "invited")
+            .order("created_at", { ascending: false });
+        if (error || !Array.isArray(data) || data.length === 0) return [];
+
+        const base = data.map((row) => ({
+            spaceId: String((row as Record<string, unknown>).space_id),
+            role: ((row as Record<string, unknown>).role as SpaceEditorRole) ?? "editor",
+            createdAt: typeof (row as Record<string, unknown>).created_at === "string" ? String((row as Record<string, unknown>).created_at) : "",
+        }));
+
+        // Enriquecido best-effort de título/kind — nunca tira la lista si falla.
+        try {
+            const ids = base.map((b) => b.spaceId);
+            const { data: spacesData, error: spacesError } = await supabase
+                .from("os_spaces")
+                .select("id, title, kind")
+                .in("id", ids);
+            const byId = new Map<string, { title: string; kind: SpaceKind }>();
+            if (!spacesError && Array.isArray(spacesData)) {
+                for (const row of spacesData as Array<Record<string, unknown>>) {
+                    byId.set(String(row.id), {
+                        title: typeof row.title === "string" ? row.title : "Espacio compartido",
+                        kind: (row.kind as SpaceKind) ?? "board",
+                    });
+                }
+            }
+            return base.map((b) => {
+                const found = byId.get(b.spaceId);
+                return {
+                    spaceId: b.spaceId,
+                    role: b.role,
+                    createdAt: b.createdAt,
+                    title: found?.title ?? "Espacio compartido",
+                    kind: found?.kind ?? "board",
+                };
+            });
+        } catch {
+            // Degrada con gracia: la invitación sigue siendo accionable aunque
+            // no sepamos título/kind todavía.
+            return base.map((b) => ({ ...b, title: "Espacio compartido", kind: "board" as SpaceKind }));
+        }
+    } catch {
+        return [];
     }
 }
 
@@ -376,6 +496,42 @@ export function subscribeMySpacesList(onChange: () => void): () => void {
     }
 }
 
+/**
+ * Suscripción en tiempo real específica a MIS invitaciones pendientes
+ * (`os_space_editors` donde `account = auth.uid()`). Más acotada que
+ * `subscribeMySpacesList` (que escucha la tabla entera) para menos ruido en
+ * componentes que solo necesitan refrescar la bandeja de invitaciones.
+ */
+export function subscribeMyInvites(onChange: () => void): () => void {
+    try {
+        const supabase = createClient();
+        let unsub: (() => void) | null = null;
+        void getUserId().then((uid) => {
+            if (!uid) return;
+            const channel = supabase
+                .channel(`invites:${uid}`)
+                .on(
+                    "postgres_changes",
+                    { event: "*", schema: "public", table: "os_space_editors", filter: `account=eq.${uid}` },
+                    () => onChange(),
+                )
+                .subscribe();
+            unsub = () => {
+                try {
+                    supabase.removeChannel(channel);
+                } catch {
+                    /* noop */
+                }
+            };
+        });
+        return () => {
+            if (unsub) unsub();
+        };
+    } catch {
+        return () => {};
+    }
+}
+
 /* ─────────────────────────── Hooks ─────────────────────────── */
 
 export interface UseMySpaces {
@@ -418,6 +574,48 @@ export function useMySpaces(kind?: SpaceKind): UseMySpaces {
     }, [kind]);
 
     return { spaces, loading, reload };
+}
+
+export interface UseMyInvites {
+    invites: MyInvite[];
+    loading: boolean;
+    reload: () => void;
+}
+
+/** Hook: lista reactiva de MIS invitaciones pendientes (realtime), mismo patrón que `useMySpaces`. */
+export function useMyInvites(): UseMyInvites {
+    const [invites, setInvites] = useState<MyInvite[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const reload = useCallback(() => {
+        setLoading(true);
+        void listMyInvites().then((list) => {
+            setInvites(list);
+            setLoading(false);
+        });
+    }, []);
+
+    useEffect(() => {
+        let alive = true;
+        setLoading(true);
+        void listMyInvites().then((list) => {
+            if (alive) {
+                setInvites(list);
+                setLoading(false);
+            }
+        });
+        const unsub = subscribeMyInvites(() => {
+            void listMyInvites().then((list) => {
+                if (alive) setInvites(list);
+            });
+        });
+        return () => {
+            alive = false;
+            unsub();
+        };
+    }, []);
+
+    return { invites, loading, reload };
 }
 
 export interface UseSpaceDocOptions {

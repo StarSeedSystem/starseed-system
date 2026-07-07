@@ -85,6 +85,9 @@ import {
   Palette,
   ListTree,
   PanelRight,
+  Loader2,
+  Check,
+  Mail,
 } from "lucide-react";
 import {
   BLOCK_KINDS,
@@ -128,7 +131,7 @@ import { buildProposalLink } from "@/lib/governance/links";
 // Pizarras COMPARTIDAS (SOP §11, Adenda 65): espacio colaborativo os_spaces
 // kind='board', distinto del toggle `canvas.shared` existente (referencia simple).
 import { BoardShareDialog, BoardShareTrigger } from "@/components/canvas/board-share-dialog";
-import { useMySpaces } from "@/lib/spaces/spaces";
+import { useMySpaces, useMyInvites, acceptInvite, declineInvite } from "@/lib/spaces/spaces";
 import { useSharedBoardSpace } from "@/lib/sync/shared-board-space";
 
 // Mapa de iconos lucide por nombre (declarado en el catálogo del lib).
@@ -197,8 +200,56 @@ const ZOOM_MAX = 2.5;
 // ── "Pizarras compartidas conmigo" (os_spaces kind='board', SOP §11) ───────
 // Lista compacta desplegable; abrir navega a la pizarra en modo colaborativo
 // (?board-space=<id>, ver el efecto que lee este parámetro más abajo).
+// AMPLIADO: sección "Invitaciones" (mis invitaciones pendientes a pizarras,
+// status='invited') con Aceptar/Rechazar, encima de la lista de ya-aceptadas.
 function SharedBoardsSwitcher({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const { spaces, loading } = useMySpaces("board");
+  const { invites, loading: invitesLoading, reload: reloadInvites } = useMyInvites();
+  const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
+  const prevInviteCount = useRef<number | null>(null);
+
+  const boardInvites = useMemo(() => invites.filter((inv) => inv.kind === "board"), [invites]);
+
+  // Aproximación honesta de "nueva invitación": avisamos cuando la lista de
+  // invitaciones a pizarras CRECE respecto a la carga anterior.
+  useEffect(() => {
+    if (invitesLoading) return;
+    if (prevInviteCount.current !== null && boardInvites.length > prevInviteCount.current) {
+      toast.info("Nueva invitación a una pizarra compartida.");
+    }
+    prevInviteCount.current = boardInvites.length;
+  }, [boardInvites.length, invitesLoading]);
+
+  const handleAcceptInvite = useCallback(async (spaceId: string) => {
+    setBusyInviteId(spaceId);
+    try {
+      const ok = await acceptInvite(spaceId);
+      if (ok) {
+        toast.success("Invitación aceptada.");
+        reloadInvites();
+      } else {
+        toast.error("No se pudo aceptar la invitación.");
+      }
+    } finally {
+      setBusyInviteId(null);
+    }
+  }, [reloadInvites]);
+
+  const handleDeclineInvite = useCallback(async (spaceId: string) => {
+    setBusyInviteId(spaceId);
+    try {
+      const ok = await declineInvite(spaceId);
+      if (ok) {
+        toast.info("Invitación rechazada.");
+        reloadInvites();
+      } else {
+        toast.error("No se pudo rechazar la invitación.");
+      }
+    } finally {
+      setBusyInviteId(null);
+    }
+  }, [reloadInvites]);
+
   return (
     <div className="relative">
       <Button size="sm" variant="outline" className="gap-1.5 h-8 border-amber-500/25 text-amber-100/90" onClick={onToggle}>
@@ -206,6 +257,37 @@ function SharedBoardsSwitcher({ open, onToggle }: { open: boolean; onToggle: () 
       </Button>
       {open && (
         <div className="absolute right-0 top-9 z-30 w-64 rounded-lg border border-white/10 bg-zinc-950/95 backdrop-blur p-1 shadow-xl">
+          {!invitesLoading && boardInvites.length > 0 && (
+            <div className="mb-1 border-b border-white/10 pb-1">
+              <div className="flex items-center gap-1.5 px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-white/40">
+                <Mail className="w-3 h-3" /> Invitaciones
+              </div>
+              {boardInvites.map((inv) => (
+                <div key={inv.spaceId} className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-white/70">
+                  <Mail className="w-3.5 h-3.5 shrink-0 text-amber-300/80" />
+                  <span className="truncate flex-1">{inv.title}</span>
+                  <button
+                    type="button"
+                    disabled={busyInviteId === inv.spaceId}
+                    onClick={() => handleAcceptInvite(inv.spaceId)}
+                    title="Aceptar invitación"
+                    className="flex shrink-0 items-center justify-center rounded-md border border-emerald-400/30 bg-emerald-400/10 p-1 text-emerald-300 transition-colors hover:bg-emerald-400/20 cursor-pointer disabled:opacity-50"
+                  >
+                    {busyInviteId === inv.spaceId ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyInviteId === inv.spaceId}
+                    onClick={() => handleDeclineInvite(inv.spaceId)}
+                    title="Rechazar invitación"
+                    className="flex shrink-0 items-center justify-center rounded-md border border-red-400/30 bg-red-400/10 p-1 text-red-300 transition-colors hover:bg-red-400/20 cursor-pointer disabled:opacity-50"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           {loading ? (
             <div className="px-3 py-2 text-[11px] text-white/40">Cargando…</div>
           ) : spaces.length === 0 ? (

@@ -66,6 +66,10 @@ export const SYNCED_KEYS = [
     // ── Perfiles múltiples + sync por perfiles (Adenda 65 · profiles.ts / sync-profiles-config.ts) ──
     "starseed.profile.active.v1",        // perfil activo en ESTE dispositivo (por dispositivo, pero viaja como respaldo)
     "starseed.sync.profiles.v1",         // config de sync por perfiles (modo todos/seleccionados + overrides por dispositivo)
+    // ── THE HUGGING BAY (jul-2026 · huggingbay.ts / installed-models.ts) ──────
+    //    `huggingBay` vive DENTRO de starseed.astraura.intelligence.v1 (ya
+    //    sincronizado arriba); solo el registro de candidatos es una clave nueva.
+    "starseed.astraura.huggingbay-candidates.v1", // modelos de Hugging Bay marcados "Usar en Astraura"
 ] as const;
 
 /**
@@ -185,7 +189,10 @@ export async function pullPreferences(): Promise<SyncResult & { applied?: string
 
         const applied: string[] = [];
         for (const [key, value] of Object.entries(data.prefs as Record<string, unknown>)) {
-            if (!SYNCED_KEYS.includes(key as any)) continue; // solo claves conocidas
+            const isExactKey = (SYNCED_KEYS as readonly string[]).includes(key);
+            const isExcludedPrefix = SYNCED_PREFIX_EXCLUDE.some((prefix) => key.startsWith(prefix));
+            const isDynamicPrefix = !isExcludedPrefix && SYNCED_PREFIXES.some((prefix) => key.startsWith(prefix));
+            if (!isExactKey && !isDynamicPrefix) continue; // ni clave exacta ni prefijo dinámico permitido
             try {
                 const serialized = typeof value === "string" ? value : JSON.stringify(value);
                 window.localStorage.setItem(key, serialized);

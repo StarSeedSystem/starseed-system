@@ -10,17 +10,54 @@ export type Comment = {
 }
 
 
-export const notifications = [];
+export const notifications: unknown[] = [];
 
 export const feedItemComments: Comment[] = [];
 
-export const feedItems = [];
+/**
+ * Forma mínima usada por `recent-posts-widget.tsx` (único consumidor con
+ * acceso a propiedades fuera de un cast `any`). El resto de campos de un
+ * feed item real se leen ahí vía cast a `any`, así que no hace falta
+ * modelarlos aquí.
+ */
+export interface FeedItem {
+    id: string;
+    content: string;
+    timestamp: string;
+}
+
+export const feedItems: FeedItem[] = [];
 
 export const comments: Comment[] = [];
 
 const politicalComments: Comment[] = [];
 
-export const politicalProposals = [];
+export interface VoteOption {
+    name: string;
+    votes: number;
+    color: string;
+}
+
+export interface ProposalFile {
+    name: string;
+    url: string;
+}
+
+export interface PoliticalProposal {
+    id: string;
+    title: string;
+    ef: string;
+    urgency: string;
+    summary: string;
+    votes: VoteOption[];
+    details: string;
+    comments: Comment[];
+    files: ProposalFile[];
+    status: string;
+    deadline: string;
+}
+
+export const politicalProposals: PoliticalProposal[] = [];
 
 export const themes = [
     { id: 'theme-ia', name: 'IA', description: 'Cubre todos los aspectos de la Inteligencia Artificial, desde algoritmos y modelos hasta sus implicaciones éticas y sociales.' },
@@ -32,12 +69,50 @@ export const themes = [
     { id: 'theme-tecnologia', name: 'Tecnología', description: 'Herramientas y técnicas utilizadas para extender las capacidades humanas y transformar el mundo.' },
 ]
 
-export const courses = [];
+export interface CourseLesson {
+    title: string;
+    completed?: boolean;
+}
+
+export interface CourseModule {
+    title: string;
+    lessons: CourseLesson[];
+}
+
+export interface Course {
+    id: string;
+    title: string;
+    description: string;
+    progress: number;
+    tags: string[];
+    href: string;
+    /** Módulos/lecciones del curso (usado en la página de detalle /course/[id]). */
+    modules: CourseModule[];
+}
+
+export const courses: Course[] = [];
 
 const articleComments: Comment[] = [];
 
 
-export const articles = [];
+export interface Article {
+    id: string;
+    title: string;
+    author: string;
+    rating: number;
+    excerpt: string;
+    tags: string[];
+    likes: number;
+    comments: Comment[];
+    href: string;
+    /** Campos adicionales usados en la página de detalle /article/[id]. */
+    authorAvatar?: string;
+    image?: string;
+    imageHint?: string;
+    content: string;
+}
+
+export const articles: Article[] = [];
 
 export const categories = [
     {
@@ -109,7 +184,19 @@ export const categories = [
 ]
 
 
-export const culturalPosts = [];
+export interface CulturalPost {
+    id: string;
+    author: { name: string; avatar: string; href: string };
+    timestamp: string;
+    content: string;
+    imageUrl?: string;
+    title: string;
+    imageHint?: string;
+    likes: number;
+    comments: Comment[];
+}
+
+export const culturalPosts: CulturalPost[] = [];
 
 export type MessageFull = {
     id: string;
@@ -143,23 +230,55 @@ export type ConversationFull = {
 
 export const conversations: ConversationFull[] = [];
 
-export const files = [];
+export const files: unknown[] = [];
 
 export type Theme = (typeof themes)[0];
 export type Category = (typeof categories)[0];
-export type Course = (typeof courses)[0];
-export type Article = (typeof articles)[0];
 // export type ConversationFull = (typeof conversations)[0];
 // export type MessageFull = (typeof conversations)[0]['messages'][0];
 
-export const executiveProjects = [];
+export interface ExecutiveProject {
+    id: string;
+    title: string;
+    description: string;
+    status: string;
+    progress: number;
+    volunteers: number;
+    deadline: string;
+    budget: string;
+}
 
-export const judicialCases = [];
+export const executiveProjects: ExecutiveProject[] = [];
+
+export interface JudicialCase {
+    id: string;
+    title: string;
+    type: string;
+    status: string;
+    description: string;
+    participants: string[];
+    facilitator: string;
+    date: string;
+}
+
+export const judicialCases: JudicialCase[] = [];
 
 // ---- Hub Data ----
-export const studyGroups = [];
+export interface StudyGroup {
+    id: string;
+    avatar: string;
+    name: string;
+    type: string;
+    level: string;
+    members: number;
+    topic: string;
+    nextSession: string;
+    tags: string[];
+}
 
-export const communityEvents = [];
+export const studyGroups: StudyGroup[] = [];
+
+export const communityEvents: unknown[] = [];
 
 export const userBadges = [
     { id: 'badge-1', name: 'Ciudadano Verificado', icon: '✓', color: 'blue', description: 'Identidad verificada en la red StarSeed' },
@@ -169,4 +288,15 @@ export const userBadges = [
     { id: 'badge-5', name: 'Creador Cultural', icon: '🎨', color: 'pink', description: 'Ha publicado obras reconocidas por la comunidad' },
 ];
 
-export const politicalParties = [];
+export interface PoliticalParty {
+    id: string;
+    name: string;
+    color: string;
+    ideology: string;
+    members: number;
+    votes_history: number;
+    isFollowing: boolean;
+    replicationActive: boolean;
+}
+
+export const politicalParties: PoliticalParty[] = [];

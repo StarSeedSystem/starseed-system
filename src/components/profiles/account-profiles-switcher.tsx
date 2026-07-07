@@ -12,8 +12,9 @@
  *   · /cuenta (si hay superficie natural)
  *
  * Avatar+nombre del perfil activo + menú desplegable para cambiar/crear/
- * editar. El editor de perfil (nombre, handle, tipo, bio) usa campos URL
- * para avatar/cover — otro agente integra el picker de archivos real.
+ * editar. El editor de perfil (nombre, handle, tipo, bio) permite fijar
+ * avatar/cover pegando una URL o subiendo/eligiendo un archivo con el
+ * picker universal (`AttachFilePickerButton`), con vista previa en vivo.
  */
 
 import { useCallback, useMemo, useState } from "react";
@@ -48,6 +49,8 @@ import {
     Check,
     Loader2,
     Trash2,
+    ImagePlus,
+    ImageOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -60,6 +63,7 @@ import {
     type AccountProfile,
     type ProfileKind,
 } from "@/lib/profiles/profiles";
+import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 
 const KIND_OPTIONS: ProfileKind[] = ["personal", "civic", "artistic", "professional", "custom"];
 
@@ -383,22 +387,74 @@ function ProfileEditorDialog({
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div>
-                            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Avatar (URL)</label>
-                            <Input
-                                value={editor.avatarUrl}
-                                onChange={(e) => onChange({ ...editor, avatarUrl: e.target.value })}
-                                placeholder="https://…"
-                                className="bg-black/30 border-white/10"
-                            />
+                            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Avatar</label>
+                            <div className="flex items-center gap-2">
+                                <Avatar className="h-12 w-12 shrink-0 border border-white/10">
+                                    {editor.avatarUrl ? <AvatarImage src={editor.avatarUrl} alt={editor.name} /> : null}
+                                    <AvatarFallback className="bg-gradient-to-br from-primary/50 to-accent/50 text-[11px] font-bold">
+                                        {initialsOf(editor.name)}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0 flex-1 space-y-1.5">
+                                    <Input
+                                        value={editor.avatarUrl}
+                                        onChange={(e) => onChange({ ...editor, avatarUrl: e.target.value })}
+                                        placeholder="https://…"
+                                        className="bg-black/30 border-white/10"
+                                    />
+                                    <AttachFilePickerButton
+                                        onPick={(attachments) => {
+                                            const picked = attachments[0];
+                                            if (picked?.url) onChange({ ...editor, avatarUrl: picked.url });
+                                        }}
+                                        accept="image/*"
+                                        folder="perfil/avatar"
+                                        title="Elegir avatar"
+                                        hideTabs={["neuronas"]}
+                                        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.03] px-2 py-1 text-[11px] font-medium text-white/75 transition-colors duration-200 hover:bg-white/10"
+                                    >
+                                        <ImagePlus className="h-3 w-3" /> Subir…
+                                    </AttachFilePickerButton>
+                                </div>
+                            </div>
                         </div>
                         <div>
-                            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Portada (URL)</label>
-                            <Input
-                                value={editor.coverUrl}
-                                onChange={(e) => onChange({ ...editor, coverUrl: e.target.value })}
-                                placeholder="https://…"
-                                className="bg-black/30 border-white/10"
-                            />
+                            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Portada</label>
+                            <div className="space-y-1.5">
+                                <div
+                                    className={cn(
+                                        "flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg border bg-black/30 bg-cover bg-center",
+                                        editor.coverUrl ? "border-white/10" : "border-dashed border-white/15",
+                                    )}
+                                    style={editor.coverUrl ? { backgroundImage: `url(${editor.coverUrl})` } : undefined}
+                                >
+                                    {!editor.coverUrl && (
+                                        <span className="flex flex-col items-center gap-1 text-muted-foreground/60">
+                                            <ImageOff className="h-4 w-4" />
+                                            <span className="text-[10px]">Sin portada</span>
+                                        </span>
+                                    )}
+                                </div>
+                                <Input
+                                    value={editor.coverUrl}
+                                    onChange={(e) => onChange({ ...editor, coverUrl: e.target.value })}
+                                    placeholder="https://…"
+                                    className="bg-black/30 border-white/10"
+                                />
+                                <AttachFilePickerButton
+                                    onPick={(attachments) => {
+                                        const picked = attachments[0];
+                                        if (picked?.url) onChange({ ...editor, coverUrl: picked.url });
+                                    }}
+                                    accept="image/*"
+                                    folder="perfil/cover"
+                                    title="Elegir portada"
+                                    hideTabs={["neuronas"]}
+                                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.03] px-2 py-1 text-[11px] font-medium text-white/75 transition-colors duration-200 hover:bg-white/10"
+                                >
+                                    <ImagePlus className="h-3 w-3" /> Subir…
+                                </AttachFilePickerButton>
+                            </div>
                         </div>
                     </div>
                     {onMakeDefault && (
