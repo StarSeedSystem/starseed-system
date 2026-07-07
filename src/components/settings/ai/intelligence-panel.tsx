@@ -25,6 +25,7 @@ import {
   ChevronDown, Gem, ListChecks, History, CheckCircle2, XCircle,
   Gauge, Zap, RotateCcw, KeyRound, Cpu, Eye, Volume2, Lightbulb,
   Download, Loader2, Wrench, GitBranch, Library as LibraryIcon,
+  Compass,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -100,6 +101,7 @@ const SUGGESTION_ICON: Record<SuggestionKind, typeof Gauge> = {
   voice: Volume2,
   upgrade: Sparkles,
   tip: Lightbulb,
+  "model-discovery": Compass,
 };
 
 /**
@@ -603,6 +605,84 @@ export function IntelligencePanel() {
                 </span>
               )}
             </div>
+          </div>
+
+          {/* THE HUGGING BAY: descubrimiento inteligente de modelos reales */}
+          <div className="rounded-lg border border-white/5 bg-black/20 p-3 space-y-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                <Compass className="h-4 w-4 text-cyan-300 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">Descubrimiento Hugging Bay</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Aurora consulta{" "}
+                    <a href="https://huggingbay.xyz" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline cursor-pointer">
+                      THE HUGGING BAY
+                    </a>{" "}
+                    (registro verificado de modelos open-source) para recomendar el mejor modelo real
+                    por tarea, con licencia, confianza y comando de instalación local listo para copiar.
+                    Nunca descarga nada sola.
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={settings.huggingBay?.enabled !== false}
+                onCheckedChange={(v) => update({ huggingBay: { ...settings.huggingBay, enabled: v } })}
+                aria-label="Descubrimiento Hugging Bay"
+              />
+            </div>
+            {settings.huggingBay?.enabled !== false && (
+              <div className="grid gap-2 pl-7 sm:grid-cols-2">
+                <div className="flex items-center justify-between gap-3 rounded-md border border-white/5 bg-background/40 p-2.5">
+                  <span className="text-[11px] font-medium">Auto-sugerencia</span>
+                  <Switch
+                    checked={settings.huggingBay?.autoSuggest !== false}
+                    onCheckedChange={(v) => update({ huggingBay: { ...settings.huggingBay, autoSuggest: v } })}
+                    aria-label="Auto-sugerencia de modelos"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-md border border-white/5 bg-background/40 p-2.5">
+                  <span className="text-[11px] font-medium">Herramienta preferida</span>
+                  <Select
+                    value={settings.huggingBay?.preferredTool ?? "ollama"}
+                    onValueChange={(v) => update({ huggingBay: { ...settings.huggingBay, preferredTool: v as IntelligenceSettings["huggingBay"]["preferredTool"] } })}
+                  >
+                    <SelectTrigger className="h-7 w-[130px] bg-background/60 border-white/10 text-[11px] cursor-pointer">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ollama">Ollama</SelectItem>
+                      <SelectItem value="lmstudio">LM Studio</SelectItem>
+                      <SelectItem value="comfyui">ComfyUI</SelectItem>
+                      <SelectItem value="transformers">Transformers</SelectItem>
+                      <SelectItem value="llama.cpp">llama.cpp</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-md border border-white/5 bg-background/40 p-2.5">
+                  <span className="text-[11px] font-medium">Solo licencias permisivas</span>
+                  <Switch
+                    checked={settings.huggingBay?.permissiveOnly !== false}
+                    onCheckedChange={(v) => update({ huggingBay: { ...settings.huggingBay, permissiveOnly: v } })}
+                    aria-label="Solo licencias permisivas"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-md border border-white/5 bg-background/40 p-2.5">
+                  <span className="text-[11px] font-medium">Solo hosted/verificados</span>
+                  <Switch
+                    checked={!!settings.huggingBay?.hostedOnly}
+                    onCheckedChange={(v) => update({ huggingBay: { ...settings.huggingBay, hostedOnly: v } })}
+                    aria-label="Solo hosted/verificados"
+                  />
+                </div>
+              </div>
+            )}
+            <p className="pl-7 text-[10px] text-muted-foreground/80">
+              Explora el catálogo completo en{" "}
+              <Link href="/library?tab=destacado" className="text-cyan-300 hover:underline cursor-pointer">
+                Biblioteca → Hugging Bay
+              </Link>.
+            </p>
           </div>
 
           {/* Enlaces rápidos para pegar claves de servicios gratis */}

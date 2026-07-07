@@ -1,0 +1,25 @@
+{
+  "extends": "/sessions/serene-nice-babbage/mnt/starseed-os-main/tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "composite": false,
+    "tsBuildInfoFile": "/tmp/wave.tsbuildinfo",
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/ai/astraura/**/*.ts",
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/lib/neurons/**/*.ts",
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/lib/aurora/senses/**/*.ts",
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/lib/aurora/tts-oss/**/*.ts",
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/lib/library/**/*.ts",
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/components/settings/ai/intelligence-panel.tsx",
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/components/settings/neurons/**/*.tsx",
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/components/settings/aurora/**/*.tsx",
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/components/aurora/universal-viewer.tsx",
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/components/aurora/route-chip.tsx",
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/components/aurora/aurora-provider.tsx",
+    "/sessions/serene-nice-babbage/mnt/starseed-os-main/src/components/library/**/*.tsx"
+  ],
+  "exclude": ["node_modules"]
+}

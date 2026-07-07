@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/ai/astraura/skills.ts",
+    "src/ai/astraura/web-access.ts",
+    "src/ai/astraura/router.ts",
+    "src/lib/brains/servers.ts",
+    "src/components/browser/browser-windows.tsx",
+    "src/components/files/file-preview.tsx",
+    "src/components/brains/servers-panel.tsx",
+    "next-env.d.ts"
+  ],
+  "exclude": ["node_modules", "src/ai/client/keyStorage.ts"]
+}

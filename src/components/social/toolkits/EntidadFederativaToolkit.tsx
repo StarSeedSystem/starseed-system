@@ -23,6 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
+import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
+import { libraryRef } from "@/lib/library/entity-library";
 import { getFederativeEntity, type EFData } from "@/data/sample-governance";
 import {
   Landmark,
@@ -41,6 +43,7 @@ import {
   ArrowUpRight,
   Wallet,
   ShieldCheck,
+  BookMarked,
 } from "lucide-react";
 
 // Humanise a slug → "Taller De Permacultura"
@@ -125,6 +128,10 @@ export function EntidadFederativaToolkit({
           <TabsTrigger value="decisiones" className="cursor-pointer whitespace-nowrap">
             <Gavel className="mr-1.5 h-3.5 w-3.5" />
             Decisiones
+          </TabsTrigger>
+          <TabsTrigger value="biblioteca" className="cursor-pointer whitespace-nowrap">
+            <BookMarked className="mr-1.5 h-3.5 w-3.5" />
+            Biblioteca
           </TabsTrigger>
         </TabsList>
 
@@ -524,6 +531,16 @@ export function EntidadFederativaToolkit({
         {/* ── TAB 6: DECISIONES (motor de gobernanza real de la E.F.) ── */}
         <TabsContent value="decisiones" className="space-y-6">
           <DecisionesSection kind="ef" slug={slug} accent={ac} name={name ?? data.name} />
+        </TabsContent>
+
+        {/* ── TAB 7: BIBLIOTECA (lo guardado por la Entidad Federativa) ── */}
+        <TabsContent value="biblioteca" className="space-y-6">
+          <EntityLibraryPanel
+            ref={libraryRef("ef", slug)}
+            accent={ac}
+            title="Biblioteca de la Entidad Federativa"
+            subtitle="Lo que esta Entidad Federativa ha guardado: normativa, actas y archivos compartidos."
+          />
         </TabsContent>
       </Tabs>
     </div>

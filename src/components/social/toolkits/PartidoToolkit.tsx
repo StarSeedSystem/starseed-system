@@ -23,6 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
+import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
+import { libraryRef } from "@/lib/library/entity-library";
 import { getPartido, type PartidoData } from "@/data/sample-governance";
 import {
   Flag,
@@ -38,6 +40,7 @@ import {
   TrendingUp,
   Crown,
   Landmark,
+  BookMarked,
 } from "lucide-react";
 
 // Humanise an event slug for display in LinkCards
@@ -112,6 +115,10 @@ export function PartidoToolkit({
           <TabsTrigger value="decisiones" className="cursor-pointer whitespace-nowrap">
             <Landmark className="mr-1.5 h-3.5 w-3.5" />
             Decisiones
+          </TabsTrigger>
+          <TabsTrigger value="biblioteca" className="cursor-pointer whitespace-nowrap">
+            <BookMarked className="mr-1.5 h-3.5 w-3.5" />
+            Biblioteca
           </TabsTrigger>
         </TabsList>
 
@@ -349,6 +356,16 @@ export function PartidoToolkit({
         {/* ── TAB 5: DECISIONES (gobernanza real del partido) ── */}
         <TabsContent value="decisiones" className="space-y-6">
           <DecisionesSection kind="partido" slug={slug} accent={ac} name={name ?? data.name} />
+        </TabsContent>
+
+        {/* ── TAB 6: BIBLIOTECA (lo guardado por el partido) ── */}
+        <TabsContent value="biblioteca" className="space-y-6">
+          <EntityLibraryPanel
+            ref={libraryRef("party", slug)}
+            accent={ac}
+            title="Biblioteca del partido"
+            subtitle="Lo que este partido ha guardado: documentos, propuestas y archivos compartidos."
+          />
         </TabsContent>
       </Tabs>
     </div>
