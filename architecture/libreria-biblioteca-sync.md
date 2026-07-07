@@ -104,3 +104,39 @@
   (`owner_kind='other'`, `owner_id='srv:<uuid>'`, política `es_srv_member`) + canal broadcast
   `srv:<id>` — hook `useServerChannel` para que cualquier app sincronice entre miembros.
 - Tarjeta de servidor compartible en mensajes/publicaciones/bibliotecas (refKind `server`).
+
+## 9. Archivos en la nube + Subida universal (2026-07-07, migración `os_files_profiles_spaces`)
+- **Storage**: bucket `os-files` (público-lectura; escritura solo en tu prefijo `<uid>/…`).
+- **Tabla `os_files`**: owner, profile_id, name/mime/size/path/url, device_id (neurona que subió),
+  is_public, acl_read/acl_write (uuid[]), group_slug, meta. RLS + realtime.
+- **Uploader universal** (componente compartido) con TRES fuentes: (1) este dispositivo,
+  (2) Bibliotecas (elegir de cualquier biblioteca accesible), (3) **Neuronas** (archivos subidos
+  desde otros dispositivos de la cuenta + "solicitar archivo" por broadcast `acct:<uid>` — la
+  neparona destino muestra el picker y sube).
+- Integrado en TODOS los contextos: mensajes, comentarios, publicaciones, bibliotecas,
+  fotos de perfil/portada, memorias, chat de Aurora. Adjuntos >~800KB van a storage (URL),
+  pequeños pueden seguir inline; refs {fileId,url} sincronizadas en tiempo real entre neuronas.
+
+## 10. Perfiles múltiples por cuenta + configuración de sync
+- **`os_account_profiles`**: varios perfiles por cuenta (personal/cívico/artístico/profesional/custom),
+  handle único, avatar/cover, is_default. Visibles para todos (facetas públicas), escritura del dueño.
+- **Política `es_profile_own`** en entity_state: ámbito `profile` accesible por la cuenta dueña.
+- **Sync por defecto entre TODOS los perfiles de la cuenta**; configurable a perfiles seleccionados
+  (`user_settings.prefs['starseed.sync.profiles.v1'] = {mode:'all'|'selected', profiles:[], perDevice:{kind→overrides}}`)
+  con ajustes inteligentes por tipo de dispositivo (web/pwa/móvil/escritorio).
+- **Escritorios anclados a perfil**: el doc local se refleja en entity_state(profile:<id>,'desktops');
+  crear escritorio/dashboard/pizarra REQUIERE un perfil ancla (se siembra uno por defecto).
+
+## 11. Espacios compartidos (`os_spaces` + `os_space_editors`)
+- kind `desktop|dashboard|board`; access `private|profiles|invite|public`; allowed_profiles
+  (perfiles propios o de OTRAS cuentas), group_slug (miembros del grupo editan), doc jsonb,
+  rev/updated_at (trigger), realtime ON.
+- `space_can_edit/read` (security definer): dueño, público, grupo, editor invitado o perfil permitido.
+- Pizarras/escritorios/dashboards compartidos entre perfiles, cuentas o público, compartibles
+  en grupos de cualquier tipo; edición colaborativa con LWW por rev (base para CRDT futuro).
+
+## 12. Cerebros de contexto por biblioteca de perfil
+- Cada biblioteca de perfil elige qué CEREBROS de memorias dan contexto a sus archivos
+  (entity_state(profile:<id>,'library-brains') = {mode:'all'|'selected', brains:[]}).
+  **Por defecto: todos los cerebros disponibles, para todos los perfiles de la cuenta.**
+  Aurora usa esa selección como contexto al actuar sobre la biblioteca.
