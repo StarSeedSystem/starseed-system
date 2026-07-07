@@ -21,6 +21,11 @@ import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connec
 // Exocórtex × Aurora: lanzador compacto que abre la Aurora GLOBAL con el
 // contexto de las memorias del usuario (sin instanciar una segunda Aurora).
 import { AuroraMemoryPanel } from "@/components/exocortex/aurora-memory-panel";
+// Subida universal de archivos (Adenda 64 §9): "Adjuntar archivo" en el editor
+// de contenido de una memoria inserta un enlace markdown al archivo subido
+// (coherente con el editor de texto — no hay una lista de adjuntos separada).
+import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
+import type { UniversalAttachment } from "@/lib/files/os-files";
 
 // El PAT ya NO se guarda en config: vive cifrado en la bóveda (api/vault).
 type GithubConfig = { repo?: string; branch?: string; path?: string };
@@ -477,6 +482,20 @@ export function MemoryHub() {
                       <Button size="sm" variant="outline" className="gap-1.5 border-cyan-400/30 text-cyan-100 hover:bg-cyan-900/20" onClick={() => exportMd(m)}><Download className="w-3.5 h-3.5" /> Exportar .md</Button>
                       <Button size="sm" variant="outline" className="gap-1.5 border-cyan-400/30 text-cyan-100 hover:bg-cyan-900/20" onClick={() => fileRef.current?.click()}><Upload className="w-3.5 h-3.5" /> Importar .md</Button>
                       <input ref={fileRef} type="file" accept=".md,.markdown,text/markdown,text/plain" className="hidden" onChange={(e) => importMd(e.target.files?.[0] ?? null)} />
+                      <AttachFilePickerButton
+                        onPick={(picked: UniversalAttachment[]) => {
+                          const links = picked
+                            .filter((a) => !!a.url)
+                            .map((a) => (a.kind === "image" ? `![${a.name || "imagen"}](${a.url})` : `[${a.name || "archivo"}](${a.url})`))
+                            .join("\n");
+                          if (links) setDraft((d) => (d ? `${d}\n\n${links}\n` : `${links}\n`));
+                        }}
+                        folder="memorias"
+                        title="Adjuntar archivo a esta memoria"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-violet-400/30 bg-transparent px-3 text-xs font-medium text-violet-100 hover:bg-violet-900/20"
+                      >
+                        <Upload className="w-3.5 h-3.5" /> Adjuntar archivo
+                      </AttachFilePickerButton>
                     </div>
 
                     {/* Sincronización a GitHub (solo si storage incluye github) */}

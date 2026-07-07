@@ -23,13 +23,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Archive, ChevronDown, ChevronRight, GitBranch, History, ListChecks, MessageSquare,
-  Pause, Pencil, Play, Plus, Send, SkipBack, SkipForward, Square, X,
+  Paperclip, Pause, Pencil, Play, Plus, Send, SkipBack, SkipForward, Square, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
 import type { ChatContext, UseChatTree } from "@/lib/aurora/chat-tree";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { RouteChip } from "@/components/aurora/route-chip";
+// Subida universal de archivos (Adenda 64 §9): el composer de Aurora solo
+// maneja TEXTO (el motor no tiene concepto de adjuntos estructurados) — el
+// botón de adjuntar sube el archivo e inserta su enlace en el draft; Aurora lo
+// recibe como texto normal y MessageRenderer/MessageMedia ya sabe mostrar
+// imágenes/audio/vídeo/PDF a partir de una URL dentro del mensaje.
+import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
+import type { UniversalAttachment } from "@/lib/files/os-files";
 
 // ── Tipos de props ───────────────────────────────────────────────────────────
 /** Un mensaje "en vivo" del motor (conversation lleva `.at`). */
@@ -81,6 +88,8 @@ export interface AuroraChatViewProps {
   onSubmitDraft: () => void;
   /** Salir de la sesión cargada y volver al chat en vivo. */
   onExitLoadedSession?: () => void;
+  /** Adjuntos entregados por el selector universal (dispositivo/bibliotecas/neuronas), ya subidos con URL real. Opcional: sin este prop, no se muestra el botón de adjuntar. */
+  onAttachFile?: (attachments: UniversalAttachment[]) => void;
 
   // ── Transporte de voz ──
   onPause: () => void;
@@ -445,7 +454,7 @@ export function AuroraChatView(props: AuroraChatViewProps) {
   const {
     auroraName, twoColumn, className,
     visibleConvo, interim, loadedSession, actionLog = [], paused,
-    draft, setDraft, onSubmitDraft, onExitLoadedSession,
+    draft, setDraft, onSubmitDraft, onExitLoadedSession, onAttachFile,
     onPause, onResume, onSkipBack, onSkipForward, onInterrupt,
     tree, onOpenContext, fmtTime, dayLabel, onClose,
   } = props;
@@ -494,6 +503,23 @@ export function AuroraChatView(props: AuroraChatViewProps) {
 
       {/* Entrada + envío */}
       <div className="axc-inputrow relative z-[1]">
+        {onAttachFile && (
+          <AttachFilePickerButton
+            onPick={(picked: UniversalAttachment[]) => {
+              const links = picked
+                .filter((a) => !!a.url)
+                .map((a) => a.url as string)
+                .join(" ");
+              if (links) setDraft(draft ? `${draft} ${links}` : links);
+              onAttachFile(picked);
+            }}
+            folder="aurora"
+            title="Adjuntar archivo"
+            className="axc-tbtn shrink-0"
+          >
+            <Paperclip className="h-4 w-4" />
+          </AttachFilePickerButton>
+        )}
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

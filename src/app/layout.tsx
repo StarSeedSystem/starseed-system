@@ -50,6 +50,10 @@ import { RealtimeSyncProvider } from "@/components/system/realtime-sync-provider
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
 import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
 import { RegisterSW } from "@/components/pwa/register-sw";
+// Receptor global de "Solicitar archivo a esta neurona" (subida universal de
+// archivos, Adenda 64 §9): escucha 'file-request' en el canal de cuenta y
+// muestra el diálogo para elegir/subir. Sin UI hasta que llega una solicitud.
+import { FileRequestListener } from "@/components/files/file-request-listener";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -175,6 +179,8 @@ export default function RootLayout({
                         <OmniAppHost />
                         {/* Ventana de configuración del fondo Audiomorphic (escucha 'starseed:open-audiomorphic-config'). */}
                         <AudiomorphicConfigHost />
+                        {/* Receptor de solicitudes de archivo entre neuronas de la cuenta (defensivo, sin UI hasta que llega una). */}
+                        <FileRequestListener />
                         <SplineWatermarkCover />
                         <PerimeterInterface />
                         {/* Trinity Móvil · Bloque 4 — asas de borde + deslizar desde

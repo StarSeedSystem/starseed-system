@@ -75,6 +75,7 @@ import {
     Archive,
     Compass,
     Eye,
+    Upload,
 } from "lucide-react";
 import {
     PUBLICATION_TYPES,
@@ -120,6 +121,10 @@ import {
     persistMentions,
     type Mention,
 } from "@/lib/mentions/mentions";
+// Subida universal de archivos (Adenda 64 §9): adjuntar imagen/archivo real
+// (storage `os-files`) en vez de depender solo de pegar una URL externa.
+import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
+import type { UniversalAttachment } from "@/lib/files/os-files";
 
 // ── Resolución de iconos (string → componente de lucide) ──
 
@@ -1374,26 +1379,42 @@ function StepFormatContent({
                     type.id === "lienzo" ||
                     type.id === "mixto") && (
                     <div className="space-y-1.5">
-                        <Input
-                            placeholder={
-                                type.id === "enlace"
-                                    ? "https://… (URL del enlace)"
-                                    : type.id === "imagen"
-                                      ? "URL de la imagen (https://…)"
-                                      : type.id === "archivo"
-                                        ? "URL del archivo (https://…)"
-                                        : type.id === "app"
-                                          ? "URL del embed / app"
-                                          : "URL (snapshot, embed o recurso)"
-                            }
-                            value={draft.url}
-                            onChange={(e) => set({ url: e.target.value })}
-                            className="bg-white/[0.03] text-amber-50"
-                        />
+                        <div className="flex items-center gap-2">
+                            <Input
+                                placeholder={
+                                    type.id === "enlace"
+                                        ? "https://… (URL del enlace)"
+                                        : type.id === "imagen"
+                                          ? "URL de la imagen (https://…)"
+                                          : type.id === "archivo"
+                                            ? "URL del archivo (https://…)"
+                                            : type.id === "app"
+                                              ? "URL del embed / app"
+                                              : "URL (snapshot, embed o recurso)"
+                                }
+                                value={draft.url}
+                                onChange={(e) => set({ url: e.target.value })}
+                                className="bg-white/[0.03] text-amber-50"
+                            />
+                            {(type.id === "imagen" || type.id === "archivo") && (
+                                <AttachFilePickerButton
+                                    onPick={(picked: UniversalAttachment[]) => {
+                                        const first = picked[0];
+                                        if (first?.url) set({ url: first.url });
+                                    }}
+                                    accept={type.id === "imagen" ? "image/*" : undefined}
+                                    folder="publicaciones"
+                                    title={type.id === "imagen" ? "Subir imagen" : "Subir archivo"}
+                                    hideTabs={["neuronas"]}
+                                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 text-xs font-medium text-amber-100 hover:bg-amber-400/15"
+                                >
+                                    <Upload className="h-3.5 w-3.5" /> Subir
+                                </AttachFilePickerButton>
+                            )}
+                        </div>
                         {(type.id === "imagen" || type.id === "archivo") && (
                             <p className="text-[11px] text-white/35">
-                                Pega una URL pública. La subida de archivos a Storage se integra desde
-                                el almacén (bucket os-media).
+                                Sube un archivo real (queda alojado en tu cuenta) o pega una URL pública.
                             </p>
                         )}
                     </div>

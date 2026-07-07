@@ -469,6 +469,11 @@ export function AuroraChatSection({ className }: { className?: string }) {
     await doSend(t);
   }, [draft, doSend]);
 
+  // Subida universal de archivos (Adenda 64 §9): Aurora solo maneja texto — el
+  // picker ya insertó la(s) URL(s) en `draft` (ver AuroraChatView); aquí solo
+  // dejamos un punto de extensión honesto (sin acción adicional por ahora).
+  const handleAttachFile = useCallback(() => { /* URL ya insertada en el draft por AuroraChatView */ }, []);
+
   // Barra superior: preguntar a Aurora / buscar en la red. Envía a send()
   // (genera o continúa el contexto de chat) y aterriza en la vista de chat.
   const submitBar = useCallback(async () => {
@@ -906,6 +911,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
             setDraft={setDraft}
             onSubmitDraft={() => { void submitDraft(); }}
             onExitLoadedSession={exitLoadedSession}
+            onAttachFile={handleAttachFile}
             onPause={tPause}
             onResume={tResume}
             onSkipBack={tSkipB}
@@ -1155,6 +1161,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
         setDraft={setDraft}
         onSubmitDraft={() => { void submitDraft(); }}
         onExitLoadedSession={exitLoadedSession}
+        onAttachFile={handleAttachFile}
         onPause={tPause}
         onResume={tResume}
         onSkipBack={tSkipB}

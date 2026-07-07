@@ -125,6 +125,11 @@ import {
   type ViewMode,
 } from "@/lib/canvas/workcenters";
 import { buildProposalLink } from "@/lib/governance/links";
+// Pizarras COMPARTIDAS (SOP §11, Adenda 65): espacio colaborativo os_spaces
+// kind='board', distinto del toggle `canvas.shared` existente (referencia simple).
+import { BoardShareDialog, BoardShareTrigger } from "@/components/canvas/board-share-dialog";
+import { useMySpaces } from "@/lib/spaces/spaces";
+import { useSharedBoardSpace } from "@/lib/sync/shared-board-space";
 
 // Mapa de iconos lucide por nombre (declarado en el catálogo del lib).
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -189,13 +194,50 @@ const VIEW_ICONS: Record<ViewMode, React.ComponentType<{ className?: string }>> 
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 2.5;
 
-export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
+// ── "Pizarras compartidas conmigo" (os_spaces kind='board', SOP §11) ───────
+// Lista compacta desplegable; abrir navega a la pizarra en modo colaborativo
+// (?board-space=<id>, ver el efecto que lee este parámetro más abajo).
+function SharedBoardsSwitcher({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  const { spaces, loading } = useMySpaces("board");
+  return (
+    <div className="relative">
+      <Button size="sm" variant="outline" className="gap-1.5 h-8 border-amber-500/25 text-amber-100/90" onClick={onToggle}>
+        <Share2 className="w-3.5 h-3.5" /> Compartidas <ChevronDown className="w-3 h-3" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-9 z-30 w-64 rounded-lg border border-white/10 bg-zinc-950/95 backdrop-blur p-1 shadow-xl">
+          {loading ? (
+            <div className="px-3 py-2 text-[11px] text-white/40">Cargando…</div>
+          ) : spaces.length === 0 ? (
+            <div className="px-3 py-2 text-[11px] text-white/40">Aún no hay pizarras compartidas contigo.</div>
+          ) : (
+            spaces.map((sp) => (
+              <Link
+                key={sp.id}
+                href={`/pizarra?board-space=${encodeURIComponent(sp.id)}`}
+                className="w-full text-left px-3 py-2 rounded-md text-xs hover:bg-white/5 flex items-center gap-2 text-white/70"
+              >
+                <Share2 className="w-3.5 h-3.5 shrink-0 text-amber-300/80" />
+                <span className="truncate flex-1">{sp.title}</span>
+                <span className="text-[9px] text-white/30">{sp.access}</span>
+              </Link>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function CanvasBoard({ canvasId, boardSpaceId = null }: { canvasId?: string; boardSpaceId?: string | null } = {}) {
   const [userId, setUserId] = useState<string | null>(null);
   const [canvas, setCanvas] = useState<Canvas>(() => newCanvas("Lienzo sin título"));
   const [list, setList] = useState<Canvas[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null); // bloque en edición
   const [showAdd, setShowAdd] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
+  const [showSharedBoards, setShowSharedBoards] = useState(false); // "Pizarras compartidas conmigo"
+  const [boardShareOpen, setBoardShareOpen] = useState(false); // Dialog «Compartir pizarra…»
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -271,6 +313,9 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
       } catch {
         /* */
       }
+      // Modo pizarra COMPARTIDA (?board-space=<id>): el doc viene de
+      // useSharedBoardSpace más abajo — no cargamos un lienzo personal aquí.
+      if (boardSpaceId) return;
       const cs = await refreshList();
       if (!alive) return;
       if (canvasId) {
@@ -286,7 +331,22 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasId]);
+  }, [canvasId, boardSpaceId]);
+
+  // ---- pizarra COMPARTIDA (os_spaces kind='board', SOP §11) ---------------
+  const boardSpace = useSharedBoardSpace(boardSpaceId);
+  useEffect(() => {
+    if (!boardSpaceId || !boardSpace.remoteDoc) return;
+    setCanvas((cur) => ({
+      ...cur,
+      id: boardSpaceId, // ancla defensiva: evita que scheduleSave() cree un lienzo personal aparte
+      title: boardSpace.space?.title ?? cur.title,
+      blocks: boardSpace.remoteDoc!.blocks,
+      edges: boardSpace.remoteDoc!.edges,
+      shared: true,
+    } as Canvas));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardSpaceId, boardSpace.remoteDoc]);
 
   // Al cambiar de lienzo, reseteamos vista/conexión y saneamos aristas.
   useEffect(() => {
@@ -304,9 +364,16 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
 
   // ---- guardado con debounce ----------------------------------------------
   // Persistimos también la columna `edges` (degrada con elegancia si no existe).
+  // Modo pizarra COMPARTIDA: el guardado va al espacio (os_spaces.doc), NUNCA
+  // a la tabla `canvases` personal (el lienzo personal original queda intacto).
   const scheduleSave = useCallback((next: Canvas) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
+      if (boardSpaceId) {
+        boardSpace.pushDoc({ blocks: next.blocks, edges: getEdges(next) });
+        setSavedAt(new Date().toLocaleTimeString());
+        return;
+      }
       if (!next.title) return;
       const persisted = await saveCanvasWithEdges(next);
       if (persisted) {
@@ -315,7 +382,8 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
         refreshList();
       }
     }, 900);
-  }, [refreshList]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshList, boardSpaceId]);
 
   // Aplica una mutación al lienzo y agenda el guardado.
   const mutate = useCallback((fn: (c: Canvas) => Canvas) => {
@@ -1141,6 +1209,9 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
             )}
           </div>
 
+          {/* Pizarras compartidas conmigo (os_spaces kind='board', SOP §11) */}
+          <SharedBoardsSwitcher open={showSharedBoards} onToggle={() => setShowSharedBoards((s) => !s)} />
+
           {/* Añadir bloque */}
           <div className="relative">
             <Button size="sm" className="gap-1.5 h-8 bg-fuchsia-600 hover:bg-fuchsia-500 text-white" onClick={() => setShowAdd((s) => !s)}>
@@ -1181,6 +1252,9 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
             <span className="text-[10px] text-white/60">Compartir</span>
             <Switch checked={canvas.shared} onCheckedChange={toggleShared} />
           </span>
+
+          {/* Compartir pizarra… → espacio colaborativo (os_spaces kind='board') */}
+          <BoardShareTrigger onClick={() => setBoardShareOpen(true)} />
 
           <Button size="sm" className="gap-1.5 h-8 bg-amber-600 hover:bg-amber-500 text-white" onClick={publishNowGated}>
             <Send className="w-3.5 h-3.5" /> Publicar
@@ -1459,6 +1533,9 @@ export default function CanvasBoard({ canvasId }: { canvasId?: string } = {}) {
 
       {/* Overlay del lienzo inmersivo (WebXR real) */}
       {showXR && <XRView blocks={canvas.blocks} onExit={() => setShowXR(false)} />}
+
+      {/* Dialog · Compartir pizarra (espacio colaborativo os_spaces kind='board') */}
+      <BoardShareDialog canvas={canvas} open={boardShareOpen} onClose={() => setBoardShareOpen(false)} />
 
       {/* Dialog · Publicar lienzo (compositor universal prerellenado) */}
       <Dialog open={publishCanvasOpen} onOpenChange={setPublishCanvasOpen}>

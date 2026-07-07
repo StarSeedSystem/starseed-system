@@ -31,6 +31,9 @@ import {
     deleteDesktop, createDesktop, setActiveDesktop, reorderDesktops,
     DEFAULT_DESKTOP_VIEW,
 } from "./desktop-store";
+// Bloque "Sincronización" (SOP §10-11): perfiles que sincronizan + compartir
+// como espacio + lista de escritorios compartidos (Adenda 65).
+import { DesktopSharePanel } from "./desktop-share-panel";
 
 // ── Presets de gradiente cristalino StarSeed ─────────────────────
 const GRADIENT_PRESETS: Array<{ name: string; css: string }> = [
@@ -321,6 +324,9 @@ export function DesktopSettingsPanel({
                                     <Plus className="size-3.5" /> Nuevo escritorio
                                 </button>
                             </Section>
+
+                            {/* ── Sincronización (perfiles + compartir como espacio) ── */}
+                            <DesktopSharePanel />
 
                             <p className="flex items-center justify-center gap-1.5 pt-1 text-[10px] font-semibold text-muted-foreground/60">
                                 <Sparkles className="size-3" /> Cada escritorio guarda su propio diseño

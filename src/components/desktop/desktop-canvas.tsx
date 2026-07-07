@@ -16,7 +16,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
     Plus, Eye, EyeOff, ChevronDown, Pencil, Trash2, Check,
     MousePointer2, ExternalLink, X, Magnet, ImageIcon,
-    SquareStack, Settings2, LayoutGrid,
+    SquareStack, Settings2, LayoutGrid, Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -39,6 +39,12 @@ import { DesktopSettingsPanel } from "./desktop-settings-panel";
 import { DesktopExpose } from "./desktop-expose";
 import { DesktopSnapPreview } from "./desktop-snap-preview";
 import type { SnapZone } from "./desktop-window-snap";
+// Escritorios anclados a PERFIL (Adenda 65 · SOP §10): espejo bidireccional
+// en entity_state(profile:<id>,'desktops'), coexiste con useDesktopsBackup().
+import { useProfileDesktopsSync } from "@/lib/sync/profile-desktops";
+// Escritorio COMPARTIDO (SOP §11): si se abre con ?space=<id>, este hook
+// posee la clave local mientras esté montado (useProfileDesktopsSync cede).
+import { useSharedDesktopSpace } from "@/lib/sync/shared-desktop-space";
 
 const TOPBAR_H = 44;
 const WINDOW_TOP_INSET = TOPBAR_H + 6;
@@ -445,7 +451,10 @@ function DesktopManagerMenu({
 // ════════════════════════════════════════════════════════════════
 // Lienzo principal
 // ════════════════════════════════════════════════════════════════
-export function DesktopCanvas(): React.ReactElement {
+export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = {}): React.ReactElement {
+    // Modo espacio compartido (debe montarse ANTES que useProfileDesktopsSync
+    // para que su guard hasOpenSpace() vea el espacio ya abierto en el mismo ciclo).
+    const sharedSpace = useSharedDesktopSpace(spaceId);
     const state = useDesktopsState();
     const isMobile = useMediaQuery("(max-width: 640px)");
     const reduced = useReducedMotion();
@@ -472,6 +481,10 @@ export function DesktopCanvas(): React.ReactElement {
 
     // Espejo soberano en la cuenta (best-effort, patrón dashboards-sync).
     useDesktopsBackup();
+
+    // Escritorios anclados al perfil activo (SOP §10): ancla, migra el doc
+    // local existente al perfil por defecto, y sincroniza en tiempo real.
+    useProfileDesktopsSync();
 
     // Siembra del primer escritorio (solo cliente).
     useEffect(() => {
@@ -903,6 +916,17 @@ export function DesktopCanvas(): React.ReactElement {
                         </span>
                         <ChevronDown className={cn("size-3 shrink-0 text-muted-foreground transition-transform", managerOpen && "rotate-180")} />
                     </button>
+
+                    {/* Indicador de escritorio COMPARTIDO (SOP §11, ?space=<id>) */}
+                    {sharedSpace.space && (
+                        <span
+                            title={`Espacio compartido: ${sharedSpace.space.title}`}
+                            className="flex shrink-0 items-center gap-1 rounded-full border border-cyan-300/30 bg-cyan-400/10 px-2 py-1 text-[10px] font-bold text-cyan-100"
+                        >
+                            <Share2 className="size-3" />
+                            <span className="max-w-[100px] truncate">{sharedSpace.space.title}</span>
+                        </span>
+                    )}
 
                     {/* Puntos deslizables */}
                     <div className="flex max-w-[30vw] items-center gap-1 overflow-x-auto px-0.5">

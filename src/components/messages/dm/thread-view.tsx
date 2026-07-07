@@ -29,8 +29,13 @@ import { askAuroraInThread } from "@/lib/messages/aurora-thread";
 import { fetchProfilesByIds, type OsProfile } from "@/lib/social/os-profiles";
 import { threadTitle, threadAvatar } from "@/components/messages/dm/thread-list";
 import { MessageBubble } from "@/components/messages/dm/message-bubble";
+// Subida universal de archivos (Adenda 64 §9): adjuntos grandes van a storage
+// (URL real, sincronizada entre dispositivos); el dataURL inline queda solo
+// como fallback offline para archivos pequeños (ver MAX_INLINE_BYTES abajo).
+import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
+import type { UniversalAttachment } from "@/lib/files/os-files";
 
-const MAX_INLINE_BYTES = 800_000; // ~0.8MB: adjuntos pequeños van inline como dataURL.
+const MAX_INLINE_BYTES = 300_000; // ~0.3MB: fallback offline (dataURL) para adjuntos muy pequeños.
 
 function fileToAttachmentKind(file: File): DmAttachment["kind"] {
     if (file.type.startsWith("image/")) return "image";
@@ -46,6 +51,15 @@ function readFileAsDataUrl(file: File): Promise<string> {
         reader.onerror = () => reject(reader.error);
         reader.readAsDataURL(file);
     });
+}
+
+/** ¿Hay sesión activa AHORA MISMO (best-effort, sin red)? Heurística simple para decidir el fallback offline. */
+function looksOffline(): boolean {
+    try {
+        return typeof navigator !== "undefined" && navigator.onLine === false;
+    } catch {
+        return false;
+    }
 }
 
 export interface ThreadViewProps {
@@ -70,7 +84,6 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
     const [auroraStatus, setAuroraStatus] = useState("");
     const [agentPanelOpen, setAgentPanelOpen] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const autoRepliedIds = useRef<Set<string>>(new Set());
 
     const title = threadTitle(thread, profiles, myUserId);
@@ -166,7 +179,7 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
         if (!files || !files.length) return;
         for (const file of Array.from(files)) {
             if (file.size > MAX_INLINE_BYTES) {
-                toast.error(`«${file.name}» supera el límite de adjunto inline (~800KB). Compártelo desde tu Biblioteca o un enlace.`);
+                toast.error(`«${file.name}» supera el límite de adjunto inline offline (~300KB). Usa el selector de archivos (subida real a la nube).`);
                 continue;
             }
             try {
@@ -179,6 +192,24 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
                 toast.error(`No se pudo leer «${file.name}».`);
             }
         }
+    };
+
+    /** Adjuntos entregados por el selector universal (ya subidos a storage, con URL real). */
+    const handleUniversalAttachments = (attachments: UniversalAttachment[]) => {
+        setPendingAttachments((prev) => [
+            ...prev,
+            ...attachments.map(
+                (a): DmAttachment => ({
+                    kind: a.kind,
+                    name: a.name,
+                    mime: a.mime,
+                    url: a.url,
+                    size: a.size,
+                    refKind: a.fileId ? "file" : undefined,
+                    refId: a.fileId,
+                }),
+            ),
+        ]);
     };
 
     const handleAskAurora = async () => {
@@ -336,23 +367,25 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
                     </p>
                 )}
 
-                <div className="flex items-center gap-2 bg-muted/50 rounded-2xl border border-border/60 px-3 py-2 focus-within:border-primary/40 transition-all">
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => void handleFilesPicked(e.target.files)}
-                    />
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="cursor-pointer h-7 w-7 shrink-0 rounded-full hover:bg-primary/10 hover:text-primary text-muted-foreground"
-                        onClick={() => fileInputRef.current?.click()}
-                        title="Adjuntar archivo (imagen, audio, vídeo o cualquier formato)"
+                <div
+                    className="flex items-center gap-2 bg-muted/50 rounded-2xl border border-border/60 px-3 py-2 focus-within:border-primary/40 transition-all"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                        e.preventDefault();
+                        // Fallback offline: arrastrar y soltar guarda archivos pequeños (<300KB)
+                        // como dataURL inline sin depender de red/sesión (ver MAX_INLINE_BYTES).
+                        // El botón de clip (selector universal) sigue siendo el camino principal.
+                        if (looksOffline()) void handleFilesPicked(e.dataTransfer.files);
+                    }}
+                >
+                    <AttachFilePickerButton
+                        onPick={handleUniversalAttachments}
+                        folder="mensajes"
+                        title="Adjuntar archivo al mensaje"
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary"
                     >
                         <Paperclip className="w-4 h-4" />
-                    </Button>
+                    </AttachFilePickerButton>
 
                     <Input
                         value={input}

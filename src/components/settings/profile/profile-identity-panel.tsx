@@ -37,8 +37,13 @@ import {
     Mail,
     ShieldCheck,
     Info,
+    Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+// Subida universal de archivos (Adenda 64 §9): cambiar avatar/portada con una
+// foto real (dispositivo o biblioteca) en vez de solo pegar una URL externa.
+import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
+import type { UniversalAttachment } from "@/lib/files/os-files";
 
 type Row = Record<string, any>;
 
@@ -397,27 +402,57 @@ export function ProfileIdentityPanel() {
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium flex items-center gap-1.5">
-                                    <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" /> Avatar (URL)
+                                    <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" /> Avatar
                                 </label>
-                                <Input
-                                    value={form.avatar_url}
-                                    onChange={(e) => setField("avatar_url", e.target.value)}
-                                    placeholder="https://…"
-                                    disabled={isLoading}
-                                    className="bg-background/50 font-mono text-xs"
-                                />
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        value={form.avatar_url}
+                                        onChange={(e) => setField("avatar_url", e.target.value)}
+                                        placeholder="https://…"
+                                        disabled={isLoading}
+                                        className="bg-background/50 font-mono text-xs"
+                                    />
+                                    <AttachFilePickerButton
+                                        onPick={(picked: UniversalAttachment[]) => {
+                                            const url = picked[0]?.url;
+                                            if (url) setField("avatar_url", url);
+                                        }}
+                                        accept="image/*"
+                                        folder="avatares"
+                                        title="Cambiar foto de perfil"
+                                        hideTabs={["neuronas"]}
+                                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 text-xs font-medium text-foreground/80 hover:bg-white/10"
+                                    >
+                                        <Upload className="w-3.5 h-3.5" />
+                                    </AttachFilePickerButton>
+                                </div>
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium flex items-center gap-1.5">
-                                    <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" /> Portada (URL)
+                                    <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" /> Portada
                                 </label>
-                                <Input
-                                    value={form.cover_url}
-                                    onChange={(e) => setField("cover_url", e.target.value)}
-                                    placeholder="https://…"
-                                    disabled={isLoading}
-                                    className="bg-background/50 font-mono text-xs"
-                                />
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        value={form.cover_url}
+                                        onChange={(e) => setField("cover_url", e.target.value)}
+                                        placeholder="https://…"
+                                        disabled={isLoading}
+                                        className="bg-background/50 font-mono text-xs"
+                                    />
+                                    <AttachFilePickerButton
+                                        onPick={(picked: UniversalAttachment[]) => {
+                                            const url = picked[0]?.url;
+                                            if (url) setField("cover_url", url);
+                                        }}
+                                        accept="image/*"
+                                        folder="portadas"
+                                        title="Cambiar foto de portada"
+                                        hideTabs={["neuronas"]}
+                                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 text-xs font-medium text-foreground/80 hover:bg-white/10"
+                                    >
+                                        <Upload className="w-3.5 h-3.5" />
+                                    </AttachFilePickerButton>
+                                </div>
                             </div>
                         </div>
 

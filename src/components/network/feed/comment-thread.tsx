@@ -44,6 +44,20 @@ import { parseMentions, toPlainText, type Mention } from "@/lib/mentions/mention
 import MentionInput from "@/components/mentions/mention-input";
 import { MentionChip } from "@/components/mentions/entity-chip";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
+// Subida universal de archivos (Adenda 64 §9): el botón "Adjuntar" del
+// composer de comentarios abre el selector universal (dispositivo/bibliotecas/
+// neuronas); los archivos quedan en storage real (URL pública), no en blobs
+// locales efímeros como hacía `AttachmentPicker` con URL.createObjectURL.
+import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
+import type { UniversalAttachment } from "@/lib/files/os-files";
+
+/** Traduce el `kind` amplio de UniversalAttachment al vocabulario de CommentAttachment. */
+function universalToCommentKind(kind: string): CommentAttachment["kind"] {
+    if (kind === "image") return "imagen";
+    if (kind === "audio") return "audio";
+    if (kind === "video") return "video";
+    return "archivo";
+}
 
 // ───────────────────────────── Utilidades ───────────────────────────────────
 
@@ -105,14 +119,6 @@ interface AttachmentPickerProps {
 function AttachmentPicker({ attachments, onChange }: AttachmentPickerProps) {
     const [urlKind, setUrlKind] = useState<string | null>(null);
     const [urlValue, setUrlValue] = useState("");
-    const fileInputRef = React.useRef<HTMLInputElement | null>(null);
-    const pendingKind = React.useRef<string>("archivo");
-
-    function addFile(kind: string, file: File) {
-        const id = `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const url = URL.createObjectURL(file);
-        onChange([...attachments, { id, kind, url, name: file.name, mime: file.type || null }]);
-    }
 
     function addUrl() {
         const url = urlValue.trim();
@@ -133,48 +139,42 @@ function AttachmentPicker({ attachments, onChange }: AttachmentPickerProps) {
         onChange(attachments.filter((a) => a.id !== id));
     }
 
-    function pick(kind: string) {
-        if (kind === "enlace") {
-            setUrlKind((prev) => (prev === "enlace" ? null : "enlace"));
-            return;
-        }
-        pendingKind.current = kind;
-        const cfg = ATTACHMENT_KIND_META[kind];
-        if (fileInputRef.current) {
-            fileInputRef.current.accept = cfg.accept || "*/*";
-            fileInputRef.current.value = "";
-            fileInputRef.current.click();
-        }
+    /** Adjuntos entregados por el selector universal (ya subidos a storage, con URL real). */
+    function handleUniversalAttachments(picked: UniversalAttachment[]) {
+        const next: CommentAttachment[] = picked.map((a) => ({
+            id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            kind: universalToCommentKind(a.kind),
+            url: a.url || "",
+            name: a.name ?? null,
+            mime: a.mime ?? null,
+        }));
+        onChange([...attachments, ...next]);
     }
 
     return (
         <div className="space-y-2">
-            <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) addFile(pendingKind.current, file);
-                }}
-            />
             <div className="flex items-center gap-1">
-                {Object.entries(ATTACHMENT_KIND_META).map(([kind, cfg]) => (
-                    <button
-                        key={kind}
-                        type="button"
-                        onClick={() => pick(kind)}
-                        title={`Adjuntar ${cfg.label.toLowerCase()}`}
-                        className={cn(
-                            "grid size-7 cursor-pointer place-items-center rounded-full border transition-colors",
-                            urlKind === kind
-                                ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200"
-                                : "border-white/10 bg-white/[0.03] text-white/50 hover:border-white/25 hover:text-white",
-                        )}
-                    >
-                        <cfg.icon className="size-3.5" />
-                    </button>
-                ))}
+                <AttachFilePickerButton
+                    onPick={handleUniversalAttachments}
+                    folder="comentarios"
+                    title="Adjuntar archivo al comentario"
+                    className="grid size-7 place-items-center rounded-full border border-white/10 bg-white/[0.03] text-white/50 hover:border-white/25 hover:text-white"
+                >
+                    <Paperclip className="size-3.5" />
+                </AttachFilePickerButton>
+                <button
+                    type="button"
+                    onClick={() => setUrlKind((prev) => (prev === "enlace" ? null : "enlace"))}
+                    title="Adjuntar enlace"
+                    className={cn(
+                        "grid size-7 cursor-pointer place-items-center rounded-full border transition-colors",
+                        urlKind === "enlace"
+                            ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200"
+                            : "border-white/10 bg-white/[0.03] text-white/50 hover:border-white/25 hover:text-white",
+                    )}
+                >
+                    <LinkIcon className="size-3.5" />
+                </button>
             </div>
 
             {urlKind === "enlace" && (

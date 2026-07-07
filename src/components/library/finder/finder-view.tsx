@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
     Search, LayoutGrid, List as ListIcon, Columns3, ArrowUpDown,
-    X, ClipboardPaste,
+    X, ClipboardPaste, Upload,
 } from "lucide-react";
 import {
     useEntityLibrary,
@@ -31,6 +31,10 @@ import {
     type SavedItemType,
     type ItemACL,
 } from "@/lib/library/entity-library";
+// Subida universal de archivos (Adenda 64 §9): botón "Subir archivos…" de la
+// toolbar — sube al storage real y crea ítems type:'file' en la carpeta activa.
+import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
+import type { UniversalAttachment } from "@/lib/files/os-files";
 import {
     type FinderViewMode, type FinderSort, FINDER_VIEW_KEY, FINDER_SORT_KEY,
     folderPath, folderSubtreeIds, sortItems, sortFolders,
@@ -93,7 +97,7 @@ export interface FinderViewProps {
 
 export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact }: FinderViewProps) {
     const {
-        doc, loading, removeItem, moveItem, createFolder, renameFolder, removeFolder,
+        doc, loading, saveItem, removeItem, moveItem, createFolder, renameFolder, removeFolder,
         moveFolder, setItemTags, setItemAcl, setFolderAcl, createAlias, replicateItem, duplicateItem,
     } = useEntityLibrary(entityRef);
 
@@ -285,6 +289,30 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         }
     }, [entityRef]);
 
+    /** Archivos subidos desde el selector universal: crea un ítem type:'file' por cada uno en la carpeta activa. */
+    const handleUploadedFiles = useCallback(
+        async (attachments: UniversalAttachment[]) => {
+            let created = 0;
+            for (const a of attachments) {
+                if (!a.url) continue;
+                const res = await saveItem(
+                    {
+                        type: "file",
+                        url: a.url,
+                        title: a.name || "Archivo",
+                        refId: a.fileId,
+                    },
+                    activeFolder,
+                );
+                if (res.ok) created++;
+            }
+            if (created > 0) {
+                toast.success(created === 1 ? "Archivo subido a la biblioteca" : `${created} archivos subidos a la biblioteca`);
+            }
+        },
+        [saveItem, activeFolder],
+    );
+
     const handlePublishNavigate = useCallback((item: SavedItem) => {
         const resolved = item.type === "alias" && item.targetItemId ? itemsById.get(item.targetItemId) ?? item : item;
         const ref = {
@@ -382,6 +410,18 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                     >
                         <ClipboardPaste className="h-3.5 w-3.5" /> Pegar aquí
                     </Button>
+                )}
+
+                {currentWriteAllowed && (
+                    <AttachFilePickerButton
+                        onPick={(a) => void handleUploadedFiles(a)}
+                        folder={`biblioteca/${entityRef.kind}-${entityRef.id}`}
+                        title="Subir archivos a esta biblioteca"
+                        hideTabs={["neuronas"]}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.03] px-3 text-xs font-medium text-white/75 hover:bg-white/10"
+                    >
+                        <Upload className="h-3.5 w-3.5" /> Subir archivos…
+                    </AttachFilePickerButton>
                 )}
 
                 {selectedIds.size > 0 && (
