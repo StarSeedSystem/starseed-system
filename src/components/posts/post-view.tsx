@@ -14,21 +14,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
     Repeat2, Tag, GitPullRequestArrow, Flag, Heart, Sparkles, ThumbsUp,
-    Send, CornerDownRight, MapPin, MessageCircle, Loader2, Vote, User as UserIcon,
-    Link as LinkIcon, Image as ImageIcon, Layers,
+    MapPin, MessageCircle, Loader2, Vote, User as UserIcon, Layers,
 } from "lucide-react";
 import {
     loadPost, reachOf, react, vote, tag, republish, suggestChange, report,
-    commentTree, addComment, subscribe,
+    commentTree, subscribe,
     type PostEntity, type CommentNode, type VotingConfig,
 } from "@/lib/posts/post-entity";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
+import { CommentThread } from "@/components/network/feed/comment-thread";
+import { getCurrentUserId } from "@/lib/os-social";
 
 // ----------------------------- Helpers UI -----------------------------------
 
@@ -51,14 +50,6 @@ function fmtDate(iso?: string | null): string {
         });
     } catch {
         return iso;
-    }
-}
-
-function safeDomain(url: string): string {
-    try {
-        return new URL(url).hostname.replace(/^www\./, "");
-    } catch {
-        return url;
     }
 }
 
@@ -197,93 +188,6 @@ function VotingWidget({
     );
 }
 
-// ----------------------------- Comentarios ----------------------------------
-
-function CommentItem({
-    node,
-    depth,
-    onReply,
-}: {
-    node: CommentNode;
-    depth: number;
-    onReply: (parentId: string, text: string) => Promise<void>;
-}) {
-    const [replying, setReplying] = useState(false);
-    const [text, setText] = useState("");
-    const [sending, setSending] = useState(false);
-
-    const submit = async () => {
-        const t = text.trim();
-        if (!t || sending) return;
-        setSending(true);
-        try {
-            await onReply(node.id, t);
-            setText("");
-            setReplying(false);
-        } finally {
-            setSending(false);
-        }
-    };
-
-    return (
-        <div className={cn(depth > 0 && "ml-4 border-l border-white/10 pl-4")}>
-            <div className="rounded-lg border border-white/5 bg-white/5 p-3 transition-colors hover:bg-white/10">
-                <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-[10px] text-white/70">
-                            <UserIcon className="h-3 w-3" />
-                        </span>
-                        <span className="text-sm font-semibold text-white/90">
-                            {authorName(node.author)}
-                        </span>
-                    </div>
-                    <span className="text-[11px] text-white/40">{fmtDate(node.created_at)}</span>
-                </div>
-
-                <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-white/80">
-                    {node.content?.text ?? ""}
-                </p>
-
-                <button
-                    type="button"
-                    onClick={() => setReplying((v) => !v)}
-                    className="mt-2 inline-flex items-center gap-1 text-[11px] text-white/40 transition-colors hover:text-cyan-300"
-                >
-                    <CornerDownRight className="h-3 w-3" />
-                    Responder
-                </button>
-
-                {replying && (
-                    <div className="mt-2 flex items-end gap-2">
-                        <textarea
-                            value={text}
-                            onChange={(e) => setText(e.target.value)}
-                            placeholder="Escribe una respuesta…"
-                            className="min-h-[38px] flex-1 resize-y rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/85 placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-cyan-400/30"
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                    e.preventDefault();
-                                    void submit();
-                                }
-                            }}
-                        />
-                        <Button size="sm" onClick={submit} disabled={sending || !text.trim()}>
-                            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        </Button>
-                    </div>
-                )}
-            </div>
-
-            {node.children.length > 0 && (
-                <div className="mt-2 space-y-2">
-                    {node.children.map((child) => (
-                        <CommentItem key={child.id} node={child} depth={depth + 1} onReply={onReply} />
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
 
 // ----------------------------- Componente raíz ------------------------------
 
@@ -294,12 +198,20 @@ export default function PostView({ postId }: { postId: string }) {
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
     const [busy, setBusy] = useState(false);
-
-    // Composición de comentario raíz.
-    const [newComment, setNewComment] = useState("");
-    const [posting, setPosting] = useState(false);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     const reachLoadedFor = useRef<string | null>(null);
+
+    // Usuario actual (para Editar/Borrar en los comentarios propios del hilo).
+    useEffect(() => {
+        let active = true;
+        getCurrentUserId().then((uid) => {
+            if (active) setCurrentUserId(uid);
+        });
+        return () => {
+            active = false;
+        };
+    }, []);
 
     // Carga inicial + suscripción por polling (SSR-safe: solo tras montar).
     useEffect(() => {
@@ -448,39 +360,6 @@ export default function PostView({ postId }: { postId: string }) {
         }
     };
 
-    // -------- Comentarios --------
-
-    const submitRootComment = async () => {
-        const t = newComment.trim();
-        if (!t || posting) return;
-        setPosting(true);
-        try {
-            const created = await addComment(postId, t, null);
-            if (!created) throw new Error();
-            setNewComment("");
-            setComments(await commentTree(postId));
-            toast.success("Comentario publicado");
-        } catch {
-            toast.error("No se pudo publicar el comentario");
-        } finally {
-            setPosting(false);
-        }
-    };
-
-    const handleReply = useCallback(
-        async (parentId: string, text: string) => {
-            try {
-                const created = await addComment(postId, text, parentId);
-                if (!created) throw new Error();
-                setComments(await commentTree(postId));
-                toast.success("Respuesta publicada");
-            } catch {
-                toast.error("No se pudo publicar la respuesta");
-            }
-        },
-        [postId],
-    );
-
     // -------- Derivados --------
 
     const interactions = post?.interactions ?? {};
@@ -621,45 +500,14 @@ export default function PostView({ postId }: { postId: string }) {
                 </div>
             </article>
 
-            {/* Comentarios anidados */}
+            {/* Comentarios ramificados: composer + árbol anidado, adjuntos, menciones, reacciones */}
             <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-white/80">
-                    <MessageCircle className="h-4 w-4 text-cyan-300" />
-                    Comentarios ({commentCount})
-                </h3>
-
-                {/* Nuevo comentario raíz */}
-                <div className="mb-4 flex items-end gap-2">
-                    <textarea
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Comparte tu comentario…"
-                        className="min-h-[44px] flex-1 resize-y rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/85 placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-cyan-400/30"
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                void submitRootComment();
-                            }
-                        }}
-                    />
-                    <Button onClick={submitRootComment} disabled={posting || !newComment.trim()}>
-                        {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        <span className="hidden sm:inline">Comentar</span>
-                    </Button>
-                </div>
-
-                {/* Árbol */}
-                {comments.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-white/10 px-4 py-6 text-center text-sm text-white/40">
-                        Sé el primero en comentar.
-                    </p>
-                ) : (
-                    <div className="space-y-3">
-                        {comments.map((node) => (
-                            <CommentItem key={node.id} node={node} depth={0} onReply={handleReply} />
-                        ))}
-                    </div>
-                )}
+                <CommentThread
+                    postId={postId}
+                    comments={comments}
+                    currentUserId={currentUserId}
+                    onChanged={refresh}
+                />
             </section>
         </div>
     );

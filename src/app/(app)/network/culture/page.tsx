@@ -10,7 +10,12 @@ import Link from "next/link";
 import { culturalPosts } from "@/lib/data";
 import { CommentSystem } from '@/components/comment-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPlaceholder } from './components';
+import dynamic from 'next/dynamic';
+// Leaflet accede a `window`: cargar solo en cliente (sin SSR) para no romper el prerender.
+const NetworkMap = dynamic(
+  () => import('@/components/maps/network-map').then((m) => m.NetworkMap),
+  { ssr: false, loading: () => <div className="h-72 w-full animate-pulse rounded-xl bg-muted/40" /> }
+);
 import { CrearAffordances, CulturalFeedLive } from './crear-realtime';
 import { UnifiedCalendar } from '@/components/calendar/unified-calendar';
 import { SystemShowcase } from '@/components/showcase/SystemShowcase';
@@ -45,8 +50,8 @@ function CulturalPostCard({ post }: { post: typeof culturalPosts[0] }) {
             <Image src={post.imageUrl} alt={post.title} layout="fill" objectFit="cover" data-ai-hint={post.imageHint} />
           </div>
         )}
-        <div className="flex justify-between items-center text-muted-foreground border-t pt-2">
-          <div className="flex gap-1">
+        <div className="flex flex-wrap justify-between items-center gap-2 text-muted-foreground border-t pt-2">
+          <div className="flex flex-wrap gap-1">
             <Button variant="ghost" size="sm" className="flex items-center gap-2">
               <ThumbsUp className="w-4 h-4" /> {post.likes}
             </Button>
@@ -54,7 +59,7 @@ function CulturalPostCard({ post }: { post: typeof culturalPosts[0] }) {
               <MessageCircle className="w-4 h-4" /> {post.comments.length}
             </Button>
           </div>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             <Button variant="ghost" size="sm" className="flex items-center gap-2">
               <Share2 className="w-4 h-4" /> Compartir
             </Button>
@@ -81,10 +86,10 @@ export default function CulturePage() {
       <CrearAffordances />
 
       <Tabs defaultValue="feed" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
-          <TabsTrigger value="feed"><Radio className="mr-2 h-4 w-4" />Feed Cultural</TabsTrigger>
-          <TabsTrigger value="map"><Map className="mr-2 h-4 w-4" />Mapa Global</TabsTrigger>
-          <TabsTrigger value="calendar"><Calendar className="mr-2 h-4 w-4" />Agenda</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3 mb-6 h-auto">
+          <TabsTrigger value="feed" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2"><Radio className="mr-1.5 sm:mr-2 h-4 w-4 shrink-0" />Feed Cultural</TabsTrigger>
+          <TabsTrigger value="map" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2"><Map className="mr-1.5 sm:mr-2 h-4 w-4 shrink-0" />Mapa Global</TabsTrigger>
+          <TabsTrigger value="calendar" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2"><Calendar className="mr-1.5 sm:mr-2 h-4 w-4 shrink-0" />Agenda</TabsTrigger>
         </TabsList>
 
         <TabsContent value="feed" className="animate-in fade-in-50 duration-500">
@@ -101,9 +106,12 @@ export default function CulturePage() {
           <div className="flex flex-col gap-4">
             <div>
               <h2 className="text-2xl font-bold font-headline">Mapa Global Interactivo</h2>
-              <p className="text-muted-foreground">Explora la geografía de la red StarSeed.</p>
+              <p className="text-muted-foreground">
+                Comunidades y eventos reales de la red StarSeed con geografía asignada. Busca, filtra por
+                capas, céntrate en tu ubicación y abre la ficha de cada lugar.
+              </p>
             </div>
-            <MapPlaceholder />
+            <NetworkMap />
           </div>
         </TabsContent>
 

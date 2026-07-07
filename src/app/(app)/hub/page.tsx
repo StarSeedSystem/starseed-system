@@ -29,6 +29,7 @@ import { UniversalSearchBox } from "@/components/hub/universal-search-box";
 import EgoContextOption from "@/components/aurora/ego-context-option";
 import { createEgoForContext } from "@/lib/aurora/ego";
 import { HubRedSection } from "./red-section";
+import { HubDiscoverSection } from "./discover-section";
 
 // Pestañas válidas del Hub (para deep-linking `?tab=` desde el dock / enlaces).
 const HUB_TABS = ["buscador", "contributions", "red", "my-pages", "groups", "calendar", "parties", "vote-management"] as const;
@@ -518,7 +519,7 @@ export default function HubPage() {
             
             {/* ── ALERTA DE TOAST PREMIUM (NOTIFICACIONES EN TIEMPO REAL) ── */}
             {toastMessage && (
-                <div className="fixed bottom-6 right-6 z-[999] animate-in fade-in-50 slide-in-from-bottom-5 duration-300 max-w-sm">
+                <div className="fixed bottom-6 right-6 left-6 sm:left-auto z-[999] animate-in fade-in-50 slide-in-from-bottom-5 duration-300 max-w-sm sm:ml-auto">
                     <Card className="bg-gradient-to-r from-purple-950/80 to-cyan-950/80 border border-cyan-500/30 backdrop-blur-xl text-white shadow-[0_0_25px_rgba(6,182,212,0.3)] rounded-2xl p-4">
                         <div className="flex items-start gap-3">
                             <Sparkles className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5 animate-pulse" />
@@ -570,30 +571,30 @@ export default function HubPage() {
 
             {/* ── MENÚ TABS REORGANIZADO A LA PARTE SUPERIOR (CONSOLIDADOS) ── */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col mt-2">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-8 max-w-full lg:max-w-6xl mx-auto h-auto min-h-[50px] gap-2 bg-black/25 p-2 rounded-2xl border border-white/5 shadow-2xl backdrop-blur-md">
-                    <TabsTrigger value="buscador" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
-                        <Search className="w-4 h-4 mr-2 text-primary" />Buscador
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-8 max-w-full lg:max-w-6xl mx-auto h-auto gap-2 bg-black/25 p-2 rounded-2xl border border-white/5 shadow-2xl backdrop-blur-md">
+                    <TabsTrigger value="buscador" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
+                        <Search className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0 text-primary" /><span className="truncate">Buscador</span>
                     </TabsTrigger>
-                    <TabsTrigger value="contributions" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
-                        <Briefcase className="w-4 h-4 mr-2 text-cyan-400" />Aportaciones
+                    <TabsTrigger value="contributions" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
+                        <Briefcase className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0 text-cyan-400" /><span className="truncate">Aportaciones</span>
                     </TabsTrigger>
-                    <TabsTrigger value="red" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
-                        <Network className="w-4 h-4 mr-2 text-cyan-400" />Red
+                    <TabsTrigger value="red" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
+                        <Network className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0 text-cyan-400" /><span className="truncate">Red</span>
                     </TabsTrigger>
-                    <TabsTrigger value="my-pages" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
-                        <Globe className="w-4 h-4 mr-2" />Mis Páginas
+                    <TabsTrigger value="my-pages" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
+                        <Globe className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0" /><span className="truncate">Mis Páginas</span>
                     </TabsTrigger>
-                    <TabsTrigger value="groups" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
-                        <Users className="w-4 h-4 mr-2" />Grupos
+                    <TabsTrigger value="groups" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
+                        <Users className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0" /><span className="truncate">Grupos</span>
                     </TabsTrigger>
-                    <TabsTrigger value="calendar" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
-                        <CalendarDays className="w-4 h-4 mr-2" />Calendario
+                    <TabsTrigger value="calendar" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
+                        <CalendarDays className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0" /><span className="truncate">Calendario</span>
                     </TabsTrigger>
-                    <TabsTrigger value="parties" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
-                        <Flame className="w-4 h-4 mr-2" />Partidos
+                    <TabsTrigger value="parties" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
+                        <Flame className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0" /><span className="truncate">Partidos</span>
                     </TabsTrigger>
-                    <TabsTrigger value="vote-management" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 rounded-xl font-bold tracking-wider text-xs md:text-sm">
-                        <Vote className="w-4 h-4 mr-2" />Votos
+                    <TabsTrigger value="vote-management" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
+                        <Vote className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0" /><span className="truncate">Votos</span>
                     </TabsTrigger>
                 </TabsList>
 
@@ -658,7 +659,7 @@ export default function HubPage() {
                     {selectedStat && (
                         <Card className="liquid-glass-panel border-primary/20 shadow-2xl p-6 animate-in slide-in-from-top-4 duration-300 relative overflow-hidden text-center flex flex-col items-center">
                             <div className="absolute top-0 right-0 p-4">
-                                <Button size="sm" variant="ghost" className="h-7 text-xs rounded-full font-bold uppercase border border-white/5" onClick={() => setSelectedStat(null)}>
+                                <Button size="sm" variant="ghost" className="min-h-[40px] text-xs rounded-full font-bold uppercase border border-white/5 cursor-pointer" onClick={() => setSelectedStat(null)}>
                                     Cerrar Detalles
                                 </Button>
                             </div>
@@ -801,7 +802,7 @@ export default function HubPage() {
                                 </Badge>
                             ))}
                         </div>
-                        <Button variant="ghost" size="sm" className="text-xs h-8 rounded-full md:ml-auto uppercase tracking-wider font-bold border border-white/5 bg-white/5">
+                        <Button variant="ghost" size="sm" className="text-xs min-h-[40px] rounded-full md:ml-auto uppercase tracking-wider font-bold border border-white/5 bg-white/5 cursor-pointer">
                             <Award className="w-4 h-4 mr-1.5" /> Ver todas las insignias
                         </Button>
                     </div>
@@ -822,20 +823,20 @@ export default function HubPage() {
                                         </CardDescription>
                                     </div>
                                     <div className="flex bg-black/30 p-1 rounded-xl border border-white/5 text-[11px] font-bold">
-                                        <button 
-                                            className={cn("px-3 py-1.5 rounded-lg transition-all", activeChartTab === 'reputation' ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/20" : "text-muted-foreground")}
+                                        <button
+                                            className={cn("min-h-[40px] px-3 py-1.5 rounded-lg transition-all cursor-pointer", activeChartTab === 'reputation' ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/20" : "text-muted-foreground")}
                                             onClick={() => setActiveChartTab('reputation')}
                                         >
                                             Reputación
                                         </button>
-                                        <button 
-                                            className={cn("px-3 py-1.5 rounded-lg transition-all", activeChartTab === 'contributions' ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/20" : "text-muted-foreground")}
+                                        <button
+                                            className={cn("min-h-[40px] px-3 py-1.5 rounded-lg transition-all cursor-pointer", activeChartTab === 'contributions' ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/20" : "text-muted-foreground")}
                                             onClick={() => setActiveChartTab('contributions')}
                                         >
                                             Aportes
                                         </button>
-                                        <button 
-                                            className={cn("px-3 py-1.5 rounded-lg transition-all", activeChartTab === 'seeds' ? "bg-orange-500/20 text-orange-300 border border-orange-500/20" : "text-muted-foreground")}
+                                        <button
+                                            className={cn("min-h-[40px] px-3 py-1.5 rounded-lg transition-all cursor-pointer", activeChartTab === 'seeds' ? "bg-orange-500/20 text-orange-300 border border-orange-500/20" : "text-muted-foreground")}
                                             onClick={() => setActiveChartTab('seeds')}
                                         >
                                             Seeds
@@ -956,9 +957,9 @@ export default function HubPage() {
                                                 <div className="w-full bg-black/40 border border-amber-500/10 p-3 rounded-xl mt-2 text-center flex flex-col items-center space-y-2 animate-in slide-in-from-top duration-200">
                                                     <p className="text-[10px] text-slate-300 font-semibold leading-relaxed">{goal.description}</p>
                                                     <div className="flex gap-1.5 pt-1 w-full justify-center">
-                                                        <Button 
-                                                            size="sm" 
-                                                            className="h-7 text-[9px] btn-pill bg-amber-600 hover:bg-amber-500 text-white font-bold w-full uppercase tracking-wider"
+                                                        <Button
+                                                            size="sm"
+                                                            className="min-h-[40px] text-[9px] btn-pill bg-amber-600 hover:bg-amber-500 text-white font-bold w-full uppercase tracking-wider cursor-pointer"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setGoalFilter(goal.tag);
@@ -970,7 +971,7 @@ export default function HubPage() {
                                                         <Button
                                                             size="sm"
                                                             variant="ghost"
-                                                            className="h-7 text-[9px] btn-pill border border-white/10 text-muted-foreground hover:text-white uppercase tracking-wider w-full"
+                                                            className="min-h-[40px] text-[9px] btn-pill border border-white/10 text-muted-foreground hover:text-white uppercase tracking-wider w-full cursor-pointer"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setSelectedGoal(null);
@@ -1040,10 +1041,10 @@ export default function HubPage() {
                                                     <div className="flex items-center gap-3 w-full justify-center">
                                                         <div className="text-sm font-black text-cyan-400">{item.progress}%</div>
                                                         <div className="flex gap-1.5">
-                                                            <Button 
-                                                                size="sm" 
-                                                                variant="outline" 
-                                                                className="h-6 px-2 rounded-full border-white/10 hover:bg-white/5 text-[9px] font-bold"
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-10 px-3 rounded-full border-white/10 hover:bg-white/5 text-[9px] font-bold cursor-pointer"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     setParticipations(prev => prev.map(p => {
@@ -1057,10 +1058,10 @@ export default function HubPage() {
                                                             >
                                                                 -10%
                                                             </Button>
-                                                            <Button 
-                                                                size="sm" 
-                                                                variant="outline" 
-                                                                className="h-6 px-2 rounded-full border-white/10 hover:bg-white/5 text-[9px] font-bold"
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-10 px-3 rounded-full border-white/10 hover:bg-white/5 text-[9px] font-bold cursor-pointer"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     setParticipations(prev => prev.map(p => {
@@ -1085,7 +1086,7 @@ export default function HubPage() {
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            className="h-7 text-[9px] btn-pill border-white/10 hover:bg-white/5 w-full font-bold uppercase tracking-wider"
+                                                            className="min-h-[40px] text-[9px] btn-pill border-white/10 hover:bg-white/5 w-full font-bold uppercase tracking-wider cursor-pointer"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setActiveTab("calendar");
@@ -1099,7 +1100,7 @@ export default function HubPage() {
                                                         {item.progress === 100 ? (
                                                             <Button
                                                                 size="sm"
-                                                                className="h-7 text-[9px] btn-pill bg-emerald-600 hover:bg-emerald-500 text-white w-full font-black uppercase tracking-wider shadow-lg shadow-emerald-500/20"
+                                                                className="min-h-[40px] text-[9px] btn-pill bg-emerald-600 hover:bg-emerald-500 text-white w-full font-black uppercase tracking-wider shadow-lg shadow-emerald-500/20 cursor-pointer"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     handleCompleteParticipation(item);
@@ -1111,7 +1112,7 @@ export default function HubPage() {
                                                             <Button
                                                                 size="sm"
                                                                 variant="ghost"
-                                                                className="h-7 text-[9px] btn-pill text-red-400 hover:bg-red-500/10 hover:text-red-300 w-full font-bold uppercase tracking-wider border border-transparent hover:border-red-500/20"
+                                                                className="min-h-[40px] text-[9px] btn-pill text-red-400 hover:bg-red-500/10 hover:text-red-300 w-full font-bold uppercase tracking-wider border border-transparent hover:border-red-500/20 cursor-pointer"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     handleAbandonParticipation(item.id);
@@ -1145,29 +1146,29 @@ export default function HubPage() {
             <div className="flex flex-wrap items-center gap-3">
                 <Button 
                     size="sm" 
-                    className="h-8 text-xs btn-pill bg-cyan-600 hover:bg-cyan-50 text-white font-bold shadow-lg shadow-cyan-500/20"
+                    className="min-h-[40px] text-xs btn-pill bg-cyan-600 hover:bg-cyan-50 text-white font-bold shadow-lg shadow-cyan-500/20 cursor-pointer"
                     onClick={() => setShowPublishForm(!showPublishForm)}
                 >
                     <PlusCircle className="w-3.5 h-3.5 mr-1.5" /> Publicar Solicitud
                 </Button>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-muted-foreground font-semibold">Ordenar por:</span>
-                    <div className="flex bg-black/20 p-0.5 rounded-xl border border-white/5 text-[11px] font-bold">
-                        <button 
-                            className={cn("px-3 py-1.5 rounded-lg transition-all", sortBy === 'urgency' ? "bg-primary/20 text-primary border border-primary/20" : "text-muted-foreground")}
+                    <div className="flex bg-black/20 p-0.5 rounded-xl border border-white/5 text-[11px] font-bold flex-wrap">
+                        <button
+                            className={cn("min-h-[40px] px-3 py-1.5 rounded-lg transition-all cursor-pointer", sortBy === 'urgency' ? "bg-primary/20 text-primary border border-primary/20" : "text-muted-foreground")}
                             onClick={() => setSortBy('urgency')}
                         >
                             Urgencia
                         </button>
-                        <button 
-                            className={cn("px-3 py-1.5 rounded-lg transition-all", sortBy === 'relevance' ? "bg-primary/20 text-primary border border-primary/20" : "text-muted-foreground")}
+                        <button
+                            className={cn("min-h-[40px] px-3 py-1.5 rounded-lg transition-all cursor-pointer", sortBy === 'relevance' ? "bg-primary/20 text-primary border border-primary/20" : "text-muted-foreground")}
                             onClick={() => setSortBy('relevance')}
                         >
                             Relevancia (IA)
                         </button>
-                        <button 
-                            className={cn("px-3 py-1.5 rounded-lg transition-all", sortBy === 'date' ? "bg-primary/20 text-primary border border-primary/20" : "text-muted-foreground")}
+                        <button
+                            className={cn("min-h-[40px] px-3 py-1.5 rounded-lg transition-all cursor-pointer", sortBy === 'date' ? "bg-primary/20 text-primary border border-primary/20" : "text-muted-foreground")}
                             onClick={() => setSortBy('date')}
                         >
                             Fecha
@@ -1184,10 +1185,10 @@ export default function HubPage() {
                     <Filter className="w-4 h-4" />
                     <span>Filtro de Objetivo Activo: <strong className="uppercase tracking-widest text-slate-100 px-2 py-0.5 bg-primary/20 rounded-md border border-primary/30">{goalFilter}</strong></span>
                 </div>
-                <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    className="h-7 text-[10px] rounded-full uppercase font-bold border border-primary/10 hover:bg-primary/20 text-primary"
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    className="min-h-[40px] text-[10px] rounded-full uppercase font-bold border border-primary/10 hover:bg-primary/20 text-primary cursor-pointer"
                     onClick={() => setGoalFilter(null)}
                 >
                     Limpiar Filtro
@@ -1202,7 +1203,7 @@ export default function HubPage() {
                     <span className="text-sm font-bold uppercase tracking-widest text-cyan-300 flex items-center gap-1.5 mx-auto sm:mx-0">
                         <PlusCircle className="w-4 h-4 text-cyan-400 shrink-0" /> Publicar Nueva Solicitud de Ayuda / Voluntarios
                     </span>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs rounded-full font-bold uppercase border border-white/5" onClick={() => setShowPublishForm(false)}>
+                    <Button size="sm" variant="ghost" className="min-h-[40px] text-xs rounded-full font-bold uppercase border border-white/5 cursor-pointer" onClick={() => setShowPublishForm(false)}>
                         Cancelar
                     </Button>
                 </div>
@@ -1813,6 +1814,8 @@ export default function HubPage() {
 
                 {/* ── MIS PÁGINAS ── */}
                 <TabsContent value="my-pages" className="mt-6 animate-in fade-in-50 duration-500">
+                    <HubDiscoverSection focus="paginas" />
+
                     <div className="flex justify-between items-center mb-4 px-1">
                         <span className="section-label">{myPages.length} PÁGINAS ACTIVAS</span>
                         <Button size="sm" className="btn-pill shadow-[0_0_15px_rgba(var(--primary-rgb),0.3)]">
@@ -1854,6 +1857,8 @@ export default function HubPage() {
 
                 {/* ── GRUPOS ── */}
                 <TabsContent value="groups" className="mt-6 animate-in fade-in-50 duration-500">
+                    <HubDiscoverSection focus="grupos" />
+
                     <div className="flex justify-between items-center mb-4 px-1">
                         <div className="flex items-center gap-2">
                             <Button variant="outline" size="sm" className="btn-pill border-white/10 shadow-[0_0_10px_rgba(255,255,255,0.05)]">

@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { Post, networkService } from "@/services/network-simulation-service";
+import React, { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { TiltCard } from "@/components/ui/tilt-card";
-import { CommentSection } from "./comment-section";
 import {
     Carousel,
     CarouselContent,
@@ -11,28 +10,99 @@ import {
     CarouselNext,
     CarouselPrevious
 } from "@/components/ui/carousel";
-import { Heart, MessageCircle, Share2, MoreHorizontal, Link as LinkIcon } from "lucide-react";
+import { Heart, MessageCircle, Share2, MoreHorizontal, Maximize2, Minimize2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
+import type { FeedPost } from "@/lib/feed/network-feed";
+import { useLikes } from "@/hooks/use-os-entities";
+import { commentTree, type CommentNode } from "@/lib/posts/post-entity";
+import { getCurrentUserId } from "@/lib/os-social";
+import { CommentThread } from "./comment-thread";
 
 interface RichPostCardProps {
-    post: Post;
+    post: FeedPost;
+}
+
+/** Etiqueta legible + acento por área (política/educación/cultura/general). */
+const AREA_META: Record<string, { label: string; accent: string }> = {
+    politica: { label: "Política", accent: "text-amber-300 bg-amber-500/10 border-amber-500/20" },
+    educacion: { label: "Educación", accent: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20" },
+    cultura: { label: "Cultura", accent: "text-purple-300 bg-purple-500/10 border-purple-500/20" },
+    general: { label: "General", accent: "text-cyan-300 bg-cyan-500/10 border-cyan-500/20" },
+};
+
+/**
+ * Tarjeta de vista previa expandible para el adjunto rico de una publicación
+ * (página, app, widget, programa, agente, skill, archivo, encuesta, evento…).
+ * Colapsada muestra una fila compacta con icono + título; expandida delega el
+ * render completo por tipo a `FilePreview` (reutiliza toda su lógica de formatos).
+ */
+function AttachmentPreviewCard({ attachment }: { attachment: NonNullable<FeedPost["attachment"]> }) {
+    const [expanded, setExpanded] = useState(false);
+    const file: FileLike = {
+        url: attachment.url ?? undefined,
+        launchHref: attachment.href ?? undefined,
+        name: attachment.name ?? attachment.title ?? undefined,
+        type: attachment.kind,
+        mime: attachment.mime ?? undefined,
+        thumbnail: attachment.thumbnail ?? undefined,
+        description: attachment.description ?? undefined,
+    };
+
+    return (
+        <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.02]">
+            <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
+            >
+                <span className="min-w-0 flex-1 truncate text-xs font-semibold text-white/75">
+                    {attachment.title || attachment.name || "Contenido adjunto"}
+                </span>
+                <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-cyan-300/70">
+                    {expanded ? <Minimize2 className="size-3" /> : <Maximize2 className="size-3" />}
+                    {expanded ? "Contraer" : "Expandir"}
+                </span>
+            </button>
+            {expanded && (
+                <div className="border-t border-white/10 p-3 animate-in fade-in-50 duration-200">
+                    <FilePreview file={file} context="post" compact />
+                </div>
+            )}
+        </div>
+    );
 }
 
 export function RichPostCard({ post }: RichPostCardProps) {
-    const [isLiked, setIsLiked] = useState(post.likedByMe);
-    const [likesCount, setLikesCount] = useState(post.likes);
+    const { count: likesCount, liked: isLiked, toggle: toggleLike } = useLikes(post.postId, post.likes);
     const [showComments, setShowComments] = useState(false);
+    const [comments, setComments] = useState<CommentNode[]>([]);
+    const [commentsLoading, setCommentsLoading] = useState(false);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const areaMeta = post.area ? AREA_META[post.area] : null;
 
-    const handleLike = async () => {
-        // Optimistic update
-        const newLikedState = !isLiked;
-        setIsLiked(newLikedState);
-        setLikesCount(prev => newLikedState ? prev + 1 : prev - 1);
+    useEffect(() => {
+        let active = true;
+        getCurrentUserId().then((uid) => {
+            if (active) setCurrentUserId(uid);
+        });
+        return () => {
+            active = false;
+        };
+    }, []);
 
-        // Network call
-        await networkService.likePost(post.id);
-    };
+    const loadComments = useCallback(async () => {
+        setCommentsLoading(true);
+        try {
+            setComments(await commentTree(post.postId));
+        } finally {
+            setCommentsLoading(false);
+        }
+    }, [post.postId]);
+
+    useEffect(() => {
+        if (showComments) void loadComments();
+    }, [showComments, loadComments]);
 
     return (
         <TiltCard
@@ -46,26 +116,44 @@ export function RichPostCard({ post }: RichPostCardProps) {
                     <div className="flex items-center gap-3">
                         <div className="relative group cursor-pointer">
                             <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full opacity-75 blur group-hover:opacity-100 transition duration-200"></div>
-                            <img src={post.author.avatar} alt="Avatar" className="relative w-10 h-10 rounded-full object-cover border border-black" />
+                            {post.author.avatar ? (
+                                <img src={post.author.avatar} alt="Avatar" className="relative w-10 h-10 rounded-full object-cover border border-black" />
+                            ) : (
+                                <div className="relative flex w-10 h-10 items-center justify-center rounded-full border border-black bg-gradient-to-br from-cyan-500 to-purple-500 text-xs font-bold text-white">
+                                    {post.author.name?.[0]?.toUpperCase() ?? "?"}
+                                </div>
+                            )}
                         </div>
                         <div>
                             <div className="flex items-center gap-1">
                                 <h3 className="font-bold text-sm text-white">{post.author.name}</h3>
                                 {post.author.verified && <span className="text-blue-400 text-[10px]">✓</span>}
                             </div>
-                            <p className="text-xs text-white/40">{post.author.handle} • {new Date(post.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            <p className="text-xs text-white/40">
+                                {post.author.handle && <>{post.author.handle} • </>}
+                                {new Date(post.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
                         </div>
                     </div>
-                    <button className="text-white/30 hover:text-white transition-colors">
-                        <MoreHorizontal className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {areaMeta && (
+                            <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider", areaMeta.accent)}>
+                                {areaMeta.label}
+                            </span>
+                        )}
+                        <button className="text-white/30 hover:text-white transition-colors cursor-pointer">
+                            <MoreHorizontal className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Content */}
                 <div className="p-4 space-y-4">
-                    <p className="text-white/90 text-sm leading-relaxed whitespace-pre-wrap font-light">
-                        {post.content}
-                    </p>
+                    <Link href={`/post/${post.postId}`} className="block">
+                        <p className="text-white/90 text-sm leading-relaxed whitespace-pre-wrap font-light hover:text-white transition-colors">
+                            {post.content}
+                        </p>
+                    </Link>
 
                     {/* Media Carousel */}
                     {post.media.length > 0 && (
@@ -73,10 +161,6 @@ export function RichPostCard({ post }: RichPostCardProps) {
                             <Carousel className="w-full">
                                 <CarouselContent>
                                     {post.media.map((media, idx) => {
-                                        // El medio puede llegar como URL (string) o como objeto
-                                        // con metadatos; mapeamos a la forma FileLike y dejamos
-                                        // que FilePreview elija el renderizador (imagen / vídeo /
-                                        // pdf / 3D / enlace…) y exponga sus acciones.
                                         const file: FileLike =
                                             typeof media === "string"
                                                 ? { url: media }
@@ -106,6 +190,9 @@ export function RichPostCard({ post }: RichPostCardProps) {
                         </div>
                     )}
 
+                    {/* Tarjeta de vista previa expandible del adjunto rico (cualquier tipo) */}
+                    {post.attachment && <AttachmentPreviewCard attachment={post.attachment} />}
+
                     {/* Tags / Metadata */}
                     {post.tags.length > 0 && (
                         <div className="flex flex-wrap gap-2 pt-2">
@@ -122,8 +209,8 @@ export function RichPostCard({ post }: RichPostCardProps) {
                 <div className="flex items-center justify-between px-4 py-3 bg-white/[0.02] border-t border-white/5">
                     <div className="flex gap-6">
                         <button
-                            onClick={handleLike}
-                            className={cn("flex items-center gap-2 text-sm transition-colors group", isLiked ? "text-pink-500" : "text-white/60 hover:text-pink-400")}
+                            onClick={() => void toggleLike()}
+                            className={cn("flex items-center gap-2 text-sm transition-colors group cursor-pointer", isLiked ? "text-pink-500" : "text-white/60 hover:text-pink-400")}
                         >
                             <Heart className={cn("w-5 h-5 transition-transform group-active:scale-75", isLiked && "fill-current")} />
                             <span>{likesCount}</span>
@@ -131,27 +218,36 @@ export function RichPostCard({ post }: RichPostCardProps) {
 
                         <button
                             onClick={() => setShowComments(!showComments)}
-                            className="flex items-center gap-2 text-sm text-white/60 hover:text-blue-400 transition-colors"
+                            className="flex items-center gap-2 text-sm text-white/60 hover:text-blue-400 transition-colors cursor-pointer"
                         >
                             <MessageCircle className="w-5 h-5" />
                             <span>{post.commentsCount}</span>
                         </button>
 
-                        <button className="flex items-center gap-2 text-sm text-white/60 hover:text-green-400 transition-colors">
+                        <button className="flex items-center gap-2 text-sm text-white/60 hover:text-green-400 transition-colors cursor-pointer">
                             <Share2 className="w-5 h-5" />
                             <span>{post.shares}</span>
                         </button>
                     </div>
 
-                    <button className="text-white/40 hover:text-white transition-colors" title="Link Concept">
-                        <LinkIcon className="w-4 h-4" />
-                    </button>
+                    <Link href={`/post/${post.postId}`} className="text-white/40 hover:text-white transition-colors cursor-pointer" title="Abrir publicación completa">
+                        <ExternalLink className="w-4 h-4" />
+                    </Link>
                 </div>
 
-                {/* Comments Section (Collapsible) */}
+                {/* Comments Section (Collapsible) — hilo ramificado real */}
                 {showComments && (
                     <div className="border-t border-white/5 bg-black/20 p-4 animate-in slide-in-from-top-2 fade-in duration-200">
-                        <CommentSection postId={post.id} />
+                        {commentsLoading ? (
+                            <p className="text-xs text-white/40">Cargando comentarios…</p>
+                        ) : (
+                            <CommentThread
+                                postId={post.postId}
+                                comments={comments}
+                                currentUserId={currentUserId}
+                                onChanged={loadComments}
+                            />
+                        )}
                     </div>
                 )}
             </div>

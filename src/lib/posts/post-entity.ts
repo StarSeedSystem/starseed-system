@@ -123,6 +123,27 @@ export interface CommentNode extends PostEntity {
     children: CommentNode[];
 }
 
+/** Un adjunto de comentario (cualquier formato: imagen, audio, video, archivo, enlace). */
+export interface CommentAttachment {
+    id: string;
+    /** Categoría amplia; `FilePreview`/`detectFormat` refina el render exacto. */
+    kind: "imagen" | "audio" | "video" | "archivo" | "enlace" | string;
+    url: string;
+    name?: string | null;
+    mime?: string | null;
+    /** Metadatos de tarjeta de enlace (OG best-effort). */
+    title?: string | null;
+    description?: string | null;
+    thumbnail?: string | null;
+}
+
+/** Una entrada del historial simple de edición de un comentario. */
+export interface EditHistoryEntry {
+    text: string;
+    /** ISO de cuándo se guardó esta versión (la ANTERIOR a la edición). */
+    editedAt: string;
+}
+
 // ----------------------------- Utilidades -----------------------------------
 
 function rid(prefix = "id"): string {
@@ -477,14 +498,19 @@ export async function listComments(postId: string): Promise<CommentNode[]> {
 /**
  * Añade un comentario (publicación anidada). Si se indica `parentId`, el
  * comentario cuelga de otro comentario (respuesta); si no, del post raíz.
+ * `attachments` acepta cualquier formato (imagen/audio/video/archivo/enlace);
+ * `mentions` guarda las menciones estructuradas (@perfil, #página, #archivo…)
+ * ya parseadas por `@/lib/mentions/mentions` junto al comentario.
  */
 export async function addComment(
     postId: string,
     content: string,
     parentId?: string | null,
+    extra?: { attachments?: CommentAttachment[]; mentions?: unknown[] },
 ): Promise<PostEntity | null> {
     const text = (content || "").trim();
-    if (!postId || !text) return null;
+    const attachments = extra?.attachments ?? [];
+    if (!postId || (!text && attachments.length === 0)) return null;
     const supabase = createClient();
     const by = await currentUserId();
 
@@ -493,7 +519,11 @@ export async function addComment(
         .insert({
             author_id: by,
             type: "comment",
-            content: { text },
+            content: {
+                text,
+                attachments,
+                ...(extra?.mentions && extra.mentions.length > 0 ? { mentions: extra.mentions } : {}),
+            },
             visibility: "public",
             post_references: { parent: postId, parentComment: parentId ?? null },
             interactions: {},
@@ -502,6 +532,62 @@ export async function addComment(
         .maybeSingle();
     if (error || !data) return null;
     return normalize(data);
+}
+
+/**
+ * Edita un comentario propio, conservando un HISTORIAL SIMPLE de versiones
+ * anteriores en `content.history` (append-only, la más reciente al final).
+ * Sólo el autor puede editar (RLS valida `author_id = auth.uid()` en UPDATE).
+ */
+export async function editComment(
+    commentId: string,
+    newText: string,
+    newAttachments?: CommentAttachment[],
+): Promise<PostEntity | null> {
+    const text = (newText || "").trim();
+    if (!commentId || !text) return null;
+    const supabase = createClient();
+
+    const { data: row, error: readErr } = await supabase
+        .from("posts")
+        .select("content")
+        .eq("id", commentId)
+        .maybeSingle();
+    if (readErr || !row) return null;
+
+    const current = asObject<Record<string, any>>(row.content, {});
+    const previousText: string = current.text ?? "";
+    const history: EditHistoryEntry[] = Array.isArray(current.history) ? current.history : [];
+    // Sólo registra una versión de historial si el texto realmente cambió.
+    const nextHistory =
+        previousText && previousText !== text
+            ? [...history, { text: previousText, editedAt: new Date().toISOString() }]
+            : history;
+
+    const nextContent = {
+        ...current,
+        text,
+        ...(newAttachments ? { attachments: newAttachments } : {}),
+        history: nextHistory,
+        editedAt: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+        .from("posts")
+        .update({ content: nextContent, updated_at: new Date().toISOString() })
+        .eq("id", commentId)
+        .select("*")
+        .maybeSingle();
+    if (error || !data) return null;
+    return normalize(data);
+}
+
+/** Borra un comentario propio (RLS valida `author_id = auth.uid()`). */
+export async function deleteComment(commentId: string): Promise<boolean> {
+    if (!commentId) return false;
+    const supabase = createClient();
+    const { error } = await supabase.from("posts").delete().eq("id", commentId);
+    return !error;
 }
 
 /** Construye el árbol de comentarios anidados a partir de la lista plana. */
@@ -517,6 +603,18 @@ export async function commentTree(postId: string): Promise<CommentNode[]> {
         else roots.push(c);
     }
     return roots;
+}
+
+/** Cuenta un nodo + todos sus descendientes (para "ver N respuestas"). */
+export function countThread(node: CommentNode): number {
+    let n = 1;
+    for (const child of node.children) n += countThread(child);
+    return n;
+}
+
+/** Cuenta SÓLO los descendientes de un nodo (sin contarlo a él mismo). */
+export function countReplies(node: CommentNode): number {
+    return countThread(node) - 1;
 }
 
 // ----------------------- Tiempo real (Supabase Realtime) ---------------------

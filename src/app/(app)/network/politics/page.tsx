@@ -92,10 +92,10 @@ export default function PoliticsPage() {
                 </div>
 
                 <Tabs defaultValue="legislativo" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="legislativo"><Scale className="mr-2 h-4 w-4" />Legislativo</TabsTrigger>
-                        <TabsTrigger value="ejecutivo"><Users className="mr-2 h-4 w-4" />Ejecutivo</TabsTrigger>
-                        <TabsTrigger value="judicial"><BarChart className="mr-2 h-4 w-4" />Judicial</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-3 h-auto">
+                        <TabsTrigger value="legislativo" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] py-2"><Scale className="mr-1.5 sm:mr-2 h-4 w-4 shrink-0" />Legislativo</TabsTrigger>
+                        <TabsTrigger value="ejecutivo" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] py-2"><Users className="mr-1.5 sm:mr-2 h-4 w-4 shrink-0" />Ejecutivo</TabsTrigger>
+                        <TabsTrigger value="judicial" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] py-2"><BarChart className="mr-1.5 sm:mr-2 h-4 w-4 shrink-0" />Judicial</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="legislativo" className="mt-6 animate-in fade-in-50 duration-500 slide-in-from-bottom-2">

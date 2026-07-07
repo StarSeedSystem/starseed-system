@@ -76,8 +76,8 @@ function ArticleCard({ article, className }: { article: (typeof articles)[0], cl
                 </div>
             </CardContent>
             <CardFooter className="flex-col items-stretch">
-                <div className="flex justify-between items-center text-muted-foreground border-t pt-2 mb-2">
-                    <div className="flex gap-1">
+                <div className="flex flex-wrap justify-between items-center gap-2 text-muted-foreground border-t pt-2 mb-2">
+                    <div className="flex flex-wrap gap-1">
                         <Button variant="ghost" size="sm" className="flex items-center gap-2">
                             <ThumbsUp className="w-4 h-4" /> {article.likes}
                         </Button>
@@ -213,10 +213,10 @@ export default function EducationPage() {
     </div>
 
     <Tabs defaultValue="network" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="network">Red de Categorías</TabsTrigger>
-            <TabsTrigger value="themes">Red de Temas</TabsTrigger>
-            <TabsTrigger value="featured">Contenido Destacado</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3 h-auto">
+            <TabsTrigger value="network" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Red de Categorías</TabsTrigger>
+            <TabsTrigger value="themes" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Red de Temas</TabsTrigger>
+            <TabsTrigger value="featured" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Contenido Destacado</TabsTrigger>
         </TabsList>
 
         <TabsContent value="network" className="mt-6">
