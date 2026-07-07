@@ -82,6 +82,8 @@ export function TrinityEdgeSettings() {
         },
         handleLength: 28, handleThickness: 5, handleOpacity: 0.22, swipeThreshold: 56,
     };
+    const showEdgeIndicators = config.trinity?.showEdgeIndicators ?? false;
+    const dockDensity = config.trinity?.dockDensity ?? "comfortable";
 
     const setTouch = (patch: Partial<typeof touch>) => updateConfig({ trinity: { touch: { ...touch, ...patch } } } as any);
     const setEA = (patch: any) => updateConfig({ trinity: { edgeAccess: patch } } as any);
@@ -101,6 +103,62 @@ export function TrinityEdgeSettings() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-7">
+
+                {/* ── Tamaño del dock ──────────────────────────────── */}
+                <section className="space-y-3">
+                    <div>
+                        <p className="text-sm font-semibold">Tamaño del OmniDock</p>
+                        <p className="text-xs text-muted-foreground">
+                            Cómodo mantiene el tamaño clásico de los iconos y etiquetas. Compacto
+                            reduce el tamaño para mostrar más accesos a la vez.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {([
+                            { value: "comfortable" as const, label: "Cómodo" },
+                            { value: "compact" as const, label: "Compacto" },
+                        ]).map(({ value, label }) => {
+                            const active = dockDensity === value;
+                            return (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => updateConfig({ trinity: { dockDensity: value } } as any)}
+                                    aria-pressed={active}
+                                    className={cn(
+                                        "p-2.5 rounded-xl border text-xs font-medium transition-all cursor-pointer",
+                                        active ? "border-primary/50 bg-primary/10 text-primary ring-1 ring-primary/30" : "border-border/60 bg-card/40 hover:bg-card/70"
+                                    )}
+                                >
+                                    {label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                <div className="h-px bg-border/50" />
+
+                {/* ── Indicadores sutiles de borde ─────────────────── */}
+                <section className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-semibold">Indicadores de borde</p>
+                            <p className="text-xs text-muted-foreground">
+                                Una línea muy tenue con el color de cada nodo, siempre visible en
+                                el borde correspondiente (con ratón), para saber dónde está cada
+                                acceso sin tener que pasar el cursor por encima.
+                            </p>
+                        </div>
+                        <Toggle
+                            on={showEdgeIndicators}
+                            onClick={() => updateConfig({ trinity: { showEdgeIndicators: !showEdgeIndicators } } as any)}
+                            label="Indicadores de borde"
+                        />
+                    </div>
+                </section>
+
+                <div className="h-px bg-border/50" />
 
                 {/* ── Pulsación mantenida (Bloque 1) ───────────────── */}
                 <section className="space-y-3">

@@ -15,15 +15,29 @@ const GLOW_COLOR_MAP: Record<string, string> = {
     horizon: "16, 185, 129"  // Emerald
 };
 
+/**
+ * Colores cardinales OFICIALES de Trinity (CLAUDE.md §7 / EDGE_META en
+ * trinity-edge-access.tsx). Usados SOLO para el indicador sutil de borde en
+ * reposo (nuevo, opt-in) — no tocan el glow de hover existente arriba.
+ */
+const CARDINAL_HEX: Record<string, string> = {
+    zenith: "#007FFF",
+    horizon: "#39FF14",
+    logic: "#FFBF00",
+    anchor: "#DC143C",
+};
+
 interface EdgeSensorProps {
     edge: PerimeterEdge;
     isVertical?: boolean; // Kept for API compatibility, handled via className
     className: string;
     dwellTime?: number; // Intention threshold in ms
     size?: number; // Dynamic size in pixels
+    /** Indicador sutil de borde en reposo (Ajustes → Trinity), opt-in. */
+    showIndicator?: boolean;
 }
 
-const EdgeSensor = ({ edge, className, dwellTime = 500, size = 24 }: EdgeSensorProps) => {
+const EdgeSensor = ({ edge, className, dwellTime = 500, size = 24, showIndicator = false }: EdgeSensorProps) => {
     const { activeEdge, setActiveEdge } = usePerimeter();
     const [isHovering, setIsHovering] = useState(false);
     const [hasTriggered, setHasTriggered] = useState(false);
@@ -98,13 +112,34 @@ const EdgeSensor = ({ edge, className, dwellTime = 500, size = 24 }: EdgeSensorP
                     backgroundColor: isHovering ? `rgba(${colorRgb}, 0.1)` : "transparent"
                 }}
             />
+            {/*
+                Indicador sutil de borde (opt-in, Ajustes → Trinity → "Indicadores
+                de borde"): una línea muy fina con el color cardinal OFICIAL del
+                nodo, visible en reposo para que el usuario sepa dónde está cada
+                acceso sin necesidad de pasar el cursor. No intrusiva: 1-2px,
+                opacidad baja, se intensifica levemente al pasar por encima.
+            */}
+            {showIndicator && !isHovering && (
+                <span
+                    aria-hidden
+                    className={cn(
+                        "pointer-events-none absolute rounded-full transition-opacity duration-300",
+                        isSide ? "inset-y-6 w-[2px] left-1/2 -translate-x-1/2" : "inset-x-6 h-[2px] top-1/2 -translate-y-1/2",
+                    )}
+                    style={{
+                        backgroundColor: CARDINAL_HEX[edge as string] ?? "#fff",
+                        opacity: 0.28,
+                        boxShadow: `0 0 6px ${CARDINAL_HEX[edge as string] ?? "#fff"}55`,
+                    }}
+                />
+            )}
         </motion.div>
     );
 };
 
 export function PerimeterInterface() {
     const { config } = useAppearance();
-    const { edgeSensitivity = 20 } = config?.trinity || {};
+    const { edgeSensitivity = 20, showEdgeIndicators = false } = config?.trinity || {};
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -121,6 +156,7 @@ export function PerimeterInterface() {
                 className="top-0 left-1/2 -translate-x-1/2 w-[60vw] bg-transparent"
                 dwellTime={600}
                 size={edgeSensitivity}
+                showIndicator={showEdgeIndicators}
             />
 
             {/* Anchor (Bottom) - Red/Gray - Longer Dwell (800ms) to avoid accidental Dock triggers */}
@@ -129,6 +165,7 @@ export function PerimeterInterface() {
                 className="bottom-0 left-1/2 -translate-x-1/2 w-[60vw] bg-transparent"
                 dwellTime={800}
                 size={edgeSensitivity}
+                showIndicator={showEdgeIndicators}
             />
 
             {/* Horizon (Left) - Green - Quick Access (400ms) for Creation */}
@@ -137,6 +174,7 @@ export function PerimeterInterface() {
                 className="top-1/2 -translate-y-1/2 left-0 h-[60vh] bg-transparent"
                 dwellTime={400}
                 size={edgeSensitivity}
+                showIndicator={showEdgeIndicators}
             />
 
             {/* Logic (Right) - Amber - Quick Access (400ms) for System */}
@@ -145,6 +183,7 @@ export function PerimeterInterface() {
                 className="top-1/2 -translate-y-1/2 right-0 h-[60vh] bg-transparent"
                 dwellTime={400}
                 size={edgeSensitivity}
+                showIndicator={showEdgeIndicators}
             />
         </>
     );

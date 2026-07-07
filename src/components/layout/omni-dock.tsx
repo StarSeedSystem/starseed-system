@@ -13,7 +13,7 @@ import {
     CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive,
     // ── Controles del propio dock / editor ──
     Plus, Pencil, Check, RotateCcw, X, ArrowLeft, ArrowRight,
-    ChevronLeft, ChevronRight,
+    ChevronLeft, ChevronRight, GripVertical,
     // ── Carpetas expandibles ──
     Folder, FolderOpen, FolderPlus, Trash2, ChevronDown,
 } from "lucide-react";
@@ -63,7 +63,8 @@ export function OmniDock() {
         return pathname === p || pathname.startsWith(p + "/");
     };
 
-    const { dockBehavior = "anchor-only" } = config?.trinity || {};
+    const { dockBehavior = "anchor-only", dockDensity = "comfortable" } = config?.trinity || {};
+    const compact = dockDensity === "compact";
 
     let isVisible = false;
     if (dockBehavior === "always-visible") isVisible = true;
@@ -117,6 +118,20 @@ export function OmniDock() {
         const next = [...items];
         const [el] = next.splice(idx, 1);
         next.splice(newIdx, 0, el);
+        persist(next);
+    };
+
+    // Reordenamiento por arrastre (drag & pointer) en el editor: mueve
+    // `sourceId` a la posición de `targetId`. Complementa (no sustituye) los
+    // botones ←→, que siguen siendo la vía accesible por teclado.
+    const reorder = (sourceId: string, targetId: string) => {
+        if (sourceId === targetId) return;
+        const from = items.findIndex((it) => it.id === sourceId);
+        const to = items.findIndex((it) => it.id === targetId);
+        if (from < 0 || to < 0) return;
+        const next = [...items];
+        const [el] = next.splice(from, 1);
+        next.splice(to, 0, el);
         persist(next);
     };
 
@@ -263,6 +278,7 @@ export function OmniDock() {
                                 folders={folders}
                                 onToggle={toggleEnabled}
                                 onMove={move}
+                                onReorder={reorder}
                                 onReset={reset}
                                 onClose={() => setEditMode(false)}
                                 onAddFolder={addFolder}
@@ -280,18 +296,16 @@ export function OmniDock() {
                         completo sea usable en 320–1023px sin perder ningún item. En <lg
                         los items van compactos (48px, ≥44px táctil); en ≥lg, diseño original.
                     */}
-                    <div className="
-                        omni-dock-pill
-                        glass-depth glass-edge glass-sheen-slow
-                        pointer-events-auto
-                        bg-card/40 dark:bg-black/40 backdrop-blur-3xl
-                        border border-foreground/10
-                        rounded-[--radius-full]
-                        shadow-[0_10px_40px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)]
-                        mb-2 sm:mb-4 max-w-[calc(100vw-8px)] lg:max-w-[96vw]
-                        p-2 lg:p-5
-                        relative
-                    ">
+                    <div className={cn(
+                        "omni-dock-pill glass-depth glass-edge glass-sheen-slow pointer-events-auto",
+                        "bg-card/40 dark:bg-black/40 backdrop-blur-3xl border border-foreground/10",
+                        "rounded-[--radius-full]",
+                        "shadow-[0_10px_40px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)]",
+                        "mb-2 sm:mb-4 max-w-[calc(100vw-8px)] lg:max-w-[96vw] relative",
+                        // Densidad (Ajustes → Trinity → Tamaño del dock): compacto reduce el
+                        // padding también en desktop; cómodo mantiene el tamaño histórico.
+                        compact ? "p-1.5 lg:p-2.5" : "p-2 lg:p-5",
+                    )}>
                         {/* Sombras de scroll: aparecen del lado donde hay más opciones */}
                         <div
                             aria-hidden
@@ -328,19 +342,25 @@ export function OmniDock() {
                             // overflow visible para tooltips/hover-scale), nunca más
                             // ancha que el viewport (max-w + box-border) y con
                             // padding consciente de las safe-areas laterales (notch).
-                            className="omni-dock-strip flex items-end gap-1.5 lg:gap-4 overflow-x-auto max-w-full box-border pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))]"
+                            className={cn(
+                                "omni-dock-strip flex items-end overflow-x-auto max-w-full box-border",
+                                "pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))]",
+                                compact ? "gap-1 lg:gap-2" : "gap-1.5 lg:gap-4",
+                            )}
                         >
                             {dockEntries.map((entry) => {
+                                const iconSizeCls = compact ? "w-4 h-4 lg:w-5 lg:h-5" : "w-5 h-5 lg:w-7 lg:h-7";
                                 if (entry.kind === 'item') {
                                     const item = entry.item;
                                     const Icon = ICON_MAP[item.iconKey] ?? FALLBACK_ICON;
                                     return (
                                         <DockItem
                                             key={item.id}
-                                            icon={<Icon className="w-5 h-5 lg:w-7 lg:h-7" />}
+                                            icon={<Icon className={iconSizeCls} />}
                                             label={item.label}
                                             color={item.color}
                                             active={isActivePath(item.path)}
+                                            compact={compact}
                                             onClick={() => router.push(item.path)}
                                         />
                                     );
@@ -354,10 +374,11 @@ export function OmniDock() {
                                 return (
                                     <React.Fragment key={f.id}>
                                         <DockItem
-                                            icon={<FolderIcon className="w-5 h-5 lg:w-7 lg:h-7" />}
+                                            icon={<FolderIcon className={iconSizeCls} />}
                                             label={f.label}
                                             color={f.color}
                                             active={anyChildActive}
+                                            compact={compact}
                                             badge={isOpen ? undefined : entry.children.length || undefined}
                                             indicator={
                                                 <ChevronDown
@@ -377,17 +398,21 @@ export function OmniDock() {
                                                     animate={{ opacity: 1, width: "auto" }}
                                                     exit={{ opacity: 0, width: 0 }}
                                                     transition={{ type: "spring", stiffness: 320, damping: 32 }}
-                                                    className="flex items-end gap-1.5 lg:gap-4 overflow-hidden rounded-2xl px-1.5 lg:px-2 bg-foreground/[0.04] ring-1 ring-inset ring-foreground/10"
+                                                    className={cn(
+                                                        "flex items-end overflow-hidden rounded-2xl bg-foreground/[0.04] ring-1 ring-inset ring-foreground/10",
+                                                        compact ? "gap-1 lg:gap-2 px-1 lg:px-1.5" : "gap-1.5 lg:gap-4 px-1.5 lg:px-2",
+                                                    )}
                                                 >
                                                     {entry.children.map((child) => {
                                                         const CIcon = ICON_MAP[child.iconKey] ?? FALLBACK_ICON;
                                                         return (
                                                             <DockItem
                                                                 key={child.id}
-                                                                icon={<CIcon className="w-5 h-5 lg:w-7 lg:h-7" />}
+                                                                icon={<CIcon className={iconSizeCls} />}
                                                                 label={child.label}
                                                                 color={child.color}
                                                                 active={isActivePath(child.path)}
+                                                                compact={compact}
                                                                 onClick={() => router.push(child.path)}
                                                             />
                                                         );
@@ -399,12 +424,16 @@ export function OmniDock() {
                                 );
                             })}
 
-                            <div className="w-px h-10 lg:h-14 bg-foreground/10 mx-1 lg:mx-2 self-center rounded-full shrink-0" aria-hidden />
+                            <div className={cn(
+                                "w-px bg-foreground/10 self-center rounded-full shrink-0",
+                                compact ? "h-8 lg:h-11 mx-0.5 lg:mx-1.5" : "h-10 lg:h-14 mx-1 lg:mx-2",
+                            )} aria-hidden />
 
                             <DockItem
-                                icon={<Pencil className="w-5 h-5 lg:w-7 lg:h-7" />}
+                                icon={<Pencil className={compact ? "w-4 h-4 lg:w-5 lg:h-5" : "w-5 h-5 lg:w-7 lg:h-7"} />}
                                 label={editMode ? "Cerrar editor" : "Personalizar dock"}
                                 color="neutral"
+                                compact={compact}
                                 onClick={() => setEditMode((v) => !v)}
                             />
                         </div>
@@ -427,7 +456,7 @@ const DOCK_PALETTE: Record<DockColor, { text: string; ring: string; glow: string
     purple: { text: "text-purple-300", ring: "ring-purple-400/70", glow: "shadow-[0_0_18px_rgba(168,85,247,0.45)]", bg: "from-purple-500/15 to-purple-500/0", activeBg: "from-purple-500/30 to-purple-500/5" },
 };
 
-function DockItem({ icon, label, onClick, color = "neutral", active = false, badge, indicator }: {
+function DockItem({ icon, label, onClick, color = "neutral", active = false, badge, indicator, compact = false }: {
     icon: React.ReactNode;
     label: string;
     onClick: () => void;
@@ -437,17 +466,26 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
     badge?: number;
     /** Indicador opcional bajo el icono (p.ej. chevron de carpeta). */
     indicator?: React.ReactNode;
+    /** Densidad compacta (Ajustes → Trinity → Tamaño del dock). */
+    compact?: boolean;
 }) {
     const p = DOCK_PALETTE[color];
 
     return (
-        <div className="group relative flex w-[58px] lg:w-[78px] shrink-0 snap-center flex-col items-center gap-1">
+        <div className={cn(
+            "group relative flex shrink-0 snap-center flex-col items-center gap-1",
+            compact ? "w-[46px] lg:w-[60px]" : "w-[58px] lg:w-[78px]",
+        )}>
             <button
                 onClick={onClick}
                 aria-current={active ? "page" : undefined}
                 title={label}
                 className={cn(
-                    "relative flex items-center justify-center w-12 h-12 lg:w-16 lg:h-16 rounded-2xl cursor-pointer",
+                    // Contenedor de icono "cristal" unificado (misma familia que
+                    // biblioteca/hub vía .ss-icon-3d--sheen: barrido especular al
+                    // hover/focus, 260ms, respeta prefers-reduced-motion y data-perf=eco).
+                    "relative flex items-center justify-center rounded-2xl cursor-pointer ss-icon-3d--sheen",
+                    compact ? "w-9 h-9 lg:w-12 lg:h-12" : "w-12 h-12 lg:w-16 lg:h-16",
                     // Transiciones 150–300ms (guía de diseño): micro-interacción viva.
                     "transition-[transform,box-shadow,background-color,border-color] duration-200 ease-out",
                     "active:scale-95 group-hover:scale-105 group-hover:-translate-y-0.5",
@@ -484,26 +522,30 @@ function DockItem({ icon, label, onClick, color = "neutral", active = false, bad
                     </span>
                 )}
             </button>
-            <span
-                className={cn(
-                    "max-w-[58px] lg:max-w-[78px] truncate text-center text-[9px] lg:text-[11px] leading-tight transition-colors",
-                    active ? cn(p.text, "font-semibold") : "text-foreground/55 group-hover:text-foreground/85",
-                )}
-            >
-                {label}
-            </span>
+            {!compact && (
+                <span
+                    className={cn(
+                        "max-w-[58px] lg:max-w-[78px] truncate text-center text-[9px] lg:text-[11px] leading-tight transition-colors",
+                        active ? cn(p.text, "font-semibold") : "text-foreground/55 group-hover:text-foreground/85",
+                    )}
+                >
+                    {label}
+                </span>
+            )}
         </div>
     );
 }
 
 function DockEditor({
-    items, folders, onToggle, onMove, onReset, onClose,
+    items, folders, onToggle, onMove, onReorder, onReset, onClose,
     onAddFolder, onRenameFolder, onRemoveFolder, onToggleItemInFolder,
 }: {
     items: DockItemConfig[];
     folders: DockFolderConfig[];
     onToggle: (id: string) => void;
     onMove: (id: string, direction: -1 | 1) => void;
+    /** Arrastra `sourceId` hasta la posición de `targetId`. */
+    onReorder: (sourceId: string, targetId: string) => void;
     onReset: () => void;
     onClose: () => void;
     onAddFolder: () => void;
@@ -513,6 +555,10 @@ function DockEditor({
 }) {
     // ¿En qué carpeta está cada item? (para mostrarlo en su fila).
     const folderOfItem = (itemId: string) => folders.find((f) => f.itemIds.includes(itemId));
+
+    // ── Arrastrar para reordenar (drag & drop nativo, complementa ←→) ──
+    const [dragId, setDragId] = useState<string | null>(null);
+    const [overId, setOverId] = useState<string | null>(null);
 
     return (
         <div className="bg-card/60 backdrop-blur-2xl border border-foreground/15 rounded-3xl p-4 shadow-2xl">
@@ -590,6 +636,9 @@ function DockEditor({
                 )}
             </div>
 
+            <p className="text-[9px] text-muted-foreground/70 mb-1.5 flex items-center gap-1">
+                <GripVertical className="w-2.5 h-2.5" /> Arrastra el asa para reordenar, o usa las flechas.
+            </p>
             <div className="grid sm:grid-cols-2 gap-1.5 max-h-72 overflow-y-auto">
                 {items.map((it) => {
                     const Icon = ICON_MAP[it.iconKey] ?? FALLBACK_ICON;
@@ -597,13 +646,33 @@ function DockEditor({
                     return (
                         <div
                             key={it.id}
+                            draggable
+                            onDragStart={(e) => { setDragId(it.id); try { e.dataTransfer.effectAllowed = 'move'; } catch { /* noop */ } }}
+                            onDragEnter={() => { if (dragId && dragId !== it.id) setOverId(it.id); }}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                                e.preventDefault();
+                                if (dragId && dragId !== it.id) onReorder(dragId, it.id);
+                                setDragId(null);
+                                setOverId(null);
+                            }}
+                            onDragEnd={() => { setDragId(null); setOverId(null); }}
                             className={cn(
-                                'flex items-center gap-2 px-2 py-1.5 rounded-lg border text-xs',
+                                'flex items-center gap-2 px-2 py-1.5 rounded-lg border text-xs transition-colors duration-150',
                                 it.enabled
                                     ? 'border-foreground/15 bg-foreground/[0.03]'
-                                    : 'border-foreground/5 bg-foreground/[0.01] opacity-60'
+                                    : 'border-foreground/5 bg-foreground/[0.01] opacity-60',
+                                dragId === it.id && 'opacity-40',
+                                overId === it.id && 'border-primary/50 bg-primary/10',
                             )}
                         >
+                            <span
+                                className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground touch-none"
+                                title="Arrastrar para reordenar"
+                                aria-hidden
+                            >
+                                <GripVertical className="w-3.5 h-3.5" />
+                            </span>
                             <Icon className="w-4 h-4 shrink-0" />
                             <span className="flex-1 truncate font-medium">
                                 {it.label}

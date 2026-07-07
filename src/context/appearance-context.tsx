@@ -254,6 +254,21 @@ export interface AppearanceConfig {
             animationSpeed: "slow" | "normal" | "fast";
         };
         /**
+         * Densidad del OmniDock y las cortinas Trinity: "comfortable" (tamaño
+         * histórico) o "compact" (icono/padding reducido, más accesos visibles
+         * a la vez). Opcional → configs guardadas siguen siendo válidas.
+         * Consumido por omni-dock.tsx (clases de tamaño de DockItem).
+         */
+        dockDensity?: "comfortable" | "compact";
+        /**
+         * Indicadores sutiles de borde (Bloque 4 extendido): una franja muy
+         * tenue con el color cardinal de cada nodo, visible en reposo tanto
+         * con ratón (perimeter-interface) como en táctil (trinity-edge-access),
+         * para que el usuario sepa dónde está cada acceso sin tener que pasar
+         * el cursor. Opcional y por defecto desactivado (no intrusivo por defecto).
+         */
+        showEdgeIndicators?: boolean;
+        /**
          * Interacción táctil del dashboard (Trinity Móvil · Bloque 1).
          * Opcional → las configs guardadas siguen siendo válidas (deepMerge
          * rellena con los valores por defecto). SOP: integracion-portal-starseed-os.md.
@@ -289,6 +304,18 @@ export interface AppearanceConfig {
             /** px que el dedo debe recorrer desde el borde para abrir (16–120). */
             swipeThreshold: number;
         };
+    };
+    /**
+     * Centro de Control (Logic/Este) — panel rápido estilo cristal líquido.
+     * Controla qué módulos se muestran y en qué orden. Opcional → configs
+     * guardadas siguen siendo válidas (deepMerge). Consumido por
+     * src/components/layout/trinity/control-center.tsx.
+     */
+    controlCenter?: {
+        /** orden de los módulos rápidos (ids de QUICK_MODULES). */
+        moduleOrder: string[];
+        /** módulos ocultos por el usuario (siguen en el catálogo). */
+        hiddenModules: string[];
     };
     display: {
         mode: "standard" | "vr" | "ar" | "spatial";
@@ -548,6 +575,12 @@ const defaultConfig: AppearanceConfig = {
             iconScale: 1,
             animationSpeed: "normal",
         },
+        // Densidad histórica del dock: "comfortable" (sin cambios visuales
+        // para cuentas existentes). El modo "compact" es opt-in.
+        dockDensity: "comfortable",
+        // Indicadores sutiles de borde: desactivados por defecto (no intrusivo
+        // por defecto; el usuario los activa si los quiere).
+        showEdgeIndicators: false,
         // Pulsación mantenida de 3 s antes de armar el arrastre en táctil:
         // así el scroll del dashboard es el gesto natural y los widgets no se
         // mueven por accidente. Configurable en Ajustes → Trinity.
@@ -571,6 +604,12 @@ const defaultConfig: AppearanceConfig = {
             handleOpacity: 0.22,
             swipeThreshold: 56,
         },
+    },
+    controlCenter: {
+        // Orden por defecto: Sistema, Control rápido, Hogar, Alertas (igual
+        // que las 4 pestañas actuales) — ver QUICK_MODULES en control-center.tsx.
+        moduleOrder: ["system", "quick", "home", "notif"],
+        hiddenModules: [],
     },
     display: {
         mode: "standard",

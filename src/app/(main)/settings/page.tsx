@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { AppearanceEditor } from "@/components/settings/appearance/appearance-editor";
+import { AccessibilitySettings } from "@/components/settings/appearance/accessibility-settings";
 import IntegrationsPanel from "@/components/integrations/integrations-panel";
 import { ConnectorsHub } from "@/components/connectors";
 import { AiProvidersPanel } from "@/components/settings/ai/ai-providers-panel";
@@ -21,6 +22,8 @@ import { AccountSyncPanel } from "@/components/settings/account/account-sync-pan
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
 import { ProfileIdentityPanel } from "@/components/settings/profile/profile-identity-panel";
 import { ProfileSwitcher } from "@/components/profile/profile-switcher";
+import { SettingsSearch } from "@/components/settings/settings-search";
+import { ConfigExportPanel } from "@/components/settings/advanced/config-export-panel";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,6 +44,9 @@ import {
     Bell,
     Server,
     ExternalLink,
+    LayoutGrid,
+    Settings2,
+    Accessibility,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -104,11 +110,13 @@ function LinkCard({
 
 /* ── Acceso rápido: tiles de navegación interna ───────────────────────────────
    Cada familia lleva su MATERIAL StarSeed (capa src/styles/starseed-materials.css)
-   y su tono cardinal Trinity:
-   · Perfil & Cuenta  → cristal líquido + Anchor (identidad = acceso raíz)
-   · IA & Modelos     → neón Zenith (azul, la guía IA)
-   · Aurora & Sentidos→ neón Horizon (lima/esmeralda, vitalidad)
-   · Seguridad        → metal orgánico + oro Logic (orden, ejecución)          */
+   y su tono cardinal Trinity. Con 9 categorías de nivel superior, el acceso
+   rápido se queda con las 4 familias más usadas (el resto vive en los chips
+   y en el buscador global) para no saturar la cabecera:
+   · Cuenta y Sincronización → cristal líquido + Anchor (identidad = acceso raíz)
+   · Aurora e IA              → neón Zenith (azul, la guía IA)
+   · Trinity                  → neón Horizon (lima/esmeralda, navegación viva)
+   · Privacidad y Seguridad   → metal orgánico + oro Logic (orden, ejecución) */
 interface QuickTile {
     icon: React.ComponentType<{ className?: string }>;
     label: string;
@@ -123,36 +131,60 @@ interface QuickTile {
 const QUICK_TILES: QuickTile[] = [
     {
         icon: User,
-        label: "Perfil & Cuenta",
-        description: "Identidad · correos",
+        label: "Cuenta & Sincro",
+        description: "Identidad · correos · cuenta",
         material: "ss-crystal",
         tone: "ss-tone--anchor",
-        tab: "profile",
+        tab: "account",
     },
     {
         icon: Cpu,
-        label: "IA & Modelos",
-        description: "Local · API · Fuentes",
+        label: "Aurora & IA",
+        description: "Local · API · voz · sentidos",
         material: "ss-neon ss-neon--zenith",
         tone: "",
         tab: "ai",
     },
     {
-        icon: Sparkles,
-        label: "Aurora & Sentidos",
-        description: "Asistente · percepción",
+        icon: Compass,
+        label: "Trinity",
+        description: "Dock · gestos de borde",
         material: "ss-neon ss-neon--horizon",
         tone: "",
-        tab: "experience",
+        tab: "trinity",
     },
     {
         icon: Shield,
-        label: "Seguridad",
-        description: "Privacidad · conexiones",
+        label: "Privacidad & Seguridad",
+        description: "Datos · llaves · conexiones",
         material: "ss-metal",
         tone: "ss-tone--logic",
-        tab: "security",
+        tab: "privacy-security",
     },
+];
+
+/* ── Categorías de nivel superior (pestañas + chips) ──────────────────────────
+   Lista completa de las 9 categorías del sistema de Ajustes. QUICK_TILES es un
+   subconjunto (4 accesos más usados); CATEGORY_CHIPS cubre las 9 para que el
+   ancla de scroll y la navegación por chips lleguen a todas. */
+interface CategoryChip {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    material: string;
+    tone: string;
+    tab: string;
+}
+
+const CATEGORY_CHIPS: CategoryChip[] = [
+    { icon: Palette, label: "Apariencia", material: "ss-crystal", tone: "", tab: "appearance" },
+    { icon: LayoutGrid, label: "Escritorios", material: "ss-neon ss-neon--horizon", tone: "", tab: "desktops" },
+    { icon: Compass, label: "Trinity", material: "ss-neon ss-neon--horizon", tone: "", tab: "trinity" },
+    { icon: Sparkles, label: "Aurora e IA", material: "ss-neon ss-neon--zenith", tone: "", tab: "ai" },
+    { icon: User, label: "Cuenta & Sincro", material: "ss-crystal", tone: "ss-tone--anchor", tab: "account" },
+    { icon: ShieldCheck, label: "Privacidad & Seguridad", material: "ss-metal", tone: "ss-tone--logic", tab: "privacy-security" },
+    { icon: Bell, label: "Notificaciones", material: "ss-metal", tone: "ss-tone--logic", tab: "notifications" },
+    { icon: Accessibility, label: "Accesibilidad", material: "ss-crystal", tone: "", tab: "accessibility" },
+    { icon: Settings2, label: "Avanzado", material: "ss-metal", tone: "ss-tone--logic", tab: "advanced" },
 ];
 
 function QuickAccessTiles({ onTabChange }: { onTabChange: (tab: string) => void }) {
@@ -201,7 +233,7 @@ function CategoryChipsBar({ activeTab, onNavigate }: { activeTab: string; onNavi
                 aria-label="Categorías de configuración"
                 className="ss-crystal rounded-full p-1.5 flex items-center gap-1 ss-hscroll ss-hscroll-fade w-fit max-w-full mx-auto md:mx-0"
             >
-                {QUICK_TILES.map((tile) => {
+                {CATEGORY_CHIPS.map((tile) => {
                     const Icon = tile.icon;
                     const active = activeTab === tile.tab;
                     return (
@@ -257,6 +289,9 @@ export default function SettingsPage() {
                 </p>
             </div>
 
+            {/* ── Buscador global de Ajustes ──────────────────────────── */}
+            <SettingsSearch onNavigate={goToSection} />
+
             {/* ── Panel superior: Cuenta real + Acceso rápido ─────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-start">
                 {/* ProfileSwitcher — Cuenta soberana REAL */}
@@ -279,48 +314,190 @@ export default function SettingsPage() {
                 <div id="settings-secciones" className="scroll-mt-20 backdrop-blur-xl bg-background/30 border rounded-xl overflow-hidden shadow-2xl">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <div className="border-b bg-muted/20 p-4">
-                            <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 max-w-4xl mx-auto gap-1">
+                            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 md:grid-cols-9 max-w-6xl mx-auto gap-1 h-auto">
                                 <TabsTrigger value="appearance" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
-                                    <Palette className="h-4 w-4" /> <span className="hidden sm:inline">Diseño</span>
+                                    <Palette className="h-4 w-4" /> <span className="hidden sm:inline">Apariencia</span>
                                 </TabsTrigger>
-                                <TabsTrigger value="profile" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
-                                    <User className="h-4 w-4" /> <span className="hidden sm:inline">Perfil</span>
+                                <TabsTrigger value="desktops" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
+                                    <LayoutGrid className="h-4 w-4" /> <span className="hidden sm:inline">Escritorios</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="trinity" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
+                                    <Compass className="h-4 w-4" /> <span className="hidden sm:inline">Trinity</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
-                                    <Sparkles className="h-4 w-4" /> <span className="hidden sm:inline">IA & Modelos</span>
+                                    <Sparkles className="h-4 w-4" /> <span className="hidden sm:inline">Aurora e IA</span>
                                 </TabsTrigger>
-                                <TabsTrigger value="integrations" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
-                                    <Plug2 className="h-4 w-4" /> <span className="hidden sm:inline">Integraciones</span>
+                                <TabsTrigger value="account" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
+                                    <User className="h-4 w-4" /> <span className="hidden sm:inline">Cuenta</span>
                                 </TabsTrigger>
-                                <TabsTrigger value="experience" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
-                                    <Compass className="h-4 w-4" /> <span className="hidden sm:inline">Experiencia</span>
-                                </TabsTrigger>
-                                <TabsTrigger value="privacy" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
+                                <TabsTrigger value="privacy-security" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
                                     <ShieldCheck className="h-4 w-4" /> <span className="hidden sm:inline">Privacidad</span>
                                 </TabsTrigger>
-                                <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
-                                    <Shield className="h-4 w-4" /> <span className="hidden sm:inline">Seguridad</span>
+                                <TabsTrigger value="notifications" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
+                                    <Bell className="h-4 w-4" /> <span className="hidden sm:inline">Notificaciones</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="accessibility" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
+                                    <Accessibility className="h-4 w-4" /> <span className="hidden sm:inline">Accesibilidad</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="advanced" className="gap-2 data-[state=active]:bg-background/50 cursor-pointer">
+                                    <Settings2 className="h-4 w-4" /> <span className="hidden sm:inline">Avanzado</span>
                                 </TabsTrigger>
                             </TabsList>
                         </div>
 
                         <div className="p-6 bg-gradient-to-br from-background/50 to-background/10 min-h-[50vh]">
-                            {/* ── Diseño ─────────────────────────────────────── */}
+                            {/* ── Apariencia ─────────────────────────────────── */}
                             <TabsContent value="appearance" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <TabIntro
                                     icon={Palette}
-                                    title="Diseño y apariencia"
-                                    description="Personaliza temas, tipografía, interfaz, fondo y accesibilidad. Todo se guarda al instante y es reversible."
+                                    title="Apariencia"
+                                    description="Personaliza temas, tipografía, interfaz y fondo. Todo se guarda al instante y es reversible."
                                 />
                                 <AppearanceEditor />
                             </TabsContent>
 
-                            {/* ── Perfil e identidad (REAL) ──────────────────── */}
-                            <TabsContent value="profile" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {/* ── Escritorios (enlace, sin tocar desktop/**) ── */}
+                            <TabsContent value="desktops" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={LayoutGrid}
+                                    title="Escritorios"
+                                    description="Tu página principal del sistema operativo: escritorios personalizables con widgets, iconos y accesos directos."
+                                />
+                                <LinkCard
+                                    href="/escritorios"
+                                    icon={LayoutGrid}
+                                    label="Abrir Escritorios"
+                                    description="Organiza tus espacios de trabajo, widgets e iconos igual que un sistema operativo real"
+                                    accentText="text-[#39FF14]"
+                                    accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
+                                />
+                                <p className="text-[11px] text-muted-foreground px-1">
+                                    La configuración detallada de cada escritorio (widgets, fondo, iconos) se
+                                    gestiona directamente desde esa página.
+                                </p>
+                            </TabsContent>
+
+                            {/* ── Trinity (navegación cardinal) ─────────────── */}
+                            <TabsContent value="trinity" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={Compass}
+                                    title="Navegación Trinity"
+                                    description="Configura el acceso a los 4 nodos cardinales: botón flotante en móvil y gestos desde los bordes de la pantalla."
+                                />
+                                <TrinityFabSettings />
+                                <TrinityEdgeSettings />
+                            </TabsContent>
+
+                            {/* ── Aurora e IA (fusión de "ai" + Aurora/Sentidos de "experience") ── */}
+                            <TabsContent value="ai" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={Sparkles}
+                                    title="Aurora e IA"
+                                    description="Tu Exocórtex: proveedores de IA, la voz y percepción de Aurora, y las neuronas (dispositivos) que la sostienen."
+                                />
+                                {/* Resumen de estado del Exocórtex */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <GlassCard intensity="low" className="p-4 flex items-center gap-3">
+                                        <span className="grid place-items-center w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 text-primary shrink-0">
+                                            <Brain className="w-4 h-4" />
+                                        </span>
+                                        <div>
+                                            <p className="text-sm font-semibold">Memoria local (Exocórtex)</p>
+                                            <p className="text-[11px] text-muted-foreground">Almacenada en tu navegador · Solo tú la controlas</p>
+                                        </div>
+                                    </GlassCard>
+                                    <GlassCard intensity="low" className="p-4 flex items-center gap-3">
+                                        <span className="grid place-items-center w-9 h-9 rounded-lg bg-[#FFBF00]/10 border border-[#FFBF00]/20 text-[#FFBF00] shrink-0">
+                                            <Cpu className="w-4 h-4" />
+                                        </span>
+                                        <div>
+                                            <p className="text-sm font-semibold">Servicio de IA activo</p>
+                                            <p className="text-[11px] text-muted-foreground">Configura proveedores API o modelo local</p>
+                                        </div>
+                                    </GlassCard>
+                                </div>
+
+                                {/* Inteligencia de Aurora (Astraura): gratis-primero, modelo por tarea y rutas transparentes */}
+                                <IntelligencePanel />
+
+                                <AiProvidersPanel />
+
+                                {/* Mixture of Agents: combinaciones multi-agente que Aurora orquesta y selecciona por contexto */}
+                                <MixtureOfAgentsPanel />
+
+                                {/* Canales de Aurora: por dónde habla (interno + Telegram/Google Chat/API) */}
+                                <AuroraChannelsPanel />
+
+                                {/* Motor de voz de Aurora: Navegador / Kokoro (local, mejor español) / Kitten (beta) */}
+                                <VoiceOssPanel />
+
+                                {/* Reconocimiento de voz alternativo (open-source) para navegadores sin voz nativa */}
+                                <AuroraVoiceFallbackPanel />
+
+                                {/* Visión de Aurora (SmolVLM2 · WebGPU · 100% local) */}
+                                <VisionPanel />
+
+                                {/* Astraura · Neuronas: tus dispositivos como red personal */}
+                                <div className="space-y-3">
+                                    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-1">
+                                        Astraura · Neuronas
+                                    </p>
+                                    <NeuronsPanel />
+                                </div>
+
+                                {/* Modelo tri-fuente: elige y modula las fuentes de IA */}
+                                <TriSourceConfig
+                                    domain="ai"
+                                    title="Fuentes de IA (propio · StarSeed · externo)"
+                                    description="Más allá de los proveedores de arriba, define qué servidor(es) atienden la IA y cómo se interconectan: tu modelo propio, StarSeed o una API externa, simultáneamente y modulados."
+                                    endpointPlaceholder="https://mi-llm.local/v1"
+                                    paramHints={[
+                                        { key: "model", label: "Modelo", placeholder: "p.ej. llama3.1 / gpt-4o" },
+                                        { key: "temperature", label: "Temperatura", placeholder: "0.7" },
+                                    ]}
+                                />
+
+                                {/* Enlaces a páginas dedicadas de IA / Aurora / Sentidos */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <LinkCard
+                                        href="/aurora"
+                                        icon={Sparkles}
+                                        label="Aurora / Astraura"
+                                        description="Asistente · personalidad · palabra de activación"
+                                    />
+                                    <LinkCard
+                                        href="/sentidos"
+                                        icon={Ear}
+                                        label="Sentidos"
+                                        description="Percepción ambiental y multimodal del OS"
+                                        accentText="text-[#39FF14]"
+                                        accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
+                                    />
+                                    <LinkCard
+                                        href="/ai-setup"
+                                        icon={Brain}
+                                        label="Asistente de configuración de IA"
+                                        description="Pon en marcha tu Exocórtex paso a paso"
+                                        accentText="text-[#FFBF00]"
+                                        accentBg="bg-[#FFBF00]/10 border-[#FFBF00]/20"
+                                    />
+                                    <LinkCard
+                                        href="/servicios"
+                                        icon={Plug2}
+                                        label="Servicios & fuentes"
+                                        description="Modelos, almacenamiento y servidores conectados"
+                                        accentText="text-[#39FF14]"
+                                        accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
+                                    />
+                                </div>
+                            </TabsContent>
+
+                            {/* ── Cuenta y Sincronización (antes "profile") ─── */}
+                            <TabsContent value="account" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <TabIntro
                                     icon={User}
-                                    title="Perfil e identidad"
-                                    description="Tu identidad soberana sincronizada con tu cuenta StarSeed. Edita nombre, @, avatar y bio; gestiona tus correos."
+                                    title="Cuenta y sincronización"
+                                    description="Tu identidad soberana sincronizada con tu cuenta StarSeed. Edita nombre, @, avatar y bio; gestiona tus correos y sincroniza tus preferencias."
                                 />
 
                                 {/* Edición de perfil REAL contra Supabase */}
@@ -348,131 +525,101 @@ export default function SettingsPage() {
                                 <AccountSyncPanel />
                             </TabsContent>
 
-                            {/* ── IA & Modelos ───────────────────────────────── */}
-                            <TabsContent value="ai" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {/* ── Privacidad y Seguridad (fusión de "privacy" + "security") ── */}
+                            <TabsContent value="privacy-security" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <TabIntro
-                                    icon={Sparkles}
-                                    title="IA y modelos"
-                                    description="Gestiona los proveedores de tu Exocórtex. Las claves se cifran y viven solo en tu navegador."
+                                    icon={ShieldCheck}
+                                    title="Privacidad y seguridad"
+                                    description="Controla qué datos compartes, cómo aparece tu actividad, y gestiona tus llaves y conexiones autorizadas."
                                 />
-                                {/* Resumen de estado del Exocórtex */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <GlassCard intensity="low" className="p-4 flex items-center gap-3">
-                                        <span className="grid place-items-center w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 text-primary shrink-0">
-                                            <Brain className="w-4 h-4" />
-                                        </span>
-                                        <div>
-                                            <p className="text-sm font-semibold">Memoria local (Exocórtex)</p>
-                                            <p className="text-[11px] text-muted-foreground">Almacenada en tu navegador · Solo tú la controlas</p>
-                                        </div>
-                                    </GlassCard>
-                                    <GlassCard intensity="low" className="p-4 flex items-center gap-3">
-                                        <span className="grid place-items-center w-9 h-9 rounded-lg bg-[#FFBF00]/10 border border-[#FFBF00]/20 text-[#FFBF00] shrink-0">
-                                            <Cpu className="w-4 h-4" />
-                                        </span>
-                                        <div>
-                                            <p className="text-sm font-semibold">Servicio de IA activo</p>
-                                            <p className="text-[11px] text-muted-foreground">Configura proveedores API o modelo local</p>
-                                        </div>
-                                    </GlassCard>
+
+                                {/* ── Sub-sección: Privacidad ── */}
+                                <div className="space-y-3">
+                                    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-1">
+                                        Privacidad
+                                    </p>
+                                    <LinkCard
+                                        href="/servidores"
+                                        icon={Globe}
+                                        label="Servidores de internet"
+                                        description="VPN · Nodos de red · Conexión al Fediverso"
+                                        accentText="text-[#007FFF]"
+                                        accentBg="bg-[#007FFF]/10 border-[#007FFF]/20"
+                                    />
+                                    <PrivacyPanel />
                                 </div>
-                                {/* Inteligencia de Aurora (Astraura): gratis-primero, modelo por tarea y rutas transparentes */}
-                                <IntelligencePanel />
 
-                                <AiProvidersPanel />
+                                {/* ── Sub-sección: Seguridad ── */}
+                                <div className="space-y-3 pt-2">
+                                    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-1">
+                                        Seguridad
+                                    </p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <LinkCard
+                                            href="/seguridad"
+                                            icon={Shield}
+                                            label="Centro de Seguridad"
+                                            description="Llaves, respaldo y fragmentación (MPC)"
+                                        />
+                                        <LinkCard
+                                            href="/conexiones"
+                                            icon={Plug2}
+                                            label="Conexiones de servicios"
+                                            description="OAuth · Wallets · Apps externas autorizadas"
+                                            accentText="text-[#39FF14]"
+                                            accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
+                                        />
+                                    </div>
 
-                                {/* Mixture of Agents: combinaciones multi-agente que Aurora orquesta y selecciona por contexto */}
-                                <MixtureOfAgentsPanel />
-
-                                {/* Canales de Aurora: por dónde habla (interno + Telegram/Google Chat/API) */}
-                                <AuroraChannelsPanel />
-
-                                {/* Motor de voz de Aurora: Navegador / Kokoro (local, mejor español) / Kitten (beta) */}
-                                <VoiceOssPanel />
-
-                                {/* Reconocimiento de voz alternativo (open-source) para navegadores sin voz nativa */}
-                                <AuroraVoiceFallbackPanel />
-
-                                {/* Modelo tri-fuente: elige y modula las fuentes de IA */}
-                                <TriSourceConfig
-                                    domain="ai"
-                                    title="Fuentes de IA (propio · StarSeed · externo)"
-                                    description="Más allá de los proveedores de arriba, define qué servidor(es) atienden la IA y cómo se interconectan: tu modelo propio, StarSeed o una API externa, simultáneamente y modulados."
-                                    endpointPlaceholder="https://mi-llm.local/v1"
-                                    paramHints={[
-                                        { key: "model", label: "Modelo", placeholder: "p.ej. llama3.1 / gpt-4o" },
-                                        { key: "temperature", label: "Temperatura", placeholder: "0.7" },
-                                    ]}
-                                />
-
-                                {/* Enlaces a páginas dedicadas de IA / servicios */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <LinkCard
-                                        href="/ai-setup"
-                                        icon={Brain}
-                                        label="Asistente de configuración de IA"
-                                        description="Pon en marcha tu Exocórtex paso a paso"
-                                        accentText="text-[#FFBF00]"
-                                        accentBg="bg-[#FFBF00]/10 border-[#FFBF00]/20"
-                                    />
-                                    <LinkCard
-                                        href="/servicios"
-                                        icon={Plug2}
-                                        label="Servicios & fuentes"
-                                        description="Modelos, almacenamiento y servidores conectados"
-                                        accentText="text-[#39FF14]"
-                                        accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
-                                    />
+                                    <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
+                                        <CardHeader>
+                                            <CardTitle className="flex items-center gap-2">
+                                                <Shield className="w-5 h-5 text-primary" />
+                                                Soberanía y seguridad MPC
+                                            </CardTitle>
+                                            <CardDescription>
+                                                La gestión avanzada de llaves criptográficas y la fragmentación de datos (Multi-Party Computation) vive en el Centro de Seguridad.
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <div className="p-4 rounded-lg bg-muted/30 border border-border/40 flex items-start gap-3">
+                                                <span className="grid place-items-center w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 text-primary shrink-0">
+                                                    <Server className="w-4 h-4" />
+                                                </span>
+                                                <div className="min-w-0">
+                                                    <h3 className="font-semibold text-sm">Fragmentación de llaves (Shamir / MPC)</h3>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                                        Aún no has configurado la fragmentación de tus llaves. Hazlo desde el Centro de Seguridad para dividirlas en nodos y habilitar el respaldo biométrico.
+                                                    </p>
+                                                    <Link
+                                                        href="/seguridad"
+                                                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2 cursor-pointer"
+                                                    >
+                                                        Abrir Centro de Seguridad <ArrowRight className="w-3 h-3" />
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
                                 </div>
                             </TabsContent>
 
-                            {/* ── Integraciones (conectores OSS funcionales) ── */}
-                            <TabsContent value="integrations" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {/* ── Notificaciones (extraído de "experience") ── */}
+                            <TabsContent value="notifications" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <TabIntro
-                                    icon={Plug2}
-                                    title="Integraciones de herramientas"
-                                    description="Conecta tu OS a herramientas de código abierto (rastreo, apps IA, runtimes locales, automatización). Por defecto se usan los servicios de StarSeed; configura tu propio endpoint para usar el tuyo."
-                                />
-                                {/* Configuración GLOBAL (sin brainId). Cada cerebro puede sobrescribirla. */}
-                                <IntegrationsPanel />
-
-                                {/* Hub de Conectores: cuentas externas OPCIONALES; lo gratis/propio/OSS funciona por defecto. */}
-                                <ConnectorsHub />
-                            </TabsContent>
-
-                            {/* ── Experiencia: Aurora / Astraura · Sentidos · Notificaciones ── */}
-                            <TabsContent value="experience" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <TabIntro
-                                    icon={Compass}
-                                    title="Experiencia inmersiva"
-                                    description="Tu asistente Aurora/Astraura, la percepción sensorial del sistema, la navegación Trinity y tus notificaciones."
+                                    icon={Bell}
+                                    title="Notificaciones"
+                                    description="Avisos del sistema, sugerencias de instalación según tu dispositivo y cambios importantes."
                                 />
 
-                                {/* Aurora / Astraura + Sentidos + Notificaciones (páginas dedicadas) */}
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                    <LinkCard
-                                        href="/aurora"
-                                        icon={Sparkles}
-                                        label="Aurora / Astraura"
-                                        description="Asistente · personalidad · palabra de activación"
-                                    />
-                                    <LinkCard
-                                        href="/sentidos"
-                                        icon={Ear}
-                                        label="Sentidos"
-                                        description="Percepción ambiental y multimodal del OS"
-                                        accentText="text-[#39FF14]"
-                                        accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
-                                    />
-                                    <LinkCard
-                                        href="/notifications"
-                                        icon={Bell}
-                                        label="Notificaciones"
-                                        description="Avisos del sistema y de la red"
-                                        accentText="text-[#FFBF00]"
-                                        accentBg="bg-[#FFBF00]/10 border-[#FFBF00]/20"
-                                    />
-                                </div>
+                                <LinkCard
+                                    href="/notifications"
+                                    icon={Bell}
+                                    label="Notificaciones"
+                                    description="Centro completo de avisos del sistema y de la red"
+                                    accentText="text-[#FFBF00]"
+                                    accentBg="bg-[#FFBF00]/10 border-[#FFBF00]/20"
+                                />
 
                                 {/* ── Actualizaciones y avisos: se nota aquí que hay novedades ── */}
                                 <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
@@ -488,110 +635,55 @@ export default function SettingsPage() {
                                         </CardDescription>
                                     </CardHeader>
                                 </Card>
+                            </TabsContent>
 
-                                {/* ── Visión de Aurora (SmolVLM2 · WebGPU · 100% local) ── */}
-                                <VisionPanel />
+                            {/* ── Accesibilidad (nueva pestaña de nivel superior) ── */}
+                            <TabsContent value="accessibility" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={Accessibility}
+                                    title="Accesibilidad"
+                                    description="Alto contraste, tamaño de texto, daltonismo y reducción de movimiento. La estética y la libertad de uso son inseparables."
+                                />
+                                {/*
+                                  Decisión de diseño: AccessibilitySettings se MONTA aquí como
+                                  pestaña de nivel superior (fácil de encontrar, un solo clic) en
+                                  lugar de duplicar su código. El sub-tab "a11y" dentro de
+                                  AppearanceEditor (appearance-editor.tsx) sigue existiendo tal
+                                  cual — no se ha tocado ese archivo — así que también es
+                                  accesible desde Apariencia → Accesibilidad. Es el MISMO
+                                  componente importado dos veces, sin duplicar código ni estado
+                                  (ambos leen/escriben el mismo localStorage "starseed.a11y.settings").
+                                */}
+                                <AccessibilitySettings />
+                            </TabsContent>
 
-                                {/* ── Astraura · Neuronas: tus dispositivos como red personal ── */}
+                            {/* ── Avanzado (integraciones + export/import completo) ── */}
+                            <TabsContent value="advanced" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <TabIntro
+                                    icon={Settings2}
+                                    title="Avanzado"
+                                    description="Integraciones de herramientas externas y respaldo completo de tu configuración (export/import/restablecer)."
+                                />
+
+                                {/* ── Sub-sección: Integraciones ── */}
                                 <div className="space-y-3">
                                     <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-1">
-                                        Astraura · Neuronas
+                                        Integraciones de herramientas
                                     </p>
-                                    <NeuronsPanel />
+                                    {/* Configuración GLOBAL (sin brainId). Cada cerebro puede sobrescribirla. */}
+                                    <IntegrationsPanel />
+
+                                    {/* Hub de Conectores: cuentas externas OPCIONALES; lo gratis/propio/OSS funciona por defecto. */}
+                                    <ConnectorsHub />
                                 </div>
 
-                                {/* Navegación Trinity (se configura aquí) */}
-                                <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Compass className="w-5 h-5 text-primary" /> Navegación Trinity
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Configura el acceso a los 4 nodos cardinales: botón flotante en móvil y gestos desde los bordes de la pantalla.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-5">
-                                        <TrinityFabSettings />
-                                        <TrinityEdgeSettings />
-                                    </CardContent>
-                                </Card>
-                            </TabsContent>
-
-                            {/* ── Privacidad ─────────────────────────────────── */}
-                            <TabsContent value="privacy" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <TabIntro
-                                    icon={ShieldCheck}
-                                    title="Privacidad"
-                                    description="Controla qué datos compartes y cómo aparece tu actividad en el grafo público."
-                                />
-                                {/* Enlaces de red y privacidad */}
-                                <LinkCard
-                                    href="/servidores"
-                                    icon={Globe}
-                                    label="Servidores de internet"
-                                    description="VPN · Nodos de red · Conexión al Fediverso"
-                                    accentText="text-[#007FFF]"
-                                    accentBg="bg-[#007FFF]/10 border-[#007FFF]/20"
-                                />
-                                <PrivacyPanel />
-                            </TabsContent>
-
-                            {/* ── Seguridad ──────────────────────────────────── */}
-                            <TabsContent value="security" className="m-0 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <TabIntro
-                                    icon={Shield}
-                                    title="Seguridad y soberanía"
-                                    description="Gestiona tus llaves, conexiones autorizadas y la fragmentación segura de tus datos desde el Centro de Seguridad."
-                                />
-
-                                {/* Accesos a páginas dedicadas de seguridad/conexiones */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <LinkCard
-                                        href="/seguridad"
-                                        icon={Shield}
-                                        label="Centro de Seguridad"
-                                        description="Llaves, respaldo y fragmentación (MPC)"
-                                    />
-                                    <LinkCard
-                                        href="/conexiones"
-                                        icon={Plug2}
-                                        label="Conexiones de servicios"
-                                        description="OAuth · Wallets · Apps externas autorizadas"
-                                        accentText="text-[#39FF14]"
-                                        accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
-                                    />
+                                {/* ── Sub-sección: Export / Import de configuración completa ── */}
+                                <div className="space-y-3 pt-2">
+                                    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-1">
+                                        Respaldo de configuración
+                                    </p>
+                                    <ConfigExportPanel />
                                 </div>
-
-                                <Card className="bg-background/40 backdrop-blur-sm border-0 shadow-none">
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Shield className="w-5 h-5 text-primary" />
-                                            Soberanía y seguridad MPC
-                                        </CardTitle>
-                                        <CardDescription>
-                                            La gestión avanzada de llaves criptográficas y la fragmentación de datos (Multi-Party Computation) vive en el Centro de Seguridad.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="p-4 rounded-lg bg-muted/30 border border-border/40 flex items-start gap-3">
-                                            <span className="grid place-items-center w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 text-primary shrink-0">
-                                                <Server className="w-4 h-4" />
-                                            </span>
-                                            <div className="min-w-0">
-                                                <h3 className="font-semibold text-sm">Fragmentación de llaves (Shamir / MPC)</h3>
-                                                <p className="text-xs text-muted-foreground mt-0.5">
-                                                    Aún no has configurado la fragmentación de tus llaves. Hazlo desde el Centro de Seguridad para dividirlas en nodos y habilitar el respaldo biométrico.
-                                                </p>
-                                                <Link
-                                                    href="/seguridad"
-                                                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2 cursor-pointer"
-                                                >
-                                                    Abrir Centro de Seguridad <ArrowRight className="w-3 h-3" />
-                                                </Link>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
                             </TabsContent>
                         </div>
                     </Tabs>
