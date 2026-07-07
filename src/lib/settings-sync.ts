@@ -50,6 +50,8 @@ export const SYNCED_KEYS = [
     "starseed.astraura.installed-models.v1", // modelos de navegador instalados (opt-in) por el usuario
     "starseed.library.seed.v1",              // versión de defaults sembrados en la cuenta (biblioteca)
     "starseed.updates.seen.v1",              // avisos de actualización/instalación ya vistos por el usuario
+    "starseed.library.ratings.v1",           // valoración local (estrellas) de paquetes de la Biblioteca
+    "starseed.library.usage.v1",             // contador de uso (aperturas reales) de paquetes de la Biblioteca
 ] as const;
 
 export interface SyncResult {

@@ -47,6 +47,10 @@ import {
   Download, Check, Trash2, KeyRound, ExternalLink, Search, Plus,
   Clock, Store, PackageCheck, Settings2, Loader2,
   Link2, Copy, Share2, Wand,
+  // Iconos de la ficha ampliada (valoración/uso/permisos/relacionados/vista previa)
+  Star, Shield, Mic, ScanEye, Globe2, Link as LinkCap,
+  Sparkle, ArrowUpRight, Image as ImageIcon, Music2, FileCode2, FileType2,
+  Wifi, RefreshCcwDot, CircleCheck,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -74,6 +78,26 @@ import { findSource } from "@/ai/astraura/free-catalog";
 // Populares / Relevantes. Reutiliza las piezas exportadas más abajo (KIND_META,
 // PackageGrid, PkgIcon, materialClassFor) para no duplicar el flujo de instalar.
 import { CategoryPicker } from "@/components/library/category-picker";
+// Valoración local (estrellas) + contador de uso — módulo nuevo, aditivo.
+import {
+  getRating,
+  getUsageCount,
+  getUsageMap,
+  setRating as saveRating,
+  recordUsage,
+} from "@/lib/library/ratings";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+// Ficha de agente instalado (kind "agent"): configurar persona/capacidades y
+// vincular a un "cerebro" (AgentBindMenu, P4). Reutiliza el store de agentes.
+import { getAgent, subscribeAgents } from "@/lib/agents/store";
+import { AgentConfigPanel } from "@/components/agents/AgentConfigPanel";
+import { AgentBindMenu } from "@/components/agents/AgentBindMenu";
 
 /* ───────────────────────── Metadatos por kind ───────────────────────── */
 
@@ -92,6 +116,7 @@ export const KIND_META: Record<PackageKind, { label: string; plural: string; ico
   function: { label: "Función", plural: "Funciones", icon: Wand2, chip: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
   "ai-source": { label: "Fuente IA", plural: "Fuentes IA", icon: Brain, chip: "bg-teal-500/15 text-teal-300 border-teal-500/30" },
   repo: { label: "Repo", plural: "Repos", icon: GitBranch, chip: "bg-lime-500/15 text-lime-300 border-lime-500/30" },
+  agent: { label: "Agente", plural: "Agentes", icon: Bot, chip: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30" },
 };
 
 /** Qué hace EXACTAMENTE instalar cada kind (transparencia en la ficha). */
@@ -108,6 +133,7 @@ const EFFECT_EXPLAIN: Record<PackageKind, string> = {
   board: "Registra la pizarra en tu sistema y abre el lienzo colaborativo.",
   research: "Registra la investigación en tu sistema y abre su superficie real.",
   project: "Registra el proyecto en tu sistema y abre su superficie real.",
+  agent: "Registra la definición del agente (persona + capacidades) en tu biblioteca personal de agentes: podrás configurarlo y atarlo al cerebro de cualquier superficie del OS. Desinstalar no borra vínculos ya creados.",
 };
 
 /** Mapa nombre-lucide → componente (fallback defensivo: Package). */
@@ -141,6 +167,265 @@ export function materialClassFor(pkg: LibraryPackage): string {
   // Si la clase aún no existe en CSS (la crea otra rama de esta ola), estas
   // clases base garantizan que la tarjeta siga siendo bella.
   return cn("bg-white/[0.06] border border-white/10", own || "ss-crystal");
+}
+
+/* ───────────────────────── Vista previa VIVA (design/animation) ───────────────────────── */
+// Honestidad: solo animamos con clases CSS que EXISTEN de verdad hoy en
+// src/styles/starseed-materials.css. Las clases `ss-anim-*` registradas en
+// packages.ts (flotación/respiración/tilt) aún no tienen CSS propio: para no
+// fingir movimiento que no existe, la miniatura de animación usa las
+// utilidades de movimiento reales (.ss-float / .ss-tilt) como aproximación
+// honesta, dejando claro en el pie que es una vista previa aproximada.
+const LIVE_MATERIAL_CLASSES = new Set([
+  "ss-crystal", "ss-crystal--deep", "ss-neon", "ss-neon--zenith", "ss-neon--horizon",
+  "ss-neon--logic", "ss-neon--anchor", "ss-metal", "ss-wood", "ss-nature",
+]);
+const LIVE_ANIM_FALLBACK: Record<string, string> = {
+  "ss-anim-float": "ss-float",
+  "ss-anim-tilt": "ss-tilt",
+  "ss-anim-breathe": "ss-neon-breathe",
+};
+
+/** ¿Este paquete puede renderizar una miniatura VIVA (no solo un icono)? */
+function hasLivePreview(pkg: LibraryPackage): boolean {
+  return pkg.kind === "design" || pkg.kind === "animation";
+}
+
+/**
+ * Miniatura viva: renderiza la clase real (o su aproximación honesta) sobre
+ * un lienzo pequeño, para que el usuario VEA el material/animación antes de
+ * instalar — en vez de solo leer su nombre.
+ */
+function LivePreviewTile({ pkg }: { pkg: LibraryPackage }) {
+  if (pkg.kind === "design") {
+    const cls = String(pkg.payload.materialClass ?? "");
+    const live = LIVE_MATERIAL_CLASSES.has(cls);
+    return (
+      <div className="flex flex-col gap-1.5">
+        <div className={cn("relative h-24 w-full overflow-hidden rounded-2xl", live ? cls : "ss-crystal")}>
+          <div className="absolute inset-0 grid place-items-center">
+            <PkgIcon name={pkg.icon} className="h-8 w-8 text-white/80" />
+          </div>
+        </div>
+        {!live && (
+          <p className="text-[10px] text-muted-foreground">
+            Vista previa aproximada (material «{cls || "desconocido"}» sin CSS propio todavía).
+          </p>
+        )}
+      </div>
+    );
+  }
+  // animation
+  const cls = String(pkg.payload.animClass ?? "");
+  const fallback = LIVE_ANIM_FALLBACK[cls];
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="relative flex h-24 w-full items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+        <div className={cn("grid h-14 w-14 place-items-center rounded-2xl ss-crystal", fallback)}>
+          <PkgIcon name={pkg.icon} className="h-6 w-6 text-white/85" />
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        {fallback
+          ? "Vista previa con movimiento real (aproximación honesta: la clase exacta aún no tiene CSS propio)."
+          : `Vista previa estática (animación «${cls || "desconocida"}» sin CSS propio todavía).`}
+      </p>
+    </div>
+  );
+}
+
+/* ───────────────────────── Permisos / capacidades (transparencia) ───────────────────────── */
+
+interface CapabilityInfo {
+  label: string;
+  icon: LucideIcon;
+}
+
+/** Vocabulario de capacidades reales que un paquete puede activar en Aurora. */
+const CAPABILITY_META: Record<string, CapabilityInfo> = {
+  "aurora-web-access": { label: "Acceso web", icon: Wifi },
+  "aurora-web-senses": { label: "Sentidos web", icon: Globe2 },
+  "aurora-vision": { label: "Visión", icon: ScanEye },
+  "aurora-voice-kokoro": { label: "Voz", icon: Mic },
+  "aurora-taste": { label: "Gusto de UI", icon: Sparkle },
+  "aurora-pm": { label: "Producto/proyecto", icon: ClipboardList },
+  "starseed-auto-update": { label: "Auto-actualización", icon: RefreshCcwDot },
+};
+
+/** Deriva permisos/capacidades legibles a partir del payload (honesto). */
+function capabilitiesOf(pkg: LibraryPackage): CapabilityInfo[] {
+  const out: CapabilityInfo[] = [];
+  const skillId = typeof pkg.payload.skillId === "string" ? pkg.payload.skillId : "";
+  if (skillId && CAPABILITY_META[skillId]) out.push(CAPABILITY_META[skillId]);
+  else if (skillId) out.push({ label: skillId.replace(/^aurora-/, "").replace(/-/g, " "), icon: Wand2 });
+  if (pkg.kind === "ai-source") out.push({ label: "Fuente de inteligencia", icon: Brain });
+  if (pkg.kind === "agent") {
+    const agentCaps = Array.isArray((pkg.payload.agent as { capabilities?: unknown } | undefined)?.capabilities)
+      ? ((pkg.payload.agent as { capabilities: unknown[] }).capabilities as unknown[]).filter(
+          (c): c is string => typeof c === "string",
+        )
+      : [];
+    for (const cap of agentCaps) {
+      const known = Object.entries(CAPABILITY_META).find(([id]) => id.endsWith(cap) || id === `aurora-${cap}`);
+      out.push(known ? known[1] : { label: cap.replace(/-/g, " "), icon: Wand2 });
+    }
+  }
+  if (typeof pkg.payload.externalUrl === "string" && pkg.payload.externalUrl) {
+    out.push({ label: "Servicio externo / self-host", icon: LinkCap });
+  }
+  return out;
+}
+
+/* ───────────────────────── Vista previa de ARCHIVO (imagen/audio/vídeo/pdf/código) ───────────────────────── */
+
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|avif)(\?|#|$)/i;
+const AUDIO_EXT = /\.(mp3|wav|ogg|m4a|flac|aac)(\?|#|$)/i;
+const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
+const PDF_EXT = /\.pdf(\?|#|$)/i;
+const CODE_EXT = /\.(json|ts|tsx|js|jsx|py|md|yml|yaml|sh|css|html)(\?|#|$)/i;
+
+type FilePreviewKind = "image" | "audio" | "video" | "pdf" | "code" | null;
+
+/** Detecta el tipo de archivo embebible de la URL del paquete (honesto: solo por extensión). */
+function filePreviewKindOf(pkg: LibraryPackage): FilePreviewKind {
+  const url = String(pkg.payload.externalUrl ?? pkg.payload.url ?? "");
+  if (!url) return null;
+  if (IMAGE_EXT.test(url)) return "image";
+  if (AUDIO_EXT.test(url)) return "audio";
+  if (VIDEO_EXT.test(url)) return "video";
+  if (PDF_EXT.test(url)) return "pdf";
+  if (CODE_EXT.test(url)) return "code";
+  return null;
+}
+
+const FILE_PREVIEW_ICON: Record<Exclude<FilePreviewKind, null>, LucideIcon> = {
+  image: ImageIcon, audio: Music2, video: FileType2, pdf: FileType2, code: FileCode2,
+};
+
+/** Bloque de vista previa embebida según el formato detectado, con fallback de descarga. */
+function FilePreviewBlock({ pkg }: { pkg: LibraryPackage }) {
+  const kind = filePreviewKindOf(pkg);
+  if (!kind) return null;
+  const url = String(pkg.payload.externalUrl ?? pkg.payload.url ?? "");
+  const Icon = FILE_PREVIEW_ICON[kind];
+
+  return (
+    <div className="space-y-2">
+      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" /> Vista previa del archivo
+      </p>
+      {kind === "image" && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt={pkg.name} className="max-h-64 w-full rounded-xl border border-white/10 object-contain" />
+      )}
+      {kind === "audio" && (
+        <audio controls preload="none" src={url} className="w-full rounded-xl">
+          Tu navegador no soporta el reproductor de audio.
+        </audio>
+      )}
+      {kind === "video" && (
+        <video controls preload="none" src={url} className="max-h-64 w-full rounded-xl border border-white/10 bg-black/30" />
+      )}
+      {kind === "pdf" && (
+        <iframe src={url} title={pkg.name} className="h-72 w-full rounded-xl border border-white/10 bg-white" />
+      )}
+      {kind === "code" && (
+        <p className="text-xs text-muted-foreground">
+          Archivo de texto/código: usa «Descargar» o «Abrir» para verlo (no lo incrustamos sin traerlo primero).
+        </p>
+      )}
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-xs text-primary hover:underline cursor-pointer"
+      >
+        Descargar / abrir original <ExternalLink className="h-3 w-3" />
+      </a>
+    </div>
+  );
+}
+
+/* ───────────────────────── Valoración local (estrellas) ───────────────────────── */
+
+/** Selector de estrellas interactivo (1–5), clicable, con tu valoración actual. */
+function StarRatingInput({ pkgId, size = "sm" }: { pkgId: string; size?: "sm" | "md" }) {
+  const [value, setValue] = useState<number | undefined>(undefined);
+  const [hover, setHover] = useState<number | null>(null);
+
+  useEffect(() => {
+    setValue(getRating(pkgId));
+    return subscribeLibrary(() => setValue(getRating(pkgId)));
+  }, [pkgId]);
+
+  const iconSize = size === "md" ? "h-5 w-5" : "h-4 w-4";
+  const shown = hover ?? value ?? 0;
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-0.5" onMouseLeave={() => setHover(null)}>
+        {[1, 2, 3, 4, 5].map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => saveRating(pkgId, s)}
+            onMouseEnter={() => setHover(s)}
+            className="cursor-pointer p-0.5 transition-transform duration-150 hover:scale-110"
+            aria-label={`Valorar con ${s} estrella${s === 1 ? "" : "s"}`}
+            title={`Valorar con ${s} estrella${s === 1 ? "" : "s"}`}
+          >
+            <Star className={cn(iconSize, s <= shown ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40")} />
+          </button>
+        ))}
+      </div>
+      <span className="text-xs text-muted-foreground">
+        {value ? `Tu valoración: ${value}/5` : "Sin valorar"}
+      </span>
+    </div>
+  );
+}
+
+/** Chip compacto de "tu valoración" para la tarjeta (silencioso si no hay valoración). */
+function CardRatingBadge({ pkgId }: { pkgId: string }) {
+  const [value, setValue] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    setValue(getRating(pkgId));
+    return subscribeLibrary(() => setValue(getRating(pkgId)));
+  }, [pkgId]);
+  if (!value) return null;
+  return (
+    <span className="inline-flex items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-semibold text-amber-300">
+      <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" /> {value}/5
+    </span>
+  );
+}
+
+/** Contador de uso (solo lectura, reactivo a la Biblioteca). */
+function useUsageCount(pkgId: string): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    setCount(getUsageCount(pkgId));
+    return subscribeLibrary(() => setCount(getUsageCount(pkgId)));
+  }, [pkgId]);
+  return count;
+}
+
+/* ───────────────────────── Relacionados (mismo kind o etiquetas) ───────────────────────── */
+
+/** Hasta 4 paquetes relacionados: mismas etiquetas (peso alto) o mismo kind. */
+function relatedPackagesOf(pkg: LibraryPackage, all: LibraryPackage[]): LibraryPackage[] {
+  const tagSet = new Set(pkg.tags);
+  return all
+    .filter((p) => p.id !== pkg.id && !p.comingSoon)
+    .map((p) => {
+      const sharedTags = p.tags.filter((t) => tagSet.has(t)).length;
+      const sameKind = p.kind === pkg.kind ? 1 : 0;
+      return { p, score: sharedTags * 3 + sameKind };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .map((x) => x.p);
 }
 
 /* ───────────────────────── Estado compartido ───────────────────────── */
@@ -233,7 +518,7 @@ function useStoreActions() {
       const href = res.href;
       toast.success(pkg.name, {
         description: res.message,
-        action: { label: "Abrir", onClick: () => router.push(href) },
+        action: { label: "Abrir", onClick: () => { recordUsage(pkg.id); router.push(href); } },
       });
       return;
     }
@@ -248,7 +533,11 @@ function useStoreActions() {
     else toast.error(name ?? "Paquete", { description: res.message });
   }, []);
 
-  const openRoute = useCallback((href: string) => router.push(href), [router]);
+  /** Abre una ruta real del OS. Si se pasa `pkgId`, registra el uso (contador honesto de aperturas). */
+  const openRoute = useCallback((href: string, pkgId?: string) => {
+    if (pkgId) recordUsage(pkgId);
+    router.push(href);
+  }, [router]);
 
   /* ── Acciones estilo Cydia ── */
   const doSaveLink = useCallback((pkg: LibraryPackage) => {
@@ -333,10 +622,13 @@ function PackageCard({
         )}
       </div>
 
+      {/* Vista previa VIVA (solo diseño/animación): material/movimiento real en miniatura */}
+      {hasLivePreview(pkg) && <LivePreviewTile pkg={pkg} />}
+
       {/* Descripción 2 líneas */}
       <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{pkg.description}</p>
 
-      {/* Chips: kind · gratis · próximamente */}
+      {/* Chips: kind · gratis · próximamente · tu valoración */}
       <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
         <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold", meta.chip)}>
           <meta.icon className="h-2.5 w-2.5" /> {meta.label}
@@ -351,6 +643,7 @@ function PackageCard({
             <Clock className="h-2.5 w-2.5" /> Próximamente
           </span>
         )}
+        <CardRatingBadge pkgId={pkg.id} />
       </div>
 
       {/* Acciones */}
@@ -365,7 +658,7 @@ function PackageCard({
               <Button
                 size="sm"
                 className="h-8 flex-1 gap-1.5 bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-500 cursor-pointer"
-                onClick={() => actions.openRoute(route)}
+                onClick={() => actions.openRoute(route, pkg.id)}
               >
                 <ExternalLink className="h-3.5 w-3.5" /> Abrir
               </Button>
@@ -444,6 +737,96 @@ export function PackageGrid({
   );
 }
 
+/* ───────────────────────── Agente instalado: configurar + vincular a cerebro ───────────────────────── */
+
+/**
+ * Acción "Configurar agente" para paquetes de kind "agent" ya instalados:
+ * abre un Dialog con el editor real (AgentConfigPanel, P5: persona,
+ * capacidades, modelo, visibilidad) y el menú de vínculo a "cerebro"
+ * (AgentBindMenu, P4) — aquí atado al escritorio propio del agente
+ * (`targetType: "widget"`, id estable derivado del agente), su cerebro
+ * personal por defecto dentro de la Biblioteca.
+ */
+function AgentPackageActions({ pkg }: { pkg: LibraryPackage }) {
+  const [open, setOpen] = useState(false);
+  const agentId = typeof (pkg.payload.agent as { id?: unknown } | undefined)?.id === "string"
+    ? (pkg.payload.agent as { id: string }).id
+    : "";
+  const [agent, setAgent] = useState(() => (agentId ? getAgent(agentId) : undefined));
+
+  useEffect(() => {
+    if (!agentId) return;
+    setAgent(getAgent(agentId));
+    return subscribeAgents(() => setAgent(getAgent(agentId)));
+  }, [agentId]);
+
+  if (!agentId) return null;
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        className="gap-2 border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/10 cursor-pointer"
+        onClick={() => setOpen(true)}
+      >
+        <Bot className="h-4 w-4" /> Configurar agente
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-cyan-300" /> {pkg.name}
+            </DialogTitle>
+            <DialogDescription>
+              Ajusta la persona y capacidades de tu agente, y átalo a su cerebro personal para que
+              anime tu escritorio de la Biblioteca.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <AgentConfigPanel agent={agent ?? null} onSaved={(a) => setAgent(a)} onCancel={() => setOpen(false)} />
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Link2 className="h-3.5 w-3.5" /> Cerebro del agente
+              </p>
+              <AgentBindMenu
+                targetType="widget"
+                targetId={`agent-desk-${agentId}`}
+                label="Vincular a cerebro"
+                buttonVariant="outline"
+              />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/* ───────────────────────── Celdas de metadatos + uso (ficha) ───────────────────────── */
+
+function MetaCell({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-2.5">
+      <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-muted-foreground">
+        <Icon className="h-3 w-3" /> {label}
+      </div>
+      <div className="mt-1 truncate text-xs font-semibold text-white/90" title={value}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+/** "Usado N veces" (o "Nunca abierto") — reactivo al evento de la Biblioteca. */
+function UsageBadge({ pkgId }: { pkgId: string }) {
+  const count = useUsageCount(pkgId);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">
+      <Eye className="h-3 w-3" /> {count > 0 ? `Usado ${count} ${count === 1 ? "vez" : "veces"}` : "Aún no abierto"}
+    </span>
+  );
+}
+
 /* ───────────────────────── Ficha de detalle (Sheet) ───────────────────────── */
 
 function PackageDetailSheet({
@@ -453,6 +836,7 @@ function PackageDetailSheet({
   data,
   aiReady,
   actions,
+  onOpenDetail,
 }: {
   pkg: LibraryPackage | null;
   open: boolean;
@@ -460,6 +844,8 @@ function PackageDetailSheet({
   data: StoreData;
   aiReady: Record<string, boolean>;
   actions: StoreActions;
+  /** Navega a otra ficha sin cerrar el Sheet (usado por "También te puede interesar"). */
+  onOpenDetail?: (pkg: LibraryPackage) => void;
 }) {
   if (!pkg) return <Sheet open={false} onOpenChange={onOpenChange}><SheetContent side="right" className="hidden" /></Sheet>;
 
@@ -475,6 +861,11 @@ function PackageDetailSheet({
   const hasExternalRes = !!(String(pkg.payload.externalUrl ?? "").trim() || String(pkg.payload.url ?? "").trim());
   // ¿Es una réplica local del usuario? (habilita «Publicar como rama»).
   const isMine = pkg.sourceRepoId === MINE_REPO_ID || !!pkg.forkedFrom;
+  // Relacionados: mismas etiquetas o mismo kind, para "También te puede interesar".
+  // (Cálculo directo, no memoizado: no se puede usar useMemo aquí porque el
+  // componente hace un return condicional temprano cuando `pkg` es null, y los
+  // hooks no pueden llamarse tras un return condicional — Rules of Hooks.)
+  const related = relatedPackagesOf(pkg, data.packages);
 
   let payloadPretty = "{}";
   try { payloadPretty = JSON.stringify(pkg.payload, null, 2); } catch { /* defensivo */ }
@@ -507,6 +898,59 @@ function PackageDetailSheet({
         <div className="mt-5 flex flex-col gap-5 pb-10">
           {/* Descripción completa */}
           <p className="text-sm leading-relaxed text-gray-200">{pkg.description}</p>
+
+          {/* Vista previa VIVA (diseño/animación): el material/movimiento real, no solo un icono */}
+          {hasLivePreview(pkg) && (
+            <div className="space-y-2">
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Sparkle className="h-3.5 w-3.5" /> Vista previa en vivo
+              </p>
+              <LivePreviewTile pkg={pkg} />
+            </div>
+          )}
+
+          {/* Vista previa de ARCHIVO (imagen/audio/vídeo/pdf/código) con fallback de descarga */}
+          <FilePreviewBlock pkg={pkg} />
+
+          {/* Metadatos: tipo · versión · licencia · permisos/capacidades que usa */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <MetaCell icon={meta.icon} label="Tipo" value={meta.label} />
+            <MetaCell icon={CircleCheck} label="Versión" value={`v${pkg.version}`} />
+            <MetaCell icon={Shield} label="Licencia" value={pkg.free ? "Gratis / OSS" : "Con clave"} />
+            <MetaCell icon={Store} label="Origen" value={isMine ? "Tu biblioteca" : repoName} />
+          </div>
+          {(() => {
+            const caps = capabilitiesOf(pkg);
+            if (caps.length === 0) return null;
+            return (
+              <div className="space-y-2">
+                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Shield className="h-3.5 w-3.5" /> Permisos / capacidades que usa
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {caps.map((c, i) => (
+                    <span
+                      key={`${c.label}-${i}`}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/80"
+                    >
+                      <c.icon className="h-3 w-3" /> {c.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Valoración local (estrellas) + contador de uso */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Star className="h-3.5 w-3.5" /> Tu valoración
+              </p>
+              <UsageBadge pkgId={pkg.id} />
+            </div>
+            <StarRatingInput pkgId={pkg.id} size="md" />
+          </div>
 
           {/* Fuente IA: transparencia del catálogo (why + limits + modelos) */}
           {catalogSource && (
@@ -565,10 +1009,11 @@ function PackageDetailSheet({
             ) : installed ? (
               <>
                 {route && (
-                  <Button className="gap-2 bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer" onClick={() => actions.openRoute(route)}>
+                  <Button className="gap-2 bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer" onClick={() => actions.openRoute(route, pkg.id)}>
                     <ExternalLink className="h-4 w-4" /> Abrir
                   </Button>
                 )}
+                {pkg.kind === "agent" && <AgentPackageActions pkg={pkg} />}
                 <Button
                   variant="outline"
                   className="gap-2 border-rose-500/30 text-rose-300 hover:bg-rose-500/10 cursor-pointer"
@@ -640,6 +1085,43 @@ function PackageDetailSheet({
                 Replicar crea un fork local editable en tu biblioteca. Publicar marca la rama como
                 pública (local por ahora; la publicación real a la red StarSeed llegará vía Supabase).
               </p>
+            </div>
+          )}
+
+          {/* También te puede interesar (relacionados por etiqueta/tipo) */}
+          {related.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                También te puede interesar
+              </p>
+              <div className="ss-hscroll ss-hscroll-fade flex gap-3 pb-1">
+                {related.map((rel) => {
+                  const relMeta = KIND_META[rel.kind];
+                  return (
+                    <button
+                      key={rel.id}
+                      type="button"
+                      onClick={() => onOpenDetail?.(rel)}
+                      className="group flex w-40 shrink-0 flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-left transition-colors hover:border-primary/40 hover:bg-white/[0.06] cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", materialClassFor(rel))}>
+                          <PkgIcon name={rel.icon} className="h-4 w-4 text-white/85" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-semibold text-white/90 group-hover:text-primary transition-colors">
+                            {rel.name}
+                          </p>
+                          <p className="truncate text-[10px] text-muted-foreground">{relMeta.label}</p>
+                        </div>
+                      </div>
+                      <span className="mt-auto inline-flex items-center gap-1 text-[10px] font-medium text-primary/80">
+                        Ver ficha <ArrowUpRight className="h-3 w-3" />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -751,6 +1233,33 @@ function ReposSection({ data }: { data: StoreData }) {
 
 /* ───────────────────────── Sección: Instalado ───────────────────────── */
 
+/** Compara versiones semver de forma tolerante (mayor primero, sin desempate). */
+function compareSemverAsc(a: string, b: string): number {
+  const pa = String(a ?? "0").split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = String(b ?? "0").split(".").map((n) => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const da = pa[i] ?? 0;
+    const db = pb[i] ?? 0;
+    if (da !== db) return da - db;
+  }
+  return 0;
+}
+
+/** Paquetes instalados cuya versión del catálogo vivo es MAYOR que la registrada. */
+function outdatedEntries(
+  entries: [string, InstalledEntry][],
+  byId: Map<string, LibraryPackage>,
+): { id: string; pkg: LibraryPackage; entry: InstalledEntry }[] {
+  const out: { id: string; pkg: LibraryPackage; entry: InstalledEntry }[] = [];
+  for (const [id, entry] of entries) {
+    const pkg = byId.get(id);
+    if (!pkg || pkg.comingSoon) continue;
+    if (compareSemverAsc(pkg.version, entry.version) > 0) out.push({ id, pkg, entry });
+  }
+  return out;
+}
+
 function InstalledSection({
   data,
   aiReady,
@@ -764,9 +1273,93 @@ function InstalledSection({
 }) {
   const entries = Object.entries(data.installed).sort((a, b) => b[1].installedAt - a[1].installedAt);
   const byId = useMemo(() => new Map(data.packages.map((p) => [p.id, p])), [data.packages]);
+  const outdated = useMemo(() => outdatedEntries(entries, byId), [entries, byId]);
+  const [updatingAll, setUpdatingAll] = useState(false);
+
+  // Uso total agregado (contador honesto: suma de aperturas reales registradas).
+  const [totalUsage, setTotalUsage] = useState(0);
+  useEffect(() => {
+    const recalc = () => {
+      const usage = getUsageMap();
+      setTotalUsage(entries.reduce((sum, [id]) => sum + (usage[id]?.count ?? 0), 0));
+    };
+    recalc();
+    return subscribeLibrary(recalc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries.length]);
+
+  const updateOne = useCallback(async (pkg: LibraryPackage) => {
+    await actions.doInstall(pkg); // re-instalar aplica el efecto y re-registra con la versión actual
+  }, [actions]);
+
+  const updateAll = useCallback(async () => {
+    if (outdated.length === 0 || updatingAll) return;
+    setUpdatingAll(true);
+    for (const { pkg } of outdated) {
+      try { await install(pkg); } catch { /* defensivo: una actualización no frena el resto */ }
+    }
+    setUpdatingAll(false);
+    toast.success("Biblioteca actualizada", {
+      description: `${outdated.length} paquete(s) actualizado(s) a su última versión.`,
+    });
+  }, [outdated, updatingAll]);
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-6">
+      {/* Resumen "Mi biblioteca": total instalado + uso agregado */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <MetaCell icon={PackageCheck} label="Instalados" value={String(entries.length)} />
+        <MetaCell icon={Eye} label="Aperturas totales" value={String(totalUsage)} />
+        <MetaCell icon={RefreshCcwDot} label="Actualizaciones" value={String(outdated.length)} />
+      </div>
+
+      {/* Actualizaciones disponibles + «Actualizar todo» */}
+      {outdated.length > 0 && (
+        <GlassCard className="border-amber-400/20 bg-gradient-to-br from-amber-900/15 to-transparent p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <RefreshCcwDot className="h-4 w-4 text-amber-300" />
+              <h3 className="text-sm font-bold text-white">Actualizaciones disponibles</h3>
+              <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200">
+                {outdated.length}
+              </span>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => void updateAll()}
+              disabled={updatingAll}
+              className="gap-1.5 bg-amber-600 text-xs font-semibold text-white hover:bg-amber-500 cursor-pointer"
+            >
+              {updatingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Actualizar todo
+            </Button>
+          </div>
+          <div className="flex flex-col gap-2">
+            {outdated.map(({ id, pkg, entry }) => (
+              <div key={id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-2.5">
+                <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", materialClassFor(pkg))}>
+                  <PkgIcon name={pkg.icon} className="h-4 w-4 text-white/85" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-white/90">{pkg.name}</p>
+                  <p className="text-[10px] text-muted-foreground">v{entry.version} → v{pkg.version}</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 gap-1 border-amber-400/30 text-[11px] text-amber-200 hover:bg-amber-500/10 cursor-pointer"
+                  onClick={() => void updateOne(pkg)}
+                  disabled={actions.busyId === pkg.id}
+                >
+                  {actions.busyId === pkg.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                  Actualizar
+                </Button>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
+
       <div className="flex items-center gap-2">
         <PackageCheck className="h-5 w-5 text-emerald-300" />
         <h2 className="text-lg font-bold text-white">Instalado en tu sistema</h2>
@@ -1085,6 +1678,7 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
         data={data}
         aiReady={aiReady}
         actions={actions}
+        onOpenDetail={openDetail}
       />
     </div>
   );
