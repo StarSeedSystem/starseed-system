@@ -28,8 +28,15 @@ import {
 import { cn } from "@/lib/utils";
 import type { AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
 import type { ChatContext, UseChatTree } from "@/lib/aurora/chat-tree";
+import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { RouteChip } from "@/components/aurora/route-chip";
+// Menú contextual (clic derecho / long-press) + modal "Ver proceso" de un
+// mensaje — Adenda "Aurora siempre responde" (jul-2026). Reutiliza el mismo
+// hook de disparo (x,y) que el Finder de Bibliotecas.
+import { useContextTrigger } from "@/components/library/finder/use-context-trigger";
+import { MessageContextMenu, type ChatMessagePayload } from "@/components/aurora/message-context-menu";
+import { MessageProcessModal } from "@/components/aurora/message-process-modal";
 // Subida universal de archivos (Adenda 64 §9): el composer de Aurora solo
 // maneja TEXTO (el motor no tiene concepto de adjuntos estructurados) — el
 // botón de adjuntar sube el archivo e inserta su enlace en el draft; Aurora lo
@@ -44,6 +51,8 @@ export interface LiveMessage {
   role: "user" | "aurora";
   text: string;
   at?: number;
+  /** (Aditivo) Metadatos de proceso de esta respuesta — solo Aurora los lleva. */
+  meta?: AuroraMessageMeta;
 }
 
 /** Una acción ejecutada por Aurora (para el registro breve del chat). */
@@ -109,6 +118,12 @@ export interface AuroraChatViewProps {
 
   /** (fullscreen) Cerrar el overlay — muestra la X de cierre en la cabecera. */
   onClose?: () => void;
+
+  // ── Menú contextual de mensajes (clic derecho / long-press) ──
+  /** Crea una rama nueva con el historial hasta el mensaje elegido (incluido) y la abre. Sin este prop, la opción no se muestra. */
+  onBranchFromMessage?: (history: { role: "user" | "aurora"; text: string; ts: number }[], label: string) => void;
+  /** Reenvía el mensaje de usuario anterior a la respuesta elegida, opcionalmente forzando fuente/modelo. Sin este prop, no hay submenú "Reintentar". */
+  onRetryMessage?: (userText: string, forceSource?: { sourceId: string; modelId: string }) => void;
 }
 
 // ── Nodo del árbol (recursivo, con sangría + línea de rama) ──────────────────
@@ -372,6 +387,47 @@ function Transport(props: {
   );
 }
 
+// ── Línea de "proceso" sutil y expandible bajo una respuesta de Aurora ───────
+function ProcessLine({ meta, onOpenFull }: { meta: AuroraMessageMeta; onOpenFull: () => void }) {
+  const [open, setOpen] = useState(false);
+  const toolCount = meta.tools?.length ?? 0;
+  const summary = [
+    meta.local ? "respuesta local" : meta.provider || null,
+    typeof meta.ms === "number" ? `${meta.ms} ms` : null,
+    toolCount ? `${toolCount} herramienta${toolCount === 1 ? "" : "s"}` : null,
+  ].filter(Boolean).join(" · ");
+  if (!summary) return null;
+
+  return (
+    <div className="axc-process">
+      <button
+        type="button"
+        className="axc-process-toggle"
+        onClick={() => setOpen((v) => !v)}
+        title="Ver el proceso de esta respuesta"
+      >
+        <span className="axc-process-dot" aria-hidden />
+        proceso · {summary}
+        {open ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
+      </button>
+      {open && (
+        <div className="axc-process-detail">
+          {meta.reason && <p>{meta.reason}</p>}
+          {meta.tools?.map((t, i) => (
+            <div key={`${t.name}-${i}`} className="axc-process-tool">
+              <span className={cn("mt-1 h-1.5 w-1.5 shrink-0 rounded-full", t.ok ? "bg-[#39FF14]" : "bg-[#FFBF00]")} />
+              <span className="min-w-0 flex-1">{t.name} — {t.summary}</span>
+            </div>
+          ))}
+          <button type="button" className="axc-process-link" onClick={onOpenFull}>
+            Ver proceso completo
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Conversación (en vivo o sesión cargada) ──────────────────────────────────
 function Conversation(props: {
   auroraName: string;
@@ -380,9 +436,19 @@ function Conversation(props: {
   loadedSession?: LoadedSession | null;
   fmtTime: (ts?: number) => string;
   fill?: boolean;
+  onBranchFromMessage?: (history: { role: "user" | "aurora"; text: string; ts: number }[], label: string) => void;
+  onRetryMessage?: (userText: string, forceSource?: { sourceId: string; modelId: string }) => void;
 }) {
-  const { auroraName, visibleConvo, interim, loadedSession, fmtTime, fill } = props;
+  const {
+    auroraName, visibleConvo, interim, loadedSession, fmtTime, fill,
+    onBranchFromMessage, onRetryMessage,
+  } = props;
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Menú contextual (clic derecho / long-press) — un solo disparador para toda
+  // la conversación (vivo o cargada); el payload lleva el mensaje concreto.
+  const { menu, bind, close } = useContextTrigger<ChatMessagePayload>();
+  const [process, setProcess] = useState<{ open: boolean; meta?: AuroraMessageMeta }>({ open: false });
+  const openProcess = useCallback((meta: AuroraMessageMeta | undefined) => setProcess({ open: true, meta }), []);
 
   // Auto-scroll al fondo cuando cambia el contenido en vivo.
   const convoLen = visibleConvo.length;
@@ -410,13 +476,28 @@ function Conversation(props: {
           </div>
         ) : (
           loadedSession.entries.map((m, i) => (
-            <div key={`${m.ts}-${i}`} className={cn("axc-msg", m.role === "user" ? "user" : "aurora")}>
+            <div
+              key={`${m.ts}-${i}`}
+              className={cn("axc-msg", m.role === "user" ? "user" : "aurora")}
+              {...bind({
+                role: m.role,
+                text: m.text,
+                ts: m.ts,
+                meta: m.meta,
+                history: loadedSession.entries
+                  .slice(0, i + 1)
+                  .map((e) => ({ role: e.role, text: e.text, ts: e.ts })),
+              })}
+            >
               <div className="axc-role">
                 {m.role === "user" ? "Tú" : auroraName} · {fmtTime(m.ts)}
               </div>
               {/* Renderizador universal: markdown, código, tablas, JSON, SVG,
                   imágenes/vídeo/audio/PDF/3D/CSV… del mensaje */}
               <MessageRenderer text={m.text} compact={m.role === "user"} />
+              {m.role === "aurora" && m.meta && (
+                <ProcessLine meta={m.meta} onOpenFull={() => openProcess(m.meta)} />
+              )}
             </div>
           ))
         )
@@ -431,11 +512,26 @@ function Conversation(props: {
         </div>
       ) : (
         visibleConvo.map((m, i) => (
-          <div key={i} className={cn("axc-msg", m.role === "user" ? "user" : "aurora")}>
+          <div
+            key={i}
+            className={cn("axc-msg", m.role === "user" ? "user" : "aurora")}
+            {...bind({
+              role: m.role,
+              text: m.text,
+              ts: m.at ?? Date.now(),
+              meta: m.meta,
+              history: visibleConvo
+                .slice(0, i + 1)
+                .map((e) => ({ role: e.role, text: e.text, ts: e.at ?? 0 })),
+            })}
+          >
             <div className="axc-role">{m.role === "user" ? "Tú" : auroraName}</div>
             {/* Renderizador universal: markdown, código, tablas, JSON, SVG,
                 imágenes/vídeo/audio/PDF/3D/CSV… del mensaje */}
             <MessageRenderer text={m.text} compact={m.role === "user"} />
+            {m.role === "aurora" && m.meta && (
+              <ProcessLine meta={m.meta} onOpenFull={() => openProcess(m.meta)} />
+            )}
           </div>
         ))
       )}
@@ -445,6 +541,23 @@ function Conversation(props: {
           {interim}
         </div>
       )}
+
+      {menu && (
+        <MessageContextMenu
+          x={menu.x}
+          y={menu.y}
+          payload={menu.payload}
+          onClose={close}
+          onBranchFromMessage={onBranchFromMessage}
+          onRetryMessage={onRetryMessage}
+          onViewProcess={openProcess}
+        />
+      )}
+      <MessageProcessModal
+        open={process.open}
+        meta={process.meta}
+        onOpenChange={(o) => setProcess((p) => ({ ...p, open: o }))}
+      />
     </div>
   );
 }
@@ -457,6 +570,7 @@ export function AuroraChatView(props: AuroraChatViewProps) {
     draft, setDraft, onSubmitDraft, onExitLoadedSession, onAttachFile,
     onPause, onResume, onSkipBack, onSkipForward, onInterrupt,
     tree, onOpenContext, fmtTime, dayLabel, onClose,
+    onBranchFromMessage, onRetryMessage,
   } = props;
 
   const [treeOpen, setTreeOpen] = useState(false);
@@ -499,6 +613,8 @@ export function AuroraChatView(props: AuroraChatViewProps) {
         loadedSession={loadedSession}
         fmtTime={fmtTime}
         fill={twoColumn}
+        onBranchFromMessage={onBranchFromMessage}
+        onRetryMessage={onRetryMessage}
       />
 
       {/* Entrada + envío */}

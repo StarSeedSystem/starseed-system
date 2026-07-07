@@ -44,7 +44,8 @@ Renderizador universal de mensajes de chat: `src/components/aurora/message-rende
 4. **Failover**: prueba hasta 5 candidatos saltando los que están en **cooldown**. El primero que responde gana.
 5. **Registra** la ruta (`starseed.astraura.routes.v1`, evento `starseed:astraura-route`) con alternativas gratis y sugerencias de pago, y suma **uso**.
 6. **Transparencia**: `announceLine()` hace que Aurora diga qué usó y sus alternativas (según `announce`: al cambiar / siempre / nunca).
-7. Si TODO falla, error claro en es-ES (nunca silencio).
+7. Si TODO falla, **NUNCA** un error crudo: respuesta local honesta (plantilla
+   sin red) explicando qué se intentó + alternativas accionables. Ver §17.1.
 
 Enganche: `src/lib/aurora/engine.ts` → `runCommand` llama `astrauraChat` en vez de `chat`.
 
@@ -510,3 +511,114 @@ de chat externa, herramientas PDF, flujos, apps LLM) ya con su propia
 configuración self-host completa en `src/lib/integrations/registry.ts`
 (`defaultEndpoint`, `needsKey`, acciones) — duplicar ese estado en
 `IntelligenceSettings` sería redundante, no automatización real.
+
+---
+
+## 17. Garantía de respuesta, metadatos por mensaje y menú contextual (jul-2026 · adenda "Aurora siempre responde")
+
+### 17.1 Aurora SIEMPRE responde (nunca error crudo)
+
+`astrauraChat()` ya no termina nunca en una excepción cruda hacia la UI. Dos
+puntos endurecidos en `router.ts`:
+
+- **Sin candidatos** (`rankCandidates` vacío) y **cadena agotada** (todos los
+  candidatos + Pollinations fallaron) ya NO lanzan `throw`: construyen una
+  **respuesta local honesta** (`buildHonestFallback`, sin red, plantilla en
+  es-ES) que explica QUÉ se intentó (fuentes probadas) y ofrece alternativas
+  ACCIONABLES (activar una clave gratis, encender Ollama, reintentar). Se
+  registra como `RouteRecord` con `local:true`, `ok:true` (Aurora SÍ respondió,
+  con honestidad) y `attempts` = nº de fuentes probadas.
+- `engine.ts::runCommand` ya no propaga un `catch` con volcado crudo: el
+  mensaje final siempre es honesto + accionable (reformula, revisa conexión,
+  cambia de fuente en Ajustes → Inteligencia).
+- Rechazos LEGÍTIMOS (el modelo respondió pero se niega por seguridad/política)
+  NO entran en este camino: como sí hay texto, se tratan como una respuesta
+  normal (una negativa clara, no un error).
+- **Reintentar con proveedor concreto**: `AstrauraChatRequest.forceSource`
+  (`{sourceId, modelId}`) fuerza esa fuente para ESA llamada (lo usa
+  "Reintentar" del menú contextual); si no está disponible ahora, degrada al
+  ranking normal con una nota — nunca falla en seco.
+
+### 17.2 Sustitución automática de herramientas
+
+`aurora-tools.ts::runAuroraTool` prueba alternativas de la MISMA familia
+cuando una tool falla en tiempo de ejecución (`TOOL_ALTERNATES`, con guarda
+anti-ciclo): `web_search → scrape_url → buscar_web`, `scrape_url ⇄ crawl_url`.
+`actions.ts::tryRunIntegrationTool` hace lo mismo cuando la tool NI SIQUIERA
+está configurada (`findAvailableAlternate`): por ejemplo, si el usuario no
+configuró SearXNG, Aurora usa sola `buscar_web` (DuckDuckGo en el navegador,
+siempre listo, sin configuración). Toda sustitución se REGISTRA con
+transparencia: el mensaje resultante empieza con
+`[Sustitución automática: «X» → «Y»]` y ese texto entra en el metadato
+`tools[]` del mensaje (§17.3).
+
+### 17.3 Metadatos por mensaje
+
+Cada respuesta de Aurora guarda un `AuroraMessageMeta` (aditivo; los mensajes
+antiguos sin `meta` se siguen leyendo con normalidad) junto a la entrada de
+conversación en vivo (`engine.ts::ConversationEntry.meta`) y en el registro
+persistido (`aurora-chat-log.ts::AuroraChatLogEntry.meta`):
+
+    { provider, model, free, local, attempts, ms, difficulty, reason,
+      tools: [{ name, ok, summary, undo? }] }
+
+`pushReply(text, meta?)` SIEMPRE adjunta algo: si la respuesta vino de
+`astrauraChat`, el meta real (proveedor/modelo/intentos/duración/dificultad/
+herramientas); si fue una regla determinista del motor (sin modelo, p. ej.
+"Aurora activada"), un meta mínimo `{ local:true, reason:"Regla determinista…" }`.
+El evento `aurora:conversation` (bus del orbe) y el registro persistido
+propagan `meta` igual, sin romper el formato viejo.
+
+Bajo cada respuesta de Aurora, `aurora-chat-view.tsx` pinta una línea sutil
+"proceso" (proveedor · tiempo · nº de herramientas), plegable, estética
+Crystal (sin iconos-emoji). Al abrirla, o desde "Ver proceso" del menú
+contextual, se ve el detalle completo (`message-process-modal.tsx`).
+
+### 17.4 Menú contextual de mensajes (clic derecho / long-press)
+
+`message-context-menu.tsx` reutiliza `useContextTrigger` (mismo hook del
+Finder, `src/components/library/finder/use-context-trigger.ts`) para abrir un
+`DropdownMenu` posicionado en (x,y) sobre CUALQUIER mensaje de
+`aurora-chat-view.tsx::Conversation` (chat en vivo o sesión/contexto cargado).
+Acciones:
+
+- **Copiar mensaje** — portapapeles.
+- **Ramificar chat desde aquí** — crea un contexto hijo en el árbol EXISTENTE
+  (`chat-tree.ts::branchContext`/`createContext`, sin cambios en ese módulo) y
+  etiqueta con `tagAuroraMessage(ts, nuevoId)` todos los mensajes hasta ese
+  punto (incluido) del array de origen (vivo o cargado) — así el nuevo
+  contexto abre ya con el historial hasta ahí. Aparece en el árbol/selector de
+  contextos de la cabecera (ya existente).
+- **Ver proceso** — modal con el `AuroraMessageMeta` completo: proveedor,
+  modelo, intentos/fallbacks, duración, dificultad, herramientas invocadas
+  (nombre + resumen + sustitución si la hubo) y si algo es reversible.
+- **Reintentar** — reenvía el ÚLTIMO mensaje de usuario anterior a esta
+  respuesta (`engine.ts::send`/`runCommand` aceptan ahora un segundo argumento
+  opcional `{ forceSource }`); submenú con las fuentes/modelos disponibles
+  AHORA MISMO (`detectAvailability()`, mismo catálogo que "Modelo por tarea"
+  del panel de Inteligencia). Aditivo por diseño: añade una respuesta nueva al
+  final, no muta el historial existente (evita romper el registro persistido
+  ni el índice de ramas).
+- **Revertir cambios** — ejecuta el `undo` de las herramientas de ESE mensaje
+  que lo declararon (`src/lib/aurora/undo.ts::executeUndo`, tres tipos:
+  `library-item` con `removeSaved`, `widget` quitándolo del tablero guardado,
+  `setting` restaurando el valor previo). Si ninguna herramienta de ese
+  mensaje era reversible (navegación, texto conversacional, despacho de
+  agentes…), lo dice honestamente en vez de fingir un undo.
+- **Guardar en Biblioteca** — usa las MISMAS funciones que
+  `save-to-library.tsx` (`myLibraryDestinations` + `saveItem` de
+  `entity-library.ts`), guardando en "Mi biblioteca" por defecto (un clic, sin
+  abrir el selector de destino/carpeta del popover completo).
+
+Soporta long-press táctil (mismo umbral de 500ms que el Finder). No toca
+mensajes DM (`os_dm`), Biblioteca, Red ni el Composer.
+
+### 17.5 Selección automática de herramientas (toggle)
+
+`IntelligenceSettings.autoTools` (nuevo, default `true`) controla si
+`engine.ts::runCommand` incluye la sección de herramientas
+(`auroraToolsActionPromptSection`) en el system prompt de cada turno. Con
+`autoTools:false`, Aurora conversa sin evaluar/ofrecer tools (ni de pantalla,
+ni de integración, ni de contenido) — para quien prefiera un chat más
+predecible. Visible en Ajustes → Inteligencia, junto a "Enrutado por
+dificultad".

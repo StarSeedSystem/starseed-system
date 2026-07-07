@@ -140,3 +140,113 @@
   (entity_state(profile:<id>,'library-brains') = {mode:'all'|'selected', brains:[]}).
   **Por defecto: todos los cerebros disponibles, para todos los perfiles de la cuenta.**
   Aurora usa esa selección como contexto al actuar sobre la biblioteca.
+
+## 13. Versiones e historial por ítem (2026-07-07)
+- `SavedItem.versions?: ItemVersionEntry[]` (modelo v2.1, aditivo y tolerante — su ausencia
+  equivale a "sin historial todavía"). Cada entrada es un snapshot de `{title, note, content,
+  url, mime, language, description}` más `at/by/label`.
+- Hasta ahora no existía ninguna vía de UI para editar título/nota/contenido de un ítem YA
+  guardado (solo `saveItem` re-guardaba nota/carpeta al detectar el mismo `refId/route/url`).
+  Se añade `updateItemContent(ref,itemId,patch,opts?)`: ANTES de aplicar `patch`, si algún campo
+  versionable cambia, empuja el estado previo a `versions` (FIFO acotado a 25 entradas — evita
+  crecer sin límite el doc de biblioteca). UI: `EditItemDialog` (menú contextual → "Editar…").
+- `restoreItemVersion(ref,itemId,versionId)`: snapshotea el estado ACTUAL antes de restaurar
+  (para poder deshacer la propia restauración) y luego aplica los campos de la versión elegida.
+- `VersionsDialog` (menú contextual → "Versiones…"): lista fecha/autor, "Restaurar" y "Comparar
+  con actual" — diff de líneas simple (`simpleLineDiff` en `finder-types.ts`, LCS ingenuo pensado
+  para notas/código cortos, no un motor de diff completo).
+
+## 14. Ramas: vista de linaje + fusión (2026-07-07)
+- Nuevo campo `SavedItem.branchOf?: string` (v2.1): id ESTABLE, dentro de ESTA MISMA biblioteca,
+  del ítem inmediato del que se ramificó `replicateItem()`. Resuelve la ambigüedad de `refId2`
+  (que apunta al id del recurso en su sistema de origen, no al ítem local) permitiendo construir
+  un árbol de linaje fiable. Ramas creadas ANTES de esta clave (sin `branchOf`) se resuelven con
+  un fallback de mejor esfuerzo comparando `refId2` — documentado como best-effort, no garantizado.
+- `branchesOf(doc,itemId)` / `originOfBranch(doc,item)` (finder-types.ts): derivan hijos/padre.
+- `mergeBranch(ref,branchItemId,{removeBranchAfter?})`: escribe los campos actuales de la rama
+  (título/nota/contenido/url/tags…) sobre el ítem ORIGEN, snapshoteando antes el estado previo del
+  origen en SU historial de versiones (§13) — la fusión es reversible vía "Restaurar". Con
+  confirmación en UI (`BranchesDialog`); eliminar la rama tras fusionar es opcional y por defecto
+  DESMARCADO (no destructivo).
+
+## 15. Comentarios en archivos y carpetas (2026-07-07)
+- Hilo ligero por ítem/carpeta en `entity_state(ref, key='lib-comments:<targetId>')` — NO en el
+  doc principal de biblioteca, para no acoplar su LWW/tamaño a hilos que crecen sin límite. Capa
+  nueva `src/lib/library/item-comments.ts`. `targetId` = `item.id` o `folder.id` (ambos ya llevan
+  prefijo único de `makeId()`: `item-`/`folder-`/`alias-`/`branch-`, sin colisión entre espacios).
+- Realtime vía `subscribeEntityState` (mismo mecanismo que el resto de este SOP, §4).
+  `useLibComments(ref,targetId)`: alta/edición/borrado optimistas + reconciliación LWW simple.
+- UI: `CommentsDialog`, acción "Comentarios…" en el menú contextual (ítems y carpetas).
+
+## 16. Repositorios creables (estilo GitHub) dentro de la Biblioteca (2026-07-07)
+- **Decisión de diseño:** un "repositorio" es una `LibraryFolder` (§3, ya soporta anidación) con
+  metadatos añadidos `folder.repo?: RepoMeta` — reutiliza ÍNTEGRAMENTE `entity-library.ts` como
+  backend de su contenido (archivos/carpetas = ítems/carpetas normales dentro de esa carpeta) en
+  vez de inventar un almacén paralelo. `RepoMeta = { description?, visibility:'privado'|'publico',
+  license?, topics[], readme (markdown editable), releases: RepoRelease[], forkedFrom?, createdAt }`.
+- **Visibilidad pública** = publicable al catálogo comunitario (`library_public_items`, categoría
+  `"repo"` — ya prevista en `public-catalog.ts` desde la Adenda 64) mediante la función YA
+  EXISTENTE `publishFolder()`, sin duplicar lógica de publicación. "Publicar versión" (release con
+  nota) añade una entrada a `repo.releases[]` y, si el repo es público, vuelca de nuevo la carpeta
+  (nueva instantánea). Honesto: cada "release" pública es una fila nueva en `library_public_items`
+  (no un diff real de git) — así se explica en la UI.
+- Acciones estilo GitHub (`src/lib/library/user-repos.ts`, ficha `RepoDetailSheet`):
+  - **Replicar** (fork): copia recursiva de carpeta+ítems a la biblioteca del usuario actual, con
+    `repo.forkedFrom` apuntando al origen (propio o ajeno, si es visible por ACL).
+  - **Instalar**: solo si el repo contiene ítems `type:"package"` válidos → los instala vía
+    `packages.ts:install()` (reutilizado, cero lógica nueva). Si no hay ninguno, la acción se
+    OCULTA — honesto, nunca finge instalar algo que no es un paquete.
+  - **Descargar**: .zip client-side (`src/lib/files/simple-zip.ts`, formato ZIP sin compresión
+    "STORE", sin dependencias nuevas) con el README.md + contenido de los ítems (texto inline o
+    mejor esfuerzo de `fetch` de su `url`; lo que no se puede traer por CORS queda como referencia
+    de enlace dentro del zip — nunca se pierde silenciosamente).
+  - **Guardar / Compartir**: mismos mecanismos que el resto de la Biblioteca (`SaveToLibrary`,
+    enlace profundo `deepLinkForFolder`).
+- Creación: `CreateRepoDialog` (nombre/descripción/visibilidad/categoría/licencia/topics/README) →
+  `createRepo()`. Cualquier carpeta existente se puede "Convertir en repositorio…" (añade `repo`
+  meta sin mover nada).
+
+## 17. Repos externos conectados — GitHub, lectura pública (2026-07-07)
+- Nuevo `SavedItemType: "repo"` (a nivel de ÍTEM, distinto del folder-repo de §16): referencia a
+  un repositorio git externo con una instantánea de metadatos cacheada
+  (`SavedItem.connectedRepo?: ConnectedRepoMeta`) para poder listarlo/verlo offline.
+- Proxy de servidor GET-only `src/app/api/github-repo/[owner]/[repo]/route.ts` (mismo patrón que
+  `api/huggingbay`): combina en una sola llamada `GET /repos/{owner}/{repo}`, `/readme`
+  (decodificado de base64 en el servidor) y `/releases` de `api.github.com`. Sin token (lectura
+  pública) → límite honesto de 60 peticiones/hora por IP, avisado en la UI si se agota. Sin
+  superficie SSRF: host de destino fijo, `owner`/`repo` validados con regex estricta antes de
+  construir la URL.
+- `src/lib/library/connected-repos.ts`: `parseRepoUrl()`, `connectRepo()` (guarda el ítem),
+  `resyncConnectedRepo()` ("sincronizar metadatos"), `githubZipUrl()` (enlace directo al zip que
+  sirve GitHub — no pasa por nuestro proxy, es descarga/navegación directa del navegador),
+  `tryInstallManifest()` (intenta `starseed.repo.json` en la rama por defecto vía `addRepoByUrl()`
+  YA EXISTENTE de `packages.ts`; si no existe, honesto: "este repo no publica un catálogo de
+  paquetes StarSeed").
+- UI: `ConnectRepoDialog` (pegar URL) + `ConnectedRepoSheet` (ficha: README renderizado con
+  `react-markdown` —dependencia ya presente en el repo—, releases, acciones Sincronizar
+  /Instalar/Descargar/Guardar/Compartir/Abrir en GitHub). Mismo mecanismo sirve para "conectar" los
+  propios repos StarSeed builtin (URL de GitHub del proyecto).
+
+## 18. Menú contextual: más acciones por formato + destino de instalación + relacionados (2026-07-07)
+- `finder-view.tsx` calcula `extraActionsFor(item)` según `itemFormat()`/`item.type` y se las pasa
+  a `FinderContextMenu` como lista genérica `{label,icon,onClick}` — el menú NO hardcodea cada
+  formato, solo renderiza lo que le llega (extensible sin tocar el menú de nuevo):
+  - imagen → "Fondo de escritorio" (`setWallpaper` del escritorio activo, `desktop-store.ts`) y
+    "Foto de perfil" (`updateProfile(activeProfileId(),{avatarUrl})`, `profiles.ts`) — ambas
+    funciones ya existentes, sin lógica nueva de escritorio/perfil.
+  - markdown/código → "Copiar contenido" directo (sin abrir vista previa) y, solo markdown,
+    "Convertir en memoria de cerebro" (abre `InstallToDialog` en la pestaña Cerebro).
+  - audio/vídeo → "Reproducir en ventana" (`openWindow()` del escritorio activo con el contenido).
+  - zip → "Ver contenido" (lee el central directory del .zip vía `listZipEntries()` — solo
+    nombres/tamaños, sin descomprimir; honesto si el `fetch` falla por CORS).
+  - pdf → sin cambios (herramientas Stirling ya enlazadas en otra superficie del OS).
+- **"Instalar/guardar en…"** (`InstallToDialog`): un único diálogo con 4 destinos reales (nunca
+  inventados): Biblioteca/carpeta (`saveItem`), Escritorio como acceso directo (`addIcon` de
+  `desktop-store.ts`), Cerebro como memoria (empuja una referencia estable a
+  `Brain.includes.memories` vía `saveBrain()` — campo YA existente en `brains.ts`), Servidor/host
+  configurado (reenvía título/nota/url/contenido a un `BrainServer.endpoint` propio vía el proxy
+  genérico YA EXISTENTE `api/integrations/proxy` — marcado explícitamente como "mejor esfuerzo":
+  funciona si ese host expone `/starseed/import`, y se muestra la respuesta real, nunca un éxito
+  fingido).
+- **"Archivos relacionados"**: `relatedItemsOf(doc,item)` en `finder-types.ts` (mismas etiquetas o
+  misma carpeta, scoring simple) — sección en `ItemPreviewPane` bajo las etiquetas.

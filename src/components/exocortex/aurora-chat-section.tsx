@@ -228,6 +228,19 @@ const AXC_CSS = `
 .axc-msg.small{font-size:11px;padding:7px 11px;max-width:92%;animation:none;}
 .axc-role{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;opacity:.55;margin-bottom:2px;}
 @keyframes axc-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+/* ── Línea de "proceso" sutil bajo una respuesta (metadatos por mensaje) ── */
+.axc-process{margin-top:5px;}
+.axc-process-toggle{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:0;background:transparent;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;letter-spacing:.06em;color:rgba(255,238,242,.4);
+  padding:2px 0;transition:color .18s;}
+.axc-process-toggle:hover{color:rgba(255,238,242,.75);}
+.axc-process-dot{width:5px;height:5px;border-radius:50%;background:rgba(127,184,255,.6);flex:none;}
+.axc-process-detail{margin-top:5px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.07);font-size:10.5px;line-height:1.5;color:rgba(255,238,242,.65);
+  display:flex;flex-direction:column;gap:4px;}
+.axc-process-tool{display:flex;align-items:flex-start;gap:6px;}
+.axc-process-link{margin-top:2px;cursor:pointer;border:0;background:transparent;color:#7fb8ff;font-size:10px;text-align:left;padding:0;}
+.axc-process-link:hover{text-decoration:underline;}
 .axc-inputrow{display:flex;gap:8px;align-items:center;padding:5px;border-radius:18px;
   background:rgba(2,4,10,.72);border:1px solid rgba(148,163,184,.12);transition:border-color .2s, box-shadow .2s;}
 .axc-inputrow:focus-within{border-color:rgba(0,127,255,.55);box-shadow:0 0 0 3px rgba(0,127,255,.14), inset 0 1px 0 rgba(255,255,255,.04);}
@@ -347,6 +360,7 @@ const AXC_CSS = `
   .axc-mic.on::after{animation:none !important;}
   .axc-tree-act,.axc-tree-caret,.axc-tree-actions,.axc-tree-row,.axc-tree-title{transition:none !important;}
   .axc-tree-act:hover{transform:none;}
+  .axc-process-toggle,.axc-process-link{transition:none !important;}
 }
 `;
 
@@ -453,11 +467,13 @@ export function AuroraChatSection({ className }: { className?: string }) {
   const auroraName = activePersonality?.name || "Aurora";
 
   // ── Acciones unificadas ────────────────────────────────────────────────────
-  const doSend = useCallback(async (text: string) => {
+  // `opts.forceSource` (Adenda "Aurora siempre responde") solo lo soporta el
+  // motor real (`aurora.send`); el puente global degrada enviando normal.
+  const doSend = useCallback(async (text: string, opts?: { forceSource?: { sourceId: string; modelId: string } }) => {
     const t = (text ?? "").trim();
     if (!t) return;
     try {
-      if (aurora) await aurora.send(t);
+      if (aurora) await aurora.send(t, opts);
       else await sendToAurora(t);
     } catch { /* defensivo */ }
   }, [aurora]);
@@ -544,6 +560,34 @@ export function AuroraChatSection({ className }: { className?: string }) {
     });
     setTab("chat");
   }, [openContext]);
+
+  // ── Menú contextual de mensajes (Adenda "Aurora siempre responde") ─────────
+  // "Ramificar chat desde aquí": crea un contexto nuevo (hijo del activo si lo
+  // hay; si no, raíz) y le asocia TODO el historial hasta el mensaje elegido
+  // (índice paralelo de chat-tree.ts — no duplica datos del registro), luego
+  // lo abre. Reutiliza `openContext`, que ya sabe reconstruir la conversación
+  // cruzando timestamps con el registro.
+  const branchFromMessage = useCallback((
+    history: { role: "user" | "aurora"; text: string; ts: number }[],
+    label: string,
+  ) => {
+    const parentId = tree.activeId;
+    const newId = parentId ? tree.branchFrom(parentId, label) : tree.create(label);
+    for (const m of history) {
+      try { tree.tagMessage(m.ts, newId); } catch { /* defensivo */ }
+    }
+    openContext(newId);
+  }, [tree, openContext]);
+
+  // "Reintentar": reenvía el mensaje de usuario anterior a la respuesta
+  // elegida — APÉNDICE al chat en vivo (no muta el historial existente, ver
+  // architecture/astraura-inteligencia.md §17.4). Sale de cualquier sesión
+  // cargada para que la nueva respuesta sea visible de inmediato.
+  const retryMessage = useCallback((userText: string, forceSource?: { sourceId: string; modelId: string }) => {
+    setLoadedSession(null);
+    setTab("chat");
+    void doSend(userText, forceSource ? { forceSource } : undefined);
+  }, [doSend]);
 
   const doToggleVoice = useCallback(() => {
     try { if (aurora) aurora.toggle(); else toggleAuroraVoice(); } catch { /* */ }
@@ -921,6 +965,8 @@ export function AuroraChatSection({ className }: { className?: string }) {
             onOpenContext={openContext}
             fmtTime={fmtTime}
             dayLabel={dayLabel}
+            onBranchFromMessage={branchFromMessage}
+            onRetryMessage={retryMessage}
           />
 
           {!supported && ready && (
@@ -1171,6 +1217,8 @@ export function AuroraChatSection({ className }: { className?: string }) {
         onOpenContext={openContext}
         fmtTime={fmtTime}
         dayLabel={dayLabel}
+        onBranchFromMessage={branchFromMessage}
+        onRetryMessage={retryMessage}
       />
     </div>
   );

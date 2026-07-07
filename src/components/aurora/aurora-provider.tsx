@@ -262,8 +262,12 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
   }, [engine.interim, engine.transcript]);
 
   // ── Emisor de conversación: un CustomEvent por CADA mensaje (voz o texto) ──
-  // detail = { role: "user" | "aurora", text, ts }. Diff por identidad de las
-  // entradas (el motor reutiliza los objetos al anexar), robusto al ring buffer.
+  // detail = { role: "user" | "aurora", text, ts, meta? }. `meta` (aditivo,
+  // jul-2026): metadatos de proceso de la respuesta (proveedor/modelo/
+  // intentos/duración/dificultad/herramientas) — ausente en mensajes de
+  // usuario y en registros antiguos, nunca rompe a quien no lo lea. Diff por
+  // identidad de las entradas (el motor reutiliza los objetos al anexar),
+  // robusto al ring buffer.
   const seenConvoRef = useRef<WeakSet<ConversationEntry> | null>(null);
   if (seenConvoRef.current === null) seenConvoRef.current = new WeakSet();
   const convoInitRef = useRef(false);
@@ -283,7 +287,7 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       try {
         window.dispatchEvent(
           new CustomEvent(AURORA_CONVERSATION_EVENT, {
-            detail: { role: m.role, text: m.text, ts: m.at },
+            detail: { role: m.role, text: m.text, ts: m.at, meta: m.meta },
           }),
         );
       } catch { /* */ }
@@ -452,6 +456,14 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
         const seed = await import("@/lib/library/defaults-seed");
         if (!stopped) await seed.ensureDefaultsSeeded();
       } catch { /* la biblioteca sigue usable sin sembrar */ }
+      try {
+        // Grafos de memorias + cerebros avanzados (Adenda 66): Astraura
+        // escucha chat/sync/Biblioteca y genera/actualiza memorias sola
+        // (debounced, solo en cerebros en modo 'write'). Ver
+        // architecture/cerebros-memorias-graphify.md §6. Aditivo/idempotente.
+        const memInt = await import("@/ai/astraura/memory-intelligence");
+        if (!stopped) memInt.startMemoryIntelligenceAutoUpdate();
+      } catch { /* */ }
       try {
         const dev = await import("@/lib/install/device-install");
         if (!stopped) dev.initPwaCapture?.();

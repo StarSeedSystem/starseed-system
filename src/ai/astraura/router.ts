@@ -37,6 +37,7 @@ import { chromeAiChat, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown } from "./usage";
 import { skillsSystemPrompt, skillsRoutingBias } from "./skills";
 import { systemContextPrompt, screenContextLine } from "./context";
+import { buildUserContext, getUserContextSettings } from "./user-context";
 
 /* ───────────────────── Ajustes de Inteligencia ───────────────────── */
 
@@ -98,6 +99,15 @@ export interface IntelligenceSettings {
     /** Bandera ligera: avisa al proxy de que puede aplicar SU compresión de contexto. */
     compressionHint: boolean;
   };
+  /**
+   * SELECCIÓN AUTOMÁTICA DE HERRAMIENTAS (jul-2026, "Aurora siempre responde"):
+   * cuando está ON (por defecto), cada turno evalúa e inyecta en el system
+   * prompt las herramientas relevantes por contexto (pantalla, integraciones,
+   * generar/usar contenido, contexto de usuario — `aurora-tools.ts`), y Aurora
+   * decide sola cuándo invocarlas. Con OFF, Aurora conversa sin ofrecer/usar
+   * ninguna tool (chat más predecible). Ver architecture/astraura-inteligencia.md §17.5.
+   */
+  autoTools: boolean;
 }
 
 export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
@@ -121,6 +131,7 @@ export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
     endpoint: "http://localhost:8000",
     compressionHint: false,
   },
+  autoTools: true,
 };
 
 /** Fusiona `IntelligenceSettings` respetando el merge ANIDADO de `huggingBay` y
@@ -368,6 +379,14 @@ export interface RouteRecord {
   paidSuggestions: { label: string; model: string; getKeyUrl?: string }[];
   /** Fallos previos de la cadena en esta llamada (si hubo failover). */
   failovers?: { sourceId: string; error: string }[];
+  /**
+   * true = NINGUNA fuente real respondió y esto es la respuesta LOCAL honesta
+   * (plantilla sin red, "Aurora siempre responde"). `ok` sigue en true porque
+   * Aurora SÍ contestó — con transparencia — en vez de fallar en seco.
+   */
+  local?: boolean;
+  /** Nº de fuentes probadas en esta llamada (incluye la que ganó, si ganó alguna). */
+  attempts?: number;
 }
 
 export function readRouteLog(): RouteRecord[] {
@@ -409,6 +428,13 @@ export interface AstrauraChatRequest {
   brainId?: string;
   /** Estado para la UI ("Eligiendo modelo…", "Usando Groq…"). */
   onStatus?: (status: string) => void;
+  /**
+   * FUERZA una fuente/modelo concreto SOLO para esta llamada (lo usa
+   * "Reintentar" del menú contextual de mensajes, con un proveedor elegido a
+   * mano). Si esa fuente no está disponible ahora mismo, degrada al ranking
+   * normal (nunca falla en seco por un forceSource obsoleto).
+   */
+  forceSource?: { sourceId: string; modelId: string };
 }
 
 /** Tiempo máximo por candidato antes de pasar al siguiente (nunca cuelga). */
@@ -518,6 +544,83 @@ async function runCandidate(c: RouteCandidate, req: AstrauraChatRequest): Promis
   });
 }
 
+/* ───────────────────── Garantía de respuesta ("Aurora siempre responde") ───────────────────── */
+
+/**
+ * Construye, SIN red, una respuesta final HONESTA cuando ninguna fuente de
+ * inteligencia pudo atender la petición: explica qué se intentó y ofrece
+ * alternativas ACCIONABLES (conectar una clave gratis, encender un modelo
+ * local, reintentar). Pura y defensiva: nunca lanza. NO es una IA real — el
+ * `RouteRecord` que la acompaña se marca `local:true` para que la UI (línea de
+ * "proceso" / modal "Ver proceso") lo muestre con transparencia total.
+ * Ver architecture/astraura-inteligencia.md §17.1.
+ */
+function buildHonestFallback(
+  profile: TaskProfile,
+  failovers: { sourceId: string; error: string }[],
+  avail: SourceAvailability[],
+): string {
+  const triedLabels = failovers
+    .map((f) => findSource(f.sourceId)?.label ?? f.sourceId)
+    .filter(Boolean);
+  const lines: string[] = [
+    triedLabels.length
+      ? `No conseguí respuesta de ninguna fuente de inteligencia ahora mismo (probé: ${triedLabels.join(", ")}).`
+      : "No conseguí respuesta de ninguna fuente de inteligencia ahora mismo (no encontré ninguna disponible).",
+    "Puede ser un corte de conexión, un límite gratuito agotado, o que esas fuentes estén saturadas — no es que no quiera ayudarte; te lo digo con honestidad en vez de fingir una respuesta.",
+  ];
+
+  const actions: string[] = [];
+  const missingFreeKey = avail
+    .filter((a) => !a.ready && a.source.tier === "free-key" && a.source.getKeyUrl)
+    .slice(0, 2);
+  for (const a of missingFreeKey) {
+    actions.push(`conecta una clave gratuita de ${a.source.label} en Ajustes → Inteligencia`);
+  }
+  const localReady = avail.some((a) => a.source.tier === "local" && a.ready);
+  if (!localReady) actions.push("enciende Ollama o LM Studio en este equipo (Aurora los detecta solos)");
+  actions.push("vuelve a intentarlo en un momento");
+  if (actions.length) lines.push(`Puedes: ${actions.join("; ")}.`);
+  lines.push(`Petición detectada: ${TASK_LABELS[profile.kind]}. El detalle completo queda en Ajustes → Inteligencia (registro de rutas) y en "Ver proceso" de este mensaje.`);
+  return lines.join("\n\n");
+}
+
+/** RouteRecord que acompaña a `buildHonestFallback` (mismo contrato que uno real, marcado `local:true`). */
+function honestFallbackRecord(
+  profile: TaskProfile,
+  failovers: { sourceId: string; error: string }[],
+  avail: SourceAvailability[],
+  lastTried: RouteCandidate | undefined,
+): RouteRecord {
+  return {
+    at: Date.now(),
+    task: profile.kind,
+    taskLabel: TASK_LABELS[profile.kind],
+    sourceId: "local-honest-fallback",
+    sourceLabel: "Aurora (respuesta local)",
+    model: "template",
+    modelLabel: "plantilla honesta",
+    providerModel: "local/honest-fallback",
+    tier: "local",
+    free: true,
+    reason: lastTried
+      ? `Todas las fuentes probadas fallaron (última: ${lastTried.source.label}).`
+      : "No había ninguna fuente de inteligencia disponible (ni siquiera las gratuitas).",
+    ok: true,
+    local: true,
+    ms: 0,
+    difficulty: profile.difficulty,
+    alternatives: [],
+    paidSuggestions: paidSuggestionsFor(profile.kind).map((p) => ({
+      label: p.source.label,
+      model: p.model.label,
+      getKeyUrl: p.source.getKeyUrl,
+    })),
+    ...(failovers.length ? { failovers } : {}),
+    attempts: failovers.length,
+  };
+}
+
 /**
  * Punto de entrada agéntico. Gratis-primero + failover + transparencia.
  * En modo "manual" delega en el chat clásico (proveedor activo del usuario).
@@ -534,7 +637,18 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   const capText = skillsSystemPrompt();
   let ctxText = "";
   try { ctxText = [systemContextPrompt(), screenContextLine()].filter(Boolean).join("\n\n"); } catch { /* defensivo */ }
-  const brainExtra = [ctxText, capText].filter(Boolean).join("\n\n");
+  // Contexto TOTAL del usuario (perfiles, grupos, archivos, publicaciones, mensajes
+  // sin cuerpo, notificaciones, recordatorios, escritorios, espacios) — SOLO si el
+  // usuario lo activó (Ajustes → Aurora e IA; por defecto ON) y hay sesión. Con
+  // timeout corto para que una red lenta NUNCA bloquee la respuesta de Aurora.
+  let userCtxText = "";
+  try {
+    const ucSettings = getUserContextSettings();
+    if (ucSettings.enabled) {
+      userCtxText = await withTimeout(buildUserContext(ucSettings.defaultLevel), 3500, "contexto de usuario").catch(() => "");
+    }
+  } catch { /* defensivo: Aurora sigue funcionando sin contexto */ }
+  const brainExtra = [ctxText, capText, userCtxText].filter(Boolean).join("\n\n");
   const messages = brainExtra ? mergeSystemPrompt(req.messages, brainExtra) : req.messages;
   const reqX: AstrauraChatRequest = brainExtra ? { ...req, messages } : req;
 
@@ -561,17 +675,31 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   const candidates = rankCandidates(profile, avail, prefs);
 
   if (!candidates.length) {
-    throw new Error(
-      "No encontré ninguna fuente de inteligencia disponible (ni siquiera las gratuitas). Revisa tu conexión o Ajustes → Inteligencia."
-    );
+    // GARANTÍA DE RESPUESTA ("Aurora siempre responde"): ni siquiera hay
+    // candidatos (caso extremo — catálogo vacío/offline total). NUNCA un error
+    // crudo: respuesta local honesta explicando qué pasó + alternativas.
+    const rec = honestFallbackRecord(profile, [], avail, undefined);
+    pushRouteRecord(rec);
+    req.onStatus?.("");
+    return { text: buildHonestFallback(profile, [], avail), route: rec };
   }
 
   const failovers: { sourceId: string; error: string }[] = [];
   // Saltamos fuentes en cooldown (cuota agotada / 429 reciente): así Aurora
   // SIEMPRE sigue funcionando con la siguiente mejor opción disponible.
-  const chain = candidates.filter((c) => !isCoolingDown(c.source.id)).slice(0, 8);
+  let chain = candidates.filter((c) => !isCoolingDown(c.source.id)).slice(0, 8);
   // Si TODO estaba en cooldown, reintenta igualmente con la mejor (por si ya pasó).
   if (!chain.length && candidates.length) chain.push(candidates[0]);
+  // REINTENTAR con proveedor elegido a mano (menú contextual de mensajes,
+  // "Reintentar"): si sigue disponible AHORA se prueba en solitario; si ya no
+  // lo está, degradamos con normalidad al ranking automático de arriba (nunca
+  // falla en seco por un forceSource obsoleto).
+  if (req.forceSource) {
+    const forced = candidates.find(
+      (c) => c.source.id === req.forceSource!.sourceId && c.model.id === req.forceSource!.modelId,
+    );
+    if (forced) chain = [forced];
+  }
   // ÚLTIMO RECURSO garantizado: Pollinations (gratis, SIN clave, siempre disponible).
   // Así Aurora casi NUNCA tiene que decir "hubo un error": si por lo que sea no
   // quedó en la cadena, lo añadimos al final para que SIEMPRE haya una IA que
@@ -614,6 +742,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
           getKeyUrl: p.source.getKeyUrl,
         })),
         ...(failovers.length ? { failovers } : {}),
+        attempts: failovers.length + 1,
       };
       pushRouteRecord(rec);
       req.onStatus?.("");
@@ -629,32 +758,14 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     }
   }
 
-  // Toda la cadena falló: registra el último intento como fallido.
+  // Toda la cadena falló: GARANTÍA DE RESPUESTA — NUNCA un error crudo. En vez
+  // de lanzar, Aurora contesta con una respuesta LOCAL honesta (sin red) que
+  // explica qué probó y qué puede hacer el usuario. Ver §17.1 de la doc.
   const last = chain[chain.length - 1];
-  pushRouteRecord({
-    at: Date.now(),
-    task: profile.kind,
-    taskLabel: TASK_LABELS[profile.kind],
-    sourceId: last.source.id,
-    sourceLabel: last.source.label,
-    model: last.model.id,
-    modelLabel: last.model.label,
-    providerModel: toProviderModel(last.source, last.model),
-    tier: last.source.tier,
-    free: last.source.tier !== "paid",
-    reason: last.reason,
-    ok: false,
-    ms: 0,
-    difficulty: profile.difficulty,
-    alternatives: [],
-    paidSuggestions: [],
-    failovers,
-  });
+  const rec = honestFallbackRecord(profile, failovers, avail, last);
+  pushRouteRecord(rec);
   req.onStatus?.("");
-  throw new Error(
-    `No pude usar ninguna fuente (${failovers.map((f) => f.sourceId).join(" → ")}). ` +
-    `Último error: ${failovers[failovers.length - 1]?.error ?? "desconocido"}`
-  );
+  return { text: buildHonestFallback(profile, failovers, avail), route: rec };
 }
 
 /**
@@ -663,6 +774,9 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
  */
 export function announceLine(rec: RouteRecord | null | undefined): string {
   if (!rec || !rec.ok) return "";
+  // La respuesta LOCAL honesta (§17.1) ya se explica sola: anunciarla encima
+  // ("He usado Aurora (respuesta local)…") sería ruido, no transparencia.
+  if (rec.local) return "";
   const prefs = getIntelligenceSettings();
   if (prefs.announce === "never") return "";
   if (prefs.announce === "on-change") {
