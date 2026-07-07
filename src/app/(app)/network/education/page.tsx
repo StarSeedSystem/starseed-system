@@ -4,15 +4,31 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { articles, courses, categories, themes } from "@/lib/data";
-import { BookOpen, Newspaper, Star, ChevronRight, Workflow, Tags, ThumbsUp, MessageCircle } from "lucide-react";
+import {
+    BookOpen,
+    Newspaper,
+    Star,
+    ChevronRight,
+    Workflow,
+    Tags,
+    ThumbsUp,
+    MessageCircle,
+    LayoutGrid,
+    Rows3,
+    Map as MapIcon,
+    Network,
+} from "lucide-react";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CommentSystem } from "@/components/comment-system";
 import { ConocimientoCard } from "./conocimiento-card";
 import { SystemShowcase } from "@/components/showcase/SystemShowcase";
+import { TopicGraph } from "@/components/education/topic-graph";
+import { builtinTree, type EduTreeNode } from "@/lib/education/curriculum";
 
 
 function CourseCard({ course, className }: { course: (typeof courses)[0], className?: string }) {
@@ -204,7 +220,184 @@ function ThemeNetworkView() {
     )
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Contenido Destacado: más opciones de vista (tarjetas/lista) + filtros por
+// categoría (rama del catálogo educativo) y nivel. El nivel se lee de una
+// convención ligera en `tags` (principiante/intermedio/avanzado) — no requiere
+// cambiar el esquema de Course/Article, coherente con cómo ThemeNetworkView ya
+// usa `tags` para cruzar contenido con temas.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LEVEL_KEYWORDS = ["principiante", "intermedio", "avanzado"] as const;
+
+function levelOfTags(tags: string[]): string | null {
+    const lower = tags.map((t) => t.toLowerCase());
+    return LEVEL_KEYWORDS.find((k) => lower.includes(k)) ?? null;
+}
+
+function namesUnderCategory(root: EduTreeNode): Set<string> {
+    const set = new Set<string>();
+    const walk = (n: EduTreeNode) => {
+        set.add(n.name.toLowerCase());
+        n.children.forEach(walk);
+    };
+    walk(root);
+    return set;
+}
+
+type ContentViewMode = "tarjetas" | "lista";
+
+function FeaturedContentView({ onGoToMap }: { onGoToMap: () => void }) {
+    const [view, setView] = useState<ContentViewMode>("tarjetas");
+    const [categoryId, setCategoryId] = useState<string>("todas");
+    const [level, setLevel] = useState<string>("todos");
+
+    const categoryRoots = useMemo(() => builtinTree(), []);
+    const categoryNameSets = useMemo(() => {
+        const m = new Map<string, Set<string>>();
+        for (const r of categoryRoots) m.set(r.id, namesUnderCategory(r));
+        return m;
+    }, [categoryRoots]);
+
+    const matchesCategory = (tags: string[]) => {
+        if (categoryId === "todas") return true;
+        const set = categoryNameSets.get(categoryId);
+        if (!set) return true;
+        const lower = tags.map((t) => t.toLowerCase());
+        return lower.some((t) => set.has(t));
+    };
+
+    const matchesLevel = (tags: string[]) => {
+        if (level === "todos") return true;
+        const l = levelOfTags(tags);
+        if (level === "sin-nivel") return l === null;
+        return l === level;
+    };
+
+    const filteredCourses = useMemo(
+        () => courses.filter((c) => matchesCategory(c.tags) && matchesLevel(c.tags)),
+        [categoryId, level, categoryNameSets],
+    );
+    const filteredArticles = useMemo(
+        () => articles.filter((a) => matchesCategory(a.tags) && matchesLevel(a.tags)),
+        [categoryId, level, categoryNameSets],
+    );
+
+    const isEmpty = courses.length === 0 && articles.length === 0;
+    const noResults = !isEmpty && filteredCourses.length === 0 && filteredArticles.length === 0;
+
+    if (isEmpty) {
+        return (
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/12 p-12 text-center">
+                <BookOpen className="h-10 w-10 text-muted-foreground" />
+                <h2 className="text-xl font-bold font-headline">Aún no hay contenido destacado</h2>
+                <p className="max-w-md text-sm text-muted-foreground">
+                    Todavía no se han publicado cursos ni artículos en la red. Crea el primero o explora las categorías y
+                    temas de conocimiento.
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-black/20 p-2">
+                <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/30 p-1">
+                    <Button
+                        size="sm"
+                        variant={view === "tarjetas" ? "default" : "ghost"}
+                        className="h-7 gap-1.5 px-2 text-xs"
+                        onClick={() => setView("tarjetas")}
+                    >
+                        <LayoutGrid className="h-3.5 w-3.5" /> Tarjetas
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant={view === "lista" ? "default" : "ghost"}
+                        className="h-7 gap-1.5 px-2 text-xs"
+                        onClick={() => setView("lista")}
+                    >
+                        <Rows3 className="h-3.5 w-3.5" /> Lista
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 gap-1.5 px-2 text-xs" onClick={onGoToMap}>
+                        <MapIcon className="h-3.5 w-3.5" /> Mapa
+                    </Button>
+                </div>
+
+                <Select value={categoryId} onValueChange={setCategoryId}>
+                    <SelectTrigger className="h-8 w-auto min-w-[160px] text-xs">
+                        <SelectValue placeholder="Categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="todas">Todas las categorías</SelectItem>
+                        {categoryRoots.map((r) => (
+                            <SelectItem key={r.id} value={r.id}>
+                                {r.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select value={level} onValueChange={setLevel}>
+                    <SelectTrigger className="h-8 w-auto min-w-[140px] text-xs">
+                        <SelectValue placeholder="Nivel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="todos">Todos los niveles</SelectItem>
+                        <SelectItem value="principiante">Principiante</SelectItem>
+                        <SelectItem value="intermedio">Intermedio</SelectItem>
+                        <SelectItem value="avanzado">Avanzado</SelectItem>
+                        <SelectItem value="sin-nivel">Sin nivel indicado</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {noResults ? (
+                <div className="rounded-2xl border border-dashed border-white/12 p-8 text-center text-sm text-muted-foreground">
+                    Ningún curso o artículo coincide con estos filtros.
+                </div>
+            ) : view === "tarjetas" ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredCourses.map((c) => (
+                        <CourseCard key={c.id} course={c} />
+                    ))}
+                    {filteredArticles.map((a) => (
+                        <ArticleCard key={a.id} article={a} />
+                    ))}
+                </div>
+            ) : (
+                <div className="flex flex-col divide-y divide-white/10 rounded-2xl border border-white/10">
+                    {filteredCourses.map((c) => (
+                        <Link key={c.id} href={c.href} className="flex items-center gap-3 p-3 transition hover:bg-white/5">
+                            <BookOpen className="h-4 w-4 shrink-0 text-primary" />
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">{c.title}</p>
+                                <p className="truncate text-xs text-muted-foreground">{c.tags.join(" · ")}</p>
+                            </div>
+                            <span className="shrink-0 text-xs text-muted-foreground">{c.progress}%</span>
+                        </Link>
+                    ))}
+                    {filteredArticles.map((a) => (
+                        <Link key={a.id} href={a.href} className="flex items-center gap-3 p-3 transition hover:bg-white/5">
+                            <Newspaper className="h-4 w-4 shrink-0 text-accent" />
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">{a.title}</p>
+                                <p className="truncate text-xs text-muted-foreground">{a.tags.join(" · ")}</p>
+                            </div>
+                            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                                <Star className="h-3 w-3 text-yellow-500" /> {a.rating.toFixed(1)}
+                            </span>
+                        </Link>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function EducationPage() {
+  const [tab, setTab] = useState("network");
+
   return (
     <>
     {/* Red de Conocimiento (Módulo 3) — enlace + explicación de cómo se conecta con cursos/temas */}
@@ -212,10 +405,11 @@ export default function EducationPage() {
       <ConocimientoCard />
     </div>
 
-    <Tabs defaultValue="network" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-auto">
+    <Tabs value={tab} onValueChange={setTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
             <TabsTrigger value="network" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Red de Categorías</TabsTrigger>
             <TabsTrigger value="themes" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Red de Temas</TabsTrigger>
+            <TabsTrigger value="conocimiento" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Mapa del Conocimiento</TabsTrigger>
             <TabsTrigger value="featured" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Contenido Destacado</TabsTrigger>
         </TabsList>
 
@@ -227,28 +421,24 @@ export default function EducationPage() {
             <ThemeNetworkView />
         </TabsContent>
 
+        <TabsContent value="conocimiento" className="mt-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl flex items-center gap-2"><Network /> Mapa del Conocimiento</CardTitle>
+                    <CardDescription>
+                        Categoría → tema → subtema del catálogo educativo, en vista Lista, Mapa 2D o Red 3D. Cada tema
+                        muestra su ruta de aprendizaje y el contenido real vinculado. Los grupos de estudio pueden
+                        adoptar temas de aquí en su propio Temario.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <TopicGraph />
+                </CardContent>
+            </Card>
+        </TabsContent>
+
         <TabsContent value="featured" className="mt-6">
-            {courses.length === 0 && articles.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/12 p-12 text-center">
-                    <BookOpen className="h-10 w-10 text-muted-foreground" />
-                    <h2 className="text-xl font-bold font-headline">Aún no hay contenido destacado</h2>
-                    <p className="max-w-md text-sm text-muted-foreground">
-                        Todavía no se han publicado cursos ni artículos en la red. Crea el primero
-                        o explora las categorías y temas de conocimiento.
-                    </p>
-                </div>
-            ) : (
-                <div className="flex flex-col gap-8">
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {courses.map((c) => (
-                            <CourseCard key={c.id} course={c} />
-                        ))}
-                        {articles.map((a) => (
-                            <ArticleCard key={a.id} article={a} />
-                        ))}
-                    </div>
-                </div>
-            )}
+            <FeaturedContentView onGoToMap={() => setTab("conocimiento")} />
         </TabsContent>
     </Tabs>
 

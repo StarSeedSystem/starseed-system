@@ -1,21 +1,108 @@
 // src/app/(app)/network/politics/page.tsx
 'use client'
 
+import { useState } from "react";
 import { PoliticalProposalCard } from "@/components/political-proposal-card";
+import ProposalComposer from "@/components/governance/proposal-composer";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, Scale, Users, Landmark, Flag, ArrowUpRight } from "lucide-react";
-import { politicalProposals } from "@/lib/data";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { BarChart, Scale, Users, Landmark, Flag, ArrowUpRight, Loader2 } from "lucide-react";
+import { createClient } from "@/utils/supabase/client";
+import { useRealtimeRows } from "@/lib/realtime/realtime";
+import type { Proposal } from "@/lib/governance/types";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { listFederativeEntities, listPartidos } from "@/data/sample-governance";
 
 import { ExecutiveProjectsBoard, JudicialCaseList } from "./components";
 import { OntocraciaDecisionesCard } from "./ontocracia-decisiones";
 import { SystemShowcase } from "@/components/showcase/SystemShowcase";
+
+// Ámbitos relevantes para el Área Política (mismo criterio que en el resto del front).
+const POLITICAL_SCOPES = ["global", "community", "page", "group", "account"];
+// Las consultas judiciales viven en su propia pestaña (components.tsx) — se excluyen aquí.
+const JUDICIAL_KINDS = ["consulta_constitucional", "impugnacion"];
+
+async function loadLegislativeProposals(): Promise<Proposal[]> {
+    if (typeof window === "undefined") return [];
+    try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+            .from("proposals")
+            .select("*")
+            .in("scope", POLITICAL_SCOPES)
+            .order("created_at", { ascending: false })
+            .limit(50);
+        if (error) return [];
+        return ((data as Proposal[]) ?? []).filter((p) => !JUDICIAL_KINDS.includes(p.kind));
+    } catch {
+        return [];
+    }
+}
+
+type LegislativeFilter = "open" | "all";
+
+/** Feed real de propuestas legislativas del Área Política (motor de Ontocracia). */
+function LegislativeFeed() {
+    const { rows, loading, reload } = useRealtimeRows<Proposal>("proposals", loadLegislativeProposals);
+    const [filter, setFilter] = useState<LegislativeFilter>("open");
+
+    // Nota: el parche en vivo de useRealtimeRows añade/reemplaza filas sin
+    // reaplicar el filtro del loader (kind judicial) — lo reforzamos aquí para
+    // que un INSERT/UPDATE ajeno no cuele una consulta judicial en Legislativo.
+    const base = rows.filter((p) => !JUDICIAL_KINDS.includes(p.kind));
+    const filtered = filter === "open" ? base.filter((p) => p.status === "open") : base;
+
+    return (
+        <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Iniciativas legislativas ({filtered.length})
+                </span>
+                <div className="ml-auto flex gap-1.5">
+                    {([
+                        { id: "open", label: "Abiertas" },
+                        { id: "all", label: "Todas" },
+                    ] as { id: LegislativeFilter; label: string }[]).map((f) => (
+                        <button
+                            key={f.id}
+                            onClick={() => setFilter(f.id)}
+                            className={cn(
+                                "cursor-pointer rounded-full border px-2.5 py-1 text-[11px]",
+                                filter === f.id
+                                    ? "border-primary/50 bg-primary/10 text-primary"
+                                    : "border-white/10 text-muted-foreground hover:text-foreground",
+                            )}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {loading ? (
+                <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Cargando iniciativas…
+                </div>
+            ) : filtered.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-white/10 py-6 text-center text-sm text-muted-foreground">
+                    Aún no hay iniciativas legislativas {filter === "open" ? "abiertas" : ""} en la red. Lanza la primera con
+                    "+ Nueva Iniciativa".
+                </p>
+            ) : (
+                <div className="space-y-4">
+                    {filtered.map((p) => (
+                        <PoliticalProposalCard key={p.id} proposal={p} onChange={reload} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
 
 /** Lanzador de gobernanza: enlaza a las páginas de detalle de E.F. y partidos. */
 function GovernanceLauncher() {
@@ -79,9 +166,18 @@ function GovernanceLauncher() {
     );
 }
 
+const NEW_INITIATIVE_TYPES: { id: "law" | "project"; label: string; kind: string }[] = [
+    { id: "law", label: "Propuesta de Ley", kind: "decision" },
+    { id: "project", label: "Proyecto Ejecutivo", kind: "project" },
+];
+
 export default function PoliticsPage() {
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [initiativeType, setInitiativeType] = useState<"law" | "project">("law");
+    const selectedKind = NEW_INITIATIVE_TYPES.find((t) => t.id === initiativeType)?.kind ?? "decision";
+
     return (
-        <Dialog>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <div className="relative">
                 <div className="absolute top-0 right-0 z-10">
                     <DialogTrigger asChild>
@@ -100,12 +196,12 @@ export default function PoliticsPage() {
 
                     <TabsContent value="legislativo" className="mt-6 animate-in fade-in-50 duration-500 slide-in-from-bottom-2">
                         <div className="space-y-6">
-                            {/* Ontocracia · Decisiones (en vivo) — propuestas democráticas + deep-link a /decisiones */}
+                            {/* Ontocracia · Decisiones (en vivo) — teaser + deep-link a /decisiones */}
                             <OntocraciaDecisionesCard />
 
-                            {politicalProposals.map(p => (
-                                <PoliticalProposalCard key={p.id} proposal={p} />
-                            ))}
+                            {/* Feed real y avanzado: opciones dinámicas, enmiendas, voto líquido,
+                                registro verificable, cuenta regresiva y contexto de Aurora. */}
+                            <LegislativeFeed />
                         </div>
                     </TabsContent>
 
@@ -133,26 +229,37 @@ export default function PoliticsPage() {
                 <SystemShowcase system="politico" />
             </div>
 
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Crear Nueva Iniciativa</DialogTitle>
                     <DialogDescription>
-                        Lanza una propuesta legislativa, proyecto ejecutivo o caso judicial.
+                        Lanza una propuesta legislativa u proyecto ejecutivo. Ambas se deciden por votación democrática
+                        (Ontocracia); si se aprueba, aparece en el tablero del Ejecutivo para su ejecución. Para casos
+                        judiciales, usa "Nueva consulta" en la pestaña Judicial.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-4">
                     <div className="grid gap-2">
                         <Label htmlFor="type" className="text-right">Tipo</Label>
-                        <select id="type" className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                            <option value="law">Propuesta de Ley</option>
-                            <option value="project">Proyecto Ejecutivo</option>
-                            <option value="dispute">Caso Judicial</option>
+                        <select
+                            id="type"
+                            value={initiativeType}
+                            onChange={(e) => setInitiativeType(e.target.value as "law" | "project")}
+                            className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                            {NEW_INITIATIVE_TYPES.map((t) => (
+                                <option key={t.id} value={t.id}>{t.label}</option>
+                            ))}
                         </select>
                     </div>
+                    <ProposalComposer
+                        key={initiativeType}
+                        scope="global"
+                        political
+                        initial={{ kind: selectedKind }}
+                        onCreated={() => setDialogOpen(false)}
+                    />
                 </div>
-                <DialogFooter>
-                    <Button type="submit">Iniciar Proceso Ontocrático</Button>
-                </DialogFooter>
             </DialogContent>
         </Dialog >
     );

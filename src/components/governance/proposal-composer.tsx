@@ -24,6 +24,7 @@ import {
   Flag,
   Zap,
   Network,
+  CalendarRange,
 } from "lucide-react";
 import { createProposal } from "@/lib/governance/engine";
 import { COMMAND_TYPES, commandTypeById } from "@/lib/governance/commands";
@@ -38,6 +39,15 @@ import {
   type ProposalOption,
   type Urgency,
 } from "@/lib/governance/types";
+import AffectedEntitiesPicker from "@/components/governance/affected-entities-picker";
+import {
+  attachPoliticalMeta,
+  sendAffectedNotifications,
+  DURATION_PRESETS,
+  MIN_POLITICAL_VOTING_MINUTES,
+  type AffectedEntity,
+  type DurationPreset,
+} from "@/lib/governance/political";
 
 const ATTACH_TYPES: { id: AttachmentType; label: string }[] = [
   { id: "text", label: "Texto" },
@@ -78,11 +88,17 @@ export default function ProposalComposer({
   scopeRef,
   initial = {},
   onCreated,
+  political = false,
 }: {
   scope: string;
   scopeRef?: string;
   initial?: ProposalComposerInitial;
   onCreated?: (proposalId: string) => void;
+  /** Revela los campos avanzados del Área Política: duración mínima 1 día,
+   *  entidades "afecta a" y umbral de promoción de opciones dinámicas.
+   *  Aditivo: por defecto es `false` y el compositor se comporta EXACTAMENTE
+   *  igual que antes en el resto de superficies (grupos/páginas/decisiones). */
+  political?: boolean;
 }) {
   const [title, setTitle] = useState(() => initial.title ?? "");
   const [description, setDescription] = useState(() => initial.description ?? "");
@@ -105,6 +121,11 @@ export default function ProposalComposer({
   );
   const [minPercent, setMinPercent] = useState<number>(() => initial.params?.minPercent ?? 0);
   const [threshold, setThreshold] = useState<number>(() => initial.params?.threshold ?? 50);
+
+  // Campos avanzados del Área Política (sólo se muestran/usan si `political`).
+  const [affects, setAffects] = useState<AffectedEntity[]>([]);
+  const [durationPreset, setDurationPreset] = useState<DurationPreset | null>(null);
+  const [promoteThreshold, setPromoteThreshold] = useState<number>(3);
 
   // Alcance SUPRA-COMUNITARIO (federación) — opcional/aditivo. Si no se añaden
   // objetivos, la propuesta es de ámbito único (comportamiento clásico).
@@ -172,6 +193,11 @@ export default function ProposalComposer({
   function applyUrgency(u: Urgency) {
     setUrgency(u);
     setVotingMinutes(URGENCY[u].votingMinutes);
+  }
+
+  function applyDurationPreset(preset: DurationPreset) {
+    setDurationPreset(preset);
+    setVotingMinutes(DURATION_PRESETS.find((p) => p.id === preset)?.minutes ?? MIN_POLITICAL_VOTING_MINUTES);
   }
 
   function addOption() {
@@ -270,6 +296,8 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
           ? { targets: validTargets, census: reachCensus, quorum: reachQuorum }
           : null;
 
+      const effectiveVotingMinutes = political ? Math.max(votingMinutes, MIN_POLITICAL_VOTING_MINUTES) : votingMinutes;
+
       const res = await createProposal({
         scope,
         scopeRef: scopeRef || null,
@@ -279,7 +307,7 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
         options,
         attachments,
         command,
-        params: { votingMinutes, minParticipants, minPercent, threshold, urgency },
+        params: { votingMinutes: effectiveVotingMinutes, minParticipants, minPercent, threshold, urgency },
         reach,
       });
 
@@ -287,6 +315,16 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
         toast.error(res.error ?? "No se pudo crear la propuesta.");
       } else {
         toast.success("Propuesta publicada y notificada");
+        // Área Política (aditivo): adjunta afecta-a/umbral/duración y notifica a
+        // las entidades etiquetadas. Best-effort: nunca bloquea ni rompe el alta.
+        if (political && res.id) {
+          const createdTitle = title;
+          const createdAffects = affects;
+          void attachPoliticalMeta(res.id, { affects: createdAffects, promoteThreshold, durationPreset });
+          if (createdAffects.length > 0) {
+            void sendAffectedNotifications(res.id, createdTitle, createdAffects);
+          }
+        }
         // reset
         setTitle("");
         setDescription("");
@@ -303,6 +341,9 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
         setReachCensus("union");
         setReachQuorum("aggregate");
         setAiPrompt("");
+        setAffects([]);
+        setDurationPreset(null);
+        setPromoteThreshold(3);
         // notifica al panel para recargar
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("gov:proposal-created"));
@@ -591,6 +632,53 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
           </label>
         </div>
       </div>
+
+      {/* Área Política (aditivo, sólo si `political`): duración mínima 1 día,
+          entidades afectadas y umbral de opciones dinámicas. */}
+      {political && (
+        <div className="rounded-lg border border-emerald-500/25 bg-emerald-950/10 p-3 space-y-3">
+          <div className="flex items-center gap-1.5 text-[11px] text-emerald-200/80">
+            <CalendarRange className="h-3.5 w-3.5" /> Duración de la votación (política · mínimo 1 día)
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {DURATION_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => applyDurationPreset(p.id)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[11px]",
+                  durationPreset === p.id
+                    ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-50"
+                    : "border-white/10 bg-white/5 text-white/60 hover:border-white/30",
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {votingMinutes < MIN_POLITICAL_VOTING_MINUTES && (
+            <p className="text-[10px] text-amber-300/70">
+              Las decisiones políticas exigen un mínimo de 1 día de votación — se ajustará automáticamente al publicar.
+            </p>
+          )}
+
+          <div className="text-[11px] text-emerald-200/80">¿Afecta a alguna entidad? (comunidades, E.F., partidos…)</div>
+          <AffectedEntitiesPicker value={affects} onChange={setAffects} />
+
+          <label className="block text-[11px] text-white/50">
+            Umbral de promoción de opciones dinámicas (nº de "promociones" para que una alternativa propuesta pase a
+            ser opción oficial de la votación)
+            <Input
+              type="number"
+              min={1}
+              value={promoteThreshold}
+              onChange={(e) => setPromoteThreshold(Math.max(1, Number(e.target.value) || 1))}
+              className="mt-1 h-8 w-24 bg-white/5 text-xs"
+            />
+          </label>
+        </div>
+      )}
 
       {/* Alcance supra-comunitario (federación) — opcional/aditivo */}
       <div className="rounded-lg border border-violet-500/20 bg-violet-950/10 p-3 space-y-2">

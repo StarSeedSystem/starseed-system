@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Trophy,
   ArrowRight,
+  Clock,
 } from "lucide-react";
 import type { ProposalNotification } from "@/lib/governance/types";
 
@@ -24,6 +25,8 @@ const KIND_META: Record<string, { label: string; cls: string; icon: typeof Bell 
   vote_request: { label: "Te toca votar", cls: "border-emerald-400/40 text-emerald-200 bg-emerald-500/10", icon: Vote },
   affected: { label: "Te afecta", cls: "border-amber-400/40 text-amber-200 bg-amber-500/10", icon: AlertTriangle },
   result: { label: "Resultado", cls: "border-cyan-400/40 text-cyan-200 bg-cyan-500/10", icon: Trophy },
+  // Recordatorio inteligente (50% del tiempo / último día) — módulo Área Política.
+  reminder: { label: "Recordatorio", cls: "border-amber-400/40 text-amber-200 bg-amber-500/10", icon: Clock },
 };
 
 export default function GovNotifications() {

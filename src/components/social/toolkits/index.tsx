@@ -25,6 +25,13 @@ export interface GovernanceToolkitProps {
     accent?: string;
     /** Nombre legible de la entidad (opcional). */
     name?: string;
+    /**
+     * Tabla real que respalda este slug: "group" (os_groups, p.ej. círculo/
+     * colectivo) o "page" (os_pages, p.ej. página de tipo proyecto). Sólo lo
+     * usa GrupoToolkit (sección Educación) para elegir el ámbito correcto de
+     * entity_state; el resto de toolkits lo ignora. Por defecto "group".
+     */
+    entityKind?: "group" | "page";
 }
 
 /** ¿Este tipo dispone de un toolkit funcional propio? */
@@ -37,9 +44,9 @@ export function toolkitMeta(kind: string): EntityKindMeta {
     return entityKindMeta(kind);
 }
 
-export function GovernanceToolkit({ kind, slug, accent, name }: GovernanceToolkitProps) {
+export function GovernanceToolkit({ kind, slug, accent, name, entityKind }: GovernanceToolkitProps) {
     const meta = entityKindMeta(kind);
-    const props = { slug, accent: accent ?? meta.accent, name };
+    const props = { slug, accent: accent ?? meta.accent, name, entityKind: entityKind ?? "group" as const };
 
     switch (meta.toolkit) {
         case "partido":

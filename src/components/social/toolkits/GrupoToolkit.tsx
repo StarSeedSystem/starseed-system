@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
+import { GroupEducationPanel } from "@/components/education/group-education-panel";
 import { getGroup, type GroupData } from "@/data/sample-governance";
 import {
   Users2,
@@ -266,19 +267,30 @@ export function GrupoToolkit({
   slug,
   accent,
   name,
+  entityKind = "group",
 }: {
   slug: string;
   accent?: string;
   name?: string;
+  /** "group" (círculo/colectivo real, os_groups) o "page" (página de tipo proyecto, os_pages) — decide el ámbito de entity_state para la sección Educación. */
+  entityKind?: "group" | "page";
 }) {
   const data = getGroup(slug);
   const ac = accent ?? "#22d3ee";
 
+  // Los datos de ejemplo (sample-governance) están vacíos a propósito — el
+  // círculo/proyecto real vive en Supabase. La sección Educación NO depende de
+  // ellos (persiste en entity_state con el slug real), así que sigue siendo
+  // funcional aunque no haya sesiones/tareas/recursos de muestra que mostrar.
   if (!data) {
     return (
-      <EmptyHint>
-        Aún no hay información de este círculo. Crea la primera sesión, tarea o recurso para empezar.
-      </EmptyHint>
+      <div className="space-y-6">
+        <EmptyHint>
+          Aún no hay sesiones, tareas o recursos de muestra en este círculo — sus herramientas educativas de abajo sí
+          son reales y ya funcionan.
+        </EmptyHint>
+        <GroupEducationPanel slug={slug} accent={ac} entityKind={entityKind} />
+      </div>
     );
   }
 
@@ -332,6 +344,13 @@ export function GrupoToolkit({
             Eventos
           </TabsTrigger>
           <TabsTrigger
+            value="educacion"
+            className="cursor-pointer whitespace-nowrap"
+          >
+            <GraduationCap size={13} className="mr-1.5 inline" />
+            Educación
+          </TabsTrigger>
+          <TabsTrigger
             value="decisiones"
             className="cursor-pointer whitespace-nowrap"
           >
@@ -354,6 +373,10 @@ export function GrupoToolkit({
 
         <TabsContent value="eventos" className="mt-4">
           <TabEventos data={data} ac={ac} />
+        </TabsContent>
+
+        <TabsContent value="educacion" className="mt-4">
+          <GroupEducationPanel slug={slug} accent={ac} entityKind={entityKind} />
         </TabsContent>
 
         <TabsContent value="decisiones" className="mt-4">
