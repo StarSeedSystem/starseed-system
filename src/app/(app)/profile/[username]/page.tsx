@@ -253,17 +253,17 @@ export default function ProfilePage() {
                 <div className={activeTab === 'agenda' ? "lg:col-span-3" : "lg:col-span-2"}>
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
                         <TabsList className="overflow-x-auto flex-nowrap w-full justify-start md:justify-center">
-                            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                            <TabsTrigger value="dashboard" className="shrink-0 flex-none">Dashboard</TabsTrigger>
                             {hasToolkit(pageType) && (
-                                <TabsTrigger value="gobierno">{toolkitMeta(pageType).toolkitTab}</TabsTrigger>
+                                <TabsTrigger value="gobierno" className="shrink-0 flex-none">{toolkitMeta(pageType).toolkitTab}</TabsTrigger>
                             )}
-                            <TabsTrigger value="agenda">Agenda</TabsTrigger>
-                            <TabsTrigger value="posts">Publicaciones</TabsTrigger>
-                            <TabsTrigger value="connections">Conexiones</TabsTrigger>
-                            <TabsTrigger value="library">Biblioteca</TabsTrigger>
-                            <TabsTrigger value="collections">Colecciones</TabsTrigger>
-                            <TabsTrigger value="enlaces">Enlaces</TabsTrigger>
-                            <TabsTrigger value="archivos">Archivos</TabsTrigger>
+                            <TabsTrigger value="agenda" className="shrink-0 flex-none">Agenda</TabsTrigger>
+                            <TabsTrigger value="posts" className="shrink-0 flex-none">Publicaciones</TabsTrigger>
+                            <TabsTrigger value="connections" className="shrink-0 flex-none">Conexiones</TabsTrigger>
+                            <TabsTrigger value="library" className="shrink-0 flex-none">Biblioteca</TabsTrigger>
+                            <TabsTrigger value="collections" className="shrink-0 flex-none">Colecciones</TabsTrigger>
+                            <TabsTrigger value="enlaces" className="shrink-0 flex-none">Enlaces</TabsTrigger>
+                            <TabsTrigger value="archivos" className="shrink-0 flex-none">Archivos</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="dashboard" className="mt-6">

@@ -422,9 +422,138 @@
 
 /* Tamaño compacto para tiles/chips densos. */
 .ss-icon-3d--sm { --ss-icon-size: 36px; }
+/* Tamaño amplio para heros/cabeceras (dock expandido, tarjetas de biblioteca). */
+.ss-icon-3d--lg { --ss-icon-size: 56px; }
+
+/* Barrido especular al hover/focus (opt-in): mismo lenguaje que .ss-metal
+   pero para el icono cristal — banda de luz que cruza en 220ms. Se apila
+   sin pisar el resto de capas del icono (z-index propio + overflow hidden
+   solo en el propio elemento vía la clase, no afecta a .ss-icon-3d base). */
+.ss-icon-3d--sheen {
+  position: relative;
+  overflow: hidden;
+}
+.ss-icon-3d--sheen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.32) 48%,
+    rgba(255, 255, 255, 0.05) 56%,
+    transparent 74%
+  );
+  transform: translateX(-140%) skewX(-14deg);
+  transition: transform 260ms var(--ease-glide, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.ss-icon-3d--sheen:hover::before,
+.ss-icon-3d--sheen:focus-visible::before {
+  transform: translateX(220%) skewX(-14deg);
+}
 
 /* ═══════════════════════════════════════════════════════════════════
-   8 · ACCESIBILIDAD — prefers-reduced-motion
+   9 · VARIANTES DE INTENSIDAD — .ss-crystal--sutil / --media / --alta
+   Mismo lenguaje visual de .ss-crystal, distinta "cantidad de cristal":
+   sutil (paneles secundarios, listas densas), media (por defecto,
+   equivalente a .ss-crystal a secas) y alta (heroes, modales, superficie
+   protagonista). Solo ajustan opacidad/blur/sombra — cero JS, additivo.
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-crystal--sutil {
+  backdrop-filter: blur(calc(var(--glass-blur, 20px) * 0.55)) saturate(130%);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur, 20px) * 0.55)) saturate(130%);
+  box-shadow:
+    0 2px 8px -4px rgba(0, 0, 0, 0.2),
+    0 10px 24px -14px rgba(var(--ss-mat-rgb), 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+.ss-crystal--sutil::before { opacity: 0.32; }
+.ss-crystal--sutil::after { opacity: 0.32; }
+
+.ss-crystal--alta {
+  backdrop-filter: blur(calc(var(--glass-blur, 20px) + 10px)) saturate(170%);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur, 20px) + 10px)) saturate(170%);
+  box-shadow:
+    0 10px 30px -8px rgba(0, 0, 0, 0.5),
+    0 32px 72px -26px rgba(var(--ss-mat-rgb), 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -20px 40px -26px rgba(var(--ss-mat-rgb), 0.4);
+}
+.ss-crystal--alta::before { opacity: 0.72; }
+.ss-crystal--alta::after { opacity: 0.62; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   10 · REFLEJO DINÁMICO AL HOVER — .ss-crystal-sheen (opt-in)
+   Banda de luz que se desliza sobre CUALQUIER superficie .ss-crystal*
+   al pasar el cursor/foco (200-300ms, transform-only). No colisiona con
+   ::before/::after del cristal (usa un tercer pseudo vía elemento real
+   NO requerido: se apoya en background-position del propio host).
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-crystal-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.ss-crystal-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.16) 42%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.16) 58%,
+    transparent 80%
+  );
+  background-size: 220% 220%;
+  background-position: -60% -60%;
+  opacity: 0;
+  transition: opacity 220ms ease, background-position 280ms var(--ease-glide, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.ss-crystal-sheen:hover::after,
+.ss-crystal-sheen:focus-within::after {
+  opacity: 1;
+  background-position: 60% 60%;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   11 · LUZ AMBIENTAL DINÁMICA — --ambient-tint
+   Variable derivada del acento activo del OS (--primary-hsl/--primary-rgb
+   YA varían por tema claro/oscuro/gris/natural/cristal/café y por
+   data-materia — ver globals.css). Superficies de cristal pueden LEER
+   --ambient-tint para "teñirse" del ambiente sin JS adicional: cuando
+   cambia el tema o el fondo activo (Materia Viva), el tinte seguirá.
+   Los nodos Trinity (.ss-tone--*) pueden sobrescribirlo con su propio
+   color cardinal cuando el material vive DENTRO de un nodo concreto.
+   ═══════════════════════════════════════════════════════════════════ */
+:root {
+  --ambient-tint: hsl(var(--primary-hsl, 270 20% 60%) / 0.12);
+  --ambient-tint-strong: hsl(var(--primary-hsl, 270 20% 60%) / 0.24);
+  --ambient-tint-rgb: var(--primary-rgb, 160, 43, 238);
+}
+
+/* Dentro de un nodo Trinity, el ambiente se tiñe del color cardinal en
+   vez del acento genérico del tema (más fiel a "de qué zona procede"). */
+.ss-tone--zenith  { --ambient-tint: rgba(var(--ss-zenith-rgb), 0.12);  --ambient-tint-strong: rgba(var(--ss-zenith-rgb), 0.26);  --ambient-tint-rgb: var(--ss-zenith-rgb); }
+.ss-tone--horizon { --ambient-tint: rgba(var(--ss-horizon-rgb), 0.12); --ambient-tint-strong: rgba(var(--ss-horizon-rgb), 0.26); --ambient-tint-rgb: var(--ss-horizon-rgb); }
+.ss-tone--logic   { --ambient-tint: rgba(var(--ss-logic-rgb), 0.12);   --ambient-tint-strong: rgba(var(--ss-logic-rgb), 0.26);   --ambient-tint-rgb: var(--ss-logic-rgb); }
+.ss-tone--anchor  { --ambient-tint: rgba(var(--ss-anchor-rgb), 0.12);  --ambient-tint-strong: rgba(var(--ss-anchor-rgb), 0.26);  --ambient-tint-rgb: var(--ss-anchor-rgb); }
+
+/* Utilidad lista para usar: aplica el tinte ambiental como halo interior
+   suave sobre cualquier superficie (glass-card, ss-crystal, paneles). No
+   sustituye el fondo — se apila como sombra interna adicional, barata. */
+.ss-ambient-glow {
+  box-shadow: inset 0 0 0 1px var(--ambient-tint), inset 0 0 32px -16px var(--ambient-tint-strong);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   12 · ACCESIBILIDAD — prefers-reduced-motion
    Congela toda animación/transición continua del sistema de materiales.
    ═══════════════════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
@@ -437,10 +566,24 @@
 
   .ss-tilt,
   .ss-press,
-  .ss-metal::before {
+  .ss-metal::before,
+  .ss-icon-3d--sheen::before,
+  .ss-crystal-sheen::after {
     transition: none;
   }
 
   .ss-tilt:hover { transform: none; }
   .ss-metal:hover::before { transform: translateX(-140%) skewX(-12deg); }
+  .ss-icon-3d--sheen:hover::before { transform: translateX(-140%) skewX(-14deg); }
+  .ss-crystal-sheen:hover::after { opacity: 0.4; background-position: -60% -60%; }
+}
+
+/* Modo eco del OS (html[data-perf="eco"], ver globals.css): además de la
+   congelación global de animaciones, apaga los efectos de hover más caros
+   (sheen deslizante) para máxima fluidez en gama baja/móvil. El cristal
+   base (blur, bordes, sombras) se mantiene — ya degrada su --glass-blur. */
+html[data-perf="eco"] .ss-icon-3d--sheen::before,
+html[data-perf="eco"] .ss-crystal-sheen::after {
+  transition: none;
+  display: none;
 }

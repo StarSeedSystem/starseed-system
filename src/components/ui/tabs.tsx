@@ -63,8 +63,8 @@ const TabsTrigger = React.forwardRef<
       <TabsPrimitive.Trigger
         ref={ref}
         className={cn(
-          "flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-full px-5 py-2 text-sm font-medium outline-offset-2 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 disabled:pointer-events-none disabled:opacity-50",
-          "text-foreground/70 hover:text-foreground data-[state=active]:bg-foreground/10 data-[state=active]:text-foreground data-[state=active]:shadow-lg border border-transparent data-[state=active]:border-foreground/20 backdrop-blur-sm",
+          "flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-full px-5 py-2 text-sm font-medium outline-offset-2 cursor-pointer transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 disabled:pointer-events-none disabled:opacity-50",
+          "text-foreground/70 hover:text-foreground hover:bg-foreground/5 data-[state=active]:bg-foreground/10 data-[state=active]:text-foreground data-[state=active]:shadow-lg border border-transparent data-[state=active]:border-foreground/20 backdrop-blur-sm",
           className,
         )}
         {...props}
@@ -76,7 +76,7 @@ const TabsTrigger = React.forwardRef<
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
-        "flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-full px-5 py-2 text-sm font-medium outline-offset-2 transition-all hover:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:shadow-black/5",
+        "flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-full px-5 py-2 text-sm font-medium outline-offset-2 cursor-pointer transition-all duration-200 hover:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:shadow-black/5",
         isCrystal && "crystal-tab-trigger data-[state=active]:bg-transparent data-[state=active]:shadow-none",
         className,
       )}

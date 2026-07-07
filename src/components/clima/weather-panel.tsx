@@ -26,12 +26,24 @@ import {
     formatHour, formatWeekday, formatTemp,
     type ClimaForecast, type ClimaPlace, type ClimaIconKey,
 } from "@/lib/clima/weather";
+import { WeatherFxOverlay, type WeatherFxKind } from "@/modules/weather/components/widgets/terrestrial/weather-fx-overlay";
 
 // Resuelve la clave de icono del mapa WMO a un componente lucide concreto.
 const ICON_MAP: Record<ClimaIconKey, LucideIcon> = {
     Sun, Moon, CloudSun, CloudMoon, Cloud, Cloudy, CloudFog,
     CloudDrizzle, CloudRain, CloudSnow, Snowflake, CloudLightning,
 };
+
+// Traduce el código WMO del hero a la capa atmosférica sutil (CSS puro) que la
+// acompaña visualmente. Puramente de presentación — no altera el dato en sí.
+function fxKindFromWeatherCode(code: number, isDay: boolean): WeatherFxKind {
+    if ([95, 96, 99].includes(code)) return "rain"; // tormenta → lluvia intensificada
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return "snow";
+    if ([45, 48].includes(code)) return "fog";
+    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return "rain";
+    if (code === 0 && isDay) return "sun-rays";
+    return "none"; // nublado/parcial/noche despejada: sin overlay (evita ruido)
+}
 
 function WeatherIcon({
     code, isDay, className,
@@ -188,7 +200,7 @@ export function WeatherPanel() {
     );
 
     return (
-        <section className="rounded-3xl border border-white/10 bg-white/[0.025] p-4 sm:p-5 backdrop-blur-xl">
+        <section className="glass-depth rounded-3xl border border-white/10 bg-white/[0.025] p-4 sm:p-5 backdrop-blur-xl transition-shadow duration-300">
             {/* Cabecera */}
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2.5">
@@ -265,12 +277,13 @@ export function WeatherPanel() {
                     transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
                     className="space-y-4"
                 >
-                    {/* Hero: clima actual */}
+                    {/* Hero: clima actual — cristal líquido con overlay atmosférico sutil */}
                     <div
-                        className="relative overflow-hidden rounded-2xl border border-white/10 p-5"
+                        className="glass-depth ss-crystal-sheen relative overflow-hidden rounded-2xl border border-white/10 p-5 transition-shadow duration-300"
                         style={{ background: `linear-gradient(135deg, ${cond.accent}1f, transparent 70%)` }}
                     >
-                        <div className="flex flex-wrap items-center justify-between gap-4">
+                        <WeatherFxOverlay kind={fxKindFromWeatherCode(current.weatherCode, current.isDay)} />
+                        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
                             <div className="flex items-center gap-4">
                                 <WeatherIcon code={current.weatherCode} isDay={current.isDay} className="size-16 sm:size-20 drop-shadow" />
                                 <div>
@@ -293,7 +306,7 @@ export function WeatherPanel() {
 
                     {/* Por hora (próximas 24h) */}
                     {hourly.length > 0 && (
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
+                        <div className="glass-depth rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
                             <p className="mb-2.5 flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-white/50">
                                 <Thermometer className="size-3.5" /> Próximas horas
                             </p>
@@ -314,7 +327,7 @@ export function WeatherPanel() {
 
                     {/* 7 días */}
                     {daily.length > 0 && (
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
+                        <div className="glass-depth rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
                             <p className="mb-2.5 flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-white/50">
                                 <Gauge className="size-3.5" /> Pronóstico de 7 días
                             </p>

@@ -1,0 +1,248 @@
+/* ============================================================================
+   weather-effects — overlays de clima en CSS PURO (sin Framer Motion).
+   ----------------------------------------------------------------------------
+   Complementa (NO sustituye) el motor `WeatherScene` de weather-basic-widget
+   y sus variantes hermanas (aurora/crystalline/fluid/flora), que ya generan
+   capas equivalentes vía motion.div — esas siguen intactas.
+
+   Este módulo es para sitios que quieren la MISMA sensación atmosférica sin
+   pagar el coste de Framer Motion: climate-map, atmosphere-view, weather-panel,
+   o cualquier futuro widget de clima que solo necesite un contenedor
+   `position: relative; overflow: hidden` + una clase activable.
+
+   Uso:
+     <div className={cn("relative overflow-hidden", styles.scene, styles.rain)}>
+       ...contenido...
+     </div>
+
+   Clases activables (combinables, aunque normalmente se usa una a la vez):
+     .rain      — lluvia ligera (líneas cayendo + velo de humedad sutil)
+     .snow      — copos cayendo con deriva lateral suave
+     .fog       — bancos de niebla horizontal que respiran
+     .sunRays   — sol con god-rays suaves (rayos cónicos + halo)
+
+   Todas las capas:
+     · Solo animan transform/opacity (compositor, cero repaints de layout).
+     · Usan @keyframes reales (no inline JS), así el freeze global de
+       html[data-perf="eco"] (animation-duration: 0.001ms !important) las
+       detiene automáticamente sin necesidad de lógica adicional aquí.
+     · Traen su propio bloque prefers-reduced-motion que las calma/oculta.
+     · pointer-events: none — nunca interceptan clicks del contenido/mapa.
+   ============================================================================ */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   LLUVIA LIGERA — líneas finas cayendo + velo de humedad muy sutil.
+   14 gotas repartidas por %, cada una con su propio retraso vía nth-child
+   para que no se sincronicen (efecto natural, no metronómico).
+   ──────────────────────────────────────────────────────────────────────── */
+.rain {
+  --rain-tint: rgba(148, 197, 230, 0.55);
+}
+
+.rain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, rgba(120, 160, 200, 0.06));
+  opacity: 0.7;
+}
+
+.rainDrop {
+  position: absolute;
+  top: -12%;
+  width: 1px;
+  height: 18%;
+  border-radius: 2px;
+  background: linear-gradient(to bottom, transparent, var(--rain-tint));
+  opacity: 0;
+  animation: weatherFxRainFall 0.85s linear infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes weatherFxRainFall {
+  0%   { transform: translateY(0); opacity: 0; }
+  8%   { opacity: 0.85; }
+  92%  { opacity: 0.5; }
+  100% { transform: translateY(650%); opacity: 0; }
+}
+
+/* Distribución + retardo por gota (posiciones deterministas, sin JS). */
+.rainDrop:nth-child(1)  { left: 4%;  animation-delay: 0.00s; animation-duration: 0.78s; }
+.rainDrop:nth-child(2)  { left: 11%; animation-delay: 0.12s; animation-duration: 0.92s; }
+.rainDrop:nth-child(3)  { left: 18%; animation-delay: 0.30s; animation-duration: 0.70s; }
+.rainDrop:nth-child(4)  { left: 25%; animation-delay: 0.05s; animation-duration: 0.88s; }
+.rainDrop:nth-child(5)  { left: 33%; animation-delay: 0.42s; animation-duration: 0.75s; }
+.rainDrop:nth-child(6)  { left: 41%; animation-delay: 0.18s; animation-duration: 0.95s; }
+.rainDrop:nth-child(7)  { left: 49%; animation-delay: 0.55s; animation-duration: 0.68s; }
+.rainDrop:nth-child(8)  { left: 57%; animation-delay: 0.08s; animation-duration: 0.85s; }
+.rainDrop:nth-child(9)  { left: 65%; animation-delay: 0.36s; animation-duration: 0.80s; }
+.rainDrop:nth-child(10) { left: 73%; animation-delay: 0.22s; animation-duration: 0.90s; }
+.rainDrop:nth-child(11) { left: 81%; animation-delay: 0.48s; animation-duration: 0.72s; }
+.rainDrop:nth-child(12) { left: 88%; animation-delay: 0.15s; animation-duration: 0.82s; }
+.rainDrop:nth-child(13) { left: 95%; animation-delay: 0.60s; animation-duration: 0.77s; }
+.rainDrop:nth-child(14) { left: 60%; animation-delay: 0.02s; animation-duration: 0.93s; }
+
+/* ────────────────────────────────────────────────────────────────────────
+   NIEVE — copos con caída lenta + deriva lateral (translateX oscilante).
+   ──────────────────────────────────────────────────────────────────────── */
+.snowFlake {
+  position: absolute;
+  top: -8%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  animation: weatherFxSnowFall 7s linear infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes weatherFxSnowFall {
+  0%   { transform: translate(0, 0); opacity: 0; }
+  6%   { opacity: 0.9; }
+  50%  { transform: translate(14px, 340%); }
+  94%  { opacity: 0.5; }
+  100% { transform: translate(-6px, 650%); opacity: 0; }
+}
+
+.snowFlake:nth-child(1)  { left: 6%;  width: 4px; height: 4px; animation-delay: 0.0s; animation-duration: 6.2s; }
+.snowFlake:nth-child(2)  { left: 16%; width: 3px; height: 3px; animation-delay: 1.1s; animation-duration: 7.4s; }
+.snowFlake:nth-child(3)  { left: 27%; width: 5px; height: 5px; animation-delay: 2.3s; animation-duration: 5.8s; }
+.snowFlake:nth-child(4)  { left: 38%; width: 3px; height: 3px; animation-delay: 0.6s; animation-duration: 8.1s; }
+.snowFlake:nth-child(5)  { left: 49%; width: 4px; height: 4px; animation-delay: 1.8s; animation-duration: 6.6s; }
+.snowFlake:nth-child(6)  { left: 60%; width: 3px; height: 3px; animation-delay: 3.1s; animation-duration: 7.0s; }
+.snowFlake:nth-child(7)  { left: 71%; width: 5px; height: 5px; animation-delay: 0.9s; animation-duration: 5.9s; }
+.snowFlake:nth-child(8)  { left: 82%; width: 4px; height: 4px; animation-delay: 2.6s; animation-duration: 7.8s; }
+.snowFlake:nth-child(9)  { left: 91%; width: 3px; height: 3px; animation-delay: 1.4s; animation-duration: 6.4s; }
+.snowFlake:nth-child(10) { left: 45%; width: 4px; height: 4px; animation-delay: 3.6s; animation-duration: 8.4s; }
+
+/* ────────────────────────────────────────────────────────────────────────
+   NIEBLA — bancos horizontales translúcidos que respiran (deriva + opacidad).
+   ──────────────────────────────────────────────────────────────────────── */
+.fogBank {
+  position: absolute;
+  left: -30%;
+  width: 160%;
+  height: 34%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(226, 232, 240, 0.22), transparent 70%);
+  filter: blur(18px);
+  opacity: 0.55;
+  animation: weatherFxFogDrift 22s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes weatherFxFogDrift {
+  0%, 100% { transform: translateX(-4%); opacity: 0.4; }
+  50%      { transform: translateX(4%);  opacity: 0.65; }
+}
+
+.fogBank:nth-child(1) { top: 12%; animation-duration: 20s; animation-delay: 0s; }
+.fogBank:nth-child(2) { top: 42%; animation-duration: 26s; animation-delay: 3s; }
+.fogBank:nth-child(3) { top: 68%; animation-duration: 23s; animation-delay: 6s; }
+
+/* ────────────────────────────────────────────────────────────────────────
+   SOL CON GOD-RAYS — halo central + rayos cónicos que rotan muy lento y
+   respiran en opacidad. Un solo elemento con conic-gradient (barato: sin
+   generar N nodos), rotación a 90s (casi imperceptible salvo indirectamente).
+   ──────────────────────────────────────────────────────────────────────── */
+.sunRays {
+  --sun-color: rgba(255, 214, 128, 0.9);
+}
+
+.sunGlow {
+  position: absolute;
+  top: 6%;
+  right: 8%;
+  width: 34%;
+  height: 34%;
+  min-width: 90px;
+  min-height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--sun-color), transparent 70%);
+  filter: blur(4px);
+  opacity: 0.8;
+  animation: weatherFxSunPulse 6s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.sunRaysCone {
+  position: absolute;
+  top: 6%;
+  right: 8%;
+  width: 34%;
+  height: 34%;
+  min-width: 90px;
+  min-height: 90px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    var(--sun-color) 4deg,
+    transparent 14deg,
+    transparent 40deg,
+    var(--sun-color) 44deg,
+    transparent 54deg,
+    transparent 90deg,
+    var(--sun-color) 94deg,
+    transparent 104deg,
+    transparent 140deg,
+    var(--sun-color) 144deg,
+    transparent 154deg,
+    transparent 190deg,
+    var(--sun-color) 194deg,
+    transparent 204deg,
+    transparent 230deg,
+    var(--sun-color) 234deg,
+    transparent 244deg,
+    transparent 280deg,
+    var(--sun-color) 284deg,
+    transparent 294deg,
+    transparent 360deg
+  );
+  opacity: 0.16;
+  filter: blur(6px);
+  transform: scale(3.2);
+  animation: weatherFxRaysRotate 90s linear infinite;
+  will-change: transform;
+}
+
+@keyframes weatherFxSunPulse {
+  0%, 100% { transform: scale(1);    opacity: 0.7; }
+  50%      { transform: scale(1.12); opacity: 0.95; }
+}
+
+@keyframes weatherFxRaysRotate {
+  from { transform: scale(3.2) rotate(0deg); }
+  to   { transform: scale(3.2) rotate(360deg); }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   ACCESIBILIDAD — prefers-reduced-motion: calma/oculta toda animación.
+   Las capas siguen visibles (contexto climático), pero estáticas.
+   ──────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .rainDrop,
+  .snowFlake,
+  .fogBank,
+  .sunGlow,
+  .sunRaysCone {
+    animation: none !important;
+  }
+  .rainDrop { opacity: 0.35; top: 40%; }
+  .snowFlake { opacity: 0.5; top: 40%; }
+  .fogBank { opacity: 0.45; transform: none; }
+  .sunGlow { opacity: 0.75; }
+  .sunRaysCone { opacity: 0.12; transform: scale(3.2); }
+}
+
+/* Nota: el modo eco del OS (html[data-perf="eco"]) ya congela TODA animación
+   global vía `animation-duration: 0.001ms !important` en globals.css — estas
+   capas heredan ese freeze automáticamente sin necesidad de reglas propias
+   aquí (siguen pintando su fotograma final de forma barata y estática). */

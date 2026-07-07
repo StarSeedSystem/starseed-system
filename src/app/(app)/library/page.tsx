@@ -507,7 +507,7 @@ function SavedResourceCard({
         </div>
         <button
           onClick={() => onRemove(resource.id)}
-          className="p-1.5 rounded-full text-muted-foreground hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+          className="flex items-center justify-center h-10 w-10 -m-1.5 rounded-full text-muted-foreground hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
           aria-label="Quitar de guardados"
           title="Quitar de guardados"
         >
@@ -648,7 +648,7 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
         </div>
 
         <div className="flex flex-col md:flex-row justify-between gap-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground overflow-x-auto">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground overflow-x-auto scrollbar-hide">
             {breadcrumbs.map((crumb, index) => (
               <div key={crumb.id || "root"} className="flex items-center gap-1 whitespace-nowrap">
                 {index > 0 && <ChevronRight className="w-3 h-3 opacity-50" />}
@@ -727,8 +727,8 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
             >
               <div className="flex-1 flex items-center justify-center relative overflow-hidden">
                 <div className="group-hover:scale-110 transition-transform duration-500 p-6 rounded-full bg-white/5 group-hover:bg-white/10">{getIconForType(asset)}</div>
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full bg-black/50 hover:bg-white hover:text-black cursor-pointer">
+                <div className="absolute top-2 right-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  <Button size="icon" variant="ghost" className="h-10 w-10 sm:h-6 sm:w-6 rounded-full bg-black/50 hover:bg-white hover:text-black cursor-pointer">
                     <MoreVertical className="w-3 h-3" />
                   </Button>
                 </div>
@@ -765,7 +765,8 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
         </div>
       ) : (
         <div className="rounded-xl border border-white/10 overflow-hidden bg-black/20 backdrop-blur-md">
-          <table className="w-full text-sm text-left">
+          <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full min-w-[640px] text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-white/5 border-b border-white/5">
               <tr>
                 <th className="px-6 py-3">Nombre</th>
@@ -790,7 +791,7 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
                   <td className="px-6 py-4 text-muted-foreground text-xs">{asset.aiTags.join(", ")}</td>
                   <td className="px-6 py-4 text-muted-foreground">{asset.modified}</td>
                   <td className="px-6 py-4 text-right">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-8 sm:w-8 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer">
                       <MoreVertical className="w-4 h-4" />
                     </Button>
                   </td>
@@ -798,6 +799,7 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>
@@ -903,13 +905,13 @@ function KnowledgeExplorer({ onOpenDetail }: { onOpenDetail: (item: LibraryDetai
         </div>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-nowrap sm:flex-wrap ss-hscroll ss-hscroll-fade -mx-1 px-1 sm:mx-0 sm:px-0">
         {(Object.keys(KIND_CONFIG) as ResourceType[]).map((k) => (
           <button
             key={k}
             onClick={() => setActiveKind(k)}
             className={cn(
-              "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all duration-200 cursor-pointer",
+              "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all duration-200 cursor-pointer shrink-0",
               activeKind === k ? KIND_CONFIG[k].color + " shadow-sm" : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10 hover:text-white",
             )}
           >

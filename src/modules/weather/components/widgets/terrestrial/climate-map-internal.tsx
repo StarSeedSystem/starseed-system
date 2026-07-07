@@ -7,6 +7,7 @@ import { useWeatherLocation } from '@/modules/weather/context/weather-location-c
 import L from 'leaflet';
 import { Map as MapIcon, Crosshair, Target, Zap, Waves, Thermometer, Wind } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { WeatherFxOverlay } from './weather-fx-overlay';
 
 // Fix basic leaflet icons in Next.js
 if (typeof window !== 'undefined') {
@@ -100,6 +101,15 @@ export default function ClimateMapInternal({ activeOverlay = 'precipitation' }: 
                 />
 
                 <LocationHandler location={location} />
+
+                {/* Overlay atmosférico sutil (CSS puro, sin coste de red): refuerza
+                    la sensación de la capa activa sobre el mapa real. Niebla ligera
+                    en precipitación (humedad ambiente), god-rays suaves en temperatura
+                    (lectura térmica/solar). z-index bajo: bajo el HUD, sobre los tiles. */}
+                <WeatherFxOverlay
+                    className="z-[5] motion-reduce:[&_*]:!animate-none"
+                    kind={activeOverlay === 'precipitation' ? 'fog' : activeOverlay === 'temperature' ? 'sun-rays' : 'none'}
+                />
 
                 {/* Dynamic Weather Overlays */}
                 {activeOverlay === 'precipitation' && radarTime && (
