@@ -21,11 +21,10 @@
 // Aditivo: conserva el editor, destinos, preview y la lógica de `publish`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -75,7 +74,29 @@ import {
     Archive,
     Compass,
     Eye,
+    EyeOff,
     Upload,
+    Images,
+    Code2,
+    Radio,
+    FolderKanban,
+    Server,
+    ArrowUp,
+    ArrowDown,
+    Trash2,
+    Bold,
+    Italic,
+    Heading2,
+    List as ListIcon,
+    Quote,
+    Music,
+    Video,
+    WandSparkles,
+    Square,
+    RectangleVertical,
+    RectangleHorizontal,
+    Wand2,
+    Pencil,
 } from "lucide-react";
 import {
     PUBLICATION_TYPES,
@@ -89,6 +110,7 @@ import {
     previewOf,
     reachOf,
     subAreaById,
+    RATIOS,
     type PublicationType,
     type PublicationTypeId,
     type DestinationKind,
@@ -104,6 +126,8 @@ import {
     type SubArea,
     type PostKindId,
     type VotingConfig,
+    type PostContentAttachment,
+    type MainRatio,
 } from "@/lib/publish/publish";
 import EgoContextOption from "@/components/aurora/ego-context-option";
 import { createEgoForContext, type EgoContextKind } from "@/lib/aurora/ego";
@@ -114,7 +138,7 @@ import {
     reachToDestinations,
     type Reach,
 } from "@/lib/reach/reach";
-import MentionInput from "@/components/mentions/mention-input";
+import MentionInput, { type MentionInputHandle } from "@/components/mentions/mention-input";
 import { MentionChip } from "@/components/mentions/entity-chip";
 import {
     parseMentions,
@@ -125,6 +149,26 @@ import {
 // (storage `os-files`) en vez de depender solo de pegar una URL externa.
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import type { UniversalAttachment } from "@/lib/files/os-files";
+// Vista previa EN VIVO (paso 7): la MISMA tarjeta que se ve en el feed.
+import { RichPostCard } from "@/components/network/feed/rich-post-card";
+import type { FeedPost } from "@/lib/feed/network-feed";
+// Contenido vivo en publicaciones (Adenda "Cultura social"): selector de modo
+// por adjunto (estático/edición en vivo/canal en vivo) + aprovisionamiento.
+import { LiveModePicker, provisionLiveBacking } from "@/components/posts/live-attachment";
+// ── Adenda "Lienzo de Creación Universal" (aditivo, modos/paneles opcionales) ──
+// Creador de Layouts ilimitados (modo "Diseño": bloques + código libre).
+import LayoutBuilder, {
+    defaultLayoutDoc,
+    layoutHasContent,
+    layoutDocToHtml,
+    type LayoutDoc,
+} from "@/components/publish/layout-builder";
+// Editor ligero de imagen (recorte/rotación/filtros) para adjuntos de imagen.
+import ImageEditorDialog from "@/components/publish/image-editor-dialog";
+// "Compartir como" mensaje/correo (tarjeta-referencia, sin duplicar el post).
+import SharePostActions from "@/components/publish/share-post-actions";
+// Botón global "Generar con Aurora" (texto del cuerpo, modo clásico).
+import AuroraGenerateButton from "@/components/publish/aurora-generate-button";
 
 // ── Resolución de iconos (string → componente de lucide) ──
 
@@ -154,6 +198,16 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
     GraduationCap,
     BookOpen,
     Palette,
+    Images,
+    Code2,
+    Radio,
+    FolderKanban,
+    Server,
+    Square,
+    RectangleVertical,
+    RectangleHorizontal,
+    Wand2,
+    Maximize2,
 };
 
 function Icon({ name, className }: { name: string; className?: string }) {
@@ -262,6 +316,16 @@ interface DraftContent {
     options: string[];
     /** Campos de la plantilla de Sub-Área (id → valor). */
     template: Record<string, string>;
+    /** NUEVO · Adjuntos multi-formato (carrusel + ventana incrustada), en orden. */
+    attachments: PostContentAttachment[];
+    /** NUEVO · Proporción de la vista principal. */
+    ratio: MainRatio;
+    /** NUEVO · Si se muestra la vista previa de adjuntos (publicaciones "silenciosas" opcionales). */
+    showPreview: boolean;
+    /** NUEVO (Adenda "Creador de Layouts") · modo "Diseño" activo para esta publicación. */
+    designMode: boolean;
+    /** NUEVO (Adenda "Creador de Layouts") · documento del Creador de Layouts. */
+    layout: LayoutDoc;
 }
 
 const EMPTY_DRAFT: DraftContent = {
@@ -271,7 +335,105 @@ const EMPTY_DRAFT: DraftContent = {
     urls: [],
     options: ["", ""],
     template: {},
+    attachments: [],
+    ratio: "auto",
+    showPreview: true,
+    designMode: false,
+    layout: defaultLayoutDoc(),
 };
+
+/** Genera un id corto y único para un adjunto nuevo del compositor. */
+function newAttId(): string {
+    return `att_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Nombre legible desde una URL (para adjuntos añadidos por URL, sin subida). */
+function hostOf(url: string): string {
+    try {
+        return new URL(url).hostname;
+    } catch {
+        return url;
+    }
+}
+
+/** Plantillas rápidas por tipo: jumpstart de título/cuerpo, nunca destructivo
+ *  (se ANEXAN al cuerpo existente en vez de sobrescribirlo). */
+const QUICK_TEMPLATES: Partial<Record<PublicationTypeId, { label: string; title?: string; body: string }[]>> = {
+    texto: [
+        { label: "Anuncio breve", body: "Tengo una noticia rápida que compartir con la comunidad:\n\n" },
+        { label: "Pregunta abierta", body: "Me gustaría conocer vuestra opinión sobre…\n\n" },
+    ],
+    articulo: [
+        { label: "Tutorial", title: "Cómo…", body: "## Introducción\n\n## Pasos\n\n1. \n2. \n3. \n\n## Conclusión\n" },
+        { label: "Análisis", title: "Análisis: ", body: "## Contexto\n\n## Hallazgos\n\n## Conclusión\n" },
+    ],
+    propuesta: [
+        { label: "Propuesta estándar", body: "**Problema:** \n\n**Propuesta:** \n\n**Impacto esperado:** \n" },
+    ],
+    codigo: [
+        { label: "Snippet documentado", body: "Descripción del código:\n\n```\n// pega tu código aquí\n```\n" },
+        { label: "Demo de proyecto", body: "Qué hace este programa y cómo probarlo:\n\n" },
+    ],
+    proyecto: [
+        { label: "Resumen de proyecto", body: "**Objetivo:** \n\n**Estado actual:** \n\n**Cómo colaborar:** \n" },
+    ],
+    transmision: [
+        { label: "Aviso de directo", body: "Empezamos transmisión en directo sobre… ¡Únete!\n\n" },
+    ],
+    servidor: [
+        { label: "Invitación al servidor", body: "Nuevo nodo/servidor disponible para la comunidad:\n\n" },
+    ],
+    mixto: [
+        { label: "Historia rápida", body: "Hoy quiero compartir…\n\n" },
+    ],
+};
+
+/** Construye una `FeedPost` simulada a partir del borrador actual, para que la
+ *  vista previa del paso 7 use LITERALMENTE el mismo componente de tarjeta que
+ *  el feed real (`RichPostCard`). Id estable (no cambia en cada tecla) para que
+ *  `useLikes` no repita peticiones de red en cada render. */
+function buildPreviewPost(draft: DraftContent, content: PublishContent): FeedPost {
+    const attachments = (content.attachments ?? []).map((a, i) => ({
+        id: a.id || `preview-${i}`,
+        kind: a.kind,
+        url: a.url ?? null,
+        href: a.url ?? null,
+        name: a.name ?? null,
+        title: a.title ?? a.name ?? null,
+        description: a.description ?? null,
+        thumbnail: a.thumbnail ?? null,
+        mime: a.mime ?? null,
+        content: a.content ?? null,
+        language: a.language ?? null,
+        // Contenido vivo: la vista previa exercita LiveAttachment igual que el feed real.
+        liveMode: a.liveMode ?? null,
+        livePermission: a.livePermission ?? null,
+        liveSpaceId: a.liveSpaceId ?? null,
+        liveServerId: a.liveServerId ?? null,
+        liveServerSlug: a.liveServerSlug ?? null,
+        liveGroupSlug: a.liveGroupSlug ?? null,
+    }));
+    return {
+        id: "__composer_preview__",
+        postId: "__composer_preview__",
+        author: { id: "yo", name: "Tú", handle: "", avatar: "" },
+        content: [draft.title, draft.body].filter(Boolean).join("\n\n"),
+        media: [],
+        type: attachments.length > 0 ? "mixed" : "text",
+        likes: 0,
+        commentsCount: 0,
+        shares: 0,
+        createdAt: new Date().toISOString(),
+        likedByMe: false,
+        tags: [],
+        attachment: null,
+        attachments,
+        mainRatio: draft.ratio,
+        showPreview: draft.showPreview,
+        area: null,
+        isReal: true,
+    };
+}
 
 // Cómo cada Área/Sub-Área sugiere un tipo de publicación de base.
 function suggestTypeFor(areaId: AreaId | null, subId: string | null): PublicationTypeId {
@@ -432,8 +594,29 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                 ...(bodyMentions.length ? { mentions: bodyMentions } : {}),
             };
         }
+        // NUEVO · Adjuntos multi-formato + proporción + vista previa opcional.
+        const attachments = [...draft.attachments];
+        // Adenda "Creador de Layouts": en modo Diseño, el layout ES el contenido
+        // principal — se serializa a UN adjunto ejecutable (kind:"programa", sin
+        // url, con `content` = HTML autocontenido) que `EmbeddedContentWindow` ya
+        // sabe ejecutar en un iframe sandbox (ver Adenda en ese componente).
+        if (draft.designMode && layoutHasContent(draft.layout)) {
+            attachments.unshift({
+                id: "layout-main",
+                kind: "programa",
+                content: layoutDocToHtml(draft.layout),
+                name: draft.title || "Diseño",
+                title: draft.title || "Diseño",
+            });
+        }
+        if (attachments.length > 0) c.attachments = attachments;
+        c.mainRatio = draft.ratio;
+        c.showPreview = draft.showPreview;
         return c;
     }, [draft, areaId, subAreaId]);
+
+    // Vista previa EN VIVO (paso 7 + diálogo "Abrir completo"): misma tarjeta que el feed real.
+    const previewPost: FeedPost = useMemo(() => buildPreviewPost(draft, content), [draft, content]);
 
     const preview: PreviewModel | null = useMemo(
         () => (typeId ? previewOf(typeId, content, format) : null),
@@ -491,13 +674,33 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
         if (willOpen && !optionsByKind[kind.id] && !loadingKinds[kind.id]) {
             setLoadingKinds((prev) => ({ ...prev, [kind.id]: true }));
             try {
-                const opts = await listDestinations(kind.id);
+                // Adenda "Lienzo de Creación Universal": pagina/grupo/comunidad/
+                // entidad_federativa/evento arrancan mostrando sólo destinos "donde
+                // tengo permiso" (dueño o miembro) — el buscador de ese kind ofrece
+                // un botón "Todas" para ver la lista completa de siempre.
+                const onlyMine = PERMISSIONED_KIND_IDS.has(kind.id);
+                const opts = await listDestinations(kind.id, onlyMine ? { onlyMine: true } : undefined);
                 setOptionsByKind((prev) => ({ ...prev, [kind.id]: opts }));
             } catch {
                 setOptionsByKind((prev) => ({ ...prev, [kind.id]: [] }));
             } finally {
                 setLoadingKinds((prev) => ({ ...prev, [kind.id]: false }));
             }
+        }
+    }
+
+    /** Re-busca las opciones de un kind con texto/permiso (caja de búsqueda del
+     *  "Ajuste avanzado"). Siempre refresca (a diferencia de `toggleKind`, que
+     *  sólo carga la primera vez). */
+    async function searchKind(kind: DestinationKind, opts: { query?: string; onlyMine?: boolean }) {
+        setLoadingKinds((prev) => ({ ...prev, [kind.id]: true }));
+        try {
+            const res = await listDestinations(kind.id, opts);
+            setOptionsByKind((prev) => ({ ...prev, [kind.id]: res }));
+        } catch {
+            setOptionsByKind((prev) => ({ ...prev, [kind.id]: [] }));
+        } finally {
+            setLoadingKinds((prev) => ({ ...prev, [kind.id]: false }));
         }
     }
 
@@ -531,11 +734,17 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                 const hasUrl = Boolean(content.url || (content.urls && content.urls.length));
                 const hasOpts = Boolean(content.options && content.options.length >= 2);
                 const hasTemplate = Boolean(content.meta && (content.meta as any).template);
+                const hasAttachments = Boolean(content.attachments && content.attachments.length > 0);
                 if (typeId === "imagen" || typeId === "enlace" || typeId === "archivo" || typeId === "app")
-                    return hasUrl || hasTemplate;
+                    return hasUrl || hasTemplate || hasAttachments;
                 if (typeId === "encuesta") return Boolean(content.title) && hasOpts;
-                if (typeId === "lienzo") return hasUrl || hasText || hasTemplate;
-                return hasText || hasTemplate;
+                if (typeId === "lienzo") return hasUrl || hasText || hasTemplate || hasAttachments;
+                // ── Adenda "Publicaciones ricas" (aditivo) ──
+                if (typeId === "galeria" || typeId === "transmision" || typeId === "servidor")
+                    return hasUrl || hasAttachments || hasText;
+                if (typeId === "codigo" || typeId === "proyecto")
+                    return hasText || hasAttachments;
+                return hasText || hasTemplate || hasAttachments;
             }
             case 5:
                 return Boolean(visibility);
@@ -684,6 +893,7 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                         onToggleKind={toggleKind}
                         onToggleOption={toggleDestination}
                         isSelected={isDestSelected}
+                        onSearchKind={searchKind}
                         reach={reach}
                         onReachChange={handleReachChange}
                     />
@@ -692,11 +902,13 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                     <StepFormatContent
                         type={selectedType}
                         subArea={subArea}
+                        area={area}
                         format={format}
                         onFormat={setFormat}
                         draft={draft}
                         onDraft={setDraft}
                         onMentions={setMentions}
+                        onChangeType={setTypeId}
                     />
                 )}
                 {step === 5 && (
@@ -713,6 +925,7 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                 {step === 6 && preview && (
                     <StepPreview
                         preview={preview}
+                        previewPost={previewPost}
                         area={area}
                         subArea={subArea}
                         postKind={postKind}
@@ -781,16 +994,16 @@ export default function PublicationComposer({ initial, onPublished }: Publicatio
                 )}
             </div>
 
-            {/* Modal "Abrir completo" */}
+            {/* Modal "Abrir completo" — la MISMA tarjeta de publicación, a tamaño de página */}
             <Dialog open={fullOpen} onOpenChange={setFullOpen}>
-                <DialogContent className="max-w-3xl">
+                <DialogContent className="max-w-2xl">
                     <DialogHeader>
                         <DialogTitle className="text-amber-50">Vista completa</DialogTitle>
                         <DialogDescription className="text-white/50">
-                            Previsualización a pantalla completa de tu publicación.
+                            Así se verá tu publicación completa en el feed.
                         </DialogDescription>
                     </DialogHeader>
-                    {preview && <PreviewBody preview={preview} expanded />}
+                    <RichPostCard post={previewPost} preview />
                 </DialogContent>
             </Dialog>
         </div>
@@ -998,6 +1211,7 @@ function StepDestinationAndKind({
     onToggleKind,
     onToggleOption,
     isSelected,
+    onSearchKind,
     reach,
     onReachChange,
 }: {
@@ -1010,6 +1224,7 @@ function StepDestinationAndKind({
     onToggleKind: (kind: DestinationKind) => void;
     onToggleOption: (opt: DestinationOption) => void;
     isSelected: (kind: DestinationKindId, id: string) => boolean;
+    onSearchKind: (kind: DestinationKind, opts: { query?: string; onlyMine?: boolean }) => void;
     reach: Reach;
     onReachChange: (r: Reach) => void;
 }) {
@@ -1066,6 +1281,7 @@ function StepDestinationAndKind({
                             onToggleOption={onToggleOption}
                             isSelected={isSelected}
                             selectedCount={selectedCount}
+                            onSearchKind={onSearchKind}
                         />
                     </div>
                 )}
@@ -1112,6 +1328,58 @@ function StepDestinationAndKind({
 }
 
 // ── Multi-destino granular (ajuste avanzado del alcance) ──
+/** Kinds donde "permiso" tiene sentido (dueño/miembro) — ver `listDestinations`. */
+const PERMISSIONED_KIND_IDS = new Set<DestinationKindId>(["pagina", "grupo", "comunidad", "entidad_federativa", "evento"]);
+
+/** Caja de búsqueda + "con permiso / todas" para UN kind de destino (Adenda
+ *  "Lienzo de Creación Universal"). Componente propio para poder usar sus
+ *  propios hooks de debounce sin violar las reglas de hooks dentro de un map(). */
+function KindSearchBox({
+    kind,
+    onSearch,
+}: {
+    kind: DestinationKind;
+    onSearch: (opts: { query?: string; onlyMine?: boolean }) => void;
+}) {
+    const [query, setQuery] = useState("");
+    const [onlyMine, setOnlyMine] = useState(true);
+    const firstRun = useRef(true);
+
+    useEffect(() => {
+        if (firstRun.current) {
+            firstRun.current = false;
+            return;
+        }
+        const t = window.setTimeout(() => onSearch({ query, onlyMine }), 300);
+        return () => window.clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [query, onlyMine]);
+
+    return (
+        <div className="mb-2 flex items-center gap-1.5">
+            <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={`Buscar ${kind.label.toLowerCase()}…`}
+                className="h-7 flex-1 bg-white/[0.03] text-xs text-amber-50"
+            />
+            <button
+                type="button"
+                onClick={() => setOnlyMine((v) => !v)}
+                title={onlyMine ? "Mostrando sólo donde tengo permiso — pulsa para ver todas" : "Mostrando todas — pulsa para ver sólo donde tengo permiso"}
+                className={cn(
+                    "shrink-0 rounded-full border px-2 py-1 text-[10px] font-medium transition-colors",
+                    onlyMine
+                        ? "border-amber-400/50 bg-amber-400/10 text-amber-200"
+                        : "border-white/15 text-white/45 hover:border-white/30",
+                )}
+            >
+                {onlyMine ? "Con permiso" : "Todas"}
+            </button>
+        </div>
+    );
+}
+
 function AdvancedDestinations({
     openKinds,
     optionsByKind,
@@ -1121,6 +1389,7 @@ function AdvancedDestinations({
     onToggleOption,
     isSelected,
     selectedCount,
+    onSearchKind,
 }: {
     openKinds: Record<string, boolean>;
     optionsByKind: Record<string, DestinationOption[]>;
@@ -1130,6 +1399,7 @@ function AdvancedDestinations({
     onToggleOption: (opt: DestinationOption) => void;
     isSelected: (kind: DestinationKindId, id: string) => boolean;
     selectedCount: (kindId: string) => number;
+    onSearchKind: (kind: DestinationKind, opts: { query?: string; onlyMine?: boolean }) => void;
 }) {
     return (
         <div>
@@ -1198,6 +1468,9 @@ function AdvancedDestinations({
 
                             {open && (
                                 <div className="border-t border-white/10 p-2">
+                                    {PERMISSIONED_KIND_IDS.has(kind.id) && (
+                                        <KindSearchBox kind={kind} onSearch={(opts) => onSearchKind(kind, opts)} />
+                                    )}
                                     {loading ? (
                                         <div className="flex items-center gap-2 px-2 py-2 text-xs text-white/50">
                                             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando opciones…
@@ -1264,23 +1537,51 @@ function AdvancedDestinations({
 function StepFormatContent({
     type,
     subArea,
+    area,
     format,
     onFormat,
     draft,
     onDraft,
     onMentions,
+    onChangeType,
 }: {
     type: PublicationType;
     subArea: SubArea | null;
+    /** Área principal (sólo para dar contexto a Aurora al generar contenido). */
+    area?: Area | null;
     format: string;
     onFormat: (f: string) => void;
     draft: DraftContent;
     onDraft: (d: DraftContent) => void;
     onMentions?: (m: Mention[]) => void;
+    /** Permite anular el tipo sugerido por Área/Sub-Área (p. ej. elegir Galería,
+     *  Código/Programa, Transmisión, Proyecto o Servidor). */
+    onChangeType?: (id: PublicationTypeId) => void;
 }) {
+    const bodyRef = useRef<MentionInputHandle>(null);
+    const [imgEditOpen, setImgEditOpen] = useState(false);
     const set = (patch: Partial<DraftContent>) => onDraft({ ...draft, ...patch });
     const setTemplate = (id: string, value: string) =>
         onDraft({ ...draft, template: { ...draft.template, [id]: value } });
+
+    // Encuesta no ofrece el modo Diseño (sus opciones son un requisito
+    // estructurado propio) — si se cambia a Encuesta con Diseño ya activo, se
+    // sale de él para no dejar el paso sin forma de completar el requisito.
+    useEffect(() => {
+        if (type.id === "encuesta" && draft.designMode) {
+            onDraft({ ...draft, designMode: false });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [type.id]);
+
+    const templates = QUICK_TEMPLATES[type.id] ?? [];
+    const applyTemplate = (tpl: { label: string; title?: string; body: string }) => {
+        onDraft({
+            ...draft,
+            title: draft.title || tpl.title || draft.title,
+            body: draft.body ? draft.body + "\n\n" + tpl.body : tpl.body,
+        });
+    };
 
     return (
         <div className="space-y-5">
@@ -1292,6 +1593,70 @@ function StepFormatContent({
                 </p>
             </div>
 
+            {/* Tipo de publicación: anula la sugerencia automática si hace falta */}
+            {onChangeType && (
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-white/55">Tipo de publicación</label>
+                    <div className="flex flex-wrap gap-1.5">
+                        {PUBLICATION_TYPES.map((t) => (
+                            <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => onChangeType(t.id)}
+                                className={cn(
+                                    "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                                    t.id === type.id
+                                        ? "border-amber-400/60 bg-amber-400/15 text-amber-100"
+                                        : "border-white/15 text-white/55 hover:border-white/30 hover:text-white/80",
+                                )}
+                            >
+                                <Icon name={t.icon} className="h-3.5 w-3.5" /> {t.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* NUEVO (Adenda "Creador de Layouts") · modo de creación: Clásico
+                (editor de siempre, intacto) o Diseño (bloques/código libre).
+                No se ofrece para Encuesta: sus opciones son un requisito
+                estructurado propio que el modo Diseño no sustituye. */}
+            {type.id !== "encuesta" && (
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-white/55">Modo de creación</label>
+                    <div className="flex flex-wrap gap-1.5">
+                        <button
+                            type="button"
+                            onClick={() => set({ designMode: false })}
+                            className={cn(
+                                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                                !draft.designMode
+                                    ? "border-amber-400/60 bg-amber-400/15 text-amber-100"
+                                    : "border-white/15 text-white/55 hover:border-white/30 hover:text-white/80",
+                            )}
+                        >
+                            <Type className="h-3.5 w-3.5" /> Clásico
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => set({ designMode: true })}
+                            className={cn(
+                                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                                draft.designMode
+                                    ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-100"
+                                    : "border-white/15 text-white/55 hover:border-white/30 hover:text-white/80",
+                            )}
+                        >
+                            <LayoutDashboard className="h-3.5 w-3.5" /> Diseño (layouts + código)
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {draft.designMode && type.id !== "encuesta" ? (
+                <LayoutBuilder value={draft.layout} onChange={(layout) => set({ layout })} />
+            ) : (
+                <>
             {/* Plantilla de la Sub-Área (Módulo 5): campos específicos primero */}
             {subArea && subArea.template && subArea.template.length > 0 && (
                 <div className="space-y-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4">
@@ -1347,6 +1712,11 @@ function StepFormatContent({
                     type.id === "propuesta" ||
                     type.id === "encuesta" ||
                     type.id === "enlace" ||
+                    type.id === "codigo" ||
+                    type.id === "proyecto" ||
+                    type.id === "servidor" ||
+                    type.id === "transmision" ||
+                    type.id === "galeria" ||
                     type.id === "mixto") && (
                     <Input
                         placeholder={type.id === "encuesta" ? "Pregunta de la encuesta" : "Título"}
@@ -1356,20 +1726,63 @@ function StepFormatContent({
                     />
                 )}
 
+                {/* Plantillas rápidas por tipo (jumpstart, nunca destructivo) */}
+                {templates.length > 0 && (
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-white/55">Plantillas rápidas</label>
+                        <div className="flex flex-wrap gap-1.5">
+                            {templates.map((tpl) => (
+                                <button
+                                    key={tpl.label}
+                                    type="button"
+                                    onClick={() => applyTemplate(tpl)}
+                                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-white/15 px-3 py-1 text-xs text-white/60 transition-colors hover:border-amber-400/40 hover:text-amber-200"
+                                >
+                                    <WandSparkles className="h-3 w-3" /> {tpl.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {(type.id === "texto" ||
                     type.id === "articulo" ||
                     type.id === "propuesta" ||
+                    type.id === "codigo" ||
+                    type.id === "proyecto" ||
+                    type.id === "servidor" ||
+                    type.id === "transmision" ||
                     type.id === "mixto") && (
-                    <MentionInput
-                        value={draft.body}
-                        onChange={(body) => set({ body })}
-                        onMentionsChange={onMentions}
-                        placeholder={
-                            format === "markdown"
-                                ? "Escribe en Markdown… Usa @ para mencionar y # para etiquetar."
-                                : "Escribe tu contenido… Usa @ para mencionar y # para etiquetar entidades."
-                        }
-                    />
+                    <div className="space-y-1.5">
+                        {/* Barra básica de formato (negrita/cursiva/título/lista/cita/código) */}
+                        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1.5">
+                            <ToolbarBtn title="Negrita" icon={Bold} onClick={() => bodyRef.current?.wrapSelection("**", "**", "texto en negrita")} />
+                            <ToolbarBtn title="Cursiva" icon={Italic} onClick={() => bodyRef.current?.wrapSelection("*", "*", "texto en cursiva")} />
+                            <ToolbarBtn title="Título" icon={Heading2} onClick={() => bodyRef.current?.wrapSelection("\n## ", "", "Título")} />
+                            <ToolbarBtn title="Lista" icon={ListIcon} onClick={() => bodyRef.current?.wrapSelection("\n- ", "", "elemento")} />
+                            <ToolbarBtn title="Cita" icon={Quote} onClick={() => bodyRef.current?.wrapSelection("\n> ", "", "cita")} />
+                            <ToolbarBtn title="Código" icon={Code2} onClick={() => bodyRef.current?.wrapSelection("`", "`", "código")} />
+                            <span className="mx-1 h-4 w-px bg-white/10" />
+                            <AuroraGenerateButton
+                                kind="texto"
+                                context={`Publicación de tipo "${type.label}"${area ? " · área " + area.label : ""}${subArea ? " · " + subArea.label : ""}.`}
+                                currentText={draft.body}
+                                onResult={(text) => set({ body: draft.body ? draft.body + "\n\n" + text : text })}
+                                size="xs"
+                            />
+                        </div>
+                        <MentionInput
+                            ref={bodyRef}
+                            value={draft.body}
+                            onChange={(body) => set({ body })}
+                            onMentionsChange={onMentions}
+                            placeholder={
+                                format === "markdown"
+                                    ? "Escribe en Markdown… Usa @ para mencionar y # para etiquetar."
+                                    : "Escribe tu contenido… Usa @ para mencionar y # para etiquetar entidades."
+                            }
+                        />
+                    </div>
                 )}
 
                 {(type.id === "imagen" ||
@@ -1411,16 +1824,29 @@ function StepFormatContent({
                                     <Upload className="h-3.5 w-3.5" /> Subir
                                 </AttachFilePickerButton>
                             )}
+                            {type.id === "imagen" && draft.url && (
+                                <button
+                                    type="button"
+                                    title="Editar imagen (recorte, rotación, filtros)"
+                                    onClick={() => setImgEditOpen(true)}
+                                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-xs font-medium text-white/60 hover:border-white/30 hover:text-white/90"
+                                >
+                                    <Pencil className="h-3.5 w-3.5" /> Editar
+                                </button>
+                            )}
                         </div>
                         {(type.id === "imagen" || type.id === "archivo") && (
                             <p className="text-[11px] text-white/35">
                                 Sube un archivo real (queda alojado en tu cuenta) o pega una URL pública.
                             </p>
                         )}
+                        {type.id === "imagen" && (
+                            <ImageEditorDialog open={imgEditOpen} onOpenChange={setImgEditOpen} srcUrl={draft.url} onApply={(url) => set({ url })} />
+                        )}
                     </div>
                 )}
 
-                {type.id === "imagen" && format === "galeria" && (
+                {(type.id === "imagen" || type.id === "galeria") && format === "galeria" && (
                     <UrlList
                         label="Imágenes de la galería"
                         items={draft.urls}
@@ -1429,7 +1855,7 @@ function StepFormatContent({
                     />
                 )}
 
-                {type.id === "imagen" && (
+                {(type.id === "imagen" || type.id === "galeria") && (
                     <Input
                         placeholder="Pie de foto (opcional)"
                         value={draft.body}
@@ -1448,6 +1874,353 @@ function StepFormatContent({
                     />
                 )}
             </div>
+
+            {/* Adjuntos multi-formato (opcional, cualquier tipo): carrusel + ventana
+                incrustada, proporción de la vista principal y su visibilidad. */}
+            <AttachmentsManager
+                attachments={draft.attachments}
+                onChange={(attachments) => set({ attachments })}
+                ratio={draft.ratio}
+                onRatio={(ratio) => set({ ratio })}
+                showPreview={draft.showPreview}
+                onShowPreview={(showPreview) => set({ showPreview })}
+            />
+                </>
+            )}
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADJUNTOS MULTI-FORMATO (Adenda "Publicaciones ricas") — gestor universal
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ATTACHMENT_KIND_OPTIONS: { id: string; label: string }[] = [
+    { id: "enlace", label: "Enlace" },
+    { id: "imagen", label: "Imagen" },
+    { id: "video", label: "Vídeo" },
+    { id: "audio", label: "Audio" },
+    { id: "pagina", label: "Página interna" },
+    { id: "app", label: "App / programa" },
+    { id: "pizarra", label: "Pizarra" },
+    { id: "servidor", label: "Servidor" },
+    { id: "archivo", label: "Archivo" },
+];
+
+const ATTACHMENT_KIND_ICON: Record<string, ComponentType<{ className?: string }>> = {
+    imagen: ImageIcon,
+    video: Video,
+    audio: Music,
+    archivo: FileIcon,
+    enlace: LinkIcon,
+    pagina: FileText,
+    app: AppWindow,
+    programa: AppWindow,
+    widget: LayoutDashboard,
+    pizarra: LayoutDashboard,
+    servidor: Server,
+    codigo: Code2,
+    markdown: FileText,
+};
+
+function AttKindIcon({ kind, className }: { kind: string; className?: string }) {
+    const C = ATTACHMENT_KIND_ICON[kind] || FileIcon;
+    return <C className={className} />;
+}
+
+function IconBtn({
+    title, onClick, disabled, children, className,
+}: { title: string; onClick: () => void; disabled?: boolean; children: ReactNode; className?: string }) {
+    return (
+        <button
+            type="button"
+            title={title}
+            aria-label={title}
+            onClick={onClick}
+            disabled={disabled}
+            className={cn(
+                "grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-md text-white/50 transition-colors hover:bg-white/10 hover:text-white/90 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent",
+                className,
+            )}
+        >
+            {children}
+        </button>
+    );
+}
+
+function ToolbarBtn({
+    title, onClick, icon: IconCmp,
+}: { title: string; onClick: () => void; icon: ComponentType<{ className?: string }> }) {
+    return (
+        <button
+            type="button"
+            title={title}
+            aria-label={title}
+            onClick={onClick}
+            className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md border border-white/10 bg-white/[0.03] text-white/60 transition-colors duration-200 hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+        >
+            <IconCmp className="h-3.5 w-3.5" />
+        </button>
+    );
+}
+
+function AttachmentsManager({
+    attachments, onChange, ratio, onRatio, showPreview, onShowPreview,
+}: {
+    attachments: PostContentAttachment[];
+    onChange: (next: PostContentAttachment[]) => void;
+    ratio: MainRatio;
+    onRatio: (r: MainRatio) => void;
+    showPreview: boolean;
+    onShowPreview: (v: boolean) => void;
+}) {
+    const [urlDraft, setUrlDraft] = useState("");
+    const [kindDraft, setKindDraft] = useState<string>("enlace");
+
+    const addFromPicker = (picked: UniversalAttachment[]) => {
+        const next: PostContentAttachment[] = picked.map((p) => ({
+            id: newAttId(),
+            kind: p.kind === "image" ? "imagen" : p.kind === "video" ? "video" : p.kind === "audio" ? "audio" : "archivo",
+            url: p.url,
+            name: p.name,
+            mime: p.mime,
+        }));
+        onChange([...attachments, ...next]);
+    };
+
+    const addFromUrl = () => {
+        const url = urlDraft.trim();
+        if (!url) return;
+        onChange([...attachments, { id: newAttId(), kind: kindDraft, url, name: hostOf(url) }]);
+        setUrlDraft("");
+    };
+
+    const move = (i: number, dir: -1 | 1) => {
+        const j = i + dir;
+        if (j < 0 || j >= attachments.length) return;
+        const next = [...attachments];
+        const tmp = next[i];
+        next[i] = next[j];
+        next[j] = tmp;
+        onChange(next);
+    };
+    const makeMain = (i: number) => {
+        if (i <= 0) return;
+        const next = [...attachments];
+        const [it] = next.splice(i, 1);
+        next.unshift(it);
+        onChange(next);
+    };
+    const removeAt = (i: number) => onChange(attachments.filter((_, idx) => idx !== i));
+
+    // ── Contenido vivo (Adenda "Cultura social"): modo por adjunto ──────────
+    const [liveOpenFor, setLiveOpenFor] = useState<Record<string, boolean>>({});
+    const [provisioningFor, setProvisioningFor] = useState<Record<string, boolean>>({});
+    // ── Editor de imagen (Adenda "Lienzo de Creación Universal") ────────────
+    const [editingImgId, setEditingImgId] = useState<string | null>(null);
+    const editingImg = attachments.find((a) => a.id === editingImgId) || null;
+
+    const patchAttachment = (id: string, patch: Partial<PostContentAttachment>) => {
+        onChange(attachments.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+    };
+
+    const handleProvision = async (a: PostContentAttachment) => {
+        if (!a.liveMode || a.liveMode === "estatico") return;
+        setProvisioningFor((p) => ({ ...p, [a.id]: true }));
+        try {
+            const res = await provisionLiveBacking({
+                mode: a.liveMode,
+                permission: a.livePermission ?? undefined,
+                title: a.title || a.name || hostOf(a.url || "") || "Adjunto en vivo",
+                groupSlug: a.liveGroupSlug ?? undefined,
+            });
+            if (!res.ok) {
+                toast.error(res.needsAuth ? "Inicia sesión para activar el modo en vivo." : res.error || "No se pudo activar el modo en vivo.");
+                return;
+            }
+            patchAttachment(a.id, res.patch || {});
+            toast.success("Modo en vivo activado para este adjunto.");
+        } finally {
+            setProvisioningFor((p) => ({ ...p, [a.id]: false }));
+        }
+    };
+
+    return (
+        <div className="space-y-3 rounded-xl border border-cyan-400/15 bg-cyan-400/[0.03] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-cyan-100">
+                    <Images className="h-4 w-4" /> Adjuntos (opcional, cualquier formato — puedes añadir varios)
+                </div>
+                <button
+                    type="button"
+                    onClick={() => onShowPreview(!showPreview)}
+                    title={showPreview ? "Ocultar vista previa" : "Mostrar vista previa"}
+                    className="flex cursor-pointer items-center gap-2 text-xs text-white/60 hover:text-white/85"
+                >
+                    <span className={cn("flex h-5 w-9 items-center rounded-full p-0.5 transition-colors", showPreview ? "bg-cyan-400/70" : "bg-white/15")}>
+                        <span className={cn("h-4 w-4 rounded-full bg-white transition-transform", showPreview && "translate-x-4")} />
+                    </span>
+                    {showPreview ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                    Mostrar vista previa
+                </button>
+            </div>
+
+            {/* Añadir: picker universal (multi-archivo de golpe) + URL manual */}
+            <div className="flex flex-wrap items-center gap-2">
+                <AttachFilePickerButton
+                    onPick={addFromPicker}
+                    folder="publicaciones"
+                    title="Adjuntar archivos"
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 text-xs font-medium text-cyan-100 hover:bg-cyan-400/15"
+                >
+                    <Upload className="h-3.5 w-3.5" /> Añadir archivos
+                </AttachFilePickerButton>
+                <div className="flex min-w-[240px] flex-1 items-center gap-1.5">
+                    <select
+                        value={kindDraft}
+                        onChange={(e) => setKindDraft(e.target.value)}
+                        className="h-9 shrink-0 cursor-pointer rounded-lg border border-white/15 bg-white/[0.03] px-2 text-xs text-amber-50"
+                    >
+                        {ATTACHMENT_KIND_OPTIONS.map((k) => (
+                            <option key={k.id} value={k.id} className="bg-[#0d0f14]">
+                                {k.label}
+                            </option>
+                        ))}
+                    </select>
+                    <Input
+                        placeholder="Pegar URL (página, app, pizarra, servidor, vídeo…)"
+                        value={urlDraft}
+                        onChange={(e) => setUrlDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                addFromUrl();
+                            }
+                        }}
+                        className="h-9 flex-1 bg-white/[0.03] text-amber-50"
+                    />
+                    <Button type="button" size="sm" variant="outline" onClick={addFromUrl} className="h-9 shrink-0 px-2.5">
+                        <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                </div>
+            </div>
+
+            {/* Lista reordenable (flechas) */}
+            {attachments.length > 0 && (
+                <div className="space-y-1.5">
+                    {attachments.map((a, i) => {
+                        const live = Boolean(a.liveMode && a.liveMode !== "estatico");
+                        const liveOpen = Boolean(liveOpenFor[a.id]);
+                        return (
+                            <div key={a.id} className="overflow-hidden rounded-lg border border-white/10 bg-black/20">
+                                <div className="flex items-center gap-2 px-2.5 py-2">
+                                    <AttKindIcon kind={a.kind} className="h-4 w-4 shrink-0 text-white/50" />
+                                    <span className="min-w-0 flex-1 truncate text-xs text-amber-50">
+                                        {a.name || a.title || a.url || "Adjunto"}
+                                    </span>
+                                    {i === 0 && (
+                                        <span className="shrink-0 rounded-full bg-cyan-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-cyan-200">
+                                            Principal
+                                        </span>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setLiveOpenFor((p) => ({ ...p, [a.id]: !p[a.id] }))}
+                                        title="Modo del adjunto: estático o en vivo (edición/canal)"
+                                        className={cn(
+                                            "inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold transition-colors",
+                                            live
+                                                ? "border-rose-400/40 bg-rose-400/10 text-rose-200"
+                                                : "border-white/10 text-white/40 hover:border-white/25",
+                                        )}
+                                    >
+                                        <Radio className="h-3 w-3" />
+                                        {live ? (a.liveMode === "canal" ? "Canal" : "Edición viva") : "Estático"}
+                                    </button>
+                                    <div className="flex shrink-0 items-center gap-0.5">
+                                        {a.kind === "imagen" && a.url && (
+                                            <IconBtn title="Editar imagen" onClick={() => setEditingImgId(a.id)}>
+                                                <Pencil className="h-3.5 w-3.5" />
+                                            </IconBtn>
+                                        )}
+                                        <IconBtn title="Subir" onClick={() => move(i, -1)} disabled={i === 0}>
+                                            <ArrowUp className="h-3.5 w-3.5" />
+                                        </IconBtn>
+                                        <IconBtn title="Bajar" onClick={() => move(i, 1)} disabled={i === attachments.length - 1}>
+                                            <ArrowDown className="h-3.5 w-3.5" />
+                                        </IconBtn>
+                                        {i !== 0 && (
+                                            <IconBtn title="Hacer principal" onClick={() => makeMain(i)}>
+                                                <Maximize2 className="h-3.5 w-3.5" />
+                                            </IconBtn>
+                                        )}
+                                        <IconBtn title="Quitar" onClick={() => removeAt(i)} className="hover:text-red-300">
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </IconBtn>
+                                    </div>
+                                </div>
+                                {liveOpen && (
+                                    <div className="border-t border-white/10 bg-white/[0.02] p-2.5">
+                                        <LiveModePicker
+                                            mode={a.liveMode ?? "estatico"}
+                                            permission={a.livePermission}
+                                            groupSlug={a.liveGroupSlug}
+                                            provisioned={Boolean(a.liveSpaceId || a.liveServerId)}
+                                            busy={Boolean(provisioningFor[a.id])}
+                                            onModeChange={(mode) =>
+                                                patchAttachment(
+                                                    a.id,
+                                                    mode === "estatico"
+                                                        ? { liveMode: "estatico", livePermission: null, liveSpaceId: null, liveServerId: null, liveServerSlug: null, liveGroupSlug: null }
+                                                        : { liveMode: mode },
+                                                )
+                                            }
+                                            onPermissionChange={(permission) => patchAttachment(a.id, { livePermission: permission })}
+                                            onGroupSlugChange={(slug) => patchAttachment(a.id, { liveGroupSlug: slug })}
+                                            onProvision={() => void handleProvision(a)}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Proporción de la vista principal */}
+            <div className="space-y-1.5">
+                <label className="text-xs font-medium text-white/55">Proporción de la vista principal</label>
+                <div className="flex flex-wrap gap-1.5">
+                    {RATIOS.map((r) => (
+                        <button
+                            key={r.id}
+                            type="button"
+                            onClick={() => onRatio(r.id)}
+                            className={cn(
+                                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
+                                ratio === r.id
+                                    ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-100"
+                                    : "border-white/15 text-white/55 hover:border-white/30",
+                            )}
+                        >
+                            <Icon name={r.icon} className="h-3.5 w-3.5" /> {r.label}
+                        </button>
+                    ))}
+                </div>
+                <p className="text-[11px] text-white/35">
+                    "Auto" conserva la proporción natural con un tamaño máximo según el contexto (feed
+                    compacto o página de publicación más amplia).
+                </p>
+            </div>
+
+            <ImageEditorDialog
+                open={Boolean(editingImg)}
+                onOpenChange={(open) => !open && setEditingImgId(null)}
+                srcUrl={editingImg?.url || ""}
+                onApply={(url) => {
+                    if (editingImg) patchAttachment(editingImg.id, { url });
+                }}
+            />
         </div>
     );
 }
@@ -1667,6 +2440,7 @@ function StepConfigScope({
 
 function StepPreview({
     preview,
+    previewPost,
     area,
     subArea,
     postKind,
@@ -1679,6 +2453,7 @@ function StepPreview({
     onOpenFull,
 }: {
     preview: PreviewModel;
+    previewPost: FeedPost;
     area: Area | null;
     subArea: SubArea | null;
     postKind: PostKindId;
@@ -1697,6 +2472,17 @@ function StepPreview({
             .join(", ") || "Perfil por defecto";
 
     const postKindLabel = POST_KINDS.find((k) => k.id === postKind)?.label || postKind;
+
+    // ── Adenda "Lienzo de Creación Universal" · "Compartir como" ──
+    // Referencia al destino ya ENTREGADO más representativo (feed/perfil si lo
+    // hay, si no el primero) para compartir SIN duplicar (tarjeta-ref, no copia
+    // de contenido). Null hasta que se publica — los botones se deshabilitan.
+    const sharePost = useMemo(() => {
+        if (!results) return null;
+        const ok = results.filter((r) => r.ok && r.recordId);
+        if (!ok.length) return null;
+        return ok.find((r) => r.kind === "red" || r.kind === "perfil") || ok[0];
+    }, [results]);
 
     return (
         <div className="space-y-4">
@@ -1780,12 +2566,11 @@ function StepPreview({
                 </div>
             )}
 
-            {/* Cuerpo del preview */}
-            <Card className="border-white/10 bg-white/[0.02]">
-                <CardContent className="p-4">
-                    <PreviewBody preview={preview} />
-                </CardContent>
-            </Card>
+            {/* Vista previa EN VIVO — la MISMA tarjeta que verás en el feed */}
+            <div className="space-y-1.5">
+                <span className="text-xs font-medium text-white/55">Así se verá en el feed</span>
+                <RichPostCard post={previewPost} preview />
+            </div>
 
             {/* Llamada al Lienzo de Creación (editor híbrido) */}
             <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-white/15 bg-white/[0.02] p-3">
@@ -1843,6 +2628,21 @@ function StepPreview({
                     </p>
                 </div>
             )}
+
+            {/* "Compartir como" (Adenda "Lienzo de Creación Universal"): mensaje o
+                correo con una tarjeta-referencia — nunca duplica la publicación. */}
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
+                <SharePostActions
+                    postId={sharePost?.recordId}
+                    title={preview.title}
+                    description={preview.body}
+                />
+                {!sharePost && (
+                    <p className="mt-1.5 text-[11px] text-white/35">
+                        Publica primero (botón "Publicar" abajo) para poder compartir una referencia.
+                    </p>
+                )}
+            </div>
         </div>
     );
 }

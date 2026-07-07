@@ -549,7 +549,9 @@ export function crearWidget(tipo?: unknown): ContentOutcome {
       return {
         ok: true,
         message: `Añadí el widget ${tipoStr || wt} a tu tablero${active.name ? ` «${active.name}»` : ""}.`,
-        data: { widgetType: wt, dashboard: active.id },
+        // `widgetId` (aditivo): permite ofrecer "Revertir cambios" con precisión
+        // (quitar SOLO este widget, no todos los del mismo tipo).
+        data: { widgetType: wt, dashboard: active.id, widgetId: widget.id },
       };
     }
   } catch {

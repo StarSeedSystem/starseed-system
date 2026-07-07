@@ -23,6 +23,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AURORA_CONVERSATION_EVENT } from "@/lib/aurora/aurora-orb-bus";
+// Tipo SOLO (import type: se borra en compilación, sin ciclo real en runtime).
+// Metadatos de proceso por mensaje (Adenda "Aurora siempre responde", jul-2026).
+import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 /** Clave de localStorage del registro (versionada). */
@@ -40,6 +43,13 @@ export interface AuroraChatLogEntry {
   text: string;
   /** Epoch ms del mensaje. */
   ts: number;
+  /**
+   * (Aditivo, jul-2026) Metadatos de proceso de la respuesta — proveedor,
+   * modelo, intentos, duración, dificultad, herramientas invocadas. Ausente en
+   * mensajes de usuario y en entradas persistidas ANTES de esta ola (se leen
+   * con normalidad, sin `meta`). Ver architecture/astraura-inteligencia.md §17.3.
+   */
+  meta?: AuroraMessageMeta;
 }
 
 /** Sesión = todos los mensajes de un mismo día local (YYYY-MM-DD). */
@@ -142,7 +152,7 @@ export function appendAuroraChatEntry(entry: AuroraChatLogEntry): void {
   ) {
     return;
   }
-  entries.push({ role: entry.role, text: entry.text, ts: entry.ts });
+  entries.push({ role: entry.role, text: entry.text, ts: entry.ts, ...(entry.meta ? { meta: entry.meta } : {}) });
   writeEntries(entries);
   emitChange();
 }
@@ -290,14 +300,19 @@ export function ensureAuroraChatLogRecorder(): void {
   try {
     window.addEventListener(AURORA_CONVERSATION_EVENT, (e: Event) => {
       try {
-        const d = (e as CustomEvent<{ role?: string; text?: string; ts?: number }>).detail;
+        const d = (e as CustomEvent<{ role?: string; text?: string; ts?: number; meta?: unknown }>).detail;
         if (!d || typeof d.text !== "string") return;
         const role = d.role === "user" ? "user" : d.role === "aurora" ? "aurora" : null;
         if (!role) return;
+        // `meta` viaja como `unknown` por el bus (genérico, sin acoplarse al
+        // motor): lo aceptamos solo si es un objeto plano, y solo en mensajes
+        // de Aurora (los de usuario nunca llevan metadatos de proceso).
+        const meta = role === "aurora" && d.meta && typeof d.meta === "object" ? (d.meta as AuroraMessageMeta) : undefined;
         appendAuroraChatEntry({
           role,
           text: d.text,
           ts: typeof d.ts === "number" && Number.isFinite(d.ts) ? d.ts : Date.now(),
+          ...(meta ? { meta } : {}),
         });
       } catch {
         /* defensivo: un mensaje malformado jamás rompe la escucha */

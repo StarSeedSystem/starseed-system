@@ -47,6 +47,14 @@ export interface AuroraConversationDetail {
   role: "user" | "aurora";
   text: string;
   ts: number;
+  /**
+   * (Aditivo, jul-2026) Metadatos de proceso de la respuesta —
+   * proveedor/modelo/intentos/duración/dificultad/herramientas. Tipado como
+   * `unknown` a propósito: este bus es genérico y NO se acopla al motor
+   * (`engine.ts::AuroraMessageMeta`); los consumidores que quieran el detalle
+   * completo lo narrowean ellos mismos (ver `aurora-chat-log.ts`).
+   */
+  meta?: unknown;
 }
 
 /** Emite el evento de conversación (defensivo, SSR-safe). */

@@ -55,14 +55,55 @@ import { containsWake, stripWake } from "@/lib/aurora/wake-word";
 // ¿App instalada? Solo ahí mantenemos el micrófono abierto en 2º plano; en la
 // web, al terminar la conversación se APAGA (no hay escucha de fondo).
 import { isInstalledApp } from "@/lib/aurora/voice-autonomy";
+// Descriptor de "Revertir cambios" (Adenda "Aurora siempre responde", jul-2026).
+import type { AuroraUndoInfo } from "@/lib/aurora/undo";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
+
+/** Una herramienta invocada durante la respuesta (para el metadato del mensaje). */
+export interface ToolInvocationMeta {
+  name: string;
+  ok: boolean;
+  /** Resumen corto (frase decible), recortado. */
+  summary: string;
+  /** Si esa invocación fue reversible, cómo deshacerla. */
+  undo?: AuroraUndoInfo;
+}
+
+/**
+ * Metadatos de UNA respuesta de Aurora (Adenda "Aurora siempre responde",
+ * jul-2026): qué la atendió, cuánto costó, y qué hizo. Aditivo — mensajes
+ * antiguos sin `meta` se leen con normalidad (queda `undefined`).
+ * Ver architecture/astraura-inteligencia.md §17.3.
+ */
+export interface AuroraMessageMeta {
+  /** Etiqueta de la fuente (p.ej. "Groq", "Aurora (respuesta local)"). */
+  provider?: string;
+  /** Etiqueta del modelo usado. */
+  model?: string;
+  /** ¿Fue gratis? */
+  free?: boolean;
+  /** true = respuesta LOCAL honesta (ninguna IA real respondió). */
+  local?: boolean;
+  /** Nº de fuentes probadas en esta llamada. */
+  attempts?: number;
+  /** Duración de la llamada ganadora, en ms. */
+  ms?: number;
+  /** Dificultad estimada de la petición (0..1). */
+  difficulty?: number;
+  /** Por qué se eligió esa fuente (transparencia del router). */
+  reason?: string;
+  /** Herramientas invocadas durante esta respuesta (nombre + resultado). */
+  tools?: ToolInvocationMeta[];
+}
 
 /** Una entrada del historial de conversación (para el chat-widget). */
 export interface ConversationEntry {
   role: "user" | "aurora";
   text: string;
   at: number;
+  /** (Aditivo) Metadatos de proceso — solo respuestas de Aurora los llevan. */
+  meta?: AuroraMessageMeta;
 }
 
 /** Una entrada del registro de acciones ejecutadas por Aurora. */
@@ -71,6 +112,8 @@ export interface ActionLogEntry {
   ok: boolean;
   message: string;
   at: number;
+  /** (Aditivo) Si la acción es reversible, cómo deshacerla. */
+  undo?: AuroraUndoInfo;
 }
 
 /** Cuántas respuestas/entradas guardamos como mucho (ring buffer). */
@@ -124,7 +167,7 @@ export interface AuroraEngine {
   stop: () => void;
   toggle: () => void;
   speak: (text: string) => void;
-  runCommand: (transcript: string) => Promise<void>;
+  runCommand: (transcript: string, opts?: { forceSource?: { sourceId: string; modelId: string } }) => Promise<void>;
   /** ¿La síntesis de voz está pausada (transporte)? */
   paused: boolean;
   /** Pausa la voz de Aurora (TTS) sin perder la sesión. */
@@ -143,8 +186,12 @@ export interface AuroraEngine {
   replyHistory: string[];
   /** Historial completo de la conversación (tú / Aurora). */
   conversation: ConversationEntry[];
-  /** Envía texto al motor como si el usuario hablara (chat por escrito). */
-  send: (text: string) => Promise<void>;
+  /**
+   * Envía texto al motor como si el usuario hablara (chat por escrito).
+   * `opts.forceSource` (aditivo): fuerza un proveedor/modelo concreto SOLO
+   * para esta llamada (lo usa "Reintentar" del menú contextual de mensajes).
+   */
+  send: (text: string, opts?: { forceSource?: { sourceId: string; modelId: string } }) => Promise<void>;
   /** Registro de acciones ejecutadas por Aurora (para el panel del chat). */
   actionLog: ActionLogEntry[];
   /** Lo que Aurora está haciendo ahora mismo ("Abriendo Pizarras…"), o "". */
@@ -517,7 +564,12 @@ export function useAuroraEngine(): AuroraEngine {
 
   // ── historial de respuestas + conversación ──
   // Registra una respuesta de Aurora en el historial (para el transporte y el chat).
-  const pushReply = useCallback((text: string) => {
+  // `meta` es OPCIONAL y ADITIVO: si el llamador no la pasa (reglas
+  // deterministas del motor, sin modelo de por medio), igualmente se adjunta
+  // un meta MÍNIMO honesto, para que "Ver proceso" nunca quede vacío sin
+  // explicación. Las respuestas que sí pasaron por `astrauraChat` llevan el
+  // meta real (proveedor/modelo/intentos/duración/dificultad/herramientas).
+  const pushReply = useCallback((text: string, meta?: AuroraMessageMeta) => {
     const t = (text || "").trim();
     if (!t) return;
     setLastReply(t);
@@ -527,7 +579,8 @@ export function useAuroraEngine(): AuroraEngine {
       return next;
     });
     historyIndexRef.current = -1; // -1 = al final (última respuesta)
-    setConversation((prev) => [...prev, { role: "aurora" as const, text: t, at: Date.now() }].slice(-HISTORY_LIMIT));
+    const entryMeta: AuroraMessageMeta = meta ?? { local: true, reason: "Regla determinista del motor (sin modelo de IA)." };
+    setConversation((prev) => [...prev, { role: "aurora" as const, text: t, at: Date.now(), meta: entryMeta }].slice(-HISTORY_LIMIT));
   }, []);
 
   // Registra lo que el usuario dijo/escribió.
@@ -652,8 +705,11 @@ export function useAuroraEngine(): AuroraEngine {
     const nm = (name || "").toLowerCase();
     const directive: AuroraDirective = { name: nm, args, raw: "" };
     const res = await executeDirective(directive, buildActionCtx());
-    pushAction({ name: nm, ok: !!res.ok, message: res.message || "", at: Date.now() });
-    if (res.message) { pushReply(res.message); speak(res.message); }
+    pushAction({ name: nm, ok: !!res.ok, message: res.message || "", at: Date.now(), undo: res.undo });
+    if (res.message) {
+      pushReply(res.message, { local: true, reason: "Acción directa (puente/extensión)", tools: [{ name: nm, ok: !!res.ok, summary: res.message.slice(0, 200), undo: res.undo }] });
+      speak(res.message);
+    }
     return res;
   }, [buildActionCtx, speak, pushAction, pushReply]);
 
@@ -671,7 +727,10 @@ export function useAuroraEngine(): AuroraEngine {
   // BASADO EN TIEMPO: se AUTO-LIBERA a los 60s aunque algo interno se colgara,
   // para que Aurora NUNCA se quede sorda ("ni reconoce nada") de forma permanente.
   const runningRef = useRef<number>(0);
-  const runCommand = useCallback(async (raw: string) => {
+  const runCommand = useCallback(async (
+    raw: string,
+    opts?: { forceSource?: { sourceId: string; modelId: string } },
+  ) => {
     // GUARD ANTI-SOLAPAMIENTO: si Aurora YA está procesando una respuesta (hace
     // menos de 60s), no lanzamos otra en paralelo. Sin esto, mientras Aurora
     // "piensa" el micrófono puede captar más frases y disparar runCommands
@@ -823,8 +882,13 @@ export function useAuroraEngine(): AuroraEngine {
         "Recuerda tu control total: si algo se hace en el OS, hazlo tú con [[ACCION:...]]; nunca le pidas que vaya él a otra parte.";
       // Sección ADITIVA con las herramientas de integración disponibles para el
       // cerebro activo (vacía si no hay ninguna configurada → prompt idéntico).
+      // SELECCIÓN AUTOMÁTICA DE HERRAMIENTAS (toggle, Ajustes → Inteligencia):
+      // con `autoTools:false` Aurora conversa sin evaluar/ofrecer ninguna tool.
+      const autoToolsOn = getIntelligenceSettings().autoTools !== false;
       let toolsSection = "";
-      try { toolsSection = await auroraToolsActionPromptSection(brainIdRef.current); } catch { toolsSection = ""; }
+      if (autoToolsOn) {
+        try { toolsSection = await auroraToolsActionPromptSection(brainIdRef.current); } catch { toolsSection = ""; }
+      }
       // Conocimiento del ecosistema (áreas, tríada, enlaces canónicos) para que
       // Aurora entienda cada contexto/sección y responda/actúe interconectando.
       let knowledge = "";
@@ -842,11 +906,14 @@ export function useAuroraEngine(): AuroraEngine {
       const temperature = 0.4 + (Number(activeRef.current.params?.creatividad ?? 60) / 100) * 0.6;
       setThinking(true); // ← animación de carga en el orbe mientras espera a la IA
       // Router agéntico gratis-primero (auto) o proveedor clásico (manual).
+      // `forceSource` (opcional): "Reintentar" del menú contextual de mensajes
+      // fuerza un proveedor/modelo concreto para ESTA llamada.
       const res = await astrauraChat({
         messages,
         temperature,
         brainId: brainIdRef.current,
         onStatus: (s) => { if (s) setStatus(s); },
+        forceSource: opts?.forceSource,
       });
       setThinking(false); // ya llegó la respuesta
       let reply = (res?.text || "").trim();
@@ -858,15 +925,18 @@ export function useAuroraEngine(): AuroraEngine {
       } catch { /* */ }
 
       // 1) Directivas de ACCIÓN [[ACCION: nombre {json}]] — el control real del OS.
-      //    Las extraemos, las quitamos del discurso, y las ejecutamos.
+      //    Las extraemos, las quitamos del discurso, y las ejecutamos. Cada una
+      //    se recoge también en `toolMetas` (metadato del mensaje: §17.3).
       const directives = parseDirectives(reply);
       reply = stripDirectives(reply);
       const ctx = buildActionCtx();
       const actionMsgs: string[] = [];
+      const toolMetas: ToolInvocationMeta[] = [];
       for (const d of directives) {
         const r = await executeDirective(d, ctx);
-        pushAction({ name: d.name, ok: !!r.ok, message: r.message || "", at: Date.now() });
+        pushAction({ name: d.name, ok: !!r.ok, message: r.message || "", at: Date.now(), undo: r.undo });
         if (r.message) actionMsgs.push(r.message);
+        toolMetas.push({ name: d.name, ok: !!r.ok, summary: (r.message || "").slice(0, 200), undo: r.undo });
       }
 
       // 2) Compatibilidad: directiva antigua de navegación [[goto:/ruta]].
@@ -879,14 +949,32 @@ export function useAuroraEngine(): AuroraEngine {
       // El discurso final: lo que dijo el modelo (ya sin directivas) o, si solo
       // emitió acciones, el resumen honesto de lo que Aurora hizo.
       reply = reply.trim() || actionMsgs.join(" ") || "Hecho.";
-      pushReply(reply);
+      // Metadatos de PROCESO (§17.3): proveedor/modelo/intentos/duración/
+      // dificultad + herramientas invocadas. Siempre se adjunta algo honesto,
+      // incluso si `res.route` faltara por algún motivo defensivo.
+      const meta: AuroraMessageMeta = {
+        provider: res?.route?.sourceLabel,
+        model: res?.route?.modelLabel,
+        free: res?.route?.free,
+        local: res?.route?.local,
+        attempts: res?.route?.attempts,
+        ms: res?.route?.ms,
+        difficulty: res?.route?.difficulty,
+        reason: res?.route?.reason,
+        tools: toolMetas.length ? toolMetas : undefined,
+      };
+      pushReply(reply, meta);
       speak(reply);
     } catch (e: any) {
-      const d = (e?.message ? String(e.message) : "").trim();
-      const m = d && !/failed to fetch|networkerror|load failed/i.test(d)
-        ? `Astraura: ${d}`
-        : "No pude contactar a Astraura. Revisa tu proveedor de IA en Ajustes → IA & Modelos.";
-      pushReply(m); speak(m);
+      // GARANTÍA DE RESPUESTA: ni aquí se vuelca un error crudo. Mensaje
+      // siempre honesto + accionable (nunca un stack/JSON en bruto).
+      const raw = (e?.message ? String(e.message) : "").trim();
+      const network = /failed to fetch|networkerror|load failed/i.test(raw);
+      const m = network
+        ? "No pude conectar con ninguna fuente de inteligencia (parece un corte de red). Revisa tu conexión, o activa un modelo local (Ollama) en Ajustes → Inteligencia, y vuelve a intentarlo."
+        : `Tuve un problema técnico inesperado y no completé la respuesta${raw ? ` (${raw.slice(0, 160)})` : ""}. Puedes reformular tu mensaje, revisar Ajustes → Inteligencia, o probar otra fuente.`;
+      pushReply(m, { local: true, reason: network ? "Sin conexión con ninguna fuente" : "Excepción inesperada del motor" });
+      speak(m);
     }
     } finally {
       // Libera el guard SIEMPRE (aunque hubiera return anticipado o error): así
@@ -1130,10 +1218,10 @@ export function useAuroraEngine(): AuroraEngine {
   }, [listening, start, stop, interrupt]);
 
   // Envía texto al motor como si el usuario hablara (para el chat por escrito).
-  const send = useCallback(async (text: string) => {
+  const send = useCallback(async (text: string, opts?: { forceSource?: { sourceId: string; modelId: string } }) => {
     // Escribir/enviar texto es interacción explícita → modo ACTIVA.
     try { engageNowRef.current(); } catch { /* */ }
-    await runCommandRef.current(text);
+    await runCommandRef.current(text, opts);
   }, []);
 
   return useMemo(

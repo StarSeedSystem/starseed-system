@@ -23,6 +23,7 @@ import type { Router } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { getApp } from "@/components/dashboard/apps/app-catalog";
 import { newCanvas, saveCanvas } from "@/lib/canvas/canvas";
+import type { AuroraUndoInfo } from "@/lib/aurora/undo";
 
 /**
  * Aurora tiene CONTROL TOTAL del OS. Por defecto, TODOS los accesos están
@@ -59,6 +60,12 @@ export interface AuroraActionResult {
   message: string;
   /** Etiqueta de feedback de UI ("Abriendo Pizarras…"). */
   status?: string;
+  /**
+   * (Aditivo, jul-2026) Si esta acción es REVERSIBLE de forma segura e
+   * inequívoca, describe cómo deshacerla ("Revertir cambios" del menú
+   * contextual de mensajes). Ausente = no reversible (se dice con honestidad).
+   */
+  undo?: AuroraUndoInfo;
 }
 
 /** Una directiva ya parseada desde el texto del modelo. */
@@ -326,9 +333,10 @@ function resolveWidgetType(tipoRaw: string): string | null {
 /**
  * Añade un widget del tipo dado al dashboard activo (el primero de la lista).
  * Persiste en localStorage y avisa a otras pestañas (mismo mecanismo que el
- * dashboard real). Devuelve true si lo añadió.
+ * dashboard real). Devuelve true si lo añadió, junto al id del dashboard y del
+ * widget creado (para poder ofrecer "Revertir cambios" con precisión).
  */
-function addWidgetToActiveDashboard(widgetType: string): { ok: boolean; dashboardName?: string } {
+function addWidgetToActiveDashboard(widgetType: string): { ok: boolean; dashboardName?: string; dashboardId?: string; widgetId?: string } {
   if (!isClient()) return { ok: false };
   try {
     const dashboards = lsRead<Array<{ id: string; name?: string; is_default?: boolean }>>(LS_DASHBOARDS, []);
@@ -348,7 +356,7 @@ function addWidgetToActiveDashboard(widgetType: string): { ok: boolean; dashboar
     all[active.id] = [...list, widget];
     localStorage.setItem(LS_WIDGETS, JSON.stringify(all));
     broadcastDashboard("widgets");
-    return { ok: true, dashboardName: active.name };
+    return { ok: true, dashboardName: active.name, dashboardId: active.id, widgetId: widget.id };
   } catch {
     return { ok: false };
   }
@@ -488,7 +496,8 @@ async function dispatchAgentOrSkill(
 
 const LS_AURORA_SETTINGS = "starseed_settings";
 
-function applySetting(clave: string, valor: unknown): { ok: boolean } {
+/** Cambia un ajuste y devuelve el valor ANTERIOR (para poder ofrecer "Revertir cambios"). */
+function applySetting(clave: string, valor: unknown): { ok: boolean; previousValue?: unknown } {
   if (!isClient()) return { ok: false };
   try {
     let bag: Record<string, unknown> = {};
@@ -496,12 +505,13 @@ function applySetting(clave: string, valor: unknown): { ok: boolean } {
       const raw = localStorage.getItem(LS_AURORA_SETTINGS);
       if (raw) bag = JSON.parse(raw) as Record<string, unknown>;
     } catch { bag = {}; }
+    const previousValue = bag[clave];
     bag[clave] = valor;
     localStorage.setItem(LS_AURORA_SETTINGS, JSON.stringify(bag));
     try {
       window.dispatchEvent(new CustomEvent("starseed:setting-changed", { detail: { key: clave, value: valor, at: Date.now() } }));
     } catch { /* noop */ }
-    return { ok: true };
+    return { ok: true, previousValue };
   } catch {
     return { ok: false };
   }
@@ -609,7 +619,14 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
       }
       // Asegura que el usuario VEA el cambio.
       try { ctx.router.push("/dashboard"); } catch { /* noop */ }
-      return { ok: true, message: `Añadí el widget ${tipo} a tu tablero${res.dashboardName ? ` "${res.dashboardName}"` : ""}.`, status };
+      return {
+        ok: true,
+        message: `Añadí el widget ${tipo} a tu tablero${res.dashboardName ? ` "${res.dashboardName}"` : ""}.`,
+        status,
+        undo: res.dashboardId && res.widgetId
+          ? { kind: "widget", dashboardId: res.dashboardId, widgetId: res.widgetId, label: `Quitar el widget ${tipo}` }
+          : undefined,
+      };
     },
   },
   {
@@ -749,7 +766,14 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
       const res = addWidgetToActiveDashboard(wt);
       try { ctx.router.push("/dashboard"); } catch { /* noop */ }
       if (!res.ok) return { ok: false, message: `No encontré un tablero donde abrir "${tipo}". Te abrí el tablero.` };
-      return { ok: true, message: `Abrí la ventana ${tipo} en tu tablero${res.dashboardName ? ` "${res.dashboardName}"` : ""}.`, status };
+      return {
+        ok: true,
+        message: `Abrí la ventana ${tipo} en tu tablero${res.dashboardName ? ` "${res.dashboardName}"` : ""}.`,
+        status,
+        undo: res.dashboardId && res.widgetId
+          ? { kind: "widget", dashboardId: res.dashboardId, widgetId: res.widgetId, label: `Quitar la ventana ${tipo}` }
+          : undefined,
+      };
     },
   },
   {
@@ -768,7 +792,12 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
       ctx.onStatus?.(status);
       const res = applySetting(clave, valor);
       if (!res.ok) return { ok: false, message: `No pude guardar el ajuste "${clave}".`, status };
-      return { ok: true, message: `Listo, ajusté "${clave}"${valor !== undefined && valor !== "" ? ` a "${String(valor)}"` : ""}.`, status };
+      return {
+        ok: true,
+        message: `Listo, ajusté "${clave}"${valor !== undefined && valor !== "" ? ` a "${String(valor)}"` : ""}.`,
+        status,
+        undo: { kind: "setting", key: clave, previousValue: res.previousValue, label: `Deshacer el ajuste "${clave}"` },
+      };
     },
   },
   {
@@ -880,9 +909,30 @@ function summarizeToolResult(name: string, res: { ok: boolean; data?: unknown; e
 }
 
 /**
+ * Si el resultado de una tool de GENERAR CONTENIDO creó algo con id propio
+ * (nota/documento/archivo → Biblioteca; widget → tablero), construye el
+ * `AuroraUndoInfo` correspondiente para "Revertir cambios". Puramente
+ * declarativo a partir de datos ya devueltos por la tool — no la modifica.
+ */
+function undoFromToolData(name: string, data: any): AuroraUndoInfo | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  try {
+    if ((name === "crear_nota" || name === "crear_documento" || name === "crear_archivo") && typeof data.id === "string" && data.id) {
+      const titulo = data.titulo || data.nombre || name;
+      return { kind: "library-item", id: data.id, label: `Quitar «${titulo}» de la Biblioteca` };
+    }
+    if (name === "crear_widget" && typeof data.widgetId === "string" && data.widgetId && typeof data.dashboard === "string") {
+      return { kind: "widget", dashboardId: data.dashboard, widgetId: data.widgetId, label: "Quitar el widget añadido" };
+    }
+  } catch { /* noop */ }
+  return undefined;
+}
+
+/**
  * Intenta ejecutar `name` como una TOOL DE INTEGRACIÓN. Devuelve:
  *  - AuroraActionResult  si `name` es una tool disponible (ejecutada de verdad),
- *  - un resultado honesto si la tool existe pero NO está configurada/disponible,
+ *  - un resultado honesto (con sustitución automática si hay alternativa) si
+ *    la tool existe pero NO está configurada/disponible,
  *  - null                si `name` NO es una tool de integración (para que el
  *                        llamador siga su camino habitual: "acción desconocida").
  */
@@ -899,6 +949,22 @@ async function tryRunIntegrationTool(
     // ¿Está configurada/disponible para el cerebro activo?
     const available = mod?.isAuroraToolAvailable?.(name, ctx.brainId) ?? false;
     if (!available) {
+      // Sustitución automática (aditivo): otra tool de la misma familia que SÍ
+      // esté disponible AHORA (p.ej. buscar_web local sin config, si SearXNG no
+      // está configurado). Se REGISTRA con transparencia, nunca en silencio.
+      const alt = mod?.findAvailableAlternate?.(name, ctx.brainId);
+      if (alt) {
+        const status = `«${name}» no está configurada; usando «${alt}» en su lugar…`;
+        ctx.onStatus?.(status);
+        const altRes = await mod.runAuroraTool(alt, args, { brainId: ctx.brainId });
+        return {
+          ok: !!(altRes && altRes.ok),
+          message: `[Sustitución automática: «${name}» no está configurada → usé «${alt}»] ` +
+            summarizeToolResult(alt, altRes || { ok: false, error: "sin respuesta" }),
+          status,
+          undo: undoFromToolData(alt, altRes?.data),
+        };
+      }
       return {
         ok: false,
         message: `La herramienta «${name}» no está configurada o activada en este cerebro. Actívala en el Hub de Habilidades o en Conexiones.`,
@@ -911,6 +977,7 @@ async function tryRunIntegrationTool(
       ok: !!(res && res.ok),
       message: summarizeToolResult(name, res || { ok: false, error: "sin respuesta" }),
       status,
+      undo: undoFromToolData(name, res?.data),
     };
   } catch {
     // El módulo de integraciones puede no existir o fallar: degradamos sin romper.

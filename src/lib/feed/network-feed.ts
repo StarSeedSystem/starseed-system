@@ -20,6 +20,12 @@
 import { createClient } from "@/utils/supabase/client";
 import type { Post, User } from "@/services/network-simulation-service";
 import type { CommentAttachment } from "@/lib/posts/post-entity";
+import type {
+    LiveAttachmentMode,
+    LiveEditPermission,
+    MainRatio,
+    PostContentAttachment,
+} from "@/lib/publish/publish";
 
 /** Un adjunto de publicación de cualquier formato (vista previa dinámica). */
 export interface PostAttachment {
@@ -47,14 +53,34 @@ export interface PostAttachment {
     description?: string | null;
     thumbnail?: string | null;
     mime?: string | null;
+    /** NUEVO · Adenda "Publicaciones ricas": contenido en línea (código/markdown sin URL). */
+    content?: string | null;
+    /** NUEVO · lenguaje para bloques de código. */
+    language?: string | null;
+    /** NUEVO · Adenda "Contenido vivo en publicaciones" (ver publish.ts). Ausente/"estatico" = sin cambios. */
+    liveMode?: LiveAttachmentMode | null;
+    livePermission?: LiveEditPermission | null;
+    liveSpaceId?: string | null;
+    liveServerId?: string | null;
+    liveServerSlug?: string | null;
+    liveGroupSlug?: string | null;
 }
 
 /** Extiende `Post` (shape ya consumido por `RichPostCard`) con campos reales. */
 export interface FeedPost extends Post {
     /** id real de `posts` (uuid) — el mismo que `id`, explícito para claridad. */
     postId: string;
-    /** Adjunto rico opcional (tarjeta de vista previa expandible). */
+    /** Adjunto rico opcional (tarjeta de vista previa expandible). Se conserva por retrocompatibilidad. */
     attachment?: PostAttachment | null;
+    /** NUEVO · Adenda "Publicaciones ricas": TODOS los adjuntos (multi-formato), en
+     *  orden, listos para `AttachmentCarousel`/`EmbeddedContentWindow`. Combina
+     *  `content.attachments` (nuevo) con `media`/`attachment` (legado) cuando el
+     *  primero no existe, así que SIEMPRE refleja el estado más rico disponible. */
+    attachments?: PostAttachment[];
+    /** NUEVO · proporción de la vista principal ("auto" por defecto). */
+    mainRatio?: MainRatio;
+    /** NUEVO · si se muestra la vista previa de adjuntos (true por defecto). */
+    showPreview?: boolean;
     /** Área de publicación (Módulo 5): política / educación / cultura / general. */
     area?: string | null;
     /** true si la fila proviene de Supabase (siempre true aquí; se marca para claridad). */
@@ -159,6 +185,59 @@ function extractAttachment(
     return null;
 }
 
+/** Adivina un `kind` amplio (imagen/video/audio) a partir de la extensión de una URL simple. */
+function guessMediaKind(url: string): "imagen" | "video" | "audio" {
+    if (/\.(mp4|webm|mov|mkv|avi|m4v)(\?|#|$)/i.test(url)) return "video";
+    if (/\.(mp3|wav|ogg|flac|m4a|aac)(\?|#|$)/i.test(url)) return "audio";
+    return "imagen";
+}
+
+function toPostAttachment(a: PostContentAttachment, idx: number): PostAttachment {
+    return {
+        id: a.id || `att-${idx}-${a.url ?? a.name ?? idx}`,
+        kind: a.kind || "archivo",
+        url: a.url ?? null,
+        href: a.url ?? null,
+        name: a.name ?? null,
+        title: a.title ?? a.name ?? null,
+        description: a.description ?? null,
+        thumbnail: a.thumbnail ?? null,
+        mime: a.mime ?? null,
+        content: a.content ?? null,
+        language: a.language ?? null,
+        liveMode: a.liveMode ?? null,
+        livePermission: a.livePermission ?? null,
+        liveSpaceId: a.liveSpaceId ?? null,
+        liveServerId: a.liveServerId ?? null,
+        liveServerSlug: a.liveServerSlug ?? null,
+        liveGroupSlug: a.liveGroupSlug ?? null,
+    };
+}
+
+/**
+ * Extrae TODOS los adjuntos de una publicación, en orden, para el carrusel
+ * multi-formato. Prioriza el campo nuevo `content.attachments` (lo que produce
+ * el compositor mejorado); si no existe, RECONSTRUYE una lista equivalente a
+ * partir de las señales legadas (`media` + el adjunto rico único) para que las
+ * publicaciones ya existentes sean íntegramente retrocompatibles — nunca
+ * pierden su vista previa, sólo pasan por el mismo componente nuevo.
+ */
+function extractAttachments(
+    content: Record<string, any>,
+    refs: Record<string, any>,
+): PostAttachment[] {
+    if (Array.isArray(content.attachments) && content.attachments.length > 0) {
+        return (content.attachments as PostContentAttachment[]).map((a, i) => toPostAttachment(a, i));
+    }
+    const out: PostAttachment[] = [];
+    extractMedia(content).forEach((url, i) => {
+        out.push({ id: `media-${i}`, kind: guessMediaKind(url), url, href: url });
+    });
+    const single = extractAttachment(content, refs);
+    if (single) out.push(single);
+    return out;
+}
+
 function normalizeRow(row: PostRow): FeedPost {
     const content = asObj<Record<string, any>>(row.content, {});
     const refs = asObj<Record<string, any>>(row.post_references, {});
@@ -187,6 +266,9 @@ function normalizeRow(row: PostRow): FeedPost {
         likedByMe: false,
         tags: Array.isArray(interactions.tags) ? interactions.tags : [],
         attachment: extractAttachment(content, refs),
+        attachments: extractAttachments(content, refs),
+        mainRatio: (content.mainRatio as MainRatio) || "auto",
+        showPreview: content.showPreview !== false,
         area: refs.area ?? null,
         isReal: true,
     };
@@ -209,7 +291,9 @@ export async function fetchNetworkFeed(opts: FetchFeedOptions = {}): Promise<Fee
         const { data, error } = await supabase
             .from("posts")
             .select("id, author_id, content, post_references, interactions, created_at")
-            .eq("type", "post")
+            // Todos los tipos de publicación del Lienzo (post, artículo, galería, código,
+            // transmisión, proyecto, servidor, historia…) — solo se excluyen los comentarios.
+            .neq("type", "comment")
             .order("created_at", { ascending: false })
             .limit(limit);
         if (error || !Array.isArray(data)) return [];

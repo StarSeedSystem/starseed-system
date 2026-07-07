@@ -33,7 +33,13 @@ export type PublicationTypeId =
     | "propuesta"
     | "lienzo"
     | "app"
-    | "mixto";
+    | "mixto"
+    // ── Adenda "Publicaciones ricas" (aditivo, retrocompatible) ──
+    | "galeria"
+    | "codigo"
+    | "transmision"
+    | "proyecto"
+    | "servidor";
 
 export type DestinationKindId =
     | "pagina"
@@ -45,7 +51,9 @@ export type DestinationKindId =
     | "chat_ia"
     | "biblioteca"
     | "carpeta"
-    | "red";
+    | "red"
+    // ── Adenda "Lienzo de Creación Universal" (aditivo) ──
+    | "evento";
 
 /** Definición de un tipo de publicación: qué es y qué formatos admite. */
 export interface PublicationType {
@@ -147,6 +155,42 @@ export const PUBLICATION_TYPES: PublicationType[] = [
         blurb: "Contenido combinado: texto + medios + adjuntos.",
         formats: ["compuesto", "hilo", "historia"],
     },
+    // ── Adenda "Publicaciones ricas" (aditivo, retrocompatible) ──
+    {
+        id: "galeria",
+        label: "Galería",
+        icon: "Images",
+        blurb: "Varias imágenes o vídeos en un carrusel navegable.",
+        formats: ["carrusel", "cuadricula", "antes-despues"],
+    },
+    {
+        id: "codigo",
+        label: "Código / Programa",
+        icon: "Code2",
+        blurb: "Un fragmento de código, repositorio o demo ejecutable.",
+        formats: ["snippet", "repositorio", "demo-embed"],
+    },
+    {
+        id: "transmision",
+        label: "Transmisión",
+        icon: "Radio",
+        blurb: "Una emisión en vivo o grabada (audio/vídeo en directo).",
+        formats: ["en-vivo", "grabacion", "enlace-stream"],
+    },
+    {
+        id: "proyecto",
+        label: "Proyecto",
+        icon: "FolderKanban",
+        blurb: "Un proyecto colectivo con recursos, hitos y adjuntos.",
+        formats: ["resumen", "tablero", "hitos"],
+    },
+    {
+        id: "servidor",
+        label: "Servidor",
+        icon: "Server",
+        blurb: "Un nodo, instancia o servicio de la red para conectarse.",
+        formats: ["estado", "invitacion", "panel"],
+    },
 ];
 
 // ── Catálogo de TIPOS DE DESTINO ──
@@ -235,6 +279,17 @@ export const DESTINATION_KINDS: DestinationKind[] = [
         icon: "Box",
         table: "memories",
         blurb: "Archivar la referencia en una carpeta / memoria.",
+        fulfillment: "registered",
+    },
+    // ── Adenda "Lienzo de Creación Universal" (aditivo) ──
+    {
+        id: "evento",
+        label: "Evento",
+        icon: "CalendarDays",
+        // Sin tabla de entrega dedicada (misma honestidad que entidad_federativa):
+        // se registra como referencia en `posts`, no hay garantía de difusión en
+        // la página del evento todavía (fuera de alcance: no se toca esa página).
+        blurb: "Un evento de la red (asistentes, agenda).",
         fulfillment: "registered",
     },
 ];
@@ -344,6 +399,31 @@ interface MemoryRow {
 interface ChatRow {
     chat_id?: string | null;
 }
+interface OsEventRow {
+    id: string;
+    slug?: string | null;
+    title?: string | null;
+    owner_id?: string | null;
+}
+
+/** Opciones adicionales de `listDestinations` (Adenda "Lienzo de Creación
+ *  Universal" · aditivo, retrocompatible — llamadas con un solo argumento
+ *  conservan el comportamiento de siempre). */
+export interface ListDestinationsOptions {
+    /** Filtra a sólo destinos donde el usuario tiene permiso — ver honestidad
+     *  más abajo sobre qué cuenta como "permiso" hoy. */
+    onlyMine?: boolean;
+    /** Filtro de texto (subcadena, sin distinguir mayúsculas) sobre la
+     *  etiqueta, aplicado en cliente tras la carga. */
+    query?: string;
+}
+
+/** Filtro de texto genérico sobre `label` (aditivo; no-op si `q` está vacío). */
+function filterByQuery(rows: DestinationOption[], q?: string): DestinationOption[] {
+    const term = (q || "").trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((r) => r.label.toLowerCase().includes(term));
+}
 
 /**
  * Carga las opciones disponibles para un tipo de destino desde la tabla
@@ -358,9 +438,19 @@ interface ChatRow {
  *  · mensaje / chat_ia → chats distintos de `astraura_messages` del usuario.
  *  · red → un único destino implícito ("Feed público").
  *  · entidad_federativa → `pages` de tipo entidad federativa (si existieran).
+ *  · evento → `os_events` (Adenda "Lienzo de Creación Universal").
+ *
+ * `opts.onlyMine` filtra a destinos "donde tengo permiso": para pagina / grupo
+ * / comunidad / entidad_federativa, permiso = ser miembro (`page_members`,
+ * misma tabla que ya prioriza grupo/comunidad); para evento, permiso = ser
+ * organizador (`os_events.owner_id`). HONESTO: no existe un ACL de "permiso de
+ * publicación" dedicado en el repo — esta es la mejor señal ya disponible.
+ * `opts.query` filtra por texto. Ambos aditivos — sin `opts`, comportamiento
+ * idéntico al de siempre (usado hoy por `ReachSelector` y el "Ajuste avanzado").
  */
 export async function listDestinations(
     kind: DestinationKindId,
+    opts?: ListDestinationsOptions,
 ): Promise<DestinationOption[]> {
     const supabase = createClient();
     const uid = await getCurrentUserId();
@@ -380,12 +470,15 @@ export async function listDestinations(
 
             case "perfil": {
                 const profiles = await listProfiles();
-                return profiles.map((p) => ({
-                    id: p.id,
-                    label: p.displayName,
-                    sub: p.handle ? "@" + p.handle : p.type,
-                    kind,
-                }));
+                return filterByQuery(
+                    profiles.map((p) => ({
+                        id: p.id,
+                        label: p.displayName,
+                        sub: p.handle ? "@" + p.handle : p.type,
+                        kind,
+                    })),
+                    opts?.query,
+                );
             }
 
             case "pagina":
@@ -411,9 +504,11 @@ export async function listDestinations(
                     kind,
                 }));
 
-                // Para grupos/comunidades, prioriza aquellas donde el usuario es
-                // miembro (page_members). Si no se puede, se queda la lista plena.
-                if ((kind === "grupo" || kind === "comunidad") && uid) {
+                // Membresía (`page_members`): con `onlyMine` es un filtro DURO
+                // (para cualquiera de los 4 kinds de esta rama, incl. página y
+                // entidad federativa); sin él, sólo PRIORIZA grupo/comunidad
+                // cuando hay coincidencias — comportamiento IDÉNTICO al de antes.
+                if (uid && (opts?.onlyMine || kind === "grupo" || kind === "comunidad")) {
                     try {
                         const { data: mine } = await supabase
                             .from("page_members")
@@ -422,14 +517,29 @@ export async function listDestinations(
                         const mineIds = new Set(
                             ((mine as { page_id: string }[]) || []).map((m) => m.page_id),
                         );
-                        if (mineIds.size > 0) {
+                        if (opts?.onlyMine || mineIds.size > 0) {
                             rows = rows.filter((r) => mineIds.has(r.id));
                         }
                     } catch {
-                        /* sin page_members: dejamos la lista completa */
+                        /* sin page_members: lista completa (o vacía si onlyMine exigía filtrar) */
+                        if (opts?.onlyMine) rows = [];
                     }
                 }
-                return rows;
+                return filterByQuery(rows, opts?.query);
+            }
+
+            case "evento": {
+                let query = supabase.from("os_events").select("id, slug, title, owner_id").limit(100);
+                if (opts?.onlyMine && uid) query = query.eq("owner_id", uid);
+                const { data, error } = await query;
+                if (error) throw error;
+                const rows: DestinationOption[] = ((data as OsEventRow[]) || []).map((r) => ({
+                    id: r.slug || r.id,
+                    label: r.title || "Evento",
+                    sub: "evento",
+                    kind,
+                }));
+                return filterByQuery(rows, opts?.query);
             }
 
             case "biblioteca": {
@@ -469,12 +579,12 @@ export async function listDestinations(
                     .limit(200);
                 if (error) throw error;
                 const seen = new Set<string>();
-                const opts: DestinationOption[] = [];
+                const chatOpts: DestinationOption[] = [];
                 for (const r of (data as ChatRow[]) || []) {
                     const cid = r.chat_id;
                     if (cid && !seen.has(cid)) {
                         seen.add(cid);
-                        opts.push({
+                        chatOpts.push({
                             id: cid,
                             label: cid === "default" ? "Chat principal" : "Chat " + cid.slice(0, 8),
                             kind,
@@ -483,9 +593,9 @@ export async function listDestinations(
                 }
                 // Siempre ofrece un chat por defecto como destino.
                 if (!seen.has("default")) {
-                    opts.unshift({ id: "default", label: "Chat principal", kind });
+                    chatOpts.unshift({ id: "default", label: "Chat principal", kind });
                 }
-                return opts;
+                return chatOpts;
             }
 
             default:
@@ -512,6 +622,67 @@ export interface SelectedDestination {
     label?: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ADJUNTOS MULTI-FORMATO (Adenda "Publicaciones ricas" · carrusel + ventana)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Un post puede llevar VARIOS adjuntos heterogéneos (imagen + código + PDF +
+// app…) que se muestran como un carrusel estilo Instagram y se abren con
+// `EmbeddedContentWindow` (ventana incrustada / pantalla completa / pestaña).
+// Estructuralmente compatible con `PostAttachment` (network-feed.ts),
+// `CommentAttachment` (post-entity.ts) y `UniversalAttachment` (os-files.ts):
+// mismos campos base (kind/url/name/mime/title/description/thumbnail), así que
+// convertir entre ellos es un simple object-literal, sin mapeos frágiles.
+
+// ── Adenda "Contenido vivo en publicaciones" (aditivo, cero regresión) ──
+// Un adjunto puede llevar, además de su forma estática de siempre, un MODO
+// vivo: edición colaborativa en tiempo real (os_spaces) o canal en vivo del
+// autor (os_app_servers). Ausente/"estatico" = comportamiento EXACTO de hoy.
+export type LiveAttachmentMode = "estatico" | "edicion" | "canal";
+export type LiveEditPermission = "grupal" | "publico" | "invitacion" | "servidor";
+
+/** Un adjunto individual de un slide del carrusel multi-formato. */
+export interface PostContentAttachment {
+    id: string;
+    /** Categoría amplia: imagen, video, audio, pdf, markdown, codigo, archivo,
+     *  enlace, pagina, app, programa, widget, pizarra, servidor, agente, skill… */
+    kind: string;
+    url?: string;
+    name?: string;
+    title?: string;
+    description?: string;
+    mime?: string;
+    thumbnail?: string;
+    /** Contenido en línea para markdown/código sin URL (p. ej. pegado directo). */
+    content?: string;
+    /** Lenguaje para bloques de código. */
+    language?: string;
+    /** NUEVO · Modo vivo del adjunto (por defecto "estatico", ver arriba). */
+    liveMode?: LiveAttachmentMode | null;
+    /** NUEVO · Permiso de edición cuando liveMode="edicion". */
+    livePermission?: LiveEditPermission | null;
+    /** NUEVO · os_spaces.id que respalda la edición en vivo (grupal/publico/invitacion). */
+    liveSpaceId?: string | null;
+    /** NUEVO · os_app_servers.id que respalda el canal en vivo o el permiso "servidor". */
+    liveServerId?: string | null;
+    /** NUEVO · slug del servidor (para compartir por mensaje, mismo patrón que ServerCard). */
+    liveServerSlug?: string | null;
+    /** NUEVO · slug de grupo de referencia para el permiso "grupal" (os_memberships.group_slug). */
+    liveGroupSlug?: string | null;
+}
+
+/** Proporción de la vista principal (adenda "cualquier proporción, tamaño máximo por contexto"). */
+export type MainRatio = "auto" | "1:1" | "4:5" | "16:9" | "libre";
+
+/** Catálogo de proporciones para el selector del compositor. */
+export const RATIOS: { id: MainRatio; label: string; icon: string }[] = [
+    { id: "auto", label: "Auto", icon: "Wand2" },
+    { id: "1:1", label: "1:1", icon: "Square" },
+    { id: "4:5", label: "4:5", icon: "RectangleVertical" },
+    { id: "16:9", label: "16:9", icon: "RectangleHorizontal" },
+    { id: "libre", label: "Libre (máx.)", icon: "Maximize2" },
+];
+
 /** Contenido normalizado de la publicación (depende del tipo). */
 export interface PublishContent {
     /** Título (artículo, propuesta, encuesta…). */
@@ -526,6 +697,12 @@ export interface PublishContent {
     options?: string[];
     /** Metadatos libres adicionales. */
     meta?: Record<string, unknown>;
+    /** NUEVO · Adjuntos multi-formato (carrusel + ventana incrustada). */
+    attachments?: PostContentAttachment[];
+    /** NUEVO · Proporción de la vista principal (por defecto "auto"). */
+    mainRatio?: MainRatio;
+    /** NUEVO · Si se muestra la vista previa de adjuntos (por defecto true; permite publicaciones solo-texto con adjuntos "silenciosos"). */
+    showPreview?: boolean;
 }
 
 export interface PublishInput {
@@ -635,11 +812,24 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
         input.fromProfiles && input.fromProfiles.length > 0 ? input.fromProfiles : [uid];
     const primaryAuthor = fromProfiles[0] || uid;
 
+    // ── Adenda "Lienzo de Creación Universal" (aditivo) · Singularidad del
+    // contenido: un mismo `entityId` marca TODAS las filas creadas por ESTE acto
+    // de publicar (multi-destino), aunque cada destino siga escribiendo su propia
+    // fila en `posts` (necesario hoy: cada destino consulta su feed filtrando por
+    // `post_references.target`, y tocar esa hidratación de feed queda fuera de
+    // alcance). HONESTO: esto es metadato de correlación para una futura
+    // consolidación de lectura — no deduplica todavía a nivel de UI/feed.
+    const entityId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `entity_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+
     const baseReferences = {
         destinations: input.destinations,
         type: input.type,
         format: input.format,
         fromProfiles,
+        entityId,
         // ── Módulo 5 · intención de creación (se almacena en post_references) ──
         area: input.area ?? null,
         subArea: input.subArea ?? null,
@@ -803,7 +993,9 @@ export interface PreviewModel {
     type: PublicationTypeId;
     format: string;
     /** Tipo de medio inferido para la previsualización. */
-    kind: "text" | "markdown" | "image" | "gallery" | "file" | "link" | "poll" | "embed" | "canvas";
+    kind: "text" | "markdown" | "image" | "gallery" | "file" | "link" | "poll" | "embed" | "canvas" | "code";
+    /** Adjuntos multi-formato (si el contenido los trae), para la vista previa en vivo. */
+    attachments?: PostContentAttachment[];
     title?: string;
     body?: string;
     url?: string;
@@ -840,6 +1032,7 @@ export function previewOf(
         url: content.url,
         urls: content.urls,
         options: content.options,
+        attachments: content.attachments,
     };
 
     switch (type) {
@@ -873,6 +1066,17 @@ export function previewOf(
         case "mixto":
             if (content.url && IMG_RE.test(content.url)) return { ...base, kind: "image" };
             return { ...base, kind: "markdown" };
+        // ── Adenda "Publicaciones ricas" (aditivo) ──
+        case "galeria":
+            return { ...base, kind: "gallery" };
+        case "codigo":
+            return { ...base, kind: "code" };
+        case "transmision":
+            return { ...base, kind: "embed" };
+        case "proyecto":
+            return { ...base, kind: "markdown" };
+        case "servidor":
+            return { ...base, kind: "embed" };
         default:
             return base;
     }
@@ -1189,6 +1393,7 @@ export function reachOf(destinations: SelectedDestination[]): string {
         chat_ia: ["chat IA", "chats IA"],
         biblioteca: ["biblioteca", "bibliotecas"],
         carpeta: ["carpeta", "carpetas"],
+        evento: ["evento", "eventos"],
     };
 
     const parts: string[] = [];

@@ -26,6 +26,9 @@ import {
     type PostEntity, type CommentNode, type VotingConfig,
 } from "@/lib/posts/post-entity";
 import { FilePreview, type FileLike } from "@/components/files/file-preview";
+import { AttachmentCarousel } from "@/components/posts/attachment-carousel";
+import type { EmbeddedItem } from "@/components/posts/embedded-content-window";
+import type { MainRatio } from "@/lib/publish/publish";
 import { CommentThread } from "@/components/network/feed/comment-thread";
 import { getCurrentUserId } from "@/lib/os-social";
 
@@ -66,6 +69,15 @@ function PostContent({ post }: { post: PostEntity }) {
     const media: string | undefined = c.media ?? c.media_url ?? c.mediaUrl ?? c.video ?? c.audio ?? c.pdf;
     const file = c.file as Record<string, unknown> | undefined; // { url, name, format, mime, size }
 
+    // NUEVO · Adenda "Publicaciones ricas": adjuntos multi-formato (carrusel +
+    // ventana incrustada). Si el contenido los trae, sustituyen el render por
+    // campo suelto (image/media/file/link) de abajo — la vista previa sigue
+    // siendo OPCIONAL vía `showPreview`. Retrocompatible: sin `attachments`,
+    // el render de siempre por campo continúa exactamente igual.
+    const attachments: EmbeddedItem[] | undefined = Array.isArray(c.attachments) ? c.attachments : undefined;
+    const showPreview = c.showPreview !== false;
+    const hasRichAttachments = showPreview && Boolean(attachments && attachments.length > 0);
+
     return (
         <div className="space-y-3">
             {title && <h2 className="text-xl font-bold text-white/95 leading-snug">{title}</h2>}
@@ -74,29 +86,37 @@ function PostContent({ post }: { post: PostEntity }) {
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/80">{text}</p>
             )}
 
-            {image && (
-                <FilePreview file={{ url: image, name: title, type: "imagen" } as FileLike} context="post" />
-            )}
+            {hasRichAttachments ? (
+                <AttachmentCarousel items={attachments!} context="page" ratio={(c.mainRatio as MainRatio) || "auto"} />
+            ) : (
+                showPreview && (
+                    <>
+                        {image && (
+                            <FilePreview file={{ url: image, name: title, type: "imagen" } as FileLike} context="post" />
+                        )}
 
-            {media && (
-                <FilePreview file={{ url: media } as FileLike} context="post" />
-            )}
+                        {media && (
+                            <FilePreview file={{ url: media } as FileLike} context="post" />
+                        )}
 
-            {file?.url && (
-                <FilePreview
-                    file={{
-                        url: file.url as string,
-                        name: (file.name as string) ?? title,
-                        type: (file.format as string) ?? undefined,
-                        mime: (file.mime as string) ?? undefined,
-                        size: (file.size as number | string) ?? undefined,
-                    } as FileLike}
-                    context="post"
-                />
-            )}
+                        {file?.url && (
+                            <FilePreview
+                                file={{
+                                    url: file.url as string,
+                                    name: (file.name as string) ?? title,
+                                    type: (file.format as string) ?? undefined,
+                                    mime: (file.mime as string) ?? undefined,
+                                    size: (file.size as number | string) ?? undefined,
+                                } as FileLike}
+                                context="post"
+                            />
+                        )}
 
-            {link && (
-                <FilePreview file={{ url: link, type: "enlace" } as FileLike} context="post" />
+                        {link && (
+                            <FilePreview file={{ url: link, type: "enlace" } as FileLike} context="post" />
+                        )}
+                    </>
+                )
             )}
 
             {canvas && (
@@ -113,7 +133,7 @@ function PostContent({ post }: { post: PostEntity }) {
                 </div>
             )}
 
-            {!text && !image && !media && !file?.url && !link && !canvas && !title && (
+            {!text && !image && !media && !file?.url && !link && !canvas && !title && !hasRichAttachments && (
                 <p className="text-sm italic text-white/40">Esta publicación no tiene contenido visible.</p>
             )}
         </div>
