@@ -43,6 +43,8 @@ import {
   // Iconos de Herramientas IA & Agentes
   Server, ListChecks, ClipboardList, Radar, NotebookPen, Terminal,
   MessagesSquare, Container, Bot,
+  // Iconos de Hugging Bay (descubrimiento de modelos)
+  Compass, TrendingUp, SearchCode,
   // Iconos de acción
   Download, Check, Trash2, KeyRound, ExternalLink, Search, Plus,
   Clock, Store, PackageCheck, Settings2, Loader2,
@@ -101,6 +103,8 @@ import { AgentBindMenu } from "@/components/agents/AgentBindMenu";
 // Guardar una referencia de este paquete en la Biblioteca de una entidad
 // (usuario/página/grupo…) — distinto de "Guardar enlace" (Librería personal).
 import { SaveToLibrary } from "@/components/library/save-to-library";
+// Navegador VIVO de THE HUGGING BAY (descubrimiento inteligente de modelos).
+import { HuggingBayBrowser } from "@/components/library/huggingbay-browser";
 
 /* ───────────────────────── Metadatos por kind ───────────────────────── */
 
@@ -150,6 +154,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   // Herramientas IA & Agentes
   Server, ListChecks, ClipboardList, Radar, NotebookPen, Terminal,
   MessagesSquare, Container, Bot,
+  // Hugging Bay (descubrimiento de modelos)
+  Compass, TrendingUp, SearchCode,
 };
 
 /** Id del repo builtin de Herramientas IA & Agentes (para la sección destacada). */
@@ -1640,6 +1646,11 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
               </div>
             </section>
           )}
+          {/* Hugging Bay: navegador VIVO de descubrimiento inteligente de modelos
+              (datos en tiempo real vía proxy propio, no paquetes locales). */}
+          <section className="flex flex-col gap-4">
+            <HuggingBayBrowser />
+          </section>
           <section className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-amber-300" />

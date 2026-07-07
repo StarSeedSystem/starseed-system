@@ -19,6 +19,30 @@
 | `research` | iatool-open-notebook | modo investigación: hechos vs inferencias, citar origen, notas | preferStrong |
 | `vision` | aurora-vision | interpretar imágenes que comparte el usuario | vision |
 | `voice` | aurora-voice-kokoro | voz de mayor calidad (Kokoro) cuando esté disponible | — |
+| `web-access` | aurora-web-access / iatool-crawl4ai / deepcrawl / webharvest / universal-scraper / scrapling | acceso web auto-seleccionado (gratis/local primero) | web |
+| `model-discovery` | iatool-hugging-bay-registry | recomendar modelos reales vía Hugging Bay | — |
+| `app-builder` | iatool-dyad | constructor local de apps (scaffold sin lock-in) | preferStrong |
+| `agent-recipes` | iatool-goose | patrón "recipe" reutilizable para Agentes | planning |
+| `deep-research` | iatool-deerflow | investigación profunda con informe/deck/web | preferStrong |
+| `sandbox-exec` | iatool-daytona | recomendar sandbox aislado antes de ejecutar código | — |
+| `multi-agent-code` | iatool-parallel-code | despachar agentes de código en worktrees paralelos | preferStrong, planning |
+| `web-scraping-adaptativa` | iatool-scrapling | motor de scraping adaptativo/stealth adicional | web |
+| `router-proxy` | iatool-9router | proxy local 9Router como fuente si está corriendo | — |
+| `design-import` | iatool-website-cloner | extraer tokens de diseño de una web de referencia | preferStrong |
+| `rag-knowledge` | iatool-ragflow | RAG con citas verificables sobre documentos propios | preferStrong |
+| `voice-realtime` | iatool-pipecat | patrón de voz conversacional en tiempo real | — |
+| `self-hosting-deploy` | iatool-coolify | PaaS self-host para desplegar apps/BD en tu propio servidor | — |
+| `dev-agent` | iatool-openhands | agente de desarrollo autónomo (escribe/ejecuta/navega) | preferStrong, planning |
+| `web-robots` | iatool-maxun | motor de scraping no-code adicional (robots monitorizan sitios) | web |
+| `local-llm-ui` | iatool-open-webui | interfaz de chat self-hosted para cerebros locales (Ollama) | — |
+| `agent-browsing` | iatool-browser-use | agente que usa el navegador como humano (self-host) | web |
+| `flow-builder` | iatool-langflow | constructor visual de flujos/agentes LLM (drag&drop) | planning |
+| `pdf-tools` | iatool-stirling-pdf | herramientas PDF self-hosted (unir/dividir/OCR/firmar) | — |
+| `llm-apps-platform` | iatool-dify | plataforma LLM completa (agentes+workflows+RAG+observabilidad) | preferStrong |
+
+Detalle completo de las 10 capacidades del "stack OSS por defecto" (jul-2026):
+`architecture/astraura-inteligencia.md` §15. Ocho capacidades más (infraestructura
+soberana y flujos visuales, jul-2026): `architecture/astraura-inteligencia.md` §16.
 
 ## Cómo lo consume cada sistema
 
@@ -44,6 +68,9 @@
 - **Nexus / Café:** `astraura-core.js` gana `SKILL_CAPS`, `capsSystemPrompt()`,
   `capsBias()` leídas por `brain()`; `astraura-install.js` gana las skills con
   recomendadas pre-instaladas; sync por cuenta reutilizando el lector de
-  `user_settings.prefs` que ya usan para `intelligence.v1`.
+  `user_settings.prefs` que ya usan para `intelligence.v1`. ⚠️ Pendiente portar
+  las 10 capacidades del stack OSS por defecto (jul-2026 · §astraura-inteligencia
+  §15.5): quedan solo en el OS hasta que se actualicen esos repos.
 
-*Adenda 68 · 2026-07-05.*
+*Adenda 68 · 2026-07-05. Adenda "Stack OSS por defecto" · 2026-07-07. Adenda
+"Infraestructura soberana y flujos visuales" · 2026-07-07.*

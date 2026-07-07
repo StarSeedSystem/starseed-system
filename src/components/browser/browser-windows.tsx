@@ -1029,6 +1029,14 @@ export default function BrowserWindows() {
                             Sin servidor (ni extensión/app de escritorio), el navegador los abre en una{" "}
                             <span className="text-white/80">ventana externa real</span>.
                         </p>
+                        <p className="mt-2 text-white/55">
+                            Patrón alternativo self-host:{" "}
+                            <span className="text-white/80">browser-use</span> deja que un agente
+                            controle su propio navegador aislado como lo haría una persona. No
+                            reemplaza a Claude-in-Chrome (la vía principal aquí); es la opción para
+                            quien quiera desplegar su propio pipeline de navegación agéntica
+                            (conector experimental «Browser Use» en Ajustes → Integraciones).
+                        </p>
                     </div>
                 </div>
             </div>

@@ -712,6 +712,191 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     author: "Firecrawl", sourceRepoId: "starseed-ia-tools", free: false,
     payload: { skillId: "aurora-web-access", externalUrl: "https://www.firecrawl.dev", note: "Scraping gestionado con clave API (última opción; no por defecto)." },
   },
+  /* ── THE HUGGING BAY · registro verificado de modelos + descubrimiento ── */
+  {
+    id: "iatool-hugging-bay-registry", kind: "repo", name: "Hugging Bay Registry",
+    description:
+      "Registro verificado de modelos IA open-source con API pública agent-friendly (recomendador por tarea, búsqueda semántica, trending, kits de instalación local). Instalar registra la skill de descubrimiento de modelos para tus cerebros de Aurora (\"¿cuál es el mejor modelo para X?\") y guarda el enlace a la sección Biblioteca → Hugging Bay, donde puedes explorar el catálogo en vivo.",
+    icon: "Compass", tags: ["skill", "aurora", "modelos", "descubrimiento", "catalogo", "open-source"], version: "1.0.0",
+    author: "Hugging Bay", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "model-discovery", externalUrl: "https://huggingbay.xyz", note: "Descubrimiento inteligente de modelos reales (licencia + confianza + comando local). Ver Biblioteca → Hugging Bay." },
+  },
+  /* ══ STACK OSS "REEMPLAZA TU STACK DE $200/MES" (jul-2026) ══
+   * Diez repos de la guía "Replace Your $200/Month Tool Stack". Mismo patrón
+   * honesto que el resto: function con `skillId` → registra la capacidad viva
+   * en skills.ts (ver architecture/astraura-inteligencia.md §15) + guarda/abre
+   * el repo de referencia real. Ninguno se ejecuta dentro del navegador: son
+   * conocimiento+capacidad+paquete instalado, no binarios corriendo. */
+  /* ── Dyad · constructor local de apps IA (sin lock-in) ── */
+  {
+    id: "iatool-dyad", kind: "function", name: "Dyad (constructor de apps)",
+    description:
+      "Constructor LOCAL de apps con IA: genera el scaffold de una app React/TypeScript editable, sin lock-in de proveedor. Qué reemplaza: builders de apps IA cerrados/de pago. Instalar registra la skill «Constructor de apps» para que Aurora aplique ese patrón en el Canvas de Creación y abre su repo de referencia.",
+    icon: "AppWindow", tags: ["skill", "aurora", "apps", "scaffold", "horizon", "oss"], version: "1.0.0",
+    author: "dyad-sh", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "app-builder", externalUrl: "https://github.com/dyad-sh/dyad", note: "Constructor local de apps IA (scaffold React/TS, sin lock-in)." },
+  },
+  /* ── goose · agente autónomo en máquina con "recipes" (Linux Foundation AAIF) ── */
+  {
+    id: "iatool-goose", kind: "function", name: "goose (recetas de agente)",
+    description:
+      "Agente autónomo que corre en tu máquina con «recipes» (recetas) reutilizables: tareas de agente empaquetadas y compartibles. Qué reemplaza: asistentes de automatización de escritorio de pago. Instalar registra la skill «Recetas de agente» para que Aurora aplique ese patrón a tus Agentes StarSeed y abre su repo de referencia.",
+    icon: "Workflow", tags: ["skill", "aurora", "agentes", "recetas", "automatizacion", "oss"], version: "1.0.0",
+    author: "Linux Foundation AAIF", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "agent-recipes", externalUrl: "https://github.com/aaif-goose/goose", note: "Agente autónomo en máquina con recetas reutilizables (Linux Foundation AAIF)." },
+  },
+  /* ── DeerFlow · super-agente de investigación profunda ── */
+  {
+    id: "iatool-deerflow", kind: "function", name: "DeerFlow (investigación profunda)",
+    description:
+      "Super-agente de investigación profunda que entrega informes, presentaciones y webs a partir de una pregunta. Qué reemplaza: herramientas de investigación asistida por IA de pago. Instalar registra la skill que refuerza el modo «Investigación» de Aurora con este formato de entregable y abre su repo de referencia.",
+    icon: "SearchCode", tags: ["skill", "aurora", "investigacion", "informes", "oss"], version: "1.0.0",
+    author: "ByteDance", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "deep-research", externalUrl: "https://github.com/bytedance/deer-flow", note: "Super-agente de investigación profunda: entrega informes/decks/webs." },
+  },
+  /* ── Daytona · sandboxes aislados para ejecutar código de IA ── */
+  {
+    id: "iatool-daytona", kind: "function", name: "Daytona (sandbox aislado)",
+    description:
+      "Sandboxes aislados para ejecutar código generado por IA con seguridad, sin arriesgar tu equipo. Qué reemplaza: entornos de ejecución en la nube de pago. Es un servicio/servidor: instalar registra la skill «Ejecución aislada» (Aurora la recomienda antes de correr código no confiable) y abre su repo para desplegarlo donde corresponda.",
+    icon: "Container", tags: ["skill", "aurora", "sandbox", "ejecucion", "seguridad", "oss"], version: "1.0.0",
+    author: "Daytona", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "sandbox-exec", externalUrl: "https://github.com/daytonaio/daytona", note: "Sandboxes aislados para ejecutar código generado por IA." },
+  },
+  /* ── Parallel Code · múltiples agentes de código en worktrees aislados ── */
+  {
+    id: "iatool-parallel-code", kind: "function", name: "Parallel Code (multi-agente)",
+    description:
+      "Despacha múltiples agentes de código en worktrees aislados para trabajar varias tareas en paralelo sin pisarse. Qué reemplaza: orquestadores de coding agents de pago. Instalar registra la skill «Código multi-agente» para que Aurora sugiera ese patrón y abre su repo de referencia.",
+    icon: "GitFork", tags: ["skill", "aurora", "codigo", "multi-agente", "worktrees", "oss"], version: "1.0.0",
+    author: "johannesjo", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "multi-agent-code", externalUrl: "https://github.com/johannesjo/parallel-code", note: "Despacha múltiples agentes de código en worktrees aislados." },
+  },
+  /* ── Scrapling · scraping adaptativo con selectores auto-reparables ── */
+  {
+    id: "iatool-scrapling", kind: "function", name: "Scrapling (web adaptativo)",
+    description:
+      "Scraper adaptativo con selectores que se auto-reparan cuando el sitio cambia de estructura, y modo stealth anti-detección. Qué reemplaza: servicios de scraping gestionados de pago para sitios que cambian su HTML. Instalar registra la skill de acceso web (se suma a Crawl4AI/DeepCrawl/WebHarvest/Universal Scraper, auto-seleccionable por Astraura) y abre su repo (self-host: pega su endpoint en Ajustes → Inteligencia → Acceso web).",
+    icon: "Sparkle", tags: ["skill", "aurora", "web", "scraping", "adaptativo", "stealth", "oss"], version: "1.0.0",
+    author: "D4Vinci", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "web-scraping-adaptativa", externalUrl: "https://github.com/D4Vinci/Scrapling", note: "Scraping adaptativo (selectores auto-reparables) + stealth. Auto-seleccionable por Astraura." },
+  },
+  /* ── 9Router · proxy local OpenAI-compatible con fallback y compresión ── */
+  {
+    id: "iatool-9router", kind: "function", name: "9Router (proxy local)",
+    description:
+      "Proxy local OpenAI-compatible que enruta entre 40+ proveedores con fallback por niveles y compresión de tokens. Qué reemplaza: proxies de enrutado multi-proveedor gestionados de pago. Instalar registra la skill «Proxy de enrutado local» (Astraura lo detecta como fuente si lo tienes corriendo en `localhost:8000`, configurable en Ajustes → Inteligencia) y abre su repo de referencia.",
+    icon: "Router", tags: ["skill", "aurora", "proxy", "enrutado", "local", "compresion", "oss"], version: "1.0.0",
+    author: "decolua", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "router-proxy", externalUrl: "https://github.com/decolua/9router", note: "Proxy local OpenAI-compatible con fallback por niveles y compresión de tokens." },
+  },
+  /* ── ai-website-cloner-template · reconstruye sitios como Next.js ── */
+  {
+    id: "iatool-website-cloner", kind: "function", name: "Clonador de webs (tokens de diseño)",
+    description:
+      "Reconstruye un sitio como app Next.js extrayendo sus tokens de diseño y estructura (uso legítimo: tu propio sitio o una referencia con permiso). Qué reemplaza: herramientas de clonado de webs de pago. Instalar registra la skill «Importar diseño» para el Lienzo de Creación (Horizon) y abre su repo de referencia.",
+    icon: "Copy", tags: ["skill", "aurora", "diseño", "horizon", "tokens", "oss"], version: "1.0.0",
+    author: "JCodesMore", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "design-import", externalUrl: "https://github.com/JCodesMore/ai-website-cloner-template", note: "Reconstruye sitios como Next.js extrayendo tokens/estructura (uso legítimo)." },
+  },
+  /* ── RAGFlow · motor RAG enterprise con comprensión profunda de documentos ── */
+  {
+    id: "iatool-ragflow", kind: "function", name: "RAGFlow (conocimiento con citas)",
+    description:
+      "Motor RAG con comprensión profunda de documentos y respuestas siempre citadas al origen exacto. Qué reemplaza: plataformas RAG enterprise de pago. Es un servicio/servidor: instalar registra la skill «RAG sobre documentos» (refuerza la Biblioteca-Cydia e Investigación) y abre su repo para desplegarlo donde corresponda.",
+    icon: "Library", tags: ["skill", "aurora", "rag", "conocimiento", "documentos", "citas", "oss"], version: "1.0.0",
+    author: "InfiniFlow", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "rag-knowledge", externalUrl: "https://github.com/infiniflow/ragflow", note: "Motor RAG enterprise con comprensión profunda de documentos y respuestas citadas." },
+  },
+  /* ── Pipecat · framework de agentes de voz/multimodal en tiempo real ── */
+  {
+    id: "iatool-pipecat", kind: "function", name: "Pipecat (voz en tiempo real)",
+    description:
+      "Framework de agentes de voz/multimodal en tiempo real (100+ combinaciones de STT/TTS/LLM). Qué reemplaza: plataformas de voz conversacional en tiempo real de pago. Complementa a Kokoro (voz local ya activa): instalar registra la skill «Voz en tiempo real» y abre su repo de referencia.",
+    icon: "AudioLines", tags: ["skill", "aurora", "voz", "tiempo-real", "multimodal", "oss"], version: "1.0.0",
+    author: "Pipecat AI", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "voice-realtime", externalUrl: "https://github.com/pipecat-ai/pipecat", note: "Framework de agentes de voz/multimodal en tiempo real (100+ STT/TTS/LLM)." },
+  },
+  /* ══ INFRAESTRUCTURA SOBERANA Y FLUJOS VISUALES (jul-2026) ══
+   * Ocho repos más. Mismo patrón honesto: function con `skillId` → registra la
+   * capacidad viva en skills.ts (ver architecture/astraura-inteligencia.md §16)
+   * + guarda/abre el repo de referencia real. Tres de ellos (Open WebUI,
+   * Stirling-PDF, browser-use) YA tienen conector funcional real en
+   * src/lib/integrations/registry.ts; esta ola les añade la capa de capacidad
+   * viva de Astraura que antes no tenían. Ninguno se ejecuta en el navegador:
+   * conocimiento + capacidad + paquete instalado, no binarios corriendo. */
+  /* ── Coolify · PaaS self-host (infraestructura soberana) ── */
+  {
+    id: "iatool-coolify", kind: "function", name: "Coolify (PaaS soberano)",
+    description:
+      "PaaS self-host de código abierto: despliega tus propias apps, bases de datos y servicios en tu propio servidor, sin depender de Heroku/Netlify/Vercel. Qué reemplaza: PaaS de pago gestionados por terceros. Encaja con la infraestructura tecnológica soberana de la Tríada (§3 CLAUDE.md). Instalar registra la skill «PaaS soberano» para que Aurora explique este patrón cuando el usuario quiera desplegar algo en su propio servidor, y abre su repo de referencia.",
+    icon: "Server", tags: ["skill", "aurora", "paas", "self-host", "soberania", "oss"], version: "1.0.0",
+    author: "coollabsio", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "self-hosting-deploy", externalUrl: "https://github.com/coollabsio/coolify", note: "PaaS self-host: despliega apps/BDs/servicios en tu propio servidor (alt. Heroku/Netlify/Vercel)." },
+  },
+  /* ── OpenHands · agentes de desarrollo autónomos ── */
+  {
+    id: "iatool-openhands", kind: "function", name: "OpenHands (agente de desarrollo)",
+    description:
+      "Plataforma de agentes de desarrollo autónomos: escriben código, lo ejecutan y navegan por su cuenta. Qué reemplaza: asistentes de programación autónomos de pago. Es un servicio que corre aislado (nunca público): instalar registra la skill «Agente de desarrollo» para que Aurora sepa cuándo recomendar este patrón y abre su repo de referencia.",
+    icon: "Bot", tags: ["skill", "aurora", "agente", "codigo", "desarrollo", "oss"], version: "1.0.0",
+    author: "All-Hands-AI", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "dev-agent", externalUrl: "https://github.com/All-Hands-AI/OpenHands", note: "Plataforma de agentes de desarrollo autónomos (escriben código, ejecutan, navegan)." },
+  },
+  /* ── Maxun · extracción de datos web no-code ── */
+  {
+    id: "iatool-maxun", kind: "function", name: "Maxun (robots web no-code)",
+    description:
+      "Extracción de datos web no-code: entrena «robots» que scrapean y monitorizan sitios sin escribir código. Qué reemplaza: herramientas de monitorización web de pago. Se suma como motor de acceso web adicional (junto a Crawl4AI/DeepCrawl/WebHarvest/Universal Scraper/Scrapling, auto-seleccionable por Astraura). Instalar registra la skill «Robots web» y abre su repo (self-host: pega su endpoint en Ajustes → Inteligencia → Acceso web).",
+    icon: "Bot", tags: ["skill", "aurora", "web", "scraping", "no-code", "monitorizacion", "oss"], version: "1.0.0",
+    author: "getmaxun", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "web-robots", externalUrl: "https://github.com/getmaxun/maxun", note: "Robots no-code que scrapean y monitorizan sitios. Auto-seleccionable por Astraura." },
+  },
+  /* ── Open WebUI · interfaz de chat self-hosted para cerebros locales ── */
+  {
+    id: "iatool-open-webui", kind: "function", name: "Open WebUI (interfaz de chat local)",
+    description:
+      "Interfaz de chat LLM self-hosted (Ollama/OpenAI-compatible, con RAG integrado). Qué reemplaza: interfaces de chat gestionadas de pago. Se integra con los cerebros locales (Ollama) que ya tienes en el OS. Instalar registra la skill «Interfaz de cerebros locales» para que Aurora la mencione al hablar de cerebros locales y abre su repo de referencia.",
+    icon: "MessageSquare", tags: ["skill", "aurora", "cerebros", "ollama", "chat", "local", "oss"], version: "1.0.0",
+    author: "open-webui", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "local-llm-ui", externalUrl: "https://github.com/open-webui/open-webui", note: "Interfaz de chat self-hosted para cerebros locales (Ollama/OpenAI-compatible + RAG)." },
+  },
+  /* ── browser-use · automatización de navegador para agentes IA ── */
+  {
+    id: "iatool-browser-use", kind: "function", name: "browser-use (agente navega solo)",
+    description:
+      "Automatización de navegador para agentes IA: el agente usa el navegador como lo haría una persona. Qué reemplaza: servicios de automatización de navegador gestionados de pago. Complementa a Claude-in-Chrome (vía principal de navegación agéntica del OS) como patrón alternativo self-host. Instalar registra la skill «Navegación agéntica» y abre su repo de referencia.",
+    icon: "MousePointerClick", tags: ["skill", "aurora", "navegador", "agente", "automatizacion", "oss"], version: "1.0.0",
+    author: "browser-use", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "agent-browsing", externalUrl: "https://github.com/browser-use/browser-use", note: "Automatización de navegador para agentes IA (usa el navegador como humano)." },
+  },
+  /* ── Langflow · constructor visual de flujos/agentes LLM ── */
+  {
+    id: "iatool-langflow", kind: "function", name: "Langflow (flujos visuales)",
+    description:
+      "Constructor visual de flujos/agentes LLM (arrastrar y soltar, con API). Qué reemplaza: constructores de flujos de agentes de pago. Patrón de referencia para diseñar Agentes StarSeed visualmente. Instalar registra la skill «Constructor de flujos» y abre su repo de referencia.",
+    icon: "Workflow", tags: ["skill", "aurora", "agentes", "flujos", "visual", "oss"], version: "1.0.0",
+    author: "langflow-ai", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "flow-builder", externalUrl: "https://github.com/langflow-ai/langflow", note: "Constructor visual de flujos/agentes LLM (drag&drop, API)." },
+  },
+  /* ── Stirling-PDF · herramientas PDF self-hosted ── */
+  {
+    id: "iatool-stirling-pdf", kind: "function", name: "Stirling-PDF (herramientas PDF)",
+    description:
+      "Herramientas PDF self-hosted: unir, dividir, convertir, hacer OCR y firmar. Qué reemplaza: servicios de edición de PDF de pago. Útil para las vistas previas y la gestión de archivos del Finder. Instalar registra la skill «Herramientas PDF» y abre su repo de referencia.",
+    icon: "FileText", tags: ["skill", "aurora", "pdf", "archivos", "finder", "oss"], version: "1.0.0",
+    author: "Stirling-Tools", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "pdf-tools", externalUrl: "https://github.com/Stirling-Tools/Stirling-PDF", note: "Herramientas PDF self-hosted (unir, dividir, convertir, OCR, firmar)." },
+  },
+  /* ── Dify · plataforma open-source de desarrollo de apps LLM ── */
+  {
+    id: "iatool-dify", kind: "function", name: "Dify (plataforma de apps LLM)",
+    description:
+      "Plataforma open-source de desarrollo de apps LLM: agentes, workflows, RAG y observabilidad en un solo lugar. Qué reemplaza: plataformas de apps LLM enterprise de pago. Instalar registra la skill «Plataforma de apps LLM» y abre su repo de referencia.",
+    icon: "LayoutDashboard", tags: ["skill", "aurora", "agentes", "workflows", "rag", "plataforma", "oss"], version: "1.0.0",
+    author: "langgenius", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "llm-apps-platform", externalUrl: "https://github.com/langgenius/dify", note: "Plataforma open-source de desarrollo de apps LLM (agentes, workflows, RAG, observabilidad)." },
+  },
 ];
 
 /** Repo builtin de Herramientas IA & Agentes (caja de herramientas de Aurora). */

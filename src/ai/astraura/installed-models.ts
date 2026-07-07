@@ -212,3 +212,84 @@ function guessPct(text: string): number {
   if (m) return Math.max(0, Math.min(100, parseInt(m[1], 10)));
   return 0;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * CANDIDATOS DESCUBIERTOS · THE HUGGING BAY (jul-2026)
+ * ---------------------------------------------------------------------------
+ * Cuando el usuario pulsa "Usar en Astraura" sobre un modelo encontrado en la
+ * Biblioteca → Hugging Bay (src/ai/astraura/huggingbay.ts), lo registramos
+ * aquí como CANDIDATO conocido: no es una descarga (eso lo hace el propio
+ * usuario con el comando del kit local, p.ej. `ollama pull <modelo>`), es solo
+ * una anotación de "este modelo existe y el usuario quiere que Aurora lo tenga
+ * en cuenta". El router (free-catalog/availability) puede consultarlo para
+ * mostrarlo como sugerencia de modelo por tarea vía Ollama/LM Studio locales
+ * ya presentes en el catálogo. Honesto: si el usuario no ha instalado
+ * realmente el modelo con su herramienta local, Aurora no podrá usarlo — solo
+ * queda anotado como intención para cuando lo instale.
+ *
+ * Persistencia propia (no reutiliza INSTALLED_MODELS_KEY, que es solo para las
+ * fuentes builtin de navegador `DOWNLOADABLE_SOURCES`).
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+export const HUGGING_BAY_CANDIDATES_KEY = "starseed.astraura.huggingbay-candidates.v1";
+export const HUGGING_BAY_CANDIDATES_EVENT = "starseed:astraura-huggingbay-candidates";
+
+export interface HuggingBayCandidate {
+  /** id de artefacto de Hugging Bay. */
+  id: string;
+  /** Nombre legible. */
+  name: string;
+  /** repo "owner/name" (referencia para Ollama/HF). */
+  repo: string;
+  /** Herramienta local elegida (ollama/lmstudio/…) al registrarlo. */
+  tool: string;
+  /** Comando copiado (para recordar cómo se instaló/instalará). */
+  command: string;
+  /** Momento del registro. */
+  at: number;
+}
+
+function readCandidates(): HuggingBayCandidate[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(HUGGING_BAY_CANDIDATES_KEY);
+    const arr = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(arr)
+      ? arr.filter((x): x is HuggingBayCandidate => !!x && typeof x === "object" && typeof (x as HuggingBayCandidate).id === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCandidates(list: HuggingBayCandidate[]): void {
+  try {
+    window.localStorage.setItem(HUGGING_BAY_CANDIDATES_KEY, JSON.stringify(list));
+    window.dispatchEvent(new CustomEvent(HUGGING_BAY_CANDIDATES_EVENT));
+  } catch { /* noop */ }
+}
+
+/** Candidatos de Hugging Bay registrados por el usuario ("Usar en Astraura"). */
+export function listHuggingBayCandidates(): HuggingBayCandidate[] {
+  return readCandidates();
+}
+
+/** Registra (o actualiza) un candidato descubierto en Hugging Bay. Idempotente por id. */
+export function registerHuggingBayCandidate(c: Omit<HuggingBayCandidate, "at">): HuggingBayCandidate {
+  const entry: HuggingBayCandidate = { ...c, at: Date.now() };
+  const next = [...readCandidates().filter((x) => x.id !== entry.id), entry];
+  writeCandidates(next);
+  return entry;
+}
+
+/** Quita un candidato registrado. */
+export function removeHuggingBayCandidate(id: string): void {
+  const next = readCandidates().filter((x) => x.id !== id);
+  writeCandidates(next);
+}
+
+/** ¿Ya está este artefacto registrado como candidato? */
+export function isHuggingBayCandidate(id: string): boolean {
+  return readCandidates().some((x) => x.id === id);
+}

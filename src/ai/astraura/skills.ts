@@ -103,6 +103,166 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     skillIds: ["aurora-web-access"],
     packageIds: ["iatool-crawl4ai", "iatool-deepcrawl", "iatool-webharvest", "iatool-universal-scraper", "iatool-firecrawl"],
   },
+  {
+    id: "model-discovery",
+    label: "Descubrimiento de modelos (Hugging Bay)",
+    systemPrompt:
+      "Puedes recomendar modelos IA reales para cualquier tarea consultando THE HUGGING BAY (registro verificado de modelos open-source): cuando el usuario pregunte '¿cuál es el mejor modelo para X?' o necesites sugerir IA local que falta, da nombre, licencia, señales de confianza y el comando de instalación local (Ollama/LM Studio/etc.) listo para copiar. Nunca inventes modelos ni descargas nada por tu cuenta: siempre son datos reales de Hugging Bay y el usuario decide instalar.",
+    routing: {},
+    packageIds: ["iatool-hugging-bay-registry"],
+  },
+  /* ═══ Stack OSS "reemplaza tu stack de $200/mes" (jul-2026) ═══
+   * Ver architecture/astraura-inteligencia.md §15. Mismo contrato: conocimiento
+   * + capacidad + paquete instalado, nunca binarios ejecutándose solos. */
+  {
+    id: "app-builder",
+    label: "Constructor de apps (Dyad)",
+    systemPrompt:
+      "Conoces Dyad, un constructor local de apps IA (scaffold React/TypeScript, sin lock-in de proveedor): cuando el usuario quiera crear una app desde cero en el Canvas de Creación, puedes explicar y aplicar ese patrón (estructura local editable, sin depender de un servicio cerrado) y señalar su repo si quiere usarlo directamente.",
+    routing: { preferStrong: true },
+    packageIds: ["iatool-dyad"],
+  },
+  {
+    id: "agent-recipes",
+    label: "Recetas de agente (goose)",
+    systemPrompt:
+      "Conoces el patrón «recipe» de goose (Linux Foundation AAIF): una tarea de agente empaquetada, reutilizable y compartible. Cuando el usuario repita un flujo de trabajo con un Agente StarSeed, sugiere convertirlo en una receta reutilizable (persona + pasos + capacidades) en vez de repetir instrucciones cada vez.",
+    routing: { planning: true },
+    packageIds: ["iatool-goose"],
+  },
+  {
+    id: "deep-research",
+    label: "Investigación profunda (DeerFlow)",
+    systemPrompt:
+      "Conoces DeerFlow, un motor de investigación profunda que entrega informes/decks/webs estructurados. En modo investigación, además de citar fuentes y separar hechos de inferencias, puedes proponer ese formato de entregable (informe con secciones, fuentes y conclusión) cuando el usuario pida algo extenso o multi-fuente.",
+    routing: { preferStrong: true },
+    packageIds: ["iatool-deerflow"],
+  },
+  {
+    id: "sandbox-exec",
+    label: "Ejecución aislada (Daytona)",
+    systemPrompt:
+      "Conoces Daytona, sandboxes aislados para ejecutar código generado por IA con seguridad. Cuando el usuario vaya a ejecutar código no confiable o generado en el momento, recuerda que existe esta opción de aislamiento antes de correrlo directamente en su equipo.",
+    routing: {},
+    packageIds: ["iatool-daytona"],
+  },
+  {
+    id: "multi-agent-code",
+    label: "Código multi-agente (Parallel Code)",
+    systemPrompt:
+      "Conoces Parallel Code, que despacha múltiples agentes de código en worktrees aislados para trabajar en paralelo sin pisarse. Si el usuario pide varias tareas de código independientes a la vez, puedes sugerir dividirlas en worktrees separados siguiendo ese patrón.",
+    routing: { preferStrong: true, planning: true },
+    packageIds: ["iatool-parallel-code"],
+  },
+  {
+    id: "web-scraping-adaptativa",
+    label: "Scraping adaptativo (Scrapling)",
+    systemPrompt:
+      "Tienes disponible Scrapling como motor de acceso web adicional: selectores que se auto-reparan cuando un sitio cambia de estructura y modo stealth anti-detección. Astraura lo AUTO-SELECCIONA junto a Crawl4AI/DeepCrawl/WebHarvest/Universal Scraper cuando el usuario tiene su endpoint configurado.",
+    routing: { web: true },
+    packageIds: ["iatool-scrapling"],
+  },
+  {
+    id: "router-proxy",
+    label: "Proxy de enrutado local (9Router)",
+    systemPrompt:
+      "Si el usuario tiene 9Router corriendo en local (proxy OpenAI-compatible con fallback entre 40+ proveedores y compresión de tokens), Astraura lo considera como una fuente más, con la misma prioridad gratis/local-primero. Puedes explicar qué hace y cómo activarlo en Ajustes → Inteligencia si el usuario pregunta por enrutado avanzado o compresión de contexto.",
+    routing: {},
+    packageIds: ["iatool-9router"],
+  },
+  {
+    id: "design-import",
+    label: "Importar diseño (clonador de webs)",
+    systemPrompt:
+      "Conoces el patrón de ai-website-cloner-template: reconstruir un sitio como Next.js extrayendo sus tokens de diseño y estructura (uso legítimo: tu propio sitio o una referencia con permiso). En el Lienzo de Creación (Horizon), puedes explicar ese flujo cuando el usuario quiera partir de una web de referencia.",
+    routing: { preferStrong: true },
+    packageIds: ["iatool-website-cloner"],
+  },
+  {
+    id: "rag-knowledge",
+    label: "RAG sobre documentos (RAGFlow)",
+    systemPrompt:
+      "Conoces RAGFlow, un motor RAG con comprensión profunda de documentos y respuestas citadas. Cuando el usuario quiera preguntar sobre sus propios documentos/Biblioteca con respuestas verificables (citas exactas al origen), puedes explicar ese patrón como referencia para conectar una base de conocimiento propia.",
+    routing: { preferStrong: true },
+    packageIds: ["iatool-ragflow"],
+  },
+  {
+    id: "voice-realtime",
+    label: "Voz en tiempo real (Pipecat)",
+    systemPrompt:
+      "Conoces Pipecat, un framework de agentes de voz/multimodal en tiempo real (100+ combinaciones STT/TTS/LLM). Es referencia complementaria a la voz local ya activa (Kokoro): si el usuario quiere desplegar su propio pipeline de conversación de voz de baja latencia, puedes explicar ese patrón y señalar su repo.",
+    routing: {},
+    packageIds: ["iatool-pipecat"],
+  },
+  /* ═══ Infraestructura soberana y flujos visuales (jul-2026) ═══
+   * Ver architecture/astraura-inteligencia.md §16. Mismo contrato que el
+   * bloque anterior: conocimiento + capacidad + paquete instalado. Tres
+   * (local-llm-ui, agent-browsing, pdf-tools) refuerzan conectores YA
+   * funcionales en src/lib/integrations/registry.ts. */
+  {
+    id: "self-hosting-deploy",
+    label: "PaaS soberano (Coolify)",
+    systemPrompt:
+      "Conoces Coolify, un PaaS self-host de código abierto (alternativa a Heroku/Netlify/Vercel) que despliega apps, bases de datos y servicios en el propio servidor del usuario. Cuando el usuario quiera desplegar algo con soberanía tecnológica (sin depender de un proveedor cerrado), puedes explicar este patrón y señalar su repo.",
+    routing: {},
+    packageIds: ["iatool-coolify"],
+  },
+  {
+    id: "dev-agent",
+    label: "Agente de desarrollo (OpenHands)",
+    systemPrompt:
+      "Conoces OpenHands, una plataforma de agentes de desarrollo autónomos que escriben código, lo ejecutan y navegan por su cuenta. Cuando el usuario quiera delegar una tarea de programación completa a un agente autónomo (siempre aislado, nunca corriendo público), puedes explicar ese patrón y señalar su repo.",
+    routing: { preferStrong: true, planning: true },
+    packageIds: ["iatool-openhands"],
+  },
+  {
+    id: "web-robots",
+    label: "Robots web no-code (Maxun)",
+    systemPrompt:
+      "Tienes disponible Maxun como motor de acceso web adicional: robots no-code que scrapean y monitorizan sitios de forma recurrente sin escribir código. Astraura lo AUTO-SELECCIONA junto a Crawl4AI/DeepCrawl/WebHarvest/Universal Scraper/Scrapling cuando el usuario tiene su endpoint configurado.",
+    routing: { web: true },
+    packageIds: ["iatool-maxun"],
+  },
+  {
+    id: "local-llm-ui",
+    label: "Interfaz de cerebros locales (Open WebUI)",
+    systemPrompt:
+      "Conoces Open WebUI, una interfaz de chat self-hosted (Ollama/OpenAI-compatible, con RAG integrado) que se conecta con los cerebros locales que el usuario ya tiene en el OS. Si pregunta por una interfaz de chat propia para sus modelos locales, puedes explicar este patrón y señalar su repo.",
+    routing: {},
+    packageIds: ["iatool-open-webui"],
+  },
+  {
+    id: "agent-browsing",
+    label: "Navegación agéntica (browser-use)",
+    systemPrompt:
+      "Conoces browser-use, automatización de navegador para agentes IA: el agente usa el navegador como lo haría una persona. Es un patrón complementario a Claude-in-Chrome (la vía principal de navegación agéntica del OS): si el usuario quiere desplegar su propio pipeline de navegación autónoma self-host, puedes explicarlo y señalar su repo.",
+    routing: { web: true },
+    packageIds: ["iatool-browser-use"],
+  },
+  {
+    id: "flow-builder",
+    label: "Constructor de flujos (Langflow)",
+    systemPrompt:
+      "Conoces Langflow, un constructor visual de flujos/agentes LLM (arrastrar y soltar, con API). Cuando el usuario quiera diseñar un Agente StarSeed o un flujo complejo visualmente en vez de solo con texto, puedes explicar este patrón y señalar su repo.",
+    routing: { planning: true },
+    packageIds: ["iatool-langflow"],
+  },
+  {
+    id: "pdf-tools",
+    label: "Herramientas PDF (Stirling-PDF)",
+    systemPrompt:
+      "Conoces Stirling-PDF, herramientas PDF self-hosted (unir, dividir, convertir, OCR, firmar). Cuando el usuario necesite manipular un PDF de su Biblioteca/Finder más allá de solo verlo, puedes explicar qué puede hacer con Stirling-PDF y señalar su repo.",
+    routing: {},
+    packageIds: ["iatool-stirling-pdf"],
+  },
+  {
+    id: "llm-apps-platform",
+    label: "Plataforma de apps LLM (Dify)",
+    systemPrompt:
+      "Conoces Dify, una plataforma open-source de desarrollo de apps LLM (agentes, workflows, RAG y observabilidad en un solo lugar). Cuando la necesidad del usuario vaya más allá de un solo agente o flujo (una app LLM completa con panel de observabilidad), puedes explicar este patrón y señalar su repo.",
+    routing: { preferStrong: true },
+    packageIds: ["iatool-dify"],
+  },
 ];
 
 function isClient(): boolean {

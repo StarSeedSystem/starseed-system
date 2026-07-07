@@ -100,8 +100,8 @@ export const OS_SECTIONS: OsSection[] = [
   },
   {
     path: "/library", label: "Biblioteca (universal · Cydia de skills)",
-    keywords: ["biblioteca", "library", "libros", "books", "skills", "cydia", "paquetes", "packages"],
-    actions: ["buscar/leer documentos", "instalar skills/paquetes", "guardar en memorias", "publicar como rama"],
+    keywords: ["biblioteca", "library", "libros", "books", "skills", "cydia", "paquetes", "packages", "hugging bay", "huggingbay", "modelos", "descubrir modelos"],
+    actions: ["buscar/leer documentos", "instalar skills/paquetes", "descubrir modelos reales (Hugging Bay)", "guardar en memorias", "publicar como rama"],
     agentCapable: true,
   },
   {
@@ -376,6 +376,42 @@ export function screenContextLine(): string {
   return `Contexto de pantalla actual (aproximado) — ${parts.join("; ")}.`;
 }
 
+/* ────────────────── Cerebros de contexto de la Biblioteca activa ────────────────── */
+
+/**
+ * Si la ruta dada (o `screenContext().path` si se omite) corresponde a la
+ * sección Biblioteca (`/library`), devuelve una línea en es-ES con los
+ * NOMBRES de los cerebros de contexto (`src/lib/brains/brains.ts`) que
+ * `getLibraryBrains()` resuelve para el perfil activo (`activeProfileId()`).
+ * Fuera de `/library`, o si algo falla, devuelve "" (nunca lanza). Importa
+ * dinámicamente `@/lib/profiles/profiles` y `@/lib/library/library-brains`
+ * siguiendo el mismo patrón defensivo que los imports de `systemMap()`.
+ */
+export async function libraryBrainsContextLine(route?: string): Promise<string> {
+  try {
+    const path = route ?? screenContext().path;
+    const section = findSectionForRoute(path);
+    if (!section || section.path !== "/library") return "";
+
+    let profileId: string | null = null;
+    try {
+      const profilesMod = await import("@/lib/profiles/profiles");
+      profileId = profilesMod.activeProfileId();
+    } catch {
+      profileId = null;
+    }
+
+    const libraryBrainsMod = await import("@/lib/library/library-brains");
+    const brains = await libraryBrainsMod.getLibraryBrains(profileId);
+    const names = brains.map((b) => b.name).filter(Boolean);
+
+    const lista = names.length ? names.join(", ") : "sin cerebros de contexto configurados";
+    return `Cerebros de contexto de esta biblioteca: ${lista}.`;
+  } catch {
+    return "";
+  }
+}
+
 /* ─────────────────────────── Mapa vivo del sistema (systemMap) ─────────────────────────── */
 
 /** Agente disponible (ficha mínima, derivada de `lib/agents/store.ts`). */
@@ -412,10 +448,14 @@ export interface SystemMap {
  * (dinámico y defensivo: sin cliente o si algo falla, esas listas quedan
  * vacías pero `areas`/`prompt` siempre se devuelven). Nunca lanza.
  *
+ * `route` (OPCIONAL, retrocompatible): ruta activa para resolver contexto
+ * situacional adicional (p.ej. cerebros de contexto si `route` es `/library`).
+ * Si se omite, se usa `screenContext().path` (best-effort, SOLO cliente).
+ *
  * Uso típico: `const map = await systemMap(); brainMessages.unshift({role:
  * "system", content: map.prompt})`. También sirve para paneles/depuración.
  */
-export async function systemMap(): Promise<SystemMap> {
+export async function systemMap(route?: string): Promise<SystemMap> {
   const areas = OS_SECTIONS.map((s) => describeArea(s.path)).filter((a): a is AreaDescription => !!a);
 
   let capabilities: ActiveCapabilitySummary[] = [];
@@ -439,6 +479,13 @@ export async function systemMap(): Promise<SystemMap> {
     agents = [];
   }
 
+  let libraryBrainsLine = "";
+  try {
+    libraryBrainsLine = await libraryBrainsContextLine(route);
+  } catch {
+    libraryBrainsLine = "";
+  }
+
   const areasLine = areas
     .map((a) => `${a.label} (${a.path})${a.agentCapable ? " [agente]" : ""}: ${a.actions.slice(0, 3).join(" · ")}`)
     .join("\n");
@@ -452,6 +499,7 @@ export async function systemMap(): Promise<SystemMap> {
     `Áreas y qué se puede hacer en cada una:\n${areasLine}`,
     `Capacidades/skills activas de Aurora ahora mismo: ${capsLine}.`,
     `Agentes disponibles (persona + capacidades, atables a páginas/grupos/comunidades): ${agentsLine}.`,
+    ...(libraryBrainsLine ? [libraryBrainsLine] : []),
   ].join("\n\n");
 
   return { areas, capabilities, agents, prompt };

@@ -85,7 +85,7 @@ export function topSignals(kind: keyof Signals, n = 5): { key: string; count: nu
 
 /* ───────────────────── Sugerencias contextuales ───────────────────── */
 
-export type SuggestionKind = "connect-free" | "local-power" | "quota" | "upgrade" | "vision" | "voice" | "tip";
+export type SuggestionKind = "connect-free" | "local-power" | "quota" | "upgrade" | "vision" | "voice" | "tip" | "model-discovery";
 
 export interface Suggestion {
   kind: SuggestionKind;
@@ -169,6 +169,34 @@ export async function computeSuggestions(context?: string): Promise<Suggestion[]
       href: "/library",
       priority: 5,
     });
+  }
+
+  // 4.5) THE HUGGING BAY: si falta IA local instalada de verdad (no solo el
+  //      catálogo builtin) y el descubrimiento está activado, sugiere el mejor
+  //      modelo real (licencia + confianza + tamaño para este equipo) con su
+  //      comando de instalación listo para copiar. Nunca auto-descarga.
+  if (prefs.huggingBay?.enabled !== false) {
+    const hasRealLocal = readyFree.some((a) => a.source.tier === "local");
+    if (!hasRealLocal) {
+      try {
+        const hb = await import("./huggingbay");
+        const top = await hb.rankHuggingBayFor("chat", {
+          limit: 1,
+          permissiveOnly: prefs.huggingBay?.permissiveOnly !== false,
+          hostedOnly: !!prefs.huggingBay?.hostedOnly,
+        });
+        if (top.length) {
+          const best = top[0];
+          out.push({
+            kind: "model-discovery",
+            title: `Modelo local sugerido: ${best.name}`,
+            detail: `${best.reasons.slice(0, 2).join(" · ") || "Buen candidato gratis y open source"}. Cópialo con ${prefs.huggingBay?.preferredTool ?? "ollama"} desde Biblioteca → Hugging Bay.`,
+            href: "/library?tab=destacado",
+            priority: 4,
+          });
+        }
+      } catch { /* defensivo: Hugging Bay es opcional, nunca bloquea sugerencias */ }
+    }
   }
 
   // 5) Mejora premium opcional (solo se muestra; nunca se activa sola).

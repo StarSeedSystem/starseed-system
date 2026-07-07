@@ -65,6 +65,39 @@ export interface IntelligenceSettings {
   difficultyRouting: boolean;
   /** Umbral 0..1 a partir del cual una tarea se considera "difícil". */
   strongThreshold: number;
+  /**
+   * THE HUGGING BAY (jul-2026): descubrimiento inteligente de modelos reales
+   * (licencia, confianza, comando de instalación local). Aditivo: nunca
+   * descarga ni activa nada por su cuenta, solo sugiere/registra candidatos.
+   * Ver architecture/astraura-inteligencia.md §14.
+   */
+  huggingBay: {
+    /** Activa toda la capa de descubrimiento (recomendador/búsqueda/trending). */
+    enabled: boolean;
+    /** Aurora propone modelos sin que se le pregunte, al detectar una capacidad ausente. */
+    autoSuggest: boolean;
+    /** Herramienta para la que se genera el "kit local" copiable. */
+    preferredTool: "ollama" | "lmstudio" | "comfyui" | "transformers" | "llama.cpp";
+    /** Solo licencias permisivas (MIT/Apache-2.0/…) al rankear. */
+    permissiveOnly: boolean;
+    /** Solo filas hosted/verificadas por Hugging Bay (más fiable, menos resultados). */
+    hostedOnly: boolean;
+  };
+  /**
+   * 9Router (jul-2026): proxy LOCAL OpenAI-compatible que el usuario corre en su
+   * propio equipo (https://github.com/decolua/9router) con fallback entre 40+
+   * proveedores y compresión de tokens. Astraura NO lo instala ni lo lanza: solo
+   * lo considera como una fuente más si `enabled` y responde en `endpoint`.
+   * Ver architecture/astraura-inteligencia.md §15.4.
+   */
+  nineRouter: {
+    /** Por defecto false: requiere que el usuario ya lo tenga corriendo. */
+    enabled: boolean;
+    /** Endpoint OpenAI-compatible local (default puerto habitual del proyecto). */
+    endpoint: string;
+    /** Bandera ligera: avisa al proxy de que puede aplicar SU compresión de contexto. */
+    compressionHint: boolean;
+  };
 }
 
 export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
@@ -76,7 +109,40 @@ export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
   allowConfiguredPaid: true,
   difficultyRouting: true,
   strongThreshold: 0.6,
+  huggingBay: {
+    enabled: true,
+    autoSuggest: true,
+    preferredTool: "ollama",
+    permissiveOnly: true,
+    hostedOnly: false,
+  },
+  nineRouter: {
+    enabled: false,
+    endpoint: "http://localhost:8000",
+    compressionHint: false,
+  },
 };
+
+/** Fusiona `IntelligenceSettings` respetando el merge ANIDADO de `huggingBay` y
+ *  `nineRouter` (objetos nuevos aditivos): así, ajustes guardados antes de estas
+ *  olas —o un patch parcial como `{ huggingBay: { enabled: false } }`— nunca
+ *  pierden las subclaves con default seguro que no vinieran en el objeto
+ *  persistido. */
+function mergeIntelligence(base: IntelligenceSettings, patch: unknown): IntelligenceSettings {
+  const p = patch && typeof patch === "object" ? (patch as Partial<IntelligenceSettings>) : {};
+  const merged: IntelligenceSettings = { ...base, ...p };
+  merged.huggingBay = {
+    ...DEFAULT_INTELLIGENCE.huggingBay,
+    ...(base.huggingBay && typeof base.huggingBay === "object" ? base.huggingBay : {}),
+    ...(p.huggingBay && typeof p.huggingBay === "object" ? p.huggingBay : {}),
+  };
+  merged.nineRouter = {
+    ...DEFAULT_INTELLIGENCE.nineRouter,
+    ...(base.nineRouter && typeof base.nineRouter === "object" ? base.nineRouter : {}),
+    ...(p.nineRouter && typeof p.nineRouter === "object" ? p.nineRouter : {}),
+  };
+  return merged;
+}
 
 export function getIntelligenceSettings(): IntelligenceSettings {
   if (typeof window === "undefined") return { ...DEFAULT_INTELLIGENCE };
@@ -84,14 +150,14 @@ export function getIntelligenceSettings(): IntelligenceSettings {
     const raw = window.localStorage.getItem(INTELLIGENCE_KEY);
     if (!raw) return { ...DEFAULT_INTELLIGENCE };
     const p = JSON.parse(raw);
-    return { ...DEFAULT_INTELLIGENCE, ...(p && typeof p === "object" ? p : {}) };
+    return mergeIntelligence(DEFAULT_INTELLIGENCE, p);
   } catch {
     return { ...DEFAULT_INTELLIGENCE };
   }
 }
 
 export function saveIntelligenceSettings(patch: Partial<IntelligenceSettings>): IntelligenceSettings {
-  const next = { ...getIntelligenceSettings(), ...patch };
+  const next = mergeIntelligence(getIntelligenceSettings(), patch);
   try {
     window.localStorage.setItem(INTELLIGENCE_KEY, JSON.stringify(next));
     window.dispatchEvent(new CustomEvent("starseed:astraura-intelligence"));
@@ -404,6 +470,35 @@ async function runCandidate(c: RouteCandidate, req: AstrauraChatRequest): Promis
       temperature: req.temperature,
       onChunk: req.onChunk,
       onProgress: (p) => req.onStatus?.(p ? `Cargando SmolLM3 en tu navegador… ${p}` : ""),
+    });
+  }
+  // ── 9Router (proxy local): usa el endpoint CONFIGURADO por el usuario en
+  //    Ajustes → Inteligencia (no el baseUrl fijo del catálogo), y si
+  //    `compressionHint` está activo, avisa al proxy con una línea ligera de
+  //    system prompt (no reimplementamos su algoritmo de compresión). ────────
+  if (c.source.id === "9router-local") {
+    let endpoint = c.source.baseUrl;
+    let compressionHint = false;
+    try {
+      const settings = getIntelligenceSettings();
+      if (settings.nineRouter?.endpoint) {
+        const base = settings.nineRouter.endpoint.replace(/\/+$/, "");
+        endpoint = /\/v1$/.test(base) ? base : `${base}/v1`;
+      }
+      compressionHint = !!settings.nineRouter?.compressionHint;
+    } catch { /* defensivo: usa el default del catálogo */ }
+    const msgs = compressionHint
+      ? mergeSystemPrompt(base.messages, "[9Router] Si tu proxy soporta compresión de contexto, aplícala a esta petición.")
+      : base.messages;
+    return chat({
+      ...base,
+      messages: msgs,
+      providerOverride: {
+        providerId: "openai-compatible",
+        baseUrl: endpoint,
+        model: c.model.id,
+        label: c.source.label,
+      },
     });
   }
   // Config del usuario si existe (lleva su clave); si no, override sin clave

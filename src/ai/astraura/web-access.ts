@@ -23,6 +23,8 @@
  *   · DeepCrawl      — https://github.com/lumpinif/deepcrawl   (edge OSS: markdown + árbol de enlaces)
  *   · WebHarvest     — scraper OSS self-host (formatos agent-friendly, sortea anti-bot)
  *   · Universal Scraper — Python ligero (Cloudscraper + Selenium), export JSON/CSV (LOCAL, OSS)
+ *   · Scrapling      — https://github.com/D4Vinci/Scrapling    (selectores auto-reparables + stealth, LOCAL, OSS)
+ *   · Maxun          — https://github.com/getmaxun/maxun       (robots no-code, self-host, OSS)
  *   · Firecrawl      — https://www.firecrawl.dev               (SOLO con clave; nunca por defecto)
  *
  * Persistencia (localStorage, soberana; SSR-safe y defensiva):
@@ -88,6 +90,22 @@ export const WEB_ACCESS_PROVIDERS: WebAccessProvider[] = [
     kind: "local",
     free: true,
     strengths: ["json", "csv", "datos", "tabla", "estructurado", "local"],
+  },
+  {
+    id: "scrapling",
+    label: "Scrapling (local · adaptativo)",
+    kind: "local",
+    repo: "https://github.com/D4Vinci/Scrapling",
+    free: true,
+    strengths: ["adaptativo", "auto-reparable", "stealth", "anti-deteccion", "cambia", "estructura"],
+  },
+  {
+    id: "maxun",
+    label: "Maxun (OSS · robots no-code)",
+    kind: "oss-selfhost",
+    repo: "https://github.com/getmaxun/maxun",
+    free: true,
+    strengths: ["robots", "no-code", "monitorizacion", "recurrente", "entrenar", "vigilar"],
   },
   {
     id: "firecrawl",

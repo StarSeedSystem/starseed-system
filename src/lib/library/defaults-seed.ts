@@ -68,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 5;
+export const SEED_VERSION = 8;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -128,6 +128,61 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   //    clave. Aurora auto-selecciona la mejor herramienta web gratis por tarea;
   //    hasta que el usuario configure un endpoint, pedirá la URL/el contenido.
   "iatool-crawl4ai",
+  // ── (SEED_VERSION 6) THE HUGGING BAY: descubrimiento inteligente de modelos
+  //    reales (licencia + confianza + comando de instalación local). Registra
+  //    la skill `model-discovery` (capacidad "model-discovery") — efecto 100%
+  //    local (guarda el enlace + activa la skill), CERO descarga automática:
+  //    el descubrimiento vive en Biblioteca → Hugging Bay y solo actúa cuando
+  //    el usuario copia un comando o pulsa "Usar en Astraura" a propósito.
+  "iatool-hugging-bay-registry",
+  // ── (SEED_VERSION 7) Stack OSS "reemplaza tu stack de $200/mes" — los 10
+  //    repos de architecture/astraura-inteligencia.md §15. TODOS son paquetes
+  //    `function` con `skillId`: instalar = solo registro de skill/capacidad +
+  //    enlace de referencia guardado (cero descarga, cero clave, cero servicio
+  //    lanzado por el OS). Cada uno activa su capacidad viva en skills.ts para
+  //    que Aurora la use en todos los contextos (chats/Biblioteca/agentes).
+  "iatool-dyad",
+  "iatool-goose",
+  "iatool-deerflow",
+  "iatool-daytona",
+  "iatool-parallel-code",
+  "iatool-scrapling",
+  "iatool-9router",
+  "iatool-website-cloner",
+  "iatool-ragflow",
+  "iatool-pipecat",
+  // ── (SEED_VERSION 7) Barrido del resto del catálogo: paquetes gratis/OSS que
+  //    ya existían pero se quedaron fuera de RECOMMENDED por versiones previas
+  //    y cumplen el mismo criterio (efecto 100% local y seguro, sin clave ni
+  //    servidor propio como precondición, no mutuamente excluyentes con lo ya
+  //    recomendado). Ver architecture/astraura-inteligencia.md §15.6:
+  //    · anim-respiracion-neon → animación CSS pura, aditiva (no excluyente
+  //      como los temas de material, de los que solo uno entra por defecto).
+  //    · iatool-deepcrawl / iatool-webharvest / iatool-universal-scraper →
+  //      mismo patrón que iatool-crawl4ai (ya recomendado desde SEED_VERSION 5):
+  //      registran la MISMA skill `aurora-web-access` (capacidad "web-access"),
+  //      sumando motores a la auto-selección de Astraura sin coste ni riesgo.
+  "anim-respiracion-neon",
+  "iatool-deepcrawl",
+  "iatool-webharvest",
+  "iatool-universal-scraper",
+  // ── (SEED_VERSION 8) Infraestructura soberana y flujos visuales — los 8
+  //    repos de architecture/astraura-inteligencia.md §16. Mismo criterio que
+  //    SEED_VERSION 7: TODOS son paquetes `function` con `skillId`: instalar =
+  //    solo registro de skill/capacidad + enlace de referencia guardado (cero
+  //    descarga, cero clave, cero servicio lanzado por el OS). Los servicios
+  //    self-hosted que documentan (Coolify/Open WebUI/Stirling-PDF/Dify/
+  //    Langflow) NO se auto-conectan a ningún endpoint: quedan como
+  //    capacidad+patrón+enlace, con el endpoint configurable y apagado por
+  //    defecto donde aplica (ver §16.7).
+  "iatool-coolify",
+  "iatool-openhands",
+  "iatool-maxun",
+  "iatool-open-webui",
+  "iatool-browser-use",
+  "iatool-langflow",
+  "iatool-stirling-pdf",
+  "iatool-dify",
 ];
 
 /**

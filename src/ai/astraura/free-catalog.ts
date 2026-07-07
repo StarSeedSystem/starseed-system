@@ -154,6 +154,28 @@ export const FREE_CATALOG: CatalogSource[] = [
       { id: "local-model", label: "Modelo servido por OpenLLM", strengths: ["chat", "code", "reasoning"], quality: 6, note: "OpenLLM: corre modelos abiertos como API OpenAI en tu equipo (openllm serve)" },
     ],
   },
+  {
+    // 9Router (https://github.com/decolua/9router): proxy LOCAL OpenAI-compatible
+    // con fallback entre 40+ proveedores y compresión de tokens. El `baseUrl` de
+    // abajo es solo el DEFAULT documentado (Ajustes → Inteligencia → 9Router
+    // puede cambiar el endpoint real); `detectAvailability()` sondea el endpoint
+    // configurado por el usuario en `IntelligenceSettings.nineRouter`, no este
+    // valor estático. Solo "ready" si el usuario activó `nineRouter.enabled` Y
+    // el proxy responde. Ver architecture/astraura-inteligencia.md §15.4.
+    id: "9router-local",
+    label: "9Router (proxy local)",
+    tier: "local",
+    providerId: "openai-compatible",
+    baseUrl: "http://localhost:8000/v1",
+    requiresKey: false,
+    limits: "Sin límites propios: hereda los límites de los 40+ proveedores tras el proxy.",
+    why: "Proxy local con fallback por niveles y compresión de tokens: útil cuando el usuario ya lo tiene corriendo para ahorrar cuota entre proveedores.",
+    privacy: "local",
+    weight: 1.1,
+    models: [
+      { id: "local-model", label: "Modelo enrutado por 9Router", strengths: ["chat", "code", "reasoning", "fast"], quality: 6, note: "9Router: proxy local con fallback entre 40+ proveedores" },
+    ],
+  },
 
   /* ── FREE-KEY (gratis con clave gratuita) ─────────────────── */
   {

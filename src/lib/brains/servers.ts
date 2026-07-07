@@ -189,6 +189,15 @@ export const OSS_CONNECTORS: OssConnector[] = [
     contract: "/sdapi/v1/txt2img · /sdapi/v1/img2img",
     oss: true,
   },
+  {
+    id: "open_webui",
+    label: "Open WebUI",
+    blurb: "Interfaz de chat self-hosted para tus cerebros locales (Ollama/OpenAI-compatible, con RAG integrado).",
+    kind: "service",
+    defaultPort: 3000,
+    contract: "/api/chat/completions · /api/models",
+    oss: true,
+  },
 ];
 
 export function ossConnectorById(id: string) {
