@@ -44,6 +44,9 @@ import { PerfController, PerfHeavyOnly, PerfStaticBackdrop } from "@/components/
 import { PinnedWidgetOverlay } from "@/components/dashboard/widgets/pinned-widget-overlay";
 import { MediaMiniDock } from "@/components/dashboard/apps/media/media-mini-dock";
 import { SovereignSyncMount } from "@/components/system/sovereign-sync-mount";
+// Motor de sincronización en TIEMPO REAL entre dispositivos de la cuenta
+// (escritorios, memorias, chats de Aurora, ajustes…): src/lib/sync/realtime-sync.ts.
+import { RealtimeSyncProvider } from "@/components/system/realtime-sync-provider";
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
 import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
 import { RegisterSW } from "@/components/pwa/register-sw";
@@ -166,6 +169,8 @@ export default function RootLayout({
                         <MediaMiniDock />
                         {/* Sincronización soberana: biblioteca/apps/dashboards ↔ Supabase (defensiva). */}
                         <SovereignSyncMount />
+                        {/* Sincronización en TIEMPO REAL entre dispositivos de la cuenta (defensiva). */}
+                        <RealtimeSyncProvider />
                         {/* App Omnifrecuencias en ventana del OS (escucha 'starseed:open-omnifrecuencias'). */}
                         <OmniAppHost />
                         {/* Ventana de configuración del fondo Audiomorphic (escucha 'starseed:open-audiomorphic-config'). */}

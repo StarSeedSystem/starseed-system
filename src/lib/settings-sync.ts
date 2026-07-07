@@ -52,6 +52,37 @@ export const SYNCED_KEYS = [
     "starseed.updates.seen.v1",              // avisos de actualización/instalación ya vistos por el usuario
     "starseed.library.ratings.v1",           // valoración local (estrellas) de paquetes de la Biblioteca
     "starseed.library.usage.v1",             // contador de uso (aperturas reales) de paquetes de la Biblioteca
+    // ── Sincronización en tiempo real (Adenda 64 · realtime-sync.ts) ──────
+    //    Secciones descubiertas por grep real en el código (ver SOP
+    //    architecture/libreria-biblioteca-sync.md §4). Aditivo: el motor
+    //    realtime-sync.ts empuja/aplica estas claves además de las de arriba.
+    "starseed.desktops.v1",              // escritorios (iconos, ventanas, fondos, vista) — desktop-store.ts
+    "starseed.cursorfx.v1",              // cursor personalizado + animaciones de clic — cursor-fx.tsx
+    "starseed.aurora.chatlog.v1",        // registro de conversación con Aurora — aurora-chat-log.ts
+    "starseed.dock.folders.v1",          // carpetas del OmniDock — dock-config.ts
+    "starseed.aurora.orb.pos.v1",        // posición del orbe de Aurora en pantalla — aurora-orb-bus.ts
+    "starseed.a11y.settings",            // accesibilidad (contraste, movimiento reducido…) — accessibility-settings.tsx
+    "starseed.perf.v1",                  // modo de rendimiento auto/alto/eco — device-tier.ts
+] as const;
+
+/**
+ * Prefijos de clave sincronizados DINÁMICAMENTE (número de sufijos variable,
+ * p. ej. por id de cerebro): `starseed.brain.<id>.moa` / `.channels` /
+ * `.memoryRoots` / `.library` (ver brains-panel.tsx). El motor
+ * realtime-sync.ts descubre las claves reales presentes en localStorage bajo
+ * estos prefijos y las trata igual que una clave de SYNCED_KEYS.
+ *
+ * EXCLUSIÓN EXPLÍCITA: `starseed.entitylib.` (Biblioteca por entidad) queda
+ * FUERA — la gestiona su propia capa (entity-state.ts / entity-library.ts),
+ * nunca este motor de cuenta. Ver SOP §3 vs §4.
+ */
+export const SYNCED_PREFIXES = [
+    "starseed.brain.", // starseed.brain.<id>.{moa,channels,memoryRoots,library}
+] as const;
+
+/** Prefijos EXCLUIDOS aunque coincidan con un prefijo sincronizado (defensa en profundidad). */
+export const SYNCED_PREFIX_EXCLUDE = [
+    "starseed.entitylib.", // Biblioteca por entidad: la gestiona entity-state.ts, no la cuenta
 ] as const;
 
 export interface SyncResult {

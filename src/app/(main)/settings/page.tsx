@@ -19,6 +19,7 @@ import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { TrinityFabSettings } from "@/components/settings/trinity/trinity-fab-settings";
 import { TrinityEdgeSettings } from "@/components/settings/trinity/trinity-edge-settings";
 import { AccountSyncPanel } from "@/components/settings/account/account-sync-panel";
+import { RealtimeSyncPanel } from "@/components/settings/account/realtime-sync-panel";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
 import { ProfileIdentityPanel } from "@/components/settings/profile/profile-identity-panel";
 import { ProfileSwitcher } from "@/components/profile/profile-switcher";
@@ -523,6 +524,9 @@ export default function SettingsPage() {
 
                                 {/* Sincronización de preferencias con la cuenta */}
                                 <AccountSyncPanel />
+
+                                {/* Sincronización en TIEMPO REAL entre dispositivos (motor realtime-sync.ts) */}
+                                <RealtimeSyncPanel />
                             </TabsContent>
 
                             {/* ── Privacidad y Seguridad (fusión de "privacy" + "security") ── */}

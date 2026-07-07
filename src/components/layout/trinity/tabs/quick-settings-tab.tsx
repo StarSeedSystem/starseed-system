@@ -44,6 +44,11 @@ import { useTheme } from "next-themes";
 import { useAppearance } from "@/context/appearance-context";
 import { hasStarseedSession, pushPreferences } from "@/lib/settings-sync";
 import {
+    getRealtimeSyncStatus,
+    onRealtimeSyncStatus,
+    type RealtimeSyncStatus,
+} from "@/lib/sync/realtime-sync";
+import {
     getPerfMode,
     setPerfMode,
     type PerfMode,
@@ -77,6 +82,7 @@ export function QuickSettingsTab() {
     const [syncBusy, setSyncBusy] = useState(false);
     const [perfMode, setPerfModeState] = useState<PerfMode>("auto");
     const [auroraEngine, setAuroraEngine] = useState<AuroraVoiceEngine>("browser");
+    const [realtimeStatus, setRealtimeStatus] = useState<RealtimeSyncStatus>(getRealtimeSyncStatus());
 
     useEffect(() => {
         setMounted(true);
@@ -86,7 +92,8 @@ export function QuickSettingsTab() {
 
         const syncAurora = () => setAuroraEngine(getVoiceConfig().engine);
         const off = subscribeVoiceConfig(syncAurora);
-        return off;
+        const offSync = onRealtimeSyncStatus(setRealtimeStatus);
+        return () => { off(); offSync(); };
     }, []);
 
     const isDark = theme === "dark";
@@ -162,7 +169,7 @@ export function QuickSettingsTab() {
             </div>
 
             {/* Red / sincronización de cuenta */}
-            <SyncStatusRow session={session} busy={syncBusy} onPush={handleSyncPush} />
+            <SyncStatusRow session={session} busy={syncBusy} onPush={handleSyncPush} realtime={realtimeStatus} />
 
             {/* Sliders reales */}
             <div className="space-y-4 bg-black/20 p-5 rounded-2xl border border-white/5 backdrop-blur-md">
@@ -245,10 +252,29 @@ function AuroraCard({ engine }: { engine: AuroraVoiceEngine }) {
     );
 }
 
-function SyncStatusRow({ session, busy, onPush }: {
+function realtimeDotClass(state: RealtimeSyncStatus["state"] | undefined): string {
+    switch (state) {
+        case "connected": return "bg-emerald-400";
+        case "connecting": return "bg-amber-400 animate-pulse";
+        case "error": return "bg-red-400";
+        default: return "bg-zinc-500";
+    }
+}
+
+function realtimeRelative(ts: number | null | undefined): string {
+    if (!ts) return "sin cambios";
+    const diff = Date.now() - ts;
+    if (diff < 5_000) return "ahora";
+    if (diff < 60_000) return `hace ${Math.round(diff / 1000)}s`;
+    if (diff < 3_600_000) return `hace ${Math.round(diff / 60_000)}min`;
+    return `hace ${Math.round(diff / 3_600_000)}h`;
+}
+
+function SyncStatusRow({ session, busy, onPush, realtime }: {
     session: boolean | null;
     busy: boolean;
     onPush: () => void;
+    realtime?: RealtimeSyncStatus;
 }) {
     return (
         <div className={cn(
@@ -262,6 +288,12 @@ function SyncStatusRow({ session, busy, onPush }: {
                 {session === null ? "Comprobando sesión…"
                     : session ? "Sesión StarSeed activa"
                         : "Sin sesión — ajustes solo locales"}
+                {session && realtime && (
+                    <span className="inline-flex items-center gap-1 ml-2 text-muted-foreground">
+                        <span className={cn("w-1.5 h-1.5 rounded-full", realtimeDotClass(realtime.state))} />
+                        {realtimeRelative(realtime.lastChangeAt)}
+                    </span>
+                )}
             </span>
             {session && (
                 <button
