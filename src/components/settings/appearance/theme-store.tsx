@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, Check, Sparkles, Monitor, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
+// Catálogo de TEMAS/ESTILOS (theme-engine.ts + theme-catalog.ts): sistema
+// nuevo e independiente de las plantillas de abajo — aditivo.
+import { ThemeCatalogGallery } from "./theme-catalog-gallery";
 
 interface ThemeTemplate {
     id: string;
@@ -101,10 +104,15 @@ export function ThemeStore() {
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="catalog">Catálogo StarSeed</TabsTrigger>
                     <TabsTrigger value="browse">Explorar</TabsTrigger>
                     <TabsTrigger value="custom">Código Personalizado</TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="catalog" className="mt-4">
+                    <ThemeCatalogGallery />
+                </TabsContent>
 
                 <TabsContent value="browse" className="mt-4 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -17,9 +17,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
-import { ArrowUp, ArrowDown, Eye, EyeOff, Palette, LayoutList, Puzzle, ImageIcon, RotateCcw, X } from "lucide-react";
+import { ArrowUp, ArrowDown, Eye, EyeOff, Palette, LayoutList, Puzzle, ImageIcon, RotateCcw, X, Blend } from "lucide-react";
 import type { EntityLayout, IntegrationSuggestion } from "@/lib/entity-layout";
+// Catálogo + Mezclador de temas (theme-engine.ts): listThemes() incluye los
+// ~24 builtin MÁS los personalizados del usuario (incl. mezclas guardadas
+// como tema desde el Mezclador) — el mismo selector sirve para ambos.
+import { listThemes } from "@/lib/design/theme-engine";
 
 export interface EntityLayoutEditorProps {
     open: boolean;
@@ -35,11 +40,15 @@ export interface EntityLayoutEditorProps {
     onReorderTabs: (orderedIds: string[]) => Promise<void>;
     onSetTabVisible: (id: string, visible: boolean) => Promise<void>;
     onToggleIntegration: (key: string, on: boolean) => Promise<void>;
+    /** Tema por entidad (Mezclador/Catálogo — theme-mixer.ts + theme-engine.ts).
+     *  Opcional: si no se pasa, la sección "Tema" no se muestra (cero cambio
+     *  visual para quien no la use todavía). */
+    onSetTheme?: (themeId: string | null) => Promise<void>;
 }
 
 export function EntityLayoutEditor({
     open, onOpenChange, baseAccent, tabs, layout, suggestions,
-    onSetAccent, onSetCoverUrl, onReorderTabs, onSetTabVisible, onToggleIntegration,
+    onSetAccent, onSetCoverUrl, onReorderTabs, onSetTabVisible, onToggleIntegration, onSetTheme,
 }: EntityLayoutEditorProps) {
     const [uploadingCover, setUploadingCover] = useState(false);
 
@@ -121,6 +130,35 @@ export function EntityLayoutEditor({
                             </AttachFilePickerButton>
                         </div>
                     </section>
+
+                    {onSetTheme && (
+                        <>
+                            <Separator />
+                            {/* Tema por entidad (Mezclador/Catálogo) */}
+                            <section className="space-y-2">
+                                <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                                    <Blend className="h-3.5 w-3.5" /> Tema
+                                </h3>
+                                <p className="text-xs text-muted-foreground">
+                                    Elige un tema del catálogo o una mezcla tuya guardada (Ajustes → Apariencia → Combinar…). Se aplica solo al entrar en esta entidad.
+                                </p>
+                                <Select
+                                    value={layout.themeId || "none"}
+                                    onValueChange={(v) => void onSetTheme(v === "none" ? null : v)}
+                                >
+                                    <SelectTrigger className="h-9 w-full">
+                                        <SelectValue placeholder="Tema del sistema (por defecto)" />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-72">
+                                        <SelectItem value="none">Tema del sistema (por defecto)</SelectItem>
+                                        {listThemes().map((t) => (
+                                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </section>
+                        </>
+                    )}
 
                     <Separator />
 

@@ -81,6 +81,11 @@ export const SYNCED_KEYS = [
     //    aquí — quedan solo en este navegador, por diseño (igual que
     //    starseed.ai.providers más arriba).
     "starseed.connectors.mode.v1",
+    // ── Catálogo de Temas + Mezclador (jul-2026 · theme-engine.ts / theme-mixer.ts) ──
+    //    El tema aplicado y los temas personalizados (incl. mezclas guardadas
+    //    como tema) viajan con la cuenta, igual que el resto de apariencia.
+    "starseed.theme.applied.v1",
+    "starseed.theme.custom.v1",
 ] as const;
 
 /**

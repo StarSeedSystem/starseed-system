@@ -1,0 +1,302 @@
+/* ═══════════════════════════════════════════════════════════════════
+   STARSEED THEMES — Catálogo de temas/estilos (theme-engine.ts +
+   theme-catalog.ts) + fondos animados (backgrounds.ts) + puente de
+   materiales hacia data-ss-material.
+   ─────────────────────────────────────────────────────────────────────
+   Reglas de la casa (mismas que starseed-materials.css):
+   · Animaciones continuas SOLO con transform / opacity / filter.
+   · Todo respeta prefers-reduced-motion (bloque propio abajo) y el modo
+     eco del OS: html[data-perf="eco"] ya congela TODA animación con
+     keyframes vía `animation-duration: .001ms !important` (globals.css),
+     así que las capas de aquí abajo heredan ese freeze SIN reglas extra.
+   · Aditivo: nada de esto se activa salvo que un ThemePack lo pida
+     (data-ss-material / data-ss-background solo los pone applyThemeTokens
+     de theme-engine.ts al aplicar un tema del catálogo).
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   1 · PUENTE DE MATERIALES — data-ss-material → superficies globales
+   ThemeTokens.materialClass pone `data-ss-material` en <html>. Este
+   puente tiñe --ss-mat-color/--ss-mat-rgb (definidas en
+   starseed-materials.css) hacia el PRIMARIO del tema activo — así
+   ss-neon/ss-crystal heredan el color de marca del ThemePack en vez del
+   Zenith azul por defecto — y da un nudge sutil, no invasivo, a las
+   superficies de cristal ya existentes del OS (.glass-card/.card-glass/
+   .liquid-glass-panel) para que se sientan coherentes con el material
+   elegido sin tener que tocar esos componentes.
+   ═══════════════════════════════════════════════════════════════════ */
+html[data-ss-material^="ss-"] {
+  --ss-mat-color: hsl(var(--primary-hsl));
+  --ss-mat-rgb: var(--primary-rgb);
+}
+
+html[data-ss-material^="ss-crystal"] .glass-card,
+html[data-ss-material^="ss-crystal"] .card-glass,
+html[data-ss-material^="ss-crystal"] .liquid-glass-panel {
+  border-color: rgba(var(--ss-mat-rgb), 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 18px 42px -18px rgba(var(--ss-mat-rgb), 0.28);
+}
+
+html[data-ss-material^="ss-neon"] .glass-card,
+html[data-ss-material^="ss-neon"] .card-glass,
+html[data-ss-material^="ss-neon"] .liquid-glass-panel {
+  border-color: rgba(var(--ss-mat-rgb), 0.4);
+  box-shadow:
+    0 0 16px -4px rgba(var(--ss-mat-rgb), 0.4),
+    inset 0 0 10px -6px rgba(var(--ss-mat-rgb), 0.35);
+}
+
+html[data-ss-material="ss-metal"] .glass-card,
+html[data-ss-material="ss-metal"] .card-glass,
+html[data-ss-material="ss-metal"] .liquid-glass-panel {
+  border-color: rgba(212, 175, 55, 0.35);
+  background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.14));
+}
+
+html[data-ss-material="ss-wood"] .glass-card,
+html[data-ss-material="ss-wood"] .card-glass,
+html[data-ss-material="ss-wood"] .liquid-glass-panel {
+  border-color: rgba(122, 78, 42, 0.5);
+  background-blend-mode: multiply;
+}
+
+html[data-ss-material="ss-nature"] .glass-card,
+html[data-ss-material="ss-nature"] .card-glass,
+html[data-ss-material="ss-nature"] .liquid-glass-panel {
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   2 · FONDO — MATRIX RAIN (tema "matrix")
+   24 columnas de glifos (repeating-linear-gradient estático) que caen
+   en bucle vía transform (compositor). Montado por ThemeBackgroundHost.
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-bg-matrix {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(10, 60, 25, 0.35), transparent 60%),
+    #030603;
+}
+
+.ss-bg-matrix::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(180deg, transparent 0px, transparent 2px, rgba(0, 0, 0, 0.18) 3px),
+    radial-gradient(120% 90% at 50% 100%, rgba(0, 0, 0, 0.65), transparent 60%);
+}
+
+.ss-bg-matrix__col {
+  position: absolute;
+  top: -50%;
+  width: 3px;
+  height: 150%;
+  background-image: repeating-linear-gradient(
+    180deg,
+    rgba(150, 255, 170, 0.95) 0px,
+    rgba(150, 255, 170, 0.95) 2px,
+    rgba(20, 200, 90, 0.18) 2px,
+    rgba(20, 200, 90, 0.18) 9px,
+    transparent 9px,
+    transparent 15px
+  );
+  filter: drop-shadow(0 0 4px rgba(80, 255, 120, 0.5));
+  opacity: 0.85;
+  animation-name: ssMatrixFall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+@keyframes ssMatrixFall {
+  0% { transform: translateY(-15%); opacity: 0; }
+  8% { opacity: 0.9; }
+  92% { opacity: 0.55; }
+  100% { transform: translateY(85%); opacity: 0; }
+}
+
+.ss-bg-matrix__col:nth-child(1)  { left: 1%;  animation-delay: 0.0s; animation-duration: 3.4s; }
+.ss-bg-matrix__col:nth-child(2)  { left: 5%;  animation-delay: 1.2s; animation-duration: 2.8s; }
+.ss-bg-matrix__col:nth-child(3)  { left: 9%;  animation-delay: 0.4s; animation-duration: 3.9s; }
+.ss-bg-matrix__col:nth-child(4)  { left: 13%; animation-delay: 2.1s; animation-duration: 3.1s; }
+.ss-bg-matrix__col:nth-child(5)  { left: 18%; animation-delay: 0.8s; animation-duration: 2.6s; }
+.ss-bg-matrix__col:nth-child(6)  { left: 22%; animation-delay: 1.6s; animation-duration: 3.6s; }
+.ss-bg-matrix__col:nth-child(7)  { left: 26%; animation-delay: 0.2s; animation-duration: 3.0s; }
+.ss-bg-matrix__col:nth-child(8)  { left: 30%; animation-delay: 2.4s; animation-duration: 2.9s; }
+.ss-bg-matrix__col:nth-child(9)  { left: 35%; animation-delay: 1.0s; animation-duration: 3.3s; }
+.ss-bg-matrix__col:nth-child(10) { left: 39%; animation-delay: 0.6s; animation-duration: 2.7s; }
+.ss-bg-matrix__col:nth-child(11) { left: 43%; animation-delay: 1.8s; animation-duration: 3.7s; }
+.ss-bg-matrix__col:nth-child(12) { left: 47%; animation-delay: 0.3s; animation-duration: 3.2s; }
+.ss-bg-matrix__col:nth-child(13) { left: 52%; animation-delay: 2.2s; animation-duration: 2.9s; }
+.ss-bg-matrix__col:nth-child(14) { left: 56%; animation-delay: 1.4s; animation-duration: 3.5s; }
+.ss-bg-matrix__col:nth-child(15) { left: 60%; animation-delay: 0.7s; animation-duration: 3.0s; }
+.ss-bg-matrix__col:nth-child(16) { left: 64%; animation-delay: 1.9s; animation-duration: 2.6s; }
+.ss-bg-matrix__col:nth-child(17) { left: 69%; animation-delay: 0.5s; animation-duration: 3.8s; }
+.ss-bg-matrix__col:nth-child(18) { left: 73%; animation-delay: 2.6s; animation-duration: 3.1s; }
+.ss-bg-matrix__col:nth-child(19) { left: 77%; animation-delay: 1.1s; animation-duration: 2.8s; }
+.ss-bg-matrix__col:nth-child(20) { left: 81%; animation-delay: 0.9s; animation-duration: 3.4s; }
+.ss-bg-matrix__col:nth-child(21) { left: 86%; animation-delay: 2.0s; animation-duration: 2.9s; }
+.ss-bg-matrix__col:nth-child(22) { left: 90%; animation-delay: 0.4s; animation-duration: 3.6s; }
+.ss-bg-matrix__col:nth-child(23) { left: 94%; animation-delay: 1.5s; animation-duration: 3.0s; }
+.ss-bg-matrix__col:nth-child(24) { left: 98%; animation-delay: 0.7s; animation-duration: 3.3s; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   3 · FONDO — CAMPO ESTELAR (tema "astrologico")
+   24 estrellas pequeñas que titilan (opacity+scale) + 2 estrellas
+   grandes de acento, sobre un cielo índigo profundo.
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-bg-stars {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(140% 100% at 50% -10%, rgba(90, 70, 170, 0.28), transparent 60%),
+    radial-gradient(100% 100% at 50% 110%, rgba(30, 20, 70, 0.45), transparent 70%),
+    #07061a;
+}
+
+.ss-bg-stars__star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #fff;
+  animation-name: ssStarTwinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: opacity, transform;
+}
+
+.ss-bg-stars__star--big {
+  width: 4px;
+  height: 4px;
+  box-shadow: 0 0 8px 1px rgba(251, 191, 36, 0.6);
+}
+
+@keyframes ssStarTwinkle {
+  0%, 100% { opacity: 0.2; transform: scale(0.85); }
+  50%      { opacity: 1;   transform: scale(1.2); }
+}
+
+.ss-bg-stars__star:nth-child(1)  { left: 0%;  top: 0%;  animation-delay: 0.0s; animation-duration: 3.2s; }
+.ss-bg-stars__star:nth-child(2)  { left: 53%; top: 37%; animation-delay: 1.5s; animation-duration: 2.8s; }
+.ss-bg-stars__star:nth-child(3)  { left: 6%;  top: 74%; animation-delay: 3.0s; animation-duration: 3.6s; }
+.ss-bg-stars__star:nth-child(4)  { left: 59%; top: 21%; animation-delay: 0.5s; animation-duration: 2.4s; }
+.ss-bg-stars__star:nth-child(5)  { left: 12%; top: 58%; animation-delay: 2.0s; animation-duration: 3.9s; }
+.ss-bg-stars__star:nth-child(6)  { left: 65%; top: 5%;  animation-delay: 3.5s; animation-duration: 2.9s; }
+.ss-bg-stars__star:nth-child(7)  { left: 18%; top: 42%; animation-delay: 1.0s; animation-duration: 3.3s; }
+.ss-bg-stars__star:nth-child(8)  { left: 71%; top: 79%; animation-delay: 2.5s; animation-duration: 2.6s; }
+.ss-bg-stars__star:nth-child(9)  { left: 24%; top: 26%; animation-delay: 0.2s; animation-duration: 3.7s; }
+.ss-bg-stars__star:nth-child(10) { left: 77%; top: 63%; animation-delay: 1.8s; animation-duration: 3.0s; }
+.ss-bg-stars__star:nth-child(11) { left: 30%; top: 10%; animation-delay: 3.2s; animation-duration: 2.7s; }
+.ss-bg-stars__star:nth-child(12) { left: 83%; top: 47%; animation-delay: 0.8s; animation-duration: 3.4s; }
+.ss-bg-stars__star:nth-child(13) { left: 36%; top: 84%; animation-delay: 2.3s; animation-duration: 2.5s; }
+.ss-bg-stars__star:nth-child(14) { left: 89%; top: 31%; animation-delay: 0.4s; animation-duration: 3.8s; }
+.ss-bg-stars__star:nth-child(15) { left: 42%; top: 68%; animation-delay: 1.6s; animation-duration: 3.1s; }
+.ss-bg-stars__star:nth-child(16) { left: 95%; top: 15%; animation-delay: 2.9s; animation-duration: 2.8s; }
+.ss-bg-stars__star:nth-child(17) { left: 48%; top: 52%; animation-delay: 0.6s; animation-duration: 3.5s; }
+.ss-bg-stars__star:nth-child(18) { left: 1%;  top: 89%; animation-delay: 2.1s; animation-duration: 2.6s; }
+.ss-bg-stars__star:nth-child(19) { left: 54%; top: 36%; animation-delay: 3.4s; animation-duration: 3.2s; }
+.ss-bg-stars__star:nth-child(20) { left: 7%;  top: 73%; animation-delay: 1.3s; animation-duration: 2.9s; }
+.ss-bg-stars__star:nth-child(21) { left: 60%; top: 20%; animation-delay: 0.1s; animation-duration: 3.6s; }
+.ss-bg-stars__star:nth-child(22) { left: 13%; top: 57%; animation-delay: 2.7s; animation-duration: 2.7s; }
+.ss-bg-stars__star:nth-child(23) { left: 66%; top: 4%;  animation-delay: 1.1s; animation-duration: 3.3s; }
+.ss-bg-stars__star:nth-child(24) { left: 19%; top: 41%; animation-delay: 3.1s; animation-duration: 3.0s; }
+.ss-bg-stars__star:nth-child(25) { left: 20%; top: 15%; animation-delay: 0.9s; animation-duration: 4.2s; }
+.ss-bg-stars__star:nth-child(26) { left: 80%; top: 65%; animation-delay: 2.4s; animation-duration: 4.6s; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   4 · FONDO — GRADIENTE AURORA (tema "visionario")
+   3 manchas de gradiente radial (blur + screen) que derivan muy
+   despacio + rotación de matiz lenta sobre el contenedor entero.
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-bg-aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #0c0820;
+  animation: ssAuroraHue 44s linear infinite;
+}
+
+.ss-bg-aurora__blob {
+  position: absolute;
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  filter: blur(60px);
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  will-change: transform;
+}
+
+.ss-bg-aurora__blob:nth-child(1) {
+  top: -10%; left: -10%;
+  background: radial-gradient(circle, #a78bfa, transparent 70%);
+  animation: ssAuroraDrift1 22s ease-in-out infinite;
+}
+.ss-bg-aurora__blob:nth-child(2) {
+  top: 20%; right: -15%;
+  background: radial-gradient(circle, #67e8f9, transparent 70%);
+  animation: ssAuroraDrift2 27s ease-in-out infinite;
+}
+.ss-bg-aurora__blob:nth-child(3) {
+  bottom: -15%; left: 20%;
+  background: radial-gradient(circle, #f5b8e0, transparent 70%);
+  animation: ssAuroraDrift3 31s ease-in-out infinite;
+}
+
+@keyframes ssAuroraDrift1 { 0%, 100% { transform: translate(-10%, -10%) scale(1); } 50% { transform: translate(15%, 10%) scale(1.25); } }
+@keyframes ssAuroraDrift2 { 0%, 100% { transform: translate(10%, 15%) scale(1.1); } 50% { transform: translate(-15%, -5%) scale(1.3); } }
+@keyframes ssAuroraDrift3 { 0%, 100% { transform: translate(0, 20%) scale(1); } 50% { transform: translate(-10%, -15%) scale(1.2); } }
+@keyframes ssAuroraHue { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════════════════
+   5 · FONDO — CLIMA EN VIVO (tema "climatico")
+   El degradado y el estado (lluvia/nieve/niebla/sol) los calcula
+   ThemeBackgroundHost en JS a partir del clima real (weather-mock.ts) y
+   los pinta con WeatherFxOverlay ya existente; aquí solo el contenedor.
+   ═══════════════════════════════════════════════════════════════════ */
+.ss-bg-weather {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  transition: background 1.2s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   6 · OPTIMIZACIÓN POR DISPOSITIVO — motion reducido en móvil
+   Pantallas estrechas (mismo criterio de bolsillo que el resto del OS):
+   animaciones más lentas y sutiles en las 3 capas CSS del catálogo —
+   además de la congelación total ya cubierta por data-perf="eco" y
+   prefers-reduced-motion (bloque §7). No requiere JS: pura densidad de
+   movimiento más baja por defecto en dispositivos pequeños.
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .ss-bg-matrix__col { animation-duration: 4.4s !important; opacity: 0.7; }
+  .ss-bg-stars__star { animation-duration: 4.2s !important; }
+  .ss-bg-aurora { animation-duration: 64s; }
+  .ss-bg-aurora__blob { opacity: 0.4; filter: blur(44px); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   7 · ACCESIBILIDAD — prefers-reduced-motion
+   El modo eco (html[data-perf="eco"]) ya congela estas animaciones vía
+   la regla global de globals.css; aquí cubrimos además la preferencia
+   de sistema, calmando las capas a un fotograma fijo pero visible.
+   ═══════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .ss-bg-matrix__col,
+  .ss-bg-stars__star,
+  .ss-bg-aurora,
+  .ss-bg-aurora__blob {
+    animation: none !important;
+  }
+  .ss-bg-matrix__col { opacity: 0.5; transform: translateY(20%); }
+  .ss-bg-stars__star { opacity: 0.6; transform: scale(1); }
+}

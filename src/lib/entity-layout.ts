@@ -73,12 +73,29 @@ export interface EntityLayout {
     gallery: GalleryImage[];
     /** Texto largo opcional ("Sobre mí ampliado" en perfiles). */
     aboutExtended: string;
+    /**
+     * Tema por entidad (Mezclador — theme-mixer.ts): id de un ThemePack
+     * (builtin o personalizado vía `saveCustomTheme`, incl. uno guardado
+     * desde una mezcla) que la página aplica SOLO mientras se está viendo esa
+     * entidad (scoped: se aplica al montar, se restaura el tema del sistema
+     * al salir — ver `src/lib/design/entity-theme-scope.ts`). `null` = sin
+     * tema propio, la entidad hereda el tema del sistema (comportamiento de
+     * siempre, cero regresión).
+     */
+    themeId: string | null;
+    /**
+     * Alternativa a `themeId`: una mezcla de slots completa sin guardar como
+     * tema con nombre (MixSlots de theme-mixer.ts, tal cual). Si ambos están
+     * presentes, `themeMix` gana (es más específica). Opcional — la mayoría
+     * de entidades solo usarán `themeId` (elegido en el editor "Personalizar").
+     */
+    themeMix: Record<string, unknown> | null;
 }
 
 const LAYOUT_KEY = "layout";
 
 function emptyLayout(): EntityLayout {
-    return { accent: null, coverUrl: null, tabs: [], sections: [], integrations: {}, gallery: [], aboutExtended: "" };
+    return { accent: null, coverUrl: null, tabs: [], sections: [], integrations: {}, gallery: [], aboutExtended: "", themeId: null, themeMix: null };
 }
 
 function normalizeLayout(raw: unknown): EntityLayout {
@@ -93,6 +110,8 @@ function normalizeLayout(raw: unknown): EntityLayout {
         integrations: v.integrations && typeof v.integrations === "object" ? v.integrations : {},
         gallery: Array.isArray(v.gallery) ? v.gallery.filter((g) => g && typeof g.url === "string") : [],
         aboutExtended: typeof v.aboutExtended === "string" ? v.aboutExtended : "",
+        themeId: typeof v.themeId === "string" && v.themeId ? v.themeId : null,
+        themeMix: v.themeMix && typeof v.themeMix === "object" && !Array.isArray(v.themeMix) ? (v.themeMix as Record<string, unknown>) : null,
     };
 }
 
@@ -144,6 +163,8 @@ export interface UseEntityLayout {
     patch: (p: Partial<EntityLayout>) => Promise<void>;
     setAccent: (accent: string | null) => Promise<void>;
     setCoverUrl: (url: string | null) => Promise<void>;
+    /** `null` = quitar el tema propio (vuelve a heredar el del sistema). */
+    setTheme: (themeId: string | null) => Promise<void>;
     reorderTabs: (orderedIds: string[]) => Promise<void>;
     setTabVisible: (id: string, visible: boolean) => Promise<void>;
     addSection: (title: string, body: string) => Promise<void>;
@@ -198,6 +219,10 @@ export function useEntityLayout(ref: EntityRef | null): UseEntityLayout {
 
     const setAccent = useCallback((accent: string | null) => patch({ accent }), [patch]);
     const setCoverUrl = useCallback((coverUrl: string | null) => patch({ coverUrl }), [patch]);
+    // Elegir un tema propio limpia `themeMix` (más específico, dejaría de
+    // notarse el cambio) — así el selector simple del editor "Personalizar"
+    // siempre gana claramente sobre una mezcla antigua sin nombre.
+    const setTheme = useCallback((themeId: string | null) => patch({ themeId, themeMix: null }), [patch]);
 
     const reorderTabs = useCallback(
         (orderedIds: string[]) => {
@@ -260,11 +285,11 @@ export function useEntityLayout(ref: EntityRef | null): UseEntityLayout {
 
     return useMemo(
         () => ({
-            layout, loading, patch, setAccent, setCoverUrl, reorderTabs, setTabVisible,
+            layout, loading, patch, setAccent, setCoverUrl, setTheme, reorderTabs, setTabVisible,
             addSection, updateSection, removeSection, toggleIntegration,
             addGalleryImage, removeGalleryImage, setAboutExtended,
         }),
-        [layout, loading, patch, setAccent, setCoverUrl, reorderTabs, setTabVisible, addSection, updateSection, removeSection, toggleIntegration, addGalleryImage, removeGalleryImage, setAboutExtended],
+        [layout, loading, patch, setAccent, setCoverUrl, setTheme, reorderTabs, setTabVisible, addSection, updateSection, removeSection, toggleIntegration, addGalleryImage, removeGalleryImage, setAboutExtended],
     );
 }
 

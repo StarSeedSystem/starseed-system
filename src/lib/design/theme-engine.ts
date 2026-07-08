@@ -75,6 +75,11 @@ export function applyThemeTokens(tokens: ThemeTokens): void {
     }
     if (tokens.background !== undefined) root.dataset.ssBackground = tokens.background || "";
     if (tokens.motion !== undefined) root.style.setProperty("--ss-motion", String(tokens.motion));
+    // --font-body es la MISMA variable que appearance-context.tsx ya escribe
+    // desde su selector de tipografía (y que font-body/font-sans de Tailwind
+    // consumen) — reusarla aquí es lo único que faltaba para que
+    // ThemeTokens.fontFamily (documentado arriba) tenga efecto real.
+    if (tokens.fontFamily) root.style.setProperty("--font-body", tokens.fontFamily);
     window.dispatchEvent(new CustomEvent("starseed:theme-applied"));
 }
 

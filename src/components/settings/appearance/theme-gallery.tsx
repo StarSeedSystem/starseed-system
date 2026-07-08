@@ -14,6 +14,15 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+// Catálogo de TEMAS/ESTILOS (theme-engine.ts + theme-catalog.ts): sistema
+// NUEVO e independiente del de arriba (AppearanceConfig/theme-utils) —
+// aditivo, no lo sustituye. Ver theme-catalog-gallery.tsx.
+import { ThemeCatalogGallery } from "./theme-catalog-gallery";
+// Mezclador de Diseños (theme-mixer.ts): fusión por slots de temas/elementos
+// sueltos — aditivo, vive en un diálogo aparte para no sobrecargar la galería.
+import { ThemeMixerPanel } from "@/components/design/theme-mixer-panel";
+import { Blend } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════════
    COMMUNITY TEMPLATES — curated theme configs
@@ -124,6 +133,7 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
     const [overIdx, setOverIdx] = useState<number | null>(null);
     const dragRef = useRef<number | null>(null);
     const [showCommunity, setShowCommunity] = useState(false);
+    const [mixerOpen, setMixerOpen] = useState(false);
 
     React.useEffect(() => {
         setMounted(true);
@@ -270,6 +280,31 @@ export function ThemeGallery({ compact = false }: { compact?: boolean }) {
                     })}
                 </div>
             </div>
+
+            {/* ═══════════════════════════════════════════════
+                SECTION 1.5 — Catálogo de Temas StarSeed (nuevo, aditivo)
+               ═══════════════════════════════════════════════ */}
+            <div className="pt-2 border-t border-white/5 space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-[11px] text-muted-foreground/70">¿Te gustan piezas de varios temas a la vez? Combínalas.</p>
+                    <Button size="sm" variant="outline" onClick={() => setMixerOpen(true)} className="gap-1.5 text-xs cursor-pointer border-fuchsia-400/30 text-fuchsia-200 hover:bg-fuchsia-400/10">
+                        <Blend className="w-3.5 h-3.5" /> Combinar diseños…
+                    </Button>
+                </div>
+                <ThemeCatalogGallery compact={compact} />
+            </div>
+
+            <Dialog open={mixerOpen} onOpenChange={setMixerOpen}>
+                <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2"><Blend className="w-4 h-4 text-fuchsia-400" /> Mezclador de Diseños</DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Combina paleta, material, fondo, tipografía, animaciones, densidad y efectos de distintos temas — armonizado automáticamente.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ThemeMixerPanel />
+                </DialogContent>
+            </Dialog>
 
             {/* ═══════════════════════════════════════════════
                 SECTION 2 — Saved Themes (from Canvas)

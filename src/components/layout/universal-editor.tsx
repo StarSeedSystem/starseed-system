@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Pencil, Layout, MoveVertical, Sliders, Code, Sparkles, X,
   LayoutDashboard, FileText, Settings, BookOpen, Type, Image as ImageIcon,
-  Component, Box, MousePointerClick,
+  Component, Box, MousePointerClick, Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,17 +32,19 @@ import { cn } from "@/lib/utils";
 
 type Section =
   | { id: "design"; label: "Apariencia & Estilos"; icon: typeof Type; route: "/settings"; tab: "appearance" }
-  | { id: "dashboard"; label: "Dashboard & Widgets"; icon: LayoutDashboard; route: "/dashboard"; tab: "edit" }
-  | { id: "layout"; label: "Disposición & Trinity"; icon: Layout; route: "/trinity"; tab: "lab" }
-  | { id: "profile"; label: "Perfil & Identidad"; icon: Settings; route: "/settings"; tab: "profile" }
-  | { id: "ai"; label: "IA & Modelos"; icon: Sparkles; route: "/settings"; tab: "ai" }
-  | { id: "privacy"; label: "Privacidad"; icon: Settings; route: "/settings"; tab: "privacy" }
-  | { id: "library"; label: "Biblioteca"; icon: BookOpen; route: "/library"; tab: "" }
-  | { id: "publish"; label: "Publicar / Posts"; icon: FileText; route: "/publish"; tab: "" }
-  | { id: "components"; label: "Componentes (dev)"; icon: Component; route: "/components-test"; tab: "" };
+  | { id: "estudio"; label: "Estudio de Diseño"; icon: typeof Palette; route: "/estudio"; tab: "" }
+  | { id: "dashboard"; label: "Dashboard & Widgets"; icon: typeof LayoutDashboard; route: "/dashboard"; tab: "edit" }
+  | { id: "layout"; label: "Disposición & Trinity"; icon: typeof Layout; route: "/trinity"; tab: "lab" }
+  | { id: "profile"; label: "Perfil & Identidad"; icon: typeof Settings; route: "/settings"; tab: "profile" }
+  | { id: "ai"; label: "IA & Modelos"; icon: typeof Sparkles; route: "/settings"; tab: "ai" }
+  | { id: "privacy"; label: "Privacidad"; icon: typeof Settings; route: "/settings"; tab: "privacy" }
+  | { id: "library"; label: "Biblioteca"; icon: typeof BookOpen; route: "/library"; tab: "" }
+  | { id: "publish"; label: "Publicar / Posts"; icon: typeof FileText; route: "/publish"; tab: "" }
+  | { id: "components"; label: "Componentes (dev)"; icon: typeof Component; route: "/components-test"; tab: "" };
 
 const SECTIONS: Section[] = [
   { id: "design", label: "Apariencia & Estilos", icon: Type, route: "/settings", tab: "appearance" },
+  { id: "estudio", label: "Estudio de Diseño", icon: Palette, route: "/estudio", tab: "" },
   { id: "dashboard", label: "Dashboard & Widgets", icon: LayoutDashboard, route: "/dashboard", tab: "edit" },
   { id: "layout", label: "Disposición & Trinity", icon: Layout, route: "/trinity", tab: "lab" },
   { id: "profile", label: "Perfil & Identidad", icon: Settings, route: "/settings", tab: "profile" },

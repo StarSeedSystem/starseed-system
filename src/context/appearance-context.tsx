@@ -2,6 +2,13 @@
 
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
+// Catálogo de TEMAS/ESTILOS (theme-engine.ts + theme-catalog.ts): importar el
+// catálogo registra sus ~24 ThemePacks builtin (efecto de carga, side-effect
+// de registerTheme). appliedTheme()/applyTheme() re-aplican el tema que el
+// usuario dejó activo la última vez (si lo hay) — init "pequeño y global"
+// pedido para que aplicar un tema del catálogo SOBREVIVA a un refresco.
+import "@/lib/design/theme-catalog";
+import { appliedTheme, applyTheme as applyThemePack } from "@/lib/design/theme-engine";
 
 export interface CustomFont {
     name: string;
@@ -747,6 +754,16 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             }
         }
         setMounted(true);
+    }, []);
+
+    // Re-aplica el ThemePack del catálogo (theme-engine.ts) que el usuario
+    // dejó activo la última vez, si lo hay — sin esto, un tema aplicado desde
+    // ThemeCatalogGallery se perdería al recargar (applyThemeTokens solo toca
+    // variables inline en tiempo real, no persiste solo con localStorage).
+    // No-op honesto si nunca se aplicó ninguno (appliedTheme() → null).
+    useEffect(() => {
+        const applied = appliedTheme();
+        if (applied?.id) applyThemePack(applied.id, (applied.mode as "light" | "dark" | "auto") || "auto");
     }, []);
 
     // Save to local storage on change
