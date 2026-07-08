@@ -52,7 +52,7 @@ export function CommunitiesWidget() {
                     <Link href="/hub" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
                         Hub <ChevronRight className="size-3" />
                     </Link>
-                    <Link href="/publish?type=page" className="inline-flex items-center gap-1 rounded-full border border-lime-400/30 bg-lime-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-lime-300 hover:bg-lime-500/20 transition-colors cursor-pointer">
+                    <Link href="?createEntity=page" className="inline-flex items-center gap-1 rounded-full border border-lime-400/30 bg-lime-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-lime-300 hover:bg-lime-500/20 transition-colors cursor-pointer">
                         <Plus className="size-3" /> Fundar
                     </Link>
                 </>
@@ -71,7 +71,7 @@ export function CommunitiesWidget() {
                                 <p className="text-sm font-bold text-foreground/90">Aún no hay comunidades</p>
                                 <p className="text-[11px] text-muted-foreground/60 mt-0.5">Funda la primera y reúne a tu gente.</p>
                             </div>
-                            <Link href="/publish?type=page" className="inline-flex items-center gap-1.5 rounded-full border border-lime-400/40 bg-lime-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-lime-300 hover:bg-lime-500/25 transition-colors cursor-pointer">
+                            <Link href="?createEntity=page" className="inline-flex items-center gap-1.5 rounded-full border border-lime-400/40 bg-lime-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-lime-300 hover:bg-lime-500/25 transition-colors cursor-pointer">
                                 <Plus className="size-3.5" /> Fundar comunidad
                             </Link>
                         </div>

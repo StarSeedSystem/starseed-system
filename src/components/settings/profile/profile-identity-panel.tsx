@@ -85,7 +85,7 @@ async function loadOwnProfile(
 ): Promise<{ row: Row | null; key: "user_id" | "id" }> {
     try {
         const { data, error } = await supabase
-            .from("profiles")
+            .from("os_profiles")
             .select("*")
             .eq("user_id", userId)
             .maybeSingle();
@@ -95,7 +95,7 @@ async function loadOwnProfile(
     }
     try {
         const { data, error } = await supabase
-            .from("profiles")
+            .from("os_profiles")
             .select("*")
             .eq("id", userId)
             .maybeSingle();
@@ -168,20 +168,14 @@ export function ProfileIdentityPanel() {
     // Realtime: refleja cambios externos en tu perfil sin recargar.
     useEffect(() => {
         if (!uid) return;
-        const channel = (supabase as any)
-            .channel("settings-profile-" + uid)
-            .on(
-                "postgres_changes",
-                { event: "*", schema: "public", table: "profiles", filter: ownerKey + "=eq." + uid },
-                () => {
-                    if (!dirty) void load();
-                },
-            )
-            .subscribe();
+        const { syncManager } = require("@/lib/sync/sync-manager");
+        const unsub = syncManager.subscribe("os_profiles", ownerKey, uid, () => {
+            if (!dirty) void load();
+        });
         return () => {
-            supabase.removeChannel(channel);
+            unsub();
         };
-    }, [uid, ownerKey, supabase, load, dirty]);
+    }, [uid, ownerKey, load, dirty]);
 
     function setField<K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) {
         setForm((f) => ({ ...f, [key]: value }));
@@ -193,16 +187,24 @@ export function ProfileIdentityPanel() {
             toast.error("Inicia sesión para guardar tu perfil.");
             return;
         }
-        setSaving(true);
 
         const handle = String(form.handle || "")
             .trim()
             .toLowerCase()
             .replace(/[^a-z0-9_.]/g, "");
+            
+        const displayName = form.display_name?.trim() ?? "";
+        
+        if (!handle || !displayName) {
+            toast.error("Debes ingresar un Alias (@) único y un Nombre público.");
+            return;
+        }
+
+        setSaving(true);
 
         // Patch completo; se irá reduciendo si alguna columna opcional no existe.
         const fullPatch: Row = {
-            display_name: form.display_name?.trim() ?? "",
+            display_name: displayName,
             avatar_url: form.avatar_url?.trim() ?? "",
             bio: form.bio?.trim() ?? "",
             cover_url: form.cover_url?.trim() ?? "",
@@ -213,13 +215,13 @@ export function ProfileIdentityPanel() {
         const optionalCols = ["cover_url", "bio", "updated_at"];
 
         const attempt = async (patch: Row): Promise<{ ok: boolean; error?: any }> => {
-            // Si existe fila → update; si no, intentamos upsert con la clave detectada.
             if (profileRow) {
-                const { error } = await supabase.from("profiles").update(patch).eq(ownerKey, uid);
+                const { error } = await supabase.from("os_profiles").update(patch).eq(ownerKey, uid);
                 return { ok: !error, error };
             }
             const insertRow = { ...patch, [ownerKey]: uid };
-            const { error } = await supabase.from("profiles").upsert(insertRow, { onConflict: ownerKey });
+            // Si no existe, usamos insert (upsert falla si no hay constraint unica en onConflict)
+            const { error } = await supabase.from("os_profiles").insert(insertRow);
             return { ok: !error, error };
         };
 
@@ -417,7 +419,7 @@ export function ProfileIdentityPanel() {
                                             const url = picked[0]?.url;
                                             if (url) setField("avatar_url", url);
                                         }}
-                                        accept="image/*"
+                                        accept="*"
                                         folder="avatares"
                                         title="Cambiar foto de perfil"
                                         hideTabs={["neuronas"]}
@@ -444,7 +446,7 @@ export function ProfileIdentityPanel() {
                                             const url = picked[0]?.url;
                                             if (url) setField("cover_url", url);
                                         }}
-                                        accept="image/*"
+                                        accept="*"
                                         folder="portadas"
                                         title="Cambiar foto de portada"
                                         hideTabs={["neuronas"]}

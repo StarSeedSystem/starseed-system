@@ -70,7 +70,7 @@ export function MyEventsWidget() {
                     <Link href="/hub" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
                         Todos <ChevronRight className="size-3" />
                     </Link>
-                    <Link href="/publish?type=event" className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-300 hover:bg-amber-500/20 transition-colors cursor-pointer">
+                    <Link href="?createEntity=event" className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-300 hover:bg-amber-500/20 transition-colors cursor-pointer">
                         <Plus className="size-3" /> Crear
                     </Link>
                 </>
@@ -90,7 +90,7 @@ export function MyEventsWidget() {
                                 <p className="text-sm font-bold text-foreground/90">Aún no hay eventos</p>
                                 <p className="text-[11px] text-muted-foreground/60 mt-0.5">Crea el primer encuentro de tu comunidad.</p>
                             </div>
-                            <Link href="/publish?type=event" className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-amber-300 hover:bg-amber-500/25 transition-colors cursor-pointer">
+                            <Link href="?createEntity=event" className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-amber-300 hover:bg-amber-500/25 transition-colors cursor-pointer">
                                 <Plus className="size-3.5" /> Crear evento
                             </Link>
                         </div>

@@ -16,11 +16,13 @@
 // Todo vacío y listo por defecto; sin datos de ejemplo.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState, useCallback, useMemo, type ComponentType } from "react";
+import { useEffect, useState, useCallback, useMemo, type ComponentType, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { useAccount } from "@/context/account-context";
 import { AccountProfilesSwitcher } from "@/components/profiles/account-profiles-switcher";
+import { ProfileIdentityPanel } from "@/components/settings/profile/profile-identity-panel";
 import { useMyProfiles } from "@/lib/profiles/profiles";
 // Subida universal de archivos (Adenda 64 §9): cambiar foto/portada con un
 // archivo real (dispositivo o biblioteca) en vez de solo pegar una URL.
@@ -199,7 +201,8 @@ function QuickLink({
   );
 }
 
-export default function CuentaPage() {
+function CuentaContent() {
+  const searchParams = useSearchParams();
   const [supabase] = useState(() => createClient());
   const { user, signOut } = useAccount();
   const [uid, setUid] = useState<string | null>(null);
@@ -209,9 +212,6 @@ export default function CuentaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string>("");
-
-  // edición de perfil
-  const [form, setForm] = useState<Row>({ handle: "", display_name: "", bio: "", avatar_url: "", cover_url: "" });
 
   // alta de correo
   const [newAddr, setNewAddr] = useState("");
@@ -240,15 +240,6 @@ export default function CuentaPage() {
     setProfile(prof);
     setIdentity((idn as Row)?.data ?? null);
     setEmails(((em as Row)?.data as Row[]) ?? []);
-    if (prof) {
-      setForm({
-        handle: prof.handle ?? "",
-        display_name: prof.display_name ?? "",
-        bio: prof.bio ?? "",
-        avatar_url: prof.avatar_url ?? "",
-        cover_url: prof.cover_url ?? "",
-      });
-    }
     setLoading(false);
   }, [supabase]);
 
@@ -288,36 +279,6 @@ export default function CuentaPage() {
   }, [uid, supabase, load]);
 
   const flash = (t: string) => { setMsg(t); setTimeout(() => setMsg(""), 3500); };
-
-  async function saveProfile() {
-    if (!uid) return;
-    setSaving(true);
-    const handle = String(form.handle || "").trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
-    const patch: Row = {
-      display_name: form.display_name ?? "",
-      bio: form.bio ?? "",
-      avatar_url: form.avatar_url ?? "",
-      cover_url: form.cover_url ?? "",
-      updated_at: new Date().toISOString(),
-    };
-    if (handle && handle !== (profile?.handle ?? "")) patch.handle = handle;
-    const { error } = await supabase.from("profiles").update(patch).eq("user_id", uid);
-    if (error) {
-      flash(error.message.includes("duplicate") || error.message.includes("unique") ? "Ese @ ya está en uso." : "No se pudo guardar: " + error.message);
-      setSaving(false);
-      return;
-    }
-    // si cambió el handle, actualizar la dirección interna y el correo interno
-    if (patch.handle) {
-      const newInternal = patch.handle + "@star.seed";
-      await supabase.from("starseed_identities").update({ handle: patch.handle, email_handle: patch.handle, address: newInternal }).eq("owner", uid);
-      const internal = emails.find((e) => e.kind === "internal");
-      if (internal) await supabase.from("account_emails").update({ address: newInternal }).eq("id", internal.id);
-    }
-    flash("Perfil guardado.");
-    setSaving(false);
-    load();
-  }
 
   async function addEmail() {
     if (!uid) return;
@@ -535,6 +496,12 @@ export default function CuentaPage() {
     document.getElementById(id)?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   }, []);
 
+  useEffect(() => {
+    if (searchParams?.get("createProfile") === "true") {
+      setTimeout(() => scrollTo("info-personal"), 300);
+    }
+  }, [searchParams, scrollTo]);
+
   if (loading) return <div style={{ padding: 28, opacity: .7 }}>Cargando tu cuenta…</div>;
 
   if (!uid) {
@@ -605,60 +572,10 @@ export default function CuentaPage() {
         <h2 className="text-base font-semibold mb-1">Información personal</h2>
         <p className="text-xs text-muted-foreground mb-3">Tus perfiles, tu @, tu bio y tus correos adjuntos.</p>
 
-        {/* Perfiles múltiples de la cuenta (personal/cívico/artístico/profesional) */}
-        <section style={card}>
-          <h2 style={{ fontSize: 16, marginBottom: 12 }}>Perfiles</h2>
-          <p style={{ opacity: .6, fontSize: 12, marginBottom: 12 }}>
-            Facetas públicas de tu Cuenta soberana. Cada escritorio, dashboard o pizarra se ancla a un perfil.
-          </p>
-          <AccountProfilesSwitcher />
-        </section>
-
-        {/* Perfil */}
-        <section style={card}>
-          <h2 style={{ fontSize: 16, marginBottom: 12 }}>Perfil</h2>
-          <label style={label}>@ (identificador único)</label>
-          <input style={input} value={form.handle} onChange={(e) => setForm({ ...form, handle: e.target.value })} placeholder="tu_usuario" />
-          <label style={label}>Nombre visible</label>
-          <input style={input} value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })} placeholder="Tu nombre" />
-          <label style={label}>Bio</label>
-          <textarea style={{ ...input, minHeight: 70, resize: "vertical" }} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} placeholder="Cuéntate en una línea…" />
-          <label style={label}>Foto de perfil</label>
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <input style={{ ...input, marginBottom: 0, flex: 1 }} value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} placeholder="https://…" />
-            <AttachFilePickerButton
-              onPick={(picked: UniversalAttachment[]) => {
-                const url = picked[0]?.url;
-                if (url) setForm({ ...form, avatar_url: url });
-              }}
-              accept="image/*"
-              folder="avatares"
-              title="Cambiar foto de perfil"
-              hideTabs={["neuronas"]}
-              className="cursor-pointer"
-            >
-              <span style={ghost}>Subir</span>
-            </AttachFilePickerButton>
-          </div>
-          <label style={label}>Portada</label>
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <input style={{ ...input, marginBottom: 0, flex: 1 }} value={form.cover_url} onChange={(e) => setForm({ ...form, cover_url: e.target.value })} placeholder="https://…" />
-            <AttachFilePickerButton
-              onPick={(picked: UniversalAttachment[]) => {
-                const url = picked[0]?.url;
-                if (url) setForm({ ...form, cover_url: url });
-              }}
-              accept="image/*"
-              folder="portadas"
-              title="Cambiar foto de portada"
-              hideTabs={["neuronas"]}
-              className="cursor-pointer"
-            >
-              <span style={ghost}>Subir</span>
-            </AttachFilePickerButton>
-          </div>
-          <button style={{ ...btn, opacity: saving ? .6 : 1 }} disabled={saving} onClick={saveProfile}>Guardar perfil</button>
-        </section>
+        {/* Perfil (Panel de Identidad Soberana) */}
+        <div className="mb-4">
+          <ProfileIdentityPanel />
+        </div>
 
         {/* Identidad interna */}
         <section style={card}>
@@ -985,5 +902,13 @@ export default function CuentaPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function CuentaPage() {
+  return (
+    <Suspense fallback={<div className="p-8 opacity-50">Cargando tu cuenta…</div>}>
+      <CuentaContent />
+    </Suspense>
   );
 }

@@ -285,10 +285,23 @@ export function useOsEntity(
         mounted.current = true;
         setLoading(true);
         load();
+        
+        let unsub = () => {};
+        try {
+            const { syncManager } = require("@/lib/sync/sync-manager");
+            const table = type === "page" ? "os_pages" : type === "group" ? "os_groups" : "os_events";
+            unsub = syncManager.subscribe(table, "slug", slug, () => {
+                load();
+            });
+        } catch {
+            /* noop */
+        }
+
         return () => {
             mounted.current = false;
+            unsub();
         };
-    }, [load]);
+    }, [load, type, slug]);
 
     return { data, loading, usingFallback, error, refetch: load };
 }
@@ -360,18 +373,16 @@ export function useOsPosts(
             if (mounted.current) setNeedsAuth(!uid);
         });
 
-        let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
+        let unsub = () => {};
         if (realtime) {
             try {
-                const supabase = createClient();
-                channel = supabase
-                    .channel(`os-posts-${entityType}-${slug}`)
-                    .on(
-                        "postgres_changes",
-                        { event: "*", schema: "public", table: "os_posts" },
-                        () => load(),
-                    )
-                    .subscribe();
+                const { syncManager } = require("@/lib/sync/sync-manager");
+                // The os_posts table has a composite filter logically (entity_type and entity_slug)
+                // However, SyncManager currently supports single column filters by default in subscribe.
+                // We'll subscribe to the table generally or by entity_slug, but since the slug is unique enough, we can filter by entity_slug.
+                unsub = syncManager.subscribe("os_posts", "entity_slug", slug, () => {
+                    load();
+                });
             } catch {
                 /* realtime no disponible */
             }
@@ -379,13 +390,7 @@ export function useOsPosts(
 
         return () => {
             mounted.current = false;
-            if (channel) {
-                try {
-                    createClient().removeChannel(channel);
-                } catch {
-                    /* noop */
-                }
-            }
+            unsub();
         };
     }, [load, entityType, slug, realtime]);
 

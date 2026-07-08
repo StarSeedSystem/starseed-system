@@ -12,14 +12,22 @@
 // Se leen con useSearchParams() (envuelto en Suspense para evitar el bailout de
 // prerender) y se mapean a la prop `initial` de <PublicationComposer/>.
 
-// Evita el bailout de prerender estático (este árbol lee Supabase en cliente).
-export const dynamic = "force-dynamic";
-
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import PublicationComposer, {
-    type PublicationComposerInitial,
-} from "@/components/publish/publication-composer";
+import nextDynamic from "next/dynamic";
+import type { PublicationComposerInitial } from "@/components/publish/publication-composer";
+
+// El Composer se monta SOLO en cliente (ssr:false): lee Supabase/localStorage y
+// generaba desajustes de hidratación (React #418) que dejaban la página sin cuerpo.
+const PublicationComposer = nextDynamic(
+    () => import("@/components/publish/publication-composer"),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="mx-auto mt-8 h-72 w-full max-w-3xl animate-pulse rounded-2xl bg-muted/40" />
+        ),
+    },
+);
 import type { AreaId, PublicationTypeId } from "@/lib/publish/publish";
 
 // Allowlists para no inyectar valores arbitrarios desde la URL en las uniones.

@@ -17,7 +17,7 @@
  * picker universal (`AttachFilePickerButton`), con vista previa en vivo.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,7 @@ import {
     type ProfileKind,
 } from "@/lib/profiles/profiles";
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const KIND_OPTIONS: ProfileKind[] = ["personal", "civic", "artistic", "professional", "custom"];
 
@@ -109,6 +110,17 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
     const [editor, setEditor] = useState<EditorState | null>(null);
     const [saving, setSaving] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    const searchParams = useSearchParams();
+    const router = useRouter();
+
+    // Auto-abrir modal si venimos de /profile ("Crear mi identidad")
+    useEffect(() => {
+        if (searchParams.get("createProfile") === "true" && !loading && !editor) {
+            setEditor(emptyEditor("create"));
+            // Limpiar URL para no reabrir al recargar
+            router.replace("/cuenta", { scroll: false });
+        }
+    }, [searchParams, loading, editor, router]);
 
     const sorted = useMemo(
         () => [...profiles].sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name, "es")),

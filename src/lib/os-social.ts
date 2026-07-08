@@ -930,6 +930,24 @@ function isMissingColumnError(error: any): boolean {
     );
 }
 
+/**
+ * Añade al creador como miembro inicial de la entidad recién creada
+ * (`os_memberships`, keyed por `group_slug` = el slug de la entidad, sea
+ * página/grupo/evento). Best-effort: nunca lanza ni bloquea la creación —
+ * si la membresía falla (RLS, red, fila duplicada), la entidad ya creada
+ * sigue siendo válida y utilizable.
+ */
+async function ensureCreatorMembership(uid: string, slug: string): Promise<void> {
+    try {
+        const supabase = createClient();
+        await supabase
+            .from("os_memberships")
+            .upsert({ user_id: uid, group_slug: slug, role: "admin" }, { onConflict: "user_id,group_slug" });
+    } catch {
+        /* la membresía inicial es un plus, no un requisito para que la entidad exista */
+    }
+}
+
 /** Crea una página fijando owner_id = usuario actual; reintenta si el slug choca. */
 export async function createPage(input: CreatePageInput): Promise<EntityMutationResult> {
     const uid = await getCurrentUserId();
@@ -957,7 +975,11 @@ export async function createPage(input: CreatePageInput): Promise<EntityMutation
             .insert(payload)
             .select("slug")
             .single();
-        if (!error) return { ok: true, slug: (data as { slug: string })?.slug ?? slug };
+        if (!error) {
+            const finalSlug = (data as { slug: string })?.slug ?? slug;
+            await ensureCreatorMembership(uid, finalSlug);
+            return { ok: true, slug: finalSlug };
+        }
         if (includeGeo && isMissingColumnError(error)) {
             // Columna geo ausente: reintenta el mismo slug sin geo (no la pierde el usuario).
             includeGeo = false;
@@ -999,7 +1021,11 @@ export async function createGroup(input: CreateGroupInput): Promise<EntityMutati
             .insert(payload)
             .select("slug")
             .single();
-        if (!error) return { ok: true, slug: (data as { slug: string })?.slug ?? slug };
+        if (!error) {
+            const finalSlug = (data as { slug: string })?.slug ?? slug;
+            await ensureCreatorMembership(uid, finalSlug);
+            return { ok: true, slug: finalSlug };
+        }
         if (includeGeo && isMissingColumnError(error)) {
             includeGeo = false;
             attempt--;
@@ -1041,7 +1067,11 @@ export async function createEvent(input: CreateEventInput): Promise<EntityMutati
             .insert(payload)
             .select("slug")
             .single();
-        if (!error) return { ok: true, slug: (data as { slug: string })?.slug ?? slug };
+        if (!error) {
+            const finalSlug = (data as { slug: string })?.slug ?? slug;
+            await ensureCreatorMembership(uid, finalSlug);
+            return { ok: true, slug: finalSlug };
+        }
         if (includeGeo && isMissingColumnError(error)) {
             includeGeo = false;
             attempt--;

@@ -29,6 +29,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deviceId } from "@/lib/sync/entity-state";
+import { syncManager, OS_TABLE } from "@/lib/sync/sync-manager";
 
 export type SpaceKind = "desktop" | "dashboard" | "board";
 export type SpaceAccess = "private" | "profiles" | "invite" | "public";
@@ -498,27 +499,12 @@ export async function listMyInvites(): Promise<MyInvite[]> {
  */
 export function subscribeSpace(spaceId: string, onChange: (space: Space) => void): () => void {
     try {
-        const supabase = createClient();
-        const channel = supabase
-            .channel(`space:${spaceId}`)
-            .on(
-                "postgres_changes",
-                { event: "*", schema: "public", table: "os_spaces", filter: `id=eq.${spaceId}` },
-                (payload: { new?: Record<string, unknown> }) => {
-                    const row = payload.new;
-                    if (!row) return;
-                    if (row.device_id === deviceId()) return; // anti-eco
-                    onChange(mapSpaceRow(row));
-                },
-            )
-            .subscribe();
-        return () => {
-            try {
-                supabase.removeChannel(channel);
-            } catch {
-                /* noop */
-            }
-        };
+        return syncManager.subscribe("os_spaces", "id", spaceId, (payload) => {
+            const row = payload.record as Record<string, unknown>;
+            if (!row) return;
+            if (row.device_id === deviceId()) return; // anti-eco
+            onChange(mapSpaceRow(row));
+        });
     } catch {
         return () => {};
     }

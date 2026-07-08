@@ -138,8 +138,9 @@ export function subscribeEntityState<T = unknown>(
 ): () => void {
     try {
         const supabase = createClient();
+        const channelName = `es:${ref.kind}:${ref.id}`;
         const channel = supabase
-            .channel(`es:${ref.kind}:${ref.id}${key ? `:${key}` : ""}`)
+            .channel(channelName)
             .on(
                 "postgres_changes",
                 {

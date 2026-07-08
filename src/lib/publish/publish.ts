@@ -333,24 +333,27 @@ export interface PublishProfile {
 
 interface ProfileRow {
     id: string;
-    user_id?: string | null;
-    type?: string | null;
+    account?: string | null;
+    kind?: string | null;
     handle?: string | null;
-    display_name?: string | null;
+    name?: string | null;
 }
 
 function normalizeProfile(row: ProfileRow): PublishProfile {
     return {
         id: row.id,
-        type: row.type || "personal",
+        type: row.kind || "personal",
         handle: row.handle || "",
-        displayName: row.display_name || row.handle || "Perfil",
+        displayName: row.name || row.handle || "Perfil",
     };
 }
 
 /**
- * Lista los perfiles del usuario actual (tabla `profiles`, filtrando por
- * `user_id`). Si no hay sesión o falla, devuelve `[]` (degradación elegante).
+ * Lista los perfiles (facetas) del usuario actual — tabla `os_account_profiles`,
+ * filtrando por `account = auth.uid()` (la tabla legada `profiles` NO tiene
+ * estas columnas: user_id/type/handle/display_name no existen ahí, así que
+ * consultarla siempre fallaba en silencio y esta lista quedaba vacía). Si no
+ * hay sesión o falla, devuelve `[]` (degradación elegante).
  */
 export async function listProfiles(): Promise<PublishProfile[]> {
     const uid = await getCurrentUserId();
@@ -358,9 +361,9 @@ export async function listProfiles(): Promise<PublishProfile[]> {
     try {
         const supabase = createClient();
         const { data, error } = await supabase
-            .from("profiles")
-            .select("id, user_id, type, handle, display_name")
-            .eq("user_id", uid);
+            .from("os_account_profiles")
+            .select("id, account, kind, handle, name")
+            .eq("account", uid);
         if (error) throw error;
         return ((data as ProfileRow[]) || []).map(normalizeProfile);
     } catch {
@@ -383,10 +386,12 @@ export interface DestinationOption {
     kind: DestinationKindId;
 }
 
-interface PageRow {
+/** Fila de `os_pages`/`os_groups` (mismas 4 columnas usadas por listDestinations). */
+interface OsPageRow {
     id: string;
-    type?: string | null;
-    title?: string | null;
+    slug?: string | null;
+    name?: string | null;
+    kind?: string | null;
 }
 interface VaultRow {
     id: string;
@@ -423,6 +428,38 @@ function filterByQuery(rows: DestinationOption[], q?: string): DestinationOption
     const term = (q || "").trim().toLowerCase();
     if (!term) return rows;
     return rows.filter((r) => r.label.toLowerCase().includes(term));
+}
+
+/**
+ * Slugs de página/grupo/evento donde el usuario tiene "permiso": los que
+ * posee (`owner_id`, os_pages + os_groups) unidos a los que ya tiene como
+ * miembro (`os_memberships.group_slug`). Tolerante a fallos (devuelve lo que
+ * haya podido resolver; nunca lanza).
+ */
+async function myEntitySlugs(
+    supabase: ReturnType<typeof createClient>,
+    uid: string,
+): Promise<Set<string>> {
+    const slugs = new Set<string>();
+    try {
+        const [ownedPages, ownedGroups, memberships] = await Promise.all([
+            supabase.from("os_pages").select("slug").eq("owner_id", uid),
+            supabase.from("os_groups").select("slug").eq("owner_id", uid),
+            supabase.from("os_memberships").select("group_slug").eq("user_id", uid),
+        ]);
+        for (const r of (ownedPages.data as { slug?: string | null }[]) || []) {
+            if (r.slug) slugs.add(r.slug);
+        }
+        for (const r of (ownedGroups.data as { slug?: string | null }[]) || []) {
+            if (r.slug) slugs.add(r.slug);
+        }
+        for (const r of (memberships.data as { group_slug?: string | null }[]) || []) {
+            if (r.group_slug) slugs.add(r.group_slug);
+        }
+    } catch {
+        /* degradación: lo que se haya podido reunir hasta el fallo */
+    }
+    return slugs;
 }
 
 /**
@@ -481,48 +518,58 @@ export async function listDestinations(
                 );
             }
 
-            case "pagina":
-            case "grupo":
-            case "comunidad":
             case "entidad_federativa": {
-                // Mapeo del tipo de destino al `type` esperado en `pages`.
-                const typeFilter: Record<string, string | undefined> = {
-                    pagina: undefined, // cualquier página
-                    grupo: "grupo",
-                    comunidad: "comunidad",
-                    entidad_federativa: "entidad_federativa",
-                };
-                let query = supabase.from("pages").select("id, type, title");
-                const t = typeFilter[kind];
-                if (t) query = query.eq("type", t);
+                // Sin tabla de entrega dedicada todavía (ni en os_pages/os_groups
+                // hay un `kind` de entidad federativa) — lista vacía honesta,
+                // igual que ya hacían biblioteca/carpeta cuando no hay backing real.
+                return [];
+            }
+
+            case "pagina":
+            case "comunidad": {
+                // `os_pages` (NO la tabla legada `pages`, que no existe en este
+                // proyecto): "pagina" = cualquier página; "comunidad" = las de
+                // kind `comunidad`. Usamos el `slug` como id (es lo que enlaza
+                // con os_memberships.group_slug y con las rutas /pagina/<slug>).
+                let query = supabase.from("os_pages").select("id, slug, name, kind");
+                if (kind === "comunidad") query = query.eq("kind", "comunidad");
                 const { data, error } = await query.limit(100);
                 if (error) throw error;
-                let rows: DestinationOption[] = ((data as PageRow[]) || []).map((r) => ({
-                    id: r.id,
-                    label: r.title || "Página",
-                    sub: r.type || undefined,
+                let rows: DestinationOption[] = ((data as OsPageRow[]) || []).map((r) => ({
+                    id: r.slug || r.id,
+                    label: r.name || "Página",
+                    sub: r.kind || undefined,
                     kind,
                 }));
 
-                // Membresía (`page_members`): con `onlyMine` es un filtro DURO
-                // (para cualquiera de los 4 kinds de esta rama, incl. página y
-                // entidad federativa); sin él, sólo PRIORIZA grupo/comunidad
-                // cuando hay coincidencias — comportamiento IDÉNTICO al de antes.
-                if (uid && (opts?.onlyMine || kind === "grupo" || kind === "comunidad")) {
-                    try {
-                        const { data: mine } = await supabase
-                            .from("page_members")
-                            .select("page_id, profile_id")
-                            .eq("profile_id", uid);
-                        const mineIds = new Set(
-                            ((mine as { page_id: string }[]) || []).map((m) => m.page_id),
-                        );
-                        if (opts?.onlyMine || mineIds.size > 0) {
-                            rows = rows.filter((r) => mineIds.has(r.id));
-                        }
-                    } catch {
-                        /* sin page_members: lista completa (o vacía si onlyMine exigía filtrar) */
-                        if (opts?.onlyMine) rows = [];
+                if (uid && (opts?.onlyMine || kind === "comunidad")) {
+                    const mineSlugs = await myEntitySlugs(supabase, uid);
+                    if (opts?.onlyMine || mineSlugs.size > 0) {
+                        rows = rows.filter((r) => mineSlugs.has(r.id));
+                    }
+                }
+                return filterByQuery(rows, opts?.query);
+            }
+
+            case "grupo": {
+                // `os_groups` (no `pages` filtrando por type="grupo" — esa tabla
+                // no existe). Mismo criterio de "onlyMine" vía os_memberships.
+                const { data, error } = await supabase
+                    .from("os_groups")
+                    .select("id, slug, name, kind")
+                    .limit(100);
+                if (error) throw error;
+                let rows: DestinationOption[] = ((data as OsPageRow[]) || []).map((r) => ({
+                    id: r.slug || r.id,
+                    label: r.name || "Grupo",
+                    sub: r.kind || undefined,
+                    kind,
+                }));
+
+                if (uid) {
+                    const mineSlugs = await myEntitySlugs(supabase, uid);
+                    if (opts?.onlyMine || mineSlugs.size > 0) {
+                        rows = rows.filter((r) => mineSlugs.has(r.id));
                     }
                 }
                 return filterByQuery(rows, opts?.query);
@@ -776,14 +823,53 @@ function contentToText(content: PublishContent): string {
 }
 
 /**
+ * Resuelve el `author_name` a guardar en `posts` para cada faceta seleccionada
+ * en "Desde qué perfil(es)": el `name` de su fila `os_account_profiles`, con
+ * la cuenta (uid → `os_profiles.display_name`) como respaldo/por defecto.
+ * Nunca lanza: ante cualquier fallo, el mapa queda parcial/vacío y el feed
+ * sigue enriqueciendo el nombre en lectura (network-feed.ts → os_profiles).
+ */
+async function resolveAuthorNames(
+    supabase: ReturnType<typeof createClient>,
+    fromProfiles: string[],
+    uid: string,
+): Promise<Map<string, string | null>> {
+    const names = new Map<string, string | null>();
+    try {
+        const profileIds = fromProfiles.filter((id) => id !== uid);
+        if (profileIds.length > 0) {
+            const { data } = await supabase
+                .from("os_account_profiles")
+                .select("id, name")
+                .in("id", profileIds);
+            for (const r of (data as { id: string; name?: string | null }[]) || []) {
+                names.set(r.id, r.name || null);
+            }
+        }
+        const { data: acct } = await supabase
+            .from("os_profiles")
+            .select("display_name")
+            .eq("user_id", uid)
+            .maybeSingle();
+        names.set(uid, (acct as { display_name?: string | null } | null)?.display_name ?? null);
+    } catch {
+        /* degradación: author_name queda ausente para las facetas no resueltas */
+    }
+    return names;
+}
+
+/**
  * Publica el contenido a cada destino con la escritura adecuada:
  *
  *   · red / pagina / perfil / grupo / comunidad / entidad_federativa →
  *       INSERT en `posts`:
- *         { author_id: <perfil>, type, content (jsonb), visibility,
- *           post_references: { destinations, type, format, fromProfiles } }
- *       Para entidad_federativa el resultado se marca "registered" (no hay tabla
- *       de entrega dedicada; queda como referencia en post_references).
+ *         { author_id: <uid>, author_name: <faceta>, type, content (jsonb),
+ *           meta: { visibility }, post_references: { destinations, type, format, fromProfiles } }
+ *       `author_id` es SIEMPRE la cuenta (uid) — la RLS de `posts` exige
+ *       author_id = auth.uid(); la faceta elegida en "Desde" sólo decide
+ *       `author_name`. Para entidad_federativa el resultado se marca
+ *       "registered" (no hay tabla de entrega dedicada; queda como
+ *       referencia en post_references).
  *
  *   · mensaje / chat_ia →
  *       INSERT en `astraura_messages`:
@@ -791,8 +877,8 @@ function contentToText(content: PublishContent): string {
  *
  *   · biblioteca / carpeta →
  *       Guarda una REFERENCIA: INSERT en `posts` etiquetado como library/folder
- *       (visibility privada, post_references.library = destino). Resultado
- *       "registered". Si `posts` falla, intenta `memories` para carpeta.
+ *       (meta.visibility privada, post_references.library = destino). Resultado
+ *       "registered".
  *
  * Se publica por CADA (perfil de origen × destino). Devuelve un resultado por
  * cada destino entregado. Tolerante a fallos individuales: un destino que falle
@@ -806,11 +892,17 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
     const results: DestinationResult[] = [];
 
     // Perfil de origen efectivo: usa el primero seleccionado, o el uid como
-    // autor por defecto. RLS de `posts` valida author_id; si el perfil no es
-    // válido como author_id, el INSERT fallará y se reportará por destino.
+    // autor por defecto. `fromProfiles` son ids de `os_account_profiles`
+    // (FACETAS a mostrar como autor) — NUNCA se usan como `author_id`: la RLS
+    // de `posts` exige `author_id = auth.uid()`, así que la cuenta (uid) es
+    // siempre la autora real; la faceta elegida solo decide el `author_name`
+    // mostrado (resuelto abajo vía resolveAuthorNames).
     const fromProfiles =
         input.fromProfiles && input.fromProfiles.length > 0 ? input.fromProfiles : [uid];
     const primaryAuthor = fromProfiles[0] || uid;
+    const authorNames = await resolveAuthorNames(supabase, fromProfiles, uid);
+    const nameFor = (profileId: string): string | null =>
+        authorNames.get(profileId) ?? authorNames.get(uid) ?? null;
 
     // ── Adenda "Lienzo de Creación Universal" (aditivo) · Singularidad del
     // contenido: un mismo `entityId` marca TODAS las filas creadas por ESTE acto
@@ -866,13 +958,17 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
                 continue;
             }
 
-            // ── Biblioteca / Carpeta → referencia (posts taggeado), fallback memories ──
+            // ── Biblioteca / Carpeta → referencia (posts taggeado) ──
+            // (el fallback a `memories` se retiró: esa tabla no existe en este
+            // proyecto — ver myEntitySlugs/listDestinations más abajo para el
+            // mismo saneamiento en pagina/grupo/comunidad).
             if (kind === "biblioteca" || kind === "carpeta") {
                 const refRow = {
-                    author_id: primaryAuthor,
+                    author_id: uid,
+                    author_name: nameFor(primaryAuthor),
                     type: input.type,
                     content: input.content as unknown,
-                    visibility: visibilityFor(kind),
+                    meta: { visibility: visibilityFor(kind) },
                     post_references: {
                         ...baseReferences,
                         library: { kind, id: dest.id, label: dest.label },
@@ -894,27 +990,6 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
                     });
                     continue;
                 }
-                // Fallback para carpeta: registrar en `memories`.
-                if (kind === "carpeta") {
-                    const { data: mem, error: memErr } = await supabase
-                        .from("memories")
-                        .insert({
-                            name: input.content.title || "Referencia publicada",
-                        })
-                        .select("id")
-                        .maybeSingle();
-                    if (!memErr) {
-                        results.push({
-                            kind,
-                            id: dest.id,
-                            label: dest.label,
-                            ok: true,
-                            status: "registered",
-                            recordId: (mem as { id?: string } | null)?.id,
-                        });
-                        continue;
-                    }
-                }
                 throw error;
             }
 
@@ -927,10 +1002,11 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
 
             for (const author of fromProfiles) {
                 const row = {
-                    author_id: author,
+                    author_id: uid,
+                    author_name: nameFor(author),
                     type: input.type,
                     content: input.content as unknown,
-                    visibility: visibilityFor(kind),
+                    meta: { visibility: visibilityFor(kind) },
                     post_references: {
                         ...baseReferences,
                         target: { kind, id: dest.id, label: dest.label },

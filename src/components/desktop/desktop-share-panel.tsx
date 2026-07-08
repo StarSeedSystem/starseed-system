@@ -326,6 +326,31 @@ export function DesktopSharePanel() {
                     <SegBtn active={config.mode === 'all'} onClick={() => update({ mode: 'all' })}>Todos ({profiles.length})</SegBtn>
                     <SegBtn active={config.mode === 'selected'} onClick={() => update({ mode: 'selected' })}>Seleccionados</SegBtn>
                 </div>
+                {config.mode === 'selected' && (
+                    <div className="flex flex-wrap gap-1.5 pt-1.5 mt-1.5 border-t border-white/5">
+                        {profiles.map((p) => {
+                            const isSelected = config.profiles.includes(p.id);
+                            return (
+                                <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => {
+                                        const next = isSelected 
+                                            ? config.profiles.filter(id => id !== p.id) 
+                                            : [...config.profiles, p.id];
+                                        update({ profiles: next });
+                                    }}
+                                    className={cn(
+                                        'rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer',
+                                        isSelected ? 'border-primary/50 bg-primary/15 text-primary' : 'border-white/10 text-muted-foreground hover:bg-white/5',
+                                    )}
+                                >
+                                    {p.name}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             {/* Compartir como espacio */}

@@ -167,17 +167,22 @@ function asObject<T extends object>(v: any, fallback: T): T {
 
 /** Normaliza una fila cruda de Supabase a `PostEntity` (defensivo con jsonb). */
 function normalize(row: any): PostEntity {
+    const meta = asObject<Record<string, any>>(row?.meta, {});
     return {
         id: String(row?.id ?? ""),
         author_id: row?.author_id ?? null,
         type: row?.type ?? "post",
         content: asObject<Record<string, any>>(row?.content, {}),
-        visibility: row?.visibility ?? null,
+        // NOTA: `posts` no tiene columna `visibility` — vive en `meta.visibility`
+        // (jsonb top-level, distinto de `content.meta`). Ver publish.ts.
+        visibility: meta.visibility ?? null,
         post_references: asObject<PostReferences>(row?.post_references, {}),
         interactions: asObject<Interactions>(row?.interactions, {}),
         created_at: row?.created_at ?? null,
         updated_at: row?.updated_at ?? null,
-        author: null,
+        // `author_name` (columna real) ya da un nombre sin necesitar el join a
+        // profiles/os_profiles de abajo; ese join solo AÑADE handle si existe.
+        author: row?.author_name ? { id: row?.author_id ?? "", display_name: row.author_name } : null,
     };
 }
 
@@ -203,19 +208,26 @@ export async function loadPost(id: string): Promise<PostEntity | null> {
 
     const post = normalize(data);
 
-    // Resolver autor desde `profiles` (no rompe si la tabla/perfil no existe).
+    // Resolver/enriquecer autor desde `os_profiles` (directorio público real:
+    // user_id/username/display_name/avatar_url). `author_name` (columna de
+    // `posts`) ya da un nombre; esto añade el @username cuando existe. Nunca
+    // rompe si la fila no existe (usuario sin directorio todavía).
     if (post.author_id) {
         try {
             const { data: prof } = await supabase
-                .from("profiles")
-                .select("id, handle, display_name")
-                .eq("id", post.author_id)
+                .from("os_profiles")
+                .select("user_id, username, display_name")
+                .eq("user_id", post.author_id)
                 .maybeSingle();
             if (prof) {
-                post.author = { id: prof.id, handle: prof.handle, display_name: prof.display_name };
+                post.author = {
+                    id: prof.user_id,
+                    handle: prof.username,
+                    display_name: post.author?.display_name || prof.display_name,
+                };
             }
         } catch {
-            /* sin perfil: degradación elegante */
+            /* sin perfil: degradación elegante (queda author_name si lo había) */
         }
     }
     return post;
@@ -241,15 +253,15 @@ export async function reachOf(post: PostEntity | null): Promise<string[]> {
         if (!label) {
             try {
                 if (d.kind === "page") {
-                    const { data } = await supabase.from("pages").select("title").eq("id", d.id).maybeSingle();
-                    label = data?.title ?? null;
+                    const { data } = await supabase.from("os_pages").select("name").eq("slug", d.id).maybeSingle();
+                    label = data?.name ?? null;
                 } else {
                     const { data } = await supabase
-                        .from("profiles")
-                        .select("display_name, handle")
-                        .eq("id", d.id)
+                        .from("os_profiles")
+                        .select("display_name, username")
+                        .eq("user_id", d.id)
                         .maybeSingle();
-                    label = data?.display_name || (data?.handle ? `@${data.handle}` : null);
+                    label = data?.display_name || (data?.username ? `@${data.username}` : null);
                 }
             } catch {
                 /* degradar al id */
@@ -386,7 +398,7 @@ export async function republish(
                     author_id: by,
                     type: "repost",
                     content: {}, // sin contenido: la entidad real es la original
-                    visibility: "public",
+                    meta: { visibility: "public" },
                     post_references: { original: postId, destination },
                     interactions: {},
                 })

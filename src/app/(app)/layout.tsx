@@ -23,6 +23,7 @@ import { AuthGate } from "@/components/auth/auth-gate";
 // IA vive ahora en el Exocórtex del menú Trinity (Zenith). El componente se
 // conserva en el repo por si se reutiliza, pero ya no se monta globalmente.
 // import { AiOverlay } from "@/components/hermes/ai-overlay";
+import { GlobalEntityCreator } from "@/components/layout/global-entity-creator";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { config } = useAppearance();
@@ -52,6 +53,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         {/* Motor de alarmas global + modal de aviso activo */}
         <AlarmScheduler />
         <ActiveAlertModal />
+        <GlobalEntityCreator />
         {/* IA: ahora se accede desde el Exocórtex del menú Trinity (Zenith),
             no desde un botón flotante. */}
       </StoriesProvider>

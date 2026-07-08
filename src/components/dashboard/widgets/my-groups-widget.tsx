@@ -82,7 +82,7 @@ export function MyGroupsWidget() {
                     <Link href="/hub" className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-primary transition-colors cursor-pointer">
                         Hub <ChevronRight className="size-3" />
                     </Link>
-                    <Link href="/publish?type=group" className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/20 transition-colors cursor-pointer">
+                    <Link href="?createEntity=group" className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/20 transition-colors cursor-pointer">
                         <Plus className="size-3" /> Nuevo
                     </Link>
                 </>
@@ -101,7 +101,7 @@ export function MyGroupsWidget() {
                                 <p className="text-sm font-bold text-foreground/90">Aún no hay grupos</p>
                                 <p className="text-[11px] text-muted-foreground/60 mt-0.5">Crea el primer colectivo o únete a uno.</p>
                             </div>
-                            <Link href="/publish?type=group" className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/25 transition-colors cursor-pointer">
+                            <Link href="?createEntity=group" className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/25 transition-colors cursor-pointer">
                                 <Plus className="size-3.5" /> Crear grupo
                             </Link>
                         </div>

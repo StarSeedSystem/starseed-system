@@ -1,0 +1,13 @@
+Dockerfile
+.dockerignore
+.gcloudignore
+node_modules
+npm-debug.log
+README.md
+.next
+.git
+.github
+supabase
+.env*
+!.env.example
+*.md
