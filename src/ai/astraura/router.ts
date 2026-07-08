@@ -36,8 +36,9 @@ import { detectAvailability, userConfigForSource, type SourceAvailability } from
 import { chromeAiChat, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown } from "./usage";
 import { skillsSystemPrompt, skillsRoutingBias } from "./skills";
-import { systemContextPrompt, screenContextLine } from "./context";
+import { systemContextPrompt, screenContextLine, activeProvidersLine } from "./context";
 import { buildUserContext, getUserContextSettings } from "./user-context";
+import { modeForCategory } from "./provider-resolution";
 
 /* ───────────────────── Ajustes de Inteligencia ───────────────────── */
 
@@ -324,20 +325,37 @@ export function rankCandidates(
   const override = prefs.perTask[profile.kind];
   const difficultyOn = prefs.difficultyRouting !== false;
   const strongThreshold = typeof prefs.strongThreshold === "number" ? prefs.strongThreshold : 0.6;
+  // Modo GLOBAL de conectores por categoría (ai/astraura/provider-resolution.ts,
+  // categoría "llm-chat"): capa ADITIVA sobre el gratis-primero de siempre.
+  //   · "only-free"  → descarta cualquier fuente de pago aunque esté configurada.
+  //   · "prefer-own" → un servicio que el usuario conectó (fromUser) se prioriza
+  //     de verdad (sin la penalización freeFirst), en vez de competir en igualdad.
+  //   · "auto" (por defecto) → SIN CAMBIOS: el comportamiento gratis-primero de
+  //     siempre, exactamente como antes de esta capa.
+  let connectorsMode: "auto" | "prefer-own" | "only-free" = "auto";
+  try {
+    connectorsMode = modeForCategory("llm-chat");
+  } catch {
+    connectorsMode = "auto";
+  }
 
   for (const a of avail) {
     if (!a.ready) continue;
     if (prefs.disabledSources.includes(a.source.id)) continue;
+    if (a.source.tier === "paid" && connectorsMode === "only-free") continue;
     if (a.source.tier === "paid" && !(prefs.allowConfiguredPaid && a.userConfig)) continue;
     for (const m of a.source.models) {
       const s = scoreModelForTask(a.source, m, profile.kind, profile.needsVision);
       if (s < 0) continue;
       const fromUser = !!a.userConfig;
+      const preferOwnBoost = connectorsMode === "prefer-own" && fromUser;
       let score = s + (fromUser ? 2.5 : 0); // los servicios del usuario mandan
-      if (prefs.freeFirst && a.source.tier === "paid") score -= 6;
+      if (prefs.freeFirst && a.source.tier === "paid" && !preferOwnBoost) score -= 6;
+      if (preferOwnBoost) score += 8; // "usar mi cuenta": gana de verdad, no solo compite
       let reason = fromUser
         ? `Servicio que TÚ conectaste (${a.source.label})`
         : a.source.why;
+      if (preferOwnBoost) reason = `${reason} · priorizado (modo "usar mi cuenta" activo)`;
       // Capa RouteLLM: reordena por dificultad estimada (aditivo, defensivo).
       if (difficultyOn) {
         const adj = difficultyAdjustment(a.source, m, profile.difficulty, strongThreshold);
@@ -636,7 +654,10 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // se antepone al system prompt para que Aurora sepa DÓNDE está y qué puede hacer.
   const capText = skillsSystemPrompt();
   let ctxText = "";
-  try { ctxText = [systemContextPrompt(), screenContextLine()].filter(Boolean).join("\n\n"); } catch { /* defensivo */ }
+  try {
+    const provLine = await activeProvidersLine().catch(() => "");
+    ctxText = [systemContextPrompt(), screenContextLine(), provLine].filter(Boolean).join("\n\n");
+  } catch { /* defensivo */ }
   // Contexto TOTAL del usuario (perfiles, grupos, archivos, publicaciones, mensajes
   // sin cuerpo, notificaciones, recordatorios, escritorios, espacios) — SOLO si el
   // usuario lo activó (Ajustes → Aurora e IA; por defecto ON) y hay sesión. Con

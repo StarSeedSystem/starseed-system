@@ -799,3 +799,133 @@ Integración en `/library`: `EntityLibraryPanel` (área «Biblioteca») monta
 cabecera — guarda directamente en la biblioteca que se está viendo. Los
 marcadores guardados aparecen en el Finder existente (carpeta "Marcadores",
 filtro "Marcadores" en la barra de tipos) sin tocar su lógica interna.
+
+---
+
+## 20. Resolución de proveedores (cuenta propia opcional → gratis/OSS por defecto)
+
+Núcleo: `src/ai/astraura/provider-resolution.ts`. Da forma, para 13
+CATEGORÍAS funcionales del OS (no solo el LLM de chat), al mismo principio
+que ya regía la inteligencia: **el sistema SIEMPRE funciona con opciones
+gratis/OSS por defecto**, y el usuario puede OPCIONALMENTE conectar su propia
+cuenta de marca para una función, con **fallback automático** si esa cuenta no
+está configurada, no está sana, o falla en tiempo real.
+
+### 20.1 Categorías y sus defaults
+
+| Categoría (`ProviderCategory`) | Default gratis/OSS (real, funcional hoy) | Cuenta de marca opcional |
+|---|---|---|
+| `llm-chat` | Router gratis-primero de `router.ts`/`free-catalog.ts` (ya existente) | OpenAI / Anthropic propias (conector YA real) |
+| `web-search` | SearXNG propio si está configurado; si no, DuckDuckGo vía navegador interno (siempre disponible) | Google Programmable Search / Bing (declaradas, sin conector) |
+| `web-fetch` | Auto-selector OSS ya existente (`web-access.ts`: Crawl4AI/Scrapling/DeepCrawl/WebHarvest/Universal Scraper/Maxun) | Firecrawl (conector YA real, de pago) |
+| `maps` | OpenStreetMap/Nominatim + Open-Meteo (`lib/geocoding.ts`, sin clave) | Google Maps (declarada, sin conector) |
+| `code-host` | Proxy de lectura pública StarSeed (`api/github-repo`) | GitHub por token (declarada, sin conector autenticado) |
+| `docs` | Biblioteca del usuario (+ memorias) | Notion (declarada, sin conector) — Anytype sigue sin conector en vivo (§19.5) |
+| `notify` | Mensajes internos `os_dm` | Slack / Telegram (declaradas, sin conector) |
+| `design` | Pizarra / Lienzo interno | Figma / Canva (declaradas, sin conector) |
+| `storage` | Archivos del OS + Syncthing P2P opcional | Google Drive (declarada, sin conector) |
+| `email` | Correo interno (`os-mail` sobre `os_dm`) | Gmail — **real hoy vía `mailto:`** (sin credencial, sin envío por API) |
+| `calendar` | Calendario unificado interno | Google Calendar (declarada, sin conector) |
+| `pdf-tools` | Stirling-PDF (conector real, self-host) | — (ninguna, mismo criterio que `/servicios`) |
+| `automation` | n8n self-host (conector real) | Zapier (declarada, sin conector dedicado) |
+
+"Declarada, sin conector" = el servicio aparece en el catálogo con sus campos
+de credencial y una nota honesta ("requiere tu clave"; "sin conector en vivo
+todavía"), para que la UI del Hub de Conectores sepa qué pedir — pero
+`resolveProvider()` NUNCA lo elige como proveedor activo (`hasRealConnector:
+false`). El default gratis/OSS de cada categoría, en cambio, es código real
+(algunos —Stirling-PDF, n8n, el auto-selector de acceso web— requieren que el
+usuario pegue su propio endpoint de auto-hospedaje; eso se refleja con
+`healthy:false` + una nota, nunca fingiendo que ya funciona).
+
+### 20.2 Cómo elige Astraura (heurística `externalReach`)
+
+Cada categoría declara `externalReach: boolean`:
+
+- **`false`** (LLM, búsqueda, scraping, mapas, PDF, automatización): el
+  default gratis/OSS **ya hace el mismo trabajo** que la cuenta propia (buscar
+  la web es buscar la web). En modo `"auto"` (el de por defecto), Astraura se
+  queda con el default **aunque el usuario tenga una cuenta propia
+  configurada** — mismo espíritu que el router de LLM: una clave de pago no
+  gana sola, hay que pedirlo a propósito (`"prefer-own"`).
+- **`true`** (repos/docs/chat/diseño/almacenamiento/correo/calendario): el
+  default es un sistema **interno** que estructuralmente **no puede alcanzar**
+  el recurso EXTERNO real del usuario (su Gmail, su Drive, su Notion, sus
+  repos privados de GitHub, su Slack/Telegram, su Figma/Canva, su Google
+  Calendar). Aquí, si la cuenta propia está configurada y sana, se prioriza
+  **incluso en modo `"auto"`** — el default simplemente no puede sustituirla.
+
+Modo del usuario (`ConnectorMode`, global + override por categoría):
+
+- `"auto"` (por defecto) — heurística de arriba.
+- `"prefer-own"` — la cuenta propia gana SIEMPRE que esté sana, en cualquier
+  categoría.
+- `"only-free"` — ignora cualquier cuenta propia; solo gratis/OSS.
+
+"Sana" = comprobación TOLERANTE (hay credencial/endpoint presente), sin sonda
+de red — mantiene `resolveProvider()` síncrono y embebible en cualquier sitio
+(prompts, tools, UI). `withProviderFallback(category, fn)` intenta el
+resuelto y, si falla y era "own", reintenta con el default y marca la
+sustitución (mismo espíritu que `TOOL_ALTERNATES` de `aurora-tools.ts`).
+
+### 20.3 Almacenamiento (compartido con el Hub de Conectores)
+
+`provider-resolution.ts` **NO define su propio almacén**: delega en
+`src/lib/connectors/connector-credentials.ts` (construido por otro agente en
+paralelo, mismo momento que esta ola), que ya tenía el contrato exacto
+pedido:
+
+- **Credenciales** — `localStorage['starseed.connectors.creds.v1']`. Local,
+  NUNCA sincronizado (fuera de `SYNCED_KEYS`, igual que
+  `starseed.ai.providers`). `connectorCredentials(serviceId)` en
+  `provider-resolution.ts` es de SOLO LECTURA: adapta la bolsa libre `fields`
+  del store real a un contrato estable (`apiKey`/`token`/`endpoint`/
+  `oauthConnected`/`extra`).
+- **Modo** — `localStorage['starseed.connectors.mode.v1']` (global +
+  `perCategory`). NO es secreto: SÍ viaja en `SYNCED_KEYS` (añadido por el
+  otro agente). `modeForCategory()`/`setCategoryMode()` de
+  `provider-resolution.ts` delegan en `getConnectorMode()`/
+  `setConnectorMode()` del store real — una sola fuente de verdad.
+
+El "Hub de Conectores" general (`src/lib/connectors/*`, categorías más
+amplias: `llm/search/web/storage/calendar/email/chat/dev/social/memory/
+files/custom`) es una superficie HERMANA, con su propia UI
+(`UserConnectorsHub.tsx`, `/conexiones`) — `provider-resolution.ts` no la
+importa ni la duplica; solo comparte el almacén de credenciales/modo para que
+ambas capas lean/escriban lo mismo.
+
+### 20.4 Cableado (aditivo, sin regresiones)
+
+- **`router.ts`** (`rankCandidates`): con `modeForCategory("llm-chat")` —
+  `"only-free"` descarta cualquier fuente de pago aunque esté configurada;
+  `"prefer-own"` da un plus (+8, sin la penalización `freeFirst`) a la fuente
+  que el usuario conectó, para que gane de verdad. En `"auto"` (por defecto),
+  **cero cambios** de comportamiento frente a antes de esta ola.
+- **`aurora-tools.ts`**: `AuroraIntegrationTool` gana `category`/
+  `ownServiceId` opcionales. `web_search` → `web-search`; `crawl_url` →
+  `web-fetch` (default); `scrape_url` → `web-fetch` + `ownServiceId:
+  "firecrawl"` (marca). `isAuroraToolAvailable()` OCULTA la tool de marca de
+  su categoría cuando el modo es `"only-free"` (nunca más restrictivo que
+  antes en cualquier otro modo). Cada resultado se anota con qué proveedor
+  respondió (`[proveedor: gratis/OSS (…)]` / `[proveedor: tu cuenta (…)]`) y
+  `auroraToolsPromptSection()` añade al final de la descripción de cada tool
+  con categoría cuál es el proveedor ACTIVO ahora, para orientar a Aurora
+  hacia la tool vigente.
+- **`web-access.ts`**: nueva `resolveWebFetchProvider(taskHint?)` — pasa por
+  `resolveProvider("web-fetch")` (import perezoso, evita ciclo estático con
+  `provider-resolution.ts`, que sí importa este archivo arriba); si falla,
+  cae al `selectWebAccessProvider()` de siempre.
+- **`context.ts`**: nueva `activeProvidersLine()` (import perezoso) — 1 frase
+  con qué categorías usan cuenta propia ahora mismo; `router.ts` la añade al
+  bloque de contexto de cada turno.
+- **`describeActiveProviders()`** — resumen ES, una línea por categoría, para
+  la UI de ajustes del otro agente; `describeActiveProvidersCompact()` es la
+  versión de una frase que consume `context.ts`.
+
+No se tocó: `src/app/(app)/conexiones`, `src/components/connectors`, ni la UI
+de ajustes de conectores (superficie del otro agente) — solo se leyó su
+contrato de credenciales/modo. Tampoco se re-implementó `/servicios`
+(`oss-services.ts`/`oss-connections.ts::resolveServiceFor`, que sigue
+gobernando imagen/vídeo/voz/STT/TTS por conexión concreta) ni el router de LLM
+(que sigue siendo `router.ts`/`free-catalog.ts`, solo con el matiz
+"prefer-own" añadido).

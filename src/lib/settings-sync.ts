@@ -74,6 +74,13 @@ export const SYNCED_KEYS = [
     "starseed.astraura.usercontext.v1", // "Aurora conoce mi contexto" (on/off) + nivel por defecto (breve/completo)
     // ── Alarmas funcionales (jul-2026 · lib/alarms/alarms.ts) ─────────────────
     "starseed.alarms.v1", // alarmas del usuario (mensajes/correos/invitaciones a eventos) + snooze/descarte
+    // ── Hub de Conectores por usuario (jul-2026 · connector-credentials.ts) ───
+    //    Preferencia de MODO (automático/preferir mi cuenta/solo gratis-OSS),
+    //    global y por categoría. NO es secreta, así que SÍ viaja. Las
+    //    CREDENCIALES en sí ('starseed.connectors.creds.v1') NUNCA se añaden
+    //    aquí — quedan solo en este navegador, por diseño (igual que
+    //    starseed.ai.providers más arriba).
+    "starseed.connectors.mode.v1",
 ] as const;
 
 /**

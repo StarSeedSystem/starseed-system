@@ -269,3 +269,30 @@ export function webAccessStatusLine(): string {
   }
   return `Acceso web: ${chosen.label} disponible (se auto-selecciona la mejor herramienta gratis/local por tarea).`;
 }
+
+/* ───────────────────────── Resolución por categoría (provider-resolution) ───────────────────────── */
+
+/**
+ * Proveedor de "web-fetch" (rastreo/lectura de páginas) resuelto por el motor
+ * de categorías de Astraura (`ai/astraura/provider-resolution.ts`): prefiere
+ * el servicio de marca del usuario (Firecrawl) cuando su modo de conectores
+ * lo prioriza y está sano; si no, cae al auto-selector gratis/OSS de ARRIBA
+ * (`selectWebAccessProvider`), que sigue siendo el motor real de este
+ * archivo. Import PEREZOSO a propósito: `provider-resolution.ts` importa este
+ * archivo de forma estática (para su default de "web-fetch"), así que este
+ * lado usa `import()` para no cerrar un ciclo estático (mismo patrón que
+ * `availability.ts` al importar `./router`). Nunca lanza.
+ */
+export async function resolveWebFetchProvider(
+  taskHint?: string,
+): Promise<{ id: string; label: string; origin: "own" | "default"; healthy: boolean } | null> {
+  try {
+    const mod = await import("./provider-resolution");
+    const resolved = mod.resolveProvider("web-fetch", { taskHint });
+    return { id: resolved.id, label: resolved.label, origin: resolved.origin, healthy: resolved.healthy };
+  } catch {
+    /* defensivo: cae al selector clásico de arriba */
+  }
+  const classic = selectWebAccessProvider(taskHint);
+  return classic ? { ...classic, origin: "default", healthy: true } : null;
+}

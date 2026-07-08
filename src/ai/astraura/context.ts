@@ -376,6 +376,26 @@ export function screenContextLine(): string {
   return `Contexto de pantalla actual (aproximado) — ${parts.join("; ")}.`;
 }
 
+/* ────────────────── Proveedores activos por categoría (provider-resolution) ────────────────── */
+
+/**
+ * Línea de UNA frase con qué proveedores de servicio están ACTIVOS por
+ * categoría (búsqueda, scraping, mapas, repos, documentos, chat, diseño,
+ * almacenamiento, correo, calendario, PDF, automatización, LLM) — motor
+ * `ai/astraura/provider-resolution.ts`: gratis/OSS por defecto, o la cuenta
+ * propia del usuario cuando la conectó y su modo la prioriza. Import
+ * perezoso (no acopla el bundle); "" si algo falla. Nunca lanza. Ver
+ * architecture/astraura-inteligencia.md §20.
+ */
+export async function activeProvidersLine(): Promise<string> {
+  try {
+    const mod = await import("./provider-resolution");
+    return mod.describeActiveProvidersCompact();
+  } catch {
+    return "";
+  }
+}
+
 /* ────────────────── Cerebros de contexto de la Biblioteca activa ────────────────── */
 
 /**

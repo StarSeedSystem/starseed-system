@@ -441,6 +441,15 @@ function SettingsPageInner() {
                                     </GlassCard>
                                 </div>
 
+                                <LinkCard
+                                    href="/conexiones"
+                                    icon={Plug2}
+                                    label="Conectores por categoría"
+                                    description="IA, búsqueda, notas, chat… elige automático, tu cuenta, o solo gratis-OSS"
+                                    accentText="text-[#39FF14]"
+                                    accentBg="bg-[#39FF14]/10 border-[#39FF14]/20"
+                                />
+
                                 {/* Inteligencia de Aurora (Astraura): gratis-primero, modelo por tarea y rutas transparentes */}
                                 <IntelligencePanel />
 

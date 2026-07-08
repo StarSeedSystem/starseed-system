@@ -26,6 +26,7 @@
 import type { IntegrationConfig, IntegrationResult } from "./types";
 import { getIntegration, loadIntegrationConfig } from "./registry";
 import { runIntegration } from "./run";
+import { resolveProvider, modeForCategory, type ProviderCategory } from "@/ai/astraura/provider-resolution";
 
 export interface AuroraIntegrationTool {
   /** Nombre que el modelo usa para invocar (snake_case, estable). */
@@ -36,6 +37,21 @@ export interface AuroraIntegrationTool {
   integrationId: string;
   /** Acción destino dentro de la integración. */
   actionId: string;
+  /**
+   * Categoría del motor de resolución por función (`ai/astraura/provider-resolution.ts`),
+   * SOLO para las tools que hoy usan un conector fijo pero representan una
+   * función con default gratis/OSS + cuenta de marca opcional (búsqueda,
+   * scrape…). Aditivo: sin `category`, la tool se comporta EXACTAMENTE igual
+   * que antes de esta capa.
+   */
+  category?: ProviderCategory;
+  /**
+   * Si esta tool ES el servicio de MARCA (cuenta propia) de su `category`
+   * (p.ej. `scrape_url` = Firecrawl para "web-fetch"), su id en el catálogo
+   * de `CATEGORY_PROVIDERS[category].ownServices`. Ausente = esta tool es el
+   * default gratis/OSS de su categoría.
+   */
+  ownServiceId?: string;
 }
 
 /** Subconjunto de tools que Aurora puede invocar. */
@@ -45,18 +61,22 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
     description: "Rastrea una URL y devuelve su contenido en Markdown (Crawl4AI). Entrada: { url } o { urls: [...] }.",
     integrationId: "crawl4ai",
     actionId: "crawl",
+    category: "web-fetch", // default gratis/OSS de la función "rastrear/leer una web"
   },
   {
     name: "scrape_url",
     description: "Extrae una página web como Markdown vía Firecrawl. Entrada: { url }.",
     integrationId: "firecrawl",
     actionId: "scrape",
+    category: "web-fetch",
+    ownServiceId: "firecrawl", // esta tool ES la cuenta de marca de "web-fetch"
   },
   {
     name: "web_search",
     description: "Busca en la web con un metabuscador privado (SearXNG). Entrada: { q } o texto.",
     integrationId: "searxng",
     actionId: "search",
+    category: "web-search", // default gratis/OSS (SearXNG propio; si no, buscar_web/DuckDuckGo)
   },
   {
     name: "pdf_merge",
@@ -883,6 +903,15 @@ export function isAuroraToolAvailable(name: string, brainId?: string): boolean {
   if (!t) return false;
   // Las tools de PANTALLA no dependen de configuración: navegador ⇒ disponibles.
   if (isAuroraScreenTool(t)) return typeof window !== "undefined";
+  // Modo "solo gratis" (categoría de provider-resolution.ts): oculta la tool
+  // que representa el servicio de MARCA de su categoría (ownServiceId) — Aurora
+  // nunca la ofrece ni la intenta en ese modo. Aditivo: en cualquier otro modo,
+  // sin categoría, o si algo falla, no cambia nada de lo que ya había.
+  if (t.category && t.ownServiceId) {
+    try {
+      if (modeForCategory(t.category) === "only-free") return false;
+    } catch { /* defensivo: no oculta nada si algo falla */ }
+  }
   const cfg = loadIntegrationConfig(t.integrationId, brainId);
   const desc = getIntegration(t.integrationId);
   const endpoint = (cfg.endpoint && cfg.endpoint.trim()) || desc?.defaultEndpoint || "";
@@ -937,6 +966,45 @@ export function findAvailableAlternate(name: string, brainId?: string): string |
 }
 
 /**
+ * Añade una atribución honesta y breve de qué proveedor sirvió el resultado
+ * (gratis/OSS por defecto, o la cuenta de MARCA del propio usuario), cuando la
+ * tool declara una `category` del motor de resolución
+ * (`ai/astraura/provider-resolution.ts`). Se basa en `ownServiceId` de la
+ * propia tool (qué REALMENTE se ejecutó), no en una re-resolución, para nunca
+ * atribuir un proveedor distinto del que de verdad respondió. Nunca lanza; sin
+ * `category`, o si el texto no es una cadena, devuelve el resultado tal cual.
+ */
+function annotateWithActiveProvider(t: AuroraIntegrationTool, res: IntegrationResult): IntegrationResult {
+  if (!t.category || typeof res.data?.text !== "string") return res;
+  try {
+    const desc = getIntegration(t.integrationId);
+    const nombre = desc?.label ?? t.integrationId;
+    const tag = t.ownServiceId ? `tu cuenta (${nombre})` : `gratis/OSS (${nombre})`;
+    return { ...res, data: { ...res.data, text: `${res.data.text}\n\n[proveedor: ${tag}]` } };
+  } catch {
+    return res;
+  }
+}
+
+/**
+ * Pista corta (ES) de qué proveedor está ACTIVO ahora mismo para la
+ * `category` de esta tool (provider-resolution.ts) — se añade al final de su
+ * descripción en el prompt para que Aurora prefiera invocar la tool que
+ * realmente está activa (p.ej. no ofrecer `scrape_url` como primera opción si
+ * el modo "solo gratis" tiene activo el default gratis/OSS). "" sin
+ * `category`, o si algo falla.
+ */
+function categoryHintFor(t: AuroraIntegrationTool): string {
+  if (!t.category) return "";
+  try {
+    const resolved = resolveProvider(t.category);
+    return ` [proveedor activo ahora para esta función: ${resolved.label}]`;
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Ejecuta una tool de Aurora por nombre. Carga la config (global o por
  * cerebro). NUNCA lanza: devuelve IntegrationResult honesto. Si la tool
  * FALLA en tiempo de ejecución (servicio/conexión/sync caído), prueba sola
@@ -970,7 +1038,7 @@ async function runAuroraToolTried(
   }
   const cfg = opts?.cfg ?? loadIntegrationConfig(t.integrationId, opts?.brainId);
   const res = await runIntegration(t.integrationId, t.actionId, input, cfg);
-  if (res.ok) return res;
+  if (res.ok) return annotateWithActiveProvider(t, res);
 
   // ── Sustitución automática: prueba alternativas AÚN no intentadas en esta
   // cadena, y solo las que estén disponibles de verdad. ──
@@ -1044,7 +1112,7 @@ export function auroraToolsPromptSection(brainId?: string): string {
   if (integraciones.length > 0) {
     parts.push(
       "HERRAMIENTAS EXTERNAS (integraciones configuradas): puedes invocar estas tools de servicios self-host del usuario.",
-      ...integraciones.map((t) => `- ${t.name}: ${t.description}`),
+      ...integraciones.map((t) => `- ${t.name}: ${t.description}${categoryHintFor(t)}`),
     );
   }
   if (pantalla.length > 0) {
