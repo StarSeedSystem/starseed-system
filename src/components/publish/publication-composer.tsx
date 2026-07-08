@@ -1976,6 +1976,9 @@ function AttachmentsManager({
 }) {
     const [urlDraft, setUrlDraft] = useState("");
     const [kindDraft, setKindDraft] = useState<string>("enlace");
+    // Motor de la pizarra al adjuntar (Adenda tldraw): "starseed" (por defecto,
+    // sin cambios) o "tldraw" — sólo relevante cuando kindDraft === "pizarra".
+    const [pizarraEngineDraft, setPizarraEngineDraft] = useState<"starseed" | "tldraw">("starseed");
 
     const addFromPicker = (picked: UniversalAttachment[]) => {
         const next: PostContentAttachment[] = picked.map((p) => ({
@@ -1989,8 +1992,20 @@ function AttachmentsManager({
     };
 
     const addFromUrl = () => {
-        const url = urlDraft.trim();
+        let url = urlDraft.trim();
+        // Pizarra sin URL pegada: adjunta el Lienzo universal por defecto.
+        if (!url && kindDraft === "pizarra") url = "/pizarra";
         if (!url) return;
+        // Motor tldraw elegido para el adjunto pizarra: añade `?engine=tldraw`
+        // (se fusiona con cualquier query ya presente en la URL). El resto del
+        // sistema (EmbeddedContentWindow, modos vivos de live-attachment.tsx)
+        // ya respeta cualquier query string existente sin cambios.
+        if (kindDraft === "pizarra" && pizarraEngineDraft === "tldraw") {
+            const [path, query = ""] = url.split("?");
+            const params = new URLSearchParams(query);
+            params.set("engine", "tldraw");
+            url = `${path}?${params.toString()}`;
+        }
         onChange([...attachments, { id: newAttId(), kind: kindDraft, url, name: hostOf(url) }]);
         setUrlDraft("");
     };
@@ -2087,8 +2102,19 @@ function AttachmentsManager({
                             </option>
                         ))}
                     </select>
+                    {kindDraft === "pizarra" && (
+                        <select
+                            value={pizarraEngineDraft}
+                            onChange={(e) => setPizarraEngineDraft(e.target.value === "tldraw" ? "tldraw" : "starseed")}
+                            title="Motor de la pizarra adjunta"
+                            className="h-9 shrink-0 cursor-pointer rounded-lg border border-cyan-400/25 bg-cyan-400/5 px-2 text-xs text-cyan-100"
+                        >
+                            <option value="starseed" className="bg-[#0d0f14]">Motor: StarSeed</option>
+                            <option value="tldraw" className="bg-[#0d0f14]">Motor: tldraw (pro)</option>
+                        </select>
+                    )}
                     <Input
-                        placeholder="Pegar URL (página, app, pizarra, servidor, vídeo…)"
+                        placeholder={kindDraft === "pizarra" ? "URL de la pizarra (vacío = nueva)" : "Pegar URL (página, app, pizarra, servidor, vídeo…)"}
                         value={urlDraft}
                         onChange={(e) => setUrlDraft(e.target.value)}
                         onKeyDown={(e) => {

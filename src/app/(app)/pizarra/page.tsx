@@ -12,10 +12,17 @@
 //
 // `?board-space=<id>` (SOP §11, Adenda 65): abre una PIZARRA COMPARTIDA
 // (os_spaces kind='board') en modo colaborativo en vez de un lienzo personal.
+//
+// `?engine=tldraw|starseed` (Adenda tldraw): fuerza el MOTOR de la pizarra —
+// manda siempre sobre la preferencia recordada por pizarra (embeds/enlaces
+// compartidos deben abrir con el motor correcto de forma determinista). Sin
+// este parámetro, <CanvasBoard/> usa la preferencia local de esa pizarra
+// (por defecto "Lienzo StarSeed", ver src/lib/canvas/board-engine.ts).
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import CanvasBoard from "@/components/canvas/canvas-board";
+import type { BoardEngine } from "@/lib/canvas/board-engine";
 
 // Evita el bailout de prerender estático (este árbol lee Supabase en cliente).
 export const dynamic = "force-dynamic";
@@ -24,7 +31,9 @@ function PizarraBoard() {
   const params = useSearchParams();
   const canvasId = params.get("canvas") ?? undefined;
   const boardSpaceId = params.get("board-space") ?? null;
-  return <CanvasBoard canvasId={canvasId} boardSpaceId={boardSpaceId} />;
+  const engineRaw = params.get("engine");
+  const engineParam: BoardEngine | null = engineRaw === "tldraw" || engineRaw === "starseed" ? engineRaw : null;
+  return <CanvasBoard canvasId={canvasId} boardSpaceId={boardSpaceId} engineParam={engineParam} />;
 }
 
 export default function PizarraPage() {

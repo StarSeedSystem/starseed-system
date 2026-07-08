@@ -23,6 +23,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,6 +89,7 @@ import {
   Loader2,
   Check,
   Mail,
+  PenTool,
 } from "lucide-react";
 import {
   BLOCK_KINDS,
@@ -131,8 +133,21 @@ import { buildProposalLink } from "@/lib/governance/links";
 // Pizarras COMPARTIDAS (SOP §11, Adenda 65): espacio colaborativo os_spaces
 // kind='board', distinto del toggle `canvas.shared` existente (referencia simple).
 import { BoardShareDialog, BoardShareTrigger } from "@/components/canvas/board-share-dialog";
-import { useMySpaces, useMyInvites, acceptInvite, declineInvite } from "@/lib/spaces/spaces";
+import { useMySpaces, useMyInvites, acceptInvite, declineInvite, createSpace } from "@/lib/spaces/spaces";
 import { useSharedBoardSpace } from "@/lib/sync/shared-board-space";
+import { getBoardEngine, setBoardEngine, type BoardEngine } from "@/lib/canvas/board-engine";
+
+// Motor "tldraw (profesional)" (Adenda tldraw): dynamic ssr:false porque el
+// SDK toca `window`/canvas al importarse — ver tldraw-board.tsx. El motor
+// "Lienzo StarSeed" (este archivo) es y sigue siendo el motor por defecto.
+const TldrawBoard = dynamic(() => import("@/components/canvas/tldraw-board"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full w-full items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-zinc-950/40 text-xs text-white/40">
+      <Loader2 className="w-4 h-4 animate-spin" /> Cargando tldraw…
+    </div>
+  ),
+});
 
 // Mapa de iconos lucide por nombre (declarado en el catálogo del lib).
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -293,17 +308,25 @@ function SharedBoardsSwitcher({ open, onToggle }: { open: boolean; onToggle: () 
           ) : spaces.length === 0 ? (
             <div className="px-3 py-2 text-[11px] text-white/40">Aún no hay pizarras compartidas contigo.</div>
           ) : (
-            spaces.map((sp) => (
-              <Link
-                key={sp.id}
-                href={`/pizarra?board-space=${encodeURIComponent(sp.id)}`}
-                className="w-full text-left px-3 py-2 rounded-md text-xs hover:bg-white/5 flex items-center gap-2 text-white/70"
-              >
-                <Share2 className="w-3.5 h-3.5 shrink-0 text-amber-300/80" />
-                <span className="truncate flex-1">{sp.title}</span>
-                <span className="text-[9px] text-white/30">{sp.access}</span>
-              </Link>
-            ))
+            spaces.map((sp) => {
+              // Motor tldraw (Adenda tldraw): el espacio guarda `doc.engine` al
+              // crearse desde el motor tldraw — lo propagamos a la URL para que
+              // abra con el motor correcto (no todo `os_spaces kind='board'` es
+              // StarSeed).
+              const spEngine = (sp.doc as Record<string, unknown> | undefined)?.engine;
+              const href = `/pizarra?board-space=${encodeURIComponent(sp.id)}${spEngine === "tldraw" ? "&engine=tldraw" : ""}`;
+              return (
+                <Link
+                  key={sp.id}
+                  href={href}
+                  className="w-full text-left px-3 py-2 rounded-md text-xs hover:bg-white/5 flex items-center gap-2 text-white/70"
+                >
+                  <Share2 className="w-3.5 h-3.5 shrink-0 text-amber-300/80" />
+                  <span className="truncate flex-1">{sp.title}</span>
+                  <span className="text-[9px] text-white/30">{sp.access}</span>
+                </Link>
+              );
+            })
           )}
         </div>
       )}
@@ -311,7 +334,11 @@ function SharedBoardsSwitcher({ open, onToggle }: { open: boolean; onToggle: () 
   );
 }
 
-export default function CanvasBoard({ canvasId, boardSpaceId = null }: { canvasId?: string; boardSpaceId?: string | null } = {}) {
+export default function CanvasBoard({
+  canvasId,
+  boardSpaceId = null,
+  engineParam = null,
+}: { canvasId?: string; boardSpaceId?: string | null; engineParam?: BoardEngine | null } = {}) {
   const [userId, setUserId] = useState<string | null>(null);
   const [canvas, setCanvas] = useState<Canvas>(() => newCanvas("Lienzo sin título"));
   const [list, setList] = useState<Canvas[]>([]);
@@ -324,6 +351,56 @@ export default function CanvasBoard({ canvasId, boardSpaceId = null }: { canvasI
   const [titleDraft, setTitleDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  // ---- Selector de MOTOR (Adenda tldraw): "Lienzo StarSeed" (por defecto,
+  // TODO lo de abajo) o "tldraw (profesional)" — ver tldraw-board.tsx. `?engine=`
+  // en la URL manda siempre (embeds/enlaces compartidos); si no viene, se usa
+  // la preferencia recordada POR PIZARRA (board-engine.ts, localStorage, las
+  // pizarras existentes jamás cambian de motor solas). ---------------------
+  const [engine, setEngineState] = useState<BoardEngine>(() => engineParam ?? getBoardEngine(canvasId ?? null));
+  useEffect(() => {
+    if (engineParam) {
+      setEngineState(engineParam);
+      return;
+    }
+    setEngineState(getBoardEngine(canvas.id || null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvas.id, engineParam]);
+  function setEngine(next: BoardEngine) {
+    setEngineState(next);
+    setBoardEngine(canvas.id || null, next);
+  }
+  // Compartir (beta) del motor tldraw: espacio os_spaces propio, independiente
+  // de BoardShareDialog (que sigue siendo 100% del motor StarSeed — cero
+  // riesgo de que ambos motores se pisen escribiendo el mismo `doc`).
+  const [tldrawShareId, setTldrawShareId] = useState<string | null>(null);
+  const [sharingTldraw, setSharingTldraw] = useState(false);
+  const effectiveTldrawSpaceId = boardSpaceId || tldrawShareId;
+  async function handleShareTldraw() {
+    setSharingTldraw(true);
+    try {
+      const space = await createSpace({
+        kind: "board",
+        title: canvas.title || "Pizarra tldraw",
+        access: "invite",
+        doc: { engine: "tldraw" },
+      });
+      if (!space) {
+        toast.error("No se pudo crear el espacio compartido. Inicia sesión e inténtalo de nuevo.");
+        return;
+      }
+      setTldrawShareId(space.id);
+      const url = typeof window !== "undefined" ? `${window.location.origin}/pizarra?engine=tldraw&board-space=${space.id}` : `/pizarra?engine=tldraw&board-space=${space.id}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("Enlace copiado — colaboración beta (último cambio gana, ver nota en tldraw-board.tsx).");
+      } catch {
+        toast.message("Pizarra tldraw compartida creada", { description: url });
+      }
+    } finally {
+      setSharingTldraw(false);
+    }
+  }
 
   // ---- pan/zoom + vista + conexiones (estado de la ampliación) ------------
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -1059,7 +1136,160 @@ export default function CanvasBoard({ canvasId, boardSpaceId = null }: { canvasI
     [canvas.blocks],
   );
 
-  // ---- render --------------------------------------------------------------
+  // Motor tldraw sobre un lienzo SIN id todavía (recién abierto, nunca
+  // guardado): aseguramos una fila `canvases` ya (vacía) para que la clave de
+  // persistencia local de tldraw (persistenceKey) sea estable desde el primer
+  // trazo — evita que un cambio de título posterior "mueva" el documento local
+  // a otra clave de IndexedDB. Mismo patrón que handleNew() (guardado inmediato).
+  useEffect(() => {
+    if (engine !== "tldraw" || canvas.id || boardSpaceId) return;
+    let alive = true;
+    (async () => {
+      const persisted = await saveCanvas(canvas);
+      if (alive && persisted) {
+        setCanvas((cur) => (cur.id ? cur : { ...cur, id: persisted.id, updated_at: persisted.updated_at }));
+        refreshList();
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine, canvas.id, boardSpaceId]);
+
+  // Motor tldraw (Adenda tldraw): rama de render INDEPENDIENTE — no toca nada
+  // del motor "Lienzo StarSeed" de abajo (Insertar/Capas/Propiedades/Publicar
+  // operan sobre `canvas.blocks`, que este motor no usa; publicar-como-post
+  // desde tldraw queda como evolución futura honesta, no esta entrega).
+  // Reutiliza el mismo `canvas` (id/título/"Mis lienzos"/"Nuevo"/"Borrar") como
+  // contenedor de la pizarra.
+  if (engine === "tldraw") {
+    return (
+      <div className="flex flex-col h-full min-h-0">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-2.5 mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-fuchsia-500 flex items-center justify-center shrink-0">
+              <PenTool className="w-4 h-4 text-white" />
+            </div>
+            {renaming ? (
+              <Input
+                autoFocus
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitRename();
+                  if (e.key === "Escape") setRenaming(false);
+                }}
+                onBlur={commitRename}
+                className="h-8 w-52 bg-white/5"
+              />
+            ) : (
+              <button onClick={startRename} className="group flex items-center gap-1.5 min-w-0 text-left">
+                <span className="text-sm font-semibold text-amber-50 truncate max-w-[12rem]">{canvas.title}</span>
+                <Pencil className="w-3.5 h-3.5 text-white/30 group-hover:text-cyan-300 shrink-0" />
+              </button>
+            )}
+            <Badge variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-200/70 shrink-0">
+              tldraw
+            </Badge>
+          </div>
+
+          {/* Selector de motor (persiste por pizarra, ver board-engine.ts) */}
+          <span className="flex items-center gap-1 rounded-md border border-white/10 p-0.5 h-8">
+            <button
+              type="button"
+              onClick={() => setEngine("starseed")}
+              className="px-2 h-7 rounded text-[10px] font-semibold text-white/60 hover:text-white/90 cursor-pointer"
+              title="Cambiar a Lienzo StarSeed (bloques, publicar, colaborar en vivo)"
+            >
+              StarSeed
+            </button>
+            <button
+              type="button"
+              className="px-2 h-7 rounded text-[10px] font-semibold bg-cyan-500/20 text-cyan-100 cursor-default"
+              title="tldraw (profesional) — motor activo"
+            >
+              tldraw
+            </button>
+          </span>
+
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            <Link href="/pizarras">
+              <Button size="sm" variant="outline" className="gap-1.5 h-8 border-cyan-500/30 text-cyan-100">
+                <LayoutGrid className="w-3.5 h-3.5" /> Centros
+              </Button>
+            </Link>
+            <div className="relative">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 h-8 border-white/15 text-white/80"
+                onClick={() => {
+                  setShowSwitcher((s) => !s);
+                  refreshList();
+                }}
+              >
+                <Layers className="w-3.5 h-3.5" /> Mis lienzos <ChevronDown className="w-3 h-3" />
+              </Button>
+              {showSwitcher && (
+                <div className="absolute right-0 top-9 z-30 w-64 rounded-lg border border-white/10 bg-zinc-950/95 backdrop-blur p-1 shadow-xl">
+                  {list.length === 0 ? (
+                    <div className="px-3 py-2 text-[11px] text-white/40">Aún no tienes lienzos guardados.</div>
+                  ) : (
+                    list.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => switchTo(c)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-md text-xs hover:bg-white/5 flex items-center gap-2",
+                          c.id === canvas.id ? "text-cyan-200" : "text-white/70",
+                        )}
+                      >
+                        <Layers className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate flex-1">{c.title}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <Button size="sm" variant="outline" className="gap-1.5 h-8 border-white/15 text-white/80" onClick={handleNew}>
+              <Plus className="w-3.5 h-3.5" /> Nuevo
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1.5 h-8 border-red-500/25 text-red-200/80 hover:bg-red-500/10" onClick={handleDelete}>
+              <Trash2 className="w-3.5 h-3.5" /> Borrar
+            </Button>
+            {effectiveTldrawSpaceId ? (
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 h-8 text-[10px] text-emerald-200">
+                <Share2 className="w-3.5 h-3.5" /> Compartida (beta)
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 h-8 border-fuchsia-500/30 text-fuchsia-100"
+                onClick={() => void handleShareTldraw()}
+                disabled={sharingTldraw}
+                title="Colaboración best-effort (espejo por snapshot, último cambio gana)"
+              >
+                {sharingTldraw ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5" />} Compartir (beta)
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <p className="px-1 pb-2 text-[10px] text-white/30">
+          Motor tldraw (SDK profesional bajo «tldraw license» — marca de agua «Made with tldraw» visible, no se oculta). Publicar como post y la colaboración en tiempo real completa siguen siendo del motor StarSeed; aquí la colaboración es beta (espejo por snapshot, último cambio gana).
+        </p>
+
+        <div className="flex-1 min-h-0">
+          <TldrawBoard boardId={canvas.id || "draft"} boardSpaceId={effectiveTldrawSpaceId} />
+        </div>
+      </div>
+    );
+  }
+
+  // ---- render (motor "Lienzo StarSeed" — SIN CAMBIOS) -----------------------
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* ===================================================================
