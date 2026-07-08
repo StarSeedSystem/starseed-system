@@ -25,6 +25,7 @@
  *   · Universal Scraper — Python ligero (Cloudscraper + Selenium), export JSON/CSV (LOCAL, OSS)
  *   · Scrapling      — https://github.com/D4Vinci/Scrapling    (selectores auto-reparables + stealth, LOCAL, OSS)
  *   · Maxun          — https://github.com/getmaxun/maxun       (robots no-code, self-host, OSS)
+ *   · Perplexica     — https://github.com/ItzCrazyKns/Vane     (renombrado "Vane"; IA + citas, self-host, OSS)
  *   · Firecrawl      — https://www.firecrawl.dev               (SOLO con clave; nunca por defecto)
  *
  * Persistencia (localStorage, soberana; SSR-safe y defensiva):
@@ -106,6 +107,21 @@ export const WEB_ACCESS_PROVIDERS: WebAccessProvider[] = [
     repo: "https://github.com/getmaxun/maxun",
     free: true,
     strengths: ["robots", "no-code", "monitorizacion", "recurrente", "entrenar", "vigilar"],
+  },
+  {
+    // Motor de BÚSQUEDA con IA (no solo fetch de una URL): dado un endpoint
+    // configurado, participa en el mismo catálogo/auto-selección que sus
+    // hermanos OSS de arriba (mismo patrón que Scrapling/Maxun). Su invocación
+    // REAL (con citas) vive en `lib/integrations` (tool `ai_search`, conector
+    // "perplexica") — esta entrada solo permite que Aurora la describa/elija
+    // como motor disponible para tareas de tipo "responder con fuentes".
+    // Renombrado a "Vane" por su autor en 2026 (mismo repo/proyecto).
+    id: "perplexica",
+    label: "Perplexica / Vane (IA · búsqueda con citas)",
+    kind: "oss-selfhost",
+    repo: "https://github.com/ItzCrazyKns/Vane",
+    free: true,
+    strengths: ["buscar", "pregunta", "responder", "citas", "resumen", "investigacion", "ia"],
   },
   {
     id: "firecrawl",

@@ -144,6 +144,56 @@ export async function moveMediaItem(ref: EntityRef, itemId: string, folderId: st
     await moveLibraryItem(ref, itemId, folderId);
 }
 
+/*
+ * ── Referencias externas (Servicios externos, p.ej. Immich) ──────────────
+ * A diferencia de `saveMediaToLibrary` (sube un File/Blob real a os-files),
+ * esto guarda una REFERENCIA (Lienzo Universal: enlaza, no duplica) a un
+ * recurso que vive en un servicio conectado por el usuario (p.ej. un álbum o
+ * asset de su propia instancia de Immich) dentro de la misma carpeta de
+ * Media. Honesto: no descarga ni realoja el archivo original.
+ */
+
+export interface SaveExternalRefInput {
+    /** Título visible del recurso importado (p.ej. nombre del álbum/asset). */
+    title: string;
+    /** Enlace a donde vive de verdad el recurso (p.ej. tu propia instancia de Immich). */
+    url: string;
+    origin: MediaOrigin;
+    /** Carpeta destino explícita (si no, la subcarpeta automática por origen). */
+    destFolderId?: string | null;
+    note?: string;
+    tags?: string[];
+}
+
+export interface SaveExternalRefResult {
+    ok: boolean;
+    error?: string;
+    itemId?: string;
+    folderId?: string | null;
+}
+
+/** Guarda una referencia externa (tipo "external") en la carpeta de Media correspondiente. */
+export async function saveExternalRefToMedia(ref: EntityRef, input: SaveExternalRefInput): Promise<SaveExternalRefResult> {
+    try {
+        const folders = await ensureMediaFolders(ref);
+        const folderId = input.destFolderId ?? folders.subfolders[input.origin];
+        const saved = await saveItem(
+            ref,
+            {
+                type: "external",
+                url: input.url,
+                title: input.title,
+                tags: input.tags?.length ? input.tags : [input.origin.toLowerCase()],
+                note: input.note,
+            },
+            folderId,
+        );
+        return { ok: true, itemId: saved.id, folderId };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "Error inesperado al guardar la referencia." };
+    }
+}
+
 export interface EditMediaPatch {
     title?: string;
     note?: string;

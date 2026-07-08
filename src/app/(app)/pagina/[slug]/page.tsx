@@ -32,6 +32,10 @@ import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
 import { useEntityLayout, applyTabLayout, suggestedIntegrations } from "@/lib/entity-layout";
 import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
+// Tema por entidad (Mezclador/Catálogo — Adenda Mezclador): aplica el
+// themeId/themeMix guardado en entity-layout SOLO mientras se ve esta
+// página, y restaura el tema del sistema al salir. No-op sin tema propio.
+import { useEntityThemeScope } from "@/lib/design/entity-theme-scope";
 import { FreeSectionsBlock } from "@/components/social/free-sections-block";
 import { EntityGalleryBlock } from "@/components/social/entity-gallery-block";
 import { GroupEducationPanel } from "@/components/education/group-education-panel";
@@ -243,10 +247,14 @@ export default function PaginaPage() {
         [page?.slug],
     );
     const {
-        layout, setAccent, setCoverUrl, reorderTabs, setTabVisible,
+        layout, setAccent, setCoverUrl, setTheme, reorderTabs, setTabVisible,
         addSection, updateSection, removeSection, toggleIntegration,
         addGalleryImage, removeGalleryImage,
     } = useEntityLayout(entityRef);
+
+    // Tema propio de la página (si el dueño eligió uno) — scoped: se aplica
+    // al montar esta página y se restaura el tema del sistema al salir.
+    useEntityThemeScope(layout);
 
     const pageKind = page?.kind ?? "pagina";
     const pageHasToolkit = hasToolkit(pageKind);
@@ -469,6 +477,7 @@ export default function PaginaPage() {
                     suggestions={suggestions}
                     onSetAccent={setAccent}
                     onSetCoverUrl={setCoverUrl}
+                    onSetTheme={setTheme}
                     onReorderTabs={reorderTabs}
                     onSetTabVisible={setTabVisible}
                     onToggleIntegration={toggleIntegration}

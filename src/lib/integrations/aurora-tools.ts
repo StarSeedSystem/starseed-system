@@ -162,6 +162,30 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
     integrationId: "home-assistant",
     actionId: "state",
   },
+  {
+    name: "immich_albums",
+    description: "Lista tus álbumes de Immich (nombre y nº de elementos, solo lectura). Sin entrada.",
+    integrationId: "immich",
+    actionId: "albums",
+  },
+  {
+    name: "immich_recent_assets",
+    description: "Lista tus fotos/vídeos más recientes de Immich (solo lectura). Entrada opcional: { take } (por defecto 20).",
+    integrationId: "immich",
+    actionId: "assets",
+  },
+  {
+    name: "ai_search",
+    description: "Busca con IA y fuentes citadas vía Perplexica/Vane. Entrada: { query }. Requiere que el usuario haya configurado extra.providerId/chatModel/embeddingModel de su instancia (usa la acción «providers» para descubrirlos).",
+    integrationId: "perplexica",
+    actionId: "search",
+  },
+  {
+    name: "rag_ask",
+    description: "Pregunta a un workspace de AnythingLLM (RAG sobre sus documentos propios). Entrada: { message } (workspace en extra.workspaceSlug).",
+    integrationId: "anything-llm",
+    actionId: "chat",
+  },
 ];
 
 // ════════════════════════════════════════════════════════════════════════════

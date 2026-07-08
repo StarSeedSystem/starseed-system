@@ -59,6 +59,10 @@ import { FileRequestListener } from "@/components/files/file-request-listener";
 // del Sincrómetro (que vive solo dentro de (app), atado a CalendarProvider) —
 // las alarmas deben sonar también desde /messages y /correos (fuera de (app)).
 import { AlarmsEngine } from "@/components/alarms/alarms-engine";
+// Fondos animados del CATÁLOGO DE TEMAS (theme-engine.ts + theme-catalog.ts):
+// matrix-rain/estrellas/gradiente-aurora/weather-live. Sin efecto salvo que
+// un ThemePack del catálogo los active (data-ss-background en <html>).
+import { ThemeBackgroundHost } from "@/components/backgrounds/theme-live-background";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -168,6 +172,8 @@ export default function RootLayout({
                         </PerfHeavyOnly>
                         <CrystalFilters />
                         <GlobalEnvironment />
+                        {/* Fondo del ThemePack activo (catálogo de temas), si define uno. */}
+                        <ThemeBackgroundHost />
                         {children}
                         <ZenithCurtain />
                         <SideCurtains />

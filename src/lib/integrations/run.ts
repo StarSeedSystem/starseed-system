@@ -26,6 +26,9 @@ import * as Stirling from "./clients/stirling-pdf";
 import * as GenericTask from "./clients/generic-task";
 import * as Audiobookshelf from "./clients/audiobookshelf";
 import * as HomeAssistant from "./clients/home-assistant";
+import * as Immich from "./clients/immich";
+import * as Perplexica from "./clients/perplexica";
+import * as AnythingLLM from "./clients/anything-llm";
 
 /** Comprueba que la integración pueda llamar (habilitada + endpoint). */
 function gate(cfg: IntegrationConfig, fallbackEndpoint?: string): { ok: true; cfg: IntegrationConfig } | { ok: false; error: string } {
@@ -107,6 +110,17 @@ export async function runIntegration(
         if (a === "states") return await HomeAssistant.states(c, input);
         if (a === "state") return await HomeAssistant.state(c, input);
         break;
+      case "immich":
+        if (a === "albums") return await Immich.albums(c);
+        if (a === "assets") return await Immich.assets(c, input);
+        break;
+      case "perplexica":
+        if (a === "providers") return await Perplexica.providers(c);
+        if (a === "search") return await Perplexica.search(c, input);
+        break;
+      case "anything-llm":
+        if (a === "chat") return await AnythingLLM.chat(c, input);
+        break;
       default:
         return { ok: false, error: `Integración sin runner: "${id}".` };
     }
@@ -149,6 +163,12 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
         return await Audiobookshelf.health(c);
       case "home-assistant":
         return await HomeAssistant.health(c);
+      case "immich":
+        return await Immich.health(c);
+      case "perplexica":
+        return await Perplexica.health(c);
+      case "anything-llm":
+        return await AnythingLLM.health(c);
       default:
         return { ok: false, error: `Sin prueba de salud para "${id}".` };
     }

@@ -14,6 +14,12 @@
  *
  * Extensible en caliente: registerMemoryType() añade tipos custom sin romper
  * los ya existentes. Nunca lanza; memoryTypeById() cae a "memory" (genérico).
+ *
+ * NOTA (jul-2026): Reor (github.com/reorproject/reor, paquete `iatool-reor`,
+ * capacidad `local-ai-notes` en skills.ts) documenta un patrón conceptualmente
+ * afín a este catálogo — misma filosofía de bóveda markdown local con enlaces
+ * [[wiki]]. Sin integración de código aquí (Reor no tiene API pública hoy):
+ * solo doc/referencia. Ver architecture/astraura-inteligencia.md §21.
  */
 
 import {

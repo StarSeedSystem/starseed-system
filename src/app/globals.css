@@ -6,6 +6,10 @@
    naturaleza + movimiento 3D). Importada ANTES de Tailwind a propósito:
    cualquier utilidad Tailwind sobre el mismo elemento gana al material. */
 @import '../styles/starseed-materials.css';
+/* Catálogo de TEMAS/ESTILOS (theme-engine.ts + theme-catalog.ts): puente de
+   materiales hacia data-ss-material + fondos animados del catálogo
+   (matrix-rain/estrellas/gradiente-aurora/weather-live). Aditivo. */
+@import '../styles/starseed-themes.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

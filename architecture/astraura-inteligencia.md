@@ -929,3 +929,139 @@ contrato de credenciales/modo. Tampoco se re-implementó `/servicios`
 gobernando imagen/vídeo/voz/STT/TTS por conexión concreta) ni el router de LLM
 (que sigue siendo `router.ts`/`free-catalog.ts`, solo con el matiz
 "prefer-own" añadido).
+
+---
+
+## 21. Galería (Immich) + IA/Agentes: Perplexica, Flowise, AnythingLLM, Reor (jul-2026 · adenda "Tercera ola: galería y agentes")
+
+Cinco repos más, con la MISMA honestidad radical de §15-16-19: **conocimiento
++ capacidad + paquete instalado**. A diferencia de las olas anteriores, ésta
+trae la PRIMERA integración real en la Galería (`/galeria`, sección
+"Servicios externos") y dos conectores reales nuevos (Immich, AnythingLLM),
+uno que gana un motor opcional adicional en `ai/astraura/web-access.ts`
+(Perplexica), y la verificación de que Langflow (§16) ya estaba completo —
+registro, cliente, tool y capacidad, sin nada que corregir.
+
+### 21.1 Los cinco repos
+
+| Repo | Categoría | Capacidad (`skills.ts`) | Cómo se integra |
+|---|---|---|---|
+| [Immich](https://github.com/immich-app/immich) | Galería / fotos | `photo-backup` | Servidor self-host de fotos/vídeos con ML (AGPL-3.0). CONECTOR real nuevo (`immich`, categoría `backend`) de SOLO LECTURA v1: `albums` (GET `/api/albums`) y `assets` (recientes — ver §21.5 sobre por qué usa `POST /api/search/metadata` y no `GET /api/assets`). Primera superficie de producto: Galería → "Servicios externos" (§21.6). |
+| [Perplexica](https://github.com/ItzCrazyKns/Vane) | Búsqueda IA | `ai-search` | Buscador IA con fuentes citadas, self-host (MIT). Renombrado a «Vane» por su autor en 2026 (§21.4). CONECTOR real nuevo (`perplexica`, categoría `data-ingest`) + entrada nueva en `WEB_ACCESS_PROVIDERS` (`web-access.ts`, mismo patrón que Scrapling/Maxun) como motor opcional de "responder con fuentes". |
+| [Flowise](https://github.com/FlowiseAI/Flowise) | Chatflows visuales | `flow-automation` | Chatflows/agentes conversacionales visuales sobre LangChain (Apache-2.0 core). Su conector YA existía (`registry.ts`/`clients/flowise.ts`/`run_flowise` en `aurora-tools.ts`, ola previa) — esta ola solo suma paquete+capacidad, con la diferencia frente a Langflow documentada en la ficha (§21.3). |
+| [AnythingLLM](https://github.com/Mintplex-Labs/anything-llm) | RAG todo-en-uno | `rag-workspace` | App todo-en-uno self-host: chat con tus documentos por workspace (MIT). CONECTOR real nuevo (`anything-llm`, categoría `app-platform`): `chat` (POST `/api/v1/workspace/{slug}/chat`, Bearer). |
+| [Reor](https://github.com/reorproject/reor) | Notas locales con IA | `local-ai-notes` | Notas de escritorio local-first con grafo de enlaces y RAG local vía Ollama (AGPL-3.0). Sin conector en vivo A PROPÓSITO (§21.7): su propio README confirma que no tiene API pública todavía. |
+
+Los cinco son paquetes `kind: "function"` en el repo builtin `starseed-ia-
+tools`, con `free:true`, descripción en español (qué hace + qué reemplaza +
+licencia + enlace GitHub) y `payload.externalUrl`. Ninguno se ejecuta dentro
+del navegador del OS.
+
+### 21.2 Cinco capacidades nuevas en `skills.ts`
+
+Vocabulario ampliado (mismo contrato de `architecture/astraura-
+capabilities.md`): `photo-backup · ai-search · flow-automation ·
+rag-workspace · local-ai-notes`. Mismo patrón que el resto: `systemPrompt`
+(qué sabe/puede hacer Aurora), `routing` (`ai-search` sesga `web`;
+`rag-workspace` sesga `preferStrong`; `flow-automation` sesga `planning`; las
+otras dos no sesgan) y `packageIds`. `photo-backup` es explícita en su
+`systemPrompt` sobre ser v1 de SOLO LECTURA (listar/importar referencia, no
+sube ni sincroniza fotos automáticamente).
+
+### 21.3 Flowise vs Langflow — la diferencia, documentada
+
+Ambos son constructores visuales de flujos/agentes LLM y AMBOS tienen
+conector real funcional. La ficha de Flowise (`packages.ts`) explica la
+diferencia para que el usuario elija con criterio: Langflow (`flow-builder`)
+es un constructor GENERAL de flujos/agentes sobre un grafo de nodos; Flowise
+(`flow-automation`) está más centrado en *chatflows* conversacionales listos
+para incrustar como widget de chat. Son complementarios, no excluyentes — la
+skill de Flowise lo dice explícitamente en su `systemPrompt`.
+
+### 21.4 Perplexica → renombrado "Vane" (honestidad sobre una API en movimiento)
+
+Verificado jul-2026: el repo oficial `ItzCrazyKns/Perplexica` se renombró a
+`ItzCrazyKns/Vane` (mismo autor, mismo proyecto). Mantenemos el id
+"perplexica" en el catálogo de StarSeed por continuidad con lo documentado,
+pero label/enlaces/`docsUrl` apuntan al repo actual. Su API de búsqueda
+(`POST /api/search`) también cambió respecto a versiones antiguas: hoy exige
+un `providerId` (UUID) obtenido de TU propia instancia vía `GET
+/api/providers` (los proveedores/modelos los configura cada usuario en su
+propia pantalla de setup). Por eso `clients/perplexica.ts` expone también la
+acción `providers` (descubrimiento + salud) y exige `extra.providerId` +
+`extra.chatModel` + `extra.embeddingModel` antes de buscar — sin fingir una
+búsqueda que no puede completar honestamente sin esos datos. Es la aplicación
+literal de la instrucción "si su API no es estable, deja el conector como
+endpoint configurable + capacidad".
+
+### 21.5 Immich — por qué `POST /api/search/metadata` y no `GET /api/assets`
+
+Verificado vía código fuente de `immich-app/immich`
+(`server/src/controllers/{album,search}.controller.ts` +
+`server/src/dtos/search.dto.ts`, jul-2026): las versiones actuales de Immich
+YA NO exponen un `GET /api/assets` de listado general — el controller de
+assets solo tiene rutas por id/bulk-op. "Assets recientes" se resuelve con
+`POST /api/search/metadata` (`{ size, order:"desc" }`; `order` por defecto ya
+es "desc" = más recientes primero), la vía oficial actual. `clients/
+immich.ts` usa esta ruta real en vez de replicar un endpoint retirado.
+
+### 21.6 Galería — "Servicios externos" gana Immich real
+
+`src/components/gallery/item-settings-sheet.tsx` (sección "Servicios
+externos", ya existente para Google Photos-honesto): gana una tarjeta Immich
+REAL — formulario endpoint+clave (persistido vía `saveIntegrationConfig`,
+config `starseed.integration.immich`), botones "Ver álbumes"/"Recientes"
+(invocan `runIntegration("immich", …)`) y un botón "Importar" por fila que
+llama a la función nueva `saveExternalRefToMedia()` (`lib/library/media-
+library.ts`): guarda una REFERENCIA (`SavedItem` `type:"external"`, enlace a
+`{endpoint}/albums/{id}` o `{endpoint}/photos/{id}`) en la subcarpeta
+"Importadas" de Media — nunca descarga/realoja el archivo (Lienzo Universal:
+enlaza, no duplica; también evita el problema de producir una URL de imagen
+autenticada válida sin exponer la clave). No se tocó `gallery-app.tsx` ni
+`media-viewer.tsx` (núcleo de la Galería, fuera de alcance de esta ola).
+
+### 21.7 Reor — por qué sin conector en vivo
+
+Igual que Anytype (§19.5): honestidad radical antes que fingir una
+integración. El propio README de Reor (jul-2026) dice literalmente
+"Integrations with other apps are hopefully coming soon!" — es una app de
+escritorio de un solo directorio, sin API REST pública hoy. `iatool-reor`
+queda como capacidad + ficha, con un vínculo CONCEPTUAL (no de código) hacia
+el sistema de memorias .md del propio OS: una nota aditiva en
+`src/lib/brains/memory-types.ts` (comentario de cabecera) señala el parecido
+de filosofía (bóveda markdown local con enlaces [[wiki]]) sin implementar
+ninguna importación real.
+
+### 21.8 Tres conectores reales nuevos en `src/lib/integrations/`
+
+- **`registry.ts`** gana tres descriptores: `immich` (categoría `backend`,
+  `needsKey:true`, endpoint por defecto `http://localhost:2283`), `perplexica`
+  (categoría `data-ingest`, `needsKey:false`, endpoint por defecto
+  `http://localhost:3000`) y `anything-llm` (categoría `app-platform`,
+  `needsKey:true`, endpoint por defecto `http://localhost:3001`). Los tres
+  `enabled` ausente/false por defecto.
+- **`clients/immich.ts`** (nuevo): `albums()` / `assets()` / `health()`.
+  **`clients/perplexica.ts`** (nuevo): `providers()` / `search()` /
+  `health()`. **`clients/anything-llm.ts`** (nuevo): `chat()` / `health()`.
+- **`run.ts`** despacha `immich/{albums,assets}`, `perplexica/{providers,
+  search}` y `anything-llm/chat` a esos clientes (mismo `gate()` de
+  habilitado+endpoint que el resto).
+- **`aurora-tools.ts`** suma cuatro tools: `immich_albums`,
+  `immich_recent_assets`, `ai_search`, `rag_ask` — aparecen solas en
+  `auroraToolsPromptSection()` en cuanto el usuario configura el endpoint
+  correspondiente (mecanismo genérico existente, sin tocarlo).
+
+### 21.9 SEED_VERSION 11→12 — ids añadidos a RECOMMENDED
+
+Coordinación ADITIVA con el trabajo paralelo de tldraw (canvas/pizarra, otro
+agente): esa ola subió `SEED_VERSION` 10→11 y añadió `iatool-tldraw` mientras
+esta ola trabajaba; esta ola sube 11→12 sin tocar ese id. Los cinco paquetes
+`iatool-*` de esta ola (`iatool-immich`, `iatool-perplexica`,
+`iatool-flowise`, `iatool-anything-llm`, `iatool-reor`) entran en
+`RECOMMENDED_PACKAGE_IDS` bajo el bloque `SEED_VERSION 12` (mismo criterio
+que §15.6/§16.7/§19.4: solo registro de skill/capacidad + enlace de
+referencia, cero descarga, cero clave, cero servicio lanzado por el OS).
+Sembrar `iatool-immich`/`iatool-perplexica`/`iatool-anything-llm` NUNCA activa
+su conector: los tres quedan `enabled` ausente/false y sin endpoint hasta que
+el usuario los configure a propósito, igual que Audiobookshelf/Home Assistant
+en §19.4.

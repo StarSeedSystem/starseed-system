@@ -52,6 +52,16 @@ import { FREE_CATALOG, findSource } from "@/ai/astraura/free-catalog";
 // Agentes builtin (P5). `builtins.ts` solo depende de `./model` (sin ciclo con
 // este módulo), así que un import estático es seguro y más robusto que require.
 import { BUILTIN_AGENTS as AGENT_BUILTINS } from "@/lib/agents/builtins";
+// Catálogo de TEMAS/ESTILOS (P·Catálogo). El import ya registra los ~24
+// ThemePacks builtin (side-effect de theme-catalog.ts); applyTheme (aliased)
+// es lo que instalar un paquete design-theme-* ejecuta de verdad.
+import { BUILTIN_THEMES } from "@/lib/design/theme-catalog";
+import { applyTheme as applyThemePack } from "@/lib/design/theme-engine";
+// Elementos de Diseño sueltos (Mezclador — theme-mixer.ts): paletas,
+// materiales, fondos, tipografías, animaciones, densidades y efectos que se
+// exponen también como paquetes "design" instalables (payload.elementKind),
+// para que aparezcan en la Biblioteca y el Mezclador los liste como fuentes.
+import { DESIGN_ELEMENTS, type DesignElementKind } from "@/lib/design/design-elements";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -982,6 +992,77 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     author: "cobilab", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { skillId: "data-science-fasta", externalUrl: "https://github.com/cobilab/altair", note: "Toolkit FASTA alignment-free para análisis genómico/comparativo (GPL-3.0)." },
   },
+  /* ══ TERCERA OLA — Galería (Immich) + IA/Agentes (Perplexica, Flowise, AnythingLLM, Reor) (jul-2026) ══
+   * Cinco repos más. Mismo patrón honesto: function con `skillId` → registra
+   * la capacidad viva en skills.ts (ver architecture/astraura-inteligencia.md
+   * §21) + guarda/abre el repo de referencia real. Immich y AnythingLLM suman
+   * CONECTOR real nuevo en src/lib/integrations/registry.ts (apagado por
+   * defecto); Flowise YA tenía conector real (ola previa) y aquí solo gana su
+   * paquete+capacidad; Perplexica suma conector + participa como motor
+   * opcional en `ai/astraura/web-access.ts`; Reor queda como capacidad+ficha
+   * (sin API pública hoy, honesto). Ninguno se ejecuta dentro del navegador. */
+  /* ── Immich · fotos/vídeos self-host con ML ── */
+  {
+    id: "iatool-immich", kind: "function", name: "Immich (fotos y vídeos con IA)",
+    description:
+      "Servidor self-host de fotos y vídeos con reconocimiento facial/de objetos (ML) y tu propia fototeca. Qué reemplaza: Google Photos/iCloud Photos. Licencia AGPL-3.0: StarSeed no copia su código. Instalar registra la skill «Copia de fotos» y suma el CONECTOR real de SOLO LECTURA v1 (self-host, clave x-api-key propia, apagado por defecto) en Ajustes → Integraciones Y en Galería → Servicios externos: listar álbumes y ver assets recientes, con «Importar a Biblioteca» que guarda una referencia (no copia el archivo). Abre su repo de referencia.",
+    icon: "Images", tags: ["skill", "aurora", "fotos", "videos", "galeria", "ml", "oss"], version: "1.0.0",
+    author: "immich-app", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "photo-backup", externalUrl: "https://github.com/immich-app/immich", note: "Fotos/vídeos self-host con ML (AGPL-3.0). Conector real de SOLO LECTURA en Ajustes → Integraciones y en Galería → Servicios externos (apagado por defecto)." },
+  },
+  /* ── Perplexica (renombrado "Vane") · buscador IA con citas ── */
+  {
+    id: "iatool-perplexica", kind: "function", name: "Perplexica / Vane (búsqueda IA con citas)",
+    description:
+      "Buscador IA privado que responde con fuentes citadas, self-host, combinando un LLM (local o proveedor propio) con SearXNG. Qué reemplaza: buscadores IA de pago (Perplexity). Nota honesta: su repo oficial se renombró a «Vane» en 2026 (mismo autor/proyecto); mantenemos el id «perplexica» por continuidad. Licencia MIT. Instalar registra la skill «Búsqueda IA» y suma el CONECTOR real (self-host, apagado por defecto) en Ajustes → Integraciones — su API pide el providerId de TU instancia (usa la acción «Ver proveedores/modelos» para obtenerlo), por eso queda como endpoint configurable en vez de un solo campo. También participa como motor opcional en el auto-selector de acceso web de Astraura. Abre su repo de referencia.",
+    icon: "Search", tags: ["skill", "aurora", "busqueda", "web", "citas", "ia", "oss"], version: "1.0.0",
+    author: "ItzCrazyKns", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "ai-search", externalUrl: "https://github.com/ItzCrazyKns/Vane", note: "Búsqueda IA con citas, self-host (MIT; repo renombrado a «Vane»). Conector real en Ajustes → Integraciones (apagado por defecto) + motor opcional en el acceso web de Astraura." },
+  },
+  /* ── Flowise · chatflows/agentes visuales ── */
+  {
+    id: "iatool-flowise", kind: "function", name: "Flowise (chatflows visuales)",
+    description:
+      "Construye chatflows/agentes conversacionales de forma visual (drag-and-drop) sobre LangChain. Qué reemplaza: constructores de chatbots de pago. Diferencia con Langflow (ya integrado, capacidad «flow-builder»): Langflow es un constructor GENERAL de flujos/agentes LLM sobre un grafo de nodos; Flowise está más centrado en chatflows conversacionales listos para incrustar (widget de chat). Son complementarios, no excluyentes — usa el que mejor calce con tu flujo. El conector real (predict de chatflow) YA existe en src/lib/integrations; instalar aquí solo registra la skill «Automatización de flujos» y abre su repo de referencia.",
+    icon: "Workflow", tags: ["skill", "aurora", "agentes", "chatflows", "visual", "oss"], version: "1.0.0",
+    author: "FlowiseAI", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "flow-automation", externalUrl: "https://github.com/FlowiseAI/Flowise", note: "Chatflows/agentes visuales sobre LangChain (Apache-2.0 core). Complementa a Langflow (constructor general) — conector real ya existente en Ajustes → Integraciones." },
+  },
+  /* ── AnythingLLM · workspace RAG todo-en-uno ── */
+  {
+    id: "iatool-anything-llm", kind: "function", name: "AnythingLLM (workspace RAG)",
+    description:
+      "App todo-en-uno self-host: chat con tus documentos por workspace, agentes y multiusuario, con vectorDB propia. Qué reemplaza: ChatGPT Team/plataformas RAG de pago. Licencia MIT. Instalar registra la skill «Workspace RAG» y suma el CONECTOR real (self-host, clave Bearer propia, apagado por defecto) en Ajustes → Integraciones: pregunta a un workspace concreto y cita sus fuentes. Abre su repo de referencia.",
+    icon: "MessagesSquare", tags: ["skill", "aurora", "rag", "workspace", "documentos", "oss"], version: "1.0.0",
+    author: "Mintplex-Labs", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "rag-workspace", externalUrl: "https://github.com/Mintplex-Labs/anything-llm", note: "Workspace RAG todo-en-uno self-host (MIT). Conector real en Ajustes → Integraciones (apagado por defecto)." },
+  },
+  /* ── Reor · notas locales con IA y grafo ── */
+  {
+    id: "iatool-reor", kind: "function", name: "Reor (notas locales con IA)",
+    description:
+      "App de notas de escritorio local-first: enlaza notas relacionadas automáticamente, responde preguntas sobre tu propio corpus (RAG local vía Ollama) y permite búsqueda semántica — todo corre en tu equipo. Qué reemplaza: Notion AI/Mem de pago. Licencia AGPL-3.0: StarSeed no copia su código. Conceptualmente compatible con el sistema de memorias .md del propio OS (memory root + `src/lib/brains/memory-types.ts`: mismo modelo de bóveda markdown con enlaces [[wiki]]). Honesto: Reor es una app de escritorio de un solo directorio SIN API pública hoy (su propio README: «Integrations with other apps are hopefully coming soon!»), así que instalar solo registra la skill «Notas locales con IA» —sin conector ni importación automática— y abre su repo de referencia.",
+    icon: "NotebookText", tags: ["skill", "aurora", "notas", "grafo", "local", "memorias", "oss"], version: "1.0.0",
+    author: "reorproject", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "local-ai-notes", externalUrl: "https://github.com/reorproject/reor", note: "Notas locales con IA y grafo (AGPL-3.0). Sin API pública hoy: solo capacidad + ficha, sin conector (honesto)." },
+  },
+  /* ── tldraw · pizarra infinita profesional (Adenda tldraw) ──
+   * DISTINTO del resto de este repo: no es solo un enlace de referencia — es
+   * una dependencia npm REAL instalada en el propio OS (`tldraw`, ver
+   * package.json), que añade el motor "tldraw (profesional)" como OPCIÓN
+   * dentro de /pizarra, junto al motor "Lienzo StarSeed" (que queda intacto y
+   * sigue siendo el motor por defecto; se elige por pizarra al abrir/crear).
+   * Instalar aquí solo registra la skill «Pizarra profesional»: el motor YA
+   * funciona sin este paso (cero descarga adicional) — esto sólo hace que
+   * Aurora lo conozca y lo recomiende. */
+  {
+    id: "iatool-tldraw", kind: "function", name: "tldraw (pizarra profesional)",
+    description:
+      "Motor de pizarra infinita profesional (dibujo a mano alzada, formas, notas adhesivas, diagramas) YA integrado como opción dentro de /pizarra, junto al «Lienzo StarSeed» (que sigue intacto y activo por defecto). A diferencia del resto de este repo, tldraw es una dependencia real instalada en el propio OS, no solo un enlace de referencia: elige el motor al abrir o crear una pizarra, persiste por pizarra. Licencia «tldraw license»: uso gratuito con la marca de agua «Made with tldraw» visible en el lienzo (no se oculta ni recorta — licencia comercial sin marca de agua no contratada). Instalar registra la skill «Pizarra profesional» para que Aurora la recomiende cuando el usuario quiera dibujo libre o diagramas, y abre su repo de referencia.",
+    icon: "PenTool", tags: ["skill", "aurora", "pizarra", "dibujo", "diagramas", "whiteboard", "ya-integrado"], version: "1.0.0", featured: true,
+    author: "tldraw Inc.", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "whiteboard-pro", externalUrl: "https://github.com/tldraw/tldraw", note: "SDK de pizarra infinita YA integrado en /pizarra (\"tldraw license\", marca de agua «Made with tldraw» obligatoria)." },
+  },
 ];
 
 /** Repo builtin de Herramientas IA & Agentes (caja de herramientas de Aurora). */
@@ -1029,6 +1110,96 @@ export const STARSEED_AGENTS_REPO: LibraryRepo = {
   name: "Agentes",
   builtin: true,
   packages: buildAgentPackages(),
+};
+
+/* ═══════════════════ REPO BUILTIN «starseed-themes» (Catálogo) ═══════════════════ */
+/**
+ * Catálogo de TEMAS/ESTILOS: cada ThemePack builtin de theme-catalog.ts se
+ * expone también como paquete instalable de kind "design" con
+ * `payload.themeId` (en vez de `payload.materialClass`). Instalar = APLICAR
+ * el ThemePack completo (paleta + material + fondo) vía theme-engine.ts —
+ * ver el caso "design" de install() más abajo. Honestidad radical: a
+ * diferencia de un material suelto, aplicar un tema completo SUSTITUYE la
+ * paleta activa (por diseño: son excluyentes entre sí), así que NINGUNO de
+ * estos ids entra en RECOMMENDED_PACKAGE_IDS (defaults-seed.ts) — el usuario
+ * elige el suyo a propósito, igual que con "design-cristal-zenith" hoy.
+ */
+const THEME_PACKAGE_ICONS: Record<string, string> = {
+  "art-nouveau": "Flower2", "art-deco": "Gem", "pop": "CircleDot",
+  "solarpunk": "Sprout", "retro": "Disc3", "futurista": "Rocket",
+  "retrofuturista": "Waves", "matrix": "Terminal", "naturaleza": "Leaf",
+  "cyberpunk": "Zap", "visionario": "Eye", "arcoiris": "Rainbow",
+  "hippie": "Flower", "punk": "Skull", "cristal-realista": "Gem",
+  "climatico": "CloudSun", "astrologico": "Stars", "infantil": "PartyPopper",
+  "profesional": "Briefcase", "equilibrado": "Scale", "neon": "Zap",
+  "metalico": "CircleDot", "madera": "TreePine", "material-3d": "Boxes",
+};
+
+function buildThemePackages(): LibraryPackage[] {
+  return BUILTIN_THEMES.map((t) => ({
+    id: `design-theme-${t.id}`,
+    kind: "design" as PackageKind,
+    name: `Tema · ${t.name}`,
+    description: t.description,
+    icon: THEME_PACKAGE_ICONS[t.id] || "Palette",
+    tags: ["tema", "catalogo", t.style],
+    version: "1.0.0",
+    author: "StarSeed Core",
+    sourceRepoId: "starseed-themes",
+    free: true,
+    payload: { themeId: t.id },
+  }));
+}
+
+/** Repo builtin del Catálogo de Temas. */
+export const STARSEED_THEMES_REPO: LibraryRepo = {
+  id: "starseed-themes",
+  name: "Catálogo de Temas",
+  builtin: true,
+  packages: buildThemePackages(),
+};
+
+/* ═══════════════ REPO BUILTIN «starseed-design-elements» (Mezclador) ═══════════════ */
+/**
+ * Elementos de Diseño SUELTOS (design-elements.ts): paletas, materiales,
+ * fondos animados, tipografías, animaciones, densidades y efectos — cada
+ * `DesignElementDef` se expone como paquete "design" con
+ * `payload.elementKind` + `payload.tokens` (en vez de `payload.themeId` o
+ * `payload.materialClass`). A diferencia de un tema completo, instalar UN
+ * elemento suelto NUNCA sustituye la paleta activa (sería sorprendente:
+ * instalar solo "Metal Bruñido" no debería cambiar tus colores) — su efecto
+ * real es quedar disponible como fuente de slot en el Mezclador
+ * (theme-mixer.ts lista TODOS los DESIGN_ELEMENTS exista o no el paquete
+ * "instalado"; instalarlo aquí es sobre todo para que aparezca en tu
+ * Biblioteca/Cydia como cualquier otro paquete, con su ficha y su registro).
+ */
+const DESIGN_ELEMENT_KIND_ICONS: Record<DesignElementKind, string> = {
+  paleta: "Palette", material: "Layers", fondo: "Waves", tipografia: "Type",
+  animaciones: "Activity", densidad: "Shapes", efectos: "Sparkles",
+};
+
+function buildDesignElementPackages(): LibraryPackage[] {
+  return DESIGN_ELEMENTS.map((el) => ({
+    id: `design-element-${el.id}`,
+    kind: "design" as PackageKind,
+    name: el.name,
+    description: el.description,
+    icon: DESIGN_ELEMENT_KIND_ICONS[el.kind] || "Palette",
+    tags: ["elemento", "mezclador", el.kind],
+    version: "1.0.0",
+    author: "StarSeed Core",
+    sourceRepoId: "starseed-design-elements",
+    free: true,
+    payload: { elementKind: el.kind, elementId: el.id, tokens: el.light },
+  }));
+}
+
+/** Repo builtin de Elementos de Diseño (fuentes sueltas del Mezclador). */
+export const STARSEED_DESIGN_ELEMENTS_REPO: LibraryRepo = {
+  id: "starseed-design-elements",
+  name: "Elementos de Diseño",
+  builtin: true,
+  packages: buildDesignElementPackages(),
 };
 
 /* ═══════════════════ Validación de repos externos ═══════════════════ */
@@ -1125,7 +1296,7 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 /** Todos los repos: builtins primero + repo local del usuario + externos. */
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
-  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO];
+  const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO];
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];
@@ -1162,6 +1333,8 @@ export async function addRepoByUrl(url: string): Promise<InstallResult & { repo?
       repo.id === STARSEED_LABS_REPO.id ||
       repo.id === STARSEED_IA_TOOLS_REPO.id ||
       repo.id === STARSEED_AGENTS_REPO.id ||
+      repo.id === STARSEED_THEMES_REPO.id ||
+      repo.id === STARSEED_DESIGN_ELEMENTS_REPO.id ||
       repo.id === MINE_REPO_ID
     ) {
       return { ok: false, message: `Ese id de repo está reservado (${repo.id}).` };
@@ -1416,9 +1589,29 @@ export async function install(pkg: LibraryPackage): Promise<InstallResult> {
         return { ok: true, message: `${source.label} activada: Aurora ya puede elegirla.${extra}` };
       }
 
-      /* ── Diseño / animación: registro de clases + evento de diseño ── */
+      /* ── Diseño / animación: registro de clases + evento de diseño.
+             Excepciones (ambas kind "design"):
+               · payload.themeId      → APLICA el ThemePack completo entero
+                 (paleta+material+fondo) vía theme-engine.ts.
+               · payload.elementKind  → un elemento SUELTO del Mezclador
+                 (design-elements.ts): NUNCA aplica nada globalmente por sí
+                 solo (sería sorprendente que instalar solo un material
+                 cambiara tu paleta) — su efecto real es quedar registrado en
+                 tu Biblioteca; el Mezclador ya lo lista como fuente de slot
+                 exista o no el paquete "instalado". ── */
       case "design":
       case "animation": {
+        if (pkg.kind === "design" && typeof pkg.payload.themeId === "string" && pkg.payload.themeId) {
+          const themeId = pkg.payload.themeId;
+          const applied = applyThemePack(themeId, "auto");
+          if (!applied) return { ok: false, message: "Ese tema ya no existe en el catálogo." };
+          registerInstalled(pkg);
+          return { ok: true, message: `Tema «${pkg.name}» aplicado: el OS adopta su paleta, material y fondo.` };
+        }
+        if (pkg.kind === "design" && typeof pkg.payload.elementKind === "string" && pkg.payload.elementKind) {
+          registerInstalled(pkg);
+          return { ok: true, message: `Elemento «${pkg.name}» añadido a tu Biblioteca — combínalo en el Mezclador de Diseños (Ajustes → Apariencia o Estudio).` };
+        }
         const cls = asString(pkg.kind === "design" ? pkg.payload.materialClass : pkg.payload.animClass).trim();
         if (!cls) return { ok: false, message: "Este paquete no declara ninguna clase aplicable." };
         setActiveDesignClasses([...getActiveDesignClasses(), cls]);

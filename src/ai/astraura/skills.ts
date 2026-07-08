@@ -324,6 +324,65 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: {},
     packageIds: ["iatool-altair"],
   },
+  /* ═══ Tercera ola — Galería (Immich) + IA/Agentes (jul-2026) ═══
+   * Ver architecture/astraura-inteligencia.md §21. Mismo contrato: conocimiento
+   * + capacidad + paquete instalado. Dos (photo-backup, rag-workspace) además
+   * tienen conector real en src/lib/integrations/registry.ts, invocable por
+   * Aurora vía aurora-tools.ts (`immich_albums`/`immich_recent_assets`,
+   * `rag_ask`); ai-search también tiene conector real (`ai_search`). */
+  {
+    id: "photo-backup",
+    label: "Fotos y vídeos (Immich)",
+    systemPrompt:
+      "Si el usuario tiene Immich conectado (Ajustes → Integraciones o Galería → Servicios externos, conector de solo lectura), puedes listar sus álbumes y sus fotos/vídeos más recientes cuando lo pida, y ofrecer importar una referencia a su Biblioteca. Si no está configurado, explica que es un servidor self-host de fotos/vídeos con reconocimiento IA y cómo activar el conector (endpoint + clave propios). Sé honesto: esta capacidad v1 es de SOLO LECTURA (listar/importar referencia), no sube ni sincroniza fotos automáticamente.",
+    routing: {},
+    packageIds: ["iatool-immich"],
+  },
+  {
+    id: "ai-search",
+    label: "Búsqueda IA con citas (Perplexica/Vane)",
+    systemPrompt:
+      "Si el usuario tiene Perplexica/Vane conectado (Ajustes → Integraciones, con su providerId/modelos configurados), puedes buscar con la tool ai_search y obtener una respuesta sintetizada con fuentes citadas — cítalas siempre. Si no está configurado, explica que es un buscador IA self-host (repo renombrado a «Vane») y cómo activarlo. No inventes fuentes ni resultados que no vengan de la herramienta.",
+    routing: { web: true },
+    packageIds: ["iatool-perplexica"],
+  },
+  {
+    id: "flow-automation",
+    label: "Automatización de flujos (Flowise)",
+    systemPrompt:
+      "Conoces Flowise: chatflows/agentes conversacionales visuales sobre LangChain. Es complementario a Langflow (capacidad «flow-builder», constructor más general): sugiere Flowise cuando el usuario quiera un chatbot/agente conversacional concreto y listo para incrustar. Si el usuario tiene un chatflow conectado (chatflowId en Ajustes → Integraciones), puedes invocarlo con run_flowise.",
+    routing: { planning: true },
+    packageIds: ["iatool-flowise"],
+  },
+  {
+    id: "rag-workspace",
+    label: "Workspace RAG (AnythingLLM)",
+    systemPrompt:
+      "Si el usuario tiene AnythingLLM conectado (Ajustes → Integraciones, con workspace y clave propios), puedes preguntar a ese workspace con la tool rag_ask y citar las fuentes que devuelva. Si no está configurado, explica que es una app RAG todo-en-uno self-host (chat con tus propios documentos) y cómo activar el conector.",
+    routing: { preferStrong: true },
+    packageIds: ["iatool-anything-llm"],
+  },
+  {
+    id: "local-ai-notes",
+    label: "Notas locales con IA (Reor)",
+    systemPrompt:
+      "Conoces Reor: app de notas de escritorio local-first que enlaza notas relacionadas automáticamente y responde preguntas sobre tu propio corpus (RAG local vía Ollama). Es conceptualmente afín al sistema de memorias .md del propio OS (misma filosofía de bóveda markdown con enlaces). Sé honesto: no tiene conector en vivo (su API pública aún no existe) — si el usuario pregunta, explica el patrón y señala su repo, sin fingir una importación que no existe.",
+    routing: {},
+    packageIds: ["iatool-reor"],
+  },
+  /* ═══ tldraw (Adenda tldraw, jul-2026) ═══
+   * Distinta del resto: no es solo "conocimiento de un repo externo" — tldraw
+   * es una dependencia real YA integrada como motor alternativo de /pizarra
+   * (ver src/components/canvas/tldraw-board.tsx). La capacidad sólo asegura
+   * que Aurora SEPA que existe y lo recomiende cuando encaje. */
+  {
+    id: "whiteboard-pro",
+    label: "Pizarra profesional (tldraw)",
+    systemPrompt:
+      "En /pizarra hay dos motores: «Lienzo StarSeed» (bloques que conectan archivos/baúles/memorias/apps, con publicar y colaboración en vivo) y «tldraw» (pizarra infinita profesional: dibujo a mano alzada, formas, notas, diagramas — bajo «tldraw license», con la marca de agua «Made with tldraw» visible). Cuando el usuario quiera dibujar libremente, hacer un diagrama o boceto rápido, recomienda el motor tldraw; para conectar contenido del OS o publicar el lienzo, recomienda «Lienzo StarSeed». Nunca ocultes ni minimices la marca de agua de tldraw: es una condición de su licencia gratuita.",
+    routing: {},
+    packageIds: ["iatool-tldraw"],
+  },
 ];
 
 function isClient(): boolean {

@@ -68,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 10;
+export const SEED_VERSION = 12;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -208,6 +208,31 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   "iatool-syncthing",
   "iatool-open-llm-vtuber",
   "iatool-altair",
+  // ── (SEED_VERSION 11) tldraw — DISTINTO al resto de esta lista: no es un
+  //    enlace externo, es una dependencia npm REAL ya instalada en el propio
+  //    OS (`tldraw` en package.json) que añade el motor "tldraw (profesional)"
+  //    como OPCIÓN dentro de /pizarra, junto al "Lienzo StarSeed" (intacto,
+  //    sigue siendo el motor por defecto de cada pizarra). Instalar solo
+  //    registra la skill «Pizarra profesional» (capacidad "whiteboard-pro"):
+  //    efecto 100% local, sin descarga adicional ni clave — el motor YA
+  //    funciona hoy en /pizarra tenga o no este paquete instalado.
+  "iatool-tldraw",
+  // ── (SEED_VERSION 12) Galería (Immich) + IA/Agentes — Perplexica/Vane,
+  //    Flowise, AnythingLLM, Reor (architecture/astraura-inteligencia.md §21).
+  //    Mismo criterio que §15-16/19: TODOS son paquetes `function` con
+  //    `skillId`: instalar = solo registro de skill/capacidad + enlace de
+  //    referencia (cero descarga, cero clave). Los tres conectores reales que
+  //    suman (Immich, Perplexica, AnythingLLM) quedan APAGADOS por defecto
+  //    (`enabled` ausente/false y sin endpoint): sembrar el paquete NUNCA
+  //    activa el conector, solo dispone la capacidad/enlace; el usuario pega
+  //    su propio endpoint (y clave, si aplica) cuando quiera. Flowise ya
+  //    tenía conector real (ola previa); Reor queda sin conector a propósito
+  //    (sin API pública hoy).
+  "iatool-immich",
+  "iatool-perplexica",
+  "iatool-flowise",
+  "iatool-anything-llm",
+  "iatool-reor",
 ];
 
 /**

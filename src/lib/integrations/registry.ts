@@ -140,6 +140,25 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
     ],
   },
   {
+    id: "anything-llm",
+    ossId: "anythingllm",
+    label: "AnythingLLM",
+    category: "app-platform",
+    capabilities: ["Chat RAG sobre tus documentos", "Workspaces privados", "Agentes de workspace"],
+    defaultEndpoint: "http://localhost:3001",
+    needsKey: true,
+    // App todo-en-uno self-host (workspaces con tus documentos + vectorDB
+    // propia): no procede un endpoint público compartido. GRATIS: Hugging Face
+    // Spaces (Docker) para pruebas o VM Always Free de Oracle Cloud para 24/7.
+    // Genera tu clave en tu instancia → Ajustes → API Keys.
+    freeHostingHint:
+      "Cada usuario tiene sus propios workspaces/documentos: no procede un endpoint público. Self-host GRATIS en Hugging Face Spaces (Docker, imagen mintplexlabs/anythingllm) o en una VM Always Free de Oracle Cloud (24/7). Genera tu clave en tu instancia → Ajustes → API Keys.",
+    docsUrl: "https://docs.anythingllm.com/api/overview",
+    actions: [
+      { id: "chat", label: "Preguntar al workspace", description: "Envía un mensaje a un workspace de AnythingLLM (RAG sobre sus documentos; needs extra.workspaceSlug)." },
+    ],
+  },
+  {
     id: "open-webui",
     ossId: "open-webui",
     label: "Open WebUI",
@@ -297,6 +316,28 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
 
   // ── Media y hogar (self-host, solo lectura) ───────────────────
   {
+    id: "immich",
+    ossId: "immich",
+    label: "Immich",
+    category: "backend",
+    capabilities: ["Listar álbumes", "Ver assets recientes", "Importar referencias a la Biblioteca"],
+    defaultEndpoint: "http://localhost:2283",
+    needsKey: true,
+    // Servidor personal de fotos/vídeos con ML (reconocimiento facial/objetos):
+    // cada instancia es del usuario, no procede un endpoint público compartido.
+    // GRATIS: self-host en tu NAS/servidor (docker-compose oficial) o en una VM
+    // Always Free de Oracle Cloud con volumen persistente (no apto para Hugging
+    // Face Spaces: necesita almacenamiento duradero + colas ML, no encaja con
+    // contenedores efímeros).
+    freeHostingHint:
+      "Cada usuario tiene su propia fototeca: no procede un endpoint público. Self-host GRATIS con el docker-compose oficial en tu NAS/servidor o en una VM Always Free de Oracle Cloud con volumen persistente (necesita almacenamiento duradero, no encaja en Hugging Face Spaces). Genera tu clave en Immich → Ajustes de cuenta → API Keys.",
+    docsUrl: "https://immich.app/docs/api/",
+    actions: [
+      { id: "albums", label: "Listar álbumes", description: "Lista tus álbumes de Immich (nombre y nº de elementos)." },
+      { id: "assets", label: "Assets recientes", description: "Lista tus fotos/vídeos más recientes (needs take opcional, por defecto 20)." },
+    ],
+  },
+  {
     id: "audiobookshelf",
     ossId: "audiobookshelf",
     label: "Audiobookshelf",
@@ -336,7 +377,31 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
     ],
   },
 
-  // ── Búsqueda (metabuscador) ───────────────────────────────────
+  // ── Búsqueda (metabuscador · IA con citas) ─────────────────────
+  {
+    id: "perplexica",
+    ossId: "perplexica",
+    label: "Perplexica (Vane)",
+    category: "data-ingest",
+    capabilities: ["Búsqueda IA con fuentes citadas", "Modo académico/discusiones", "Motor opcional de acceso web"],
+    defaultEndpoint: "http://localhost:3000",
+    needsKey: false,
+    // El repo oficial (ItzCrazyKns/Perplexica) se renombró a «Vane» en 2026
+    // (mismo autor/proyecto); mantenemos el id "perplexica" por continuidad.
+    // Sin instancia pública fiable (busca con TUS proveedores LLM). GRATIS:
+    // self-host con Docker (incluye SearXNG embebido) en Hugging Face Spaces
+    // o en una VM Always Free de Oracle Cloud (24/7). API más compleja que el
+    // resto del catálogo: exige providerId/modelos de TU instancia (ver
+    // clients/perplexica.ts) — por eso queda como endpoint configurable +
+    // capacidad, no como conector de un solo campo.
+    freeHostingHint:
+      "Sin instancia pública fiable (usa TUS proveedores LLM configurados). Self-host GRATIS con Docker (docker run itzcrazykns1337/vane:latest, incluye SearXNG embebido) en Hugging Face Spaces o en una VM Always Free de Oracle Cloud. Tras desplegarlo, configura tus modelos en su pantalla de setup y usa la acción «providers» para obtener el providerId que pide este conector.",
+    docsUrl: "https://github.com/ItzCrazyKns/Vane/tree/master/docs/API/SEARCH.md",
+    actions: [
+      { id: "providers", label: "Ver proveedores/modelos", description: "Lista los proveedores y modelos configurados en tu instancia (para configurar la búsqueda)." },
+      { id: "search", label: "Buscar con IA", description: "Busca con respuesta sintetizada y fuentes citadas (needs extra.providerId/chatModel/embeddingModel)." },
+    ],
+  },
   {
     id: "searxng",
     ossId: "searxng",

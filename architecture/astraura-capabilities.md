@@ -46,12 +46,19 @@
 | `p2p-sync` | iatool-syncthing | sincronización de archivos P2P sin servidor central | — |
 | `aurora-avatar` | iatool-open-llm-vtuber | referencia de avatar con voz en tiempo real (ver §18 del OS) | — |
 | `data-science-fasta` | iatool-altair | ciencia de datos: comparación FASTA alignment-free | — |
+| `photo-backup` | iatool-immich | fotos/vídeos self-host con ML (conector real de SOLO LECTURA v1: álbumes/recientes) | — |
+| `ai-search` | iatool-perplexica | búsqueda IA con citas (Perplexica, renombrado "Vane"; conector real) | web |
+| `flow-automation` | iatool-flowise | chatflows/agentes visuales sobre LangChain (conector real; complementa a `flow-builder`) | planning |
+| `rag-workspace` | iatool-anything-llm | workspace RAG todo-en-uno (conector real, chat con tus documentos) | preferStrong |
+| `local-ai-notes` | iatool-reor | notas locales con IA y grafo (sin conector: sin API pública hoy) | — |
 
 Detalle completo de las 10 capacidades del "stack OSS por defecto" (jul-2026):
 `architecture/astraura-inteligencia.md` §15. Ocho capacidades más (infraestructura
 soberana y flujos visuales, jul-2026): `architecture/astraura-inteligencia.md` §16.
 Siete capacidades más (Marcadores, conocimiento, IoT y ciencia, jul-2026):
-`architecture/astraura-inteligencia.md` §19.
+`architecture/astraura-inteligencia.md` §19. Cinco capacidades más (Galería/
+Immich + IA-Agentes: Perplexica, Flowise, AnythingLLM, Reor, jul-2026):
+`architecture/astraura-inteligencia.md` §21.
 
 ## Cómo lo consume cada sistema
 
@@ -83,4 +90,6 @@ Siete capacidades más (Marcadores, conocimiento, IoT y ciencia, jul-2026):
 
 *Adenda 68 · 2026-07-05. Adenda "Stack OSS por defecto" · 2026-07-07. Adenda
 "Infraestructura soberana y flujos visuales" · 2026-07-07. Adenda "Segunda ola:
-productividad y ciencia" (Marcadores/IoT/audio/P2P/avatar/ciencia) · 2026-07-07.*
+productividad y ciencia" (Marcadores/IoT/audio/P2P/avatar/ciencia) · 2026-07-07.
+Adenda "Tercera ola: galería y agentes" (Immich/Perplexica-Vane/Flowise/
+AnythingLLM/Reor — primer conector real en la Galería) · 2026-07-07.*

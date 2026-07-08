@@ -26,6 +26,11 @@ import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
 import { pageHref, groupHref } from "@/lib/entity-links";
 import { useEntityLayout, applyTabLayout, suggestedIntegrations } from "@/lib/entity-layout";
 import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
+// Tema por entidad (Mezclador/Catálogo — Adenda Mezclador): aplica el
+// themeId/themeMix guardado en entity-layout SOLO mientras se ve este grupo,
+// y restaura el tema del sistema al salir. No-op si la entidad no tiene tema
+// propio (caso de siempre).
+import { useEntityThemeScope } from "@/lib/design/entity-theme-scope";
 import { FreeSectionsBlock } from "@/components/social/free-sections-block";
 import { EntityGalleryBlock } from "@/components/social/entity-gallery-block";
 import { GroupEducationPanel } from "@/components/education/group-education-panel";
@@ -218,10 +223,14 @@ export default function GrupoPage() {
         [group?.slug],
     );
     const {
-        layout, setAccent, setCoverUrl, reorderTabs, setTabVisible,
+        layout, setAccent, setCoverUrl, setTheme, reorderTabs, setTabVisible,
         addSection, updateSection, removeSection, toggleIntegration,
         addGalleryImage, removeGalleryImage,
     } = useEntityLayout(entityRef);
+
+    // Tema propio del grupo (si el dueño eligió uno) — scoped: se aplica al
+    // montar esta página y se restaura el tema del sistema al salir.
+    useEntityThemeScope(layout);
 
     const groupKind = group?.kind ?? "colectivo";
     const groupHasToolkit = hasToolkit(groupKind);
@@ -399,6 +408,7 @@ export default function GrupoPage() {
                     suggestions={suggestions}
                     onSetAccent={setAccent}
                     onSetCoverUrl={setCoverUrl}
+                    onSetTheme={setTheme}
                     onReorderTabs={reorderTabs}
                     onSetTabVisible={setTabVisible}
                     onToggleIntegration={toggleIntegration}
