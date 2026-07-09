@@ -121,7 +121,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
             if (searchParams.get("createProfile") === "true") {
                 setEditor(emptyEditor("create"));
                 router.replace("/cuenta", { scroll: false });
-            } else if (profiles.length === 0) {
+            } else if (profiles.length === 0 || !mainProfile || !mainProfile.handle) {
                 setEditor(emptyEditor("create"));
             }
         }
@@ -154,7 +154,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                     
                     // Sync to Main Identity (os_profiles) if this is their very first facet,
                     // so the Sovereign Identity form also gets populated automatically.
-                    if (profiles.length === 0) {
+                    if (profiles.length === 0 || !mainProfile || !mainProfile.handle) {
                         const { updateMyProfile } = await import("@/lib/social/os-profiles");
                         await updateMyProfile({
                             displayName: name,

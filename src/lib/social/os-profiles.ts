@@ -234,12 +234,25 @@ export async function updateMyProfile(input: UpdateMyProfileInput): Promise<Prof
     if (input.tags !== undefined) patch.tags = input.tags;
     if (input.searchable !== undefined) patch.searchable = input.searchable;
     try {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
             .from("os_profiles")
             .update(patch)
             .eq("user_id", user.id)
             .select("*")
             .single();
+        
+        if (error && error.code === 'PGRST116') {
+            // No profile exists yet, insert instead
+            const insertPatch = { ...patch, user_id: user.id };
+            const res = await supabase
+                .from("os_profiles")
+                .insert(insertPatch)
+                .select("*")
+                .single();
+            data = res.data;
+            error = res.error;
+        }
+
         if (error) throw error;
         return { ok: true, profile: normalizeProfile(data as ProfileRow) };
     } catch (e: any) {
