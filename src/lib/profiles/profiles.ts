@@ -103,8 +103,8 @@ async function getUserId(): Promise<string | null> {
         const supabase = createClient();
         const { data } = await supabase.auth.getUser();
         return data?.user?.id ?? null;
-    } catch {
-        return null;
+    } catch (e) {
+        throw e;
     }
 }
 
@@ -265,7 +265,14 @@ export async function createProfile(input: CreateProfileInput): Promise<AccountP
             })
             .select("*")
             .maybeSingle();
-        if (error || !data) return null;
+        if (error) {
+            console.error("createProfile error:", error);
+            if (error.code === '23505') {
+                throw new Error('El handle ya está en uso. Por favor, elige otro.');
+            }
+            throw new Error(error.message || 'Error desconocido al crear perfil');
+        }
+        if (!data) return null;
         emitListChange();
         return mapRow(data as Record<string, unknown>);
     } catch {

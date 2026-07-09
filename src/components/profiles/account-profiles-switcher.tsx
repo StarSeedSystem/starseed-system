@@ -64,6 +64,7 @@ import {
     type ProfileKind,
 } from "@/lib/profiles/profiles";
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
+import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAccount } from "@/context/account-context";
 
@@ -142,7 +143,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
         try {
             const name = editor.name.trim() || "Sin nombre";
             if (editor.mode === "create") {
-                const created = await createProfile({
+                const input = {
                     name,
                     handle: editor.handle || null,
                     kind: editor.kind,
@@ -150,7 +151,18 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                     avatarUrl: editor.avatarUrl || null,
                     coverUrl: editor.coverUrl || null,
                     visibility: editor.visibility,
-                });
+                };
+                console.log("Creando perfil con:", input);
+                let created = null;
+                try {
+                    created = await createProfile(input);
+                } catch (e) {
+                    toast.error(e.message || "Error al crear el perfil.");
+                    return;
+                }
+                if (!created) {
+                    toast.error("Error al crear el perfil. Revisa la consola.");
+                }
                 if (created) {
                     setActive(created.id);
                     
