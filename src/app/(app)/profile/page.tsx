@@ -89,7 +89,7 @@ export default function ProfileIndexPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Link href="/cuenta?createProfile=true">
+          <Link href="/cuenta?createIdentity=true">
             <Button className="gap-2 cursor-pointer">
               <User className="w-4 h-4" /> Crear mi identidad
             </Button>

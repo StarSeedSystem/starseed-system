@@ -267,6 +267,15 @@ export function ProfileIdentityPanel() {
         toast.success("Perfil guardado en tu cuenta StarSeed.");
         setSaving(false);
         await load();
+        
+        // Auto-seed the first facet (os_account_profiles) if they don't have one,
+        // so they aren't bothered by the AccountProfilesSwitcher modal immediately after.
+        try {
+            const { ensureDefaultProfile } = await import("@/lib/profiles/profiles");
+            await ensureDefaultProfile();
+        } catch {
+            /* noop */
+        }
     }
 
     // ── Datos derivados para la cabecera de vista previa (reales, con fallback honesto) ──

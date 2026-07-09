@@ -149,7 +149,24 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                     coverUrl: editor.coverUrl || null,
                     visibility: editor.visibility,
                 });
-                if (created) setActive(created.id);
+                if (created) {
+                    setActive(created.id);
+                    
+                    // Sync to Main Identity (os_profiles) if this is their very first facet,
+                    // so the Sovereign Identity form also gets populated automatically.
+                    if (profiles.length === 0) {
+                        const { updateMyProfile } = await import("@/lib/social/os-profiles");
+                        await updateMyProfile({
+                            displayName: name,
+                            handle: editor.handle || undefined,
+                            avatarUrl: editor.avatarUrl || undefined,
+                            bio: editor.bio || undefined,
+                            searchable: true,
+                        });
+                    }
+                    
+                    router.push("/profile");
+                }
             } else if (editor.id) {
                 await updateProfile(editor.id, {
                     name,
@@ -165,7 +182,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
         } finally {
             setSaving(false);
         }
-    }, [editor, setActive]);
+    }, [editor, setActive, profiles.length, router]);
 
     const removeProfile = useCallback(async (id: string) => {
         if (typeof window !== "undefined" && !window.confirm("¿Eliminar este perfil? No se puede deshacer.")) return;

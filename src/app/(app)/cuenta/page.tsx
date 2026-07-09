@@ -497,7 +497,7 @@ function CuentaContent() {
   }, []);
 
   useEffect(() => {
-    if (searchParams?.get("createProfile") === "true") {
+    if (searchParams?.get("createProfile") === "true" || searchParams?.get("createIdentity") === "true") {
       setTimeout(() => scrollTo("info-personal"), 300);
     }
   }, [searchParams, scrollTo]);
