@@ -41,6 +41,7 @@ export interface AccountProfile {
     avatarUrl: string | null;
     coverUrl: string | null;
     bio: string | null;
+    visibility: "public" | "private" | "contacts";
     isDefault: boolean;
     createdAt: string;
     updatedAt: string;
@@ -76,6 +77,10 @@ function normalizeKind(raw: unknown): ProfileKind {
         : "personal";
 }
 
+function normalizeVisibility(raw: unknown): "public" | "private" | "contacts" {
+    return raw === "private" || raw === "contacts" ? raw : "public";
+}
+
 function mapRow(row: Record<string, unknown>): AccountProfile {
     return {
         id: String(row.id),
@@ -86,6 +91,7 @@ function mapRow(row: Record<string, unknown>): AccountProfile {
         avatarUrl: typeof row.avatar_url === "string" ? row.avatar_url : null,
         coverUrl: typeof row.cover_url === "string" ? row.cover_url : null,
         bio: typeof row.bio === "string" ? row.bio : null,
+        visibility: normalizeVisibility(row.visibility),
         isDefault: row.is_default === true,
         createdAt: typeof row.created_at === "string" ? row.created_at : "",
         updatedAt: typeof row.updated_at === "string" ? row.updated_at : "",
@@ -221,6 +227,7 @@ export interface CreateProfileInput {
     avatarUrl?: string | null;
     coverUrl?: string | null;
     bio?: string | null;
+    visibility?: "public" | "private" | "contacts";
     isDefault?: boolean;
 }
 
@@ -249,11 +256,12 @@ export async function createProfile(input: CreateProfileInput): Promise<AccountP
                 account: uid,
                 name,
                 handle,
-                kind: input.kind ?? "custom",
+                kind: input.kind ?? "personal",
                 avatar_url: input.avatarUrl ?? null,
                 cover_url: input.coverUrl ?? null,
                 bio: input.bio ?? null,
-                is_default: input.isDefault === true,
+                visibility: input.visibility ?? "public",
+                is_default: input.isDefault ?? false,
             })
             .select("*")
             .maybeSingle();
@@ -272,6 +280,7 @@ export interface UpdateProfileInput {
     avatarUrl?: string | null;
     coverUrl?: string | null;
     bio?: string | null;
+    visibility?: "public" | "private" | "contacts";
 }
 
 /** Actualiza un perfil propio. Devuelve el perfil actualizado o null si falla/no es dueño. */
@@ -287,6 +296,7 @@ export async function updateProfile(id: string, patch: UpdateProfileInput): Prom
         if (patch.avatarUrl !== undefined) row.avatar_url = patch.avatarUrl;
         if (patch.coverUrl !== undefined) row.cover_url = patch.coverUrl;
         if (patch.bio !== undefined) row.bio = patch.bio;
+        if (patch.visibility !== undefined) row.visibility = patch.visibility;
 
         const { data, error } = await supabase
             .from("os_account_profiles")

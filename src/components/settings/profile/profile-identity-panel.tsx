@@ -53,9 +53,10 @@ interface ProfileForm {
     bio: string;
     avatar_url: string;
     cover_url: string;
+    visibility: "public" | "private" | "contacts";
 }
 
-const EMPTY_FORM: ProfileForm = { handle: "", display_name: "", bio: "", avatar_url: "", cover_url: "" };
+const EMPTY_FORM: ProfileForm = { handle: "", display_name: "", bio: "", avatar_url: "", cover_url: "", visibility: "public" };
 
 // ── De-mock local: valores demo históricos que NO deben poblar el formulario ──
 // como si fueran datos reales del usuario. Si la fila trae alguno, lo tratamos
@@ -145,6 +146,7 @@ export function ProfileIdentityPanel() {
             bio: (row?.bio as string) ?? "",
             avatar_url: (row?.avatar_url as string) ?? "",
             cover_url: (row?.cover_url as string) ?? "",
+            visibility: (row?.visibility as "public" | "private" | "contacts") ?? "public",
         });
         setDirty(false);
     }, []);
@@ -208,11 +210,12 @@ export function ProfileIdentityPanel() {
             avatar_url: form.avatar_url?.trim() ?? "",
             bio: form.bio?.trim() ?? "",
             cover_url: form.cover_url?.trim() ?? "",
+            visibility: form.visibility ?? "public",
             updated_at: new Date().toISOString(),
         };
         if (handle && handle !== (profileRow?.handle ?? "")) fullPatch.handle = handle;
 
-        const optionalCols = ["cover_url", "bio", "updated_at"];
+        const optionalCols = ["cover_url", "bio", "visibility", "updated_at"];
 
         const attempt = async (patch: Row): Promise<{ ok: boolean; error?: any }> => {
             if (profileRow) {
@@ -390,15 +393,40 @@ export function ProfileIdentityPanel() {
                             </div>
                         </div>
 
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Bio (manifiesto personal)</label>
-                            <Textarea
-                                value={form.bio}
-                                onChange={(e) => setField("bio", e.target.value)}
-                                placeholder="Escribe tu manifiesto personal…"
-                                disabled={isLoading}
-                                className="min-h-[80px] bg-background/50"
-                            />
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Bio (manifiesto personal)</label>
+                                <Textarea
+                                    value={form.bio}
+                                    onChange={(e) => setField("bio", e.target.value)}
+                                    placeholder="Escribe tu manifiesto personal…"
+                                    disabled={isLoading}
+                                    className="min-h-[80px] bg-background/50"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Visibilidad</label>
+                                <div className="flex gap-2 h-[80px] items-start">
+                                    {(["public", "private", "contacts"] as const).map((v) => (
+                                        <button
+                                            key={v}
+                                            type="button"
+                                            onClick={() => setField("visibility", v)}
+                                            disabled={isLoading}
+                                            className={cn(
+                                                "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer text-center flex-1",
+                                                form.visibility === v
+                                                    ? "border-primary/50 bg-primary/15 text-primary"
+                                                    : "border-white/10 text-muted-foreground hover:bg-white/5"
+                                            )}
+                                        >
+                                            {v === "public" ? "Público" : v === "private" ? "Privado" : "Contactos"}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-4">

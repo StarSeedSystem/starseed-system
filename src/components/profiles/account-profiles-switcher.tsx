@@ -85,10 +85,11 @@ interface EditorState {
     bio: string;
     avatarUrl: string;
     coverUrl: string;
+    visibility: "public" | "private" | "contacts";
 }
 
 function emptyEditor(mode: "create" | "edit"): EditorState {
-    return { open: true, mode, name: "", handle: "", kind: "custom", bio: "", avatarUrl: "", coverUrl: "" };
+    return { open: true, mode, name: "", handle: "", kind: "custom", bio: "", avatarUrl: "", coverUrl: "", visibility: "public" };
 }
 
 function editorFromProfile(p: AccountProfile): EditorState {
@@ -102,6 +103,7 @@ function editorFromProfile(p: AccountProfile): EditorState {
         bio: p.bio ?? "",
         avatarUrl: p.avatarUrl ?? "",
         coverUrl: p.coverUrl ?? "",
+        visibility: p.visibility ?? "public",
     };
 }
 
@@ -113,14 +115,17 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
     const searchParams = useSearchParams();
     const router = useRouter();
 
-    // Auto-abrir modal si venimos de /profile ("Crear mi identidad")
+    // Auto-abrir modal si venimos de /profile o si no hay perfiles
     useEffect(() => {
-        if (searchParams.get("createProfile") === "true" && !loading && !editor) {
-            setEditor(emptyEditor("create"));
-            // Limpiar URL para no reabrir al recargar
-            router.replace("/cuenta", { scroll: false });
+        if (!loading && !editor) {
+            if (searchParams.get("createProfile") === "true") {
+                setEditor(emptyEditor("create"));
+                router.replace("/cuenta", { scroll: false });
+            } else if (profiles.length === 0) {
+                setEditor(emptyEditor("create"));
+            }
         }
-    }, [searchParams, loading, editor, router]);
+    }, [searchParams, loading, editor, router, profiles.length]);
 
     const sorted = useMemo(
         () => [...profiles].sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name, "es")),
@@ -142,6 +147,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                     bio: editor.bio || null,
                     avatarUrl: editor.avatarUrl || null,
                     coverUrl: editor.coverUrl || null,
+                    visibility: editor.visibility,
                 });
                 if (created) setActive(created.id);
             } else if (editor.id) {
@@ -152,6 +158,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                     bio: editor.bio || null,
                     avatarUrl: editor.avatarUrl || null,
                     coverUrl: editor.coverUrl || null,
+                    visibility: editor.visibility,
                 });
             }
             setEditor(null);
@@ -384,6 +391,26 @@ function ProfileEditorDialog({
                                     )}
                                 >
                                     {profileKindLabel(k)}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Visibilidad</label>
+                        <div className="flex gap-2">
+                            {(["public", "private", "contacts"] as const).map((v) => (
+                                <button
+                                    key={v}
+                                    type="button"
+                                    onClick={() => onChange({ ...editor, visibility: v })}
+                                    className={cn(
+                                        "rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-colors cursor-pointer text-center",
+                                        editor.visibility === v
+                                            ? "border-primary/50 bg-primary/15 text-primary"
+                                            : "border-white/10 text-muted-foreground hover:bg-white/5"
+                                    )}
+                                >
+                                    {v === "public" ? "Público" : v === "private" ? "Privado" : "Solo Contactos"}
                                 </button>
                             ))}
                         </div>
