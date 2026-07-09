@@ -271,7 +271,8 @@ export async function markAllSeen(items: UnifiedNotification[]): Promise<boolean
           .from("notifications")
           .update({ seen: true })
           .eq("user_id", uid)
-          .in("id", generalIds),
+          .in("id", generalIds)
+          .then((res) => res),
       );
     }
     if (proposalIds.length) {
@@ -280,7 +281,8 @@ export async function markAllSeen(items: UnifiedNotification[]): Promise<boolean
           .from("proposal_notifications")
           .update({ seen: true })
           .eq("user_id", uid)
-          .in("id", proposalIds),
+          .in("id", proposalIds)
+          .then((res) => res),
       );
     }
     if (ops.length === 0) return false;

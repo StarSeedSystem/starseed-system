@@ -65,6 +65,7 @@ import {
 } from "@/lib/profiles/profiles";
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useAccount } from "@/context/account-context";
 
 const KIND_OPTIONS: ProfileKind[] = ["personal", "civic", "artistic", "professional", "custom"];
 
@@ -108,6 +109,7 @@ function editorFromProfile(p: AccountProfile): EditorState {
 }
 
 export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean }) {
+    const { profile: mainProfile } = useAccount();
     const { profile, profiles, loading, setActive } = useActiveProfile();
     const [editor, setEditor] = useState<EditorState | null>(null);
     const [saving, setSaving] = useState(false);
@@ -125,7 +127,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                 setEditor(emptyEditor("create"));
             }
         }
-    }, [searchParams, loading, editor, router, profiles.length]);
+    }, [searchParams, loading, editor, router, profiles.length, mainProfile]);
 
     const sorted = useMemo(
         () => [...profiles].sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name, "es")),
@@ -158,14 +160,20 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                         const { updateMyProfile } = await import("@/lib/social/os-profiles");
                         await updateMyProfile({
                             displayName: name,
-                            handle: editor.handle || undefined,
+                            username: editor.handle || undefined,
                             avatarUrl: editor.avatarUrl || undefined,
                             bio: editor.bio || undefined,
                             searchable: true,
                         });
                     }
                     
-                    router.push("/profile");
+                    const isCuentaPage = window.location.pathname.startsWith("/cuenta");
+                    if (isCuentaPage) {
+                        setEditor(null);
+                        window.location.hash = "info-personal";
+                    } else {
+                        router.push("/cuenta#info-personal");
+                    }
                 }
             } else if (editor.id) {
                 await updateProfile(editor.id, {

@@ -64,7 +64,7 @@ const DockIcon: React.FC<{
         if (!itemRef.current) return;
         const rect = itemRef.current.getBoundingClientRect();
         const center = rect.left + rect.width / 2;
-        distance.set(mouseX.get() - center);
+        distance.set((mouseX.get() as number) - center);
     }, [mouseX, distance, itemRef]);
 
     React.useEffect(() => {
@@ -72,14 +72,14 @@ const DockIcon: React.FC<{
             if (!itemRef.current) return;
             const rect = itemRef.current.getBoundingClientRect();
             const center = rect.left + rect.width / 2;
-            distance.set(mouseX.get() - center);
+            distance.set((mouseX.get() as number) - center);
         });
         return unsub;
     }, [mouseX, distance, itemRef]);
 
     return (
         <motion.button
-            ref={itemRef}
+            ref={itemRef as any}
             onClick={onClick}
             className={`relative p-3 rounded-full group transition-colors duration-200 cursor-pointer ${isActive ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
@@ -160,7 +160,7 @@ export const Dock: React.FC<DockProps> = ({ items, activeItem, onItemClick }) =>
                         item={item}
                         isActive={activeItem === item.id}
                         onClick={() => onItemClick(item.id)}
-                        mouseX={mouseX}
+                        mouseX={mouseX as any}
                         itemRef={{ current: itemRefs.current[idx] } as React.RefObject<HTMLButtonElement | null>}
                     />
                 ))}

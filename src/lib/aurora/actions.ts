@@ -19,7 +19,7 @@
  * fallo se traga y devuelve un AuroraActionResult honesto.
  */
 
-import type { Router } from "next/navigation";
+
 import { createClient } from "@/utils/supabase/client";
 import { getApp } from "@/components/dashboard/apps/app-catalog";
 import { newCanvas, saveCanvas } from "@/lib/canvas/canvas";
@@ -37,7 +37,7 @@ export const AURORA_FULL_CONTROL = true;
 // ── Tipos públicos ─────────────────────────────────────────────────────────
 
 /** Router mínimo que necesitamos (lo aporta el motor con useRouter()). */
-export type AuroraRouter = Pick<Router, "push" | "replace" | "back" | "forward">;
+export type AuroraRouter = { push: (url: string) => void; replace: (url: string) => void; back: () => void; forward: () => void; };
 
 /** Contexto que el motor inyecta en cada ejecución de acción. */
 export interface AuroraActionContext {

@@ -147,7 +147,7 @@ export interface OsMembershipRow {
 const DEFAULT_ACCENT = "#7FB8FF";
 
 /** Carga tolerante: ejecuta una query y devuelve [] ante cualquier fallo. */
-async function safeRows<T>(run: () => Promise<{ data: T[] | null; error: unknown }>): Promise<T[]> {
+async function safeRows<T>(run: () => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
     if (typeof window === "undefined") return [];
     try {
         const { data, error } = await run();

@@ -298,7 +298,7 @@ export class AutoDiscover {
           const meta = this.parseSkillFrontmatter(flatContent);
           if (meta.name) {
             skills.push({
-              metadata: { ...meta, loadMode: 'manual' },
+              metadata: { ...meta, name: meta.name, loadMode: 'manual' },
               content: flatContent,
               linkedFiles: {},
             });
@@ -310,7 +310,7 @@ export class AutoDiscover {
       const meta = this.parseSkillFrontmatter(content);
       if (meta.name) {
         skills.push({
-          metadata: { ...meta, loadMode: 'auto' },
+          metadata: { ...meta, name: meta.name, loadMode: 'auto' },
           content,
           linkedFiles: {},
         });

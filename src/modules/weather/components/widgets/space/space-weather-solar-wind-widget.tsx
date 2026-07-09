@@ -17,7 +17,7 @@ export const SolarWindWidget: React.FC<SolarWindWidgetProps> = ({ data, loading 
     const density = data?.solarWind?.density || 5.2;
     const temp = data?.solarWind?.temperature || 120500;
     const bz = data?.solarWind?.bz || -2.4;
-    const phi = data?.solarWind?.phi || 135; // Parker spiral angle
+    const phi = (data?.solarWind as any)?.phi || 135; // Parker spiral angle
 
     const speedNormalized = Math.max(0.2, Math.min(3, windSpeed / 400));
 

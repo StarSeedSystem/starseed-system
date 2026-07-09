@@ -1,4 +1,4 @@
-import { CanvasState } from "@/components/design-canvas/DesignIntegrationCanvas";
+import { CanvasState } from "@/components/design-canvas/state-types";
 
 // Mock AI response for now. In the future, this will parse actual LLM JSON output.
 export const generateMockTheme = (prompt: string): Partial<CanvasState> => {
