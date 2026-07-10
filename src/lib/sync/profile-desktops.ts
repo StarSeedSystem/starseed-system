@@ -47,7 +47,7 @@ import { normalizeState, type DesktopsState } from "@/components/desktop/desktop
 import {
     activeProfileId,
     PROFILE_ACTIVE_EVENT,
-    ensureDefaultProfile,
+    getDefaultProfile,
 } from "@/lib/profiles/profiles";
 import { shouldSyncKey } from "@/lib/sync/sync-profiles-config";
 import { hasOpenSpace, SPACE_TOGGLE_EVENT } from "@/lib/sync/shared-desktop-space";
@@ -178,7 +178,7 @@ export function useProfileDesktopsSync(): void {
         const bootstrap = async () => {
             // Requisito del SOP §10: siembra un perfil por defecto si la cuenta
             // no tiene ninguno todavía (no-op sin sesión).
-            const seeded = await ensureDefaultProfile();
+            const seeded = await getDefaultProfile();
             const resolvedId = activeProfileId() ?? seeded?.id ?? null;
             if (!resolvedId) return; // sin sesión / sin perfiles: el doc local sigue siendo la única fuente
             currentProfileRef.current = resolvedId;

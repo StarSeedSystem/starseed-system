@@ -19,7 +19,7 @@
  *     `id` de aquí como owner_id de una biblioteca de perfil.
  *
  * REQUISITO del SOP: crear escritorio/dashboard/pizarra exige un perfil
- * ancla → ensureDefaultProfile() debe llamarse en esos flujos antes de
+ * ancla → getDefaultProfile() debe llamarse en esos flujos antes de
  * anclar cualquier doc a `profile:<id>`.
  *
  * Local-first y defensivo: sin sesión, todas las funciones degradan a
@@ -155,64 +155,20 @@ export async function getProfile(id: string): Promise<AccountProfile | null> {
 }
 
 /**
- * Garantiza que la cuenta tiene al menos un perfil (crea 'Principal' desde
- * os_profiles/metadata si no tiene ninguno, marcado is_default). Devuelve el
- * perfil por defecto (existente o recién creado), o null sin sesión.
+ * Intenta obtener el perfil por defecto de la cuenta.
+ * Devuelve el perfil por defecto (existente), o null si no hay ninguno.
  * REQUISITO del SOP §10: llamar antes de anclar escritorio/dashboard/pizarra
  * a un perfil.
  */
-export async function ensureDefaultProfile(): Promise<AccountProfile | null> {
+export async function getDefaultProfile(): Promise<AccountProfile | null> {
     try {
         const uid = await getUserId();
         if (!uid) return null;
-        const supabase = createClient();
-
         const existing = await listMyProfiles();
         if (existing.length > 0) {
             return existing.find((p) => p.isDefault) ?? existing[0];
         }
-
-        // Semilla de nombre/avatar desde el directorio público (os_profiles) o
-        // metadata de auth; degrada a "Principal" si no hay nada disponible.
-        let seedName = "Principal";
-        let seedAvatar: string | null = null;
-        try {
-            const { data: dirRow } = await supabase
-                .from("os_profiles")
-                .select("display_name, username, avatar_url")
-                .eq("user_id", uid)
-                .maybeSingle();
-            if (dirRow?.display_name) seedName = String(dirRow.display_name);
-            else if (dirRow?.username) seedName = String(dirRow.username);
-            if (dirRow?.avatar_url) seedAvatar = String(dirRow.avatar_url);
-        } catch {
-            /* directorio no disponible: seguimos con el nombre por defecto */
-        }
-        if (seedName === "Principal") {
-            try {
-                const { data: userData } = await supabase.auth.getUser();
-                const meta = userData?.user?.user_metadata as Record<string, unknown> | undefined;
-                const metaName = meta?.display_name ?? meta?.name ?? meta?.full_name;
-                if (typeof metaName === "string" && metaName.trim()) seedName = metaName.trim();
-            } catch {
-                /* noop */
-            }
-        }
-
-        const { data, error } = await supabase
-            .from("os_account_profiles")
-            .insert({
-                account: uid,
-                name: seedName,
-                kind: "personal",
-                avatar_url: seedAvatar,
-                is_default: true,
-            })
-            .select("*")
-            .maybeSingle();
-        if (error || !data) return null;
-        emitListChange();
-        return mapRow(data as Record<string, unknown>);
+        return null;
     } catch {
         return null;
     }

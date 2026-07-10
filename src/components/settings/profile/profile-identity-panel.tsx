@@ -198,7 +198,7 @@ export function ProfileIdentityPanel() {
         const displayName = form.display_name?.trim() ?? "";
         
         if (!handle || !displayName) {
-            toast.error("Debes ingresar un Alias (@) único y un Nombre público.");
+            toast.error("Debes ingresar un Handle (@) único y un Nombre público.");
             return;
         }
 
@@ -268,14 +268,7 @@ export function ProfileIdentityPanel() {
         setSaving(false);
         await load();
         
-        // Auto-seed the first facet (os_account_profiles) if they don't have one,
-        // so they aren't bothered by the AccountProfilesSwitcher modal immediately after.
-        try {
-            const { ensureDefaultProfile } = await import("@/lib/profiles/profiles");
-            await ensureDefaultProfile();
-        } catch {
-            /* noop */
-        }
+
     }
 
     // ── Datos derivados para la cabecera de vista previa (reales, con fallback honesto) ──

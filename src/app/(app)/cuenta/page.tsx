@@ -41,6 +41,7 @@ import { NeuronsPanel } from "@/components/settings/neurons/neurons-panel";
 import { AccountSyncPanel } from "@/components/settings/account/account-sync-panel";
 import { RealtimeSyncPanel } from "@/components/settings/account/realtime-sync-panel";
 import { ProfilesSyncPanel } from "@/components/profiles/profiles-sync-panel";
+import { EntityRolesPanel } from "@/components/settings/account/entity-roles-panel";
 
 // ── Recolectores de datos reales (para las tarjetas-resumen; sin duplicar lógica) ──
 import { listThreads } from "@/lib/messages/dm";
@@ -732,6 +733,11 @@ function CuentaContent() {
 
         <ConfigExportPanel />
         <PrivacyPanel />
+      </section>
+
+      {/* ═══════════════════════ 2.5) ROLES Y CONEXIONES (RBAC) ═══════════════════════ */}
+      <section id="roles" className="scroll-mt-6 pt-2 space-y-4">
+        <EntityRolesPanel />
       </section>
 
       {/* ═══════════════════════ 3) SEGURIDAD ═══════════════════════ */}
