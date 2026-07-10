@@ -98,10 +98,6 @@ export function UiElementSettings() {
             updateSection('buttons', { style: 'glass' });
             updateSection('styling', { crystalPreset: 'clear', radius: 1, borderWidth: 1 });
             // Hybrid: Liquid variables are handled by global overrides, but we enable the engine
-        } else if (mode === 'solid-crystal') {
-            updateSection('buttons', { style: 'glass' });
-            updateSection('styling', { crystalPreset: 'clear', radius: 1, borderWidth: 1 });
-            // Hybrid: Liquid variables are handled by global overrides, but we enable the engine
             updateSection('liquidGlass', { enabled: true, applyToUI: false });
         } else if (mode === 'primary') {
             updateSection('buttons', { style: 'liquid' }); // Uses liquid geometry

@@ -138,7 +138,6 @@ export const themePresets: Record<string, DeepPartial<AppearanceConfig>> = {
             enabled: true,
             applyToUI: true,
             cornerRadius: 20,
-            distortWidth: 0.06,
         },
         layout: {
             menuPosition: 'left',
@@ -196,7 +195,6 @@ export const themePresets: Record<string, DeepPartial<AppearanceConfig>> = {
             enabled: true,
             applyToUI: true,
             cornerRadius: 16,
-            distortWidth: 0.28,
         },
         layout: {
             menuPosition: 'left',
@@ -254,7 +252,6 @@ export const themePresets: Record<string, DeepPartial<AppearanceConfig>> = {
             enabled: false,
             applyToUI: false,
             cornerRadius: 8,
-            distortWidth: 0,
         },
         layout: {
             menuPosition: 'top',
@@ -313,7 +310,6 @@ export const themePresets: Record<string, DeepPartial<AppearanceConfig>> = {
             enabled: true,
             applyToUI: true,
             cornerRadius: 28,
-            distortWidth: 0.14,
         },
         layout: {
             menuPosition: 'left',
@@ -375,7 +371,6 @@ export const themePresets: Record<string, DeepPartial<AppearanceConfig>> = {
             enabled: true,
             applyToUI: true,
             cornerRadius: 24,
-            distortWidth: 0.55,            // distorsión real al fondo
             // aberration y displacement máximos para efecto vidrio
             aberrationIntensity: 2.5,
             displacementScale: 22,

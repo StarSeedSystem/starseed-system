@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { getStitchTheme } from "@/styles/stitch-themes";
-import type { CanvasState } from "@/components/design-canvas/DesignIntegrationCanvas";
+import { CanvasState } from "@/components/design-canvas/state-types";
 
 interface StitchGraphProps {
     theme: "liquid" | "organic";
