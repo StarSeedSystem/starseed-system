@@ -17,7 +17,7 @@
  * picker universal (`AttachFilePickerButton`), con vista previa en vivo.
  */
 
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -116,10 +116,12 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
     const [saving, setSaving] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const searchParams = useSearchParams();
+    const justSavedRef = useRef(false);
     const router = useRouter();
 
     // Auto-abrir modal si venimos de /profile o si no hay perfiles
     useEffect(() => {
+        if (justSavedRef.current) return;
         if (!loading && !editor) {
             if (searchParams.get("createProfile") === "true") {
                 setEditor(emptyEditor("create"));
@@ -181,7 +183,9 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                     
                     const isCuentaPage = window.location.pathname.startsWith("/cuenta");
                     if (isCuentaPage) {
+                        justSavedRef.current = true;
                         setEditor(null);
+                        setTimeout(() => { justSavedRef.current = false; }, 2000);
                         window.location.hash = "info-personal";
                     } else {
                         router.push("/cuenta#info-personal");
