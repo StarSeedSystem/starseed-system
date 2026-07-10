@@ -15,7 +15,7 @@
 // del account-context (fuente de verdad de la identidad soberana).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAccount } from "@/context/account-context";
@@ -86,7 +86,9 @@ export default function ProfileIndexPage() {
   return (
     <div className="flex flex-1 items-center justify-center py-12 px-4">
       <div className="w-full max-w-md">
-        <AccountProfilesSwitcher />
+        <Suspense fallback={<Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />}>
+            <AccountProfilesSwitcher />
+        </Suspense>
       </div>
     </div>
   );
