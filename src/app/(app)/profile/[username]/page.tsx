@@ -19,8 +19,10 @@ import { libraryRef } from "@/lib/library/entity-library";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { StoriesStrip } from "@/components/stories/stories-strip";
 import { PostFeed } from "@/components/social/PostFeed";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useAccount } from "@/context/account-context";
+import { resolveProfileData, type ResolvedProfileData } from "@/lib/social/profile-resolver";
+import { Loader2 } from "lucide-react";
 import { ProfileModeBar } from "@/components/profile/profile-mode-bar";
 import { ProfileFreeLayout, type FreeSectionDef } from "@/components/profile/profile-free-layout";
 import { ProfileLinksSection } from "@/components/profile/profile-links-section";
@@ -244,33 +246,46 @@ export default function ProfilePage() {
     // ── Identidad real: ¿este perfil pertenece a la sesión actual? ──
     const { user, profile: accountProfile } = useAccount();
     const pageHandle = normalizeHandleKey(username) || 'me';
-    const viewerHandle = normalizeHandleKey(str(accountProfile?.handle) || str(accountProfile?.username));
-    const isOwner = !!user && (pageHandle === 'me' || (viewerHandle !== '' && viewerHandle === pageHandle));
 
-    const derivedName = pageHandle === 'me'
-        ? 'Mi Perfil'
-        : username.charAt(0).toUpperCase() + username.slice(1).replace(/-/g, ' ');
-    const accountName = str(accountProfile?.display_name) || str(accountProfile?.full_name);
-    const accountAvatar = str(accountProfile?.avatar_url);
-    const accountCover = str(accountProfile?.cover_url) || str(accountProfile?.banner_url);
-    const accountBio = str(accountProfile?.bio) || str(accountProfile?.about);
+    const [resolvedData, setResolvedData] = useState<ResolvedProfileData | null>(null);
+    const [loadingProfile, setLoadingProfile] = useState(true);
 
-    const profileData = pageData[username] || {
-        // Datos REALES de la cuenta soberana cuando el perfil es propio;
-        // si no, derivados del slug (sin imágenes falsas: iniciales).
-        name: (isOwner && accountName) || derivedName,
-        handle: `@${pageHandle}`,
-        bio: isOwner ? accountBio : `Página de ${username.replace(/-/g, ' ')}.`,
-        avatar: isOwner ? accountAvatar : "",
-        cover: isOwner ? accountCover : "",
+    useEffect(() => {
+        let alive = true;
+        setLoadingProfile(true);
+        // Retrasamos la carga para no bloquear la UI. Viewer ID es user?.id si hay sesión.
+        resolveProfileData(pageHandle, user?.id).then(data => {
+            if (alive) {
+                setResolvedData(data);
+                setLoadingProfile(false);
+            }
+        });
+        return () => { alive = false; };
+    }, [pageHandle, user?.id]);
+
+    const profileData = {
+        name: resolvedData?.name || pageHandle,
+        handle: `@${resolvedData?.handle || pageHandle}`,
+        bio: resolvedData?.bio || "",
+        avatar: resolvedData?.avatar || "",
+        cover: resolvedData?.cover || "",
         dataAiHint: "profile avatar",
         coverHint: "abstract pattern",
-        isUser: isOwner,
+        isUser: resolvedData?.isOwner || false,
         pageType: 'personal',
     };
 
+    const isOwner = profileData.isUser;
     const pageType = profileData.pageType;
     const [activeTab, setActiveTab] = useState("dashboard");
+
+    if (loadingProfile) {
+        return (
+            <div className="flex flex-1 items-center justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Cargando perfil..." />
+            </div>
+        );
+    }
 
     // ── Perfil como página libre: modo persistido por handle ──
     const { config, setMode } = useProfileDisplay(pageHandle);

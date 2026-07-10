@@ -232,7 +232,7 @@ function CuentaContent() {
     setUid(id);
     if (!id) { setLoading(false); return; }
     const [p, idn, em] = await Promise.all([
-      supabase.from("profiles").select("*").eq("user_id", id).maybeSingle(),
+      supabase.from("os_profiles").select("*").eq("user_id", id).maybeSingle(),
       supabase.from("starseed_identities").select("*").eq("owner", id).maybeSingle(),
       supabase.from("account_emails").select("*").eq("user_id", id).order("kind", { ascending: true }),
     ]);
@@ -273,7 +273,7 @@ function CuentaContent() {
     const ch = (supabase as any)
       .channel("cuenta-" + uid)
       .on("postgres_changes", { event: "*", schema: "public", table: "account_emails", filter: "user_id=eq." + uid }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles", filter: "user_id=eq." + uid }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "os_profiles", filter: "user_id=eq." + uid }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [uid, supabase, load]);
@@ -416,7 +416,7 @@ function CuentaContent() {
 
   // ── Tarjetas-sección (id + resumen en vivo) ──
   const sections: CuentaSection[] = useMemo(() => {
-    const handleTxt = profile?.handle ? `@${profile.handle}` : "sin @ todavía";
+    const handleTxt = profile?.username ? `@${profile?.username}` : "sin @ todavía";
     const externos = emails.filter((e) => e.kind !== "internal").length;
     return [
       {
@@ -536,7 +536,7 @@ function CuentaContent() {
           <div className="min-w-0">
             <h1 className="text-xl font-semibold leading-tight truncate">{displayName}</h1>
             <p className="text-xs text-muted-foreground truncate">
-              {profile?.handle ? `@${profile.handle}` : "Sin @ todavía"}
+              {profile?.username ? `@${profile.username}` : "Sin @ todavía"}
               {identity?.address ? ` · ${identity.address}` : ""}
             </p>
           </div>
@@ -581,7 +581,7 @@ function CuentaContent() {
         <section style={card}>
           <h2 style={{ fontSize: 16, marginBottom: 10 }}>Tu dirección StarSeed</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <b style={{ fontSize: 15 }}>{identity?.address ?? (profile?.handle ? profile.handle + "@star.seed" : "—")}</b>
+            <b style={{ fontSize: 15 }}>{identity?.address ?? (profile?.username ? profile.username + "@star.seed" : "—")}</b>
             <span style={chip}>interna</span>
             {internal ? <span style={chip}>{internal.visibility}</span> : null}
           </div>

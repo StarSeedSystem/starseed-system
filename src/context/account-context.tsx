@@ -121,6 +121,17 @@ async function loadProfile(
     supabase: ReturnType<typeof createClient>,
     userId: string,
 ): Promise<AccountProfile | null> {
+    // 0) os_profiles (StarSeed OS sovereign identity)
+    try {
+        const { data, error } = await supabase
+            .from("os_profiles")
+            .select("*")
+            .eq("user_id", userId)
+            .maybeSingle();
+        if (!error && data) return data as AccountProfile;
+    } catch {
+        // ignorar y probar fallback
+    }
     // 1) cafe_profiles (por user_id)
     try {
         const { data, error } = await supabase
@@ -249,6 +260,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                 onTableChange<AccountProfile>(
                     "profiles",
                     { event: "UPDATE", filter: `id=eq.${userId}` },
+                    mergeProfileRow,
+                ),
+            );
+            // os_profiles filtrada por user_id (tabla soberana de StarSeed)
+            unsubs.push(
+                onTableChange<AccountProfile>(
+                    "os_profiles",
+                    { event: "*", filter: `user_id=eq.${userId}` },
                     mergeProfileRow,
                 ),
             );

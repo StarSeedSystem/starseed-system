@@ -126,7 +126,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
             if (searchParams.get("createProfile") === "true") {
                 setEditor(emptyEditor("create"));
                 router.replace("/cuenta", { scroll: false });
-            } else if (profiles.length === 0 || !mainProfile || !mainProfile.handle) {
+            } else if (profiles.length === 0) {
                 setEditor(emptyEditor("create"));
             }
         }
@@ -170,26 +170,30 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                     
                     // Sync to Main Identity (os_profiles) if this is their very first facet,
                     // so the Sovereign Identity form also gets populated automatically.
-                    if (profiles.length === 0 || !mainProfile || !mainProfile.handle) {
+                    if (profiles.length === 0 || !mainProfile || (!mainProfile.handle && !mainProfile.username)) {
                         const { updateMyProfile } = await import("@/lib/social/os-profiles");
-                        await updateMyProfile({
+                        const res = await updateMyProfile({
                             displayName: name,
                             username: editor.handle || undefined,
                             avatarUrl: editor.avatarUrl || undefined,
                             bio: editor.bio || undefined,
                             searchable: true,
                         });
+                        if (!res.ok && res.error) {
+                            console.error("No se pudo sincronizar la identidad soberana:", res.error);
+                            toast.error(res.error.includes("duplicate") ? "Ese handle ya está en uso." : "Error sincronizando identidad principal.");
+                        }
                     }
                     
                     const isCuentaPage = window.location.pathname.startsWith("/cuenta");
-                    if (isCuentaPage) {
-                        justSavedRef.current = true;
-                        setEditor(null);
-                        setTimeout(() => { justSavedRef.current = false; }, 2000);
-                        window.location.hash = "info-personal";
-                    } else {
-                        router.push("/cuenta#info-personal");
-                    }
+                    
+                    setEditor(null);
+                    
+                    justSavedRef.current = true;
+                    setTimeout(() => { justSavedRef.current = false; }, 2000);
+
+                    // Always redirect to the new profile so they can see it immediately
+                    router.push(`/profile/${editor.handle || ''}`);
                 }
             } else if (editor.id) {
                 await updateProfile(editor.id, {
