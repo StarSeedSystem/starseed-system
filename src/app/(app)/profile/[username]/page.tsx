@@ -279,13 +279,7 @@ export default function ProfilePage() {
     const pageType = profileData.pageType;
     const [activeTab, setActiveTab] = useState("dashboard");
 
-    if (loadingProfile) {
-        return (
-            <div className="flex flex-1 items-center justify-center py-16">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Cargando perfil..." />
-            </div>
-        );
-    }
+
 
     // ── Perfil como página libre: modo persistido por handle ──
     const { config, setMode } = useProfileDisplay(pageHandle);
@@ -394,6 +388,14 @@ export default function ProfilePage() {
             ),
         },
     ];
+
+    if (loadingProfile) {
+        return (
+            <div className="flex flex-1 items-center justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Cargando perfil..." />
+            </div>
+        );
+    }
 
     return (
 

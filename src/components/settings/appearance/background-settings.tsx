@@ -455,7 +455,7 @@ function LivingMiniPreview({
                 const rad = (v === "nebula" ? 0.6 : 0.45) * Math.min(w, h) * (0.7 + it * 0.6);
                 const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
                 g.addColorStop(0, col);
-                g.addColorStop(0.5, col + "66");
+                g.addColorStop(0.5, applyAlpha(col, "66", "0.4"));
                 g.addColorStop(1, "transparent");
                 ctx.fillStyle = g;
                 ctx.globalAlpha = (v === "aurora" ? 0.32 : 0.28) * (0.5 + it);

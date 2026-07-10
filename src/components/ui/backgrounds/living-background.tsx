@@ -65,6 +65,11 @@ function hexToRgb(c: string): [number, number, number] {
     return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
 }
 
+function applyAlpha(col: string, hexAlpha: string, floatAlpha: string): string {
+    if (col.startsWith("hsl(")) return col.replace(")", ` / ${floatAlpha})`);
+    return col + hexAlpha;
+}
+
 export function LivingBackground() {
     const { config } = useAppearance();
     const [mounted, setMounted] = useState(false);
@@ -292,7 +297,7 @@ export function LivingBackground() {
                 const rad = (variant === "nebula" ? 0.55 : 0.4) * Math.min(w, h) * (0.7 + intensity * 0.6);
                 const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
                 g.addColorStop(0, col);
-                g.addColorStop(0.5, col + "66");
+                g.addColorStop(0.5, applyAlpha(col, "66", "0.4"));
                 g.addColorStop(1, "transparent");
                 ctx.fillStyle = g;
                 ctx.globalAlpha = (variant === "aurora" ? 0.30 : 0.26) * (0.5 + intensity);
