@@ -375,12 +375,12 @@ export function ProfileIdentityPanel() {
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium flex items-center gap-1.5">
-                                    <AtSign className="w-3.5 h-3.5 text-muted-foreground" /> Alias (@)
+                                    <AtSign className="w-3.5 h-3.5 text-muted-foreground" /> Handle (@)
                                 </label>
                                 <Input
                                     value={form.handle}
                                     onChange={(e) => setField("handle", e.target.value)}
-                                    placeholder="tu_alias"
+                                    placeholder="tu_perfil"
                                     disabled={isLoading}
                                     className="bg-background/50"
                                 />
@@ -390,7 +390,7 @@ export function ProfileIdentityPanel() {
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium flex items-center gap-1.5">
-                                    <User className="w-3.5 h-3.5 text-muted-foreground" /> Nombre público
+                                    <User className="w-3.5 h-3.5 text-muted-foreground" /> Nombre
                                 </label>
                                 <Input
                                     value={form.display_name}

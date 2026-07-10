@@ -119,13 +119,15 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
     const justSavedRef = useRef(false);
     const router = useRouter();
 
-    // Auto-abrir modal si venimos de /profile o si no hay perfiles
     useEffect(() => {
         if (justSavedRef.current) return;
         if (!loading && !editor) {
             if (searchParams.get("createProfile") === "true") {
                 setEditor(emptyEditor("create"));
-                router.replace("/cuenta", { scroll: false });
+                // Remove param without redirecting to a different page
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.delete("createProfile");
+                router.replace(newUrl.pathname + newUrl.search, { scroll: false });
             } else if (profiles.length === 0) {
                 setEditor(emptyEditor("create"));
             }
@@ -141,13 +143,18 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
 
     const saveEditor = useCallback(async () => {
         if (!editor) return;
+        if (!editor.handle?.trim()) {
+            toast.error("Debes ingresar un Handle (@) para crear tu perfil.");
+            return;
+        }
+        
         setSaving(true);
         try {
             const name = editor.name.trim() || "Sin nombre";
             if (editor.mode === "create") {
                 const input = {
                     name,
-                    handle: editor.handle || null,
+                    handle: editor.handle.trim(),
                     kind: editor.kind,
                     bio: editor.bio || null,
                     avatarUrl: editor.avatarUrl || null,
@@ -164,7 +171,9 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                 }
                 if (!created) {
                     toast.error("Error al crear el perfil. Revisa la consola.");
+                    return;
                 }
+                
                 if (created) {
                     setActive(created.id);
                     
@@ -174,7 +183,7 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                         const { updateMyProfile } = await import("@/lib/social/os-profiles");
                         const res = await updateMyProfile({
                             displayName: name,
-                            username: editor.handle || undefined,
+                            username: editor.handle.trim(),
                             avatarUrl: editor.avatarUrl || undefined,
                             bio: editor.bio || undefined,
                             searchable: true,
@@ -185,32 +194,30 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                         }
                     }
                     
-                    const isCuentaPage = window.location.pathname.startsWith("/cuenta");
-                    
                     setEditor(null);
                     
                     justSavedRef.current = true;
                     setTimeout(() => { justSavedRef.current = false; }, 2000);
 
                     // Always redirect to the new profile so they can see it immediately
-                    router.push(`/profile/${editor.handle || ''}`);
+                    router.push(`/profile/${editor.handle.trim()}`);
                 }
             } else if (editor.id) {
                 await updateProfile(editor.id, {
                     name,
-                    handle: editor.handle || null,
+                    handle: editor.handle.trim(),
                     kind: editor.kind,
                     bio: editor.bio || null,
                     avatarUrl: editor.avatarUrl || null,
                     coverUrl: editor.coverUrl || null,
                     visibility: editor.visibility,
                 });
+                setEditor(null);
             }
-            setEditor(null);
         } finally {
             setSaving(false);
         }
-    }, [editor, setActive, profiles.length, router]);
+    }, [editor, setActive, profiles.length, router, mainProfile]);
 
     const removeProfile = useCallback(async (id: string) => {
         if (typeof window !== "undefined" && !window.confirm("¿Eliminar este perfil? No se puede deshacer.")) return;
