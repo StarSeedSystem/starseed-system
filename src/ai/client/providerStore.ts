@@ -17,7 +17,16 @@ export function loadConfigs(): ProviderConfig[] {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultConfigs();
     const parsed = JSON.parse(raw) as ProviderConfig[];
-    return Array.isArray(parsed) && parsed.length ? parsed : defaultConfigs();
+    if (!Array.isArray(parsed) || !parsed.length) return defaultConfigs();
+    
+    // Auto-migrate: add any missing default providers that were introduced in later versions
+    const defaults = defaultConfigs();
+    for (const def of defaults) {
+      if (!parsed.find((p) => p.id === def.id)) {
+        parsed.push(def);
+      }
+    }
+    return parsed;
   } catch {
     return defaultConfigs();
   }
@@ -61,6 +70,15 @@ export function defaultConfigs(): ProviderConfig[] {
       encryptedKey: "",
       models: [...PROVIDERS.ollama.info.defaultModels],
       defaultModel: PROVIDERS.ollama.info.defaultModels[0],
+      enabled: false,
+    },
+    {
+      id: "openrouter",
+      label: PROVIDERS.openrouter.info.label,
+      baseUrl: PROVIDERS.openrouter.info.defaultBaseUrl,
+      encryptedKey: "",
+      models: [...PROVIDERS.openrouter.info.defaultModels],
+      defaultModel: PROVIDERS.openrouter.info.defaultModels[0],
       enabled: false,
     },
   ];
