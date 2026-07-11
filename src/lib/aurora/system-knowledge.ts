@@ -126,6 +126,16 @@ export const OS_AREAS: KnowledgeArea[] = [
     route: "/habilidades",
     what: "skills, herramientas y conexiones (MCP) que amplían lo que Aurora puede hacer por ti.",
   },
+  {
+    name: "Servidores (Infraestructura)",
+    route: "/servidores",
+    what: "gestión de infraestructura en la nube y terminal local usando Google Cloud CLI y gcloud. Permite gestionar clusters y recursos desde el OS.",
+  },
+  {
+    name: "Aplicaciones y Servicios",
+    route: "/servidores-apps",
+    what: "despliegue y configuración de microservicios, contenedores y automatizaciones AI integradas en los servidores (ej: STT/TTS vía Cloud, OmniRoute/OpenRouter).",
+  },
 ];
 
 /** Portales y apps hermanas del ecosistema (fuera de este repo). */

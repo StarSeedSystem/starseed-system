@@ -58,6 +58,8 @@
 | `/info/constitution` | Constitución de la red |
 | `/article/[id]` | Artículos individuales |
 | `/course/[id]` | Cursos individuales |
+| `/servidores` | Centro de infraestructura y Google Cloud CLI |
+| `/servidores-apps` | Contenedores, microservicios y despliegues AI |
 
 ### 2.4 Sección Trinity (Laboratorio)
 **Ruta**: `src/app/trinity/`
@@ -529,9 +531,10 @@
 - Replicación de votos
 
 ### 9.5 Sistema de Agentes AI
-- Múltiples agentes
-- Configuración personalizada
-- Workflows automatizados
+- Múltiples agentes (Núcleo StarSeed, Musas Creativas)
+- Configuración personalizada (capabilities, prompts)
+- Sistema multi-proveedor avanzado mediante **OmniRoute** y **OpenRouter** para balanceo automático del mejor modelo (Astraura, DeepSeek, Anthropic, Gemini, OpenAI).
+- Sistema de habla bi-direccional resiliente (TTS/STT robustos, reconexión automática).
 
 ### 9.6 Biblioteca de Contenidos
 - Cursos
@@ -547,6 +550,11 @@
 - Editor en tiempo real
 - Múltiples temas
 - Efectos de cristal líquido
+
+### 9.9 Sistema de Servidores e Infraestructura
+- Interfaz gráfica y terminal integradas para **Google Cloud CLI** (`gcloud`).
+- Despliegue de servicios y aplicaciones containerizadas (Docker).
+- Sincronización automática de modelos y dependencias AI.
 
 ---
 
