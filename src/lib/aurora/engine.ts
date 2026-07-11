@@ -908,13 +908,18 @@ export function useAuroraEngine(): AuroraEngine {
       // Router agéntico gratis-primero (auto) o proveedor clásico (manual).
       // `forceSource` (opcional): "Reintentar" del menú contextual de mensajes
       // fuerza un proveedor/modelo concreto para ESTA llamada.
+      // 15 seconds timeout to prevent hanging which causes mic revoke and UI glitch loops
+      const abortCtrl = new AbortController();
+      const timeoutId = setTimeout(() => abortCtrl.abort(), 15000);
+
       const res = await astrauraChat({
         messages,
         temperature,
         brainId: brainIdRef.current,
         onStatus: (s) => { if (s) setStatus(s); },
         forceSource: opts?.forceSource,
-      });
+        signal: abortCtrl.signal,
+      }).finally(() => clearTimeout(timeoutId));
       setThinking(false); // ya llegó la respuesta
       let reply = (res?.text || "").trim();
       // TRANSPARENCIA: si la fuente cambió (o el usuario quiere oírlo siempre),
