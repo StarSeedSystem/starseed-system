@@ -1,6 +1,6 @@
-import Link from "next/link";
-
 "use client";
+
+import Link from "next/link";
 import React from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
