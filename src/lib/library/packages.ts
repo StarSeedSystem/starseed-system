@@ -215,7 +215,8 @@ export function subscribeLibrary(cb: () => void): () => void {
 const CORE_AI_SOURCE_IDS: { catalogId: string; icon: string; featured?: boolean }[] = [
   { catalogId: "groq-free", icon: "Zap", featured: true },
   { catalogId: "cerebras-free", icon: "Gauge" },
-  { catalogId: "openrouter-free", icon: "Shapes" },
+  { catalogId: "openrouter-free", icon: "Shapes", featured: true },
+  { catalogId: "omniroute-local", icon: "Network", featured: true },
   { catalogId: "gemini-free", icon: "Sparkles", featured: true },
   { catalogId: "pollinations-text", icon: "Flower2", featured: true },
   { catalogId: "chrome-ai", icon: "Chrome" },

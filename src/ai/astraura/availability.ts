@@ -97,26 +97,26 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
       });
       continue;
     }
-    // ── 9Router (proxy local, jul-2026): opt-in explícito vía
-    //    IntelligenceSettings.nineRouter — nunca se sondea solo, a diferencia
+    // ── OmniRoute (proxy local, jul-2026): opt-in explícito vía
+    //    IntelligenceSettings.omniRoute — nunca se sondea solo, a diferencia
     //    del resto de fuentes "local", porque requiere que el usuario active la
     //    capa a propósito (documentado en architecture/astraura-inteligencia.md §15.4).
-    if (source.id === "9router-local") {
+    if (source.id === "omniroute-local") {
       let cfg: { enabled: boolean; endpoint: string } = { enabled: false, endpoint: source.baseUrl.replace(/\/v1$/, "") };
       try {
         const router = await import("./router");
         const settings = router.getIntelligenceSettings();
-        if (settings.nineRouter) cfg = settings.nineRouter;
+        if (settings.omniRoute) cfg = settings.omniRoute;
       } catch { /* defensivo: sin ajuste guardado, se trata como deshabilitado */ }
       if (!cfg.enabled) {
-        out.push({ source, ready: false, userConfig, reason: "Desactivado (actívalo en Ajustes → Inteligencia si tienes 9Router corriendo)." });
+        out.push({ source, ready: false, userConfig, reason: "Desactivado (actívalo en Ajustes → Inteligencia si tienes OmniRoute corriendo)." });
         continue;
       }
       const endpoint = (cfg.endpoint || source.baseUrl.replace(/\/v1$/, "")).replace(/\/+$/, "");
       const ok = fast ? true : await probe(`${endpoint}/v1/models`);
       out.push({
         source, ready: ok, userConfig,
-        reason: ok ? undefined : `9Router no responde en ${endpoint} (¿está corriendo?).`,
+        reason: ok ? undefined : `OmniRoute no responde en ${endpoint} (¿está corriendo?).`,
       });
       continue;
     }

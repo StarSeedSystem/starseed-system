@@ -86,13 +86,13 @@ export interface IntelligenceSettings {
     hostedOnly: boolean;
   };
   /**
-   * 9Router (jul-2026): proxy LOCAL OpenAI-compatible que el usuario corre en su
-   * propio equipo (https://github.com/decolua/9router) con fallback entre 40+
+   * OmniRoute (jul-2026): proxy LOCAL OpenAI-compatible que el usuario corre en su
+   * propio equipo (https://github.com/diegosouzapw/OmniRoute) con fallback entre 40+
    * proveedores y compresión de tokens. Astraura NO lo instala ni lo lanza: solo
    * lo considera como una fuente más si `enabled` y responde en `endpoint`.
    * Ver architecture/astraura-inteligencia.md §15.4.
    */
-  nineRouter: {
+  omniRoute: {
     /** Por defecto false: requiere que el usuario ya lo tenga corriendo. */
     enabled: boolean;
     /** Endpoint OpenAI-compatible local (default puerto habitual del proyecto). */
@@ -127,16 +127,16 @@ export const DEFAULT_INTELLIGENCE: IntelligenceSettings = {
     permissiveOnly: true,
     hostedOnly: false,
   },
-  nineRouter: {
-    enabled: false,
-    endpoint: "http://localhost:8000",
+  omniRoute: {
+    enabled: true,
+    endpoint: "http://localhost:20128",
     compressionHint: false,
   },
   autoTools: true,
 };
 
 /** Fusiona `IntelligenceSettings` respetando el merge ANIDADO de `huggingBay` y
- *  `nineRouter` (objetos nuevos aditivos): así, ajustes guardados antes de estas
+ *  `omniRoute` (objetos nuevos aditivos): así, ajustes guardados antes de estas
  *  olas —o un patch parcial como `{ huggingBay: { enabled: false } }`— nunca
  *  pierden las subclaves con default seguro que no vinieran en el objeto
  *  persistido. */
@@ -148,10 +148,10 @@ function mergeIntelligence(base: IntelligenceSettings, patch: unknown): Intellig
     ...(base.huggingBay && typeof base.huggingBay === "object" ? base.huggingBay : {}),
     ...(p.huggingBay && typeof p.huggingBay === "object" ? p.huggingBay : {}),
   };
-  merged.nineRouter = {
-    ...DEFAULT_INTELLIGENCE.nineRouter,
-    ...(base.nineRouter && typeof base.nineRouter === "object" ? base.nineRouter : {}),
-    ...(p.nineRouter && typeof p.nineRouter === "object" ? p.nineRouter : {}),
+  merged.omniRoute = {
+    ...DEFAULT_INTELLIGENCE.omniRoute,
+    ...(base.omniRoute && typeof base.omniRoute === "object" ? base.omniRoute : {}),
+    ...(p.omniRoute && typeof p.omniRoute === "object" ? p.omniRoute : {}),
   };
   return merged;
 }
@@ -516,23 +516,23 @@ async function runCandidate(c: RouteCandidate, req: AstrauraChatRequest): Promis
       onProgress: (p) => req.onStatus?.(p ? `Cargando SmolLM3 en tu navegador… ${p}` : ""),
     });
   }
-  // ── 9Router (proxy local): usa el endpoint CONFIGURADO por el usuario en
+  // ── OmniRoute (proxy local): usa el endpoint CONFIGURADO por el usuario en
   //    Ajustes → Inteligencia (no el baseUrl fijo del catálogo), y si
   //    `compressionHint` está activo, avisa al proxy con una línea ligera de
   //    system prompt (no reimplementamos su algoritmo de compresión). ────────
-  if (c.source.id === "9router-local") {
+  if (c.source.id === "omniroute-local") {
     let endpoint = c.source.baseUrl;
     let compressionHint = false;
     try {
       const settings = getIntelligenceSettings();
-      if (settings.nineRouter?.endpoint) {
-        const base = settings.nineRouter.endpoint.replace(/\/+$/, "");
+      if (settings.omniRoute?.endpoint) {
+        const base = settings.omniRoute.endpoint.replace(/\/+$/, "");
         endpoint = /\/v1$/.test(base) ? base : `${base}/v1`;
       }
-      compressionHint = !!settings.nineRouter?.compressionHint;
+      compressionHint = !!settings.omniRoute?.compressionHint;
     } catch { /* defensivo: usa el default del catálogo */ }
     const msgs = compressionHint
-      ? mergeSystemPrompt(base.messages, "[9Router] Si tu proxy soporta compresión de contexto, aplícala a esta petición.")
+      ? mergeSystemPrompt(base.messages, "[OmniRoute] Si tu proxy soporta compresión de contexto, aplícala a esta petición.")
       : base.messages;
     return chat({
       ...base,
