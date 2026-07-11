@@ -37,7 +37,7 @@ async function chat(
   options: ChatOptions
 ): Promise<ChatResponse> {
   const baseUrl = (config.baseUrl || info.defaultBaseUrl).replace(/\/$/, "");
-  const stream = Boolean(options.onChunk);
+  const stream = Boolean(options.onChunk) && !baseUrl.includes("pollinations");
 
   const body: Record<string, unknown> = {
     model: options.model,

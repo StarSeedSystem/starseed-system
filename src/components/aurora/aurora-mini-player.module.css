@@ -12,7 +12,9 @@
   width: clamp(16rem, 78vw, 20.5rem);
   max-width: calc(100vw - 16px);
   border-radius: 20px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 85vh;
   color: #fff;
   touch-action: pan-y;
   /* Cristal oscuro translúcido + doble tinte aurora + rescoldo del turno. */
@@ -179,7 +181,9 @@
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 85vh;
 }
 
 /* Historial con SCROLL INTERNO CONTENIDO dentro del widget. */

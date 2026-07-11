@@ -399,7 +399,7 @@ export default function ProfilePage() {
 
     return (
 
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 min-w-0 w-full overflow-x-clip">
             <ProfileHeader profileData={profileData} />
 
             {/* ── Barra de modos: el perfil es una página abierta y libre ── */}

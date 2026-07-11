@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 "use client";
 import React from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -109,8 +111,10 @@ export function ProfileHeader({ profileData }: ProfileHeaderProps) {
                         </Button>
                     )}
                     {isOwner && (
-                        <Button variant="outline" size="lg" className="flex-1 sm:flex-none cursor-pointer backdrop-blur-md bg-background/30 border-white/10 hover:bg-background/50 gap-2">
+                        <Button variant="outline" size="lg" asChild className="flex-1 sm:flex-none cursor-pointer backdrop-blur-md bg-background/30 border-white/10 hover:bg-background/50 gap-2">
+                            <Link href="/cuenta">
                             <Edit className="h-4 w-4" /> Editar
+                            </Link>
                         </Button>
                     )}
                     <div className="flex gap-2 shrink-0">
