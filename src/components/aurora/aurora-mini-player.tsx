@@ -226,14 +226,8 @@ export function AuroraMiniPlayer({
   const { openUp, openLeft } = anchor;
 
   // Última respuesta de Aurora → visor universal (imágenes/vídeo/audio/PDF/3D…).
-  const say = (aurora.lastReply ?? "").trim();
-  const lastMsg = conversation[conversation.length - 1];
-  const sayIsLastMsg = lastMsg?.role === "aurora" && lastMsg?.text.trim() === say;
-  
-  const displayConversation = sayIsLastMsg ? conversation.slice(0, -1) : conversation;
-
   // Últimas líneas: 2 en resumido; en expandido mostramos todo el historial.
-  const collapsedLines = displayConversation.slice(-2);
+  const collapsedLines = conversation.slice(-2);
   const playIcon = speaking && !paused ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />;
 
   // Barras de iluminación reactiva (ecualizador cristalino) — reaccionan a quien
@@ -350,12 +344,12 @@ export function AuroraMiniPlayer({
                   <History className="h-3 w-3" /> Historial de la sesión
                 </div>
                 <div ref={historyScrollRef} className={styles.history}>
-                  {displayConversation.length === 0 && (
+                  {conversation.length === 0 && (
                     <p className="px-1 py-2 text-[11px] italic text-white/40">
                       Aún no hay mensajes en esta sesión.
                     </p>
                   )}
-                  {displayConversation.map((m, i) => (
+                  {conversation.map((m, i) => (
                     <LineRow key={`${m.at}-${i}`} line={m} />
                   ))}
                   {interim && (
@@ -392,11 +386,6 @@ export function AuroraMiniPlayer({
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* Renderizador universal bajo la última respuesta (compacto, alturas
-              reducidas): markdown, código, tablas, JSON, SVG y el visor de
-              medios (imágenes/vídeo/audio/PDF/3D…) en un único paso. */}
-          {say.length > 0 && <MessageRenderer text={say} compact />}
 
           {/* Transparencia del modelo: chip en la esquina del mini-panel.
               inlinePanel: la tarjeta abre EN FLUJO (la carta tiene overflow:hidden). */}
@@ -530,8 +519,8 @@ function LineRow({ line, clamp = false }: { line: Line; clamp?: boolean }) {
         <span>{line.text}</span>
       ) : (
         // Historial expandido (con scroll): renderizador universal completo
-        // (markdown/código/tablas/JSON), sin duplicar el visor de medios.
-        <MessageRenderer text={line.text} compact media={false} className="inline" />
+        // (markdown/código/tablas/JSON), con visor de medios.
+        <MessageRenderer text={line.text} compact media={true} className="inline" />
       )}
     </div>
   );
