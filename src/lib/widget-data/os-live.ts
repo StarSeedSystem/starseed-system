@@ -320,7 +320,13 @@ export function useOwnerRows<T = Record<string, unknown>>(
                 } catch {
                     /* sin orden si la columna no existe */
                 }
-                return q.limit(limit);
+                // El builder de PostgREST no puede inferir la fila de una tabla
+                // cuyo nombre llega en runtime (queda como GenericStringError):
+                // la reafirmamos a `T`, que es el contrato de `useOwnerRows<T>`.
+                return q.limit(limit) as unknown as PromiseLike<{
+                    data: T[] | null;
+                    error: unknown;
+                }>;
             });
         },
         { idKey, filter: uid ? `${ownerKey}=eq.${uid}` : undefined },

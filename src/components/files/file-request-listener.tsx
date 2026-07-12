@@ -28,6 +28,11 @@ import { cn } from "@/lib/utils";
 import { onAccountBroadcast } from "@/lib/sync/realtime-sync";
 import { deviceId } from "@/lib/sync/entity-state";
 import { uploadFile } from "@/lib/files/os-files";
+// Ajustes por neurona ('starseed.neurons.prefs.v1'): si esta neurona tiene
+// desactivado "recibir solicitudes de archivos", el receptor las ignora.
+// thisDeviceId(): el panel de Neuronas del Cerebro también puede dirigir la
+// solicitud al id de neurona (además del deviceId de sync).
+import { allowsFileRequests, thisDeviceId } from "@/lib/neurons/neurons";
 
 interface FileRequestPayload {
     toDevice?: string;
@@ -50,7 +55,12 @@ export function FileRequestListener() {
     useEffect(() => {
         const unsub = onAccountBroadcast("file-request", (raw) => {
             const payload = raw as FileRequestPayload | undefined;
-            if (!payload || payload.toDevice !== deviceId()) return;
+            const target = payload?.toDevice;
+            // Dirigida a ESTE dispositivo: por deviceId de sync (entity-state)
+            // o por id de neurona (panel Neuronas del Cerebro).
+            if (!payload || !target || (target !== deviceId() && target !== thisDeviceId())) return;
+            // Flag por neurona (Cerebro → Neuronas → "Solicitudes de archivos").
+            if (!allowsFileRequests()) return;
             setPending({
                 fromDevice: payload.fromDevice || "otra neurona",
                 note: payload.note,

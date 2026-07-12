@@ -1,6 +1,7 @@
 import { WidgetType } from "./dashboard-types";
 import { WidgetCategory, WIDGET_CATEGORIES, type WidgetCategoryDef } from "./widget-categories";
 import type { LucideIcon } from "lucide-react";
+import { dimsForSize, type WidgetSize } from "./dashboard-size";
 
 // ── Widget-to-Category Mapping ───────────────────────────────────
 export interface WidgetCategoryMapping {
@@ -165,48 +166,41 @@ export interface DefaultDashboardTemplate {
     categoryId: WidgetCategory;
     name: string;
     isDefault?: boolean;  // Only one should be true (the first dashboard for new users)
-    widgets: { type: WidgetType; w: number; h: number; x: number; y: number; settings?: Record<string, any> }[];
+    widgets: { type: WidgetType; w: number; h: number; x: number; y: number; settings?: Record<string, any>; size?: WidgetSize }[];
+}
+
+/** Atajo: construye una entrada de widget a partir de su talla S/M/L/XL
+ *  (ver dashboard-size.ts), recortada a los mínimos del widget-manifest. El
+ *  `size` viaja con la entrada para que el widget sembrado ya lo declare. */
+function sz(type: WidgetType, size: WidgetSize, x: number, y: number, settings?: Record<string, any>) {
+    const { w, h } = dimsForSize(type, size);
+    return { type, w, h, x, y, size, ...(settings ? { settings } : {}) };
 }
 
 const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
-    // ─── 1. Dashboards / Inicio (DEFAULT) ────────────────────
+    // ─── 1. Dashboards / Inicio (DEFAULT) ─────────────────────
+    // Rediseño (gen11 · migración de cabecera+plantillas+tamaños): composición
+    // curada con jerarquía clara en 3 franjas — 1) orientación (reloj + agenda,
+    // ambos L, lado a lado); 2) utilidades de un vistazo (clima/tareas/accesos,
+    // M+M+S); 3) el feed de la Red como ancla de contenido al final (XL, ancho
+    // completo). El dock de apps StarSeed se añade solo (withSeededExtras) —
+    // no hace falta declararlo aquí.
     {
         categoryId: 'social',
         name: 'Inicio',
         isDefault: true,
         widgets: [
-            // ── Pantalla principal adaptativa (tipo Android/iOS/tablet/desktop) ──
-            // Orden por FUNCIÓN y utilidad de un vistazo:
-            //  1) Carpeta-dock de apps StarSeed COMPACTA (poca altura, expandible).
-            //     Es lo primero: lanzar apps es la acción más frecuente en un inicio.
-            //  2) Fila de datos vivos glanceables: resumen de actividad + accesos
-            //     rápidos (agregados reales; el widget muestra estado vacío honesto).
-            //  3) Comunicación (mensajes) + notificaciones (contexto en tiempo real).
-            //  4) Descubrimiento (explorar red) + radar social + mis páginas.
-            //  5) Muestras funcionales compactas (abridor universal + datos oficiales
-            //     + control de medios) para tener herramientas útiles sin saturar.
-            // Carpeta principal de apps (compacta): Nexus, Café, Audiomorphic, Omni…
-            { type: 'APP_LAUNCHER', w: 12, h: 3, x: 0, y: 0, settings: { variant: 'folder', collection: 'starseed', label: 'Apps StarSeed', compactFolder: true } },
+            // Orientación: hora/fecha + próximos eventos (12 = 6+6, fila completa).
+            sz('CLOCK_DATE', 'L', 0, 0),
+            sz('MY_EVENTS', 'L', 6, 0),
 
-            // Datos vivos de un vistazo (arriba, alta prioridad visual).
-            { type: 'ACTIVITY_SUMMARY', w: 6, h: 4, x: 0, y: 3 },
-            { type: 'QUICK_ACCESS', w: 6, h: 4, x: 6, y: 3 },
+            // Utilidades de un vistazo: clima, tareas rápidas, accesos directos.
+            sz('WEATHER_BASIC', 'M', 0, 5),
+            sz('TASKS_QUICK', 'M', 4, 5),
+            sz('QUICK_ACCESS', 'S', 8, 5),
 
-            // Comunicación + contexto en tiempo real.
-            { type: 'MESSAGES', w: 5, h: 5, x: 0, y: 7 },
-            { type: 'NOTIFICATIONS', w: 3, h: 5, x: 5, y: 7 },
-            { type: 'OFFICIAL_DATA', w: 4, h: 5, x: 8, y: 7 },
-
-            // Descubrimiento y red social.
-            { type: 'EXPLORE_NETWORK', w: 6, h: 4, x: 0, y: 12 },
-            { type: 'MY_PAGES', w: 3, h: 4, x: 6, y: 12 },
-            { type: 'SOCIAL_RADAR', w: 3, h: 4, x: 9, y: 12 },
-
-            // Herramientas funcionales compactas (abridor + media) — carpeta media
-            // como categoría aparte para demostrar la agrupación por función.
-            { type: 'UNIVERSAL_OPENER', w: 4, h: 5, x: 0, y: 16 },
-            { type: 'MEDIA_CONTROL', w: 4, h: 5, x: 4, y: 16 },
-            { type: 'APP_LAUNCHER', w: 4, h: 5, x: 8, y: 16, settings: { variant: 'folder', collection: 'media', label: 'Media', compactFolder: true, grouped: true, iconStyle: 'gradient' } },
+            // Feed de la Red: ancla de contenido, ancho completo, al final.
+            sz('NETWORK_FEED_MINI', 'XL', 0, 9),
         ],
     },
     // ─── 2. Política ─────────────────────────────────────────
@@ -335,16 +329,20 @@ const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         ],
     },
     // ─── 12. Sistema ─────────────────────────────────────────
+    // Rediseño (gen11): sincronización en vivo como hero, cerebros + neuronas
+    // (nodos soberanos) como par de estado, acceso a la Biblioteca. Nota: no
+    // existe aún un widget "Sync" ni "Neuronas" dedicados en el catálogo —
+    // LIVE_DATA (telemetría de nodos en tiempo real) y SOVEREIGN_NODE (nodo/
+    // hardware soberano) son los sustitutos más fieles hoy; swap directo
+    // cuando el kit de widgets los incorpore.
     {
         categoryId: 'sistema',
         name: 'Sistema',
         widgets: [
-            { type: 'SOVEREIGN_NODE', w: 4, h: 4, x: 0, y: 0 },
-            { type: 'MESH_RADAR', w: 4, h: 4, x: 4, y: 0 },
-            { type: 'SYSTEM_STATUS', w: 4, h: 4, x: 8, y: 0 },
-            { type: 'IDENTITY_VAULT', w: 4, h: 4, x: 0, y: 4 },
-            { type: 'LIVE_DATA', w: 4, h: 4, x: 4, y: 4 },
-            { type: 'NOTIFICATIONS', w: 4, h: 4, x: 8, y: 4 },
+            sz('LIVE_DATA', 'L', 0, 0),           // Sync (sustituto: telemetría/nodos en vivo)
+            sz('BRAINS', 'M', 6, 0),               // Cerebros
+            sz('SOVEREIGN_NODE', 'M', 0, 5),       // Neuronas (sustituto: nodo soberano)
+            sz('UNIVERSAL_LIBRARY', 'S', 4, 5),    // Biblioteca (acceso)
         ],
     },
     // ─── 13. Personalización ─────────────────────────────────
@@ -379,14 +377,16 @@ const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
         ],
     },
     // ─── 16. Red ─────────────────────────────────────────────
+    // Rediseño (gen11): feed de exploración como hero (ancho completo),
+    // franja de contexto social (notificaciones/mensajes/insignias) debajo.
     {
         categoryId: 'red',
         name: 'Red',
         widgets: [
-            { type: 'MESH_RADAR', w: 5, h: 4, x: 0, y: 0 },
-            { type: 'EXPLORE_NETWORK', w: 4, h: 4, x: 5, y: 0 },
-            { type: 'LIVE_DATA', w: 3, h: 4, x: 9, y: 0 },
-            { type: 'MY_PAGES', w: 12, h: 3, x: 0, y: 4 },
+            sz('EXPLORE_NETWORK', 'XL', 0, 0),
+            sz('NOTIFICATIONS', 'M', 0, 6),
+            sz('MESSAGES', 'M', 4, 6),
+            sz('BADGES', 'S', 8, 6),
         ],
     },
     // ─── 17. Explorador ──────────────────────────────────────
@@ -397,6 +397,21 @@ const BASE_DEFAULT_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
             { type: 'EXPLORE_NETWORK', w: 7, h: 5, x: 0, y: 0 },
             { type: 'MY_PAGES', w: 5, h: 5, x: 7, y: 0 },
             { type: 'SOCIAL_RADAR', w: 12, h: 3, x: 0, y: 5 },
+        ],
+    },
+    // ─── 18. Creativo ────────────────────────────────────────
+    // Nuevo predeterminado (gen11): hub personal de creación rápida — galería
+    // + cámara + estudio en la fila superior (6+3+3=12), notas debajo.
+    // Promovido desde BASE_FUTURE_DASHBOARD_TEMPLATES ('Creatividad') a
+    // predeterminado: pasa a sembrarse para cuentas nuevas y existentes.
+    {
+        categoryId: 'creatividad',
+        name: 'Creativo',
+        widgets: [
+            sz('RECENT_GALLERY', 'L', 0, 0),
+            sz('CAMERA_QUICK', 'S', 6, 0),
+            sz('CREATIVE_STUDIO', 'S', 9, 0),
+            sz('QUICK_NOTES', 'M', 0, 5),
         ],
     },
 ];
@@ -483,16 +498,8 @@ const BASE_FUTURE_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
             { type: 'SYSTEM_STATUS', w: 3, h: 5, x: 9, y: 0 },
         ],
     },
-    // ─── Creatividad ─────────────────────────────────────────
-    {
-        categoryId: 'creatividad',
-        name: 'Creatividad',
-        widgets: [
-            { type: 'IDEA_FORGE', w: 5, h: 5, x: 0, y: 0 },
-            { type: 'CREATIVE_STUDIO', w: 4, h: 5, x: 5, y: 0 },
-            { type: 'CULTURAL_FEED', w: 3, h: 5, x: 9, y: 0 },
-        ],
-    },
+    // Nota: 'creatividad' (antes "Creatividad" aquí) se promovió a
+    // predeterminado — ver BASE_DEFAULT_DASHBOARD_TEMPLATES #18 "Creativo".
     // ─── Perfil ──────────────────────────────────────────────
     {
         categoryId: 'perfil',

@@ -64,6 +64,12 @@ const AURORA_ENGINE_LABEL: Record<AuroraVoiceEngine, string> = {
     browser: "Navegador",
     kokoro: "Kokoro (mejorada)",
     kitten: "Kitten (beta)",
+    // Motores NEURALES por endpoint (Adenda voz de Aurora, jul-2026): servidores
+    // Python en una neurona propia/CasaOS. Si fallan, la cadena de respaldo
+    // (Kokoro → navegador) mantiene a Aurora hablando siempre.
+    bark: "Bark (neuronal)",
+    "gpt-sovits": "GPT-SoVITS (clonación)",
+    omnivoice: "OmniVoice (multilingüe)",
 };
 
 const PERF_OPTIONS: Array<{ id: PerfMode; label: string; Icon: React.ComponentType<{ className?: string }> }> = [

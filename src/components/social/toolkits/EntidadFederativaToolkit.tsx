@@ -15,6 +15,7 @@ import {
   Timeline,
   Chip,
   EmptyHint,
+  EntityQuickActions,
   GOLD,
 } from "@/components/social/toolkits/shared";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -72,17 +73,34 @@ export function EntidadFederativaToolkit({
   const data = getFederativeEntity(slug);
   const ac = accent ?? "#007FFF";
 
+  // Acciones por defecto de la entidad (Adenda 63 §8).
+  const quickActions = (
+    <EntityQuickActions
+      slug={slug}
+      name={name ?? data?.name}
+      accent={ac}
+      libraryKind="ef"
+      entityHref={`/entidad/${slug}`}
+      memberCount={data?.citizens}
+      membersLabel="ciudadanos/as"
+    />
+  );
+
   if (!data) {
     return (
-      <EmptyHint>
-        Aún no hay información de esta Entidad Federativa. Configura su cámara, presupuesto y delegaciones para empezar.
-      </EmptyHint>
+      <div>
+        {quickActions}
+        <EmptyHint>
+          Aún no hay información de esta Entidad Federativa. Configura su cámara, presupuesto y delegaciones para empezar.
+        </EmptyHint>
+      </div>
     );
   }
 
 
   return (
     <div className="space-y-2">
+      {quickActions}
       {/* Header badge row */}
       <div className="flex flex-wrap items-center gap-2 pb-1">
         <Badge

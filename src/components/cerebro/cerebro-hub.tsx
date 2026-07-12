@@ -27,6 +27,7 @@ import { useRealtimeRows } from "@/lib/realtime/realtime";
 import MemoriaPanel from "@/components/cerebro/memoria-panel";
 import HabilidadesPanel from "@/components/cerebro/habilidades-panel";
 import ContextoPanel from "@/components/cerebro/contexto-panel";
+import NeuronasPanel from "@/components/cerebro/neuronas-panel";
 import EgoBrainPanel from "@/components/aurora/ego-brain-panel";
 import {
   Brain as BrainIcon,
@@ -38,9 +39,14 @@ import {
   ChevronRight,
   ExternalLink,
   Network,
+  Cpu,
+  Share2,
 } from "lucide-react";
+// Permisos universales (Adenda 63 §5): compartir un cerebro por ámbito y rol,
+// con acceso PARCIAL por ramas (memoria / habilidades / contexto / egos).
+import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
 
-type Pillar = "memoria" | "habilidades" | "contexto" | "egos";
+type Pillar = "memoria" | "habilidades" | "contexto" | "neuronas" | "egos";
 
 const PILLARS: {
   id: Pillar;
@@ -71,6 +77,13 @@ const PILLARS: {
     accent: "amber",
   },
   {
+    id: "neuronas",
+    label: "Neuronas",
+    icon: Cpu,
+    blurb: "Tus dispositivos como cerebro+servidor: presencia en vivo, permisos y CasaOS.",
+    accent: "emerald",
+  },
+  {
     id: "egos",
     label: "Egos de Aurora",
     icon: Sparkles,
@@ -89,6 +102,8 @@ export default function CerebroHub() {
   const [activeBrainId, setActiveBrainId] = useState<string | null>(null);
   const [pillar, setPillar] = useState<Pillar>("memoria");
   const [creating, setCreating] = useState(false);
+  // Compartir el cerebro activo (permisos universales por ramas).
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Selecciona el primer cerebro al cargar.
   useEffect(() => {
@@ -176,12 +191,24 @@ export default function CerebroHub() {
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Nuevo
             </Button>
+            {activeBrain && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-cyan-500/30 text-cyan-100 cursor-pointer"
+                onClick={() => setShareOpen(true)}
+                title={`Compartir «${activeBrain.name}» (total o por ramas)`}
+              >
+                <Share2 className="w-4 h-4" />
+                Compartir
+              </Button>
+            )}
           </div>
         )}
       </div>
 
-      {/* ── Pilares (3 interconexiones) ─────────────────────── */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* ── Pilares (3 interconexiones + Neuronas + Egos) ───── */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {PILLARS.map((p) => {
           const Icon = p.icon;
           const active = pillar === p.id;
@@ -203,6 +230,7 @@ export default function CerebroHub() {
                     p.accent === "cyan" && "bg-cyan-500/15 text-cyan-300",
                     p.accent === "violet" && "bg-violet-500/15 text-violet-300",
                     p.accent === "amber" && "bg-amber-500/15 text-amber-300",
+                    p.accent === "emerald" && "bg-emerald-500/15 text-emerald-300",
                     p.accent === "fuchsia" && "bg-fuchsia-500/15 text-fuchsia-300",
                   )}
                 >
@@ -233,17 +261,42 @@ export default function CerebroHub() {
       </div>
 
       {/* ── Panel del pilar activo ──────────────────────────── */}
-      {brains.length > 0 && (
+      {/* Neuronas son de la CUENTA (dispositivos), no requieren cerebro creado. */}
+      {(brains.length > 0 || pillar === "neuronas") && (
         <div className="pt-1">
-          {pillar === "memoria" && <MemoriaPanel brainId={activeBrainId} />}
-          {pillar === "habilidades" && (
+          {pillar === "memoria" && brains.length > 0 && <MemoriaPanel brainId={activeBrainId} />}
+          {pillar === "habilidades" && brains.length > 0 && (
             <HabilidadesPanel brainId={activeBrainId} brainName={activeBrain?.name} />
           )}
-          {pillar === "contexto" && <ContextoPanel />}
-          {pillar === "egos" && (
+          {pillar === "contexto" && brains.length > 0 && <ContextoPanel />}
+          {pillar === "neuronas" && (
+            <NeuronasPanel brainId={activeBrainId} brainName={activeBrain?.name} />
+          )}
+          {pillar === "egos" && brains.length > 0 && (
             <EgoBrainPanel brainId={activeBrainId} brainName={activeBrain?.name} />
           )}
         </div>
+      )}
+
+      {/* ── Compartir cerebro: modelo universal con acceso parcial por ramas ── */}
+      {shareOpen && activeBrain && (
+        <ShareAccessDialog
+          open
+          onOpenChange={(o) => !o && setShareOpen(false)}
+          resource={{
+            type: "brain",
+            id: activeBrain.id,
+            ownerId: activeBrain.owner,
+            title: activeBrain.name,
+          }}
+          sections={[
+            { id: "memoria", label: "Memoria" },
+            { id: "habilidades", label: "Habilidades" },
+            { id: "contexto", label: "Contexto" },
+            { id: "egos", label: "Egos de Aurora" },
+          ]}
+          description="Comparte este cerebro completo o solo algunas de sus ramas. Privado en lo personal, transparente en lo público."
+        />
       )}
     </div>
   );

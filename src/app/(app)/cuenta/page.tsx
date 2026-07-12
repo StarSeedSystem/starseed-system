@@ -416,6 +416,7 @@ function CuentaContent() {
   const chip: Row = { display: "inline-block", fontSize: 11, padding: "2px 8px", borderRadius: 999, border: "1px solid rgba(255,255,255,.18)", marginRight: 6 };
 
   // ── Tarjetas-sección (id + resumen en vivo) ──
+  const sections = useMemo(() => {
     const userHandle = profile?.handle ?? profile?.username;
     const handleTxt = userHandle ? `@${userHandle}` : "sin @ todavía";
     const externos = emails.filter((e) => e.kind !== "internal").length;

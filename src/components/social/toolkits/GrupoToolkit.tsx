@@ -12,6 +12,7 @@ import {
   Timeline,
   Chip,
   EmptyHint,
+  EntityQuickActions,
   GOLD,
 } from "@/components/social/toolkits/shared";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -278,6 +279,19 @@ export function GrupoToolkit({
   const data = getGroup(slug);
   const ac = accent ?? "#22d3ee";
 
+  // Acciones por defecto de la entidad (Adenda 63 §8). El ámbito real (grupo
+  // os_groups o página os_pages) llega en entityKind, igual que en Educación.
+  const quickActions = (
+    <EntityQuickActions
+      slug={slug}
+      name={name ?? data?.name}
+      accent={ac}
+      entityKind={entityKind}
+      memberCount={data?.members}
+      membersLabel="miembros"
+    />
+  );
+
   // Los datos de ejemplo (sample-governance) están vacíos a propósito — el
   // círculo/proyecto real vive en Supabase. La sección Educación NO depende de
   // ellos (persiste en entity_state con el slug real), así que sigue siendo
@@ -285,6 +299,7 @@ export function GrupoToolkit({
   if (!data) {
     return (
       <div className="space-y-6">
+        {quickActions}
         <EmptyHint>
           Aún no hay sesiones, tareas o recursos de muestra en este círculo — sus herramientas educativas de abajo sí
           son reales y ya funcionan.
@@ -297,6 +312,7 @@ export function GrupoToolkit({
 
   return (
     <div className="space-y-6">
+      {quickActions}
       {/* Header strip */}
       <div className="flex flex-wrap items-center gap-3">
         <span

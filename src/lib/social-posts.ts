@@ -49,6 +49,8 @@ export interface NormalizedPost {
     likes: number;
     commentsCount: number;
     media: PostMedia | null;
+    /** Adjuntos adicionales extraídos del cuerpo (bloque "**Adjuntos:**" de /publish). */
+    attachments?: PostMedia[];
     isFallback?: boolean;     // viene de datos de ejemplo
 }
 
@@ -110,10 +112,111 @@ export function detectMedia(row: Pick<CafePostRow, "body" | "recipe">): PostMedi
     return { kind: "link", url: first, domain: safeDomain(first), name: first };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ADJUNTOS EMBEBIDOS EN EL CUERPO (Adenda 63 §8 · "Adjuntos visibles")
+//
+// /publish y la Zona de Publicación persisten los adjuntos DENTRO del body del
+// post (os_posts solo tiene body/media_url): un bloque markdown "**Adjuntos:**"
+// con líneas `- ![nombre](url)` (imagen), `- [nombre](url)` (archivo con URL) o
+// `- [Etiqueta] nombre — url` (enlaces), más un comentario de metadata
+// `<!--ss:meta {...}-->` (convención de creation-config). Este parser separa
+// ese bloque del texto para que la UI muestre miniaturas/chips en lugar de
+// markdown crudo. La regex de ss:meta se duplica aquí a propósito para no
+// invertir capas (lib ← components).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SS_META_COMMENT_RE = /<!--ss:meta\s+([\s\S]*?)-->/;
+const ATTACH_BLOCK_RE = /\n*\*\*Adjuntos:\*\*\n((?:-[^\n]*(?:\n|$))+)/;
+const MD_IMAGE_LINE_RE = /^!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)$/;
+const MD_LINK_LINE_RE = /^\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)$/;
+const LABELED_LINE_RE = /^\[([^\]]+)\]\s*(.*)$/;
+const BARE_URL_RE = /(https?:\/\/[^\s)]+)/;
+
+/** Resultado de separar cuerpo, adjuntos y metadata embebida. */
+export interface SplitBodyResult {
+    /** Cuerpo limpio (sin bloque de adjuntos ni comentario ss:meta). */
+    body: string;
+    attachments: PostMedia[];
+    /** Metadata `ss:meta` (área/tipo especializado) si venía embebida. */
+    meta: { area?: string; tipo?: string } | null;
+}
+
+/** Infiere el PostMedia adecuado para una URL de adjunto (por extensión). */
+function mediaFromUrl(url: string, name?: string): PostMedia {
+    const fallbackName = decodeURIComponent(url.split("/").pop() || "").split("?")[0] || undefined;
+    const label = name || fallbackName;
+    if (IMAGE_RE.test(url)) return { kind: "image", url, name: label };
+    if (VIDEO_RE.test(url)) return { kind: "video", url, name: label };
+    if (AUDIO_RE.test(url)) return { kind: "audio", url, name: label };
+    if (PDF_RE.test(url)) return { kind: "pdf", url, name: label };
+    if (FILE_RE.test(url)) return { kind: "file", url, name: label };
+    return { kind: "link", url, name: label, domain: safeDomain(url) };
+}
+
+/**
+ * Extrae del cuerpo el bloque "**Adjuntos:**" (→ lista de PostMedia) y el
+ * comentario `ss:meta` (→ área/tipo). Devuelve el cuerpo limpio. Nunca lanza;
+ * con un body sin convenciones devuelve `{ body, attachments: [], meta: null }`.
+ */
+export function splitBodyAttachments(raw: string | null | undefined): SplitBodyResult {
+    let body = raw || "";
+    let meta: SplitBodyResult["meta"] = null;
+
+    // 1) Metadata embebida (invisible para la lectura humana).
+    const mm = body.match(SS_META_COMMENT_RE);
+    if (mm?.[1]) {
+        try {
+            const parsed = JSON.parse(mm[1]) as Record<string, unknown>;
+            if (parsed && typeof parsed === "object") {
+                meta = {
+                    area: typeof parsed.area === "string" ? parsed.area : undefined,
+                    tipo: typeof parsed.tipo === "string" ? parsed.tipo : undefined,
+                };
+            }
+        } catch {
+            /* metadata corrupta: se ignora */
+        }
+        body = body.replace(SS_META_COMMENT_RE, "");
+    }
+
+    // 2) Bloque de adjuntos de /publish.
+    const attachments: PostMedia[] = [];
+    const ab = body.match(ATTACH_BLOCK_RE);
+    if (ab?.[1]) {
+        for (const rawLine of ab[1].split("\n")) {
+            const item = rawLine.replace(/^-\s*/, "").trim();
+            if (!item) continue;
+
+            const img = item.match(MD_IMAGE_LINE_RE);
+            if (img?.[2]) {
+                attachments.push({ kind: "image", url: img[2], name: img[1] || undefined });
+                continue;
+            }
+            const link = item.match(MD_LINK_LINE_RE);
+            if (link?.[2]) {
+                attachments.push(mediaFromUrl(link[2], link[1] || undefined));
+                continue;
+            }
+            // `- [Etiqueta] nombre — url` (enlaces) o `- [Etiqueta] nombre` (sin URL).
+            const labeled = item.match(LABELED_LINE_RE);
+            if (labeled) {
+                const rest = (labeled[2] || "").trim();
+                const url = rest.match(BARE_URL_RE)?.[1];
+                const name = rest.replace(BARE_URL_RE, "").replace(/[—–-]\s*$/, "").trim() || labeled[1];
+                attachments.push(url ? mediaFromUrl(url, name) : { kind: "file", name });
+            }
+        }
+        body = body.replace(ATTACH_BLOCK_RE, "\n");
+    }
+
+    return { body: body.trim(), attachments, meta };
+}
+
 /** Normaliza una fila cruda de Supabase a la forma de UI. */
 export function normalizeCafePost(row: CafePostRow): NormalizedPost {
     const recipe = row.recipe || {};
-    const body = row.body || row.title || "";
+    const split = splitBodyAttachments(row.body || row.title || "");
+    const body = split.body;
     return {
         id: row.id,
         authorName: row.author_name || "Ciudadano StarSeed",
@@ -121,11 +224,12 @@ export function normalizeCafePost(row: CafePostRow): NormalizedPost {
         accent: row.col || undefined,
         title: row.title || undefined,
         body,
-        kind: row.kind || "post",
+        kind: split.meta?.tipo || row.kind || "post",
         createdAt: row.created_at || new Date().toISOString(),
         likes: typeof recipe.likes === "number" ? recipe.likes : 0,
         commentsCount: Array.isArray(recipe.comments) ? recipe.comments.length : 0,
         media: detectMedia({ body, recipe }),
+        attachments: split.attachments.length > 0 ? split.attachments : undefined,
     };
 }
 

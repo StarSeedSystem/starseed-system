@@ -20,7 +20,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
     X, Settings2, ImageIcon, Grid3x3, Magnet, Palette, ArrowUpDown,
     SquareStack, Pencil, Copy, Trash2, Check, Plus, ChevronUp, ChevronDown,
-    Maximize, Sparkles, PictureInPicture2,
+    Maximize, Sparkles, PictureInPicture2, Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -29,11 +29,14 @@ import type {
 import {
     setWallpaper, setDesktopView, setSnap, renameDesktop, duplicateDesktop,
     deleteDesktop, createDesktop, setActiveDesktop, reorderDesktops,
-    DEFAULT_DESKTOP_VIEW,
+    DEFAULT_DESKTOP_VIEW, readDesktopsSnapshot,
 } from "./desktop-store";
 // Bloque "Sincronización" (SOP §10-11): perfiles que sincronizan + compartir
 // como espacio + lista de escritorios compartidos (Adenda 65).
 import { DesktopSharePanel } from "./desktop-share-panel";
+// Permisos universales (Adenda 63 §5): compartir CADA escritorio por ámbito y
+// rol, con acceso parcial por pestañas y enlace ?space= colaborativo.
+import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
 
 // ── Presets de gradiente cristalino StarSeed ─────────────────────
 const GRADIENT_PRESETS: Array<{ name: string; css: string }> = [
@@ -99,6 +102,8 @@ export function DesktopSettingsPanel({
     const view = { ...DEFAULT_DESKTOP_VIEW, ...(desktop.view ?? {}) };
     const [wpDraft, setWpDraft] = useState(desktop.wallpaper?.value ?? "");
     const [renamingId, setRenamingId] = useState<string | null>(null);
+    // Compartir un escritorio concreto (permisos universales, Adenda 63 §5).
+    const [shareTarget, setShareTarget] = useState<Desktop | null>(null);
 
     const isCustom = desktop.wallpaper?.type === "custom";
     const idx = desktops.findIndex((d) => d.id === desktop.id);
@@ -309,6 +314,9 @@ export function DesktopSettingsPanel({
                                                 <button type="button" title="Duplicar" aria-label="Duplicar escritorio" onClick={() => duplicateDesktop(d.id)} className="grid size-6 place-items-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-white/10 hover:text-foreground cursor-pointer">
                                                     <Copy className="size-3" />
                                                 </button>
+                                                <button type="button" title="Compartir" aria-label="Compartir escritorio" onClick={() => setShareTarget(d)} className="grid size-6 place-items-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-cyan-400/15 hover:text-cyan-200 cursor-pointer">
+                                                    <Share2 className="size-3" />
+                                                </button>
                                                 <button type="button" title={desktops.length <= 1 ? "Siempre queda uno" : "Eliminar"} aria-label="Eliminar escritorio" disabled={desktops.length <= 1} onClick={() => deleteDesktop(d.id)} className="grid size-6 place-items-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-red-500/15 hover:text-red-300 disabled:opacity-20 cursor-pointer">
                                                     <Trash2 className="size-3" />
                                                 </button>
@@ -333,6 +341,23 @@ export function DesktopSettingsPanel({
                             </p>
                         </div>
                     </motion.aside>
+
+                    {/* Compartir escritorio: modelo universal (ámbito + roles + pestañas parciales). */}
+                    {shareTarget && (
+                        <ShareAccessDialog
+                            open
+                            onOpenChange={(o) => !o && setShareTarget(null)}
+                            resource={{ type: "desktop", id: shareTarget.id, title: shareTarget.name }}
+                            makeSpaceDoc={() => ({ ...readDesktopsSnapshot() })}
+                            sections={desktops.map((d) => ({ id: d.id, label: d.name }))}
+                            defaultSections={[shareTarget.id]}
+                            buildLink={(spaceId) =>
+                                spaceId && typeof window !== "undefined"
+                                    ? `${window.location.origin}/escritorios?space=${encodeURIComponent(spaceId)}`
+                                    : null
+                            }
+                        />
+                    )}
                 </>
             )}
         </AnimatePresence>

@@ -31,7 +31,7 @@ import { createClient } from "@/utils/supabase/client";
 /** Claves de preferencia que viajan con la cuenta. Aditivo: ampliar sin migración. */
 export const SYNCED_KEYS = [
     "appearance-config-v2",      // apariencia completa (incluye tema del sistema + Trinity táctil)
-    "starseed.dock.items.v1",    // OmniDock personalizado
+    "starseed.dock.items.v2",    // OmniDock personalizado (v2 = clave real de dock-config.ts; la v1 nunca sincronizaba)
     "os.trinity.fab",            // visibilidad del botón Trinity
     "os.trinity.fab.pos",        // posición del botón Trinity
     "starseed_user_memory",      // memoria del Exocórtex (intereses/rasgos)
@@ -72,6 +72,12 @@ export const SYNCED_KEYS = [
     "starseed.astraura.huggingbay-candidates.v1", // modelos de Hugging Bay marcados "Usar en Astraura"
     // ── Contexto Total de Aurora (jul-2026 · ai/astraura/user-context.ts) ─────
     "starseed.astraura.usercontext.v1", // "Aurora conoce mi contexto" (on/off) + nivel por defecto (breve/completo)
+    // ── Personalidades de Aurora (Adenda 63 · lib/aurora/personalities.ts) ────
+    "starseed.aurora.personalities.v1",      // personalidades instaladas/creadas (archivos de configuración compartibles)
+    "starseed.aurora.personality.active.v1", // asignaciones por contexto (global/sección/chat/cerebro)
+    // ── Mapa del Hub (Adenda 63 · lib/map/*) ──────────────────────────────────
+    "starseed.map.view.v1",     // vista del mapa (centro/zoom/capas activas)
+    "starseed.map.location.v1", // compartición de ubicación (off/red/grupos-usuarios)
     // ── Alarmas funcionales (jul-2026 · lib/alarms/alarms.ts) ─────────────────
     "starseed.alarms.v1", // alarmas del usuario (mensajes/correos/invitaciones a eventos) + snooze/descarte
     // ── Hub de Conectores por usuario (jul-2026 · connector-credentials.ts) ───
@@ -86,6 +92,19 @@ export const SYNCED_KEYS = [
     //    como tema) viajan con la cuenta, igual que el resto de apariencia.
     "starseed.theme.applied.v1",
     "starseed.theme.custom.v1",
+    // ── Widgets de Dashboard con datos propios persistentes (jul-2026 · sexta
+    //    oleada de rediseño): tareas y notas rápidas viajan con la cuenta.
+    "starseed.tasks.quick.v1",   // lib/tasks/quick-tasks.ts
+    "starseed.notes.quick.v1",   // lib/notes/quick-notes.ts
+    // ── Dashboard: versión de defaults (jul-2026 · dashboard-layout.tsx) ──────
+    //    Marca qué generación de dashboards/widgets predeterminados ya
+    //    re-sembró esta cuenta (DEFAULTS_VERSION). Los tableros/widgets en sí
+    //    sincronizan por su propio canal dedicado en tiempo real
+    //    (`dashboard_state`, ver lib/dashboard/dashboard-sync.ts); esta clave
+    //    viaja AQUÍ TAMBIÉN (push/pull manual de ajustes) como canal de
+    //    respaldo para que un dispositivo nuevo no dispare una re-siembra
+    //    local espuria si la cuenta ya migró desde otro dispositivo.
+    "starseed_defaults_version",
 ] as const;
 
 /**

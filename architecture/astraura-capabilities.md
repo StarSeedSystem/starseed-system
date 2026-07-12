@@ -19,6 +19,7 @@
 | `research` | iatool-open-notebook | modo investigación: hechos vs inferencias, citar origen, notas | preferStrong |
 | `vision` | aurora-vision | interpretar imágenes que comparte el usuario | vision |
 | `voice` | aurora-voice-kokoro | voz de mayor calidad (Kokoro) cuando esté disponible | — |
+| `voice-neural` | aurora-voice-bark / aurora-voice-sovits / aurora-voice-omnivoice (iatool-bark / iatool-gpt-sovits / iatool-omnivoice) | voz neural por ENDPOINT (Bark expresivo · SoVITS clonación · OmniVoice multilingüe); Aurora sabe cambiar motor/estilo con sus tools de voz (`ajustar_voz`/`cambiar_motor_voz`/`estado_voz`) y que el fallback la mantiene hablando | — |
 | `web-access` | aurora-web-access / iatool-crawl4ai / deepcrawl / webharvest / universal-scraper / scrapling | acceso web auto-seleccionado (gratis/local primero) | web |
 | `model-discovery` | iatool-hugging-bay-registry | recomendar modelos reales vía Hugging Bay | — |
 | `app-builder` | iatool-dyad | constructor local de apps (scaffold sin lock-in) | preferStrong |

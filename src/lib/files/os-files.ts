@@ -334,6 +334,37 @@ export async function listMyFiles(options: ListMyFilesOptions = {}): Promise<OsF
     }
 }
 
+export interface ListPublicFilesOptions {
+    /** Búsqueda por nombre (case-insensitive, contains). */
+    search?: string;
+    /** Límite de filas (por defecto 150). */
+    limit?: number;
+}
+
+/**
+ * Lista los archivos PÚBLICOS de toda la red (`os_files.is_public = true`),
+ * más recientes primero — la vista "Archivos de la Red" de /library. RLS
+ * (osf_select) sigue aplicándose; sin permisos o error, devuelve []. Nunca lanza.
+ */
+export async function listPublicFiles(options: ListPublicFilesOptions = {}): Promise<OsFile[]> {
+    if (!isClient()) return [];
+    try {
+        const supabase = createClient();
+        let q = supabase
+            .from("os_files")
+            .select("*")
+            .eq("is_public", true)
+            .order("created_at", { ascending: false });
+        if (options.search?.trim()) q = q.ilike("name", `%${options.search.trim()}%`);
+        q = q.limit(options.limit ?? 150);
+        const { data, error } = await q;
+        if (error || !Array.isArray(data)) return [];
+        return (data as OsFileRow[]).map(normalizeRow);
+    } catch {
+        return [];
+    }
+}
+
 export interface NeuronFileGroup {
     deviceId: string;
     /** Nombre legible de la neurona (resuelto vía src/lib/neurons si es posible). */

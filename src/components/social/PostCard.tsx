@@ -22,6 +22,8 @@ import {
     Lock,
     Trash2,
     Loader2,
+    Clapperboard,
+    Image as ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/utils/supabase/client";
@@ -260,6 +262,7 @@ function PostCardShell({
                 )}
 
                 {post.media && <PostMediaPreview post={post} />}
+                <PostAttachmentList post={post} />
             </CardContent>
 
             {/* ── Acciones ── */}
@@ -471,6 +474,96 @@ function CommentThread({
                         Inicia sesión para comentar
                     </Link>
                 </span>
+            )}
+        </div>
+    );
+}
+
+/** Icono de chip según el tipo de adjunto. */
+function attachmentChipIcon(kind: string): React.ReactNode {
+    switch (kind) {
+        case "video":
+            return <Clapperboard className="h-3.5 w-3.5" />;
+        case "audio":
+            return <Music className="h-3.5 w-3.5" />;
+        case "pdf":
+            return <FileText className="h-3.5 w-3.5" />;
+        case "link":
+            return <Link2 className="h-3.5 w-3.5" />;
+        case "image":
+            return <ImageIcon className="h-3.5 w-3.5" />;
+        default:
+            return <FileIcon className="h-3.5 w-3.5" />;
+    }
+}
+
+/**
+ * Adjuntos VISIBLES de la publicación (Adenda 63 §8): las imágenes se muestran
+ * como miniaturas en rejilla y el resto (PDF, archivo, audio, vídeo, enlace)
+ * como chips con icono + enlace. Se omite el adjunto que ya ocupa el preview
+ * principal (post.media) para no duplicarlo.
+ */
+function PostAttachmentList({ post }: { post: NormalizedPost }) {
+    const mediaUrl = post.media?.url;
+    const list = (post.attachments || []).filter((a) => !a.url || a.url !== mediaUrl);
+    if (list.length === 0) return null;
+
+    const images = list.filter((a) => a.kind === "image" && a.url);
+    const rest = list.filter((a) => !(a.kind === "image" && a.url));
+
+    return (
+        <div className="mt-3 space-y-2 min-w-0">
+            {images.length > 0 && (
+                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+                    {images.map((a, i) => (
+                        <a
+                            key={`${a.url}-${i}`}
+                            href={a.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={a.name || `Imagen adjunta ${i + 1}`}
+                            className="relative block aspect-square overflow-hidden rounded-lg border border-border/50 bg-muted/40 cursor-pointer"
+                        >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={a.url}
+                                alt={a.name || `Imagen adjunta ${i + 1}`}
+                                loading="lazy"
+                                className="absolute inset-0 h-full w-full object-cover transition-transform duration-200 hover:scale-105"
+                            />
+                        </a>
+                    ))}
+                </div>
+            )}
+            {rest.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                    {rest.map((a, i) => {
+                        const inner = (
+                            <>
+                                <span className="shrink-0 text-primary">{attachmentChipIcon(a.kind)}</span>
+                                <span className="max-w-[180px] truncate">{a.name || a.domain || "Adjunto"}</span>
+                                {a.url && <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />}
+                            </>
+                        );
+                        const chipClass =
+                            "inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-muted/30 px-2.5 py-1 text-xs min-w-0";
+                        return a.url ? (
+                            <a
+                                key={`${a.url}-${i}`}
+                                href={a.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={cn(chipClass, "cursor-pointer transition-colors hover:bg-muted/60 hover:border-primary/30")}
+                            >
+                                {inner}
+                            </a>
+                        ) : (
+                            <span key={`chip-${i}`} className={cn(chipClass, "text-muted-foreground")}>
+                                {inner}
+                            </span>
+                        );
+                    })}
+                </div>
             )}
         </div>
     );

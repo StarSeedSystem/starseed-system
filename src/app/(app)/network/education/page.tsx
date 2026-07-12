@@ -19,7 +19,12 @@ import {
     Rows3,
     Map as MapIcon,
     Network,
+    GraduationCap,
+    LibraryBig,
+    ArrowUpRight,
 } from "lucide-react";
+import { SectionHeader } from "@/components/network/section-header";
+import { SectionPostsFeed } from "@/components/network/section-posts-feed";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -399,18 +404,45 @@ export default function EducationPage() {
   const [tab, setTab] = useState("network");
 
   return (
-    <>
+    <div className="mx-auto flex w-full max-w-6xl flex-col">
+    {/* ── Cabecera consistente de sección + acciones rápidas (Adenda 63 §8) ── */}
+    <SectionHeader
+        dest="educacion"
+        icon={GraduationCap}
+        title="Ecosistema Educativo"
+        description="Biblioteca universal, aprendizaje en red y mentoría híbrida humano + IA."
+        className="mb-6"
+    />
+
+    {/* Bloque enlace a la Biblioteca universal (/library) */}
+    <Link
+        href="/library"
+        className="group mb-6 flex cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-gradient-to-br from-teal-500/[0.06] to-transparent p-4 backdrop-blur transition-all hover:border-teal-400/40"
+    >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-teal-500/40 bg-teal-500/10 text-teal-300">
+            <LibraryBig className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">Biblioteca universal</span>
+            <span className="block truncate text-xs text-muted-foreground">
+                Archivos, wikis y colecciones del conocimiento común de la red.
+            </span>
+        </span>
+        <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+    </Link>
+
     {/* Red de Conocimiento (Módulo 3) — enlace + explicación de cómo se conecta con cursos/temas */}
     <div className="mb-6">
       <ConocimientoCard />
     </div>
 
     <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto">
             <TabsTrigger value="network" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Red de Categorías</TabsTrigger>
             <TabsTrigger value="themes" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Red de Temas</TabsTrigger>
             <TabsTrigger value="conocimiento" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Mapa del Conocimiento</TabsTrigger>
             <TabsTrigger value="featured" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Contenido Destacado</TabsTrigger>
+            <TabsTrigger value="posts" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Publicaciones</TabsTrigger>
         </TabsList>
 
         <TabsContent value="network" className="mt-6">
@@ -440,9 +472,15 @@ export default function EducationPage() {
         <TabsContent value="featured" className="mt-6">
             <FeaturedContentView onGoToMap={() => setTab("conocimiento")} />
         </TabsContent>
+
+        <TabsContent value="posts" className="mt-6 animate-in fade-in-50 duration-500">
+            {/* Feed vivo de la sección (os_posts · cola "educacion" de la Zona
+                de Publicación, realtime) — Adenda 63 §8. */}
+            <SectionPostsFeed dest="educacion" />
+        </TabsContent>
     </Tabs>
 
     <SystemShowcase system="educativo" />
-    </>
+    </div>
   );
 }

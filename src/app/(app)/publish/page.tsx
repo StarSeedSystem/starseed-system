@@ -37,6 +37,22 @@ import { themes, categories, courses, articles } from "@/lib/data";
 import { useToast } from "@/hooks/use-toast";
 import { useOsPosts } from "@/hooks/use-os-entities";
 import type { OsEntityType } from "@/lib/os-social";
+// Subida REAL de adjuntos a Storage (bucket os-files) — Adenda 63 §4.
+import { uploadFile } from "@/lib/files/os-files";
+// Secciones de la red (?area=) + tipos especializados por sección + metadata
+// embebida en el body (comentario ss:meta) — Adenda 63 §2/§8. Config compartida
+// con el Centro de Creación (/crear).
+import {
+    buildSsMetaComment,
+    defaultTipoFor,
+    parseDestParam,
+    CREATION_DEST_BY_ID,
+    PUBLISH_SECTIONS,
+    SECTION_SLUGS,
+    TIPOS_POR_DEST,
+    type CreationDest,
+} from "@/components/creation/creation-config";
+import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { CanvasEditor } from "@/components/canvas-editor";
 import { samplePages, sampleGroups } from "@/data/sample-entities";
@@ -71,8 +87,10 @@ interface Attachment {
     id: string;
     kind: AttachmentKind;
     name: string;
-    /** For file-based: a local object URL or filename; for URL: the actual URL */
+    /** Para archivos: la URL PÚBLICA en Storage (os-files) tras subir; para enlaces: la URL. */
     value: string;
+    /** true mientras el archivo se sube a Storage (chip optimista). */
+    uploading?: boolean;
 }
 
 /** Network reference (post, entity, article, course …) */
@@ -546,6 +564,10 @@ function PublishPage() {
     const [rawTag, setRawTag] = useState("");
     const [tags, setTags] = useState<string[]>([]);
     const [audiencia, setAudiencia] = useState<Audiencia>("publico");
+    // ── Sección de la red (?area=politica|educacion|cultura|biblioteca) +
+    //    tipo especializado por sección (se guarda en la metadata del post) ──
+    const [seccion, setSeccion] = useState<CreationDest | null>(null);
+    const [seccionTipo, setSeccionTipo] = useState<string>("");
     const [destinos, setDestinos] = useState<Destination[]>([]);
     const [destSearch, setDestSearch] = useState("");
     const [destCatFilter, setDestCatFilter] = useState<DestCategory | "todos">("todos");
@@ -595,6 +617,18 @@ function PublishPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar; searchParams no cambia tras la carga inicial de esta página
     }, []);
 
+    // ── Precarga desde ?area= (Adenda 63 §2): la cortina Trinity y /crear
+    // navegan aquí con /publish?area=politica|educacion|cultura|biblioteca para
+    // preseleccionar la sección destino y su primer tipo especializado. ──
+    useEffect(() => {
+        const area = parseDestParam(searchParams.get("area"));
+        if (area && area !== "perfil" && area !== "propia") {
+            setSeccion(area);
+            setSeccionTipo(defaultTipoFor(area));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar; mismo patrón que ?attach=
+    }, []);
+
     // ── References state ──
     const [networkRefs, setNetworkRefs] = useState<NetworkRef[]>([]);
     const [refSearch, setRefSearch] = useState("");
@@ -609,7 +643,17 @@ function PublishPage() {
         entitySlug: string;
     }>(() => {
         const first = destinos[0];
-        if (!first) return { entityType: "page" as OsEntityType, entitySlug: "starseed" };
+        if (!first) {
+            // Sin destino explícito: si hay sección preseleccionada (?area=…),
+            // publica en la cola canónica de esa sección (page/<seccion>).
+            if (seccion && seccion !== "perfil" && seccion !== "propia") {
+                return {
+                    entityType: "page" as OsEntityType,
+                    entitySlug: SECTION_SLUGS[seccion],
+                };
+            }
+            return { entityType: "page" as OsEntityType, entitySlug: "starseed" };
+        }
         switch (first.category) {
             case "grupo":
                 return { entityType: "group" as OsEntityType, entitySlug: first.slug };
@@ -621,7 +665,7 @@ function PublishPage() {
             default:
                 return { entityType: "page" as OsEntityType, entitySlug: `perfil-${first.slug}` };
         }
-    }, [destinos]);
+    }, [destinos, seccion]);
 
     // ── Real persistence hook (always called at top level) ──
     const { publish: persistPost } = useOsPosts(activeEntityType, activeEntitySlug, false);
@@ -676,9 +720,31 @@ function PublishPage() {
     }
 
     // ── Attachment helpers ──
-    function addFileAttachment(kind: AttachmentKind, file: File) {
+    // Subida REAL a Storage (bucket os-files, src/lib/files/os-files.ts): antes
+    // solo se guardaba file.name. Ahora el chip aparece de inmediato (estado
+    // "subiendo"), se sube el archivo y se adjunta la URL pública resultante;
+    // ante error, el chip se retira y se avisa con toast.
+    async function addFileAttachment(kind: AttachmentKind, file: File) {
         const id = `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        setAttachments((prev) => [...prev, { id, kind, name: file.name, value: file.name }]);
+        setAttachments((prev) => [...prev, { id, kind, name: file.name, value: "", uploading: true }]);
+        const res = await uploadFile(file, {
+            folder: "publicaciones",
+            meta: { context: "publish", kind },
+        });
+        if (res.ok && res.file?.url) {
+            const url = res.file.url;
+            setAttachments((prev) =>
+                prev.map((a) => (a.id === id ? { ...a, value: url, uploading: false } : a)),
+            );
+            toast({ title: "Adjunto subido", description: `«${file.name}» ya está en tu nube.` });
+        } else {
+            setAttachments((prev) => prev.filter((a) => a.id !== id));
+            toast({
+                title: "Error al subir adjunto",
+                description: res.error || "No se pudo subir el archivo. Inténtalo de nuevo.",
+                variant: "destructive",
+            });
+        }
     }
     function addUrlAttachment() {
         const url = attachUrlInput.trim();
@@ -710,7 +776,7 @@ function PublishPage() {
     function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
         const kind = (e.target.dataset.kind ?? "documento") as AttachmentKind;
-        if (file) addFileAttachment(kind, file);
+        if (file) void addFileAttachment(kind, file);
     }
 
     // ── Reference helpers ──
@@ -770,6 +836,10 @@ function PublishPage() {
             toast({ title: "Contenido vacío", description: "Escribe algo antes de publicar.", variant: "destructive" });
             return;
         }
+        if (attachments.some((a) => a.uploading)) {
+            toast({ title: "Subida en curso", description: "Espera a que terminen de subir los adjuntos." });
+            return;
+        }
         setIsPublishing(true);
         try {
             // Build the full text to persist: prepend título if present
@@ -783,16 +853,40 @@ function PublishPage() {
                 });
             }
 
-            // Append attachment summary
+            // Append attachments — con su URL pública real de Storage:
+            // markdown de imagen si es imagen, enlace markdown si no.
             if (attachments.length > 0) {
                 fullBody += "\n\n**Adjuntos:**\n";
                 attachments.forEach((a) => {
                     const kindLabel = ATTACHMENT_CFG[a.kind].label;
-                    fullBody += `- [${kindLabel}] ${a.name}${a.kind === "enlace" ? ` — ${a.value}` : ""}\n`;
+                    if (a.kind === "enlace") {
+                        fullBody += `- [${kindLabel}] ${a.name} — ${a.value}\n`;
+                    } else if (a.value) {
+                        fullBody += a.kind === "imagen"
+                            ? `- ![${a.name}](${a.value})\n`
+                            : `- [${a.name}](${a.value})\n`;
+                    } else {
+                        fullBody += `- [${kindLabel}] ${a.name}\n`;
+                    }
                 });
             }
 
-            const res = await persistPost(fullBody);
+            // Metadata de sección/tipo especializado embebida en el cuerpo
+            // (comentario ss:meta) — no rompe el esquema de os_posts.
+            if (seccion) {
+                const metaComment = buildSsMetaComment({
+                    area: seccion,
+                    tipo: seccionTipo || undefined,
+                });
+                if (metaComment) fullBody += `\n\n${metaComment}`;
+            }
+
+            // Primera imagen subida → media_url del post (preview en feeds).
+            const firstImageUrl = attachments.find(
+                (a) => a.kind === "imagen" && a.value && !a.uploading,
+            )?.value;
+
+            const res = await persistPost(fullBody, firstImageUrl);
             if (res.needsAuth) {
                 toast({
                     title: "Inicia sesión",
@@ -1190,6 +1284,83 @@ function PublishPage() {
                                 </CardContent>
                             </Card>
 
+                            {/* 1b. Sección de la red + tipo especializado (Adenda 63) */}
+                            <Card className="border border-white/8 bg-card/50 backdrop-blur-sm">
+                                <CardHeader className="pb-3 pt-4 px-4">
+                                    <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                                        <Globe className="w-3.5 h-3.5" /> Sección de la red
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="px-4 pb-4 space-y-3">
+                                    {/* Pills de sección */}
+                                    <div className="flex flex-wrap gap-1.5">
+                                        <button
+                                            onClick={() => { setSeccion(null); setSeccionTipo(""); }}
+                                            className={cn(
+                                                "px-2.5 py-1 rounded-full text-xs font-medium border transition-all duration-150 cursor-pointer",
+                                                seccion === null
+                                                    ? "bg-primary/20 border-primary/60 text-primary"
+                                                    : "border-white/10 text-muted-foreground hover:border-white/20"
+                                            )}
+                                        >
+                                            Ninguna
+                                        </button>
+                                        {PUBLISH_SECTIONS.map((s) => {
+                                            const def = CREATION_DEST_BY_ID[s];
+                                            const SIcon = def.icon;
+                                            const active = seccion === s;
+                                            return (
+                                                <button
+                                                    key={s}
+                                                    onClick={() => { setSeccion(s); setSeccionTipo(defaultTipoFor(s)); }}
+                                                    className={cn(
+                                                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all duration-150 cursor-pointer",
+                                                        active
+                                                            ? "bg-primary/20 border-primary/60 text-primary"
+                                                            : "border-white/10 text-muted-foreground hover:border-white/20"
+                                                    )}
+                                                >
+                                                    <SIcon className="w-3 h-3" />
+                                                    {def.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Tipos especializados de la sección elegida */}
+                                    {seccion && (
+                                        <div className="space-y-1.5 pt-1 border-t border-white/8">
+                                            <p className="text-[11px] text-muted-foreground pt-2">Tipo especializado</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {(TIPOS_POR_DEST[seccion] ?? []).map((t) => {
+                                                    const TIcon = t.icon;
+                                                    const active = seccionTipo === t.id;
+                                                    return (
+                                                        <button
+                                                            key={t.id}
+                                                            title={t.desc}
+                                                            onClick={() => setSeccionTipo(t.id)}
+                                                            className={cn(
+                                                                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all duration-150 cursor-pointer",
+                                                                active
+                                                                    ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-300"
+                                                                    : "border-white/10 text-muted-foreground hover:border-white/20"
+                                                            )}
+                                                        >
+                                                            <TIcon className="w-3 h-3" />
+                                                            {t.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground/70 pt-1">
+                                                Si no eliges destino, se publicará en la cola de {CREATION_DEST_BY_ID[seccion].label}. El tipo se guarda en la metadata del post.
+                                            </p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
                             {/* 2. Content fields */}
                             <Card className="border border-white/8 bg-card/50 backdrop-blur-sm">
                                 <CardContent className="px-4 py-4 space-y-3">
@@ -1504,14 +1675,19 @@ function PublishPage() {
                                             {attachments.map((a) => (
                                                 <span
                                                     key={a.id}
-                                                    className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-white/10 px-2.5 py-1 text-xs text-foreground/80"
+                                                    className={cn(
+                                                        "inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-white/10 px-2.5 py-1 text-xs text-foreground/80",
+                                                        a.uploading && "opacity-70"
+                                                    )}
                                                 >
-                                                    {ATTACHMENT_CFG[a.kind].icon}
+                                                    {a.uploading
+                                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                                                        : ATTACHMENT_CFG[a.kind].icon}
                                                     <span
                                                         className="max-w-[140px] truncate"
-                                                        title={a.kind === "enlace" ? a.value : a.name}
+                                                        title={a.kind === "enlace" || a.value ? a.value : a.name}
                                                     >
-                                                        {a.name}
+                                                        {a.uploading ? `Subiendo ${a.name}…` : a.name}
                                                     </span>
                                                     <button
                                                         onClick={() => removeAttachment(a.id)}
@@ -1679,7 +1855,7 @@ function PublishPage() {
                                     size="lg"
                                     className="cursor-pointer gap-2"
                                     onClick={handlePublish}
-                                    disabled={published || isPublishing}
+                                    disabled={published || isPublishing || attachments.some((a) => a.uploading)}
                                 >
                                     <Sparkles className="w-4 h-4" />
                                     {isPublishing ? "Publicando…" : published ? "Publicado" : "Publicar"}

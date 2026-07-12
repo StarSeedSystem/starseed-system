@@ -7,13 +7,15 @@ import { DashboardWidget, WidgetType } from "./dashboard-types";
 import { WidgetRegistry } from "./widget-registry";
 import { getSizeConstraints } from "./widget-manifest";
 import { AddWidgetDialog } from "./add-widget-dialog";
-import { Sparkles, ChevronUp, ChevronDown } from "lucide-react";
+import { Sparkles, ChevronUp, ChevronDown, Scaling } from "lucide-react";
 import { shareWidget } from "@/lib/widget-sync";
 import { getManifest } from "./widget-manifest";
 import { useToast } from "@/components/ui/use-toast";
 import { useWidth } from "@/hooks/use-width";
 import { cn } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
+import { motion, useReducedMotion } from "framer-motion";
+import { nextSize, sizeFromWH, dimsForSize, type WidgetSize } from "./dashboard-size";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -71,6 +73,8 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     const [layouts, setLayouts] = useState<any>({});
     const [mounted, setMounted] = useState(false);
     const isCoarse = useCoarsePointer();
+    // Respeta prefers-reduced-motion: sin entrada escalonada si el usuario la desactivó.
+    const shouldReduceMotion = useReducedMotion();
 
     // En táctil, el arrastre/redimensión de RGL se desactivan SIEMPRE. Así, en
     // cualquier pantalla táctil, los widgets jamás se mueven al tocarlos, deslizar
@@ -152,6 +156,29 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
         });
         setWidgets(updated);
     }, [widgets, setWidgets]);
+
+    /** Talla actual del widget: la declarada (`size`) o, si falta (widgets
+     *  legado), la más cercana a su footprint w/h actual. */
+    const widgetSize = useCallback((widget: DashboardWidget): WidgetSize => {
+        return widget.size ?? sizeFromWH(widget.layout.w, widget.layout.h);
+    }, []);
+
+    // Cambiar tamaño (modo edición, táctil y ratón): ciclo S → M → L → XL → S.
+    // Complementa el arrastre/redimensión de ratón (react-grid-layout) y da al
+    // táctil una forma explícita de redimensionar (isResizable va siempre en
+    // false ahí). El resultado se recorta a los mínimos del widget-manifest.
+    const cycleWidgetSize = useCallback((widgetId: string) => {
+        const widget = widgets.find(w => w.id === widgetId);
+        if (!widget) return;
+        const next = nextSize(widgetSize(widget));
+        const dims = dimsForSize(widget.widget_type, next);
+        const updated = widgets.map(w =>
+            w.id === widgetId
+                ? { ...w, size: next, layout: { ...w.layout, w: dims.w, h: dims.h } }
+                : w
+        );
+        setWidgets(updated);
+    }, [widgets, setWidgets, widgetSize]);
 
     const handleDeleteWidget = (widgetId: string) => {
         const updated = widgets.filter(w => w.id !== widgetId);
@@ -266,9 +293,12 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                             || widget.widget_type === "APP_LAUNCHER"
                             || widget.widget_type === "QUICK_ACCESS";
                         return (
-                            <div
+                            <motion.div
                                 key={widget.layout.i || widget.id}
                                 data-widget-key={widget.layout.i || widget.id}
+                                initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3, delay: Math.min(idx * 0.04, 0.45), ease: [0.22, 1, 0.36, 1] }}
                                 className={cn(
                                     // Radio moderado (16px): menos esquina "sobrante" y
                                     // mejor aprovechamiento del ancho en cada tarjeta.
@@ -303,6 +333,15 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                             <ChevronDown className="w-4 h-4" />
                                         </button>
                                         <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); cycleWidgetSize(widget.id); }}
+                                            className="absolute bottom-2 left-2 flex items-center gap-1 bg-background/80 hover:bg-background border rounded px-1.5 py-1 z-50 cursor-pointer transition-colors text-[10px] font-bold"
+                                            title="Cambiar tamaño (S/M/L/XL)"
+                                        >
+                                            <Scaling className="w-3 h-3" />
+                                            {widgetSize(widget)}
+                                        </button>
+                                        <button
                                             onClick={(e) => { e.stopPropagation(); handlePinWidget(widget); }}
                                             className="absolute top-2 right-[5.5rem] bg-indigo-500/60 hover:bg-indigo-500 text-white border border-indigo-400/50 rounded p-1 cursor-pointer z-50 transition-colors"
                                             title="Fijar en pantalla"
@@ -319,7 +358,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                         >✕</button>
                                     </>
                                 )}
-                            </div>
+                            </motion.div>
                         );
                     })}
                 </div>
@@ -408,7 +447,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                     // margen mínimo) → sin bandas muertas alrededor.
                     containerPadding={[0, 0]}
                 >
-                    {widgets.map(widget => (
+                    {widgets.map((widget, idx) => (
                         <div
                             key={widget.layout.i || widget.id}
                             data-widget-key={widget.layout.i || widget.id}
@@ -431,11 +470,20 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                 }
                             }}
                         >
-                            <div className={cn(
-                                // Radio moderado (16px) en la tarjeta contenedora: menos
-                                // esquina "sobrante" y mejor aprovechamiento del área.
-                                `h-full w-full overflow-hidden transition-all motion-reduce:transition-none bg-transparent rounded-2xl ${isEditMode ? 'ring-2 ring-primary/20' : 'hover:shadow-lg'}`
-                            )}>
+                            {/* motion.div SOLO en el contenido interno: react-grid-layout
+                                clona y posiciona el <div> EXTERIOR (transform absoluto para
+                                x/y del grid) — animar ese nodo chocaría con su transform.
+                                Aquí solo se anima opacidad/escala del contenido, a salvo. */}
+                            <motion.div
+                                initial={shouldReduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.28, delay: Math.min(idx * 0.035, 0.4), ease: [0.22, 1, 0.36, 1] }}
+                                className={cn(
+                                    // Radio moderado (16px) en la tarjeta contenedora: menos
+                                    // esquina "sobrante" y mejor aprovechamiento del área.
+                                    `h-full w-full overflow-hidden transition-all motion-reduce:transition-none bg-transparent rounded-2xl ${isEditMode ? 'ring-2 ring-primary/20' : 'hover:shadow-lg'}`
+                                )}
+                            >
                                 <WidgetRegistry widget={widget} />
 
                                 {isEditMode && (
@@ -463,6 +511,15 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                                 </button>
                                             </>
                                         )}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); cycleWidgetSize(widget.id); }}
+                                            className="absolute bottom-2 left-2 flex items-center gap-1 bg-background/80 hover:bg-background border rounded px-1.5 py-1 z-50 cursor-pointer transition-colors text-[10px] font-bold"
+                                            title="Cambiar tamaño (S/M/L/XL)"
+                                        >
+                                            <Scaling className="w-3 h-3" />
+                                            {widgetSize(widget)}
+                                        </button>
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -495,7 +552,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                         </button>
                                     </>
                                 )}
-                            </div>
+                            </motion.div>
                         </div>
                     ))}
                 </ResponsiveGridLayout>

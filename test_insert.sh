@@ -1,7 +1,9 @@
 #!/bin/bash
+# [REDACTADO:service_role_supabase] — nunca hardcodear la service_role (auditoría de seguridad 2026-07-12).
+# Ejecutar con: SUPABASE_SERVICE_ROLE_KEY=... bash test_insert.sh  (la clave vive en .env.local, gitignorada)
 curl -s -X POST 'https://nxstilnyidvkqeosofuh.supabase.co/rest/v1/os_account_profiles' \
 -H "apikey: sb_publishable_tNfP2UU0trF1XeDgw8N1zA_JSdePtzy" \
--H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54c3RpbG55aWR2a3Flb3NvZnVoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjIzNTIyMSwiZXhwIjoyMDk3ODExMjIxfQ.4C51JMRc8GnN6KLtZf0nTQ299XzbkcgYzhY09BdVpjg" \
+-H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
 -H "Content-Type: application/json" \
 -H "Prefer: return=representation" \
 -d '{

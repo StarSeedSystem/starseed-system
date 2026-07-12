@@ -37,7 +37,7 @@ import {
 /* ------------------------------------------------------------------ */
 
 /** Fuente/servidor donde vive y se sincroniza un fichero de memoria. */
-export type MemorySource = "starseed" | "gdrive" | "external" | "local";
+export type MemorySource = "starseed" | "gdrive" | "external" | "local" | "casaos" | "raven" | "skales";
 
 export interface MemoryFile {
   id: string;
@@ -112,6 +112,46 @@ export const MEMORY_SOURCES: MemorySourceDef[] = [
     fields: [
       { key: "endpoint", label: "URL local", placeholder: "http://localhost:8800/memory" },
       { key: "syncthingFolderId", label: "Carpeta Syncthing (opcional)" },
+    ],
+  },
+  {
+    id: "casaos",
+    label: "CasaOS (neurona)",
+    blurb:
+      "El servidor casero CasaOS de una de tus neuronas guarda este fichero (Files/Nextcloud/Syncthing). Declara y prueba su URL en Cerebro → Neuronas.",
+    icon: "🏠",
+    oss: true,
+    fields: [
+      { key: "endpoint", label: "URL del CasaOS", placeholder: "http://192.168.1.50:80" },
+      { key: "path", label: "Ruta/app de destino (opcional)", placeholder: "Files/starseed-memorias" },
+    ],
+  },
+  // Adenda 63 §14: Raven y Skales como backends OPCIONALES de memoria/
+  // inteligencia (misma pauta de conector por endpoint que CasaOS).
+  {
+    id: "raven",
+    label: "Raven (memoria agéntica)",
+    blurb:
+      "Servidor open-source de memoria agéntica (EverMind-AI/Raven): este fichero se guarda/recupera como memoria de largo plazo del cerebro. Despliega Raven en una neurona propia y apunta aquí su endpoint.",
+    icon: "🪶",
+    oss: true,
+    fields: [
+      { key: "endpoint", label: "Endpoint de Raven", placeholder: "http://tu-neurona:8000" },
+      { key: "tokenRef", label: "Clave (nombre en la bóveda, opcional)", placeholder: "nunca el valor en claro" },
+      { key: "collection", label: "Colección/espacio (opcional)", placeholder: "cerebro-principal" },
+    ],
+  },
+  {
+    id: "skales",
+    label: "Skales",
+    blurb:
+      "Backend/adaptador open-source (skalesapp/skales) de memoria e inteligencia para cerebros. Autoalojable; el fichero vive en tu servidor Skales y se sincroniza por endpoint.",
+    icon: "🗂️",
+    oss: true,
+    fields: [
+      { key: "endpoint", label: "Endpoint de Skales", placeholder: "http://tu-neurona:3000" },
+      { key: "tokenRef", label: "Clave (nombre en la bóveda, opcional)", placeholder: "nunca el valor en claro" },
+      { key: "space", label: "Espacio/carpeta (opcional)", placeholder: "memorias" },
     ],
   },
 ];
@@ -380,5 +420,84 @@ export async function ensureSeedFiles(brainId: string | null): Promise<MemoryFil
     return await listMemoryFiles(brainId);
   } catch {
     return [];
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Seguridad al exportar/compartir (Adenda 63 §13)                     */
+/* ------------------------------------------------------------------ */
+/* Mismo patrón que biblioteca (saveItemSecure) y personalidades
+ * (importPersonalityJson): SIEMPRE se escanea antes de sacar una memoria
+ * del ámbito privado; los hallazgos `critical` se REDACTAN por defecto,
+ * con opción explícita `allowCritical` ("compartir igualmente"). Nunca
+ * bloquea en silencio: la UI recibe los findings y confirma. */
+
+import { redactText, scanDeep, scanText, summarize, type Finding } from "@/lib/security/scanner";
+
+/** Escanea un fichero de memoria completo (nombre + contenido + config del servidor). */
+export function scanMemoryFile(file: Pick<MemoryFile, "name" | "content" | "server_config">): Finding[] {
+  try {
+    return scanDeep({
+      name: file?.name ?? "",
+      content: file?.content ?? "",
+      server_config: file?.server_config ?? {},
+    });
+  } catch {
+    return [];
+  }
+}
+
+export interface MemoryExportResult {
+  /** Nombre del fichero exportado. */
+  name: string;
+  /** Contenido listo para compartir (critical redactado salvo allowCritical). */
+  content: string;
+  /** TODOS los hallazgos detectados (redactados o no). */
+  findings: Finding[];
+  /** Nº de secretos redactados en `content`. */
+  redactedCount: number;
+  /** Aviso en español si hubo hallazgos (para mostrar antes de compartir). */
+  aviso?: string;
+}
+
+/**
+ * EXPORTAR/COMPARTIR una memoria con verificación de seguridad: devuelve el
+ * contenido con los hallazgos `critical` redactados por defecto. Pasa
+ * `allowCritical: true` (decisión explícita del usuario, "compartir
+ * igualmente") para exportar el contenido intacto. Nunca lanza.
+ */
+export function exportMemoryFileSecure(
+  file: Pick<MemoryFile, "name" | "content" | "server_config">,
+  opts?: { allowCritical?: boolean },
+): MemoryExportResult {
+  const name = file?.name || "memoria.md";
+  const original = file?.content ?? "";
+  try {
+    if (opts?.allowCritical) {
+      const findings = scanText(original);
+      const s = summarize(findings);
+      return {
+        name,
+        content: original,
+        findings,
+        redactedCount: 0,
+        aviso: s.clean ? undefined : `Compartes esta memoria SIN redactar: ${s.message}`,
+      };
+    }
+    const r = redactText(original, { minSeverity: "critical" });
+    const s = summarize(r.findings);
+    return {
+      name,
+      content: r.text,
+      findings: r.findings,
+      redactedCount: r.redactedCount,
+      aviso: s.clean
+        ? undefined
+        : r.redactedCount > 0
+          ? `Se redactaron ${r.redactedCount} dato(s) crítico(s) antes de exportar. ${s.message}`
+          : `Esta memoria contiene datos sensibles no críticos: ${s.message}`,
+    };
+  } catch {
+    return { name, content: original, findings: [], redactedCount: 0 };
   }
 }

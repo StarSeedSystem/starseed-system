@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { AddWidgetDialog } from "./add-widget-dialog";
 import { WidgetForgeDialog } from "./widget-forge/widget-forge-dialog";
 import { WeatherLocationProvider } from "@/modules/weather/context/weather-location-context";
-import { DEFAULT_DASHBOARD_TEMPLATES, ALL_DASHBOARD_TEMPLATES } from "./dashboard-defaults";
+import { DEFAULT_DASHBOARD_TEMPLATES, ALL_DASHBOARD_TEMPLATES, type DefaultDashboardTemplate } from "./dashboard-defaults";
 import { WIDGET_CATEGORIES, getCategoryById } from "./widget-categories";
 import { cn } from "@/lib/utils";
 import styles from "./dashboard-tabs.module.css";
@@ -34,6 +34,8 @@ import { curatedPresets } from "@/lib/themes/curated-presets";
 import { WorkspaceProvider } from "./dashboard-workspace-context";
 import { DashboardWorkspaceRenderer } from "./dashboard-workspace-renderer";
 import { DashboardAiSuggestions } from "./dashboard-ai-suggestions";
+// Permisos universales (Adenda 63 §5): opción "Compartir" del menú del tablero.
+import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
 
 // ── Dispositivos y sincronización (pantalla principal adaptativa) ──
 import type { DeviceType } from "./dashboard-types";
@@ -66,8 +68,23 @@ const LS_INITIALIZED = 'starseed_dashboards_initialized';
 // Versión del catálogo de dashboards predeterminados. Súbela cada vez que cambie
 // el acomodo/los widgets por defecto para que las instalaciones existentes
 // re-siembren los tableros predeterminados (preservando los tableros propios).
+// REGLA DE MIGRACIÓN (patrón idéntico al dock, ver layout/dock-config.ts): al
+// montar, se compara `storedVersion` (localStorage) contra esta constante. Si
+// difieren, `reseedDefaultDashboards()` regenera SOLO los tableros cuya
+// `category` coincide con una plantilla predeterminada actual (fresco, con el
+// acomodo más reciente) y conserva intactos, al final de la lista, los
+// tableros del usuario (categoría ajena al catálogo). Es idempotente: una vez
+// igualada la versión, no vuelve a re-sembrar hasta el próximo bump. La
+// versión viaja también con la cuenta (SYNCED_KEYS en lib/settings-sync.ts +
+// el blob de lib/dashboard/dashboard-sync.ts) para que un dispositivo nuevo
+// no dispare una re-siembra local espuria si la cuenta ya migró.
+//
+// gen11 (2026-07-11): cabecera con saludo + acciones (añadir widget/
+// plantillas/editar), sistema de tallas S/M/L/XL (dashboard-size.ts) y
+// composiciones predeterminadas rediseñadas para "Inicio", "Red", "Sistema"
+// y el nuevo "Creativo" (promovido desde plantillas futuras).
 const LS_DEFAULTS_VERSION = 'starseed_defaults_version';
-const DEFAULTS_VERSION = 'gen10-2026-07-01-esquinas-tabs-fullbleed';
+const DEFAULTS_VERSION = 'gen11-2026-07-11-cabecera-plantillas-tamanos';
 const LS_ACTIVE_PROFILE = 'starseed_active_profile_v1';
 const LS_AI_PROVIDER = 'starseed_ai_provider_v1';
 const LS_SERVERS = 'starseed_internet_servers_v1';
@@ -205,6 +222,27 @@ function removeWidgetsForDashboard(dashboardId: string) {
     saveAllWidgets(all);
 }
 
+// Siembra los DashboardWidget[] de un dashboard a partir de una plantilla
+// (DefaultDashboardTemplate). Único punto que traduce `template.widgets` →
+// `DashboardWidget`: lo usan generateDefaultDashboards, handleCreateDashboard,
+// handleCreateDashboardFromTemplate y handleApplyTemplateToCurrentDashboard,
+// así el campo `size` (S/M/L/XL) siempre viaja igual y no se duplica la lógica.
+function seedWidgetsFromTemplate(
+    template: Pick<DefaultDashboardTemplate, "widgets">,
+    dashboardId: string,
+    now: string = new Date().toISOString(),
+): DashboardWidget[] {
+    return template.widgets.map((w) => ({
+        id: crypto.randomUUID(),
+        dashboard_id: dashboardId,
+        widget_type: w.type as any,
+        layout: { x: w.x, y: w.y, w: w.w, h: w.h, i: crypto.randomUUID() },
+        settings: (w as any).settings ?? {},
+        size: (w as any).size,
+        created_at: now,
+    }));
+}
+
 function generateDefaultDashboards(): { dashboards: Dashboard[], widgetMap: Record<string, DashboardWidget[]> } {
     const dashboards: Dashboard[] = [];
     const widgetMap: Record<string, DashboardWidget[]> = {};
@@ -222,14 +260,7 @@ function generateDefaultDashboards(): { dashboards: Dashboard[], widgetMap: Reco
             updated_at: now,
         });
 
-        widgetMap[dashId] = template.widgets.map(w => ({
-            id: crypto.randomUUID(),
-            dashboard_id: dashId,
-            widget_type: w.type as any,
-            layout: { x: w.x, y: w.y, w: w.w, h: w.h, i: crypto.randomUUID() },
-            settings: (w as any).settings ?? {},
-            created_at: now,
-        }));
+        widgetMap[dashId] = seedWidgetsFromTemplate(template, dashId, now);
     }
 
     return { dashboards, widgetMap };
@@ -277,6 +308,10 @@ export function DashboardLayout() {
     // Auto-pantalla completa al entrar: el OS abre en modo inmersivo desde el inicio.
     const [isFullscreen, setIsFullscreen] = useState(true);
     const [isTitleVisible, setIsTitleVisible] = useState(true);
+    // Espejo en ref del título visible (lo lee el manejador de scroll sin
+    // re-suscribirse) + raíz del layout para localizar el scroll-parent real.
+    const titleVisibleRef = useRef(true);
+    const layoutRootRef = useRef<HTMLDivElement>(null);
 
     // Sello de build OCULTO por defecto (chrome limpio). Solo emerge como
     // herramienta de diagnóstico cuando localStorage 'starseed.debug' === '1'.
@@ -393,6 +428,15 @@ export function DashboardLayout() {
     // Renombrar dashboard (rellena la opción "Renombrar Dashboard" del menú de panel).
     const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState("");
+    // Compartir dashboard (opción "Compartir" del menú de panel — permisos universales).
+    const [shareDashboardId, setShareDashboardId] = useState<string | null>(null);
+
+    // ── Diálogo "Plantillas" (cabecera): aplicar una composición al tablero
+    // activo. Paso 1 elige la plantilla; paso 2 (pendingApplyTemplate) confirma
+    // porque reemplaza los widgets actuales del tablero — acción destructiva.
+    const [isTemplatesDialogOpen, setIsTemplatesDialogOpen] = useState(false);
+    const [templatesDialogSearch, setTemplatesDialogSearch] = useState("");
+    const [pendingApplyTemplate, setPendingApplyTemplate] = useState<string | null>(null);
 
     // ── Dispositivos y sincronización (pantalla principal adaptativa) ──
     // currentDevice: tipo detectado del entorno (resalta tableros afines y permite
@@ -526,16 +570,23 @@ export function DashboardLayout() {
 
         if (!initialized) {
             const { dashboards: defaults, widgetMap } = generateDefaultDashboards();
-            saveDashboards(defaults);
-            saveAllWidgets(widgetMap);
+            // Fusiona (en vez de sobrescribir) los tableros/widgets creados FUERA
+            // del dashboard antes de la primera visita — p. ej. widgets forjados
+            // desde la Fragua global (GlobalForgeHost) en cualquier otra ruta.
+            const preexisting = loadDashboards();
+            const preexistingWidgets = loadAllWidgets();
+            const merged = [...defaults, ...preexisting];
+            const mergedWidgets = { ...preexistingWidgets, ...widgetMap };
+            saveDashboards(merged);
+            saveAllWidgets(mergedWidgets);
             localStorage.setItem(LS_INITIALIZED, 'true');
             localStorage.setItem(LS_DEFAULTS_VERSION, DEFAULTS_VERSION);
 
-            const sorted = sortDashboards(defaults);
+            const sorted = sortDashboards(merged);
             setDashboards(sorted);
             if (sorted.length > 0) {
                 setActiveDashboardId(sorted[0].id);
-                setWidgets(widgetMap[sorted[0].id] || []);
+                setWidgets(mergedWidgets[sorted[0].id] || []);
             }
         } else {
             // Re-siembra versionada: si cambió el catálogo de defaults, regenera los
@@ -586,9 +637,13 @@ export function DashboardLayout() {
                 const { data } = await supabase.auth.getUser();
                 if (active) setSyncUid(data?.user?.id ?? undefined);
                 // Reaccionar a inicio/cierre de sesión sin recargar.
-                const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-                    setSyncUid(session?.user?.id ?? undefined);
-                });
+                const { data: sub } = supabase.auth.onAuthStateChange(
+                    // Tipos explícitos: el cliente llega sin genéricos (import dinámico)
+                    // y los parámetros quedarían en `any` implícito bajo strict.
+                    (_e: unknown, session: { user?: { id?: string } } | null) => {
+                        setSyncUid(session?.user?.id ?? undefined);
+                    }
+                );
                 if (!active) { try { sub.subscription.unsubscribe(); } catch {} }
             } catch {
                 /* sin Supabase: nos quedamos en modo local */
@@ -806,17 +861,73 @@ export function DashboardLayout() {
         }
     }, [activeDashboardId]);
 
-    // Auto-hide title on scroll
+    // Auto-hide title on scroll — versión ESTABLE (bug "glitcheo en loop", 2026-07-12).
+    // ANTES: umbral único (scrollY<60) sin histéresis sobre `window`. El título
+    // (~180px, EN FLUJO, animado con AnimatePresence height) al ocultarse encoge
+    // el contenido desplazable; el re-anclaje/recorte del navegador devolvía la
+    // posición bajo el umbral → mostrar → crecer → volver a cruzar → ocultar…
+    // bucle infinito de montar/desmontar el bloque (sus animaciones de entrada
+    // "se reiniciaban en loop"). Además `window` NO es el contenedor que
+    // scrollea bajo (main) (`main.os-main-scroll`). AHORA:
+    //  1. Se escucha el scroll-parent REAL (primer ancestro con overflow-y
+    //     auto/scroll; fallback window).
+    //  2. rAF-throttle (una decisión por frame).
+    //  3. Histéresis amplia: ocultar >280px / mostrar <48px. El hueco (232px)
+    //     supera el alto colapsable (~180px título + ~28px carril top/bottom),
+    //     de modo que ni el re-anclaje ni el recorte pueden re-cruzar el umbral
+    //     contrario.
+    //  4. Guarda de recorrido: solo se oculta si tras colapsar aún queda pista
+    //     de sobra (el estado converge SIEMPRE; cero bucles).
     useEffect(() => {
-        const handleScroll = () => {
-            const scrollY = window.scrollY;
-            const show = scrollY < 60;
-            setIsTitleVisible(show);
-            // La barra lateral de ajustes se oculta/auto-revela junto con el título.
-            setIsSidebarOpen(show);
+        if (typeof window === "undefined") return;
+        const COLLAPSE_PX = 220; // título (~180px) + padding del carril top/bottom
+        const HIDE_AT = 280;
+        const SHOW_AT = 48;
+
+        const findScrollParent = (node: HTMLElement | null): HTMLElement | Window => {
+            let cur: HTMLElement | null = node?.parentElement ?? null;
+            while (cur) {
+                try {
+                    const oy = window.getComputedStyle(cur).overflowY;
+                    if (oy === "auto" || oy === "scroll" || oy === "overlay") return cur;
+                } catch { /* defensivo */ }
+                cur = cur.parentElement;
+            }
+            return window;
         };
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        return () => window.removeEventListener('scroll', handleScroll);
+        const target = findScrollParent(layoutRootRef.current);
+        const read = () => target instanceof Window
+            ? {
+                y: window.scrollY,
+                max: (document.documentElement?.scrollHeight ?? 0) - window.innerHeight,
+            }
+            : { y: target.scrollTop, max: target.scrollHeight - target.clientHeight };
+
+        let raf: number | null = null;
+        const handleScroll = () => {
+            if (raf !== null) return;
+            raf = requestAnimationFrame(() => {
+                raf = null;
+                const { y, max } = read();
+                const visible = titleVisibleRef.current;
+                const next = visible
+                    // Ocultar solo con histéresis + pista suficiente tras colapsar.
+                    ? !(y > HIDE_AT && max - COLLAPSE_PX >= SHOW_AT + 48)
+                    : y < SHOW_AT;
+                if (next !== visible) {
+                    titleVisibleRef.current = next;
+                    setIsTitleVisible(next);
+                    // La barra lateral de ajustes se oculta/auto-revela junto con el
+                    // título (es overlay fijo; solo su carril de padding es en flujo).
+                    setIsSidebarOpen(next);
+                }
+            });
+        };
+        target.addEventListener("scroll", handleScroll, { passive: true });
+        return () => {
+            target.removeEventListener("scroll", handleScroll);
+            if (raf !== null) cancelAnimationFrame(raf);
+        };
     }, []);
 
     // Sort dashboards
@@ -939,14 +1050,7 @@ export function DashboardLayout() {
             };
 
             const template = ALL_DASHBOARD_TEMPLATES.find(t => t.categoryId === selectedTemplate);
-            const seededWidgets: DashboardWidget[] = (template?.widgets || []).map(w => ({
-                id: crypto.randomUUID(),
-                dashboard_id: dashId,
-                widget_type: w.type as any,
-                layout: { x: w.x, y: w.y, w: w.w, h: w.h, i: crypto.randomUUID() },
-                settings: {},
-                created_at: now,
-            }));
+            const seededWidgets: DashboardWidget[] = template ? seedWidgetsFromTemplate(template, dashId, now) : [];
 
             const allDashboards = [...dashboards, newDashboard];
             saveDashboards(allDashboards);
@@ -982,14 +1086,7 @@ export function DashboardLayout() {
             created_at: now,
             updated_at: now,
         };
-        const seededWidgets: DashboardWidget[] = (template?.widgets || []).map((w) => ({
-            id: crypto.randomUUID(),
-            dashboard_id: dashId,
-            widget_type: w.type as any,
-            layout: { x: w.x, y: w.y, w: w.w, h: w.h, i: crypto.randomUUID() },
-            settings: (w as any).settings ?? {},
-            created_at: now,
-        }));
+        const seededWidgets: DashboardWidget[] = template ? seedWidgetsFromTemplate(template, dashId, now) : [];
         setDashboards((prev) => {
             const all = [...prev, newDashboard];
             saveDashboards(all);
@@ -1000,6 +1097,27 @@ export function DashboardLayout() {
         setWidgets(seededWidgets);
         toast({ title: "Dashboard creado", description: `Astraura preparó "${newDashboard.name}".` });
     }, [toast]);
+
+    // ── Plantillas: aplicar una composición al dashboard ACTUAL ────────────────
+    // Distinto de handleCreateDashboardFromTemplate (que crea una pestaña NUEVA):
+    // esto REEMPLAZA los widgets del tablero activo por los de la plantilla
+    // elegida. Destructivo → el llamador (diálogo "Plantillas") debe confirmar
+    // primero. Conserva el id/nombre/categoría del dashboard activo.
+    const handleApplyTemplateToCurrentDashboard = useCallback((categoryId: string) => {
+        if (!activeDashboardId) return;
+        const template = ALL_DASHBOARD_TEMPLATES.find((t) => t.categoryId === categoryId);
+        if (!template) return;
+        const now = new Date().toISOString();
+        const seededWidgets = seedWidgetsFromTemplate(template, activeDashboardId, now);
+        setWidgets(seededWidgets);
+        saveWidgetsForDashboard(activeDashboardId, seededWidgets);
+        setDashboards((prev) => {
+            const updated = prev.map((d) => d.id === activeDashboardId ? { ...d, updated_at: now } : d);
+            saveDashboards(updated);
+            return updated;
+        });
+        toast({ title: "Plantilla aplicada", description: `"${template.name}" reemplazó los widgets de este tablero.` });
+    }, [activeDashboardId, toast]);
 
     const handleSetDefault = (dashboardId: string) => {
         const updated = dashboards.map(d => ({ ...d, is_default: d.id === dashboardId }));
@@ -1160,6 +1278,21 @@ export function DashboardLayout() {
         [activeDashboard]
     );
     const totalWidgets = widgets.length;
+
+    // ── Cabecera: saludo contextual (hora + perfil activo) ──────────────────
+    // Se calcula tras el montaje (evita desajuste de hidratación SSR/cliente
+    // por `new Date()`); antes de montar se usa un saludo neutro sin hora.
+    const [greeting, setGreeting] = useState("Hola");
+    useEffect(() => {
+        const update = () => {
+            const h = new Date().getHours();
+            setGreeting(h < 6 ? "Buenas noches" : h < 13 ? "Buenos días" : h < 20 ? "Buenas tardes" : "Buenas noches");
+        };
+        update();
+        const id = setInterval(update, 15 * 60 * 1000); // refresca cada 15 min
+        return () => clearInterval(id);
+    }, []);
+    const greetingName = activeProfile?.displayName?.split(" ")[0] || null;
 
     // --- Customizable Sidebar Computed Properties ---
     const isVertical = useMemo(() => sidebarConfig.position === 'left' || sidebarConfig.position === 'right', [sidebarConfig.position]);
@@ -1538,7 +1671,7 @@ export function DashboardLayout() {
                     build · 2026-06-14 · likes-comentarios+areas3 v18
                 </div>
             )}
-            <div className={cn(
+            <div ref={layoutRootRef} className={cn(
                 "relative flex flex-row w-full select-none min-h-screen transition-all duration-500",
                 mainPaddingClass
             )}>
@@ -2152,6 +2285,7 @@ export function DashboardLayout() {
                                 onCreateDashboard={() => setIsCreateDialogOpen(true)}
                                 onDeleteDashboard={handleDeleteDashboard}
                                 onRenameDashboard={handleOpenRename}
+                                onShareDashboard={(id) => setShareDashboardId(id)}
                                 onCreateFromTemplate={handleCreateDashboardFromTemplate}
                                 currentDevice={currentDevice}
                                 onSetDeviceTags={handleSetDeviceTags}
@@ -2261,6 +2395,28 @@ export function DashboardLayout() {
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
+
+                    {/* Compartir dashboard (opción "Compartir" del menú de panel — modelo universal §5) */}
+                    {shareDashboardId && (() => {
+                        const shareDash = dashboards.find((d) => d.id === shareDashboardId);
+                        if (!shareDash) return null;
+                        return (
+                            <ShareAccessDialog
+                                open
+                                onOpenChange={(o) => { if (!o) setShareDashboardId(null); }}
+                                resource={{ type: "dashboard", id: shareDash.id, title: shareDash.name }}
+                                makeSpaceDoc={() => ({
+                                    dashboard: shareDash,
+                                    widgets: widgets.filter((w) => w.dashboard_id === shareDash.id),
+                                })}
+                                buildLink={(spaceId) =>
+                                    spaceId && typeof window !== "undefined"
+                                        ? `${window.location.origin}/dashboard?space=${encodeURIComponent(spaceId)}`
+                                        : null
+                                }
+                            />
+                        );
+                    })()}
 
                     {/* Device & Sync Manager Dialog (agrupación por dispositivo + sync) */}
                     <Dialog open={isDeviceManagerOpen} onOpenChange={setIsDeviceManagerOpen}>

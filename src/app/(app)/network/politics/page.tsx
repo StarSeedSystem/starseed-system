@@ -7,7 +7,9 @@ import ProposalComposer from "@/components/governance/proposal-composer";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, Scale, Users, Landmark, Flag, ArrowUpRight, Loader2 } from "lucide-react";
+import { BarChart, Scale, Users, Landmark, Flag, ArrowUpRight, Loader2, ScrollText, MapPin } from "lucide-react";
+import { SectionHeader } from "@/components/network/section-header";
+import { SectionPostsFeed } from "@/components/network/section-posts-feed";
 import { createClient } from "@/utils/supabase/client";
 import { useRealtimeRows } from "@/lib/realtime/realtime";
 import type { Proposal } from "@/lib/governance/types";
@@ -178,14 +180,36 @@ export default function PoliticsPage() {
 
     return (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <div className="relative">
-                <div className="absolute top-0 right-0 z-10">
-                    <DialogTrigger asChild>
-                        <Button className="bg-primary/20 backdrop-blur hover:bg-primary/30 text-primary border border-primary/50 shadow-lg glow-sm">
-                            + Nueva Iniciativa
-                        </Button>
-                    </DialogTrigger>
-                </div>
+            <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+                {/* ── Cabecera consistente de sección + acciones rápidas (Adenda 63 §8) ── */}
+                <SectionHeader
+                    dest="politica"
+                    icon={Scale}
+                    title="Ecosistema Político"
+                    description="Democracia directa: propone, delibera, vota y ejecuta con la red (Ontocracia)."
+                    actions={
+                        <>
+                            <DialogTrigger asChild>
+                                <Button
+                                    size="sm"
+                                    className="shrink-0 cursor-pointer gap-1.5 rounded-full border border-primary/50 bg-primary/20 text-primary shadow-lg backdrop-blur hover:bg-primary/30"
+                                >
+                                    <ScrollText className="h-3.5 w-3.5" /> Nueva propuesta
+                                </Button>
+                            </DialogTrigger>
+                            <Button
+                                asChild
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0 cursor-pointer gap-1.5 rounded-full border-white/15 bg-white/[0.03] backdrop-blur"
+                            >
+                                <Link href="/hub/mapa">
+                                    <MapPin className="h-3.5 w-3.5" /> Propuestas del mapa
+                                </Link>
+                            </Button>
+                        </>
+                    }
+                />
 
                 <Tabs defaultValue="legislativo" className="w-full">
                     <TabsList className="grid w-full grid-cols-3 h-auto">
@@ -202,6 +226,10 @@ export default function PoliticsPage() {
                             {/* Feed real y avanzado: opciones dinámicas, enmiendas, voto líquido,
                                 registro verificable, cuenta regresiva y contexto de Aurora. */}
                             <LegislativeFeed />
+
+                            {/* Publicaciones de la sección (os_posts · cola "politica" de la
+                                Zona de Publicación, con realtime) — Adenda 63 §8. */}
+                            <SectionPostsFeed dest="politica" />
                         </div>
                     </TabsContent>
 

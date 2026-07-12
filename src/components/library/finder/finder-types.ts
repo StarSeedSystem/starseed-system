@@ -176,7 +176,7 @@ export function clearClipboard(): void {
 // ─────────────────────────── Ordenación ───────────────────────────
 
 const TYPE_ORDER: Record<SavedItem["type"], number> = {
-    branch: 0, alias: 1, package: 2, post: 3, file: 4, page: 5, route: 6, external: 7, repo: 8, bookmark: 9,
+    branch: 0, alias: 1, package: 2, post: 3, file: 4, page: 5, route: 6, external: 7, repo: 8, bookmark: 9, personality: 10,
 };
 
 export function sortItems(items: SavedItem[], sort: FinderSort): SavedItem[] {

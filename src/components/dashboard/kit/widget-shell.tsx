@@ -23,6 +23,7 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
 import { useElementSize, type ElementSize } from "./use-element-size";
+import { useWidgetStyleOverride, TRINITY_TINTS } from "./widget-style-override";
 
 export interface WidgetShellProps {
     title: string;
@@ -68,6 +69,8 @@ export interface WidgetShellProps {
 
 function bgClass(style: string, opacity: number): string {
     switch (style) {
+        case "transparent":
+            return "bg-transparent";
         case "solid":
             return "bg-card";
         case "cyber":
@@ -121,15 +124,29 @@ export function WidgetShell({
     const { config } = useAppearance();
     const w = config.widgets;
     const { ref, size } = useElementSize<HTMLDivElement>();
+    // Override de estilo POR WIDGET (panel de config → engranaje). Ausente en
+    // el 99% de los casos (Provider sin envolver = null) → comportamiento
+    // idéntico al de siempre. Ver kit/widget-style-override.ts.
+    const styleOverride = useWidgetStyleOverride();
+    const trinityTint = styleOverride?.variant === "trinity" && styleOverride.trinityNode
+        ? TRINITY_TINTS[styleOverride.trinityNode]
+        : null;
 
-    // Acento efectivo: si el widget pasa uno explícito, manda; si no, hereda el
-    // acento por FUNCIÓN que el registro inyecta como --w-fn-accent (y, en último
-    // término, el primary del tema). Así el look "habla por la función" sin que
-    // cada widget tenga que declararlo, y sin romper los que sí lo declaran.
-    const accentColor = accent ?? "var(--w-fn-accent, hsl(var(--primary)))";
+    // Acento efectivo: 1) tinte Trinity forzado (elección explícita del panel
+    // de config) > 2) acento explícito del widget > 3) acento por FUNCIÓN que
+    // el registro inyecta como --w-fn-accent > 4) primary del tema.
+    const accentColor = trinityTint ?? accent ?? "var(--w-fn-accent, hsl(var(--primary)))";
+    // bgStyle/borderStyle efectivos: el override de variante (cristal/sólido/
+    // transparente) manda sobre el tema global SOLO para este widget.
+    const effectiveBgStyle = styleOverride?.variant === "solido" ? "solid"
+        : styleOverride?.variant === "transparente" ? "transparent"
+        : styleOverride?.variant === "cristal" ? "glass"
+        : w.bgStyle;
+    const effectiveBorderStyle = styleOverride?.variant === "transparente" ? "none" : w.borderStyle;
+    const effectiveShadowStyle = styleOverride?.variant === "transparente" ? "none" : w.shadows;
     // Modo de diseño efectivo: prop del widget > global > "theme".
     const effectiveMode: "theme" | "original" = designMode ?? w.designMode ?? "theme";
-    const isOriginal = effectiveMode === "original";
+    const isOriginal = effectiveMode === "original" && !styleOverride?.variant;
     // Modo compacto global (Ajustes → Apariencia → Diseño de los widgets):
     // densidad mayor (padding/typografía reducidos). Por defecto desactivado.
     const compact = w.compact === true;
@@ -175,16 +192,25 @@ export function WidgetShell({
                         boxShadow: `0 18px 44px -22px color-mix(in srgb, ${accentColor} 60%, transparent), inset 0 1px 0 rgba(255,255,255,0.10)`,
                     }
                     : {}),
+                // Tinte Trinity forzado (panel de config): halo + borde del color
+                // del nodo elegido, por encima de cualquier otro estilo.
+                ...(trinityTint && !isOriginal
+                    ? {
+                        borderColor: `color-mix(in srgb, ${trinityTint} 45%, transparent)`,
+                        boxShadow: `0 0 0 1px color-mix(in srgb, ${trinityTint} 30%, transparent), 0 18px 40px -22px color-mix(in srgb, ${trinityTint} 55%, transparent)`,
+                    }
+                    : {}),
             }}
             className={cn(
                 // os-widget-shell: capa de calidad transversal (globals.css) —
                 // hover/focus visibles, tabular-nums heredado, sombras por tema.
                 "os-widget-shell @container relative w-full h-full flex flex-col overflow-hidden rounded-3xl text-foreground isolate",
                 // En "original" usamos estilos inline (arriba) + backdrop-blur; en
-                // "theme" heredamos las clases del tema global.
-                isOriginal ? "backdrop-blur-2xl border" : bgClass(w.bgStyle, w.glassOpacity),
-                isOriginal ? "" : borderClass(w.borderStyle),
-                isOriginal ? "" : shadowClass(w.shadows),
+                // "theme" heredamos las clases del tema global (o el override
+                // de ESTE widget, si el panel de config eligió una variante).
+                isOriginal ? "backdrop-blur-2xl border" : bgClass(effectiveBgStyle, w.glassOpacity),
+                isOriginal ? "" : borderClass(effectiveBorderStyle),
+                isOriginal ? "" : shadowClass(effectiveShadowStyle),
                 innerGlowClass(w.innerGlow),
                 className
             )}

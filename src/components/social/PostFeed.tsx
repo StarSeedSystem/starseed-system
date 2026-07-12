@@ -2,11 +2,13 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { PostCard } from "@/components/social/PostCard";
 import { useCafePosts } from "@/hooks/use-cafe-posts";
 import { useRealtime } from "@/lib/realtime/realtime";
-import { Sparkles } from "lucide-react";
+import { Sparkles, PenSquare } from "lucide-react";
 
 interface PostFeedProps {
     groupId?: string;
@@ -15,6 +17,8 @@ interface PostFeedProps {
     limit?: number;
     /** Texto del aviso cuando se muestran datos de ejemplo. */
     fallbackNotice?: string;
+    /** CTA del estado vacío (p. ej. "Crea tu primera publicación" → /crear). */
+    emptyCta?: { label: string; href: string };
 }
 
 /**
@@ -28,6 +32,7 @@ export function PostFeed({
     channelKey = "feed",
     limit = 30,
     fallbackNotice = "Mostrando publicaciones de ejemplo. Inicia sesión para ver el flujo real de la red.",
+    emptyCta,
 }: PostFeedProps) {
     const { posts, loading, usingFallback, refetch } = useCafePosts({
         groupId,
@@ -51,6 +56,12 @@ export function PostFeed({
         },
         () => refetch(),
     );
+
+    // TIEMPO REAL (Adenda 63 §4/§8): publicaciones del OS (`os_posts`) —
+    // INSERT/UPDATE/DELETE. Es la tabla donde publican los perfiles y las
+    // secciones (política/educación/cultura); así las publicaciones nuevas
+    // aparecen en vivo en todos los dispositivos sin recargar.
+    useRealtime("os_posts", { event: "*" }, () => refetch());
 
     if (loading) {
         return (
@@ -88,8 +99,15 @@ export function PostFeed({
                 <PostCard key={post.id} post={post} />
             ))}
             {posts.length === 0 && (
-                <div className="rounded-2xl border border-border/50 p-8 text-center text-sm text-muted-foreground">
-                    Aún no hay publicaciones. ¡Sé el primero en compartir algo!
+                <div className="rounded-2xl border border-dashed border-border/50 p-8 text-center text-sm text-muted-foreground">
+                    <p>Aún no hay publicaciones. ¡Sé el primero en compartir algo!</p>
+                    {emptyCta && (
+                        <Button asChild variant="outline" size="sm" className="mt-4 gap-1.5 cursor-pointer">
+                            <Link href={emptyCta.href}>
+                                <PenSquare className="h-3.5 w-3.5" /> {emptyCta.label}
+                            </Link>
+                        </Button>
+                    )}
                 </div>
             )}
         </div>

@@ -13,7 +13,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
-import { BookMarked, Plus, ChevronRight, FileText, Boxes, RefreshCw, LogIn, type LucideIcon } from "lucide-react";
+import { BookMarked, Plus, ChevronRight, FileText, Boxes, RefreshCw, LogIn, GitBranch, type LucideIcon } from "lucide-react";
 import { WidgetShell, Chip, timeAgo } from "../kit";
 import { useAppearance } from "@/context/appearance-context";
 import { useMyMemories, tsOf, type MemoryRow } from "@/lib/widget-data/os-live";
@@ -48,6 +48,7 @@ export function MemoriesWidget() {
             connections={[
                 { label: "Cerebro", href: "/cerebro", color: "#a855f7" },
                 { label: "Baúles", href: "/baules", color: "#f59e0b" },
+                { label: "Grafo", href: "/network/graph", color: "#007FFF", icon: GitBranch },
             ]}
             actions={
                 <>

@@ -26,6 +26,10 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+// Id de dispositivo del motor de sync (realtime-sync/entity-state). Se publica
+// en las capacidades de la neurona para poder dirigirle broadcasts de cuenta
+// (p. ej. "Solicitar archivo a esta neurona" → evento 'file-request').
+import { deviceId as syncDeviceId } from "@/lib/sync/entity-state";
 
 export const NEURON_DEVICE_ID_KEY = "starseed.neuron.device-id";
 export const NEURON_PREFS_KEY = "starseed.neurons.prefs.v1";
@@ -50,6 +54,9 @@ export interface NeuronCapabilities {
   ollama?: boolean;          // servidor local Ollama detectado
   lmstudio?: boolean;        // servidor local LM Studio detectado
   battery?: { level?: number; charging?: boolean }; // contexto energético
+  /** deviceId del motor de sync (entity-state) — destino de broadcasts de
+   *  cuenta como 'file-request'. Distinto del id de neurona (histórico). */
+  syncDeviceId?: string;
 }
 
 /** Permisos de la neurona. PREDETERMINADO: todo true (máxima interconexión). */
@@ -70,6 +77,41 @@ export interface NeuronPermissions {
 
 export const DEFAULT_PERMISSIONS: NeuronPermissions = {
   compute: true, storage: true, sync: true, agent: true, senses: true, wake: true,
+};
+
+/** Rol funcional de la neurona dentro de la red personal. */
+export type NeuronRole = "cerebro" | "servidor" | "ambos";
+
+/** Config del servidor casero CasaOS declarado por una neurona (SOP §6b). */
+export interface NeuronCasaOS {
+  /** URL del panel: http://<ip>:<puerto> (por defecto puerto 80). */
+  url?: string;
+  /** Conector activado por el usuario. */
+  enabled?: boolean;
+}
+
+/**
+ * AJUSTES por neurona (además de los 6 permisos). Persisten en la MISMA clave
+ * `starseed.neurons.prefs.v1` (viaja con la cuenta vía settings-sync).
+ * PREDETERMINADO: todo activo, rol "ambos" (cerebro+servidor).
+ */
+export interface NeuronSettings {
+  /** Aceptar "Solicitar archivo a esta neurona" (FileRequestListener lo respeta). */
+  fileRequests?: boolean;
+  /** Permitir control de pantalla por voz (herramientas screen-control de Aurora). */
+  screenVoice?: boolean;
+  /** Escucha de fondo de Aurora en este dispositivo (efectiva solo en app instalada). */
+  auroraListening?: boolean;
+  /** Rol: cerebro (cómputo/contexto) · servidor (almacén/servicios) · ambos. */
+  role?: NeuronRole;
+  /** Notas libres del usuario sobre esta neurona. */
+  notes?: string;
+  /** Servidor casero CasaOS de esta neurona (SOP §6b). */
+  casaos?: NeuronCasaOS;
+}
+
+export const DEFAULT_SETTINGS: NeuronSettings = {
+  fileRequests: true, screenVoice: true, auroraListening: true, role: "ambos",
 };
 
 export interface Neuron {
@@ -163,6 +205,9 @@ export async function detectCapabilities(): Promise<NeuronCapabilities> {
     const bat = await (navigator as any).getBattery?.();
     if (bat) caps.battery = { level: Math.round((bat.level ?? 0) * 100), charging: !!bat.charging };
   } catch { /* */ }
+  // Puente con el motor de sync: permite dirigir broadcasts (file-request…)
+  // a esta neurona usando su deviceId de entity-state.
+  try { caps.syncDeviceId = syncDeviceId(); } catch { /* */ }
   // Servidores locales (solo tiene sentido sondear en el propio dispositivo).
   caps.ollama = await probeLocal("http://localhost:11434/api/tags");
   caps.lmstudio = await probeLocal("http://localhost:1234/v1/models");
@@ -181,19 +226,22 @@ interface NeuronPrefs {
   permissions: Record<string, Partial<NeuronPermissions>>;
   /** deviceId → nombre personalizado. */
   names: Record<string, string>;
+  /** deviceId → ajustes (solicitudes de archivos, rol, notas, CasaOS…). */
+  settings: Record<string, NeuronSettings>;
 }
 
 function readPrefs(): NeuronPrefs {
-  if (typeof window === "undefined") return { permissions: {}, names: {} };
+  if (typeof window === "undefined") return { permissions: {}, names: {}, settings: {} };
   try {
     const raw = window.localStorage.getItem(NEURON_PREFS_KEY);
     const p = raw ? JSON.parse(raw) : null;
     return {
       permissions: p?.permissions && typeof p.permissions === "object" ? p.permissions : {},
       names: p?.names && typeof p.names === "object" ? p.names : {},
+      settings: p?.settings && typeof p.settings === "object" ? p.settings : {},
     };
   } catch {
-    return { permissions: {}, names: {} };
+    return { permissions: {}, names: {}, settings: {} };
   }
 }
 
@@ -222,6 +270,35 @@ export function setNeuronName(deviceId: string, name: string): void {
   prefs.names[deviceId] = name.trim();
   writePrefs(prefs);
   void upsertRemote({ id: deviceId, name: name.trim() });
+}
+
+/** Ajustes de una neurona con los DEFAULTS aplicados (nunca lanza). */
+export function settingsFor(deviceId: string): NeuronSettings {
+  const prefs = readPrefs();
+  return { ...DEFAULT_SETTINGS, ...(prefs.settings[deviceId] ?? {}) };
+}
+
+/**
+ * Mezcla (merge no destructivo) un parche de ajustes de una neurona y lo
+ * persiste en `starseed.neurons.prefs.v1` (viaja con la cuenta). `casaos`
+ * también se mezcla en profundidad para no perder url/enabled.
+ */
+export function setNeuronSettings(deviceId: string, patch: Partial<NeuronSettings>): void {
+  const prefs = readPrefs();
+  const current = prefs.settings[deviceId] ?? {};
+  prefs.settings[deviceId] = {
+    ...current,
+    ...patch,
+    ...(patch.casaos ? { casaos: { ...(current.casaos ?? {}), ...patch.casaos } } : {}),
+  };
+  writePrefs(prefs);
+}
+
+/** ¿ESTE dispositivo acepta solicitudes de archivos? (FileRequestListener). */
+export function allowsFileRequests(): boolean {
+  const id = thisDeviceId();
+  if (!id) return true;
+  return settingsFor(id).fileRequests !== false;
 }
 
 /* ───────────────────── Registro remoto (Supabase) ───────────────────── */

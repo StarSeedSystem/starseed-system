@@ -34,7 +34,7 @@ export const dynamic = "force-dynamic";
 // Supabase van guardados; estética glass, responsive, español.
 // ══════════════════════════════════════════════════════════════════
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -128,9 +128,21 @@ import { toast } from "sonner";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
 import {
   useMyLibraryDestinations,
+  useEntityLibrary,
   libraryRef,
   type LibraryDestination,
+  type SavedItemType,
 } from "@/lib/library/entity-library";
+// ── Archivos REALES del OS (bucket `os-files` + tabla os_files, Adenda 63 §4) ──
+import {
+  uploadFile,
+  listMyFiles,
+  listPublicFiles,
+  subscribeMyFiles,
+  humanFileSize,
+  type OsFile,
+} from "@/lib/files/os-files";
+import { onTableChange } from "@/lib/realtime/realtime";
 import { createClient } from "@/utils/supabase/client";
 // Cerebros de contexto por biblioteca de perfil (Adenda 65 · SOP §12)
 import { LibraryBrainsPopover } from "@/components/library/library-brains-popover";
@@ -160,23 +172,52 @@ interface AssetItem {
   mode: "GLOBAL" | "PERSONAL";
   aiTags: string[];
   author?: string;
+  /** Enlace real para abrir el recurso (URL de storage o ruta interna del OS). */
+  href?: string;
 }
 
-// --- Mock Data (conservada) ---
+// ── Datos REALES (Adenda 63 §4): los mocks del explorador fueron sustituidos
+// por (a) la biblioteca por entidad del usuario (entity-library, con realtime)
+// y (b) los archivos reales del bucket `os-files`. Ver FileSystemExplorer. ──
 
-const mockAssets: AssetItem[] = [
-  { id: "lib1", parentId: null, name: "Ciencia & Tecnología", type: "LIBRARY", size: "128 TB", modified: "2024-03-20", mode: "GLOBAL", aiTags: ["science", "tech"] },
-  { id: "lib2", parentId: null, name: "Artes & Cultura", type: "LIBRARY", size: "450 TB", modified: "2024-03-18", mode: "GLOBAL", aiTags: ["art", "culture"] },
-  { id: "lib3", parentId: null, name: "Gobernanza & Leyes", type: "LIBRARY", size: "12 TB", modified: "2024-03-15", mode: "GLOBAL", aiTags: ["governance", "law"] },
-  { id: "g_c_1", parentId: "lib1", name: "StarSeed Core v1.0", type: "PROGRAM", subType: "SYSTEM", size: "2.4 GB", modified: "2024-03-20", mode: "GLOBAL", aiTags: ["kernel", "os"], author: "Core Team" },
-  { id: "g_c_2", parentId: "lib1", name: "Shaders Cuánticos", type: "FOLDER", size: "15 items", modified: "2024-03-18", mode: "GLOBAL", aiTags: ["graphics", "3d"], author: "NeoGraphics" },
-  { id: "g_c_2_1", parentId: "g_c_2", name: "LiquidMetal.shdr", type: "FILE", subType: "SHADER", size: "24 MB", modified: "2024-03-18", mode: "GLOBAL", aiTags: ["metal", "fluid"], author: "NeoGraphics" },
-  { id: "p_1", parentId: null, name: "Mis Documentos", type: "FOLDER", size: "12 items", modified: "2024-03-19", mode: "PERSONAL", aiTags: ["work", "docs"] },
-  { id: "p_2", parentId: null, name: "Proyecto Génesis", type: "FOLDER", size: "3 items", modified: "2024-03-19", mode: "PERSONAL", aiTags: ["top-secret"] },
-  { id: "p_3", parentId: null, name: "Mi Diario Neural", type: "CONCEPT", subType: "THOUGHT", size: "12 KB", modified: "Just now", mode: "PERSONAL", aiTags: ["personal", "reflection"] },
-  { id: "p_4", parentId: null, name: "Backup Consciencia", type: "FILE", subType: "ARCHIVE", size: "450 TB", modified: "2024-03-01", mode: "PERSONAL", aiTags: ["backup", "identity"] },
-  { id: "p_1_1", parentId: "p_1", name: "Borrador Constitución.pdf", type: "FILE", subType: "PDF", size: "4 MB", modified: "2024-02-28", mode: "PERSONAL", aiTags: ["draft", "law"] },
-];
+/** Mapea el tipo de un ítem de la biblioteca al tipo visual del explorador. */
+function libraryTypeToAssetType(t: SavedItemType): AssetType {
+  switch (t) {
+    case "package":
+    case "repo":
+      return "PROGRAM";
+    case "page":
+    case "route":
+    case "external":
+    case "bookmark":
+      return "PAGE";
+    case "post":
+    case "alias":
+    case "branch":
+      return "CONCEPT";
+    default:
+      return "FILE";
+  }
+}
+
+/** Fecha corta legible en español ("11 jul 2026"); tolerante a ISO inválido. */
+function shortDate(iso?: string): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return "—";
+  }
+}
+
+/** Subtipo legible desde un MIME ("application/pdf" → "PDF"). */
+function mimeSubType(mime?: string | null): string | undefined {
+  if (!mime) return undefined;
+  const part = mime.split("/")[1];
+  return part ? part.toUpperCase().slice(0, 12) : undefined;
+}
 
 interface BreadcrumbItem {
   id: string | null;
@@ -602,6 +643,14 @@ function SavedResourcesPanel({ onGoExplore }: { onGoExplore: () => void }) {
 
 // ══════════════════════════════════════════════════════════════════
 // Explorador de archivos (compartido entre "Explorar" y "Mi Biblioteca")
+// ------------------------------------------------------------------
+// DATOS REALES (Adenda 63 §4, fuera los mocks):
+//   · PERSONAL → biblioteca por entidad del usuario (entity-library: carpetas
+//     anidadas + ítems, realtime entre dispositivos) + archivos propios del
+//     bucket `os-files` (dedup por URL contra la biblioteca).
+//   · GLOBAL   → archivos PÚBLICOS reales de la red (os_files.is_public).
+// «Subir a la Red» sube de verdad a Storage y referencia en la biblioteca;
+// «Nuevo»/«Nueva Carpeta» crean una colección sincronizada en la cuenta.
 // ══════════════════════════════════════════════════════════════════
 
 function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
@@ -610,6 +659,53 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: null, name: "Inicio" }]);
 
+  // ── Sesión → biblioteca por entidad del usuario (realtime incluido) ──
+  const [uid, setUid] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    createClient()
+      .auth.getUser()
+      .then((res: { data: { user: { id: string } | null } }) => {
+        if (alive) {
+          setUid(res.data.user?.id ?? null);
+          setAuthChecked(true);
+        }
+      })
+      .catch(() => {
+        if (alive) setAuthChecked(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const userRef = useMemo(() => (uid ? libraryRef("user", uid) : null), [uid]);
+  // Hook local-first + nube + realtime: los ítems guardados en OTRO dispositivo
+  // aparecen aquí en vivo (canal compartido de entity_state, Adenda 63 §4).
+  const { doc, loading: libraryLoading, saveItem, createFolder } = useEntityLibrary(userRef);
+
+  // ── Archivos REALES del bucket `os-files` (propios o públicos de la red) ──
+  const [osFiles, setOsFiles] = useState<OsFile[]>([]);
+  const [filesLoading, setFilesLoading] = useState(true);
+  const loadFiles = useCallback(async () => {
+    const list =
+      mode === "GLOBAL" ? await listPublicFiles({ limit: 150 }) : await listMyFiles({ limit: 200 });
+    setOsFiles(list);
+    setFilesLoading(false);
+  }, [mode]);
+
+  useEffect(() => {
+    setFilesLoading(true);
+    void loadFiles();
+    // Realtime de os_files: propios (PERSONAL) o cualquier cambio legible (GLOBAL).
+    const unsub =
+      mode === "PERSONAL"
+        ? subscribeMyFiles(() => void loadFiles())
+        : onTableChange("os_files", { event: "*" }, () => void loadFiles());
+    return unsub;
+  }, [mode, loadFiles, uid]);
+
   // Reset cuando cambia el modo (al cambiar de pestaña).
   useEffect(() => {
     setCurrentFolderId(null);
@@ -617,7 +713,80 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
     setSearchQuery("");
   }, [mode]);
 
-  const filteredAssets = mockAssets.filter((asset) => {
+  // ── Datos combinados: biblioteca del usuario + archivos del bucket ──
+  const realAssets: AssetItem[] = useMemo(() => {
+    const out: AssetItem[] = [];
+    if (mode === "PERSONAL") {
+      const childCount = (fid: string) =>
+        doc.items.filter((i) => (i.folderId ?? null) === fid).length +
+        doc.folders.filter((f) => (f.parentId ?? null) === fid).length;
+      for (const f of doc.folders) {
+        out.push({
+          id: f.id,
+          parentId: f.parentId ?? null,
+          name: f.name,
+          type: "FOLDER",
+          size: `${childCount(f.id)} elementos`,
+          modified: shortDate(f.createdAt),
+          mode,
+          aiTags: f.category ? [f.category] : [],
+        });
+      }
+      const libraryUrls = new Set<string>();
+      for (const it of doc.items) {
+        if (it.url) libraryUrls.add(it.url);
+        out.push({
+          id: it.id,
+          parentId: it.folderId ?? null,
+          name: it.title,
+          type: libraryTypeToAssetType(it.type),
+          subType: mimeSubType(it.mime),
+          modified: shortDate(it.addedAt),
+          mode,
+          aiTags: it.tags.slice(0, 3),
+          href: it.url ?? it.route,
+        });
+      }
+      // Archivos subidos aún NO referenciados en la biblioteca (dedup por URL).
+      for (const f of osFiles) {
+        if (f.url && libraryUrls.has(f.url)) continue;
+        out.push({
+          id: `osf-${f.id}`,
+          parentId: null,
+          name: f.name,
+          type: "FILE",
+          subType: mimeSubType(f.mime),
+          size: humanFileSize(f.size),
+          modified: shortDate(f.createdAt),
+          mode,
+          aiTags: [],
+          href: f.url ?? undefined,
+        });
+      }
+    } else {
+      // Red: archivos públicos reales de toda la comunidad (os_files.is_public).
+      for (const f of osFiles) {
+        out.push({
+          id: `osf-${f.id}`,
+          parentId: null,
+          name: f.name,
+          type: "FILE",
+          subType: mimeSubType(f.mime),
+          size: humanFileSize(f.size),
+          modified: shortDate(f.createdAt),
+          mode,
+          aiTags: [],
+          author: f.owner === uid ? "Tú" : "Red StarSeed",
+          href: f.url ?? undefined,
+        });
+      }
+    }
+    return out;
+  }, [mode, doc, osFiles, uid]);
+
+  const isLoading = !authChecked || filesLoading || (mode === "PERSONAL" && !!userRef && libraryLoading);
+
+  const filteredAssets = realAssets.filter((asset) => {
     const matchesMode = asset.mode === mode;
     const matchesFolder = asset.parentId === currentFolderId;
     const matchesSearch = searchQuery ? asset.name.toLowerCase().includes(searchQuery.toLowerCase()) : matchesFolder;
@@ -630,7 +799,90 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
       setCurrentFolderId(folder.id);
       setBreadcrumbs([...breadcrumbs, { id: folder.id, name: folder.name }]);
       setSearchQuery("");
+      return;
     }
+    // Recurso con enlace real: abrir (nueva pestaña si es URL externa/storage).
+    if (folder.href) {
+      if (/^https?:\/\//i.test(folder.href)) {
+        window.open(folder.href, "_blank", "noopener,noreferrer");
+      } else {
+        window.location.assign(folder.href);
+      }
+    }
+  };
+
+  // ── Subida REAL al bucket `os-files` + referencia en la biblioteca ──
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleUploadClick = () => {
+    if (!uid) {
+      toast.error("Inicia sesión para subir archivos a la Red.");
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ""; // permite re-seleccionar el mismo archivo
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const res = await uploadFile(file, {
+          folder: "biblioteca",
+          isPublic: mode === "GLOBAL",
+          meta: { context: "library-explorer" },
+        });
+        if (!res.ok || !res.file) {
+          toast.error(res.error ?? `No se pudo subir «${file.name}».`);
+          continue;
+        }
+        // Referencia en la biblioteca (Entidad Única): aparece AL INSTANTE en
+        // todos los dispositivos de la cuenta vía realtime de entity_state.
+        await saveItem(
+          {
+            type: "file",
+            title: res.file.name,
+            url: res.file.url ?? undefined,
+            refId: res.file.id,
+            mime: res.file.mime ?? undefined,
+            tags: mode === "GLOBAL" ? ["red"] : [],
+          },
+          mode === "PERSONAL" ? currentFolderId : null,
+        );
+        toast.success(`«${res.file.name}» subido`, {
+          description: "Disponible ya en todos tus dispositivos y perfiles.",
+        });
+      }
+      void loadFiles();
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ── Nueva colección/carpeta en la biblioteca (sincronizada en la cuenta) ──
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+
+  const openFolderCreator = () => {
+    if (!uid) {
+      toast.error("Inicia sesión para crear colecciones.");
+      return;
+    }
+    setCreatingFolder(true);
+  };
+
+  const submitNewFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    await createFolder(name, currentFolderId);
+    setNewFolderName("");
+    setCreatingFolder(false);
+    toast.success(`Colección «${name}» creada`, {
+      description: "Sincronizada en todos tus dispositivos.",
+    });
   };
 
   const handleBreadcrumbClick = (index: number) => {
@@ -695,16 +947,38 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 w-full md:w-auto">
+            {/* Input real de archivos (oculto): lo disparan los botones de subida. */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleFilesSelected}
+              aria-hidden="true"
+              tabIndex={-1}
+            />
             {mode === "GLOBAL" ? (
-              <Button className="bg-indigo-600 hover:bg-indigo-500 text-white gap-2 shadow-lg shadow-indigo-500/20 cursor-pointer">
-                <Upload className="w-4 h-4" /> Subir a la Red
+              <Button
+                onClick={handleUploadClick}
+                disabled={uploading}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white gap-2 shadow-lg shadow-indigo-500/20 cursor-pointer"
+              >
+                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {uploading ? "Subiendo…" : "Subir a la Red"}
               </Button>
             ) : (
               <>
-                <Button className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer">
+                <Button
+                  onClick={openFolderCreator}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
+                >
                   <Plus className="w-4 h-4" /> Nuevo
                 </Button>
-                <Button variant="outline" className="border-white/10 hover:bg-white/5 gap-2 cursor-pointer">
+                <Button
+                  variant="outline"
+                  onClick={openFolderCreator}
+                  className="border-white/10 hover:bg-white/5 gap-2 cursor-pointer"
+                >
                   <Folder className="w-4 h-4" /> Nueva Carpeta
                 </Button>
               </>
@@ -728,10 +1002,55 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
             </div>
           </div>
         </div>
+
+        {/* Creador de colección/carpeta (sincronizada al instante en la cuenta) */}
+        {creatingFolder && mode === "PERSONAL" && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-2">
+            <Folder className="ml-1 h-4 w-4 shrink-0 text-emerald-300" />
+            <Input
+              autoFocus
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void submitNewFolder();
+                if (e.key === "Escape") {
+                  setCreatingFolder(false);
+                  setNewFolderName("");
+                }
+              }}
+              placeholder="Nombre de la colección…"
+              className="h-9 w-full max-w-xs flex-1 border-white/10 bg-black/20 focus-visible:ring-emerald-500/50"
+            />
+            <Button
+              size="sm"
+              onClick={() => void submitNewFolder()}
+              disabled={!newFolderName.trim()}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
+            >
+              Crear
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setCreatingFolder(false);
+                setNewFolderName("");
+              }}
+              className="text-muted-foreground hover:text-white cursor-pointer"
+            >
+              Cancelar
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* CONTENT GRID */}
-      {viewMode === "GRID" ? (
+      {isLoading && filteredAssets.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-20 text-muted-foreground border border-dashed border-white/10 rounded-3xl bg-white/5">
+          <Loader2 className="w-8 h-8 mb-3 animate-spin text-primary/70" />
+          <p className="text-sm">{mode === "GLOBAL" ? "Cargando archivos de la Red…" : "Cargando tus archivos…"}</p>
+        </div>
+      ) : viewMode === "GRID" ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-[clamp(1rem,2vw,2rem)] w-full">
           {filteredAssets.map((asset) => (
             <GlassCard
@@ -756,7 +1075,11 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold truncate text-gray-200 group-hover:text-primary transition-colors">{asset.name}</p>
                     <p className="text-[10px] text-muted-foreground flex gap-2">
-                      {asset.type === "LIBRARY" || asset.type === "FOLDER" ? <span>{asset.size}</span> : <span>{asset.type} • {asset.size}</span>}
+                      {asset.type === "LIBRARY" || asset.type === "FOLDER" ? (
+                        <span>{asset.size}</span>
+                      ) : (
+                        <span>{[asset.subType ?? asset.type, asset.size].filter(Boolean).join(" • ")}</span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -777,9 +1100,28 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
             <div className="col-span-full flex flex-col items-center justify-center p-20 text-muted-foreground border border-dashed border-white/10 rounded-3xl bg-white/5">
               <Folder className="w-12 h-12 mb-4 opacity-30" />
               <p>No hay elementos en esta ubicación.</p>
-              {searchQuery && <p className="text-sm mt-2">Intenta con otra búsqueda.</p>}
+              {searchQuery ? (
+                <p className="text-sm mt-2">Intenta con otra búsqueda.</p>
+              ) : authChecked && !uid ? (
+                <p className="text-sm mt-2">
+                  <Link href="/login" className="text-primary hover:underline cursor-pointer">Inicia sesión</Link>{" "}
+                  para ver y subir tus archivos reales.
+                </p>
+              ) : (
+                <p className="text-sm mt-2">
+                  {mode === "GLOBAL"
+                    ? "Sube el primer archivo con «Subir a la Red»: aparecerá al instante en toda la red."
+                    : "Sube archivos o crea una colección con «Nuevo»: se sincronizan en todos tus dispositivos."}
+                </p>
+              )}
             </div>
           )}
+        </div>
+      ) : filteredAssets.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-20 text-muted-foreground border border-dashed border-white/10 rounded-3xl bg-white/5">
+          <Folder className="w-12 h-12 mb-4 opacity-30" />
+          <p>No hay elementos en esta ubicación.</p>
+          {searchQuery && <p className="text-sm mt-2">Intenta con otra búsqueda.</p>}
         </div>
       ) : (
         <div className="rounded-xl border border-white/10 overflow-hidden bg-black/20 backdrop-blur-md">
@@ -1133,9 +1475,9 @@ function EntityLibraryArea() {
     let alive = true;
     createClient()
       .auth.getUser()
-      .then(({ data }) => {
+      .then((res: { data: { user: { id: string } | null } }) => {
         if (alive) {
-          setHasSession(!!data.user);
+          setHasSession(!!res.data.user);
           setAuthChecked(true);
         }
       })

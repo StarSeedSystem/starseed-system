@@ -34,15 +34,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
-  AlertTriangle, Bot, ChevronDown, Compass, ExternalLink, FileJson, FileText,
-  FolderTree, GitBranch, History, Layers, ListChecks, Maximize2, MessageSquare,
-  Mic, MicOff, Orbit, Pause, Play, Plus, Power, RefreshCw, ScrollText, Search,
-  Send, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Square, Trash2,
-  Volume2, Wand2,
+  AlertTriangle, Bot, ChevronDown, Compass, Drama, ExternalLink, FileJson,
+  FileText, FolderTree, GitBranch, History, Layers, ListChecks, Maximize2,
+  MessageSquare, Mic, MicOff, Orbit, Pause, Play, Plus, Power, RefreshCw,
+  ScrollText, Search, Send, SkipBack, SkipForward, SlidersHorizontal, Sparkles,
+  Square, Trash2, Volume2, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AuroraMultichatPanel } from "@/components/aurora/aurora-multichat-panel";
 import { AuroraControlPanel } from "@/components/aurora/aurora-control-panel";
+import { PersonalitiesPanel } from "@/components/aurora/personalities-panel";
+import { registerActiveAuroraChat } from "@/lib/aurora/personalities";
 import { AuroraAlwaysOn } from "@/components/exocortex/aurora-always-on";
 import { AuroraChatView } from "@/components/exocortex/aurora-chat-view";
 import { AuroraChatFullscreen } from "@/components/exocortex/aurora-chat-fullscreen";
@@ -77,7 +79,7 @@ import {
 import { useChatTree } from "@/lib/aurora/chat-tree";
 
 // ── Tipos locales ────────────────────────────────────────────────────────────
-type Tab = "carpeta" | "chat" | "chats" | "voz" | "control" | "registro";
+type Tab = "carpeta" | "chat" | "chats" | "voz" | "control" | "personalidad" | "registro";
 
 /** El puente v4 añade voiceUnavailable a la instantánea (aditivo). */
 type SnapshotPlus = AuroraStateSnapshot & { voiceUnavailable?: boolean };
@@ -437,6 +439,15 @@ export function AuroraChatSection({ className }: { className?: string }) {
     setOrbHiddenState(readOrbHidden());
     return subscribeOrbVisibility((h) => setOrbHiddenState(h));
   }, []);
+
+  // Personalidad POR CHAT (Adenda 63 §11): registra el contexto de conversación
+  // activo (árbol) como "chat actual" para que la pestaña Personalidades y
+  // Astraura resuelvan la personalidad de ESTE chat (prioridad chat > cerebro >
+  // sección > global). Registro efímero: se limpia al desmontar la sección.
+  useEffect(() => {
+    try { registerActiveAuroraChat(tree.activeId ?? null); } catch { /* defensivo */ }
+    return () => { try { registerActiveAuroraChat(null); } catch { /* defensivo */ } };
+  }, [tree.activeId]);
 
   // Asocia cada mensaje (voz o texto, usuario o Aurora) al contexto ACTIVO del
   // árbol, si lo hay (índice paralelo en chat-tree; no toca el registro). Así la
@@ -887,6 +898,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
           { id: "chats", label: "Chats", Icon: Layers },
           { id: "voz", label: "Voz", Icon: Volume2 },
           { id: "control", label: "Control", Icon: SlidersHorizontal },
+          { id: "personalidad", label: "Personalidades", Icon: Drama },
           { id: "registro", label: "Registro", Icon: ScrollText },
         ] as const).map(({ id, label, Icon }) => (
           <button
@@ -926,13 +938,26 @@ export function AuroraChatSection({ className }: { className?: string }) {
           <AuroraAlwaysOn />
           <AuroraControlPanel enabled={enabled} onSetEnabled={doSetEnabled} />
         </div>
+      ) : tab === "personalidad" ? (
+        /* Personalidades como ARCHIVOS de configuración (Adenda 63 §11): galería
+           con activar/editar/duplicar/exportar/eliminar, asignación por contexto
+           (global · secciones · este chat), editor con niveladores, Biblioteca
+           (compartir/instalar) e importar/exportar JSON. Scroll propio con tope
+           de altura para que la cortina siga siendo usable en móvil. */
+        <div className="axc-scroll relative z-[1] max-h-[62vh] overflow-y-auto overscroll-contain pr-1">
+          <PersonalitiesPanel />
+        </div>
       ) : tab === "chats" ? (
         /* Sesiones paralelas multi-proveedor — panel real, importado tal cual. */
         <div className="relative z-[1]">
           <AuroraMultichatPanel />
         </div>
       ) : tab === "chat" ? (
-        <div className="relative z-[1]">
+        /* Cuando el overlay a pantalla completa está abierto, la vista compacta
+           se OCULTA: antes quedaba visible detrás y se veían dos chats
+           superpuestos (el completo delante, el simple al fondo). Se mantiene
+           montada para conservar el estado de la conversación. (Adenda 63) */
+        <div className={cn("relative z-[1]", fullscreen && "hidden")}>
           {/* Acceso a pantalla completa (overlay 2 columnas en escritorio) */}
           <div className="mb-2.5 flex items-center justify-end">
             <button
@@ -1021,8 +1046,16 @@ export function AuroraChatSection({ className }: { className?: string }) {
               ))}
             </select>
             <p className="mt-1.5 text-[10px] leading-relaxed text-white/40">
-              La personalidad define voz, carácter y parámetros. Ajuste fino en{" "}
-              <a href="/aurora" className="text-[#7fb8ff] hover:underline">Configurar Aurora</a>.
+              La personalidad define voz, carácter y parámetros. Editor completo
+              (niveladores, contextos, Biblioteca) en la pestaña{" "}
+              <button
+                onClick={() => setTab("personalidad")}
+                className="cursor-pointer text-[#7fb8ff] hover:underline"
+                title="Abrir la pestaña Personalidades"
+              >
+                Personalidades
+              </button>{" "}
+              o en <a href="/aurora" className="text-[#7fb8ff] hover:underline">Configurar Aurora</a>.
             </p>
           </div>
 

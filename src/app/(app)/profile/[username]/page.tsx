@@ -24,6 +24,7 @@ import { useAccount } from "@/context/account-context";
 import { resolveProfileData, type ResolvedProfileData } from "@/lib/social/profile-resolver";
 import { Loader2 } from "lucide-react";
 import { ProfileModeBar } from "@/components/profile/profile-mode-bar";
+import { ProfileQuickActions } from "@/components/profile/profile-quick-actions";
 import { ProfileFreeLayout, type FreeSectionDef } from "@/components/profile/profile-free-layout";
 import { ProfileLinksSection } from "@/components/profile/profile-links-section";
 import { ProfileFilesSection } from "@/components/profile/profile-files-section";
@@ -275,7 +276,11 @@ export default function ProfilePage() {
         pageType: 'personal',
     };
 
-    const isOwner = profileData.isUser;
+    // "Ver como visitante" (Adenda 63 §8): toggle LOCAL del dueño real que
+    // renderiza todo el perfil como lo vería una visita (sin persistencia).
+    const [viewAsVisitor, setViewAsVisitor] = useState(false);
+    const ownerReal = profileData.isUser;
+    const isOwner = ownerReal && !viewAsVisitor;
     const pageType = profileData.pageType;
     const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -341,7 +346,16 @@ export default function ProfilePage() {
                 />
             ),
         },
-        { id: 'posts', title: 'Publicaciones', node: <PostFeed channelKey={`profile-${username}`} /> },
+        {
+            id: 'posts',
+            title: 'Publicaciones',
+            node: (
+                <PostFeed
+                    channelKey={`profile-${username}`}
+                    emptyCta={isOwner ? { label: "Crea tu primera publicación", href: "/crear" } : undefined}
+                />
+            ),
+        },
         { id: 'connections', title: 'Conexiones', node: <ConnectionsWidget pageType={pageType} /> },
         { id: 'library', title: 'Biblioteca', node: <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} isOwner={isOwner} /> },
         { id: 'collections', title: 'Colecciones', node: <CollectionsGrid /> },
@@ -399,8 +413,18 @@ export default function ProfilePage() {
 
     return (
 
-        <div className="flex flex-col gap-6 min-w-0 w-full overflow-x-clip">
-            <ProfileHeader profileData={profileData} />
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 min-w-0 overflow-x-clip">
+            {/* El header respeta la vista "como visitante" (isUser efectivo). */}
+            <ProfileHeader profileData={{ ...profileData, isUser: isOwner }} />
+
+            {/* ── Acciones rápidas del perfil (Adenda 63 §8) ── */}
+            <ProfileQuickActions
+                isOwner={ownerReal}
+                viewAsVisitor={viewAsVisitor}
+                onToggleViewAs={() => setViewAsVisitor((v) => !v)}
+                handle={pageHandle}
+                name={profileData.name}
+            />
 
             {/* ── Barra de modos: el perfil es una página abierta y libre ── */}
             <ProfileModeBar mode={mode} onChange={setMode} />
@@ -432,22 +456,27 @@ export default function ProfilePage() {
             <div className="grid lg:grid-cols-3 gap-6">
                 <div className={activeTab === 'agenda' ? "lg:col-span-3" : "lg:col-span-2"}>
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
-                        <TabsList className="overflow-x-auto flex-nowrap w-full justify-start md:justify-center">
-                            <TabsTrigger value="dashboard" className="shrink-0 flex-none">Dashboard</TabsTrigger>
+                        {/* Carril de pestañas: el scroll vive en el WRAPPER (no en la
+                            pastilla), así el redondeo no recorta los extremos; máscara
+                            de fundido en los bordes + snap por pestaña. (Adenda 63) */}
+                        <div className="overflow-x-auto scrollbar-hide snap-x rounded-full [mask-image:linear-gradient(to_right,transparent,black_14px,black_calc(100%-14px),transparent)]">
+                            <TabsList className="inline-flex w-max min-w-full flex-nowrap justify-start gap-1 md:justify-center">
+                            <TabsTrigger value="dashboard" className="shrink-0 flex-none snap-start">Dashboard</TabsTrigger>
                             {hasToolkit(pageType) && (
-                                <TabsTrigger value="gobierno" className="shrink-0 flex-none">{toolkitMeta(pageType).toolkitTab}</TabsTrigger>
+                                <TabsTrigger value="gobierno" className="shrink-0 flex-none snap-start">{toolkitMeta(pageType).toolkitTab}</TabsTrigger>
                             )}
-                            <TabsTrigger value="agenda" className="shrink-0 flex-none">Agenda</TabsTrigger>
-                            <TabsTrigger value="posts" className="shrink-0 flex-none">Publicaciones</TabsTrigger>
-                            <TabsTrigger value="connections" className="shrink-0 flex-none">Conexiones</TabsTrigger>
-                            <TabsTrigger value="library" className="shrink-0 flex-none">Biblioteca</TabsTrigger>
-                            <TabsTrigger value="collections" className="shrink-0 flex-none">Colecciones</TabsTrigger>
-                            <TabsTrigger value="enlaces" className="shrink-0 flex-none">Enlaces</TabsTrigger>
-                            <TabsTrigger value="archivos" className="shrink-0 flex-none">Archivos</TabsTrigger>
-                            <TabsTrigger value="sobremi" className="shrink-0 flex-none">Sobre mí</TabsTrigger>
-                            <TabsTrigger value="galeria" className="shrink-0 flex-none">Galería</TabsTrigger>
-                            <TabsTrigger value="secciones" className="shrink-0 flex-none">Secciones</TabsTrigger>
+                            <TabsTrigger value="agenda" className="shrink-0 flex-none snap-start">Agenda</TabsTrigger>
+                            <TabsTrigger value="posts" className="shrink-0 flex-none snap-start">Publicaciones</TabsTrigger>
+                            <TabsTrigger value="connections" className="shrink-0 flex-none snap-start">Conexiones</TabsTrigger>
+                            <TabsTrigger value="library" className="shrink-0 flex-none snap-start">Biblioteca</TabsTrigger>
+                            <TabsTrigger value="collections" className="shrink-0 flex-none snap-start">Colecciones</TabsTrigger>
+                            <TabsTrigger value="enlaces" className="shrink-0 flex-none snap-start">Enlaces</TabsTrigger>
+                            <TabsTrigger value="archivos" className="shrink-0 flex-none snap-start">Archivos</TabsTrigger>
+                            <TabsTrigger value="sobremi" className="shrink-0 flex-none snap-start">Sobre mí</TabsTrigger>
+                            <TabsTrigger value="galeria" className="shrink-0 flex-none snap-start">Galería</TabsTrigger>
+                            <TabsTrigger value="secciones" className="shrink-0 flex-none snap-start">Secciones</TabsTrigger>
                         </TabsList>
+                        </div>
 
                         <TabsContent value="dashboard" className="mt-6">
                             <div className="grid gap-6 lg:grid-cols-2">
@@ -480,7 +509,10 @@ export default function ProfilePage() {
                         )}
 
                         <TabsContent value="posts" className="mt-6">
-                            <PostFeed channelKey={`profile-${username}`} />
+                            <PostFeed
+                                channelKey={`profile-${username}`}
+                                emptyCta={isOwner ? { label: "Crea tu primera publicación", href: "/crear" } : undefined}
+                            />
                         </TabsContent>
                         <TabsContent value="connections" className="mt-6">
                             <ConnectionsWidget pageType={pageType} />

@@ -2,9 +2,11 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { motion, useSpring } from "framer-motion";
-import { Activity, Cpu, MemoryStick, Thermometer, Network, GitBranch, HeartHandshake } from "lucide-react";
-import { WidgetShell, StatTile, ProgressRing, ProgressBar, Bars, MiniList, timeAgo } from "../kit";
+import { Activity, Cpu, MemoryStick, Thermometer, Network, GitBranch, HeartHandshake, RefreshCw, Cable } from "lucide-react";
+import { WidgetShell, StatTile, ProgressRing, ProgressBar, Bars, MiniList, LivePulseDot, timeAgo } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
+import { getRealtimeSyncStatus, onRealtimeSyncStatus, type RealtimeSyncStatus } from "@/lib/sync/realtime-sync";
+import { listNeurons, type Neuron } from "@/lib/neurons/neurons";
 
 // ════════════════════════════════════════════════════════════════
 // SystemStatusWidget v2 — telemetría del nodo soberano del usuario.
@@ -87,10 +89,36 @@ function PulseDot({ color }: { color: string }) {
     );
 }
 
+const SYNC_META: Record<RealtimeSyncStatus["state"], { label: string; color: string }> = {
+    connected: { label: "Sincronizado", color: "#10b981" },
+    connecting: { label: "Conectando", color: "#f59e0b" },
+    error: { label: "Error de sync", color: "#f43f5e" },
+    disabled: { label: "Sync desactivado", color: "#64748b" },
+    "no-session": { label: "Sin sesión", color: "#64748b" },
+    idle: { label: "Inactivo", color: "#64748b" },
+};
+
 export function SystemStatusWidget() {
     const { data, loading } = useWidgetData("system.node", { refreshMs: 2500 });
     const [updatedTs, setUpdatedTs] = useState<number>(() => Date.now());
     useEffect(() => { if (data) setUpdatedTs(Date.now()); }, [data]);
+
+    // ── Datos REALES (no simulados): estado del motor de sync en tiempo real
+    // + neuronas (dispositivos) de la cuenta. Complementa la telemetría del
+    // "nodo soberano" (arriba, conceptual) con el estado real de la red
+    // personal del usuario. Nunca lanza; sin sesión degrada con elegancia.
+    const [sync, setSync] = useState<RealtimeSyncStatus>(() => getRealtimeSyncStatus());
+    useEffect(() => onRealtimeSyncStatus(setSync), []);
+    const [neurons, setNeurons] = useState<Neuron[] | null>(null);
+    useEffect(() => {
+        let alive = true;
+        const load = () => { void listNeurons().then((list) => { if (alive) setNeurons(list); }); };
+        load();
+        const t = setInterval(load, 30_000);
+        return () => { alive = false; clearInterval(t); };
+    }, []);
+    const onlineNeurons = neurons?.filter((n) => n.online).length ?? 0;
+    const syncMeta = SYNC_META[sync.state] ?? SYNC_META.idle;
 
     return (
         <WidgetShell
@@ -177,6 +205,28 @@ export function SystemStatusWidget() {
                                 <StatTile label="Pares IPFS" value={data.ipfsPeers} unit="nodos" accent="#10b981" icon={Network} compact />
                             )}
                         </div>
+
+                        {/* ── Sync + Neuronas (datos REALES, no telemetría simulada) ── */}
+                        {size.vTier !== "compact" && (
+                            <div className="shrink-0 grid grid-cols-2 gap-2">
+                                <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-1.5 min-w-0">
+                                    {sync.state === "connected" ? <LivePulseDot color={syncMeta.color} size={7} /> : <RefreshCw className="size-3 shrink-0" style={{ color: syncMeta.color }} />}
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] font-black uppercase tracking-wide truncate" style={{ color: syncMeta.color }}>{syncMeta.label}</p>
+                                        <p className="text-[8px] text-muted-foreground/50 tabular-nums truncate">{sync.lastChangeAt ? `act. ${timeAgo(sync.lastChangeAt)}` : "sin cambios aún"}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-white/[0.02] px-2.5 py-1.5 min-w-0">
+                                    <Cable className="size-3 shrink-0 text-emerald-400" />
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] font-black uppercase tracking-wide text-emerald-300 truncate">
+                                            {neurons === null ? "…" : `${onlineNeurons}/${neurons.length} neuronas`}
+                                        </p>
+                                        <p className="text-[8px] text-muted-foreground/50 truncate">online / total</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* ── Procomún contribution bar ────────────────── */}
                         {size.vTier !== "compact" && (

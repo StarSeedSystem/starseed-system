@@ -479,3 +479,11 @@ export function EmptyHint({ children }: { children: React.ReactNode }) {
         </div>
     );
 }
+
+// ── EntityQuickActions: fila de acciones por defecto de TODA entidad ──
+// (Adenda 63 §8 — Publicar aquí · Agenda · Biblioteca · Miembros · Compartir ·
+// Ajustes). Vive en ./entity-quick-actions.tsx; se re-exporta aquí para que los
+// toolkits la importen junto al resto de primitivas compartidas. El ciclo de
+// módulos resultante es seguro: ambos lados solo usan funciones hoisted en
+// tiempo de render, nunca en la evaluación del módulo.
+export { EntityQuickActions, type EntityQuickActionsProps } from "./entity-quick-actions";

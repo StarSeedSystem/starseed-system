@@ -22,14 +22,17 @@
 
 import { useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
-import { BookMarked } from "lucide-react";
-import type { EntityRef } from "@/lib/library/entity-library";
+import { BookMarked, CloudOff, RefreshCw } from "lucide-react";
+import { watchLibrary, useLibraryPendingSync, type EntityRef } from "@/lib/library/entity-library";
 import { createClient } from "@/utils/supabase/client";
 import { FinderView } from "./finder/finder-view";
 import type { AclViewerContext } from "./finder/finder-types";
 // Captura rápida "Guardar en Marcadores" (Adenda 69 §19): guarda enlaces/notas/
 // imágenes en la carpeta "Marcadores" de ESTA biblioteca (src/lib/library/bookmarks.ts).
 import { SaveToBookmarks } from "./save-to-bookmarks";
+// "Organizar inteligentemente" (Adenda 63 §14, inspirado en Mouzi): plan por
+// tipo/tema/fecha con Astraura o heurística local, aplicado con confirmación.
+import { SmartOrganizeButton } from "./smart-organize-button";
 
 /**
  * Resuelve si el visitante actual es "dueño/gestor" de esta biblioteca
@@ -73,7 +76,7 @@ function useAclContext(ref: EntityRef | null): AclViewerContext {
                         : supabase.from("os_pages").select("slug").eq("slug", ref.id).eq("owner_id", uid).maybeSingle(),
                 ]);
 
-                const groupSlugs = (membershipsRes.data ?? []).map((r) => (r as { group_slug: string }).group_slug).filter(Boolean);
+                const groupSlugs = (membershipsRes.data ?? []).map((r: { group_slug: string }) => r.group_slug).filter(Boolean);
                 const isOwner = !!ownedRes.data;
                 if (alive) setCtx({ isOwner, userId: uid, groupSlugs });
             } catch {
@@ -112,6 +115,23 @@ export function EntityLibraryPanel({
     compact = false,
 }: EntityLibraryPanelProps) {
     const aclContext = useAclContext(entityRef);
+    // Sync en tiempo real (Adenda 63 §4): canal compartido por entidad — los
+    // ítems guardados en OTRO dispositivo/perfil aparecen aquí sin recargar.
+    const { pending, retryNow } = useLibraryPendingSync(entityRef);
+    const [retrying, setRetrying] = useState(false);
+
+    useEffect(() => {
+        if (!entityRef) return;
+        return watchLibrary(entityRef);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- kind/id identifican la entidad de forma estable
+    }, [entityRef?.kind, entityRef?.id]);
+
+    const handleRetry = () => {
+        setRetrying(true);
+        retryNow();
+        // Feedback breve: el estado real lo actualiza el evento de pendientes.
+        window.setTimeout(() => setRetrying(false), 1500);
+    };
 
     if (!entityRef) {
         return (
@@ -132,8 +152,26 @@ export function EntityLibraryPanel({
                         <BookMarked className="h-5 w-5" /> {title}
                     </h2>
                     {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
+                    {pending && (
+                        <button
+                            type="button"
+                            onClick={handleRetry}
+                            title="Hay cambios guardados en este dispositivo que aún no se han subido a tu cuenta. Pulsa para reintentar ahora."
+                            className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-300 transition-colors hover:bg-amber-500/20"
+                        >
+                            {retrying ? (
+                                <RefreshCw className="h-3 w-3 animate-spin" />
+                            ) : (
+                                <CloudOff className="h-3 w-3" />
+                            )}
+                            Cambios pendientes de sincronizar
+                        </button>
+                    )}
                 </div>
-                <SaveToBookmarks libraryRef={entityRef} label="Guardar enlace…" />
+                <div className="flex flex-wrap items-center gap-2">
+                    <SmartOrganizeButton libraryRef={entityRef} accent={accent} />
+                    <SaveToBookmarks libraryRef={entityRef} label="Guardar enlace…" />
+                </div>
             </div>
 
             <FinderView entityRef={entityRef} accent={accent} aclContext={aclContext} compact={compact} />

@@ -20,6 +20,10 @@
 //   • TAREAS EN SEGUNDO PLANO (src/lib/aurora/background/task-manager) — que
 //     Aurora mantiene «en proceso» mientras sigue la voz: crear_tarea_fondo,
 //     ver_tareas, completar_tarea.
+//   • PERSONALIDAD (kind:"personality", src/lib/aurora/personalities) — cambiar
+//     personalidad activa, ajustar rasgos por voz y describir la actual:
+//     cambiar_personalidad, ajustar_rasgo_personalidad, describir_personalidad,
+//     listar_personalidades. (Adenda 63 §11)
 // Todas comparten el mismo contrato de despacho (getAuroraTool / runAuroraTool).
 // ════════════════════════════════════════════════════════════════
 
@@ -892,6 +896,387 @@ export const AURORA_CONTEXT_TOOLS: AuroraScreenTool[] = [
   },
 ];
 
+// ════════════════════════════════════════════════════════════════════════════
+// PERSONALIDAD (kind:"personality") — Aurora cambia/ajusta su propia forma de
+// ----------------------------------------------------------------------------
+// ser POR VOZ (Adenda 63 §11): "ponte en modo mentora", "sé más dulce",
+// "¿qué personalidad tienes ahora?". Tools LOCALES (ejecución en navegador,
+// sin integración ni endpoint) que delegan en src/lib/aurora/personalities
+// (import perezoso). Al cambiar/ajustar se emite `starseed:aurora-voice-style`
+// para que el sistema de voz module tono/ritmo/energía. NUNCA lanza.
+// ════════════════════════════════════════════════════════════════════════════
+
+export interface AuroraPersonalityTool extends AuroraIntegrationTool {
+  /** Marca de tool local de personalidad (ejecuta en navegador, sin config). */
+  kind: "personality";
+  /** Ejecutor local (solo navegador). */
+  run: (input: Record<string, unknown>) => Promise<IntegrationResult>;
+}
+
+/** Type guard: ¿es una tool de personalidad? */
+export function isAuroraPersonalityTool(
+  t: AuroraIntegrationTool | undefined | null,
+): t is AuroraPersonalityTool {
+  return !!t && (t as AuroraPersonalityTool).kind === "personality" && typeof (t as AuroraPersonalityTool).run === "function";
+}
+
+/** ¿Es una tool LOCAL (pantalla, personalidad o voz): navegador ⇒ disponible, sin config? */
+function isAuroraLocalTool(t: AuroraIntegrationTool | undefined | null): boolean {
+  return isAuroraScreenTool(t) || isAuroraPersonalityTool(t) || isAuroraVoiceTool(t);
+}
+
+/** Tipado del módulo de personalidades (import dinámico). */
+type PersonalitiesModule = typeof import("@/lib/aurora/personalities");
+
+/**
+ * Ejecuta una acción de personalidad con import perezoso del módulo y adapta
+ * su resultado al contrato IntegrationResult (data.text = frase decible en
+ * español). NUNCA lanza.
+ */
+async function runPersonalityControl(
+  exec: (mod: PersonalitiesModule) => ScreenOutcome | Promise<ScreenOutcome>,
+): Promise<IntegrationResult> {
+  if (typeof window === "undefined") {
+    return { ok: false, error: "Las personalidades solo funcionan en el navegador." };
+  }
+  try {
+    const mod = await import("@/lib/aurora/personalities");
+    const res = await exec(mod);
+    if (!res || typeof res.ok !== "boolean") {
+      return { ok: false, error: "El sistema de personalidades no respondió." };
+    }
+    return res.ok
+      ? { ok: true, data: { text: res.message, ...(res.data ?? {}) } }
+      : { ok: false, error: res.message };
+  } catch {
+    return { ok: false, error: "No pude gestionar la personalidad." };
+  }
+}
+
+/** Tools de PERSONALIDAD que Aurora puede invocar (siempre disponibles en navegador). */
+export const AURORA_PERSONALITY_TOOLS: AuroraPersonalityTool[] = [
+  {
+    name: "cambiar_personalidad",
+    description:
+      "Cambia tu personalidad activa por su nombre. Entrada: { nombre, ambito?: 'global'|'seccion'|'chat'|'cerebro', ref? } (ambito por defecto: global; ref = sección politica|educacion|cultura, id de chat o id de cerebro). Úsala cuando el usuario diga «ponte en modo mentora», «cambia a la personalidad analista», «vuelve a ser Aurora».",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "cambiar_personalidad",
+    kind: "personality",
+    run: (input) =>
+      runPersonalityControl((m) => {
+        const nombre = String(pickInput(input, "nombre", "name", "personalidad", "modo", "id") ?? "").trim();
+        if (!nombre) {
+          const nombres = m.listPersonalityProfiles().map((p) => p.name).slice(0, 8).join(", ");
+          return { ok: false, message: `¿A qué personalidad cambio? Tengo: ${nombres}.` };
+        }
+        const ambitoRaw = String(pickInput(input, "ambito", "ámbito", "scope", "contexto") ?? "").trim().toLowerCase();
+        const ambito = (["global", "seccion", "chat", "cerebro"].includes(ambitoRaw) ? ambitoRaw : undefined) as
+          | "global" | "seccion" | "chat" | "cerebro" | undefined;
+        const ref = String(pickInput(input, "ref", "seccion", "sección", "chat", "cerebro", "destino") ?? "").trim() || undefined;
+        const r = m.setActivePersonalityByName(nombre, ambito, ref);
+        return { ok: r.ok, message: r.message, data: r.profile ? { id: r.profile.id, nombre: r.profile.name } : undefined };
+      }),
+  },
+  {
+    name: "ajustar_rasgo_personalidad",
+    description:
+      "Ajusta UN rasgo de tu personalidad activa (±20 sobre 100, con tope). Entrada: { rasgo, direccion?: 'mas'|'menos', cantidad? } (rasgo en natural: dulce, energética, formal, paciente, humor, brevedad…). Úsala cuando el usuario diga «sé más dulce», «menos formal», «ponte más energética». El cambio también modula tu voz.",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "ajustar_rasgo_personalidad",
+    kind: "personality",
+    run: (input) =>
+      runPersonalityControl((m) => {
+        const rasgo = String(pickInput(input, "rasgo", "trait", "aspecto", "cualidad", "nombre") ?? "").trim();
+        const dirRaw = String(pickInput(input, "direccion", "dirección", "dir", "sentido") ?? "mas").trim().toLowerCase();
+        const direccion = dirRaw === "menos" || dirRaw === "-" || dirRaw === "bajar" ? "menos" : "mas";
+        const cantidad = Number(pickInput(input, "cantidad", "delta", "cuanto", "cuánto") ?? 20);
+        const r = m.adjustActivePersonalityTrait(rasgo, direccion, Number.isFinite(cantidad) && cantidad > 0 ? Math.min(50, cantidad) : 20);
+        return { ok: r.ok, message: r.message };
+      }),
+  },
+  {
+    name: "describir_personalidad",
+    description:
+      "Describe tu personalidad activa actual (nombre, esencia, rasgos más marcados, idioma y voz). Entrada: {}. Úsala cuando el usuario pregunte «¿qué personalidad tienes?», «¿cómo estás configurada?», «¿quién eres ahora?». Léele el resumen tal cual.",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "describir_personalidad",
+    kind: "personality",
+    run: () =>
+      runPersonalityControl((m) => ({ ok: true, message: m.describeActivePersonality() })),
+  },
+  {
+    name: "listar_personalidades",
+    description:
+      "Lista las personalidades disponibles (nombre y descripción corta) para poder elegir una. Entrada: {}. Úsala si el usuario pregunta «¿qué personalidades tienes?» o antes de cambiar cuando dudes del nombre.",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "listar_personalidades",
+    kind: "personality",
+    run: () =>
+      runPersonalityControl((m) => {
+        const list = m.listPersonalityProfiles();
+        if (!list.length) return { ok: true, message: "No hay personalidades guardadas todavía." };
+        const activa = m.resolvePersonalityForContext({});
+        const lines = list.slice(0, 12).map((p) => `${p.name}${activa?.id === p.id ? " (activa)" : ""}`);
+        return {
+          ok: true,
+          message: `Tengo ${list.length} personalidades: ${lines.join(" · ")}. Dime «ponte en modo…» y el nombre.`,
+          data: { total: list.length, personalidades: list.map((p) => ({ id: p.id, nombre: p.name })) },
+        };
+      }),
+  },
+];
+
+// ════════════════════════════════════════════════════════════════════════════
+// VOZ DE AURORA (kind:"voice") — Aurora ajusta SU PROPIA VOZ en vivo
+// ----------------------------------------------------------------------------
+// (Adenda 63 §10): «habla más dulce», «voz más seria», «usa bark», «más
+// despacio». Tools LOCALES (mismo contrato de despacho que kind:"screen":
+// ejecución en navegador, sin integración ni endpoint) que delegan en
+// src/lib/aurora/tts-oss (import perezoso). Los cambios PERSISTEN en la config
+// unificada `starseed.aurora.voice.v1` (viaja con la cuenta) y disparan el
+// evento vivo 'starseed:aurora-voice-style' — la SIGUIENTE frase ya sale
+// modulada en cualquier motor (navegador/Kokoro/Bark/GPT-SoVITS/OmniVoice).
+// NUNCA lanzan; degradan con un mensaje hablado útil.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Pseudo-integración de las tools de voz (no existe en el registro). */
+export const VOICE_TOOL_INTEGRATION_ID = "voz";
+
+export interface AuroraVoiceTool extends AuroraIntegrationTool {
+  /** Marca de tool local de voz (ajusta la voz de Aurora, sin integraciones). */
+  kind: "voice";
+  /** Ejecutor local (solo navegador). */
+  run: (input: Record<string, unknown>) => Promise<IntegrationResult>;
+}
+
+/** Type guard: ¿es una tool de voz de Aurora? */
+export function isAuroraVoiceTool(
+  t: AuroraIntegrationTool | undefined | null,
+): t is AuroraVoiceTool {
+  return !!t && (t as AuroraVoiceTool).kind === "voice" && typeof (t as AuroraVoiceTool).run === "function";
+}
+
+/** Tipado del barrel de voz (import dinámico). */
+type VoiceModule = typeof import("@/lib/aurora/tts-oss");
+
+/**
+ * Ejecuta una acción de voz con import perezoso del barrel tts-oss y adapta su
+ * resultado al contrato IntegrationResult (data.text = frase decible en
+ * español). NUNCA lanza.
+ */
+async function runVoiceControl(
+  exec: (mod: VoiceModule) => ScreenOutcome | Promise<ScreenOutcome>,
+): Promise<IntegrationResult> {
+  if (typeof window === "undefined") {
+    return { ok: false, error: "Los ajustes de voz solo funcionan en el navegador." };
+  }
+  try {
+    const mod = await import("@/lib/aurora/tts-oss");
+    const res = await exec(mod);
+    if (!res || typeof res.ok !== "boolean") {
+      return { ok: false, error: "El sistema de voz no respondió." };
+    }
+    return res.ok
+      ? { ok: true, data: { text: res.message, ...(res.data ?? {}) } }
+      : { ok: false, error: res.message };
+  } catch {
+    return { ok: false, error: "No pude ajustar la voz ahora mismo." };
+  }
+}
+
+/** Motor de voz desde un alias hablado ("navegador", "bark", "sovits"…). */
+function normalizeEngineAlias(v: unknown):
+  | "browser" | "kokoro" | "kitten" | "bark" | "gpt-sovits" | "omnivoice" | undefined {
+  const n = String(v ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim();
+  if (!n) return undefined;
+  if (["navegador", "browser", "nativa", "sistema"].includes(n)) return "browser";
+  if (n.includes("kokoro")) return "kokoro";
+  if (n.includes("kitten")) return "kitten";
+  if (n.includes("bark")) return "bark";
+  if (n.includes("sovits") || n.includes("clonacion") || n.includes("clon")) return "gpt-sovits";
+  if (n.includes("omni")) return "omnivoice";
+  return undefined;
+}
+
+/**
+ * Interpreta un nivel: número absoluto (se clampa a [min,max]) o palabra
+ * relativa ("más/rápido/sube" = +paso · "menos/lento/baja" = −paso) sobre
+ * `current`. undefined si no se entiende. Nunca lanza.
+ */
+function parseVoiceLevel(
+  v: unknown,
+  current: number,
+  min: number,
+  max: number,
+  step: number,
+): number | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  const asNum = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
+  if (Number.isFinite(asNum)) return Math.max(min, Math.min(max, asNum));
+  const n = String(v).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (/(mas|rapid|sube|alto|alta|arriba|agud)/.test(n)) {
+    return Math.max(min, Math.min(max, current + step));
+  }
+  if (/(menos|lent|baja|bajo|abajo|despacio|grave|suave)/.test(n)) {
+    return Math.max(min, Math.min(max, current - step));
+  }
+  return undefined;
+}
+
+/** Tools de VOZ que Aurora puede invocar (siempre disponibles en navegador). */
+export const AURORA_VOICE_TOOLS: AuroraVoiceTool[] = [
+  {
+    name: "ajustar_voz",
+    description:
+      "Ajusta EN VIVO tu propia voz. Entrada: { velocidad?, tono?, energia?, emocion?, motor?, voz? } — velocidad/tono = número 0.5–2 (1 normal) o \"más\"/\"menos\"; energia = 0–100; emocion = alegre|serena|dulce|seria|entusiasta|empatica|misteriosa|juguetona; motor = navegador|kokoro|bark|gpt-sovits|omnivoice; voz = nombre o preset. Úsala cuando el usuario diga «habla más dulce» (emocion:\"dulce\"), «más despacio» (velocidad:\"menos\"), «voz más seria» (emocion:\"seria\"), «usa bark» (motor:\"bark\"). Se guarda y viaja con la cuenta.",
+    integrationId: VOICE_TOOL_INTEGRATION_ID,
+    actionId: "ajustar_voz",
+    kind: "voice",
+    run: (input) =>
+      runVoiceControl(async (m) => {
+        const changes: string[] = [];
+        const style = m.getVoiceStyle();
+        const stylePatch: Partial<import("@/lib/aurora/tts-oss").AuroraVoiceStyle> = {};
+
+        const emotion = m.normalizeEmotion(
+          pickInput(input, "emocion", "emoción", "emotion", "estilo", "animo", "ánimo", "humor"),
+        );
+        if (emotion) {
+          stylePatch.emotion = emotion;
+          changes.push(`emoción «${emotion}»`);
+        }
+        const rate = parseVoiceLevel(
+          pickInput(input, "velocidad", "rate", "speed", "ritmo"),
+          style.rate ?? 1, 0.5, 2, 0.15,
+        );
+        if (rate !== undefined) {
+          stylePatch.rate = rate;
+          changes.push(`velocidad ${rate.toFixed(2)}`);
+        }
+        const pitch = parseVoiceLevel(
+          pickInput(input, "tono", "pitch"),
+          style.pitch ?? 1, 0.5, 2, 0.15,
+        );
+        if (pitch !== undefined) {
+          stylePatch.pitch = pitch;
+          changes.push(`tono ${pitch.toFixed(2)}`);
+        }
+        const energy = parseVoiceLevel(
+          pickInput(input, "energia", "energía", "energy", "volumen"),
+          style.energy ?? 50, 0, 100, 15,
+        );
+        if (energy !== undefined) {
+          stylePatch.energy = energy;
+          changes.push(`energía ${Math.round(energy)}`);
+        }
+        if (Object.keys(stylePatch).length > 0) {
+          // Persiste en la MISMA clave sincronizada y dispara el evento vivo.
+          m.emitVoiceStyle(stylePatch);
+        }
+
+        // Motor y voz (opcionales en la misma llamada).
+        const engine = normalizeEngineAlias(pickInput(input, "motor", "engine"));
+        let engineNote = "";
+        if (engine) {
+          m.setVoiceEngine(engine);
+          changes.push(`motor «${engine}»`);
+          if (m.isNeuralEngine(engine) && !m.neuralEngineConfigured(engine)) {
+            engineNote =
+              " Ese motor aún no tiene endpoint: mientras tanto hablaré con Kokoro o la voz del navegador (configúralo en Ajustes → Voz).";
+          }
+        }
+        const voice = pickInput(input, "voz", "voice", "preset");
+        if (voice !== undefined && voice !== null && String(voice).trim()) {
+          const vs = String(voice).trim();
+          const target = engine ?? m.getVoiceEngine();
+          if (m.isNeuralEngine(target)) m.setEngineSettings(target, { voice: vs });
+          else m.setVoiceName(vs);
+          changes.push(`voz «${vs}»`);
+        }
+
+        if (changes.length === 0) {
+          return {
+            ok: false,
+            message:
+              "Dime qué ajusto de mi voz: velocidad, tono, energía, emoción (p.ej. dulce), motor o voz.",
+          };
+        }
+        return {
+          ok: true,
+          message: `Listo: ajusté ${changes.join(", ")}.${engineNote} Me oirás así desde la próxima frase.`,
+          data: { cambios: changes },
+        };
+      }),
+  },
+  {
+    name: "cambiar_motor_voz",
+    description:
+      "Cambia el MOTOR con el que hablas. Entrada: { motor } (navegador | kokoro | bark | gpt-sovits | omnivoice). Si el motor por endpoint no está configurado, avisa y sigue hablando por la cadena de respaldo (Kokoro → navegador): nunca te quedas muda. Úsala para «usa bark», «vuelve a la voz del navegador», «habla con kokoro».",
+    integrationId: VOICE_TOOL_INTEGRATION_ID,
+    actionId: "cambiar_motor_voz",
+    kind: "voice",
+    run: (input) =>
+      runVoiceControl(async (m) => {
+        const engine = normalizeEngineAlias(pickInput(input, "motor", "engine", "voz", "nombre"));
+        if (!engine) {
+          return {
+            ok: false,
+            message: "¿Qué motor quieres? navegador, kokoro, bark, gpt-sovits u omnivoice.",
+          };
+        }
+        m.setVoiceEngine(engine);
+        if (m.isNeuralEngine(engine) && !m.neuralEngineConfigured(engine)) {
+          return {
+            ok: true,
+            message: `Cambié el motor a ${engine}, pero aún no tiene endpoint configurado: hablaré con Kokoro o la voz del navegador hasta que lo añadas en Ajustes → Voz (se instala en tu neurona o CasaOS).`,
+            data: { motor: engine, endpoint: false },
+          };
+        }
+        return { ok: true, message: `Hecho: ahora hablo con ${engine}.`, data: { motor: engine, endpoint: true } };
+      }),
+  },
+  {
+    name: "estado_voz",
+    description:
+      "Cuenta cómo está tu voz ahora: motor activo, endpoints configurados y su disponibilidad, y el estilo (velocidad/tono/energía/emoción). Entrada: {}. Léele el resumen al usuario.",
+    integrationId: VOICE_TOOL_INTEGRATION_ID,
+    actionId: "estado_voz",
+    kind: "voice",
+    run: () =>
+      runVoiceControl(async (m) => {
+        const cfg = m.getVoiceConfig();
+        const style = m.getVoiceStyle();
+        const parts: string[] = [`Motor activo: ${cfg.engine}.`];
+        const styleBits: string[] = [];
+        if (style.emotion) styleBits.push(`emoción ${style.emotion}`);
+        if (style.rate !== undefined) styleBits.push(`velocidad ${style.rate.toFixed(2)}`);
+        if (style.pitch !== undefined) styleBits.push(`tono ${style.pitch.toFixed(2)}`);
+        if (style.energy !== undefined) styleBits.push(`energía ${Math.round(style.energy)}`);
+        if (styleBits.length) parts.push(`Estilo: ${styleBits.join(", ")}.`);
+        for (const id of m.NEURAL_VOICE_ENGINES) {
+          const s = m.getEngineSettings(id);
+          if (!s.endpoint) {
+            parts.push(`${id}: sin endpoint.`);
+            continue;
+          }
+          const ping = await m.pingNeuralEngine(id).catch(() => "unreachable" as const);
+          parts.push(`${id}: ${ping === "ok" ? "disponible" : "endpoint configurado pero no responde"}.`);
+        }
+        if (cfg.symbiotic) parts.push("Modo simbiótico Bark+SoVITS activado.");
+        parts.push(
+          cfg.browserVoiceURI
+            ? "Voz del navegador: fijada por ti."
+            : "Voz del navegador: automática (la mejor rankeada).",
+        );
+        return { ok: true, message: parts.join(" "), data: { motor: cfg.engine } };
+      }),
+  },
+];
+
 /** Conjunto de nombres de las tools de GENERAR/USAR CONTENIDO (para la sección de prompt). */
 const GENERATE_TOOL_NAMES: ReadonlySet<string> = new Set(AURORA_GENERATE_TOOLS.map((t) => t.name));
 
@@ -908,9 +1293,9 @@ function isContextTool(t: AuroraIntegrationTool): boolean {
   return CONTEXT_TOOL_NAMES.has(t.name);
 }
 
-// Índice por nombre para O(1) — integraciones + control de pantalla + generación + contexto.
+// Índice por nombre para O(1) — integraciones + control de pantalla + generación + contexto + personalidad + voz.
 const TOOL_INDEX: Record<string, AuroraIntegrationTool> = Object.fromEntries(
-  [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS, ...AURORA_CONTEXT_TOOLS].map((t) => [t.name, t]),
+  [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS, ...AURORA_CONTEXT_TOOLS, ...AURORA_PERSONALITY_TOOLS, ...AURORA_VOICE_TOOLS].map((t) => [t.name, t]),
 );
 
 /** Busca una tool de Aurora por nombre. */
@@ -925,8 +1310,9 @@ export function getAuroraTool(name: string): AuroraIntegrationTool | undefined {
 export function isAuroraToolAvailable(name: string, brainId?: string): boolean {
   const t = getAuroraTool(name);
   if (!t) return false;
-  // Las tools de PANTALLA no dependen de configuración: navegador ⇒ disponibles.
-  if (isAuroraScreenTool(t)) return typeof window !== "undefined";
+  // Las tools LOCALES (pantalla/personalidad) no dependen de configuración:
+  // navegador ⇒ disponibles.
+  if (isAuroraLocalTool(t)) return typeof window !== "undefined";
   // Modo "solo gratis" (categoría de provider-resolution.ts): oculta la tool
   // que representa el servicio de MARCA de su categoría (ownServiceId) — Aurora
   // nunca la ofrece ni la intenta en ese modo. Aditivo: en cualquier otro modo,
@@ -944,7 +1330,7 @@ export function isAuroraToolAvailable(name: string, brainId?: string): boolean {
 
 /** Lista las tools disponibles ahora mismo (por config). */
 export function listAvailableAuroraTools(brainId?: string): AuroraIntegrationTool[] {
-  return [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS, ...AURORA_CONTEXT_TOOLS].filter((t) =>
+  return [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS, ...AURORA_CONTEXT_TOOLS, ...AURORA_PERSONALITY_TOOLS, ...AURORA_VOICE_TOOLS].filter((t) =>
     isAuroraToolAvailable(t.name, brainId),
   );
 }
@@ -1052,8 +1438,8 @@ async function runAuroraToolTried(
   tried.add(name);
   const t = getAuroraTool(name);
   if (!t) return { ok: false, error: `No existe la herramienta "${name}".` };
-  // Tools de PANTALLA: ejecución local (DOM), sin config ni endpoint.
-  if (isAuroraScreenTool(t)) {
+  // Tools LOCALES (pantalla/personalidad/voz): ejecución en navegador, sin config ni endpoint.
+  if (isAuroraScreenTool(t) || isAuroraPersonalityTool(t) || isAuroraVoiceTool(t)) {
     try {
       return await t.run(input && typeof input === "object" ? (input as Record<string, unknown>) : {});
     } catch {
@@ -1121,14 +1507,16 @@ export function auroraGeneratePromptSection(brainId?: string): string {
   ].join("\n");
 }
 
-/** Fragmento para el system prompt: tools de integración + control de pantalla + generación + contexto. */
+/** Fragmento para el system prompt: tools de integración + control de pantalla + generación + contexto + personalidad. */
 export function auroraToolsPromptSection(brainId?: string): string {
   const tools = listAvailableAuroraTools(brainId);
   if (tools.length === 0) return "";
-  const integraciones = tools.filter((t) => !isAuroraScreenTool(t));
-  // Las tools locales (kind:"screen") se separan en TRES familias: control de
-  // pantalla/tareas · generar/usar contenido · contexto del usuario/red, cada
-  // una con su propia cabecera.
+  const integraciones = tools.filter((t) => !isAuroraLocalTool(t));
+  // Las tools locales se separan en CINCO familias: control de pantalla/tareas
+  // · generar/usar contenido · contexto del usuario/red · personalidad · voz,
+  // cada una con su propia cabecera.
+  const personalidad = tools.filter((t) => isAuroraPersonalityTool(t));
+  const voz = tools.filter((t) => isAuroraVoiceTool(t));
   const contenido = tools.filter((t) => isAuroraScreenTool(t) && isGenerateTool(t));
   const contexto = tools.filter((t) => isAuroraScreenTool(t) && isContextTool(t));
   const pantalla = tools.filter((t) => isAuroraScreenTool(t) && !isGenerateTool(t) && !isContextTool(t));
@@ -1155,6 +1543,27 @@ export function auroraToolsPromptSection(brainId?: string): string {
     parts.push(
       "CONTEXTO DEL USUARIO Y LA RED: ya tienes un resumen breve de tu ámbito propio arriba (si el usuario lo activó); estas tools te dejan pedir MÁS — el contexto COMPLETO, buscar publicaciones PÚBLICAS de la red, o consultar una página/grupo por su slug. Respeta la privacidad: solo ámbito propio + público, nunca reveles claves/secretos, y en mensajes nunca compartas el contenido de un hilo (solo su existencia/título).",
       ...contexto.map((t) => `- ${t.name}: ${t.description}`),
+    );
+  }
+  if (personalidad.length > 0) {
+    parts.push(
+      "PERSONALIDAD: el usuario puede pedirte EN NATURAL que cambies tu forma de ser («ponte en modo mentora», «sé más dulce», «menos formal», «¿qué personalidad tienes?»). Hazlo TÚ con estas tools — nunca digas que no puedes cambiar tu personalidad. Los cambios también modulan tu voz.",
+      ...personalidad.map((t) => `- ${t.name}: ${t.description}`),
+      "Ejemplos:",
+      '· «Ponte en modo mentora» → [[ACCION: cambiar_personalidad {"nombre":"mentora"}]] Listo, ahora soy Mentora Sabia.',
+      '· «Sé más dulce» → [[ACCION: ajustar_rasgo_personalidad {"rasgo":"dulce","direccion":"mas"}]] Subí mi ternura.',
+      '· «¿Qué personalidad tienes?» → [[ACCION: describir_personalidad {}]] y le lees el resumen.',
+    );
+  }
+  if (voz.length > 0) {
+    parts.push(
+      "TU VOZ: el usuario puede pedirte EN NATURAL que cambies cómo suenas («habla más dulce», «más despacio», «voz más seria», «usa bark», «¿cómo está tu voz?»). Hazlo TÚ con estas tools — nunca digas que no puedes cambiar tu voz. Motores: navegador (siempre), kokoro (local, mejor español), bark / gpt-sovits / omnivoice (neuronales por endpoint). Si un motor no responde, la cadena de respaldo te mantiene hablando SIEMPRE (Kokoro → mejor voz del navegador).",
+      ...voz.map((t) => `- ${t.name}: ${t.description}`),
+      "Ejemplos:",
+      '· «Habla más dulce» → [[ACCION: ajustar_voz {"emocion":"dulce"}]] Claro, así, más dulce.',
+      '· «Más despacio, por favor» → [[ACCION: ajustar_voz {"velocidad":"menos"}]] Voy más despacio.',
+      '· «Usa bark» → [[ACCION: cambiar_motor_voz {"motor":"bark"}]] Cambiando a Bark.',
+      '· «¿Cómo está tu voz?» → [[ACCION: estado_voz {}]] y le lees el resumen.',
     );
   }
   return parts.join("\n");

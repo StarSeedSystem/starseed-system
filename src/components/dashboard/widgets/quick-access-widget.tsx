@@ -12,15 +12,33 @@
 // ════════════════════════════════════════════════════════════════
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import {
     Compass, Network, Users, PenSquare, Library, Bot, CalendarDays,
     Archive, Brain, MessageSquare, LayoutGrid, User, Plus, LogIn,
+    Bell, AppWindow, Settings, PenLine, ShieldCheck, Server, Vote,
+    Lightbulb, Cpu, ShoppingBag, Award, GitBranch, Sparkles, Zap,
+    Wrench, Plug, Eye, HardDrive, Boxes, Camera, Images, CircleUser,
     type LucideIcon,
 } from "lucide-react";
 import { WidgetShell } from "../kit";
 import { useCurrentUid } from "@/lib/widget-data/os-live";
+import { loadDockConfig, type DockIconKey } from "@/components/layout/dock-config";
 
 const ACCENT = "#a78bfa";
+
+// Mapa liviano DockIconKey → LucideIcon (solo para reflejar el dock REAL del
+// usuario aquí; no compite con el mapa completo de omni-dock.tsx). Claves sin
+// entrada caen a LayoutGrid — nunca rompe.
+const DOCK_ICON: Partial<Record<DockIconKey, LucideIcon>> = {
+    LayoutDashboard: LayoutGrid, CircleUser, MessagesSquare: MessageSquare, Bell, Users,
+    BookOpen: Library, Library, Network, BrainCircuit: Brain, Settings,
+    Compass, PenLine, ShieldCheck, LayoutGrid, Server,
+    Vote, Lightbulb, Cpu, ShoppingBag,
+    Award, AppWindow, CalendarClock: CalendarDays, GitBranch, Sparkles,
+    Zap, Wrench, Plug, Eye, HardDrive, Boxes,
+    Camera, Images,
+};
 
 interface Access {
     label: string;
@@ -76,9 +94,31 @@ function Tile({ a, micro }: { a: Access; micro: boolean }) {
     );
 }
 
+const DOCK_COLOR_HEX: Record<string, string> = {
+    neutral: "#94a3b8", cyan: "#22d3ee", crimson: "#f43f5e", amber: "#f59e0b", emerald: "#34d399", purple: "#a78bfa",
+};
+
 export function QuickAccessWidget() {
     const { uid, ready } = useCurrentUid();
     const signedIn = ready && !!uid;
+
+    // Dock REAL del usuario (lo que de verdad tiene habilitado en su OmniDock),
+    // añadido a la lanzadera curada de arriba — sin duplicar hrefs. Se lee tras
+    // montar (localStorage no es SSR-safe) para no romper la hidratación.
+    const [dockExtra, setDockExtra] = useState<Access[]>([]);
+    useEffect(() => {
+        try {
+            const items = loadDockConfig()
+                .filter((it) => it.enabled)
+                .map((it): Access => ({
+                    label: it.label,
+                    href: it.path,
+                    icon: DOCK_ICON[it.iconKey] ?? LayoutGrid,
+                    color: DOCK_COLOR_HEX[it.color] ?? ACCENT,
+                }));
+            setDockExtra(items);
+        } catch { /* defensivo: localStorage bloqueado */ }
+    }, []);
 
     return (
         <WidgetShell
@@ -103,7 +143,9 @@ export function QuickAccessWidget() {
             {(size) => {
                 const micro = size.tier === "micro" || size.vTier === "micro";
                 const cols = size.tier === "micro" ? 3 : size.tier === "compact" ? 3 : 4;
-                const access = signedIn ? [...PUBLIC_ACCESS, ...PRIVATE_ACCESS] : PUBLIC_ACCESS;
+                const base = signedIn ? [...PUBLIC_ACCESS, ...PRIVATE_ACCESS] : PUBLIC_ACCESS;
+                const seenHref = new Set(base.map((a) => a.href));
+                const access = [...base, ...dockExtra.filter((d) => !seenHref.has(d.href))];
                 const max = micro ? 6 : size.vTier === "expanded" ? access.length : cols * 2;
                 const shown = access.slice(0, max);
 

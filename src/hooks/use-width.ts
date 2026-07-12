@@ -10,15 +10,20 @@ export function useWidth() {
 
         const observer = new ResizeObserver((entries) => {
             for (const entry of entries) {
-                // Use contentRect.width directly
-                setWidth(entry.contentRect.width);
+                // Guarda de delta (>1px): los informes subpíxel del observer
+                // (zoom, scrollbars, redondeos de layout) no deben re-acomodar
+                // toda la rejilla (react-grid-layout) ni realimentar bucles de
+                // medición → re-layout → medición. (Bug "glitcheo en loop".)
+                const w = entry.contentRect.width;
+                setWidth((prev) => (Math.abs(prev - w) < 1 ? prev : w));
             }
         });
 
         observer.observe(element);
 
         // Initial measure
-        setWidth(element.getBoundingClientRect().width);
+        const w0 = element.getBoundingClientRect().width;
+        setWidth((prev) => (Math.abs(prev - w0) < 1 ? prev : w0));
 
         return () => {
             observer.disconnect();

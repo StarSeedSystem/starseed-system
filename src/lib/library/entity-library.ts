@@ -12,7 +12,12 @@
  * Persistencia:
  *   · Cache local  `starseed.entitylib.<kind>.<id>.v1`   (fuente de verdad offline)
  *   · Nube         entity_state(key="library")            (LWW por rev)
- *   · Realtime     subscribeEntityState → actualiza cache + emite evento
+ *   · Realtime     watchLibrary → canal COMPARTIDO por entidad (refcount) que
+ *                  actualiza la cache y emite 'starseed:entitylib' +
+ *                  'starseed:library-updated' (los consumidores se refrescan solos)
+ *   · Pendientes   `starseed.library.pending.v1` — push fallidos (offline/sin
+ *                  sesión/RLS) se encolan y REINTENTAN al volver 'online' y cada
+ *                  ~30s. Nunca se pierde un ítem por estar sin conexión.
  *
  * Local-first y tolerante sin sesión: toda escritura funciona en local aunque
  * la sincronización a Supabase falle o no haya `ref` de nube disponible.
@@ -43,6 +48,9 @@ import {
     type EntityKind as SyncEntityKind,
     type EntityRef,
 } from "@/lib/sync/entity-state";
+// Seguridad integrada (Adenda 63 §13): escaneo de secretos/PII al guardar/
+// compartir e instalar/importar ítems — ver saveItemSecure/importItemSecure.
+import { redactText, scanDeep, summarize, type Finding } from "@/lib/security/scanner";
 import { createClient } from "@/utils/supabase/client";
 import { useCallback, useEffect, useState } from "react";
 
@@ -63,7 +71,11 @@ export type SavedItemType =
     /** v2.1 (Adenda 65, §17): repo GIT externo conectado (metadatos cacheados en `connectedRepo`). */
     | "repo"
     /** v2.1 (Adenda 69, §19): enlace/nota/imagen guardado desde "Marcadores" (src/lib/library/bookmarks.ts). */
-    | "bookmark";
+    | "bookmark"
+    /** v2.2 (Adenda 63, §11): personalidad de Aurora como archivo de configuración
+     *  (JSON en `content`, ver src/lib/aurora/personalities.ts) — compartible e
+     *  instalable entre cuentas desde la Biblioteca. */
+    | "personality";
 
 /** Entrada de control de acceso: un usuario o un grupo (por id/slug). */
 export interface ACLEntry {
@@ -259,6 +271,10 @@ export function libraryRef(kind: SyncEntityKind, id: string): EntityRef {
 
 const LIBRARY_KEY = "library";
 const LIBRARY_EVENT = "starseed:entitylib";
+/** Evento window PÚBLICO para consumidores externos (Adenda 63 §4): detail = { kind, id }. */
+export const LIBRARY_UPDATED_EVENT = "starseed:library-updated";
+/** Evento window cuando cambia la cola de pendientes de sincronizar: detail = { count }. */
+export const LIBRARY_PENDING_EVENT = "starseed:library-pending";
 
 // ─────────────────────────── Cache local ───────────────────────────
 
@@ -295,7 +311,10 @@ function writeCache(ref: EntityRef, doc: EntityLibraryDoc): void {
 function emitChange(ref: EntityRef): void {
     if (!isClient()) return;
     try {
-        window.dispatchEvent(new CustomEvent(LIBRARY_EVENT, { detail: { kind: ref.kind, id: ref.id } }));
+        const detail = { kind: ref.kind, id: ref.id };
+        window.dispatchEvent(new CustomEvent(LIBRARY_EVENT, { detail }));
+        // Evento público (mismo detail) para consumidores fuera de este módulo.
+        window.dispatchEvent(new CustomEvent(LIBRARY_UPDATED_EVENT, { detail }));
     } catch {
         /* noop */
     }
@@ -316,6 +335,139 @@ function subscribeCache(ref: EntityRef, cb: () => void): () => void {
         window.removeEventListener(LIBRARY_EVENT, onChange);
         window.removeEventListener("storage", onStorage);
     };
+}
+
+// ─────────────────────────── Cola de pendientes de sincronizar ───────────────────────────
+// Push fallidos (offline, sin sesión, RLS, red) se ANOTAN aquí por entidad.
+// La cache local YA contiene el documento completo, así que solo guardamos QUÉ
+// bibliotecas tienen cambios sin subir; el reintento vuelve a leer la cache y
+// re-empuja el doc entero (LWW + mergeDocs hacen el resto). Adenda 63 §4.
+
+const PENDING_KEY = "starseed.library.pending.v1";
+
+interface PendingSyncEntry {
+    kind: SyncEntityKind;
+    id: string;
+    queuedAt: string;
+    attempts: number;
+}
+
+function pendingKeyOf(ref: EntityRef): string {
+    return `${ref.kind}:${ref.id}`;
+}
+
+function readPendingMap(): Record<string, PendingSyncEntry> {
+    if (!isClient()) return {};
+    try {
+        const raw = localStorage.getItem(PENDING_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as Record<string, PendingSyncEntry>;
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function writePendingMap(map: Record<string, PendingSyncEntry>): void {
+    if (!isClient()) return;
+    try {
+        localStorage.setItem(PENDING_KEY, JSON.stringify(map));
+    } catch {
+        /* cuota / modo privado: la cache local sigue intacta */
+    }
+    try {
+        window.dispatchEvent(
+            new CustomEvent(LIBRARY_PENDING_EVENT, { detail: { count: Object.keys(map).length } }),
+        );
+    } catch {
+        /* noop */
+    }
+}
+
+/** Nº total de bibliotecas con cambios sin subir a la nube. */
+export function pendingSyncCount(): number {
+    return Object.keys(readPendingMap()).length;
+}
+
+/** true si ESTA biblioteca tiene cambios pendientes de subir. */
+export function hasPendingSync(ref: EntityRef): boolean {
+    return pendingKeyOf(ref) in readPendingMap();
+}
+
+function enqueuePendingSync(ref: EntityRef): void {
+    if (!isClient()) return;
+    const map = readPendingMap();
+    const key = pendingKeyOf(ref);
+    const prev = map[key];
+    map[key] = {
+        kind: ref.kind,
+        id: ref.id,
+        queuedAt: prev?.queuedAt ?? new Date().toISOString(),
+        attempts: (prev?.attempts ?? 0) + 1,
+    };
+    writePendingMap(map);
+    ensureRetryLoop();
+}
+
+function clearPendingSync(ref: EntityRef): void {
+    if (!isClient()) return;
+    const map = readPendingMap();
+    const key = pendingKeyOf(ref);
+    if (!(key in map)) return;
+    delete map[key];
+    writePendingMap(map);
+}
+
+let _flushing = false;
+
+/**
+ * Reintenta subir TODAS las bibliotecas pendientes (doc completo desde cache).
+ * Segura de llamar en cualquier momento (no-op sin pendientes / en SSR / si ya
+ * hay un flush en curso). Devuelve cuántas se subieron y cuántas quedan.
+ */
+export async function flushPendingLibrarySync(): Promise<{ flushed: number; remaining: number }> {
+    if (!isClient() || _flushing) return { flushed: 0, remaining: pendingSyncCount() };
+    _flushing = true;
+    let flushed = 0;
+    try {
+        const map = readPendingMap();
+        for (const entry of Object.values(map)) {
+            const ref: EntityRef = { kind: entry.kind, id: entry.id };
+            try {
+                const doc = readCache(ref);
+                const row = await setEntityState(ref, LIBRARY_KEY, doc);
+                if (row) {
+                    clearPendingSync(ref);
+                    flushed++;
+                }
+            } catch {
+                /* sigue pendiente; se reintentará en el próximo ciclo */
+            }
+        }
+    } finally {
+        _flushing = false;
+    }
+    return { flushed, remaining: pendingSyncCount() };
+}
+
+let _retryLoopStarted = false;
+
+/** Arranca (una sola vez por pestaña) el reintento automático: 'online' + cada ~30s. */
+function ensureRetryLoop(): void {
+    if (!isClient() || _retryLoopStarted) return;
+    _retryLoopStarted = true;
+    try {
+        window.addEventListener("online", () => {
+            void flushPendingLibrarySync();
+        });
+        window.setInterval(() => {
+            if (pendingSyncCount() === 0) return;
+            if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+            void flushPendingLibrarySync();
+        }, 30_000);
+    } catch {
+        /* noop */
+    }
 }
 
 // ─────────────────────────── Merge LWW (nube ↔ local) ───────────────────────────
@@ -359,12 +511,74 @@ async function pullCloud(ref: EntityRef): Promise<EntityLibraryDoc | null> {
     }
 }
 
-async function pushCloud(ref: EntityRef, doc: EntityLibraryDoc): Promise<void> {
+/**
+ * Sube el documento a la nube y DEVUELVE si lo consiguió. En fallo (offline,
+ * sin sesión, RLS) encola la entidad en la cola de pendientes — la copia local
+ * sigue siendo válida y el reintento automático la subirá en cuanto pueda.
+ */
+async function pushCloud(ref: EntityRef, doc: EntityLibraryDoc): Promise<boolean> {
     try {
-        await setEntityState(ref, LIBRARY_KEY, doc);
+        const row = await setEntityState(ref, LIBRARY_KEY, doc);
+        if (row) {
+            clearPendingSync(ref);
+            return true;
+        }
+        enqueuePendingSync(ref);
+        return false;
     } catch {
-        /* sin sesión o sin permisos: la copia local sigue siendo válida */
+        enqueuePendingSync(ref);
+        return false;
     }
+}
+
+// ─────────────────────────── Realtime compartido por entidad ───────────────────────────
+// Un ÚNICO canal Supabase por entidad, compartido por refcount entre todos los
+// consumidores montados (panel de biblioteca, tarjeta de perfil, explorador de
+// /library, docks…). Al recibir un cambio remoto: merge LWW sobre la cache y
+// emisión de eventos → todas las listas se actualizan EN VIVO sin recargar.
+
+const activeWatchers = new Map<string, { count: number; unsub: () => void }>();
+
+/**
+ * Vigila en tiempo real la biblioteca de una entidad. Devuelve función de
+ * limpieza. Reutiliza el canal si la entidad ya está vigilada (refcount).
+ * SSR-safe: en el servidor es un no-op.
+ */
+export function watchLibrary(ref: EntityRef): () => void {
+    if (!isClient()) return () => {};
+    const key = `${ref.kind}:${ref.id}`;
+    const existing = activeWatchers.get(key);
+    if (existing) {
+        existing.count += 1;
+    } else {
+        const unsub = subscribeEntityState<EntityLibraryDoc>(ref, LIBRARY_KEY, (change) => {
+            if (change.self) return; // anti-eco: este dispositivo ya aplicó el cambio local
+            const remote = normalizeDoc({
+                ...change.value,
+                rev: change.rev,
+                updatedAt: change.updated_at,
+            });
+            const merged = mergeDocs(readCache(ref), remote);
+            writeCache(ref, merged); // emite 'starseed:entitylib' + 'starseed:library-updated'
+        });
+        activeWatchers.set(key, { count: 1, unsub });
+    }
+    // Al montar cualquier vigía: activa el reintento y aprovecha para vaciar pendientes.
+    ensureRetryLoop();
+    if (pendingSyncCount() > 0) void flushPendingLibrarySync();
+    return () => {
+        const w = activeWatchers.get(key);
+        if (!w) return;
+        w.count -= 1;
+        if (w.count <= 0) {
+            activeWatchers.delete(key);
+            try {
+                w.unsub();
+            } catch {
+                /* noop */
+            }
+        }
+    };
 }
 
 let _idSeq = 0;
@@ -403,7 +617,8 @@ async function mutate(
     const current = readCache(ref);
     const next = fn(current);
     writeCache(ref, next);
-    // Push a la nube en segundo plano (no bloquea la UI local-first).
+    // Push a la nube en segundo plano (no bloquea la UI local-first). Si falla,
+    // pushCloud encola la entidad en pendientes y el reintento automático la sube.
     void pushCloud(ref, next);
     return next;
 }
@@ -478,6 +693,112 @@ export async function saveItem(
         return { ...doc, items: [entry, ...doc.items], updatedAt: new Date().toISOString() };
     });
     return { ok: true, id: resultId };
+}
+
+// ─────────────────────────── Seguridad al guardar/compartir/instalar (Adenda 63 §13) ───────────────────────────
+
+/**
+ * Escanea los CAMPOS DE TEXTO de un ítem (título, nota, contenido, url,
+ * descripción) en busca de secretos/PII. Nunca lanza; devuelve [] si no hay nada.
+ */
+export function scanItemInput(item: Partial<SaveItemInput> | Partial<SavedItem>): Finding[] {
+    try {
+        return scanDeep({
+            title: item?.title ?? "",
+            note: item?.note ?? "",
+            content: item?.content ?? "",
+            url: item?.url ?? "",
+            description: item?.description ?? "",
+        });
+    } catch {
+        return [];
+    }
+}
+
+export interface SecureSaveResult {
+    ok: boolean;
+    id: string;
+    /** TODOS los hallazgos detectados (aunque no se hayan redactado). */
+    findings: Finding[];
+    /** Nº de secretos críticos redactados antes de guardar. */
+    redactedCount: number;
+    /** Aviso en español para que la UI confirme/informe (undefined = limpio). */
+    aviso?: string;
+}
+
+/**
+ * GUARDAR/COMPARTIR con verificación (estilo Strix): escanea los campos de
+ * texto del ítem y, por defecto, REDACTA los hallazgos de severidad `critical`
+ * (claves API, service_role, cadenas de conexión…) sustituyéndolos por
+ * «[REDACTADO:tipo]». No bloquea nunca en silencio: siempre guarda y devuelve
+ * los `findings` para que la UI informe/confirme. Con `allowCritical: true`
+ * ("compartir igualmente", decisión explícita) guarda el contenido intacto.
+ */
+export async function saveItemSecure(
+    ref: EntityRef,
+    item: SaveItemInput,
+    folderId?: string | null,
+    opts?: { allowCritical?: boolean },
+): Promise<SecureSaveResult> {
+    let toSave = item;
+    let findings: Finding[] = [];
+    let redactedCount = 0;
+    try {
+        findings = scanItemInput(item);
+        if (findings.length && !opts?.allowCritical) {
+            const redactField = (v: string | undefined) => {
+                if (!v) return { v, n: 0 };
+                const r = redactText(v, { minSeverity: "critical" });
+                return { v: r.text, n: r.redactedCount };
+            };
+            const title = redactField(item.title);
+            const note = redactField(item.note);
+            const content = redactField(item.content);
+            const url = redactField(item.url);
+            const description = redactField(item.description);
+            redactedCount = title.n + note.n + content.n + url.n + description.n;
+            if (redactedCount > 0) {
+                toSave = {
+                    ...item,
+                    title: title.v ?? item.title,
+                    note: note.v,
+                    content: content.v,
+                    url: url.v,
+                    description: description.v,
+                };
+            }
+        }
+    } catch {
+        /* el escaneo JAMÁS impide guardar */
+    }
+    const res = await saveItem(ref, toSave, folderId);
+    const s = summarize(findings);
+    return {
+        ...res,
+        findings,
+        redactedCount,
+        aviso: s.clean
+            ? undefined
+            : redactedCount > 0
+              ? `Se redactaron ${redactedCount} dato(s) crítico(s) antes de guardar (puedes rehacerlo con «compartir igualmente»). ${s.message}`
+              : opts?.allowCritical
+                ? `Guardado SIN redactar por decisión explícita. ${s.message}`
+                : `Este ítem contiene datos sensibles: ${s.message}`,
+    };
+}
+
+/**
+ * IMPORTAR/INSTALAR con verificación: mismo contrato que `saveItemSecure`
+ * (alias semántico para instalaciones desde bibliotecas compartidas o la
+ * Librería). Escanea, redacta `critical` por defecto y devuelve los hallazgos.
+ */
+export async function importItemSecure(
+    ref: EntityRef,
+    item: SaveItemInput,
+    folderId?: string | null,
+    opts?: { allowCritical?: boolean },
+): Promise<SecureSaveResult> {
+    return saveItemSecure(ref, item, folderId, opts);
 }
 
 export async function removeItem(ref: EntityRef, itemId: string): Promise<void> {
@@ -986,13 +1307,9 @@ export function useEntityLibrary(ref: EntityRef | null): UseEntityLibrary {
         const unsubCache = subscribeCache(ref, () => {
             if (alive) setDoc(readCache(ref));
         });
-        const unsubRemote = subscribeEntityState<EntityLibraryDoc>(ref, LIBRARY_KEY, (change) => {
-            if (change.self) return; // anti-eco: este dispositivo ya aplicó el cambio local
-            if (!alive) return;
-            const remote = normalizeDoc({ ...change.value, rev: change.rev, updatedAt: change.updated_at });
-            const mergedLocal = mergeDocs(readCache(ref), remote);
-            writeCache(ref, mergedLocal);
-        });
+        // Canal realtime COMPARTIDO por entidad (refcount): merge remoto → cache
+        // → evento → subscribeCache re-lee. Todas las vistas se actualizan en vivo.
+        const unsubRemote = watchLibrary(ref);
 
         return () => {
             alive = false;
@@ -1113,6 +1430,52 @@ export function useEntityLibrary(ref: EntityRef | null): UseEntityLibrary {
         addConnectedRepoItem: boundAddConnectedRepoItem,
         resyncConnectedRepoItem: boundResyncConnectedRepoItem,
     };
+}
+
+// ─────────────────────────── Hook de pendientes de sincronizar ───────────────────────────
+
+export interface UseLibraryPendingSync {
+    /** true si ESTA biblioteca (ref) tiene cambios sin subir a la nube. */
+    pending: boolean;
+    /** Nº total de bibliotecas con cambios pendientes (todas las entidades). */
+    count: number;
+    /** Fuerza un reintento inmediato de subida. */
+    retryNow: () => void;
+}
+
+/**
+ * Estado reactivo de la cola de pendientes (para avisos discretos en la UI,
+ * p.ej. "cambios pendientes de sincronizar" con icono CloudOff). SSR-safe.
+ */
+export function useLibraryPendingSync(ref: EntityRef | null): UseLibraryPendingSync {
+    const [count, setCount] = useState(0);
+    const [pending, setPending] = useState(false);
+
+    const refKind = ref?.kind ?? "";
+    const refId = ref?.id ?? "";
+
+    useEffect(() => {
+        if (!isClient()) return;
+        const update = () => {
+            setCount(pendingSyncCount());
+            setPending(refKind && refId ? hasPendingSync({ kind: refKind as SyncEntityKind, id: refId }) : false);
+        };
+        update();
+        window.addEventListener(LIBRARY_PENDING_EVENT, update);
+        window.addEventListener("online", update);
+        window.addEventListener("storage", update);
+        return () => {
+            window.removeEventListener(LIBRARY_PENDING_EVENT, update);
+            window.removeEventListener("online", update);
+            window.removeEventListener("storage", update);
+        };
+    }, [refKind, refId]);
+
+    const retryNow = useCallback(() => {
+        void flushPendingLibrarySync();
+    }, []);
+
+    return { pending, count, retryNow };
 }
 
 // ─────────────────────────── Descubrimiento de bibliotecas disponibles ───────────────────────────

@@ -13,6 +13,7 @@ import {
     LinkCard,
     Chip,
     EmptyHint,
+    EntityQuickActions,
     GOLD,
 } from "@/components/social/toolkits/shared";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -299,17 +300,36 @@ export function ComunidadToolkit({
     const data = getCommunity(slug);
     const ac = accent ?? GOLD;
 
+    // Acciones por defecto de la entidad (Adenda 63 §8). Las comunidades son
+    // páginas (os_pages · kind "comunidad") → entityKind "page".
+    const quickActions = (
+        <EntityQuickActions
+            slug={slug}
+            name={name ?? data?.name}
+            accent={ac}
+            entityKind="page"
+            libraryKind="community"
+            entityHref={`/pagina/${slug}`}
+            memberCount={data?.members}
+            membersLabel="miembros"
+        />
+    );
+
     if (!data) {
         return (
-            <EmptyHint>
-                Aún no hay información de esta comunidad. Crea el primer proyecto, recurso del procomún o mentoría para empezar.
-            </EmptyHint>
+            <div>
+                {quickActions}
+                <EmptyHint>
+                    Aún no hay información de esta comunidad. Crea el primer proyecto, recurso del procomún o mentoría para empezar.
+                </EmptyHint>
+            </div>
         );
     }
 
 
     return (
         <div className="space-y-6">
+            {quickActions}
             {/* Cabecera de la comunidad */}
             <div className="flex items-start gap-3">
                 <span

@@ -83,7 +83,24 @@ Resultado: se acaben los créditos o caiga un servidor, Aurora sigue.
   `settings/aurora/vision-panel.tsx` (opt-in `starseed.aurora.vision.v1`).
 - **Voz** (`tts-oss/`): motor elegible en `starseed.aurora.voice.v1` — Navegador
   (siempre), **Kokoro** (`onnx-community/Kokoro-82M-v1.0-ONNX`, mejor español,
-  local), Kitten (beta, inglés). `speak()` delega en OSS y cae al navegador si falla.
+  local), Kitten (beta, inglés), y motores NEURALES por ENDPOINT (servidores
+  Python en una neurona/CasaOS u hospedados): **Bark** (suno-ai, generativo
+  expresivo, etiquetas `[laughs]/[sighs]` con moderación), **GPT-SoVITS**
+  (clonación few-shot vía `refAudio`/`refText`; modo SIMBIÓTICO: si Bark y
+  SoVITS tienen endpoint, SoVITS clona/refina con la referencia elegida) y
+  **OmniVoice** (k2-fsa, multilingüe). Cliente HTTP genérico y tolerante en
+  `tts-oss/neural-tts.ts` (POST JSON → wav/base64/url, timeout 20 s, ping con
+  caché 60 s). Cadena de fallback SIEMPRE-HABLA: motor elegido → Kokoro → voz
+  del navegador MEJOR RANKEADA (`tts-oss/browser-voices.ts`: neurales/premium
+  primero, es-* preferente, femenina agradable por defecto — voz natural sin
+  configurar nada). Modulación EMOCIONAL en `tts-oss/voice-style.ts` (8
+  emociones → rate/pitch/volumen · etiquetas Bark · passthrough SoVITS/Omni),
+  evento vivo `starseed:aurora-voice-style` (contrato con Personalidades) y
+  herramienta `kind:"voice"` en aurora-tools (`ajustar_voz`,
+  `cambiar_motor_voz`, `estado_voz`). Toda la config vive DENTRO de
+  `starseed.aurora.voice.v1` (sincronizada con la cuenta). `speak()` delega en
+  el motor configurado y cae al navegador si falla. OpenRouter queda para lo
+  generativo (LLM), nunca para TTS.
 
 ---
 

@@ -1064,6 +1064,44 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     author: "tldraw Inc.", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { skillId: "whiteboard-pro", externalUrl: "https://github.com/tldraw/tldraw", note: "SDK de pizarra infinita YA integrado en /pizarra (\"tldraw license\", marca de agua «Made with tldraw» obligatoria)." },
   },
+  /* ══ SERVIDORES CASEROS + VOZ NEURAL (jul-2026 · SOP centro-creacion §6b/§10) ══
+   * CasaOS y los tres motores de voz neural del sistema de voz de Aurora.
+   * DISPONIBLES (no sembrados en defaults-seed: instalarlos es decisión del
+   * usuario). Mismo patrón honesto del repo: NINGUNO corre en el navegador —
+   * son servidores que se instalan EN una neurona (dispositivo) y se conectan
+   * por endpoint. Instalar = registrar skill/enlace real + abrir el repo. */
+  {
+    id: "iatool-casaos", kind: "app", name: "CasaOS (servidor casero)",
+    description:
+      "Convierte cualquier equipo (Linux/Raspberry Pi) en tu nube personal: panel web + App Store de apps Docker (Files, Nextcloud, Syncthing, Jellyfin, Ollama, AdGuard Home…). Es un servidor que se instala EN el dispositivo (curl -fsSL https://get.casaos.io | sudo bash), NO corre en el navegador. Instalar guarda el enlace y abre su repo; después declara su URL en Cerebro → Neuronas para probarlo, abrir/embeber su panel y usarlo como almacén de cerebros/memorias o host del motor IA local de Astraura.",
+    icon: "HardDrive", tags: ["app", "servidor-casero", "docker", "neuronas", "self-host", "oss"], version: "1.0.0",
+    author: "IceWhaleTech", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { externalUrl: "https://github.com/IceWhaleTech/CasaOS", note: "Servidor casero por neurona (Apache-2.0). Configuración por dispositivo en Cerebro → Neuronas → CasaOS." },
+  },
+  {
+    id: "iatool-bark", kind: "function", name: "Bark (voz generativa de Aurora)",
+    description:
+      "TTS generativo expresivo de Suno: no solo lee — entona, ríe y ambienta (texto→audio). Es un servidor Python: se conecta por ENDPOINT (tu neurona o CasaOS), no corre en el navegador. Instalar registra la skill de voz neural para tus cerebros y abre su repo; el endpoint se configura en Ajustes → Voz. Aurora siempre habla: si el endpoint no está, cae a Kokoro o a la mejor voz del navegador.",
+    icon: "Volume2", tags: ["skill", "aurora", "voz", "tts", "generativo", "oss"], version: "1.0.0",
+    author: "suno-ai", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "aurora-voice-bark", externalUrl: "https://github.com/suno-ai/bark", note: "TTS generativo expresivo (MIT). Servidor Python por endpoint (neurona propia o CasaOS); fallback automático a Kokoro/navegador." },
+  },
+  {
+    id: "iatool-gpt-sovits", kind: "function", name: "GPT-SoVITS (clonación de voz)",
+    description:
+      "Clonación de voz few-shot: con ~5 segundos de muestra crea una voz propia para Aurora (TTS multilingüe con WebUI). Es un servidor Python: se conecta por ENDPOINT (tu neurona o CasaOS), no corre en el navegador. Simbiótico con Bark (puede clonar la voz que Bark genera). Instalar registra la skill de voz neural para tus cerebros y abre su repo; el endpoint se configura en Ajustes → Voz.",
+    icon: "AudioWaveform", tags: ["skill", "aurora", "voz", "tts", "clonacion", "oss"], version: "1.0.0",
+    author: "RVC-Boss", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "aurora-voice-sovits", externalUrl: "https://github.com/RVC-Boss/GPT-SoVITS", note: "Clonación de voz few-shot + TTS multilingüe (MIT). Servidor Python por endpoint; simbiótico con Bark." },
+  },
+  {
+    id: "iatool-omnivoice", kind: "function", name: "OmniVoice (voz multilingüe)",
+    description:
+      "Motor de voz neural multilingüe del ecosistema k2-fsa (Next-gen Kaldi): completa la cadena de voz gratis-primero de Aurora como opción multilingüe junto a Bark y GPT-SoVITS. Es un servidor: se conecta por ENDPOINT (tu neurona o CasaOS), no corre en el navegador. Instalar registra la skill de voz neural para tus cerebros y abre su repo; el endpoint se configura en Ajustes → Voz.",
+    icon: "Languages", tags: ["skill", "aurora", "voz", "tts", "multilingue", "oss"], version: "1.0.0",
+    author: "k2-fsa", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "aurora-voice-omnivoice", externalUrl: "https://github.com/k2-fsa/OmniVoice", note: "Voz neural multilingüe (Apache-2.0, Next-gen Kaldi). Servidor por endpoint; parte de la cadena de fallback de voz." },
+  },
 ];
 
 /** Repo builtin de Herramientas IA & Agentes (caja de herramientas de Aurora). */

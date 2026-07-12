@@ -54,6 +54,11 @@ import { RegisterSW } from "@/components/pwa/register-sw";
 // archivos, Adenda 64 §9): escucha 'file-request' en el canal de cuenta y
 // muestra el diálogo para elegir/subir. Sin UI hasta que llega una solicitud.
 import { FileRequestListener } from "@/components/files/file-request-listener";
+// Fragua de Widgets GLOBAL (Adenda 63 §2): escucha 'starseed:open-forge' y abre
+// la MISMA Fragua del dashboard en CUALQUIER ruta (antes solo funcionaba dentro
+// de /dashboard). Persiste los widgets forjados con el mismo mecanismo local +
+// sync que el dashboard. Sin UI hasta que llega el evento.
+import { GlobalForgeHost } from "@/components/creation/global-forge-host";
 // Alarmas propias del usuario (invitaciones a eventos, recordatorios…):
 // @/lib/alarms/alarms.ts. Global (root), a diferencia del <AlarmScheduler/>
 // del Sincrómetro (que vive solo dentro de (app), atado a CalendarProvider) —
@@ -192,6 +197,8 @@ export default function RootLayout({
                         <AudiomorphicConfigHost />
                         {/* Receptor de solicitudes de archivo entre neuronas de la cuenta (defensivo, sin UI hasta que llega una). */}
                         <FileRequestListener />
+                        {/* Fragua de Widgets universal (escucha 'starseed:open-forge' fuera del dashboard). */}
+                        <GlobalForgeHost />
                         <SplineWatermarkCover />
                         <PerimeterInterface />
                         {/* Trinity Móvil · Bloque 4 — asas de borde + deslizar desde

@@ -198,6 +198,40 @@ export const OSS_CONNECTORS: OssConnector[] = [
     contract: "/api/chat/completions · /api/models",
     oss: true,
   },
+  {
+    id: "casaos",
+    label: "CasaOS (servidor casero de una neurona)",
+    blurb:
+      "Nube personal open-source (Go + Docker) instalada EN una neurona: panel web + App Store. Sirve al cerebro como almacén de memorias (Files/Nextcloud/Syncthing) y host de motores IA locales (Ollama/OpenLLM). Se declara en Cerebro → Neuronas.",
+    kind: "service",
+    defaultPort: 80,
+    contract: "panel web :80 · apps Docker (Files · Nextcloud · Ollama…)",
+    oss: true,
+  },
+  // Adenda 63 §14 (architecture/centro-creacion-sync-permisos.md): Raven y
+  // Skales — backends/adaptadores OPCIONALES de memoria e inteligencia para
+  // cerebros de Aurora/Astraura. Misma pauta de conector que CasaOS: se
+  // conectan por ENDPOINT (neurona propia, CasaOS o servidor hospedado).
+  {
+    id: "raven",
+    label: "Raven (memoria agéntica)",
+    blurb:
+      "Backend open-source de MEMORIA agéntica (EverMind-AI/Raven): recuerda, indexa y recupera contexto de largo plazo para tus cerebros. Se despliega en una neurona propia (o CasaOS) y se conecta por endpoint.",
+    kind: "service",
+    defaultPort: 8000,
+    contract: "API REST · endpoint configurable",
+    oss: true,
+  },
+  {
+    id: "skales",
+    label: "Skales",
+    blurb:
+      "Backend/adaptador open-source de memoria e inteligencia (skalesapp/skales) para cerebros de Aurora/Astraura. Autoalojable en una neurona propia; se conecta por endpoint, con tus datos bajo tu control.",
+    kind: "service",
+    defaultPort: 3000,
+    contract: "API HTTP · endpoint configurable",
+    oss: true,
+  },
 ];
 
 export function ossConnectorById(id: string) {

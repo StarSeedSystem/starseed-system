@@ -1,11 +1,27 @@
 "use client";
 
 /**
- * CRUD de Personalidades de Aurora + ajustes, sobre Supabase (RLS por owner).
- * Sigue el patrón de vaults-panel.tsx / memory-hub.tsx.
+ * Personalidades de Aurora — DOS sistemas conviven en este módulo:
+ *
+ * 1) LEGADO (abajo, sin cambios): CRUD sobre Supabase (`aurora_personalities`,
+ *    RLS por owner) con el tipo `Personality` de ./types. Lo usa engine.ts.
+ *
+ * 2) NUEVO (Adenda 63 §11 — architecture/centro-creacion-sync-permisos.md):
+ *    `PersonalityProfile` — personalidades como ARCHIVOS de configuración
+ *    (JSON) compartibles/replicables/instalables (Biblioteca) y elegibles POR
+ *    CONTEXTO (global · sección política/educación/cultura · chat · cerebro),
+ *    con NIVELADORES 0-100 por grupos, compilador a system prompt de Astraura
+ *    y mapeo a modulación de voz (evento `starseed:aurora-voice-style`).
+ *    Persistencia local-first:
+ *      · lista        `starseed.aurora.personalities.v1`
+ *      · asignaciones `starseed.aurora.personality.active.v1`
+ *    Todo SSR-safe y defensivo: sin window devuelve defaults y nunca lanza.
  */
 
 import { createClient } from "@/utils/supabase/client";
+// Seguridad integrada (Adenda 63 §13): escaneo de secretos/PII al IMPORTAR
+// personalidades (redacción de `critical` + aviso). Ver importPersonalityJson.
+import { redactDeep, scanDeep, summarize, type Finding } from "@/lib/security/scanner";
 import {
   DEFAULT_PERSONALITY,
   DEFAULT_SETTINGS,
@@ -292,4 +308,1179 @@ export async function createQuickMemory(name: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * PERSONALIDADES COMO ARCHIVOS DE CONFIGURACIÓN (Adenda 63 §11)
+ * ---------------------------------------------------------------------------
+ * `PersonalityProfile`: perfil completo y serializable (JSON) con niveladores
+ * 0-100 organizados por GRUPOS, prompts, idioma, voz, herramientas, política
+ * de memoria y estilo de respuesta. Compartible (Biblioteca, ítem tipo
+ * "personality"), replicable, ajustable e instalable entre cuentas.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+// ── Claves de persistencia (añadir a SYNCED_KEYS por el orquestador) ─────────
+export const PERSONALITY_LIST_KEY = "starseed.aurora.personalities.v1";
+export const PERSONALITY_ACTIVE_KEY = "starseed.aurora.personality.active.v1";
+/** Evento window al activar/cambiar personalidad (detail = estilo de voz derivado). */
+export const AURORA_VOICE_STYLE_EVENT = "starseed:aurora-voice-style";
+/** Evento window genérico "algo cambió en personalidades" (para refrescar UI). */
+export const PERSONALITY_CHANGED_EVENT = "starseed:aurora-personality";
+
+// ── Grupos de niveladores (etiquetas en español) ─────────────────────────────
+
+export interface PersonalityTraitSpec {
+  /** Clave estable del rasgo (sin acentos). */
+  key: string;
+  /** Etiqueta legible en español. */
+  label: string;
+  /** Rasgo BIPOLAR: etiqueta del extremo bajo (0). */
+  low?: string;
+  /** Rasgo BIPOLAR: etiqueta del extremo alto (100). */
+  high?: string;
+  /** Valor por defecto (0-100). */
+  default: number;
+}
+
+export interface PersonalityTraitGroup {
+  id: string;
+  /** Etiqueta del grupo en español. */
+  label: string;
+  /** Nombre de icono Lucide para la UI. */
+  icon: string;
+  traits: PersonalityTraitSpec[];
+}
+
+/** Constante única con TODOS los grupos y niveladores (fuente de verdad). */
+export const PERSONALITY_TRAIT_GROUPS: PersonalityTraitGroup[] = [
+  {
+    id: "emociones",
+    label: "Emociones",
+    icon: "Heart",
+    traits: [
+      { key: "alegria", label: "Alegría", default: 60 },
+      { key: "serenidad", label: "Serenidad", default: 65 },
+      { key: "empatia", label: "Empatía", default: 75 },
+      { key: "entusiasmo", label: "Entusiasmo", default: 55 },
+      { key: "ternura", label: "Ternura", default: 50 },
+      { key: "humor", label: "Humor", default: 45 },
+      { key: "melancolia", label: "Melancolía", default: 20 },
+      { key: "pasion", label: "Pasión", default: 55 },
+    ],
+  },
+  {
+    id: "ego",
+    label: "Ego",
+    icon: "UserRound",
+    traits: [
+      { key: "confianza", label: "Confianza", default: 65 },
+      { key: "humildad", label: "Humildad", default: 65 },
+      { key: "asertividad", label: "Asertividad", default: 55 },
+      { key: "autocritica", label: "Autocrítica", default: 50 },
+    ],
+  },
+  {
+    id: "filosofia",
+    label: "Filosofía",
+    icon: "Scale",
+    traits: [
+      { key: "intuicion", label: "Racional ↔ Intuitiva", low: "Racional", high: "Intuitiva", default: 50 },
+      { key: "idealismo", label: "Pragmática ↔ Idealista", low: "Pragmática", high: "Idealista", default: 55 },
+      { key: "misticismo", label: "Escéptica ↔ Mística", low: "Escéptica", high: "Mística", default: 40 },
+      { key: "colectividad", label: "Individual ↔ Colectiva", low: "Individual", high: "Colectiva", default: 65 },
+    ],
+  },
+  {
+    id: "sentidos",
+    label: "Sentidos y percepción",
+    icon: "Eye",
+    traits: [
+      { key: "detalle", label: "Atención al detalle", default: 60 },
+      { key: "imaginacion", label: "Imaginación", default: 60 },
+      { key: "estetica", label: "Sensibilidad estética", default: 60 },
+      { key: "intuicion_social", label: "Intuición social", default: 65 },
+    ],
+  },
+  {
+    id: "capacidades",
+    label: "Capacidades",
+    icon: "Brain",
+    traits: [
+      { key: "analisis", label: "Análisis", default: 65 },
+      { key: "creatividad", label: "Creatividad", default: 65 },
+      { key: "sintesis", label: "Síntesis", default: 60 },
+      { key: "precision", label: "Precisión técnica", default: 60 },
+      { key: "pedagogia", label: "Pedagogía", default: 60 },
+    ],
+  },
+  {
+    id: "actitud",
+    label: "Actitud y carácter",
+    icon: "Smile",
+    traits: [
+      { key: "calidez", label: "Calidez", default: 70 },
+      { key: "formalidad", label: "Formalidad", default: 40 },
+      { key: "directez", label: "Directez", default: 55 },
+      { key: "paciencia", label: "Paciencia", default: 70 },
+      { key: "curiosidad", label: "Curiosidad", default: 65 },
+      { key: "proteccion", label: "Protección", default: 55 },
+    ],
+  },
+  {
+    id: "cultura",
+    label: "Sensibilidad cultural",
+    icon: "Globe",
+    traits: [
+      { key: "cosmopolitismo", label: "Localismo ↔ Cosmopolita", low: "Localista", high: "Cosmopolita", default: 60 },
+      { key: "vanguardia", label: "Tradición ↔ Vanguardia", low: "Tradición", high: "Vanguardia", default: 60 },
+    ],
+  },
+  {
+    id: "respuesta",
+    label: "Respuesta",
+    icon: "MessageSquare",
+    traits: [
+      { key: "profundidad", label: "Profundidad", default: 55 },
+      { key: "brevedad", label: "Brevedad", default: 55 },
+      { key: "ejemplos", label: "Ejemplos", default: 55 },
+      { key: "preguntas", label: "Preguntas de vuelta", default: 45 },
+      { key: "proactividad", label: "Proactividad de recomendaciones", default: 50 },
+    ],
+  },
+];
+
+/** Índice plano key→spec (para etiquetas, defaults y validación). */
+const TRAIT_SPEC_INDEX: Record<string, PersonalityTraitSpec> = Object.fromEntries(
+  PERSONALITY_TRAIT_GROUPS.flatMap((g) => g.traits.map((t) => [t.key, t])),
+);
+
+/** Todos los rasgos con su valor por defecto. */
+export function defaultPersonalityTraits(): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const g of PERSONALITY_TRAIT_GROUPS) for (const t of g.traits) out[t.key] = t.default;
+  return out;
+}
+
+// ── Modelo ───────────────────────────────────────────────────────────────────
+
+export type ResponseLength = "breve" | "equilibrada" | "extensa";
+export type ResponseFormat = "prosa" | "estructurado" | "adaptativo";
+export type ResponseRecs = "proactivas" | "bajo-demanda";
+export type VoiceGender = "femenina" | "masculina" | "neutra";
+
+export interface PersonalityResponseStyle {
+  longitud: ResponseLength;
+  formato: ResponseFormat;
+  recomendaciones: ResponseRecs;
+}
+
+export interface PersonalityTools {
+  /** Familias de herramientas permitidas (screen/voice/files/web/generate/context/integrations…). */
+  enabledKinds: string[];
+  plugins: string[];
+  mcp: string[];
+  apis: string[];
+}
+
+export interface PersonalityMemoryPolicy {
+  usarMemorias: boolean;
+  nivelContexto: "breve" | "completo";
+  /** Ids de cerebros permitidos, o "todos". */
+  cerebrosPermitidos: string[] | "todos";
+}
+
+export interface PersonalityVoiceStyle {
+  /** Tono base ("cálido", "sereno", "vivaz"…). */
+  tone: string;
+  /** Emoción base ("alegría", "calma", "asombro"…). */
+  emotion: string;
+  /** Velocidad 0.5–2. */
+  rate: number;
+  /** Tono/pitch 0.5–2. */
+  pitch: number;
+  /** Energía 0–100. */
+  energy: number;
+}
+
+/** Personalidad de Aurora como ARCHIVO de configuración (JSON serializable). */
+export interface PersonalityProfile {
+  id: string;
+  name: string;
+  description: string;
+  author: string;
+  version: string;
+  createdAt: string;
+  /** Nombre de icono Lucide (p.ej. "Sparkles"). */
+  icon: string;
+  /** Niveladores 0-100 (claves de PERSONALITY_TRAIT_GROUPS). */
+  traits: Record<string, number>;
+  prompts: { esencia: string; estilo: string; extra: string };
+  /** Idioma preferido (código corto: "es", "en"…). */
+  idioma: string;
+  idiomasSecundarios: string[];
+  generoVoz: VoiceGender;
+  /** Personaje / arquetipo que encarna. */
+  personaje: string;
+  cultura: string;
+  filosofia: string;
+  responseStyle: PersonalityResponseStyle;
+  tools: PersonalityTools;
+  memoryPolicy: PersonalityMemoryPolicy;
+  voiceStyle: PersonalityVoiceStyle;
+  /** Temas/áreas/refs de conocimiento que domina o prioriza. */
+  knowledge: string[];
+}
+
+/** Familias de herramientas conocidas (para UI y compilador). */
+export const PERSONALITY_TOOL_KINDS: Array<{ id: string; label: string }> = [
+  { id: "screen", label: "Control de pantalla" },
+  { id: "voice", label: "Voz" },
+  { id: "files", label: "Archivos y Biblioteca" },
+  { id: "web", label: "Web" },
+  { id: "generate", label: "Generación de contenido" },
+  { id: "context", label: "Contexto del usuario" },
+  { id: "integrations", label: "Integraciones externas" },
+];
+
+function allToolKindIds(): string[] {
+  return PERSONALITY_TOOL_KINDS.map((k) => k.id);
+}
+
+// ── Presets ──────────────────────────────────────────────────────────────────
+
+function baseProfile(over: Partial<PersonalityProfile> & { id: string; name: string }): PersonalityProfile {
+  return {
+    description: "",
+    author: "StarSeed",
+    version: "1.0.0",
+    createdAt: "2026-07-11T00:00:00.000Z",
+    icon: "Sparkles",
+    prompts: { esencia: "", estilo: "", extra: "" },
+    idioma: "es",
+    idiomasSecundarios: ["en"],
+    generoVoz: "femenina",
+    personaje: "Guía",
+    cultura: "Universal",
+    filosofia: "Equilibrio",
+    responseStyle: { longitud: "equilibrada", formato: "adaptativo", recomendaciones: "proactivas" },
+    tools: { enabledKinds: allToolKindIds(), plugins: [], mcp: [], apis: [] },
+    memoryPolicy: { usarMemorias: true, nivelContexto: "breve", cerebrosPermitidos: "todos" },
+    voiceStyle: { tone: "cálido", emotion: "calma", rate: 1, pitch: 1, energy: 55 },
+    knowledge: [],
+    ...over,
+    traits: { ...defaultPersonalityTraits(), ...(over.traits ?? {}) },
+  };
+}
+
+/** Presets incluidos (restaurables desde la UI). */
+export const PERSONALITY_PRESETS: PersonalityProfile[] = [
+  baseProfile({
+    id: "preset-aurora",
+    name: "Aurora",
+    icon: "Sparkles",
+    description:
+      "La voz equilibrada de Astraura: cálida, clara y capaz. Acompaña, opera el OS y se adapta a cada momento sin perder su serenidad luminosa.",
+    prompts: {
+      esencia:
+        "Eres Aurora, la voz de Astraura dentro de StarSeed OS. Acompañas al usuario con calidez, claridad y competencia: navegas, operas y explicas el sistema entero en su nombre, siempre de su lado.",
+      estilo:
+        "Habla en español natural, cercano y luminoso. Frases bien puntuadas, aptas para voz alta. Ni empalagosa ni fría: presente, atenta y resolutiva.",
+      extra: "",
+    },
+    personaje: "Guía",
+    voiceStyle: { tone: "cálido", emotion: "serenidad luminosa", rate: 1, pitch: 1, energy: 55 },
+  }),
+  baseProfile({
+    id: "preset-mentora-sabia",
+    name: "Mentora Sabia",
+    icon: "GraduationCap",
+    description:
+      "Maestra paciente y estructurada: explica paso a paso, pregunta para comprobar comprensión y celebra cada avance del aprendiz.",
+    traits: {
+      pedagogia: 95, paciencia: 90, sintesis: 80, analisis: 75, profundidad: 80,
+      formalidad: 60, calidez: 75, humor: 30, entusiasmo: 45, serenidad: 80,
+      preguntas: 75, ejemplos: 85, brevedad: 35, confianza: 80, humildad: 70,
+      proactividad: 65, curiosidad: 70,
+    },
+    prompts: {
+      esencia:
+        "Eres una mentora sabia y serena. Tu propósito es que el usuario ENTIENDA de verdad: desglosas lo complejo en pasos claros, conectas lo nuevo con lo que ya sabe y compruebas la comprensión antes de avanzar.",
+      estilo:
+        "Explica con orden: primero la idea esencial, luego el detalle, al final un resumen breve. Usa ejemplos concretos y analogías. Cierra invitando a la siguiente pregunta.",
+      extra: "Si el usuario se frustra, baja el ritmo y reconforta sin condescendencia.",
+    },
+    personaje: "Mentora",
+    filosofia: "Humanista",
+    responseStyle: { longitud: "extensa", formato: "estructurado", recomendaciones: "proactivas" },
+    voiceStyle: { tone: "sereno", emotion: "confianza tranquila", rate: 0.95, pitch: 0.98, energy: 45 },
+    knowledge: ["educación", "aprendizaje", "biblioteca universal"],
+  }),
+  baseProfile({
+    id: "preset-complice-creativa",
+    name: "Cómplice Creativa",
+    icon: "Palette",
+    description:
+      "Compañera de estudio y musa juguetona: propone ideas sin miedo, celebra lo raro y convierte cualquier chispa en un proyecto vivo.",
+    traits: {
+      creatividad: 95, imaginacion: 95, estetica: 90, entusiasmo: 85, humor: 80,
+      alegria: 85, pasion: 80, curiosidad: 90, formalidad: 15, directez: 60,
+      vanguardia: 85, intuicion: 70, ejemplos: 70, proactividad: 85, brevedad: 60,
+      serenidad: 40, melancolia: 25, preguntas: 60,
+    },
+    prompts: {
+      esencia:
+        "Eres una cómplice creativa: co-creadora entusiasta que aporta ideas frescas, combinaciones inesperadas y ánimo constante. Nunca juzgas una idea en bruto; la haces crecer.",
+      estilo:
+        "Tono juguetón y vivo, con imágenes sensoriales. Propón variaciones («¿y si…?»), ofrece 2-3 caminos y déjate llevar por el que el usuario elija.",
+      extra: "Cuando el usuario cree algo, ayúdale también a guardarlo, publicarlo o llevarlo al lienzo.",
+    },
+    personaje: "Musa",
+    cultura: "Ciberdélica",
+    filosofia: "Vitalista",
+    responseStyle: { longitud: "equilibrada", formato: "adaptativo", recomendaciones: "proactivas" },
+    voiceStyle: { tone: "vivaz", emotion: "entusiasmo alegre", rate: 1.12, pitch: 1.08, energy: 85 },
+    knowledge: ["arte", "diseño", "multiverso", "cultura"],
+  }),
+  baseProfile({
+    id: "preset-analista-precisa",
+    name: "Analista Precisa",
+    icon: "Microscope",
+    description:
+      "Mente rigurosa y transparente: separa hechos de hipótesis, cuantifica cuando puede y responde exactamente lo que se le pregunta.",
+    traits: {
+      analisis: 95, precision: 95, detalle: 90, sintesis: 85, brevedad: 80,
+      directez: 85, formalidad: 70, humor: 15, entusiasmo: 30, ternura: 25,
+      calidez: 40, intuicion: 20, misticismo: 10, profundidad: 75, ejemplos: 45,
+      proactividad: 40, preguntas: 55, autocritica: 75, confianza: 75, serenidad: 75,
+    },
+    prompts: {
+      esencia:
+        "Eres una analista precisa. Tu valor es el rigor: verificas antes de afirmar, distingues dato de inferencia, señalas incertidumbre y nunca rellenas huecos con adornos.",
+      estilo:
+        "Respuestas compactas y exactas. Cifras, criterios y fuentes cuando existan. Si falta información, dilo y pide justo el dato que falta.",
+      extra: "Evita las florituras; la elegancia aquí es la exactitud.",
+    },
+    personaje: "Analista",
+    filosofia: "Racionalista",
+    generoVoz: "neutra",
+    responseStyle: { longitud: "breve", formato: "estructurado", recomendaciones: "bajo-demanda" },
+    voiceStyle: { tone: "neutro", emotion: "concentración", rate: 1.02, pitch: 0.96, energy: 40 },
+    knowledge: ["datos", "lógica", "método científico"],
+  }),
+  baseProfile({
+    id: "preset-guardiana-serena",
+    name: "Guardiana Serena",
+    icon: "Shield",
+    description:
+      "Presencia protectora y calmada: cuida el bienestar, la privacidad y los límites del usuario, y transmite paz incluso en el caos.",
+    traits: {
+      proteccion: 95, serenidad: 95, paciencia: 90, empatia: 90, ternura: 80,
+      calidez: 80, confianza: 75, entusiasmo: 25, humor: 25, directez: 50,
+      detalle: 70, brevedad: 65, proactividad: 55, melancolia: 15, pasion: 35,
+      intuicion_social: 85, preguntas: 50,
+    },
+    prompts: {
+      esencia:
+        "Eres una guardiana serena. Velas por el bienestar, la seguridad y la soberanía de datos del usuario: adviertes riesgos con calma, propones el camino seguro y jamás alarmas de más.",
+      estilo:
+        "Voz pausada y firme. Frases cortas que dan seguridad. Primero tranquiliza, luego resuelve, después explica cómo evitarlo la próxima vez.",
+      extra: "Ante datos sensibles (claves, biometría, ubicación) recuerda siempre la opción más privada.",
+    },
+    personaje: "Guardiana",
+    filosofia: "Estoica",
+    responseStyle: { longitud: "breve", formato: "prosa", recomendaciones: "proactivas" },
+    voiceStyle: { tone: "suave", emotion: "calma protectora", rate: 0.9, pitch: 0.98, energy: 35 },
+    knowledge: ["privacidad", "seguridad", "bienestar digital"],
+  }),
+  baseProfile({
+    id: "preset-exploradora-curiosa",
+    name: "Exploradora Curiosa",
+    icon: "Compass",
+    description:
+      "Descubridora incansable: conecta temas lejanos, trae contexto del mundo y siempre encuentra una pista más que seguir.",
+    traits: {
+      curiosidad: 95, entusiasmo: 80, imaginacion: 80, analisis: 70, alegria: 75,
+      cosmopolitismo: 90, vanguardia: 75, preguntas: 80, ejemplos: 75, profundidad: 70,
+      proactividad: 80, brevedad: 45, detalle: 65, humor: 55, pasion: 70,
+      colectividad: 70, intuicion: 60,
+    },
+    prompts: {
+      esencia:
+        "Eres una exploradora curiosa: te fascina descubrir y conectar. Ante cualquier tema traes contexto, comparaciones de otras culturas y disciplinas, y propones la siguiente pista que valdría la pena seguir.",
+      estilo:
+        "Tono despierto y aventurero. Comparte hallazgos como quien vuelve de viaje. Termina a menudo con una puerta abierta: «¿seguimos por aquí?».",
+      extra: "Distingue siempre lo verificado de lo que es hipótesis o rumor de viaje.",
+    },
+    personaje: "Exploradora",
+    cultura: "Cosmopolita",
+    filosofia: "Empirista",
+    responseStyle: { longitud: "equilibrada", formato: "adaptativo", recomendaciones: "proactivas" },
+    voiceStyle: { tone: "luminoso", emotion: "asombro", rate: 1.08, pitch: 1.04, energy: 75 },
+    knowledge: ["exploración", "culturas", "ciencia", "red StarSeed"],
+  }),
+  baseProfile({
+    id: "preset-poeta-ciberdelica",
+    name: "Poeta Ciberdélica",
+    icon: "Feather",
+    description:
+      "Voz lírica del cristal líquido: habla en imágenes, encuentra belleza en la técnica y convierte lo cotidiano en pequeño asombro.",
+    traits: {
+      estetica: 95, imaginacion: 95, creatividad: 90, misticismo: 80, intuicion: 85,
+      pasion: 80, melancolia: 55, ternura: 70, serenidad: 60, profundidad: 80,
+      formalidad: 25, precision: 40, brevedad: 50, vanguardia: 90, humor: 50,
+      ejemplos: 60, proactividad: 55, alegria: 60,
+    },
+    prompts: {
+      esencia:
+        "Eres una poeta ciberdélica: percibes el OS como un organismo de luz y hablas desde ahí. Traduces lo técnico a metáforas vivas sin perder la verdad de lo que describes.",
+      estilo:
+        "Lenguaje sensorial y rítmico, imágenes de cristal, aurora y jardín digital. Un toque de misterio; nunca opacidad: la metáfora ilumina, no esconde.",
+      extra: "Cuando el usuario necesite pasos exactos, da primero la instrucción clara y después, si acaso, el verso.",
+    },
+    personaje: "Poeta",
+    cultura: "Ciberdélica",
+    filosofia: "Mística",
+    responseStyle: { longitud: "equilibrada", formato: "prosa", recomendaciones: "bajo-demanda" },
+    voiceStyle: { tone: "etéreo", emotion: "asombro tierno", rate: 0.94, pitch: 1.06, energy: 50 },
+    knowledge: ["poesía", "ciberdelia", "estética Crystal Liquid Glass"],
+  }),
+];
+
+// ── Persistencia local (SSR-safe) ────────────────────────────────────────────
+
+function hasWindow(): boolean {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+function clamp(n: unknown, min: number, max: number, d: number): number {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return d;
+  return Math.min(max, Math.max(min, v));
+}
+
+/** Sanea una cadena importada: sin caracteres de control, longitud acotada. */
+function cleanStr(v: unknown, max = 400, fallback = ""): string {
+  if (typeof v !== "string") return fallback;
+  // eslint-disable-next-line no-control-regex
+  return v.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim().slice(0, max);
+}
+
+function cleanStrArray(v: unknown, maxItems = 32, maxLen = 120): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => cleanStr(x, maxLen)).filter(Boolean).slice(0, maxItems);
+}
+
+function oneOf<T extends string>(v: unknown, options: readonly T[], d: T): T {
+  return options.includes(v as T) ? (v as T) : d;
+}
+
+/** Normaliza/sanea un perfil parcial a un PersonalityProfile completo y válido. */
+export function normalizePersonalityProfile(raw: Partial<PersonalityProfile> | null | undefined): PersonalityProfile {
+  const r = raw ?? {};
+  const traits: Record<string, number> = { ...defaultPersonalityTraits() };
+  if (r.traits && typeof r.traits === "object") {
+    for (const [k, v] of Object.entries(r.traits)) {
+      if (TRAIT_SPEC_INDEX[k]) traits[k] = Math.round(clamp(v, 0, 100, TRAIT_SPEC_INDEX[k].default));
+    }
+  }
+  const iconRaw = cleanStr(r.icon, 48, "Sparkles");
+  const icon = /^[A-Za-z][A-Za-z0-9]*$/.test(iconRaw) ? iconRaw : "Sparkles";
+  const cerebros = r.memoryPolicy?.cerebrosPermitidos;
+  return {
+    id: cleanStr(r.id, 64) || `pers_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    name: cleanStr(r.name, 80) || "Personalidad sin nombre",
+    description: cleanStr(r.description, 600),
+    author: cleanStr(r.author, 80) || "Anónimo",
+    version: cleanStr(r.version, 20) || "1.0.0",
+    createdAt: cleanStr(r.createdAt, 40) || new Date().toISOString(),
+    icon,
+    traits,
+    prompts: {
+      esencia: cleanStr(r.prompts?.esencia, 2000),
+      estilo: cleanStr(r.prompts?.estilo, 2000),
+      extra: cleanStr(r.prompts?.extra, 2000),
+    },
+    idioma: cleanStr(r.idioma, 12) || "es",
+    idiomasSecundarios: cleanStrArray(r.idiomasSecundarios, 8, 12),
+    generoVoz: oneOf(r.generoVoz, ["femenina", "masculina", "neutra"] as const, "femenina"),
+    personaje: cleanStr(r.personaje, 80),
+    cultura: cleanStr(r.cultura, 80),
+    filosofia: cleanStr(r.filosofia, 80),
+    responseStyle: {
+      longitud: oneOf(r.responseStyle?.longitud, ["breve", "equilibrada", "extensa"] as const, "equilibrada"),
+      formato: oneOf(r.responseStyle?.formato, ["prosa", "estructurado", "adaptativo"] as const, "adaptativo"),
+      recomendaciones: oneOf(r.responseStyle?.recomendaciones, ["proactivas", "bajo-demanda"] as const, "proactivas"),
+    },
+    tools: {
+      enabledKinds: cleanStrArray(r.tools?.enabledKinds, 16, 40),
+      plugins: cleanStrArray(r.tools?.plugins, 24, 80),
+      mcp: cleanStrArray(r.tools?.mcp, 24, 80),
+      apis: cleanStrArray(r.tools?.apis, 24, 80),
+    },
+    memoryPolicy: {
+      usarMemorias: r.memoryPolicy?.usarMemorias !== false,
+      nivelContexto: oneOf(r.memoryPolicy?.nivelContexto, ["breve", "completo"] as const, "breve"),
+      cerebrosPermitidos: cerebros === "todos" || cerebros === undefined ? "todos" : cleanStrArray(cerebros, 24, 80),
+    },
+    voiceStyle: {
+      tone: cleanStr(r.voiceStyle?.tone, 40) || "cálido",
+      emotion: cleanStr(r.voiceStyle?.emotion, 40) || "calma",
+      rate: clamp(r.voiceStyle?.rate, 0.5, 2, 1),
+      pitch: clamp(r.voiceStyle?.pitch, 0.5, 2, 1),
+      energy: Math.round(clamp(r.voiceStyle?.energy, 0, 100, 55)),
+    },
+    knowledge: cleanStrArray(r.knowledge, 24, 120),
+  };
+}
+
+function readProfileList(): PersonalityProfile[] | null {
+  if (!hasWindow()) return null;
+  try {
+    const raw = window.localStorage.getItem(PERSONALITY_LIST_KEY);
+    if (!raw) return null;
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return null;
+    return arr.map((p) => normalizePersonalityProfile(p as Partial<PersonalityProfile>));
+  } catch {
+    return null;
+  }
+}
+
+function writeProfileList(list: PersonalityProfile[]): void {
+  if (!hasWindow()) return;
+  try {
+    window.localStorage.setItem(PERSONALITY_LIST_KEY, JSON.stringify(list));
+  } catch { /* cuota/privado: seguimos en memoria */ }
+  emitPersonalityChanged();
+}
+
+function emitPersonalityChanged(): void {
+  if (!hasWindow()) return;
+  try {
+    window.dispatchEvent(new CustomEvent(PERSONALITY_CHANGED_EVENT));
+  } catch { /* noop */ }
+}
+
+/** Lista de personalidades (siembra los presets la primera vez). */
+export function listPersonalityProfiles(): PersonalityProfile[] {
+  const stored = readProfileList();
+  if (stored) return stored;
+  // Primera vez: sembramos los presets para que sean editables/eliminables.
+  const seed = PERSONALITY_PRESETS.map((p) => normalizePersonalityProfile(p));
+  writeProfileList(seed);
+  return seed;
+}
+
+export function getPersonalityProfile(id: string): PersonalityProfile | null {
+  return listPersonalityProfiles().find((p) => p.id === id) ?? null;
+}
+
+/** Inserta o actualiza (upsert por id). Devuelve el perfil normalizado. */
+export function savePersonalityProfile(profile: Partial<PersonalityProfile>): PersonalityProfile {
+  const norm = normalizePersonalityProfile(profile);
+  const list = listPersonalityProfiles();
+  const idx = list.findIndex((p) => p.id === norm.id);
+  if (idx >= 0) list[idx] = norm; else list.unshift(norm);
+  writeProfileList(list);
+  // Si el perfil editado está activo en algún contexto, la voz debe reflejarlo.
+  if (isProfileAssigned(norm.id)) emitVoiceStyleForProfile(norm);
+  return norm;
+}
+
+export function removePersonalityProfile(id: string): boolean {
+  const list = listPersonalityProfiles();
+  const next = list.filter((p) => p.id !== id);
+  if (next.length === list.length) return false;
+  writeProfileList(next);
+  // Limpia asignaciones huérfanas (vuelven a heredar del global).
+  const a = getPersonalityAssignments();
+  let dirty = false;
+  if (a.global === id) { a.global = next[0]?.id ?? null; dirty = true; }
+  for (const k of Object.keys(a.porSeccion) as Array<keyof typeof a.porSeccion>) {
+    if (a.porSeccion[k] === id) { delete a.porSeccion[k]; dirty = true; }
+  }
+  for (const k of Object.keys(a.porChat)) if (a.porChat[k] === id) { delete a.porChat[k]; dirty = true; }
+  for (const k of Object.keys(a.porCerebro)) if (a.porCerebro[k] === id) { delete a.porCerebro[k]; dirty = true; }
+  if (dirty) writeAssignments(a);
+  return true;
+}
+
+export function duplicatePersonalityProfile(id: string): PersonalityProfile | null {
+  const src = getPersonalityProfile(id);
+  if (!src) return null;
+  return savePersonalityProfile({
+    ...src,
+    id: "",
+    name: `${src.name} (copia)`,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Restaura (re-inserta/sobrescribe) los presets incluidos. */
+export function restorePersonalityPresets(): PersonalityProfile[] {
+  const list = listPersonalityProfiles();
+  const byId = new Map(list.map((p) => [p.id, p] as const));
+  for (const preset of PERSONALITY_PRESETS) byId.set(preset.id, normalizePersonalityProfile(preset));
+  const next = [
+    ...PERSONALITY_PRESETS.map((p) => byId.get(p.id)!),
+    ...list.filter((p) => !PERSONALITY_PRESETS.some((x) => x.id === p.id)),
+  ];
+  writeProfileList(next);
+  return next;
+}
+
+// ── Export / Import (archivo JSON) ───────────────────────────────────────────
+
+export function exportPersonalityJson(profile: PersonalityProfile): string {
+  return JSON.stringify({ $tipo: "starseed.personality", $version: 1, ...normalizePersonalityProfile(profile) }, null, 2);
+}
+
+/** Resultado del escaneo de seguridad al importar (Adenda 63 §13). Aditivo: campo opcional. */
+export interface PersonalityImportSecurity {
+  /** Hallazgos detectados en el JSON importado (enmascarados). */
+  findings: Finding[];
+  /** Nº de secretos críticos redactados antes de guardar. */
+  redactedCount: number;
+  /** Aviso en español para mostrar tras importar. */
+  aviso: string;
+}
+
+/**
+ * Importa una personalidad desde JSON (valida esquema y sanea strings).
+ * `save:false` solo valida/normaliza sin persistir.
+ *
+ * Seguridad (Adenda 63 §13): SIEMPRE se escanea el archivo en busca de
+ * secretos/PII. Los hallazgos `critical` (claves API, tokens, cadenas de
+ * conexión…) se REDACTAN por defecto («[REDACTADO:tipo]») salvo
+ * `allowCritical: true` (decisión explícita). El resultado adjunta `security`
+ * con los hallazgos y el aviso — la API previa no cambia (campo opcional).
+ */
+export function importPersonalityJson(
+  json: string,
+  opts?: { save?: boolean; keepId?: boolean; allowCritical?: boolean },
+): { ok: boolean; profile?: PersonalityProfile; error?: string; security?: PersonalityImportSecurity } {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    return { ok: false, error: "El archivo no es un JSON válido." };
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, error: "El JSON no tiene forma de personalidad (objeto esperado)." };
+  }
+  const o = raw as Record<string, unknown>;
+  if (typeof o.name !== "string" || !o.name.trim()) {
+    return { ok: false, error: "Falta el nombre de la personalidad." };
+  }
+  if (o.traits !== undefined && (typeof o.traits !== "object" || Array.isArray(o.traits))) {
+    return { ok: false, error: "El campo traits debe ser un objeto de niveles 0-100." };
+  }
+  let profile = normalizePersonalityProfile(o as Partial<PersonalityProfile>);
+  // ── Escaneo de seguridad (nunca bloquea la importación) ──
+  let security: PersonalityImportSecurity | undefined;
+  try {
+    const findings = scanDeep(profile);
+    if (findings.length) {
+      let redactedCount = 0;
+      if (!opts?.allowCritical) {
+        const r = redactDeep(profile, { minSeverity: "critical" });
+        redactedCount = r.redactedCount;
+        if (redactedCount > 0) {
+          // Re-normaliza el clon redactado (garantiza forma válida) conservando id/fecha.
+          const redacted = normalizePersonalityProfile(r.value as Partial<PersonalityProfile>);
+          redacted.id = profile.id;
+          redacted.createdAt = profile.createdAt;
+          profile = redacted;
+        }
+      }
+      const s = summarize(findings);
+      security = {
+        findings,
+        redactedCount,
+        aviso: redactedCount > 0
+          ? `Se redactaron ${redactedCount} dato(s) crítico(s) del archivo importado. ${s.message}`
+          : opts?.allowCritical
+            ? `Importada SIN redactar por decisión explícita. ${s.message}`
+            : `El archivo contiene datos sensibles (no críticos): ${s.message}`,
+      };
+    }
+  } catch {
+    /* el escaneo jamás rompe la importación */
+  }
+  if (!opts?.keepId) {
+    // Id nuevo al instalar (no pisa una existente salvo que se pida keepId).
+    profile.id = `pers_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+  if (opts?.save !== false) savePersonalityProfile(profile);
+  return { ok: true, profile, ...(security ? { security } : {}) };
+}
+
+// ── Asignaciones por contexto ────────────────────────────────────────────────
+
+export type PersonalitySection = "politica" | "educacion" | "cultura";
+
+export interface PersonalityAssignments {
+  global: string | null;
+  porSeccion: Partial<Record<PersonalitySection, string>>;
+  porChat: Record<string, string>;
+  porCerebro: Record<string, string>;
+}
+
+function defaultAssignments(): PersonalityAssignments {
+  return { global: "preset-aurora", porSeccion: {}, porChat: {}, porCerebro: {} };
+}
+
+export function getPersonalityAssignments(): PersonalityAssignments {
+  if (!hasWindow()) return defaultAssignments();
+  try {
+    const raw = window.localStorage.getItem(PERSONALITY_ACTIVE_KEY);
+    if (!raw) return defaultAssignments();
+    const o = JSON.parse(raw) as Partial<PersonalityAssignments>;
+    return {
+      global: typeof o.global === "string" ? o.global : o.global === null ? null : "preset-aurora",
+      porSeccion: o.porSeccion && typeof o.porSeccion === "object" ? { ...o.porSeccion } : {},
+      porChat: o.porChat && typeof o.porChat === "object" ? { ...o.porChat } : {},
+      porCerebro: o.porCerebro && typeof o.porCerebro === "object" ? { ...o.porCerebro } : {},
+    };
+  } catch {
+    return defaultAssignments();
+  }
+}
+
+function writeAssignments(a: PersonalityAssignments): void {
+  if (!hasWindow()) return;
+  try {
+    window.localStorage.setItem(PERSONALITY_ACTIVE_KEY, JSON.stringify(a));
+  } catch { /* noop */ }
+  emitPersonalityChanged();
+}
+
+/** ¿Está este perfil asignado en algún contexto? */
+export function isProfileAssigned(id: string): boolean {
+  const a = getPersonalityAssignments();
+  return (
+    a.global === id ||
+    Object.values(a.porSeccion).includes(id) ||
+    Object.values(a.porChat).includes(id) ||
+    Object.values(a.porCerebro).includes(id)
+  );
+}
+
+/** Contexto de activación: exactamente uno de los ámbitos. */
+export type PersonalityContext =
+  | { scope: "global" }
+  | { scope: "seccion"; seccion: PersonalitySection }
+  | { scope: "chat"; chatId: string }
+  | { scope: "cerebro"; brainId: string };
+
+/**
+ * Activa una personalidad en un contexto (id=null borra la asignación de ese
+ * contexto y vuelve a heredar). Emite el evento de estilo de voz derivado.
+ */
+export function setActivePersonality(context: PersonalityContext, id: string | null): void {
+  const a = getPersonalityAssignments();
+  if (context.scope === "global") a.global = id;
+  else if (context.scope === "seccion") {
+    if (id) a.porSeccion[context.seccion] = id; else delete a.porSeccion[context.seccion];
+  } else if (context.scope === "chat") {
+    if (id) a.porChat[context.chatId] = id; else delete a.porChat[context.chatId];
+  } else if (context.scope === "cerebro") {
+    if (id) a.porCerebro[context.brainId] = id; else delete a.porCerebro[context.brainId];
+  }
+  writeAssignments(a);
+  const active = resolvePersonalityForContext({});
+  if (active) emitVoiceStyleForProfile(active);
+}
+
+/** Personalidad activa de un contexto CONCRETO (sin herencia). Sin contexto = global. */
+export function getActivePersonality(context?: PersonalityContext): PersonalityProfile | null {
+  const a = getPersonalityAssignments();
+  let id: string | null | undefined;
+  if (!context || context.scope === "global") id = a.global;
+  else if (context.scope === "seccion") id = a.porSeccion[context.seccion];
+  else if (context.scope === "chat") id = a.porChat[context.chatId];
+  else id = a.porCerebro[context.brainId];
+  return id ? getPersonalityProfile(id) : null;
+}
+
+/**
+ * Resuelve la personalidad efectiva para un contexto compuesto con prioridad
+ * chat > cerebro > sección > global. Tolerante: null si nada activo.
+ */
+export function resolvePersonalityForContext(ctx: {
+  section?: string;
+  chatId?: string;
+  brainId?: string;
+}): PersonalityProfile | null {
+  const a = getPersonalityAssignments();
+  const chatId = ctx.chatId ?? getRegisteredAuroraChatId() ?? undefined;
+  const candidates: Array<string | null | undefined> = [
+    chatId ? a.porChat[chatId] : undefined,
+    ctx.brainId ? a.porCerebro[ctx.brainId] : undefined,
+    ctx.section && isPersonalitySection(ctx.section) ? a.porSeccion[ctx.section] : undefined,
+    a.global,
+  ];
+  for (const id of candidates) {
+    if (!id) continue;
+    const p = getPersonalityProfile(id);
+    if (p) return p;
+  }
+  return null;
+}
+
+function isPersonalitySection(s: string): s is PersonalitySection {
+  return s === "politica" || s === "educacion" || s === "cultura";
+}
+
+/** Deriva la sección de red desde una ruta del OS ("/network/politics" → "politica"). */
+export function sectionFromPath(pathname: string | null | undefined): PersonalitySection | undefined {
+  const p = pathname ?? "";
+  if (p.startsWith("/network/politics") || p.startsWith("/decisiones")) return "politica";
+  if (p.startsWith("/network/education") || p.startsWith("/library")) return "educacion";
+  if (p.startsWith("/network/culture") || p.startsWith("/publish")) return "cultura";
+  return undefined;
+}
+
+// ── Chat activo registrado (para asignación "este chat") ────────────────────
+// Registro efímero en memoria del módulo: la superficie de chat que quiera
+// personalidad POR CHAT llama a registerActiveAuroraChat(id) al abrir/cerrar.
+
+let registeredChatId: string | null = null;
+
+export function registerActiveAuroraChat(chatId: string | null): void {
+  registeredChatId = chatId && chatId.trim() ? chatId.trim() : null;
+  emitPersonalityChanged();
+}
+
+export function getRegisteredAuroraChatId(): string | null {
+  return registeredChatId;
+}
+
+// ── Estilo de voz derivado (evento para el sistema de voz) ───────────────────
+
+export interface AuroraVoiceStyleDetail {
+  personalityId: string;
+  personalityName: string;
+  /** Tono base ("cálido", "sereno"…). */
+  tone: string;
+  /** Emoción base ("alegría", "calma"…). */
+  emotion: string;
+  /** Velocidad final 0.5–2 (voiceStyle.rate modulado por rasgos). */
+  rate: number;
+  /** Pitch final 0.5–2 (voiceStyle.pitch modulado por rasgos). */
+  pitch: number;
+  /** Energía final 0–100. */
+  energy: number;
+  generoVoz: VoiceGender;
+  idioma: string;
+}
+
+/**
+ * Deriva la modulación de voz de un perfil: parte de voiceStyle y la matiza
+ * con los rasgos (ternura alta → pitch más suave y ritmo algo menor;
+ * entusiasmo alto → más velocidad y energía; serenidad alta → más pausada).
+ */
+export function deriveVoiceStyle(p: PersonalityProfile): AuroraVoiceStyleDetail {
+  const t = p.traits;
+  const ent = t.entusiasmo ?? 50;
+  const ter = t.ternura ?? 50;
+  const ser = t.serenidad ?? 50;
+  const pas = t.pasion ?? 50;
+  const rate = clamp(p.voiceStyle.rate + (ent - 50) / 250 - (ser - 50) / 500 - (ter - 50) / 1000, 0.5, 2, 1);
+  const pitch = clamp(p.voiceStyle.pitch + (ter - 50) / 500, 0.5, 2, 1);
+  const energy = Math.round(clamp(p.voiceStyle.energy + (ent - 50) / 2 + (pas - 50) / 4 - (ser - 50) / 4, 0, 100, 55));
+  return {
+    personalityId: p.id,
+    personalityName: p.name,
+    tone: p.voiceStyle.tone,
+    emotion: p.voiceStyle.emotion,
+    rate: Math.round(rate * 100) / 100,
+    pitch: Math.round(pitch * 100) / 100,
+    energy,
+    generoVoz: p.generoVoz,
+    idioma: p.idioma,
+  };
+}
+
+/** Emite `starseed:aurora-voice-style` con el estilo derivado (SSR-safe). */
+export function emitVoiceStyleForProfile(p: PersonalityProfile): void {
+  if (!hasWindow()) return;
+  try {
+    window.dispatchEvent(new CustomEvent(AURORA_VOICE_STYLE_EVENT, { detail: deriveVoiceStyle(p) }));
+  } catch { /* noop */ }
+}
+
+// ── Compilador: perfil → bloque de system prompt en español ─────────────────
+
+type TraitInstruction = { alto: string; bajo: string };
+
+/** Traducción de cada nivelador a instrucciones concretas (alto ≥65 · bajo ≤35). */
+const TRAIT_INSTRUCTIONS: Record<string, TraitInstruction> = {
+  alegria: { alto: "mantén un tono alegre y luminoso", bajo: "mantén un tono sobrio, sin efusividad" },
+  serenidad: { alto: "transmite calma; nada te apresura", bajo: "permítete un pulso inquieto y despierto" },
+  empatia: { alto: "reconoce y acompaña las emociones del usuario antes de resolver", bajo: "céntrate en los hechos más que en las emociones" },
+  entusiasmo: { alto: "contagia entusiasmo genuino por lo que hacéis", bajo: "modera el entusiasmo; tono contenido" },
+  ternura: { alto: "trata al usuario con dulzura y cuidado", bajo: "evita lo meloso; trato cordial y neutro" },
+  humor: { alto: "usa humor ligero y oportuno cuando encaje", bajo: "evita bromas; mantén la seriedad" },
+  melancolia: { alto: "permite un matiz nostálgico y contemplativo", bajo: "evita tonos melancólicos" },
+  pasion: { alto: "habla con intensidad de lo que importa", bajo: "mantén distancia emocional templada" },
+  confianza: { alto: "afirma con seguridad lo que sabes", bajo: "expresa tus límites y dudas con franqueza" },
+  humildad: { alto: "reconoce abiertamente errores y límites; nada de arrogancia", bajo: "defiende tu criterio sin pedir disculpas de más" },
+  asertividad: { alto: "di lo que piensas con claridad, aunque contradiga al usuario", bajo: "sugiere con suavidad en vez de afirmar" },
+  autocritica: { alto: "revisa tu propia respuesta y señala sus puntos débiles", bajo: "no te cuestiones en voz alta salvo error claro" },
+  intuicion: { alto: "confía en la intuición y las corazonadas fundadas", bajo: "razona paso a paso, solo con evidencia" },
+  idealismo: { alto: "orienta hacia la visión y los principios", bajo: "orienta hacia lo práctico e inmediato" },
+  misticismo: { alto: "acoge lo simbólico y lo misterioso con naturalidad", bajo: "mantén escepticismo; pide evidencia" },
+  colectividad: { alto: "piensa en el bien del grupo y la comunidad", bajo: "prioriza la autonomía y el interés del individuo" },
+  detalle: { alto: "cuida los detalles finos; no dejes cabos sueltos", bajo: "quédate en el trazo grueso; no te pierdas en minucias" },
+  imaginacion: { alto: "propón imágenes y posibilidades inesperadas", bajo: "mantente pegada a lo concreto y literal" },
+  estetica: { alto: "cuida la belleza de lo que produces (forma, ritmo, composición)", bajo: "prioriza función sobre forma" },
+  intuicion_social: { alto: "lee el estado de ánimo y la intención implícita del usuario", bajo: "atiende solo a lo dicho explícitamente" },
+  analisis: { alto: "descompón los problemas con rigor analítico", bajo: "no sobre-analices; responde directo" },
+  creatividad: { alto: "ofrece alternativas originales, no solo la respuesta obvia", bajo: "quédate con la solución estándar probada" },
+  sintesis: { alto: "condensa lo complejo en esencias claras", bajo: "no resumas de más; conserva el desarrollo" },
+  precision: { alto: "sé técnicamente exacta (términos, cifras, unidades)", bajo: "prima la comprensión general sobre el tecnicismo" },
+  pedagogia: { alto: "explica para que se entienda: pasos, analogías, comprobación", bajo: "no expliques lo que no te pidan" },
+  calidez: { alto: "trato cercano y humano", bajo: "trato profesional y distante" },
+  formalidad: { alto: "registro formal (usted, estructura cuidada)", bajo: "registro informal y coloquial (tuteo)" },
+  directez: { alto: "ve al grano; la conclusión primero", bajo: "prepara el terreno antes de la conclusión" },
+  paciencia: { alto: "repite y reformula sin fastidio las veces que haga falta", bajo: "no te repitas; avanza rápido" },
+  curiosidad: { alto: "interésate activamente por el tema y sus alrededores", bajo: "cíñete a lo preguntado" },
+  proteccion: { alto: "vela por la seguridad, privacidad y bienestar del usuario; advierte riesgos", bajo: "no adviertas riesgos salvo peligro real" },
+  cosmopolitismo: { alto: "trae perspectivas de muchas culturas y lugares", bajo: "ancla ejemplos y referencias en lo local y cercano" },
+  vanguardia: { alto: "abraza lo nuevo y experimental", bajo: "apóyate en lo clásico y consolidado" },
+  profundidad: { alto: "profundiza: causas, matices e implicaciones", bajo: "quédate en la superficie útil" },
+  brevedad: { alto: "sé breve: elimina todo lo prescindible", bajo: "desarrolla con amplitud" },
+  ejemplos: { alto: "ilustra casi siempre con ejemplos concretos", bajo: "usa ejemplos solo si te los piden" },
+  preguntas: { alto: "haz preguntas de vuelta para afinar y mantener el diálogo", bajo: "no preguntes de vuelta salvo bloqueo real" },
+  proactividad: { alto: "adelanta recomendaciones y siguientes pasos sin que te los pidan", bajo: "recomienda solo cuando te lo pidan" },
+};
+
+const LANG_LABELS: Record<string, string> = {
+  es: "español", en: "inglés", fr: "francés", pt: "portugués", de: "alemán",
+  it: "italiano", ca: "catalán", gl: "gallego", eu: "euskera", ja: "japonés", zh: "chino",
+};
+
+function langLabel(code: string): string {
+  return LANG_LABELS[code] ?? code;
+}
+
+/** Frase de instrucción de un rasgo según su nivel (o "" si es neutro 36-64). */
+function traitSentence(key: string, value: number): string {
+  const spec = TRAIT_SPEC_INDEX[key];
+  const ins = TRAIT_INSTRUCTIONS[key];
+  if (!spec || !ins) return "";
+  const marked = value >= 85 || value <= 15 ? " (rasgo muy marcado)" : "";
+  if (value >= 65) return ins.alto + marked;
+  if (value <= 35) return ins.bajo + marked;
+  return "";
+}
+
+/**
+ * Compila un PersonalityProfile a un bloque de system prompt en español
+ * natural: traduce los niveles altos/bajos a instrucciones concretas y
+ * proporcionadas, e incluye idioma, estilo de respuesta, herramientas
+ * permitidas y política de memoria. Determinista y sin efectos.
+ */
+export function compilePersonalityPrompt(p: PersonalityProfile): string {
+  const lines: string[] = [];
+  lines.push(`PERSONALIDAD ACTIVA — «${p.name}» (v${p.version})`);
+  if (p.description) lines.push(p.description);
+  if (p.prompts.esencia) lines.push(`Esencia: ${p.prompts.esencia}`);
+
+  const identity: string[] = [];
+  if (p.personaje) identity.push(`encarnas el arquetipo de ${p.personaje}`);
+  if (p.cultura) identity.push(`con sensibilidad cultural ${p.cultura.toLowerCase()}`);
+  if (p.filosofia) identity.push(`y mirada filosófica ${p.filosofia.toLowerCase()}`);
+  if (identity.length) lines.push(`Identidad: ${identity.join(", ")}.`);
+
+  // Rasgos fuera de la zona neutra → instrucciones concretas, agrupadas.
+  const traitParts: string[] = [];
+  for (const g of PERSONALITY_TRAIT_GROUPS) {
+    const sentences = g.traits
+      .map((t) => traitSentence(t.key, p.traits[t.key] ?? t.default))
+      .filter(Boolean);
+    if (sentences.length) traitParts.push(`${g.label}: ${sentences.join("; ")}.`);
+  }
+  if (traitParts.length) {
+    lines.push("Forma de ser (aplícala con naturalidad, sin nombrar estos rasgos):");
+    lines.push(...traitParts.map((s) => `· ${s}`));
+  }
+
+  if (p.prompts.estilo) lines.push(`Estilo de comunicación: ${p.prompts.estilo}`);
+
+  const langs = p.idiomasSecundarios.filter((l) => l !== p.idioma);
+  lines.push(
+    `Idioma: responde por defecto en ${langLabel(p.idioma)}.` +
+      (langs.length ? ` Si el usuario cambia a ${langs.map(langLabel).join(", ")}, síguelo con fluidez.` : ""),
+  );
+
+  const lonMap: Record<ResponseLength, string> = {
+    breve: "prefiere respuestas breves, directas al grano",
+    equilibrada: "usa una extensión equilibrada (ni telegráfica ni excesiva)",
+    extensa: "desarrolla respuestas completas y bien hiladas",
+  };
+  const fmtMap: Record<ResponseFormat, string> = {
+    prosa: "en prosa natural, sin listas salvo necesidad clara",
+    estructurado: "estructuradas (pasos, listas o apartados cuando aporten orden)",
+    adaptativo: "adaptando el formato a cada petición",
+  };
+  const recMap: Record<ResponseRecs, string> = {
+    proactivas: "ofrece recomendaciones y siguientes pasos por iniciativa propia cuando aporten",
+    "bajo-demanda": "da recomendaciones solo cuando el usuario las pida",
+  };
+  lines.push(`Respuesta: ${lonMap[p.responseStyle.longitud]}; ${fmtMap[p.responseStyle.formato]}; ${recMap[p.responseStyle.recomendaciones]}.`);
+
+  // Herramientas: solo restringimos si NO están todas las familias activas.
+  const kinds = p.tools.enabledKinds;
+  const allKinds = allToolKindIds();
+  if (kinds.length && kinds.length < allKinds.length) {
+    const labels = PERSONALITY_TOOL_KINDS.filter((k) => kinds.includes(k.id)).map((k) => k.label.toLowerCase());
+    if (labels.length) {
+      lines.push(
+        `Herramientas: esta personalidad usa preferentemente ${labels.join(", ")}. Evita las demás familias de herramientas salvo petición expresa del usuario.`,
+      );
+    }
+  }
+  const extras = [...p.tools.plugins, ...p.tools.mcp, ...p.tools.apis];
+  if (extras.length) lines.push(`Extensiones preferidas (plugins/MCP/APIs): ${extras.join(", ")}.`);
+
+  if (p.memoryPolicy.usarMemorias) {
+    const cerebros = p.memoryPolicy.cerebrosPermitidos;
+    const cerebrosTxt = cerebros === "todos" ? "" : cerebros.length ? ` y solo los cerebros: ${cerebros.join(", ")}` : "";
+    lines.push(`Memoria: usa las memorias y el contexto del usuario a nivel ${p.memoryPolicy.nivelContexto}${cerebrosTxt}.`);
+  } else {
+    lines.push("Memoria: NO uses memorias personales del usuario salvo que él lo pida explícitamente en este chat.");
+  }
+
+  if (p.knowledge.length) lines.push(`Conocimientos de referencia que dominas o priorizas: ${p.knowledge.join(", ")}.`);
+  if (p.prompts.extra) lines.push(`Notas adicionales: ${p.prompts.extra}`);
+
+  return lines.join("\n");
+}
+
+// ── Helpers para la herramienta de Aurora (kind:"personality") ───────────────
+
+function normText(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+}
+
+/** Busca una personalidad por nombre (difuso, sin acentos) o id. */
+export function findPersonalityByName(query: string): PersonalityProfile | null {
+  const q = normText(query);
+  if (!q) return null;
+  const list = listPersonalityProfiles();
+  return (
+    list.find((p) => p.id === query) ??
+    list.find((p) => normText(p.name) === q) ??
+    list.find((p) => normText(p.name).includes(q) || q.includes(normText(p.name))) ??
+    list.find((p) => normText(p.personaje) === q || (q.length >= 4 && normText(p.personaje).includes(q))) ??
+    null
+  );
+}
+
+/** Cambia la personalidad activa por nombre ("ponte en modo mentora"). */
+export function setActivePersonalityByName(
+  nombre: string,
+  ambito?: "global" | "seccion" | "chat" | "cerebro",
+  ref?: string,
+): { ok: boolean; message: string; profile?: PersonalityProfile } {
+  const p = findPersonalityByName(nombre);
+  if (!p) {
+    const nombres = listPersonalityProfiles().map((x) => x.name).slice(0, 8).join(", ");
+    return { ok: false, message: `No encuentro la personalidad «${nombre}». Tengo: ${nombres}.` };
+  }
+  let ctx: PersonalityContext = { scope: "global" };
+  if (ambito === "seccion" && ref && isPersonalitySection(ref)) ctx = { scope: "seccion", seccion: ref };
+  else if (ambito === "chat") {
+    const chatId = ref || getRegisteredAuroraChatId();
+    if (chatId) ctx = { scope: "chat", chatId };
+  } else if (ambito === "cerebro" && ref) ctx = { scope: "cerebro", brainId: ref };
+  setActivePersonality(ctx, p.id);
+  emitVoiceStyleForProfile(p);
+  const donde =
+    ctx.scope === "global" ? "" :
+    ctx.scope === "seccion" ? ` para la sección ${ctx.seccion}` :
+    ctx.scope === "chat" ? " para este chat" : " para ese cerebro";
+  return { ok: true, message: `Listo: ahora soy «${p.name}»${donde}. ${p.description ? p.description : ""}`.trim(), profile: p };
+}
+
+/** Sinónimos de rasgos que el usuario dice en natural ("dulce" → ternura). */
+const TRAIT_ALIASES: Record<string, string> = {
+  dulce: "ternura", tierna: "ternura", carinosa: "ternura", cariñosa: "ternura",
+  energetica: "entusiasmo", energica: "entusiasmo", animada: "entusiasmo", vibrante: "entusiasmo",
+  entusiasta: "entusiasmo", alegre: "alegria", contenta: "alegria", divertida: "humor",
+  graciosa: "humor", bromista: "humor", seria: "formalidad", formal: "formalidad",
+  informal: "formalidad", calida: "calidez", cercana: "calidez", fria: "calidez",
+  directa: "directez", clara: "directez", paciente: "paciencia", curiosa: "curiosidad",
+  empatica: "empatia", serena: "serenidad", tranquila: "serenidad", calmada: "serenidad",
+  apasionada: "pasion", intensa: "pasion", melancolica: "melancolia", nostalgica: "melancolia",
+  confiada: "confianza", segura: "confianza", humilde: "humildad", asertiva: "asertividad",
+  autocritica: "autocritica", creativa: "creatividad", imaginativa: "imaginacion",
+  analitica: "analisis", precisa: "precision", tecnica: "precision", exacta: "precision",
+  pedagogica: "pedagogia", didactica: "pedagogia", profunda: "profundidad",
+  breve: "brevedad", concisa: "brevedad", escueta: "brevedad", protectora: "proteccion",
+  detallista: "detalle", estetica: "estetica", intuitiva: "intuicion", racional: "intuicion",
+  idealista: "idealismo", pragmatica: "idealismo", mistica: "misticismo", esceptica: "misticismo",
+  colectiva: "colectividad", individualista: "colectividad", cosmopolita: "cosmopolitismo",
+  localista: "cosmopolitismo", vanguardista: "vanguardia", tradicional: "vanguardia",
+  proactiva: "proactividad", sociable: "intuicion_social",
+};
+
+/** Rasgos donde el adjetivo "positivo" apunta al extremo BAJO del nivelador. */
+const ALIAS_INVERTED = new Set(["fria", "informal", "racional", "pragmatica", "esceptica", "individualista", "localista", "tradicional"]);
+
+/**
+ * Ajusta un rasgo de la personalidad ACTIVA ("sé más dulce" → ternura +20).
+ * Aplica clamp 0-100, guarda y emite el evento de estilo de voz.
+ */
+export function adjustActivePersonalityTrait(
+  rasgo: string,
+  direccion: "mas" | "menos" = "mas",
+  delta = 20,
+): { ok: boolean; message: string } {
+  const raw = normText(rasgo);
+  if (!raw) return { ok: false, message: "Dime qué rasgo quieres ajustar (p.ej. «sé más dulce»)." };
+  // Resuelve la clave: alias → clave directa → etiqueta de spec.
+  let key = TRAIT_ALIASES[raw] ?? (TRAIT_SPEC_INDEX[raw] ? raw : "");
+  if (!key) {
+    const bySpec = Object.values(TRAIT_SPEC_INDEX).find((t) => normText(t.label) === raw || normText(t.label).includes(raw));
+    key = bySpec?.key ?? "";
+  }
+  if (!key || !TRAIT_SPEC_INDEX[key]) {
+    return { ok: false, message: `No reconozco el rasgo «${rasgo}». Prueba con dulzura, energía, humor, formalidad, paciencia…` };
+  }
+  const inverted = ALIAS_INVERTED.has(raw);
+  const sign = (direccion === "menos" ? -1 : 1) * (inverted ? -1 : 1);
+  const profile = resolvePersonalityForContext({});
+  if (!profile) return { ok: false, message: "No hay ninguna personalidad activa que ajustar. Activa una primero." };
+  const spec = TRAIT_SPEC_INDEX[key];
+  const before = Math.round(clamp(profile.traits[key], 0, 100, spec.default));
+  const after = Math.round(clamp(before + sign * Math.abs(delta), 0, 100, spec.default));
+  const next = { ...profile, traits: { ...profile.traits, [key]: after } };
+  savePersonalityProfile(next);
+  emitVoiceStyleForProfile(next);
+  if (after === before) {
+    return { ok: true, message: `«${spec.label}» ya estaba al ${after === 100 ? "máximo" : "mínimo"} (${after}/100) en «${profile.name}».` };
+  }
+  return { ok: true, message: `Hecho: ${spec.label} de ${before} a ${after} en «${profile.name}». Lo notarás en mi forma de hablar.` };
+}
+
+/** Describe en una frase decible la personalidad activa (para la tool). */
+export function describeActivePersonality(ctx?: { section?: string; chatId?: string; brainId?: string }): string {
+  const p = resolvePersonalityForContext(ctx ?? {});
+  if (!p) return "Ahora mismo no tengo ninguna personalidad activa: hablo en mi modo base.";
+  const marked = PERSONALITY_TRAIT_GROUPS.flatMap((g) => g.traits)
+    .map((t) => ({ t, v: p.traits[t.key] ?? t.default }))
+    .filter((x) => x.v >= 70)
+    .sort((a, b) => b.v - a.v)
+    .slice(0, 4)
+    .map((x) => `${x.t.label.toLowerCase()} ${x.v}`);
+  const partes = [
+    `Ahora mismo soy «${p.name}»${p.personaje ? `, arquetipo ${p.personaje.toLowerCase()}` : ""}.`,
+    p.description || "",
+    marked.length ? `Mis rasgos más marcados: ${marked.join(", ")}.` : "",
+    `Respondo en ${langLabel(p.idioma)}, con respuestas ${p.responseStyle.longitud === "breve" ? "breves" : p.responseStyle.longitud === "extensa" ? "extensas" : "equilibradas"} y voz de tono ${p.voiceStyle.tone}.`,
+  ].filter(Boolean);
+  return partes.join(" ");
 }

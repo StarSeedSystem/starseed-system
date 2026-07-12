@@ -131,7 +131,20 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
     DOCUMENTS: { label: "Archivos", category: "archivos", w: 3, h: 5, minW: 2, minH: 3, relevance: 78 },
     RECENT_GALLERY: { label: "Galería reciente", category: "archivos", w: 4, h: 4, minW: 2, minH: 3, relevance: 77 },
     CAMERA_QUICK: { label: "Cámara", category: "aplicaciones", w: 2, h: 3, minW: 2, minH: 2, relevance: 73 },
+
+    // ── Sexta oleada: rediseño de widgets predeterminados (2026-07) ──
+    CLOCK_DATE: { label: "Reloj y Fecha", category: "utilidades", w: 3, h: 3, minW: 2, minH: 2, relevance: 83 },
+    TASKS_QUICK: { label: "Tareas", category: "productividad", w: 3, h: 4, minW: 2, minH: 3, relevance: 81 },
+    QUICK_NOTES: { label: "Notas rápidas", category: "productividad", w: 3, h: 4, minW: 2, minH: 3, relevance: 68 },
+    AURORA_LAST: { label: "Aurora", category: "ia", w: 3, h: 4, minW: 2, minH: 3, relevance: 80 },
+    BADGES: { label: "Insignias", category: "perfil", w: 3, h: 4, minW: 2, minH: 3, relevance: 62 },
+    NETWORK_FEED_MINI: { label: "Feed de la Red", category: "social", w: 4, h: 5, minW: 2, minH: 3, data: ["common.feed"], relevance: 79 },
 };
+
+// NOTA: el sistema de tamaños amigables S/M/L/XL vive en `dashboard-size.ts`
+// (dimsForSize / sizeFromWH / nextSize / WidgetSize) — es la fuente única de
+// verdad para "tamaño" en todo el dashboard (selector, panel de config y el
+// ciclo de tamaño en modo edición). No se duplica aquí.
 
 export function getManifest(type: WidgetType): WidgetManifestEntry | undefined {
     return WIDGET_MANIFEST[type];

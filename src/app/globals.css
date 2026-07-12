@@ -3378,3 +3378,32 @@ html[data-perf="eco"] *:not(input):not(textarea) {
   border-color: rgba(255, 255, 255, 0.1);
 }
 .starseed-network-map .leaflet-control-zoom a:hover { background: rgba(34, 211, 238, 0.15); }
+
+/* ── Estabilidad de scroll (bug "glitcheo en loop", 2026-07-12) ──────────────
+   El scroller principal del grupo (main) aloja bloques EN FLUJO que colapsan
+   con el scroll (cabecera del dashboard, barras de pestañas). El re-anclaje
+   automático del navegador (scroll anchoring) compensaba esos cambios de alto
+   moviendo scrollTop, lo que re-cruzaba los umbrales de mostrar/ocultar y
+   realimentaba bucles infinitos de layout. Sin anclaje, el scroll solo cambia
+   cuando el usuario scrollea o cuando el navegador RECORTA al nuevo máximo
+   (caso ya cubierto con histéresis + guardas de recorrido en los handlers). */
+.os-main-scroll {
+  overflow-anchor: none;
+}
+
+/* ── Respeto GLOBAL a prefers-reduced-motion (barato y transversal) ──────────
+   Complementa los bloques puntuales ya existentes: cualquier animación o
+   transición que no lo gestione por su cuenta queda reducida a un solo frame
+   (los eventos animationend/transitionend siguen disparándose). Las
+   animaciones se conservan para el resto de usuarios: corren UNA vez y quedan
+   estables. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

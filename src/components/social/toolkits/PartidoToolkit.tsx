@@ -15,6 +15,7 @@ import {
   Timeline,
   Chip,
   EmptyHint,
+  EntityQuickActions,
   GOLD,
 } from "@/components/social/toolkits/shared";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -63,17 +64,35 @@ export function PartidoToolkit({
   const data = getPartido(slug);
   const ac = accent ?? "#DC143C";
 
+  // Acciones por defecto de la entidad (Adenda 63 §8) — presentes SIEMPRE,
+  // haya o no datos de gobernanza del partido.
+  const quickActions = (
+    <EntityQuickActions
+      slug={slug}
+      name={name ?? data?.name}
+      accent={ac}
+      libraryKind="party"
+      entityHref={`/partido/${slug}`}
+      memberCount={data?.members}
+      membersLabel="militantes"
+    />
+  );
+
   if (!data) {
     return (
-      <EmptyHint>
-        Aún no hay información de este partido. Configura su programa, candidaturas y votaciones para empezar.
-      </EmptyHint>
+      <div>
+        {quickActions}
+        <EmptyHint>
+          Aún no hay información de este partido. Configura su programa, candidaturas y votaciones para empezar.
+        </EmptyHint>
+      </div>
     );
   }
 
 
   return (
     <div className="space-y-2">
+      {quickActions}
       {/* Header badge row */}
       <div className="flex flex-wrap items-center gap-2 pb-1">
         <Badge

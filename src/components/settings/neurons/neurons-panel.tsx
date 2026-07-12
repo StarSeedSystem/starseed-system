@@ -28,6 +28,10 @@ import {
   summarizeNeurons, NEURON_EVENT,
   type Neuron, type NeuronCapabilities, type NeuronKind, type NeuronPermissions,
 } from "@/lib/neurons/neurons";
+// Seguridad integrada (Adenda 63 §13): este panel es el único componente
+// montado en Ajustes → sección "Seguridad" (/cuenta, página congelada), así
+// que el escáner de datos sensibles se ancla aquí — modo menos intrusivo.
+import { SecurityScanPanel } from "@/components/security/security-scan-panel";
 
 /* ── Icono por tipo de dispositivo ── */
 const KIND_ICONS: Record<NeuronKind, typeof Monitor> = {
@@ -283,6 +287,11 @@ export function NeuronsPanel() {
           </Card>
         );
       })}
+
+      {/* Seguridad integrada (Adenda 63 §13): escáner de secretos/PII bajo
+          demanda. Vive en la sección "Seguridad" de Ajustes junto a las
+          neuronas (cuenta/page.tsx solo monta este panel en esa sección). */}
+      <SecurityScanPanel />
     </div>
   );
 }

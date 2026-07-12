@@ -129,9 +129,9 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     {
         id: "aurora-voz",
         label: "Aurora — voz",
-        keywords: ["aurora", "voz", "kokoro", "kitten", "texto a voz", "tts", "hablar"],
+        keywords: ["aurora", "voz", "kokoro", "kitten", "texto a voz", "tts", "hablar", "bark", "sovits", "omnivoice", "endpoint", "emocion", "clonar voz", "neurona"],
         tab: "ai",
-        description: "Motor de voz de Aurora: navegador, Kokoro (local) o Kitten.",
+        description: "Motor de voz de Aurora: navegador, Kokoro (local), Bark, GPT-SoVITS u OmniVoice (por endpoint) + estilo emocional.",
         icon: Mic,
         category: "Aurora e IA",
     },
@@ -209,6 +209,15 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
         tab: "privacy-security",
         description: "Llaves criptográficas, respaldo y fragmentación (MPC).",
         icon: Lock,
+        category: "Privacidad y Seguridad",
+    },
+    {
+        id: "seguridad-escaner",
+        label: "Seguridad — escáner de datos sensibles",
+        keywords: ["escaner", "escanear", "secretos", "pii", "antivirus", "strix", "redactar", "claves api", "tokens", "datos sensibles", "fugas"],
+        tab: "privacy-security",
+        description: "Escanea memorias, personalidades, biblioteca y claves locales en busca de secretos; redacta en origen.",
+        icon: ShieldCheck,
         category: "Privacidad y Seguridad",
     },
 

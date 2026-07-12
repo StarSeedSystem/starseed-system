@@ -14,7 +14,7 @@
 - **Propietario / Visionario:** Alex Bordón Garrigós (alexbordongarrigos@gmail.com)
 - **Organización GitHub esperada:** `StarSeedSystem`
 - **Repositorio esperado:** `StarSeedSystem/starseed-system`
-- **URL de despliegue (oficial):** `https://starseed-os.vercel.app` — este repositorio ES "StarSeed OS". El portal de marca del ecosistema es **StarSeed Nexus** (`https://starseed-nexus.vercel.app`, repo `alexbordongarrigos/Starseed-Cafe`); comparten cuenta soberana (Supabase `dzkjapinnewkxzjltadv`). Ver `architecture/integracion-portal-starseed-os.md`.
+- **URL de despliegue (oficial):** `https://starseed-os.vercel.app` — este repositorio ES "StarSeed OS". El portal de marca del ecosistema es **StarSeed Nexus** (`https://starseed-nexus.vercel.app`, repo `alexbordongarrigos/Starseed-Cafe`), con su propio Supabase (`dzkjapinnewkxzjltadv`) — ⚠️ **NO comparte cuentas con el OS** (ver §2). Ver `architecture/integracion-portal-starseed-os.md`.
 
 ---
 
@@ -23,8 +23,8 @@
 - **Stack:** Next.js 15 (App Router) + TypeScript + Tailwind + shadcn/ui + Supabase + Genkit (Google AI) + Three.js / React-Three-Fiber + Framer Motion + Spline
 - **Carpeta local:** `/Users/alex/Documents/starseed-os-main`
 - **Git:** ⚠️ La carpeta **NO es un repositorio git inicializado** todavía. Hay que `git init` y vincularlo a `StarSeedSystem/starseed-system` antes de cualquier sincronización.
-- **Servidor / deployment:** Configurado para Vercel (auto-deploy desde GitHub). Existe `apphosting.yaml` para Firebase App Hosting como alternativa.
-- **Base de datos:** Supabase (config en `supabase/` + cliente en `src/utils/supabase/`). Schema implementado (`Account`, `Profile`, `Page`, `Post`, `StoreItem`, `LibraryItem`).
+- **Servidor / deployment:** Configurado para Vercel (auto-deploy desde GitHub). **Google Cloud Run activo** como alternativa soberana (`Dockerfile` + `cloudbuild.yaml`, min 0 / max 5) → todo lo nuevo debe funcionar en **standalone** y leer su config por **env vars**. Existe además `apphosting.yaml` (Firebase App Hosting).
+- **Base de datos:** Supabase — **proyecto propio del OS `nxstilnyidvkqeosofuh`**, con cuentas **SEPARADAS** de las de Nexus/Café (que usan `dzkjapinnewkxzjltadv`). Config en `supabase/` + cliente **singleton** en `src/utils/supabase/client.ts`. Schema implementado (`Account`, `Profile`, `Page`, `Post`, `StoreItem`, `LibraryItem`, `os_*`, `entity_state`, `os_spaces`). ⚠️ Migración `supabase/migrations/20260711120000_realtime_publication.sql` **pendiente de aplicar**.
 - **Tema visual:** Sistema "Crystal Liquid Glass" + "Trinity" (Zenith/Horizon/Logic/Anchor).
 - **Diseño activo:** Documentado en `design-system/starseed-system/MASTER.md` y en `STARSEED_ANALISIS_COMPLETO.md`.
 
@@ -184,6 +184,7 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 - `DESIGN.md` — design rationale
 - `DESPLIEGUE.md` — instrucciones de despliegue
 - `design-system/starseed-system/MASTER.md` — design system completo
+- `architecture/centro-creacion-sync-permisos.md` — **SOP de la Adenda 63** (2026-07-11/12): sesión persistente (singleton Supabase), Centro de Creación Trinity + `/crear`, sync realtime de la Biblioteca, **permisos universales** (`src/lib/sharing/access.ts`), neuronas + CasaOS, voz y personalidades de Aurora, mapa del Hub, seguridad estilo Strix. Fuente de verdad de esa ola.
 - `starseed.config.json` — config global de runtime
 - `task_plan.md` — checklist de fases B.L.A.S.T.
 

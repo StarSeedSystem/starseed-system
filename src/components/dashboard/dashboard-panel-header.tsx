@@ -4,7 +4,7 @@ import React from "react";
 import { Dashboard, DeviceType } from "./dashboard-types";
 import { useWorkspace } from "./dashboard-workspace-context";
 import { cn } from "@/lib/utils";
-import { LayoutPanelLeft, LayoutPanelTop, X, Star, Plus, Settings2, Trash2, MonitorSmartphone, Check } from "lucide-react";
+import { LayoutPanelLeft, LayoutPanelTop, X, Star, Plus, Settings2, Trash2, MonitorSmartphone, Check, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -32,6 +32,8 @@ interface HeaderProps {
     onCreateDashboard?: () => void;
     onDeleteDashboard?: (id: string) => void;
     onRenameDashboard?: (id: string) => void;
+    /** Abre el diálogo universal de permisos/compartición del tablero (Adenda 63 §5). */
+    onShareDashboard?: (id: string) => void;
     /** Etiqueta un tablero para un tipo de dispositivo (agrupación por dispositivo). */
     onSetDeviceTags?: (id: string, tags: DeviceType[]) => void;
     /** Abre el gestor de dispositivos/sincronización. Opcional. */
@@ -192,7 +194,7 @@ function TabDeviceMenu({ dashboard, onSetDeviceTags }: {
 
 export function DashboardPanelHeader({
     panelId, dashboards, activeId, allDashboards, isEditMode, widgetCounts, currentDevice,
-    onCreateDashboard, onDeleteDashboard, onRenameDashboard, onSetDeviceTags, onOpenDeviceManager,
+    onCreateDashboard, onDeleteDashboard, onRenameDashboard, onShareDashboard, onSetDeviceTags, onOpenDeviceManager,
 }: HeaderProps) {
     const { setActiveDashboard, closePanel, splitPanel, setState } = useWorkspace();
 
@@ -308,6 +310,15 @@ export function DashboardPanelHeader({
                             >
                                 Renombrar Dashboard
                             </DropdownMenuItem>
+                            {onShareDashboard && (
+                                <DropdownMenuItem
+                                    className="text-white hover:bg-white/10 cursor-pointer"
+                                    onClick={() => onShareDashboard(activeId)}
+                                >
+                                    <Share2 className="w-3.5 h-3.5 mr-2" />
+                                    Compartir
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem className="text-white hover:bg-white/10 cursor-pointer">
                                 Configurar Grilla
                             </DropdownMenuItem>

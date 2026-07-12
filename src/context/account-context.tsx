@@ -22,6 +22,7 @@ import {
     useContext,
     useEffect,
     useMemo,
+    useRef,
     useState,
     type ReactNode,
 } from "react";
@@ -157,6 +158,34 @@ async function loadProfile(
     return null;
 }
 
+// ── Caché local del perfil (hidratación instantánea — Adenda 63) ────────────
+// La cuenta "entra" al momento con el perfil de la última sesión mientras la
+// red refresca en segundo plano. Solo se borra en cierre de sesión MANUAL.
+const PROFILE_CACHE_KEY = "starseed.account.profile.cache.v1";
+
+function readProfileCache(userId: string): AccountProfile | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const raw = window.localStorage.getItem(PROFILE_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as { userId?: string; profile?: AccountProfile | null };
+        if (!parsed || parsed.userId !== userId || !parsed.profile) return null;
+        return parsed.profile;
+    } catch {
+        return null;
+    }
+}
+
+function writeProfileCache(userId: string, profile: AccountProfile | null) {
+    if (typeof window === "undefined") return;
+    try {
+        if (!profile) window.localStorage.removeItem(PROFILE_CACHE_KEY);
+        else window.localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ userId, profile, at: Date.now() }));
+    } catch {
+        /* almacenamiento lleno o modo privado: ignorar */
+    }
+}
+
 export function AccountProvider({ children }: { children: ReactNode }) {
     const supabase = useMemo(() => createClient(), []);
 
@@ -165,21 +194,61 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     const [profile, setProfile] = useState<AccountProfile | null>(null);
     const [loading, setLoading] = useState(true);
 
+    // Referencias para decidir recargas sin regenerar el efecto de sesión.
+    const profileRef = useRef<AccountProfile | null>(null);
+    useEffect(() => {
+        profileRef.current = profile;
+    }, [profile]);
+    const lastProfileUserRef = useRef<string | null>(null);
+
     useEffect(() => {
         let active = true;
 
+        // Adenda 63 — sesión persistente y carga instantánea de la cuenta:
+        // · El perfil solo se (re)carga al CAMBIAR de usuario o si aún no hay
+        //   perfil; los eventos repetidos (TOKEN_REFRESHED, SIGNED_IN al volver
+        //   a la pestaña…) ya no disparan recargas que hacían parecer que la
+        //   cuenta "no carga o tarda".
+        // · Hidratación inmediata desde caché local + refresco en 2º plano.
+        // · Un fallo transitorio de red JAMÁS degrada el perfil a null: la
+        //   identidad local solo se limpia en signOut() manual.
         const applySession = async (nextSession: Session | null) => {
             if (!active) return;
             setSession(nextSession);
             const nextUser = nextSession?.user ?? null;
             setUser(nextUser);
             if (nextUser) {
-                try {
-                    const p = await loadProfile(supabase, nextUser.id);
-                    // De-mock: nunca dejar pasar placeholders demo como identidad real.
-                    if (active) setProfile(sanitizeProfile(p));
-                } catch {
-                    if (active) setProfile(null);
+                const sameUser = lastProfileUserRef.current === nextUser.id;
+                let hydrated = profileRef.current != null && sameUser;
+                if (!sameUser) {
+                    lastProfileUserRef.current = nextUser.id;
+                    const cached = readProfileCache(nextUser.id);
+                    if (cached) {
+                        setProfile(sanitizeProfile(cached));
+                        hydrated = true;
+                    } else {
+                        setProfile(null);
+                    }
+                }
+                if (!sameUser || !profileRef.current) {
+                    const refresh = async () => {
+                        try {
+                            const p = await loadProfile(supabase, nextUser.id);
+                            if (!active) return;
+                            const clean = sanitizeProfile(p);
+                            if (clean) {
+                                setProfile(clean);
+                                writeProfileCache(nextUser.id, clean);
+                            }
+                        } catch {
+                            /* conservar el perfil hidratado actual */
+                        }
+                    };
+                    // Con caché: refresco en 2º plano (no bloquea). Sin caché
+                    // (primer acceso en este dispositivo): esperamos la carga
+                    // para no parpadear estados de "perfil incompleto".
+                    if (hydrated) void refresh();
+                    else await refresh();
                 }
                 // Auto-crea un Cerebro StarSeed por defecto si el usuario no tiene
                 // ninguno. NO bloquea el login: fire-and-forget, idempotente y
@@ -189,6 +258,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                     /* nunca bloquea ni rompe el alta/login */
                 });
             } else if (active) {
+                lastProfileUserRef.current = null;
                 setProfile(null);
             }
         };
@@ -300,6 +370,17 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         } catch {
             // tolerante: aunque falle el round-trip, limpiamos local
         }
+        // Cierre MANUAL de sesión: única vía que borra la identidad local
+        // (caché de perfil + perfil activo). Recargar la página nunca lo hace.
+        try {
+            if (typeof window !== "undefined") {
+                window.localStorage.removeItem(PROFILE_CACHE_KEY);
+                window.localStorage.removeItem("starseed.profile.active.v1");
+            }
+        } catch {
+            /* best-effort */
+        }
+        lastProfileUserRef.current = null;
         setSession(null);
         setUser(null);
         setProfile(null);

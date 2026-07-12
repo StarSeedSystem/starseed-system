@@ -105,7 +105,14 @@ export type WidgetType =
     // ── Medios (Cámara + Galería) ──
     | 'RECENT_GALLERY'        // Archivos — últimas capturas de la Galería personal
     | 'CAMERA_QUICK'          // Aplicaciones — acceso rápido a la Cámara
-    | 'AI_GENERATED';         // 🔮 La Fragua de Interfaces — Custom AI-forged widgets
+    | 'AI_GENERATED'          // 🔮 La Fragua de Interfaces — Custom AI-forged widgets
+    // ── Sexta oleada: rediseño de widgets predeterminados (2026-07) ──
+    | 'CLOCK_DATE'            // Utilidades — reloj + fecha (analógico/digital, zonas horarias)
+    | 'TASKS_QUICK'           // Productividad — tareas rápidas persistentes (check + añadir)
+    | 'QUICK_NOTES'           // Productividad — notas rápidas persistentes
+    | 'AURORA_LAST'           // IA — última respuesta de Aurora + abrir chat
+    | 'BADGES'                // Perfil — insignias obtenidas (Módulo 7)
+    | 'NETWORK_FEED_MINI';    // Social — mini-previsualizaciones del feed real de la Red
 
 /**
  * Tipo de dispositivo objetivo de un tablero (pantalla principal adaptativa).
@@ -168,6 +175,10 @@ export interface DashboardWidget {
     settings: Record<string, any>;
     created_at: string;
     updated_at?: string;
+    /** Tamaño declarado S/M/L/XL (preset elegido al añadir o desde el panel de
+     *  config). Informativo: la huella real de rejilla vive en `layout.w/h`;
+     *  este campo permite reflejar/editar el preset sin adivinarlo. */
+    size?: "S" | "M" | "L" | "XL";
     // Pinnable widget support
     isPinned?: boolean;
     pinnedPosition?: {

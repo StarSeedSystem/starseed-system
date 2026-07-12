@@ -30,19 +30,25 @@
 import { createClient } from "@/utils/supabase/client";
 
 // ── Claves de localStorage del dashboard (las MISMAS que dashboard-layout) ──
-// Estas tres claves contienen la "verdad local" del dashboard del usuario:
-//   · starseed_dashboards → lista de tableros (Dashboard[])
-//   · starseed_widgets    → mapa { dashboardId: DashboardWidget[] }
-//   · dashboard_order     → orden de los tableros (string[] de ids)
+// Estas cuatro claves contienen la "verdad local" del dashboard del usuario:
+//   · starseed_dashboards        → lista de tableros (Dashboard[])
+//   · starseed_widgets           → mapa { dashboardId: DashboardWidget[] }
+//   · dashboard_order            → orden de los tableros (string[] de ids)
+//   · starseed_defaults_version  → generación de defaults ya sembrada (gen11+)
 // La disposición de ventanas/pestañas (workspace tree) NO se persiste en
 // localStorage (solo se difunde por BroadcastChannel), así que no forma parte
 // del blob; si en el futuro se persiste, basta con añadir su clave a LS_KEYS.
 const LS_DASHBOARDS = "starseed_dashboards";
 const LS_WIDGETS = "starseed_widgets";
 const LS_ORDER = "dashboard_order";
+// Viaja en el MISMO blob que dashboards/widgets: así, cuando un dispositivo
+// nuevo hidrata desde remoto, también recibe la versión de defaults ya
+// migrada por la cuenta y no dispara una re-siembra local espuria antes de
+// que llegue la hidratación (ver reseedDefaultDashboards en dashboard-layout).
+const LS_DEFAULTS_VERSION = "starseed_defaults_version";
 
 /** Claves que componen el blob de estado completo del dashboard. */
-const LS_KEYS = [LS_DASHBOARDS, LS_WIDGETS, LS_ORDER] as const;
+const LS_KEYS = [LS_DASHBOARDS, LS_WIDGETS, LS_ORDER, LS_DEFAULTS_VERSION] as const;
 type LsKey = (typeof LS_KEYS)[number];
 
 /** Nombre de la tabla dedicada (realtime-enabled). */

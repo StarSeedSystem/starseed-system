@@ -15,6 +15,7 @@ import {
   Timeline,
   Chip,
   EmptyHint,
+  EntityQuickActions,
   GOLD,
 } from "@/components/social/toolkits/shared";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -57,11 +58,27 @@ export function AsambleaToolkit({
   const data = getAssembly(slug);
   const ac = accent ?? "#FFBF00";
 
+  // Acciones por defecto de la entidad (Adenda 63 §8).
+  const quickActions = (
+    <EntityQuickActions
+      slug={slug}
+      name={name ?? data?.name}
+      accent={ac}
+      entityKind="group"
+      entityHref={`/grupo/${slug}`}
+      memberCount={data?.members}
+      membersLabel="participantes"
+    />
+  );
+
   if (!data) {
     return (
-      <EmptyHint>
-        Aún no hay información de esta asamblea. Crea su primera sesión, orden del día y mociones para empezar.
-      </EmptyHint>
+      <div>
+        {quickActions}
+        <EmptyHint>
+          Aún no hay información de esta asamblea. Crea su primera sesión, orden del día y mociones para empezar.
+        </EmptyHint>
+      </div>
     );
   }
 
@@ -70,6 +87,7 @@ export function AsambleaToolkit({
 
   return (
     <div className="flex flex-col gap-6">
+      {quickActions}
       <Tabs defaultValue="agenda">
         <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto">
           <TabsTrigger value="agenda" className="cursor-pointer flex items-center gap-1.5">

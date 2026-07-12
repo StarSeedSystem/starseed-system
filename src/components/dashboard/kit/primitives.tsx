@@ -8,9 +8,9 @@
 // small sizes. Widgets compose these instead of re-implementing charts.
 // ════════════════════════════════════════════════════════════════
 
-import React, { useId } from "react";
-import { motion } from "framer-motion";
-import { ArrowUpRight, ArrowDownRight, Minus, Inbox, type LucideIcon } from "lucide-react";
+import React, { useId, useEffect, useState } from "react";
+import { motion, useSpring } from "framer-motion";
+import { ArrowUpRight, ArrowDownRight, Minus, Inbox, AlertOctagon, RotateCw, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SeriesPoint, Trend } from "@/lib/widget-data/types";
 
@@ -212,6 +212,101 @@ export function Chip({ children, color = "hsl(var(--primary))", soft = true }: {
                 : { background: color, borderColor: color, color: "white" }}>
             {children}
         </span>
+    );
+}
+
+// ── AnimatedCounter — contador que interpola en vivo hacia el valor ─
+// (extraído/generalizado: antes duplicado como `AnimCounter` local en
+// system-status-widget. Cualquier widget con un "dato vivo" numérico lo usa
+// para el efecto de conteo suave al actualizarse.)
+export function AnimatedCounter({
+    value, decimals = 0, className, formatter,
+}: { value: number; decimals?: number; className?: string; formatter?: (n: number) => string }) {
+    const spring = useSpring(value, { stiffness: 120, damping: 22, mass: 0.5 });
+    useEffect(() => { spring.set(value); }, [spring, value]);
+    const [display, setDisplay] = useState(value);
+    useEffect(() => spring.on("change", (v) => setDisplay(v)), [spring]);
+    const text = formatter
+        ? formatter(display)
+        : decimals > 0 ? display.toFixed(decimals) : Math.round(display).toLocaleString();
+    return <span className={cn("tabular-nums", className)}>{text}</span>;
+}
+
+// ── LivePulseDot — punto con halo pulsante (dato vivo / latido de red) ──
+export function LivePulseDot({ color = "hsl(var(--primary))", size = 8 }: { color?: string; size?: number }) {
+    return (
+        <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
+            <motion.span
+                className="absolute inline-flex size-full rounded-full opacity-75"
+                style={{ background: color }}
+                animate={{ scale: [1, 2.1], opacity: [0.55, 0] }}
+                transition={{ duration: 1.4, repeat: Infinity, ease: [0.16, 1, 0.3, 1] }}
+            />
+            <span className="relative inline-flex rounded-full" style={{ width: size, height: size, background: color, boxShadow: `0 0 6px ${color}` }} />
+        </span>
+    );
+}
+
+// ── WidgetSkeleton — esqueleto de carga consistente entre widgets ───
+export function WidgetSkeleton({ rows = 3, variant = "block" }: { rows?: number; variant?: "block" | "list" | "rings" }) {
+    if (variant === "rings") {
+        return (
+            <div className="h-full grid place-items-center">
+                <div className="size-14 rounded-full border-4 border-white/10 border-t-white/30 animate-spin" />
+            </div>
+        );
+    }
+    if (variant === "list") {
+        return (
+            <div className="flex flex-col gap-1.5 h-full pt-1">
+                {Array.from({ length: rows }).map((_, i) => (
+                    <div key={i} className="h-9 rounded-xl bg-muted/15 animate-pulse" style={{ animationDelay: `${i * 90}ms` }} />
+                ))}
+            </div>
+        );
+    }
+    return <div className="h-full rounded-2xl bg-muted/15 animate-pulse" />;
+}
+
+// ── WidgetEmptyState — vacío útil (icono + mensaje + acción real) ───
+export function WidgetEmptyState({
+    icon: Icon = Inbox, title, message, actionLabel, actionHref, onAction, accent = "hsl(var(--primary))",
+}: {
+    icon?: LucideIcon; title: string; message?: string;
+    actionLabel?: string; actionHref?: string; onAction?: () => void; accent?: string;
+}) {
+    const actionCls = "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-wider transition-colors cursor-pointer hover:brightness-110";
+    const actionStyle: React.CSSProperties = { color: accent, borderColor: `color-mix(in srgb, ${accent} 40%, transparent)`, background: `color-mix(in srgb, ${accent} 14%, transparent)` };
+    return (
+        <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-3">
+            <span className="grid place-items-center size-12 rounded-2xl border" style={{ borderColor: `color-mix(in srgb, ${accent} 35%, transparent)`, background: `color-mix(in srgb, ${accent} 10%, transparent)` }}>
+                <Icon className="size-6" style={{ color: accent }} strokeWidth={1.5} />
+            </span>
+            <div>
+                <p className="text-sm font-bold text-foreground/90">{title}</p>
+                {message && <p className="text-[11px] text-muted-foreground/60 mt-0.5">{message}</p>}
+            </div>
+            {actionLabel && (actionHref
+                ? <a href={actionHref} className={actionCls} style={actionStyle}>{actionLabel}</a>
+                : <button type="button" onClick={onAction} className={actionCls} style={actionStyle}>{actionLabel}</button>)}
+        </div>
+    );
+}
+
+// ── WidgetErrorState — error honesto (nunca falla en silencio) ──────
+export function WidgetErrorState({ message = "No se pudo cargar este widget.", onRetry }: { message?: string; onRetry?: () => void }) {
+    return (
+        <div className="h-full flex flex-col items-center justify-center gap-2.5 text-center px-3">
+            <span className="grid place-items-center size-11 rounded-2xl border border-rose-500/30 bg-rose-500/10">
+                <AlertOctagon className="size-5 text-rose-400/80" strokeWidth={1.5} />
+            </span>
+            <p className="text-[11px] text-muted-foreground/70">{message}</p>
+            {onRetry && (
+                <button type="button" onClick={onRetry} className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-rose-300 hover:bg-rose-500/20 transition-colors cursor-pointer">
+                    <RotateCw className="size-3" /> Reintentar
+                </button>
+            )}
+        </div>
     );
 }
 

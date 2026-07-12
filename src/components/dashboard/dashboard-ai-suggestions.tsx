@@ -81,7 +81,7 @@ function localFallbackSuggestions(present: Set<WidgetType>): WidgetSuggestion[] 
             kind: "widget" as const,
             type: w.type,
             label: labelFor(w.type),
-            reason: `Popular en ${getCategoryById(w.primaryCategory)?.label ?? w.primaryCategory}`,
+            reason: `Popular en ${getCategoryById(w.primaryCategory)?.name ?? w.primaryCategory}`,
         }));
 }
 

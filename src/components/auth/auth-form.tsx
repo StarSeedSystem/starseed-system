@@ -70,20 +70,22 @@ export function AuthForm() {
             })
             setIsLoading(false)
         } else {
-            router.push('/dashboard')
+            // Página principal del OS: el último perfil activo se restaura solo
+            // (starseed.profile.active.v1 permanece salvo cierre de sesión manual).
+            router.push('/escritorios')
             router.refresh()
         }
     }
 
     return (
-        <Card className="w-[350px] border-border/50 bg-background/50 backdrop-blur-xl">
+        <Card className="w-full max-w-[380px] mx-auto border-border/50 bg-background/50 backdrop-blur-xl">
             <CardHeader>
                 <CardTitle>Identidad Digital</CardTitle>
                 <CardDescription>Accede al StarSeed Network</CardDescription>
             </CardHeader>
             <CardContent>
                 <Tabs defaultValue="signin" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
+                    <TabsList className="grid w-full grid-cols-2 gap-1">
                         <TabsTrigger value="signin">Entrar</TabsTrigger>
                         <TabsTrigger value="signup">Registrarse</TabsTrigger>
                     </TabsList>

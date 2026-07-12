@@ -45,20 +45,75 @@ export {
 } from "@/lib/aurora/tts-oss/oss-tts";
 
 export {
-  // Config UNIFICADA de voz (motor + voz + autoDownload) — viaja con la cuenta
+  // Config UNIFICADA de voz (motor + voz + autoDownload + endpoints + estilo)
+  // — TODO dentro de la misma clave sincronizada con la cuenta
   AURORA_VOICE_CONFIG_KEY,
   AURORA_VOICE_CONFIG_EVENT,
+  AURORA_VOICE_STYLE_EVENT,
   DEFAULT_VOICE_CONFIG,
+  NEURAL_VOICE_ENGINES,
+  isNeuralEngine,
+  normalizeEmotion,
+  sanitizeStyle,
   getVoiceConfig,
   getVoiceEngine,
   setVoiceConfig,
   setVoiceEngine,
   setVoiceName,
+  getEngineSettings,
+  setEngineSettings,
+  getVoiceStyle,
+  setVoiceStyle,
+  resetVoiceStyle,
   getEffectiveVoice,
   subscribeVoiceConfig,
   type AuroraVoiceEngine,
+  type NeuralVoiceEngine,
+  type AuroraVoiceEmotion,
+  type AuroraVoiceStyle,
+  type NeuralEngineSettings,
   type AuroraVoiceConfig,
 } from "@/lib/aurora/tts-oss/voice-config";
+
+export {
+  // Estilo emocional (8 emociones → parámetros por motor + evento vivo)
+  VOICE_EMOTIONS,
+  emotionSpec,
+  resolveVoiceParams,
+  decorateTextForBark,
+  passthroughParams,
+  installVoiceStyleListener,
+  emitVoiceStyle,
+  engineStyleOverrides,
+  type EmotionSpec,
+  type ResolvedVoiceParams,
+} from "@/lib/aurora/tts-oss/voice-style";
+
+export {
+  // Ranking de voces del navegador (voz NATURAL por defecto, sin configurar)
+  rankBrowserVoices,
+  getBestBrowserVoice,
+  resolveBrowserVoice,
+  listBrowserVoices,
+  scoreVoice,
+  type RankedVoice,
+} from "@/lib/aurora/tts-oss/browser-voices";
+
+export {
+  // Motores NEURALES por endpoint (Bark · GPT-SoVITS · OmniVoice)
+  NEURAL_ENGINE_META,
+  NEURAL_TTS_TIMEOUT_MS,
+  NEURAL_PING_TTL_MS,
+  normalizeEndpoint,
+  neuralSynthesize,
+  neuralSpeak,
+  stopNeural,
+  isNeuralSpeaking,
+  pingNeuralEngine,
+  neuralEngineConfigured,
+  type NeuralSpeakOptions,
+  type NeuralPingState,
+} from "@/lib/aurora/tts-oss/neural-tts";
 
 export {
   // Motor Kokoro (fachada de alto nivel: reproduce por <audio> desde blob)

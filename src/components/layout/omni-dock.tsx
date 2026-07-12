@@ -71,6 +71,9 @@ export function OmniDock() {
     let isVisible = false;
     if (dockBehavior === "always-visible") isVisible = true;
     else isVisible = activeEdge === "anchor";
+    // En /login y /auth el dock se oculta: no tapa las tarjetas de acceso y
+    // ninguna de sus rutas es útil sin sesión (Adenda 63).
+    if (pathname === "/login" || pathname?.startsWith("/auth")) isVisible = false;
 
     const [items, setItems] = useState<DockItemConfig[]>(DOCK_PRESETS);
     const [editMode, setEditMode] = useState(false);

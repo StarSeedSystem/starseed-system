@@ -16,7 +16,8 @@ import {
     Activity, Award, Shield, Flame, MessageSquare, Cpu,
     Sparkles, Send, TrendingUp, BarChart3, Library, Terminal,
     Users2, AlertCircle, ChevronDown, Check, PlusCircle, Calendar,
-    Scale, HelpCircle, ArrowUpRight, Play, CheckSquare, Network
+    Scale, HelpCircle, ArrowUpRight, Play, CheckSquare, Network,
+    Map as MapIcon
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -97,6 +98,11 @@ export default function HubPage() {
     useEffect(() => {
         if (typeof window === "undefined") return;
         const requested = new URLSearchParams(window.location.search).get("tab");
+        // La sección Mapa vive en su propia ruta (pantalla completa): /hub/mapa.
+        if (requested === "mapa") {
+            window.location.replace("/hub/mapa");
+            return;
+        }
         if (requested && (HUB_TABS as readonly string[]).includes(requested)) {
             setActiveTab(requested);
         }
@@ -572,10 +578,18 @@ export default function HubPage() {
 
             {/* ── MENÚ TABS REORGANIZADO A LA PARTE SUPERIOR (CONSOLIDADOS) ── */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col mt-2">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-8 max-w-full lg:max-w-6xl mx-auto h-auto gap-2 bg-black/25 p-2 rounded-2xl border border-white/5 shadow-2xl backdrop-blur-md">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-9 max-w-full lg:max-w-7xl mx-auto h-auto gap-2 bg-black/25 p-2 rounded-2xl border border-white/5 shadow-2xl backdrop-blur-md">
                     <TabsTrigger value="buscador" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
                         <Search className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0 text-primary" /><span className="truncate">Buscador</span>
                     </TabsTrigger>
+                    {/* Mapa: sección a pantalla completa en su propia ruta (SOP §12) */}
+                    <Link
+                        href="/hub/mapa"
+                        className="min-h-[40px] inline-flex items-center justify-center py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap text-muted-foreground hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                        title="Mapa de la Red (OpenStreetMap soberano)"
+                    >
+                        <MapIcon className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0 text-emerald-400" /><span className="truncate">Mapa</span>
+                    </Link>
                     <TabsTrigger value="contributions" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
                         <Briefcase className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0 text-cyan-400" /><span className="truncate">Aportaciones</span>
                     </TabsTrigger>

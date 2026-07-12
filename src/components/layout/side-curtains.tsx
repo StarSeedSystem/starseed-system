@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
     motion, AnimatePresence, useReducedMotion, useMotionValue, animate,
     type MotionValue,
@@ -106,6 +107,13 @@ function CurtainCloseButton({ onClose, accent }: { onClose: () => void; accent: 
 
 export function SideCurtains() {
     const { activeEdge, setActiveEdge } = usePerimeter();
+    const router = useRouter();
+    // Navegar cerrando la cortina primero (todas las áreas del Centro de
+    // Creación deben ABRIR de verdad su destino — Adenda 63).
+    const go = useCallback((href: string) => {
+        setActiveEdge(null);
+        router.push(href);
+    }, [router, setActiveEdge]);
     const closeCurtain = useCallback(() => setActiveEdge(null), [setActiveEdge]);
     const horizonSwipe = useSwipeToClose("left", closeCurtain);
     const logicSwipe = useSwipeToClose("right", closeCurtain);
@@ -203,6 +211,14 @@ export function SideCurtains() {
                                     Centro de Creación
                                 </h2>
                                 <p className="text-xs text-emerald-400/60 font-mono mt-1">UNIVERSAL CANVAS HUB</p>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="mt-2 h-8 rounded-full gap-2 text-xs text-emerald-300/80 hover:bg-emerald-500/10 hover:text-emerald-200"
+                                    onClick={() => go("/crear")}
+                                >
+                                    <Maximize2 className="h-3.5 w-3.5" /> Abrir página completa
+                                </Button>
                             </div>
                         </div>
 
@@ -210,14 +226,14 @@ export function SideCurtains() {
                         <div className="mb-6 flex-shrink-0 px-2">
                             <Button
                                 className="w-full h-auto py-6 rounded-3xl flex flex-col items-center gap-3 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 border border-emerald-500/30 hover:border-emerald-400/60 hover:from-emerald-500/30 hover:to-teal-600/30 transition-all group shadow-lg"
-                                onClick={() => setActiveBoard(null)} // Or route to a dedicated canvas page
+                                onClick={() => go("/crear?area=lienzo")}
                             >
                                 <div className="p-3 rounded-full bg-emerald-400/20 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(16,185,129,0.3)]">
                                     <Sparkles className="w-8 h-8 text-emerald-300" />
                                 </div>
                                 <div className="text-center">
                                     <span className="block text-xl font-light tracking-wider text-emerald-100 mb-1">Lienzo Universal</span>
-                                    <span className="text-sm text-emerald-200/60 font-light px-4 whitespace-normal">Espacio de creación libre para cualquier contexto y disciplina.</span>
+                                    <span className="text-sm text-emerald-200/60 font-light px-4 whitespace-normal">Creador de publicaciones específicas: bloques, archivos y widgets para cualquier sección de la red.</span>
                                 </div>
                             </Button>
                         </div>
@@ -251,9 +267,14 @@ export function SideCurtains() {
                                     <h3 className="text-sm font-semibold text-emerald-400/70 uppercase tracking-widest flex items-center gap-2">
                                         <Layout className="w-4 h-4" /> Pizarras Activas
                                     </h3>
-                                    <Button size="sm" variant="ghost" className="h-8 rounded-full gap-2 text-xs text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300" onClick={handleCreateBoard}>
-                                        <Plus className="h-4 w-4" /> Nueva
-                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                        <Button size="sm" variant="ghost" className="h-8 rounded-full gap-2 text-xs text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300" onClick={() => go("/pizarras")}>
+                                            <Library className="h-4 w-4" /> Nube
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="h-8 rounded-full gap-2 text-xs text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300" onClick={handleCreateBoard}>
+                                            <Plus className="h-4 w-4" /> Nueva
+                                        </Button>
+                                    </div>
                                 </div>
 
                                 <ScrollArea className="h-[240px] rounded-2xl border border-emerald-500/10 bg-emerald-950/20 p-3 shadow-inner">
@@ -304,21 +325,25 @@ export function SideCurtains() {
                                         icon={<Library className="w-5 h-5" />}
                                         label="Biblioteca"
                                         sub="Archivo & Wiki"
+                                        onClick={() => go("/crear?area=publicar&dest=biblioteca")}
                                     />
                                     <PublicationButton
                                         icon={<Users className="w-5 h-5" />}
                                         label="Política"
                                         sub="Propuestas & Votos"
+                                        onClick={() => go("/crear?area=publicar&dest=politica")}
                                     />
                                     <PublicationButton
                                         icon={<BookOpen className="w-5 h-5" />}
                                         label="Educación"
                                         sub="Cursos & Guías"
+                                        onClick={() => go("/crear?area=publicar&dest=educacion")}
                                     />
                                     <PublicationButton
                                         icon={<Palette className="w-5 h-5" />}
                                         label="Cultura"
                                         sub="Arte & Eventos"
+                                        onClick={() => go("/crear?area=publicar&dest=cultura")}
                                     />
                                 </div>
                             </div>
@@ -452,10 +477,11 @@ function ToolButton({ icon, label, description, color, align = "left" }: { icon:
     )
 }
 
-function PublicationButton({ icon, label, sub }: { icon: React.ReactNode, label: string, sub: string }) {
+function PublicationButton({ icon, label, sub, onClick }: { icon: React.ReactNode, label: string, sub: string, onClick?: () => void }) {
     return (
         <Button
             variant="ghost"
+            onClick={onClick}
             className="h-auto py-4 px-4 flex flex-col items-center text-center gap-2 w-full rounded-2xl border border-emerald-500/10 bg-emerald-950/20 hover:bg-emerald-500/20 hover:border-emerald-500/30 transition-all group"
         >
             <div className="flex flex-col items-center gap-1 w-full relative z-10">

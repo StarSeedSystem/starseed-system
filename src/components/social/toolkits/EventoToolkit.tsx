@@ -14,6 +14,7 @@ import {
   Timeline,
   Chip,
   EmptyHint,
+  EntityQuickActions,
   GOLD,
 } from "@/components/social/toolkits/shared";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -67,6 +68,16 @@ export function EventoToolkit({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Acciones por defecto de la entidad (Adenda 63 §8). */}
+      <EntityQuickActions
+        slug={slug}
+        name={name}
+        accent={ac}
+        libraryKind="event"
+        entityHref={`/evento/${slug}`}
+        memberCount={data.rsvp.going}
+        membersLabel="asistentes"
+      />
       <Tabs defaultValue="programa">
         <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto">
           <TabsTrigger

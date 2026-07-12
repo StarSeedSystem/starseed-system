@@ -36,6 +36,10 @@ import { detectAvailability, userConfigForSource, type SourceAvailability } from
 import { chromeAiChat, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown } from "./usage";
 import { skillsSystemPrompt, skillsRoutingBias } from "./skills";
+// Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
+// la personalidad resuelta por contexto (chat > cerebro > sección > global).
+// Aditivo y tolerante: sin personalidad activa, no cambia NADA.
+import { resolvePersonalityForContext, compilePersonalityPrompt, sectionFromPath } from "@/lib/aurora/personalities";
 import { systemContextPrompt, screenContextLine, activeProvidersLine } from "./context";
 import { buildUserContext, getUserContextSettings } from "./user-context";
 import { modeForCategory } from "./provider-resolution";
@@ -444,6 +448,8 @@ export interface AstrauraChatRequest {
   taskHint?: TaskKind;
   /** Cerebro activo (se propaga a chatSmart/manual). */
   brainId?: string;
+  /** Chat activo (opcional): permite resolver la personalidad POR CHAT. */
+  chatId?: string;
   /** Estado para la UI ("Eligiendo modelo…", "Usando Groq…"). */
   onStatus?: (status: string) => void;
   /**
@@ -653,6 +659,16 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // (2) resumen de la pantalla actual, (3) capacidades activas (skills.ts). Todo
   // se antepone al system prompt para que Aurora sepa DÓNDE está y qué puede hacer.
   const capText = skillsSystemPrompt();
+  // ── Personalidad activa (Adenda 63 §11) ── resuelta por contexto con
+  // prioridad chat > cerebro > sección (ruta de red actual) > global, y
+  // compilada a un bloque en español. Tolerante: si nada está activo o algo
+  // falla, personaText="" y el prompt queda EXACTAMENTE igual que antes.
+  let personaText = "";
+  try {
+    const section = typeof window !== "undefined" ? sectionFromPath(window.location.pathname) : undefined;
+    const persona = resolvePersonalityForContext({ section, chatId: req.chatId, brainId: req.brainId });
+    if (persona) personaText = compilePersonalityPrompt(persona);
+  } catch { /* defensivo: sin personalidad, Aurora sigue igual */ }
   let ctxText = "";
   try {
     const provLine = await activeProvidersLine().catch(() => "");
@@ -669,7 +685,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       userCtxText = await withTimeout(buildUserContext(ucSettings.defaultLevel), 3500, "contexto de usuario").catch(() => "");
     }
   } catch { /* defensivo: Aurora sigue funcionando sin contexto */ }
-  const brainExtra = [ctxText, capText, userCtxText].filter(Boolean).join("\n\n");
+  const brainExtra = [personaText, ctxText, capText, userCtxText].filter(Boolean).join("\n\n");
   const messages = brainExtra ? mergeSystemPrompt(req.messages, brainExtra) : req.messages;
   const reqX: AstrauraChatRequest = brainExtra ? { ...req, messages } : req;
 

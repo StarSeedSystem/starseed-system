@@ -264,7 +264,9 @@ export async function markAllSeen(items: UnifiedNotification[]): Promise<boolean
       .filter((i) => i.source === "proposal" && !i.seen)
       .map((i) => i.rawId);
 
-    const ops: Promise<any>[] = [];
+    // Los builders de PostgREST son "thenables" (PromiseLike), no Promises
+    // nativas: `Promise.allSettled` los acepta igual.
+    const ops: PromiseLike<any>[] = [];
     if (generalIds.length) {
       ops.push(
         supabase

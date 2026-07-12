@@ -73,6 +73,7 @@ import {
 } from "@/lib/os-social";
 import {
     detectMedia,
+    splitBodyAttachments,
     type NormalizedPost,
 } from "@/lib/social-posts";
 
@@ -312,16 +313,21 @@ export function useOsEntity(
 
 /** Convierte una fila OsPost al shape de UI NormalizedPost (con detección de media). */
 function osPostToNormalized(p: OsPost): NormalizedPost {
-    const body = p.mediaUrl ? `${p.body}\n${p.mediaUrl}` : p.body;
+    // Adenda 63 §8 · Adjuntos visibles: separa el bloque "**Adjuntos:**" y la
+    // metadata ss:meta que /publish embebe en el body (miniaturas/chips en la
+    // tarjeta en lugar de markdown crudo; el tipo especializado → badge).
+    const split = splitBodyAttachments(p.body);
+    const body = p.mediaUrl ? `${split.body}\n${p.mediaUrl}` : split.body;
     return {
         id: p.id,
         authorName: p.authorName,
-        body: p.body,
-        kind: "post",
+        body: split.body,
+        kind: split.meta?.tipo || "post",
         createdAt: p.createdAt,
         likes: 0,
         commentsCount: 0,
         media: detectMedia({ body, recipe: p.mediaUrl ? { media: [p.mediaUrl] } : null }),
+        attachments: split.attachments.length > 0 ? split.attachments : undefined,
     };
 }
 

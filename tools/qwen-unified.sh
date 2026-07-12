@@ -16,8 +16,13 @@ else
 fi
 
 # 2. Configurar variables de entorno y API Keys
-export DASHSCOPE_API_KEY="${DASHSCOPE_API_KEY:-sk-6473637216fb4c85a2f3444c2f2aa816}"
-export OPENAI_API_KEY="${OPENAI_API_KEY:-sk-6473637216fb4c85a2f3444c2f2aa816}"
+# [REDACTADO:clave_api] — nunca hardcodear claves (auditoría de seguridad 2026-07-12).
+# Exporta DASHSCOPE_API_KEY en tu entorno (o .env.local, gitignorado) antes de ejecutar.
+if [ -z "$DASHSCOPE_API_KEY" ]; then
+    echo "⚠️ Falta DASHSCOPE_API_KEY en el entorno (no se hardcodea por seguridad)."
+fi
+export DASHSCOPE_API_KEY="${DASHSCOPE_API_KEY:-}"
+export OPENAI_API_KEY="${OPENAI_API_KEY:-$DASHSCOPE_API_KEY}"
 
 # 3. Instrucción del Sistema de Memoria Unificada (Universal Memory Protocol)
 SYSTEM_INSTRUCTION="Eres parte de un equipo unificado de desarrollo de IA para StarSeed OS (SOSD).

@@ -4,6 +4,13 @@ import { DashboardWidget } from "./dashboard-types";
 import dynamic from "next/dynamic";
 import { useAppearance } from "@/context/appearance-context";
 import { getWidgetFunctionStyle } from "./widget-function-style";
+import { WidgetStyleOverrideProvider } from "./kit/widget-style-override";
+import { ClockDateWidget } from "@/components/dashboard/widgets/clock-date-widget";
+import { TasksQuickWidget } from "@/components/dashboard/widgets/tasks-quick-widget";
+import { QuickNotesWidget } from "@/components/dashboard/widgets/quick-notes-widget";
+import { AuroraLastWidget } from "@/components/dashboard/widgets/aurora-last-widget";
+import { BadgesWidget } from "@/components/dashboard/widgets/badges-widget";
+import { NetworkFeedWidget } from "@/components/dashboard/widgets/network-feed-widget";
 import { ThemeSelectorWidget } from "@/components/dashboard/widgets/theme-selector-widget";
 import { ExploreNetworkWidget } from "@/components/dashboard/widgets/explore-network-widget";
 import { MyPagesWidget } from "@/components/dashboard/widgets/my-pages-widget";
@@ -129,14 +136,25 @@ import {
 
 interface WidgetProps {
     widget: DashboardWidget;
+    /** Persiste un patch en `widget.settings` (fusionado por el llamador — ver
+     *  grid-area.tsx). Opcional: solo lo usan los widgets con opciones propias
+     *  editables in-place (p. ej. CLOCK_DATE: analógico/digital, zona horaria). */
+    onUpdateSettings?: (patch: Record<string, any>) => void;
 }
 
-export function WidgetRegistry({ widget }: WidgetProps) {
+export function WidgetRegistry({ widget, onUpdateSettings }: WidgetProps) {
     // Estilo por FUNCIÓN: teñimos el contenedor con el acento de la familia del
     // widget como variable CSS de respaldo (--w-fn-accent) y marcamos data-widget-fn.
     // Aditivo y no intrusivo: el WidgetShell y sus acentos explícitos siguen mandando;
     // esto da coherencia visual "que habla por sí misma" y un hook para estilos futuros.
     const fn = getWidgetFunctionStyle(widget.widget_type);
+    // Override de estilo POR WIDGET (panel de config → engranaje), persistido en
+    // el propio item del dashboard. Sin elección explícita, el Provider pasa
+    // `{}` y WidgetShell se comporta exactamente igual que antes (tema global).
+    const styleOverride = {
+        variant: widget.settings?.styleVariant,
+        trinityNode: widget.settings?.trinityNode,
+    };
     return (
         <div
             className="h-full w-full"
@@ -144,12 +162,14 @@ export function WidgetRegistry({ widget }: WidgetProps) {
             data-widget-weight={fn.weight}
             style={{ ["--w-fn-accent" as string]: fn.accent }}
         >
-            <WidgetRegistryInner widget={widget} />
+            <WidgetStyleOverrideProvider value={styleOverride}>
+                <WidgetRegistryInner widget={widget} onUpdateSettings={onUpdateSettings} />
+            </WidgetStyleOverrideProvider>
         </div>
     );
 }
 
-function WidgetRegistryInner({ widget }: WidgetProps) {
+function WidgetRegistryInner({ widget, onUpdateSettings }: WidgetProps) {
     const { config } = useAppearance();
 
     switch (widget.widget_type) {
@@ -374,6 +394,20 @@ function WidgetRegistryInner({ widget }: WidgetProps) {
         // ── Mapa real interactivo (Ubicación) ──
         case 'MAP_LOCATION':
             return <MapWidget />;
+
+        // ── Sexta oleada: rediseño de widgets predeterminados (2026-07) ──
+        case 'CLOCK_DATE':
+            return <ClockDateWidget widget={widget} onUpdateSettings={onUpdateSettings} />;
+        case 'TASKS_QUICK':
+            return <TasksQuickWidget />;
+        case 'QUICK_NOTES':
+            return <QuickNotesWidget />;
+        case 'AURORA_LAST':
+            return <AuroraLastWidget />;
+        case 'BADGES':
+            return <BadgesWidget />;
+        case 'NETWORK_FEED_MINI':
+            return <NetworkFeedWidget />;
 
         default:
             return (

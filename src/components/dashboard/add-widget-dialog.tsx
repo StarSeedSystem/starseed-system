@@ -11,12 +11,17 @@ import {
     MessageSquare, BellRing, Zap, Search, Star, ChevronRight, Wallet,
     Music, Waves, AudioWaveform, Satellite, SlidersHorizontal, Orbit,
     CalendarDays, Users, Globe2, BookMarked, Vault, FolderOpen,
+    Clock, StickyNote, Award, Layers, Flame,
     type LucideIcon
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { WidgetType } from "./dashboard-types";
 import { WidgetCategory, WIDGET_CATEGORIES, getCategoryById } from "./widget-categories";
 import { WIDGET_CATEGORY_MAP, getWidgetsByCategory, searchWidgets } from "./dashboard-defaults";
+import { WIDGET_MANIFEST } from "./widget-manifest";
+import { ADD_WIDGET_SIZE_HINT_EVENT, SIZE_ORDER, SIZE_LABELS, type WidgetSize } from "./dashboard-size";
+import { getWidgetFunctionStyle } from "./widget-function-style";
+import { Bars, LivePulseDot } from "./kit";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -413,7 +418,97 @@ const AVAILABLE_WIDGETS: WidgetDefinition[] = [
         primaryCategory: 'archivos', secondaryCategories: ['sistema'],
         tags: ['archivos', 'documentos', 'almacenes', 'ficheros', 'real'],
     },
+    // ── Sexta oleada: rediseño de widgets predeterminados (2026-07) ──
+    {
+        type: 'CLOCK_DATE', title: 'Reloj y Fecha',
+        description: 'Hora real con esfera digital o analógica, fecha y zonas horarias adicionales.',
+        icon: <Clock className="h-5 w-5 text-amber-400" />,
+        primaryCategory: 'utilidades', secondaryCategories: ['sistema'],
+        tags: ['reloj', 'hora', 'fecha', 'analógico', 'zona horaria', 'tiempo'], isPopular: true,
+    },
+    {
+        type: 'TASKS_QUICK', title: 'Tareas',
+        description: 'Checklist personal con añadido rápido, persistente y sincronizada con tu cuenta.',
+        icon: <ListChecks className="h-5 w-5 text-violet-400" />,
+        primaryCategory: 'productividad', secondaryCategories: ['utilidades'],
+        tags: ['tareas', 'checklist', 'pendientes', 'todo', 'productividad', 'real'], isPopular: true,
+    },
+    {
+        type: 'QUICK_NOTES', title: 'Notas rápidas',
+        description: 'Bloc de notas cortas tipo post-it: escribe, fija y edita al vuelo.',
+        icon: <StickyNote className="h-5 w-5 text-amber-300" />,
+        primaryCategory: 'productividad', secondaryCategories: ['archivos'],
+        tags: ['notas', 'post-it', 'bloc', 'apuntes', 'recordatorio', 'real'],
+    },
+    {
+        type: 'AURORA_LAST', title: 'Aurora',
+        description: 'Tu última conversación con Aurora (exocórtex) + acceso directo al chat.',
+        icon: <Sparkles className="h-5 w-5 text-sky-400" />,
+        primaryCategory: 'ia', secondaryCategories: ['productividad'],
+        tags: ['aurora', 'exocortex', 'ia', 'chat', 'asistente', 'real'], isPopular: true,
+    },
+    {
+        type: 'BADGES', title: 'Insignias',
+        description: 'Tus insignias reales obtenidas en la red (Módulo 7 · Meritocracia del Entendimiento).',
+        icon: <Award className="h-5 w-5 text-yellow-500" />,
+        primaryCategory: 'perfil', secondaryCategories: ['educacion', 'sociedad'],
+        tags: ['insignias', 'logros', 'mérito', 'reputación', 'badges', 'real'],
+    },
+    {
+        type: 'NETWORK_FEED_MINI', title: 'Feed de la Red',
+        description: 'Mini-previsualizaciones del feed real del Lienzo Universal (/network), en vivo.',
+        icon: <Layers className="h-5 w-5 text-blue-400" />,
+        primaryCategory: 'social', secondaryCategories: ['red', 'explorador'],
+        tags: ['feed', 'publicaciones', 'red', 'lienzo universal', 'timeline', 'real'], isPopular: true,
+    },
 ];
+
+// ── Recomendados: mayor `relevance` (widget-manifest.ts) entre los widgets
+// realmente presentes en el catálogo de abajo. Señal ya existente en el
+// sistema (antes sin usar en el selector) — sin inventar una nueva.
+const RECOMMENDED_TYPES: WidgetType[] = Object.entries(WIDGET_MANIFEST)
+    .filter(([type]) => AVAILABLE_WIDGETS.some((w) => w.type === type))
+    .sort((a, b) => (b[1].relevance ?? 0) - (a[1].relevance ?? 0))
+    .slice(0, 10)
+    .map(([type]) => type as WidgetType);
+
+const SIZE_TOKENS: { id: WidgetSize; label: string; hint: string }[] = SIZE_ORDER.map((id) => ({ id, label: id, hint: SIZE_LABELS[id] }));
+
+// ── Preview viva de tarjeta ──────────────────────────────────────
+// No monta el widget real (evitaría 60+ fetches simultáneos al abrir el
+// selector); en su lugar dibuja una silueta esquemática ANIMADA coherente
+// con la función del widget (weight: ambient/data/action) y su acento real
+// (widget-function-style.ts) — con un pulso "en vivo" para que se sienta viva.
+function WidgetLivePreview({ type }: { type: WidgetType }) {
+    const fn = getWidgetFunctionStyle(type);
+    const seed = useMemo(() => type.split('').reduce((s, c) => s + c.charCodeAt(0), 0), [type]);
+    const bars = useMemo(() => Array.from({ length: 6 }, (_, i) => ({ value: 0.25 + ((seed * (i + 3)) % 70) / 100 })), [seed]);
+
+    return (
+        <div
+            className="relative h-14 w-full overflow-hidden rounded-xl border"
+            style={{ borderColor: `${fn.accent}30`, background: `linear-gradient(135deg, ${fn.accent}14, transparent 70%)` }}
+        >
+            <span className="absolute right-1.5 top-1.5"><LivePulseDot color={fn.accent} size={5} /></span>
+            {fn.weight === 'data' && (
+                <div className="absolute inset-x-2 bottom-1.5"><Bars data={bars} color={fn.accent} height={26} /></div>
+            )}
+            {fn.weight === 'action' && (
+                <div className="absolute inset-2 grid grid-cols-4 gap-1 content-end">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <span key={i} className="h-4 rounded-md" style={{ background: `${fn.accent}${i === 0 ? '55' : '22'}` }} />
+                    ))}
+                </div>
+            )}
+            {fn.weight === 'ambient' && (
+                <span
+                    className="absolute -bottom-4 -right-4 size-16 rounded-full blur-xl animate-pulse"
+                    style={{ background: `${fn.accent}40` }}
+                />
+            )}
+        </div>
+    );
+}
 
 
 // ── Props ────────────────────────────────────────────────────────
@@ -426,9 +521,20 @@ interface AddWidgetDialogProps {
 export function AddWidgetDialog({ onAdd, isEditMode, onForgeOpen }: AddWidgetDialogProps) {
     const [open, setOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeCategory, setActiveCategory] = useState<WidgetCategory | 'all' | 'popular'>('all');
+    const [activeCategory, setActiveCategory] = useState<WidgetCategory | 'all' | 'popular' | 'recomendados'>('all');
+    // Tamaño al añadir (S/M/L/XL) — aplica al SIGUIENTE widget que se pulse.
+    const [addSize, setAddSize] = useState<WidgetSize>('M');
 
     const handleAdd = (type: WidgetType) => {
+        // "Tamaño al añadir": si el usuario eligió algo distinto de M, avisamos
+        // a grid-area.tsx (que sí puede tocar `widgets`/`setWidgets`) para que
+        // aplique el footprint en cuanto el widget recién creado aparezca.
+        // onAdd(type) no cambia de forma: cero riesgo para quien lo implementa.
+        if (addSize !== 'M') {
+            try {
+                window.dispatchEvent(new CustomEvent(ADD_WIDGET_SIZE_HINT_EVENT, { detail: { type, size: addSize } }));
+            } catch { /* defensivo */ }
+        }
         onAdd(type);
         setOpen(false);
     };
@@ -448,7 +554,10 @@ export function AddWidgetDialog({ onAdd, isEditMode, onForgeOpen }: AddWidgetDia
         let results = AVAILABLE_WIDGETS;
 
         // Filter by category
-        if (activeCategory === 'popular') {
+        if (activeCategory === 'recomendados') {
+            const order = new Map(RECOMMENDED_TYPES.map((t, i) => [t, i]));
+            results = results.filter(w => order.has(w.type)).sort((a, b) => (order.get(a.type)! - order.get(b.type)!));
+        } else if (activeCategory === 'popular') {
             results = results.filter(w => w.isPopular);
         } else if (activeCategory !== 'all') {
             results = results.filter(w =>
@@ -502,6 +611,26 @@ export function AddWidgetDialog({ onAdd, isEditMode, onForgeOpen }: AddWidgetDia
                             className="pl-9 h-11 bg-muted/30"
                         />
                     </div>
+                    {/* Tamaño al añadir */}
+                    <div className="mt-3 flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Tamaño al añadir</span>
+                        <div className="flex items-center gap-1">
+                            {SIZE_TOKENS.map((s) => (
+                                <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => setAddSize(s.id)}
+                                    title={s.hint}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all cursor-pointer",
+                                        addSize === s.id ? "bg-primary/15 border-primary/50 text-primary" : "border-border/40 text-muted-foreground hover:text-foreground hover:border-border"
+                                    )}
+                                >
+                                    {s.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 <div className="flex flex-1 min-h-0">
@@ -537,6 +666,20 @@ export function AddWidgetDialog({ onAdd, isEditMode, onForgeOpen }: AddWidgetDia
                                 <span className="ml-auto text-[10px] opacity-60">
                                     {AVAILABLE_WIDGETS.filter(w => w.isPopular).length}
                                 </span>
+                            </button>
+                            {/* Recomendados */}
+                            <button
+                                onClick={() => setActiveCategory('recomendados')}
+                                className={cn(
+                                    "w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all",
+                                    activeCategory === 'recomendados'
+                                        ? "bg-primary/15 text-primary font-semibold"
+                                        : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <Flame className="h-4 w-4 text-orange-500" />
+                                Recomendados
+                                <span className="ml-auto text-[10px] opacity-60">{RECOMMENDED_TYPES.length}</span>
                             </button>
 
                             <div className="h-px bg-border/50 my-2" />
@@ -581,9 +724,17 @@ export function AddWidgetDialog({ onAdd, isEditMode, onForgeOpen }: AddWidgetDia
                             variant={activeCategory === 'popular' ? 'default' : 'ghost'}
                             size="sm"
                             onClick={() => setActiveCategory('popular')}
-                            className="shrink-0"
+                            className="shrink-0 gap-1"
                         >
-                            ⭐ Populares
+                            <Star className="h-3.5 w-3.5" /> Populares
+                        </Button>
+                        <Button
+                            variant={activeCategory === 'recomendados' ? 'default' : 'ghost'}
+                            size="sm"
+                            onClick={() => setActiveCategory('recomendados')}
+                            className="shrink-0 gap-1"
+                        >
+                            <Flame className="h-3.5 w-3.5" /> Recomendados
                         </Button>
                         {categoriesWithWidgets.map(cat => {
                             const Icon = cat.icon;
@@ -605,7 +756,18 @@ export function AddWidgetDialog({ onAdd, isEditMode, onForgeOpen }: AddWidgetDia
                     {/* Widget Grid */}
                     <div className="flex-1 overflow-y-auto p-4 md:p-6">
                         {/* Category Header */}
-                        {activeCategory !== 'all' && activeCategory !== 'popular' && (() => {
+                        {activeCategory === 'recomendados' && (
+                            <div className="flex items-center gap-3 mb-4 pb-3 border-b border-border/30">
+                                <div className="p-2 rounded-lg bg-orange-500/10">
+                                    <Flame className="h-5 w-5 text-orange-500" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold">Recomendados</h3>
+                                    <p className="text-xs text-muted-foreground">Los de mayor relevancia para tu tablero, entre todo el catálogo.</p>
+                                </div>
+                            </div>
+                        )}
+                        {activeCategory !== 'all' && activeCategory !== 'popular' && activeCategory !== 'recomendados' && (() => {
                             const cat = getCategoryById(activeCategory);
                             if (!cat) return null;
                             const Icon = cat.icon;
@@ -676,31 +838,34 @@ function WidgetStoreItem({ widget, onClick }: { widget: WidgetDefinition, onClic
     return (
         <Button
             variant="outline"
-            className="h-full min-h-[140px] flex flex-col items-center justify-center gap-3 p-5 hover:bg-muted/80 hover:border-primary/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-center group w-full relative overflow-hidden"
+            className="h-full min-h-[200px] flex flex-col items-stretch justify-start gap-3 p-4 hover:bg-muted/80 hover:border-primary/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-center group w-full relative overflow-hidden"
             onClick={onClick}
         >
             {/* Popular badge */}
             {widget.isPopular && (
-                <div className="absolute top-2 right-2">
+                <div className="absolute top-2 right-2 z-10">
                     <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
                 </div>
             )}
 
-            <div className="flex flex-col items-center gap-3 w-full">
-                <div className="p-3 rounded-full bg-background border shadow-sm group-hover:bg-primary/10 group-hover:scale-110 transition-all duration-300">
+            {/* Preview viva */}
+            <WidgetLivePreview type={widget.type} />
+
+            <div className="flex flex-col items-center gap-2 w-full">
+                <div className="p-2.5 rounded-full bg-background border shadow-sm group-hover:bg-primary/10 group-hover:scale-110 transition-all duration-300 -mt-8 relative z-10">
                     {widget.icon}
                 </div>
                 <span className="font-semibold text-sm md:text-base">{widget.title}</span>
             </div>
 
-            <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 px-1">
+            <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 px-1 flex-1">
                 {widget.description}
             </p>
 
             {/* Category badge */}
             {cat && (
                 <div className={cn(
-                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium",
+                    "self-center inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium",
                     "bg-muted/80 text-muted-foreground"
                 )}>
                     {cat.name}

@@ -95,6 +95,19 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     packageIds: ["iatool-aurora-voice-kokoro"],
   },
   {
+    /* Voz NEURAL por endpoint (Adenda voz de Aurora, jul-2026 · SOP
+     * centro-creacion §10): Bark · GPT-SoVITS · OmniVoice son servidores
+     * Python en una neurona propia/CasaOS. La síntesis NO pasa por el router
+     * LLM (sin routing bias): este bloque solo da a Aurora el CONOCIMIENTO de
+     * sus motores y de sus tools de voz. */
+    id: "voice-neural",
+    label: "Voz neural por endpoint (Bark · SoVITS · OmniVoice)",
+    systemPrompt:
+      "Tu voz puede sonar con motores neuronales por endpoint instalados en una neurona propia o CasaOS: Bark (generativo expresivo), GPT-SoVITS (clona una voz con ~5 s de muestra) y OmniVoice (multilingüe). Si el usuario te pide cambiar cómo suenas («usa bark», «clona esta voz», «habla más dulce»), hazlo TÚ con tus herramientas de voz (ajustar_voz, cambiar_motor_voz, estado_voz); el endpoint se configura en Ajustes → Voz. Nunca te quedas muda: si un motor no responde, sigues hablando por la cadena de respaldo (Kokoro → mejor voz del navegador).",
+    skillIds: ["aurora-voice-bark", "aurora-voice-sovits", "aurora-voice-omnivoice"],
+    packageIds: ["iatool-bark", "iatool-gpt-sovits", "iatool-omnivoice"],
+  },
+  {
     id: "web-access",
     label: "Acceso a internet (web)",
     systemPrompt:

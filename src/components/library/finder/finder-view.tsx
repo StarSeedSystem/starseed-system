@@ -45,9 +45,12 @@ import type { UniversalAttachment } from "@/lib/files/os-files";
 import {
     type FinderViewMode, type FinderSort, FINDER_VIEW_KEY, FINDER_SORT_KEY,
     folderPath, folderSubtreeIds, sortItems, sortFolders,
-    readClipboard, writeClipboard, clearClipboard, deepLinkFor,
+    readClipboard, writeClipboard, clearClipboard, deepLinkFor, deepLinkForFolder,
     type AclViewerContext, canWrite as aclCanWrite,
 } from "./finder-types";
+// Compartir universal (Adenda 63 §5): ámbito + roles por ítem/carpeta; espeja
+// la ACL embebida ('acl' del doc de entity_state) y crea os_spaces para externos.
+import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
 import { itemFormat } from "./item-meta";
 import { FolderTree, DRAG_MIME } from "./folder-tree";
 import { FinderBreadcrumb } from "./finder-breadcrumb";
@@ -133,7 +136,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     const [myUserId, setMyUserId] = useState<string | null>(null);
     useEffect(() => {
         let alive = true;
-        createClient().auth.getUser().then(({ data }) => {
+        createClient().auth.getUser().then(({ data }: { data: { user: { id: string } | null } }) => {
             if (alive) setMyUserId(data.user?.id ?? null);
         });
         return () => {
@@ -162,6 +165,8 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     const [moveDialog, setMoveDialog] = useState<{ kind: "item" | "folder"; ids: string[] } | null>(null);
     const [tagsDialog, setTagsDialog] = useState<SavedItem | null>(null);
     const [permissionsTarget, setPermissionsTarget] = useState<{ kind: "item" | "folder"; id: string; title: string; acl?: ItemACL } | null>(null);
+    // Compartir universal por ítem/carpeta (ámbito + roles; Adenda 63 §5).
+    const [shareTarget, setShareTarget] = useState<{ kind: "item" | "folder"; id: string; title: string } | null>(null);
     const [publishTarget, setPublishTarget] = useState<
         | { mode: "item"; item: SavedItem }
         | { mode: "folder"; folderId: string | null; folderName: string }
@@ -433,17 +438,18 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         [entityRef, moveItem, duplicateItem, saveItem],
     );
 
-    const handleShare = useCallback((id: string) => {
-        const link = deepLinkFor(entityRef, id);
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(link).then(
-                () => toast.success("Enlace copiado", { description: link }),
-                () => toast.message("Enlace generado", { description: link }),
-            );
-        } else {
-            toast.message("Enlace generado", { description: link });
-        }
-    }, [entityRef]);
+    // "Compartir" abre el diálogo universal (ámbito + roles + enlace profundo).
+    // El enlace copiable de antes sigue disponible dentro del diálogo.
+    const handleShare = useCallback(
+        (kind: "item" | "folder", id: string) => {
+            const title =
+                kind === "item"
+                    ? itemsById.get(id)?.title ?? "Ítem"
+                    : doc.folders.find((f) => f.id === id)?.name ?? "Carpeta";
+            setShareTarget({ kind, id, title });
+        },
+        [itemsById, doc.folders],
+    );
 
     /** Archivos subidos desde el selector universal: crea un ítem type:'file' por cada uno en la carpeta activa. */
     const handleUploadedFiles = useCallback(
@@ -1002,7 +1008,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         const it = itemsById.get(menuTarget.id);
                         if (it) setTagsDialog(it);
                     }}
-                    onShare={() => handleShare(menuTarget.id)}
+                    onShare={() => handleShare(menuTarget.kind, menuTarget.id)}
                     onPublish={
                         menuTarget.kind === "item"
                             ? () => {
@@ -1137,6 +1143,28 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         if (permissionsTarget.kind === "item") await setItemAcl(permissionsTarget.id, acl);
                         else await setFolderAcl(permissionsTarget.id, acl);
                     }}
+                />
+            )}
+
+            {/* ── Compartir universal (ámbito + roles; espeja la ACL y crea espacio para externos) ── */}
+            {shareTarget && (
+                <ShareAccessDialog
+                    open
+                    onOpenChange={(o) => !o && setShareTarget(null)}
+                    resource={{
+                        type: shareTarget.kind === "item" ? "file" : "folder",
+                        id: shareTarget.id,
+                        title: shareTarget.title,
+                        // Solo marcamos dueño si el visitante ES dueño de esta biblioteca
+                        // (ctx.userId es el uid del VISITANTE, no siempre el del dueño).
+                        ownerId: ctx.isOwner ? ctx.userId ?? undefined : undefined,
+                        libraryRef: entityRef,
+                    }}
+                    buildLink={() =>
+                        shareTarget.kind === "item"
+                            ? deepLinkFor(entityRef, shareTarget.id)
+                            : deepLinkForFolder(entityRef, shareTarget.id)
+                    }
                 />
             )}
 

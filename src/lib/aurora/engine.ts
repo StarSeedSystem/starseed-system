@@ -57,6 +57,13 @@ import { containsWake, stripWake } from "@/lib/aurora/wake-word";
 import { isInstalledApp } from "@/lib/aurora/voice-autonomy";
 // Descriptor de "Revertir cambios" (Adenda "Aurora siempre responde", jul-2026).
 import type { AuroraUndoInfo } from "@/lib/aurora/undo";
+// VOZ NATURAL + ESTILO VIVO (Adenda voz de Aurora, jul-2026): ranking de voces
+// del navegador (neurales/premium primero, es-* preferente) y modulación
+// emocional persistida en `starseed.aurora.voice.v1`. Módulos LIGEROS y
+// SSR-safe: importarlos no carga nada pesado.
+import { resolveBrowserVoice } from "@/lib/aurora/tts-oss/browser-voices";
+import { resolveVoiceParams } from "@/lib/aurora/tts-oss/voice-style";
+import { getVoiceConfig as getUnifiedVoiceConfig } from "@/lib/aurora/tts-oss/voice-config";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -346,6 +353,13 @@ export function useAuroraEngine(): AuroraEngine {
       }
     } catch { /* */ }
 
+    // VOZ · estilo vivo (Personalidades → modulación): instala el consumidor
+    // GLOBAL de 'starseed:aurora-voice-style' UNA sola vez (idempotente). Import
+    // perezoso y defensivo: si falla, Aurora habla igual con su estilo actual.
+    void import("@/lib/aurora/tts-oss/voice-style")
+      .then((m) => m.installVoiceStyleListener())
+      .catch(() => { /* */ });
+
     (async () => {
       const [s, ps] = await Promise.all([getSettings(), listPersonalities()]);
       setSettings(s);
@@ -442,8 +456,25 @@ export function useAuroraEngine(): AuroraEngine {
       const baseRate = Number(p.voice?.rate ?? 1);
       u.pitch = Math.max(0, Math.min(2, basePitch + (calidez - 50) / 250)); // calidez → +pitch leve
       u.rate = Math.max(0.1, Math.min(2, baseRate + (energia - 50) / 200)); // energía → +rate
+      // (Adenda voz de Aurora) ESTILO EMOCIONAL VIVO: multiplica sobre la entrega
+      // de la personalidad con el estilo persistido (evento
+      // 'starseed:aurora-voice-style', herramienta ajustar_voz, sliders del panel).
+      try {
+        const style = resolveVoiceParams();
+        u.rate = Math.max(0.1, Math.min(2, u.rate * style.rate));
+        u.pitch = Math.max(0, Math.min(2, u.pitch * style.pitch));
+        u.volume = style.volume;
+      } catch { /* estilo no disponible → entrega histórica intacta */ }
       const all = window.speechSynthesis.getVoices() || [];
+      // Voz: 1) la fijada en la personalidad → 2) la elegida/mejor RANKEADA del
+      // navegador (config unificada; "" = automática = neurales/premium primero,
+      // es-* preferente) → 3) cadena histórica (Mónica es-MX → es → cualquiera).
+      let ranked: SpeechSynthesisVoice | null = null;
+      try {
+        ranked = resolveBrowserVoice(getUnifiedVoiceConfig().browserVoiceURI, all, u.lang || "es");
+      } catch { ranked = null; }
       const v = (p.voice?.voiceURI && all.find((x) => x.voiceURI === p.voice.voiceURI))
+        || ranked
         || all.find((x) => /m[oó]nica/i.test(x.name) && /es[-_]MX/i.test(x.lang))
         || all.find((x) => /es[-_]MX/i.test(x.lang))
         || all.find((x) => x.lang === u.lang)

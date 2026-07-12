@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
 import { useWorkspace } from "./dashboard-workspace-context";
 import { WorkspaceNode, PanelNode } from "./dashboard-workspace-types";
@@ -31,6 +31,8 @@ interface WorkspaceRendererProps {
     onCreateDashboard?: () => void;
     onDeleteDashboard?: (id: string) => void;
     onRenameDashboard?: (id: string) => void;
+    /** Compartir tablero con el modelo universal de permisos (Adenda 63 §5). */
+    onShareDashboard?: (id: string) => void;
     onCreateFromTemplate?: (categoryId: string, name: string) => void;
     /** Tipo de dispositivo actual (resalta tableros afines en la barra). */
     currentDevice?: DeviceType;
@@ -111,12 +113,55 @@ function NodeRenderer({ node, ...props }: { node: WorkspaceNode } & WorkspaceRen
     return null;
 }
 
-function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, onPinWidget, onAddWidget, onForgeOpen, onCreateDashboard, onDeleteDashboard, onRenameDashboard, onCreateFromTemplate, currentDevice, onSetDeviceTags, onOpenDeviceManager }: { node: PanelNode } & WorkspaceRendererProps) {
+function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, onPinWidget, onAddWidget, onForgeOpen, onCreateDashboard, onDeleteDashboard, onRenameDashboard, onShareDashboard, onCreateFromTemplate, currentDevice, onSetDeviceTags, onOpenDeviceManager }: { node: PanelNode } & WorkspaceRendererProps) {
     const { activeDashboardId, dashboardIds } = node;
     const activeDashboard = dashboards.find(d => d.id === activeDashboardId);
     const panelDashboards = dashboards.filter(d => dashboardIds.includes(d.id));
 
     const { openDashboardInPanel } = useWorkspace();
+
+    // Barra superior (pestañas de ventanas de dashboard) inteligente: se oculta
+    // al hacer scroll hacia abajo y reaparece cerca del tope. El scroll real
+    // ocurre en este contenedor interno (no en window).
+    //
+    // ⚠️ ESTABILIDAD (bug "glitcheo en loop", 2026-07-12): la barra colapsa EN
+    // FLUJO (max-h-28→0), así que ocultarla agranda ~112px el contenedor de
+    // scroll. Cerca del fondo, el navegador RECORTA scrollTop al nuevo máximo y
+    // dispara eventos de scroll "hacia arriba" que la lógica direccional (±8px)
+    // interpretaba como subir → mostrar → encoger → volver a ocultar… bucle
+    // infinito de mostrar/ocultar que además alternaba la scrollbar (ancho del
+    // lienzo) y hacía que react-grid-layout re-acomodara TODOS los widgets en
+    // cada ciclo. Solución de raíz: rAF-throttle + histéresis por POSICIÓN
+    // (ocultar >96px / mostrar <32px) + guarda de recorrido: solo se oculta si,
+    // tras colapsar, el scroll restante no puede re-cruzar el umbral de mostrar.
+    // Así ningún evento derivado del propio cambio puede invertir el estado.
+    // (Hooks ANTES del return del panel vacío: cumple las reglas de hooks si un
+    // panel pasa de vacío a poblado sin remontarse.)
+    const HEADER_COLLAPSE_PX = 112; // alto máx. de la barra (max-h-28)
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const scrollRafRef = useRef<number | null>(null);
+    const [headerHidden, setHeaderHidden] = useState(false);
+    const onScroll = useCallback(() => {
+        if (scrollRafRef.current !== null) return; // 1 lectura por frame
+        scrollRafRef.current = requestAnimationFrame(() => {
+            scrollRafRef.current = null;
+            const el = scrollRef.current;
+            if (!el) return;
+            const y = el.scrollTop;
+            setHeaderHidden((hidden) => {
+                if (hidden) return y >= 32; // mostrar solo cerca del tope
+                // Ocultar solo con histéresis Y pista suficiente: tras colapsar,
+                // el máximo de scroll baja HEADER_COLLAPSE_PX; exigimos que aún
+                // queden ≥48px por encima del umbral de mostrar para que el
+                // recorte del navegador jamás devuelva y < 32 (cero bucles).
+                const runwayAfterHide = el.scrollHeight - el.clientHeight - HEADER_COLLAPSE_PX;
+                return y > 96 && runwayAfterHide >= 32 + 48;
+            });
+        });
+    }, []);
+    useEffect(() => () => {
+        if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current);
+    }, []);
 
     if (dashboardIds.length === 0 || !activeDashboard) {
         return (
@@ -175,22 +220,6 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
 
     const activeWidgets = widgetsMap[activeDashboard.id] || [];
 
-    // Barra superior (pestañas de ventanas de dashboard) inteligente: se oculta
-    // al hacer scroll hacia abajo y reaparece al subir o al llegar arriba. El
-    // scroll real ocurre en este contenedor interno (no en window).
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const lastYRef = useRef(0);
-    const [headerHidden, setHeaderHidden] = useState(false);
-    const onScroll = useCallback(() => {
-        const el = scrollRef.current;
-        if (!el) return;
-        const y = el.scrollTop;
-        if (y < 24) setHeaderHidden(false);                       // siempre visible arriba
-        else if (y > lastYRef.current + 8) setHeaderHidden(true); // baja → ocultar
-        else if (y < lastYRef.current - 8) setHeaderHidden(false);// sube → mostrar
-        lastYRef.current = y;
-    }, []);
-
     return (
         <div className="w-full h-full flex flex-col bg-transparent relative">
             <div
@@ -202,7 +231,9 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
                 <DashboardPanelHeader
                     panelId={node.id}
                     dashboards={panelDashboards}
-                    activeId={activeDashboardId}
+                    // activeDashboard existe tras la guarda del panel vacío; su id es
+                    // el mismo activeDashboardId pero tipado como string (no null).
+                    activeId={activeDashboard.id}
                     allDashboards={dashboards}
                     isEditMode={isEditMode}
                     widgetCounts={Object.fromEntries(
@@ -212,6 +243,7 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
                     onCreateDashboard={onCreateDashboard}
                     onDeleteDashboard={onDeleteDashboard}
                     onRenameDashboard={onRenameDashboard}
+                    onShareDashboard={onShareDashboard}
                     onSetDeviceTags={onSetDeviceTags}
                     onOpenDeviceManager={onOpenDeviceManager}
                 />
@@ -233,7 +265,11 @@ function DashboardPanel({ node, dashboards, isEditMode, widgetsMap, setWidgets, 
                 duplica el padding del lienzo (GridArea aporta el suyo), devolviendo
                 ancho útil a los widgets. overflow-x-hidden evita barras horizontales
                 accidentales por hijos que se salgan durante una animación. */}
-            <div ref={scrollRef} onScroll={onScroll} style={{ touchAction: "pan-y" }} className="box-border flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar relative px-1.5 py-2 sm:px-2">
+            {/* [scrollbar-gutter:stable]: la aparición/desaparición de la scrollbar
+                ya no cambia el ancho del lienzo (evita re-acomodos de la rejilla al
+                ocultarse la barra). [overflow-anchor:none]: el navegador no
+                re-ancla scrollTop cuando el contenido interno cambia de alto. */}
+            <div ref={scrollRef} onScroll={onScroll} style={{ touchAction: "pan-y" }} className="box-border flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar relative px-1.5 py-2 sm:px-2 [scrollbar-gutter:stable] [overflow-anchor:none]">
                 <GridArea
                     dashboardId={activeDashboard.id}
                     widgets={activeWidgets}
