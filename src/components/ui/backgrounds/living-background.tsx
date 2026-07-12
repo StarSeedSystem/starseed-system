@@ -17,6 +17,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useAppearance } from "@/context/appearance-context";
+import { applyAlpha } from "@/lib/utils";
 
 type Variant =
     | "aurora"
@@ -63,11 +64,6 @@ function hexToRgb(c: string): [number, number, number] {
     const n = h.length === 3 ? h.split("").map((x) => x + x).join("") : h;
     const num = parseInt(n, 16);
     return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
-}
-
-function applyAlpha(col: string, hexAlpha: string, floatAlpha: string): string {
-    if (col.startsWith("hsl(")) return col.replace(")", ` / ${floatAlpha})`);
-    return col + hexAlpha;
 }
 
 export function LivingBackground() {

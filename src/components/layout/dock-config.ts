@@ -7,6 +7,15 @@
  * el usuario decide qué exponer en cada superficie.
  */
 
+import type React from 'react';
+import {
+  LayoutDashboard, CircleUser, MessagesSquare, Bell, Users, BookOpen, Library,
+  Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
+  Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
+  CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
+  Camera, Images,
+} from 'lucide-react';
+
 export type DockColor = 'neutral' | 'cyan' | 'crimson' | 'amber' | 'emerald' | 'purple';
 
 export interface DockItemConfig {
@@ -37,6 +46,23 @@ export type DockIconKey =
   | 'Zap' | 'Wrench' | 'Plug' | 'Eye' | 'HardDrive' | 'Boxes'
   // ── Medios (Cámara + Galería) ──
   | 'Camera' | 'Images';
+
+/**
+ * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
+ * tanto el OmniDock como el catálogo de accesos rápidos (QuickOptionsGrid),
+ * que antes tenía su propio mapa con claves distintas (Home, User, …) y por eso
+ * casi todos los items acababan en el icono de respaldo.
+ */
+export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?: string }>> = {
+  LayoutDashboard, CircleUser, MessagesSquare, Bell, Users, BookOpen, Library,
+  Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
+  Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
+  CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
+  Camera, Images,
+};
+
+/** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
+export const DOCK_FALLBACK_ICON = LayoutGrid;
 
 const STORAGE_KEY = 'starseed.dock.items.v2';
 const FOLDERS_KEY = 'starseed.dock.folders.v1';

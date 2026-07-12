@@ -5,7 +5,7 @@ import { motion, HTMLMotionProps } from "framer-motion";
 interface StitchButtonProps extends Omit<HTMLMotionProps<"button">, "ref"> {
     variant?: "primary" | "secondary" | "ghost";
     theme?: "default" | "liquid" | "liquid-crystal" | "organic" | "glass" | "neon" | "brutal";
-    size?: "sm" | "md" | "lg" | "xl";
+    size?: "sm" | "md" | "lg" | "xl" | "icon";
     glow?: boolean;
     styleConfig?: {
         cornerRadius?: number;
@@ -40,6 +40,8 @@ export function StitchButton({
         md: "px-5 py-2.5 text-xs tracking-normal",
         lg: "px-7 py-3.5 text-sm tracking-wide",
         xl: "px-10 py-5 text-base tracking-widest uppercase font-bold",
+        // Botón cuadrado de solo-icono: el tamaño lo fija quien lo usa (w-8 h-8…).
+        icon: "p-0",
     };
 
     // Theme-specific styles

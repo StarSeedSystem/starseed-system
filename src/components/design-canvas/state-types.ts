@@ -40,7 +40,9 @@ export interface CanvasState {
         bodyTracking: number;
     };
     components: {
-        buttonStyle: "liquid-crystal" | "liquid" | "organic" | "neon" | "brutal" | "glass" | "solid";
+        // Los valores admitidos son los temas reales de <StitchButton />.
+        // ("solid" no existía en el componente ni se podía elegir en la UI.)
+        buttonStyle: "liquid-crystal" | "liquid" | "organic" | "neon" | "brutal" | "glass";
         buttonGlow: boolean;
         cardPreset: "liquid-crystal" | "crystal" | "liquid-action" | "holographic" | "hyper-crystal" | "mesh" | "cyber" | "brutal";
         cardTilt: boolean;
@@ -593,3 +595,38 @@ export const defaultCanvasState: CanvasState = {
     stitchCode: "",
     stitchScreenId: "",
 };
+
+/**
+ * Acciones del reducer del Design Canvas.
+ * Vive aquí (y no en DesignIntegrationCanvas) para que las pestañas puedan
+ * tipar su `dispatch` sin importar el componente contenedor.
+ */
+export type CanvasAction =
+    | { type: "SET_PALETTE"; payload: Partial<CanvasState["palette"]> }
+    | { type: "SET_TYPOGRAPHY"; payload: Partial<CanvasState["typography"]> }
+    | { type: "SET_COMPONENTS"; payload: Partial<CanvasState["components"]> }
+    | { type: "SET_EFFECTS"; payload: Partial<CanvasState["effects"]> }
+    | { type: "SET_ENVIRONMENT"; payload: Partial<CanvasState["environment"]> }
+    | { type: "SET_GEOMETRY"; payload: Partial<CanvasState["geometry"]> }
+    | { type: "SET_SHADOWS"; payload: Partial<CanvasState["shadows"]> }
+    | { type: "SET_STITCH_CODE"; payload: { code: string; screenId?: string } }
+    | { type: "SET_TRINITY"; payload: Partial<CanvasState["palette"]["trinity"]> }
+    | { type: "SET_DIALOGS"; payload: Partial<CanvasState["dialogs"]> }
+    | { type: "SET_TABS_CONFIG"; payload: Partial<CanvasState["tabsConfig"]> }
+    | { type: "SET_TOGGLES"; payload: Partial<CanvasState["toggles"]> }
+    | { type: "SET_AVATARS"; payload: Partial<CanvasState["avatars"]> }
+    | { type: "SET_PROGRESS"; payload: Partial<CanvasState["progressBars"]> }
+    | { type: "SET_TOASTS"; payload: Partial<CanvasState["toasts"]> }
+    | { type: "SET_NAV"; payload: Partial<CanvasState["nav"]> }
+    | { type: "SET_ICONOGRAPHY"; payload: Partial<CanvasState["iconography"]> }
+    | { type: "SET_POSITIONING"; payload: Partial<CanvasState["positioning"]> }
+    | { type: "SET_WIDGETS"; payload: Partial<CanvasState["widgets"]> }
+    | { type: "SET_BACKGROUNDS"; payload: Partial<CanvasState["backgrounds"]> }
+    | { type: "SET_SECONDARY"; payload: Partial<CanvasState["secondary"]> }
+    | { type: "SET_AI_CONFIG"; payload: Partial<CanvasState["aiConfig"]> }
+    | { type: "SET_LAYOUT_CONFIG"; payload: Partial<CanvasState["layoutConfig"]> }
+    | { type: "SET_ANIMATIONS"; payload: Partial<CanvasState["animations"]> }
+    | { type: "SET_UI"; payload: Partial<CanvasState["ui"]> }
+    | { type: "SET_SPLINE_CONFIG"; payload: Partial<CanvasState["splineConfig"]> }
+    | { type: "LOAD_STATE"; payload: CanvasState }
+    | { type: "RESET" };

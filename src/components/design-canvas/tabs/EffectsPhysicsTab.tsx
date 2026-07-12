@@ -17,14 +17,15 @@ interface Props {
 }
 
 // ─── Shared Controls ─────────────────────────────────────────
-function Slider({ label, description, id, value, min, max, step, unit, onChange, color = "rose", onHighlight }: {
+function Slider({ label, description, id, value, min, max, step = 1, unit, onChange, color = "rose", onHighlight }: {
     label: string;
     description?: string;
     id: string;
     value: number;
     min: number;
     max: number;
-    step: number;
+    /** Paso del range. Por defecto 1 (igual que el <input type="range"> nativo). */
+    step?: number;
     unit?: string;
     onChange: (v: number) => void;
     color?: string;

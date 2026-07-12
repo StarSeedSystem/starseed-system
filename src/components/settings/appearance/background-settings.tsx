@@ -51,7 +51,7 @@ import {
     AudioLines,
     Link2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, applyAlpha } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
 
 /* ──────────────────────────────────────────────────────────────────────

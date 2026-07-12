@@ -6,11 +6,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAppearance } from "@/context/appearance-context";
 
 export default function SettingsAuditPage() {
-    const { settings } = useAppearance();
-
     return (
         <div className="container mx-auto p-8 space-y-12 pb-32">
             <div className="space-y-4">

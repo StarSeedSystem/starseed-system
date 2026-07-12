@@ -2089,3 +2089,40 @@ Principio: el OS SIEMPRE funciona con opciones gratuitas/OSS elegidas por Astrau
 - `cafe_posts` (que es lo que lee `PostFeed`) no emite señal: sus escrituras viven en otro flujo. Solo se refresca por `postgres_changes` de `cafe_posts` o por la señal de `os_posts`.
 - Los canales de entidad son públicos (cualquiera autenticado puede suscribirse a `ent:<kind>:<id>`). Como solo viaja la señal, no hay fuga; si se quisiera endurecer → Realtime Authorization (canales privados con RLS sobre `realtime.messages`).
 - tsc (tsconfig real del repo vía `extends`, con los 7 archivos tocados en `files`): **0 errores**.
+
+---
+
+## 2026-07-12 — Deuda de tipos a cero + bug de runtime en el preview de fondos
+
+**Sesión por:** Claude (subagente Cowork).
+**Resumen ejecutivo:** `next.config.ts` tiene `ignoreBuildErrors: true`, así que el build pasaba con **102 errores de TypeScript** ocultos. Se han arreglado TODOS (`npx tsc --noEmit` → **0 errores**) sin tocar comportamiento, y por el camino han aparecido varios **bugs reales de runtime**, no solo de tipos.
+
+### Hecho — bugs de runtime (los importantes)
+- **`applyAlpha` no definida** en `settings/appearance/background-settings.tsx:458`: el mini-preview de los fondos "vivos" (aurora/nebula/plasma) llamaba a una función inexistente → **ReferenceError y crash del panel de Apariencia** en cuanto se pintaba esa rama. El helper existía duplicado en `ui/backgrounds/living-background.tsx`; se ha promovido a `src/lib/utils.ts` (`applyAlpha`, ahora soporta hex/#rgb/hsl()/hsla()/rgb()/rgba()) y lo usan los dos.
+- **`universal-board-viewer.tsx` sin imports** (tenía un `// ... existing imports ...` en su sitio): `useBoardSystem`, `useState` y `cn` eran identificadores libres → ReferenceError al renderizar el visor de pizarras (lo montan `control-panel.tsx` y `side-curtains.tsx`).
+- **`/api/widget-forge/generate-visuals`**: en el `catch` se usaba `prompt`, declarado DENTRO del `try` → resolvía al `prompt` global del DOM (que en Node no existe) → ReferenceError y 500 en vez del fallback demo. Ahora `prompt` se declara fuera del `try`.
+- **`components-test/page.tsx`**: llamaba a `setConfig(...)`, que no existe en el contexto de apariencia → TypeError al pulsar "Force Enable Liquid UI". Ahora usa `updateConfig` (deep-merge).
+- **Sliders de Cristal Líquido en NaN**: `liquidGlass.distortWidth/distortRadius/smoothStepEdge` se leían y escribían (mapean a `--glass-opacity`/`--glass-blur`/`--glass-saturation`) pero **no existían en el tipo ni en los defaults** → `Math.round(undefined*100)` = NaN. Añadidos al tipo y a `DEFAULT_CONFIG` (0.4 / 0.4 / 0.8); el `deepMerge` de carga los rellena en las cuentas ya guardadas.
+- **Iconos del catálogo de accesos rápidos**: `quick-options-grid.tsx` tenía su propio `ICON_MAP` con claves (`Home`, `User`, `Book`…) que **no coinciden** con `DockIconKey` (`LayoutDashboard`, `CircleUser`, `BookOpen`…) → casi todos los items caían al icono de respaldo. El mapa es ahora único y exportado: `DOCK_ICON_MAP` en `dock-config.ts`, consumido por el OmniDock y por el catálogo.
+- **Chips "indigo" sin estado activo** (`OptionChips`): el color no estaba en el `colorMap` → el chip seleccionado se pintaba como inactivo en la pestaña de Iconografía. Añadido.
+- **Etiquetas de entidad siempre "Grupo"** (`entity-roles-panel.tsx`): comparaba `p.kind === "profile" | "page"` contra un `ProfileKind` (`personal|civic|artistic|professional|custom`) → siempre falso. Ahora usa `profileKindLabel(p.kind)`. También se comprueba el código de error de forma defensiva (`grantEntityRole` puede devolver `error` como string).
+- **`DesignIntegrationCanvas.tsx`**: `familyToTab` tenía 3 claves duplicadas (`cards`/`tooltips`/`badges`) → eliminadas.
+- **`04-auto-discover.ts`**: el frontmatter de una SKILL.md podía dejar `tags`/`triggers`/`dependencies` a `undefined` dentro de un `SkillMetadata`. Nuevo helper `toSkillMetadata()` que rellena los obligatorios.
+
+### Hecho — tipos
+- `framer-motion`: `physicsConfig` tipado como `Transition` (el `type: "spring"` se ensanchaba a `string`).
+- `CanvasAction` movido a `state-types.ts` y exportado (lo importaba `SplineIntegrationTab`); las capas `personas/*` ahora importan `CanvasState`/`ElementFamily` de `state-types` (no del componente, que no las reexporta).
+- `Category`/`Theme` (`lib/data.ts`) pasan a ser interfaces explícitas (antes se inferían del literal → `subCategories: never[]` en las hojas, imposible de reutilizar).
+- `ParamMap` (Aurora) admite `_notes: string` junto a los parámetros numéricos.
+- `StitchTabs` acepta el estilo `liquid-crystal` (que es **el valor por defecto** del canvas y no estaba en su unión); `StitchButton` acepta `size="icon"`; `buttonStyle: "solid"` se elimina del canvas (ni existía en el componente ni se podía elegir).
+- `threejs-components` (paquete JS sin tipos): declaración en `src/types/threejs-components.d.ts` → se elimina el `@ts-ignore` de `LiquidMetal.tsx`.
+- `tsconfig.json`: `exclude` para lo que **no** forma parte del build de Next — `AI-refernces ` (snippets de referencia), `hermes-integration/` de la RAÍZ (copia obsoleta; la viva es `src/hermes-integration`) e `integraciones-de-codigo/` (proyecto Vite con su propio tsconfig y sus propias dependencias).
+
+### Decisiones tomadas
+- Prohibido silenciar: cero `@ts-ignore` nuevos y cero `as any`. Cuando una prop se usaba de verdad → se añade al tipo; cuando no se usaba ni existía → se elimina.
+- Las tres claves nuevas de `liquidGlass` NO requieren migración de versión: `deepMerge(DEFAULT_CONFIG, saved)` ya rellena claves nuevas en configs persistidas.
+
+### Pendiente / Próximos pasos
+- `entity-roles-panel.tsx` sigue casteando `profile.kind` (`personal`, `civic`…) a `EntityType` (`profile|page|group`) al escribir en `os_entity_roles.entity_type`: se está guardando un valor de otro dominio. Hay que decidir el mapeo correcto (probablemente `"profile"` fijo) — **no se ha tocado para no cambiar lo que se escribe en la BD**.
+- `hermes-integration/` en la raíz es código muerto duplicado: se puede borrar.
+- `next.config.ts` mantiene `ignoreBuildErrors: true`. Ahora que tsc está en 0, se podría quitar para que el build vuelva a proteger de regresiones (requiere que CI corra tsc).

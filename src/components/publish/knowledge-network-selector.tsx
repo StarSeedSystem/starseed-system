@@ -10,6 +10,7 @@ import type { Category, Theme } from "@/lib/data";
 
 type DataItem = Category | Theme;
 
+
 interface KnowledgeNetworkSelectorProps {
     isOpen: boolean;
     onOpenChange: (isOpen: boolean) => void;
@@ -81,26 +82,36 @@ export function KnowledgeNetworkSelector({ isOpen, onOpenChange, title, data, se
         }
     };
 
+    const matches = (item: DataItem) => {
+        const q = searchTerm.toLowerCase();
+        return (
+            item.name.toLowerCase().includes(q) ||
+            item.description.toLowerCase().includes(q)
+        );
+    };
+
+    // Las subcategorías de una categoría son siempre categorías (árbol recursivo).
+    const filterCategories = (items: Category[]): Category[] =>
+        items.reduce((acc: Category[], item) => {
+            const subItems = filterCategories(item.subCategories ?? []);
+            if (matches(item) || subItems.length > 0) {
+                acc.push({ ...item, subCategories: subItems });
+            }
+            return acc;
+        }, []);
+
     const filterData = (items: DataItem[]): DataItem[] => {
         if (!searchTerm) return items;
 
         return items.reduce((acc: DataItem[], item: DataItem) => {
-            const nameMatch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-            const descMatch = 'description' in item && item.description.toLowerCase().includes(searchTerm.toLowerCase());
-            
-            let subItems: DataItem[] = [];
-            if('subCategories' in item && item.subCategories) {
-                subItems = filterData(item.subCategories);
-            }
-
-            if (nameMatch || descMatch || subItems.length > 0) {
-                const newItem = { ...item };
-                if('subCategories' in newItem && newItem.subCategories) {
-                    newItem.subCategories = subItems;
+            if ('subCategories' in item) {
+                const subItems = filterCategories(item.subCategories ?? []);
+                if (matches(item) || subItems.length > 0) {
+                    acc.push({ ...item, subCategories: subItems });
                 }
-                acc.push(newItem);
+            } else if (matches(item)) {
+                acc.push(item);
             }
-
             return acc;
         }, []);
     };

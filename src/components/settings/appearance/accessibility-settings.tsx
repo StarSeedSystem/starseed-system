@@ -137,8 +137,8 @@ export function AccessibilitySettings() {
   }
 
   // Cuenta cuántos overrides están activos vs default
-  const activeOverrides = Object.entries(settings).filter(
-    ([k, v]) => v !== (DEFAULT as Record<string, unknown>)[k]
+  const activeOverrides = (Object.keys(DEFAULT) as (keyof A11ySettings)[]).filter(
+    (k) => settings[k] !== DEFAULT[k]
   ).length;
 
   return (

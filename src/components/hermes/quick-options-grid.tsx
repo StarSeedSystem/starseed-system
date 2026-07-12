@@ -14,26 +14,17 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import {
-    Home, User, MessageSquare, Bell, Users, Book, Library, Network, Settings,
-    BrainCircuit, Brain, Sparkles, Wrench, Zap, Eye, Cpu, Server, Database,
-    CalendarDays, Plus, Pencil, Check, RotateCcw,
-} from 'lucide-react';
+import { Pencil, Check, RotateCcw } from 'lucide-react';
 import {
     loadDockConfig,
     saveDockConfig,
     resetDockConfig,
     DOCK_PRESETS,
+    DOCK_ICON_MAP,
+    DOCK_FALLBACK_ICON,
     type DockItemConfig,
-    type DockIconKey,
 } from '@/components/layout/dock-config';
 import { Card, CardContent } from '@/components/ui/card';
-
-const ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?: string }>> = {
-    Home, User, MessageSquare, Bell, Users, Book, Library, Network, Settings,
-    BrainCircuit, Brain, Sparkles, Wrench, Zap, Eye, Cpu, Server, Database,
-    CalendarDays, Plus,
-};
 
 interface QuickOptionsGridProps {
     title?: string;
@@ -125,7 +116,7 @@ export function QuickOptionsGrid({
 
                 <div className={cn('grid gap-2', gridCols)}>
                     {visible.map((it) => {
-                        const Icon = ICON_MAP[it.iconKey] ?? Home;
+                        const Icon = DOCK_ICON_MAP[it.iconKey] ?? DOCK_FALLBACK_ICON;
                         const colorClass = {
                             neutral:  'text-foreground/80',
                             cyan:     'text-cyan-400',

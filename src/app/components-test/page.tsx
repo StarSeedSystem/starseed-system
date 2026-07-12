@@ -21,17 +21,12 @@ import {
 import { useAppearance } from "@/context/appearance-context";
 
 export default function ComponentsTestPage() {
-    const { setConfig } = useAppearance();
+    const { updateConfig } = useAppearance();
 
-    // Force enable liquid UI for testing
+    // Force enable liquid UI for testing.
+    // updateConfig hace deep-merge, así que basta con la rama que cambia.
     const enableLiquid = () => {
-        setConfig((prev) => ({
-            ...prev,
-            liquidGlass: {
-                ...prev.liquidGlass,
-                enabled: true,
-            },
-        }));
+        updateConfig({ liquidGlass: { enabled: true } });
     };
 
     return (

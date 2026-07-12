@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, type Transition } from 'framer-motion';
 import {
     Zap, Home, User, MessageSquare, Settings, Search, Star, Heart, Bell, Bot,
     Shield, CircleDot, Sparkles, Layers, Compass, Plus, Activity, PenSquare, Layout, X, Network,
@@ -171,7 +171,7 @@ function TrinityPreviewSection({ state }: { state: CanvasState }) {
     const physicsMode = nav?.trinityPhysics || "spring";
 
     // Physics Config
-    const physicsConfig = physicsMode === 'elastic' ? { type: "spring", stiffness: 400, damping: 15 }
+    const physicsConfig: Transition = physicsMode === 'elastic' ? { type: "spring", stiffness: 400, damping: 15 }
         : physicsMode === 'smooth' ? { duration: 0.5, ease: "easeInOut" }
             : { type: "spring", stiffness: 300, damping: 25 }; // spring default
 

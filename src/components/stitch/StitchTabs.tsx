@@ -16,7 +16,9 @@ interface StitchTabsProps {
     onChange?: (id: string) => void;
     className?: string;
     config: {
-        style: "pill" | "underline" | "box" | "ghost";
+        // "liquid-crystal" es el estilo por defecto del Design Canvas
+        // (state-types.ts → tabsConfig.style), así que el componente debe aceptarlo.
+        style: "liquid-crystal" | "pill" | "underline" | "box" | "ghost";
         activeColor: string;
         inactiveColor?: string;
         spacing: number;
@@ -99,6 +101,7 @@ export function StitchTabs({
                         onClick={() => handleTabChange(tab.id)}
                         className={cn(
                             "relative flex items-center gap-2 transition-colors duration-300 isolate",
+                            style === "liquid-crystal" && "rounded-xl",
                             style === "pill" && "rounded-full",
                             style === "box" && "rounded-lg",
                             style === "underline" && "rounded-none",
@@ -126,6 +129,7 @@ export function StitchTabs({
                                 layoutId={`bg-${indicatorStyle}`}
                                 className={cn(
                                     "absolute inset-0 z-0",
+                                    style === "liquid-crystal" && "rounded-xl",
                                     style === "pill" && "rounded-full",
                                     style === "box" && "rounded-lg",
                                     style === "ghost" && "rounded-md"

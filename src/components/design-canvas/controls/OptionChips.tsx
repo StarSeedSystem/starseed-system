@@ -8,7 +8,7 @@ interface OptionChipsProps<T extends string> {
     options: ({ id: T; label: string } | { value: T; label: string })[];
     value: T;
     onChange: (v: T) => void;
-    color?: "amber" | "cyan" | "purple" | "rose" | "emerald";
+    color?: "amber" | "cyan" | "purple" | "rose" | "emerald" | "indigo";
     label?: string;
     description?: string;
     id?: string;
@@ -31,6 +31,7 @@ export function OptionChips<T extends string>({
         purple: "bg-purple-500/15 border-purple-500/30 text-purple-300",
         rose: "bg-rose-500/15 border-rose-500/30 text-rose-300",
         emerald: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
+        indigo: "bg-indigo-500/15 border-indigo-500/30 text-indigo-300",
     };
 
     const content = (

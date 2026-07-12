@@ -59,7 +59,23 @@ export interface PoliticalProposal {
 
 export const politicalProposals: PoliticalProposal[] = [];
 
-export const themes = [
+/** Tema transversal de la red de conocimiento (hoja: sin subcategorías). */
+export interface Theme {
+    id: string;
+    name: string;
+    description: string;
+}
+
+/** Categoría del árbol de conocimiento (recursiva). */
+export interface Category {
+    id: string;
+    name: string;
+    description: string;
+    content: string[];
+    subCategories: Category[];
+}
+
+export const themes: Theme[] = [
     { id: 'theme-ia', name: 'IA', description: 'Cubre todos los aspectos de la Inteligencia Artificial, desde algoritmos y modelos hasta sus implicaciones éticas y sociales.' },
     { id: 'theme-sostenibilidad', name: 'Sostenibilidad', description: 'Principios y prácticas para crear sistemas que perduren y se regeneren, abarcando ecología, economía y sociedad.' },
     { id: 'theme-gobernanza', name: 'Gobernanza', description: 'Modelos y teorías sobre cómo los grupos de personas se organizan y toman decisiones colectivas.' },
@@ -114,7 +130,7 @@ export interface Article {
 
 export const articles: Article[] = [];
 
-export const categories = [
+export const categories: Category[] = [
     {
         id: 'cat-ciencia',
         name: 'Ciencia',
@@ -232,8 +248,9 @@ export const conversations: ConversationFull[] = [];
 
 export const files: unknown[] = [];
 
-export type Theme = (typeof themes)[0];
-export type Category = (typeof categories)[0];
+// `Theme` y `Category` se declaran arriba como interfaces explícitas (antes se
+// inferían de los literales, lo que producía tipos imposibles de reutilizar:
+// p. ej. `subCategories: never[]` en las hojas).
 // export type ConversationFull = (typeof conversations)[0];
 // export type MessageFull = (typeof conversations)[0]['messages'][0];
 

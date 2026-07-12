@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { BoardWidgetContainer } from "./widgets/board-widget-container";
 import { NoteWidget } from "./widgets/note-widget";
 import { MediaWidget } from "./widgets/media-widget";
 import { ChecklistWidget } from "./widgets/checklist-widget";
 import { AIInsightWidget } from "./widgets/ai-insight-widget";
 import { UniversalRegistryWidget } from "./widgets/universal-registry-widget";
+import { useBoardSystem } from "@/context/board-context";
+import { cn } from "@/lib/utils";
 
-// ... existing imports ...
 import {
     Maximize2,
     Minimize2,

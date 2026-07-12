@@ -298,7 +298,7 @@ export class AutoDiscover {
           const meta = this.parseSkillFrontmatter(flatContent);
           if (meta.name) {
             skills.push({
-              metadata: { ...meta, name: meta.name, loadMode: 'manual' },
+              metadata: this.toSkillMetadata(meta, meta.name, 'manual'),
               content: flatContent,
               linkedFiles: {},
             });
@@ -310,7 +310,7 @@ export class AutoDiscover {
       const meta = this.parseSkillFrontmatter(content);
       if (meta.name) {
         skills.push({
-          metadata: { ...meta, name: meta.name, loadMode: 'auto' },
+          metadata: this.toSkillMetadata(meta, meta.name, 'auto'),
           content,
           linkedFiles: {},
         });
@@ -358,6 +358,33 @@ export class AutoDiscover {
   // ======================================================================
   // HELPERS
   // ======================================================================
+
+  /**
+   * Completa los campos obligatorios de SkillMetadata que el frontmatter puede
+   * omitir. Sin esto, los consumidores recibían `tags`/`triggers`/… undefined
+   * (y reventaban al iterarlos).
+   */
+  private toSkillMetadata(
+    meta: Partial<SkillMetadata>,
+    name: string,
+    loadMode: 'auto' | 'manual',
+  ): SkillMetadata {
+    const now = new Date().toISOString();
+    return {
+      name,
+      description: meta.description ?? '',
+      version: meta.version ?? '0.0.0',
+      category: meta.category ?? 'system',
+      tags: meta.tags ?? [],
+      author: meta.author,
+      created: meta.created ?? now,
+      updated: meta.updated ?? now,
+      triggers: meta.triggers ?? [],
+      dependencies: meta.dependencies ?? [],
+      requiredTools: meta.requiredTools ?? [],
+      loadMode,
+    };
+  }
 
   private parseSkillFrontmatter(content: string): Partial<SkillMetadata> {
     const meta: Partial<SkillMetadata> = {};

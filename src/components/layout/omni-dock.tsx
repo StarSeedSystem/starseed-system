@@ -31,26 +31,12 @@ import {
     resetDockFolders,
     loadDockFolderOpenState,
     saveDockFolderOpenState,
+    DOCK_ICON_MAP as ICON_MAP,
+    DOCK_FALLBACK_ICON as FALLBACK_ICON,
     type DockItemConfig,
     type DockIconKey,
     type DockFolderConfig,
 } from "./dock-config";
-
-/**
- * Mapa iconKey → componente de icono. Cada DockIconKey tiene su propio icono
- * de lucide-react, sin repeticiones, cubriendo TODAS las claves del union
- * (no se depende de ningún fallback genérico).
- */
-const ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?: string }>> = {
-    LayoutDashboard, CircleUser, MessagesSquare, Bell, Users, BookOpen, Library,
-    Network, BrainCircuit, Settings, Compass, PenLine, ShieldCheck, LayoutGrid,
-    Server, Vote, Lightbulb, Cpu, Brain, ShoppingBag, Award, AppWindow,
-    CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
-    Camera, Images,
-};
-
-/** Icono de respaldo defensivo (jamás debería usarse: ICON_MAP es total). */
-const FALLBACK_ICON = LayoutGrid;
 
 export function OmniDock() {
     const { activeEdge } = usePerimeter();

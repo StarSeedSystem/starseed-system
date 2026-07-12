@@ -1,5 +1,5 @@
 import React from "react";
-import { CanvasState, ElementFamily } from "../design-canvas/DesignIntegrationCanvas";
+import { CanvasState, ElementFamily } from "../design-canvas/state-types";
 import { cn } from "@/lib/utils";
 import { StitchCard } from "../stitch/StitchCard";
 import { StitchGraph } from "../stitch/StitchGraph";
@@ -96,11 +96,11 @@ export function StrategicLayout({ state, selectedElement, onSelectElement }: Pro
 
                 <FamilyWrapper id="buttons" label="Command Actions" selected={selectedElement === "buttons"} onSelect={() => onSelectElement("buttons")} palette={palette}>
                     <div className="h-32 grid grid-cols-2 gap-4">
-                        <StitchButton theme={theme} variant="glass" className="h-full flex flex-col items-center justify-center gap-2">
+                        <StitchButton theme={theme} variant="secondary" className="h-full flex flex-col items-center justify-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400">+</div>
                             <span className="text-xs">New Campaign</span>
                         </StitchButton>
-                        <StitchButton theme={theme} variant="glass" className="h-full flex flex-col items-center justify-center gap-2">
+                        <StitchButton theme={theme} variant="secondary" className="h-full flex flex-col items-center justify-center gap-2">
                             <span className="text-xl">📄</span>
                             <span className="text-xs">View Reports</span>
                         </StitchButton>

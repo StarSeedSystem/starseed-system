@@ -1,5 +1,5 @@
 import React from "react";
-import { CanvasState, ElementFamily } from "../design-canvas/DesignIntegrationCanvas";
+import { CanvasState, ElementFamily } from "../design-canvas/state-types";
 import { cn } from "@/lib/utils";
 import { StitchDock } from "../stitch/StitchDock";
 import { StitchCard } from "../stitch/StitchCard";

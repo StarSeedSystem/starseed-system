@@ -51,8 +51,8 @@ export default function EgoBrainPanel({
         return;
       }
       const brain = await getBrain(brainId);
-      const inc = (brain?.includes as Record<string, unknown>) || {};
-      const ids = Array.isArray(inc.personalities) ? (inc.personalities as string[]) : [];
+      // getBrain normaliza `includes`, así que las listas siempre existen.
+      const ids = brain?.includes?.personalities ?? [];
       if (alive) setConnectedIds(ids);
     })();
     return () => {
@@ -73,11 +73,13 @@ export default function EgoBrainPanel({
     if (isConnected) {
       // Desconectar: quita de includes.personalities + adjunto del ego.
       const brain = await getBrain(brainId);
-      const inc = (brain?.includes as Record<string, unknown>) || {};
-      const ids = (Array.isArray(inc.personalities) ? (inc.personalities as string[]) : []).filter(
-        (x) => x !== ego.id,
-      );
-      const saved = await saveBrain({ ...(brain as Brain), includes: { ...inc, personalities: ids } });
+      if (!brain) {
+        setBusyId(null);
+        toast.error("No se pudo cargar el cerebro.");
+        return;
+      }
+      const ids = (brain.includes?.personalities ?? []).filter((x) => x !== ego.id);
+      const saved = await saveBrain({ ...brain, includes: { ...brain.includes, personalities: ids } });
       await detachEgoFromContext(ego.id, "cerebro", brainId);
       ok = !!saved;
       if (ok) setConnectedIds(ids);

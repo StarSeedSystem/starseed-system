@@ -214,7 +214,7 @@ export default function ExplorerPage() {
         const text = (raw ?? auroraInput).trim();
         if (!text || auroraBusy) return;
         setAuroraInput("");
-        setAuroraTurns((t) => [...t, { role: "user", text }].slice(-12));
+        setAuroraTurns((t) => [...t, { role: "user" as const, text }].slice(-12));
         setAuroraBusy(true);
         try {
             // Camino preferente: el motor de Aurora (responde + ejecuta acciones
@@ -222,7 +222,7 @@ export default function ExplorerPage() {
             if (aurora?.enabled && cfg.canAct) {
                 await aurora.runCommand(text);
                 const reply = (aurora.lastReply || "").trim() || "Hecho.";
-                setAuroraTurns((t) => [...t, { role: "aurora", text: reply }].slice(-12));
+                setAuroraTurns((t) => [...t, { role: "aurora" as const, text: reply }].slice(-12));
                 return;
             }
 
@@ -254,13 +254,13 @@ export default function ExplorerPage() {
                     reply = stripDirectives(reply).trim() || "Hecho.";
                 } catch { /* el motor degradó: mostramos el texto tal cual */ }
             }
-            setAuroraTurns((t) => [...t, { role: "aurora", text: reply || "…" }].slice(-12));
+            setAuroraTurns((t) => [...t, { role: "aurora" as const, text: reply || "…" }].slice(-12));
         } catch (e: any) {
             const msg = (e?.message ? String(e.message) : "").trim();
             const friendly = /proveedor|provider|activ/i.test(msg)
                 ? "Aún no tienes un proveedor de IA activo. Configúralo en Ajustes → IA & Modelos para que pueda conversar y actuar aquí."
                 : "No pude contactar con la IA ahora mismo. Revisa tu proveedor en Ajustes → IA & Modelos.";
-            setAuroraTurns((t) => [...t, { role: "aurora", text: friendly }].slice(-12));
+            setAuroraTurns((t) => [...t, { role: "aurora" as const, text: friendly }].slice(-12));
         } finally {
             setAuroraBusy(false);
         }

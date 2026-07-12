@@ -1,7 +1,51 @@
 import { CanvasState } from "@/components/design-canvas/state-types";
 
+/**
+ * Forma del "tema" que devuelve el generador simulado. NO es un `CanvasState`:
+ * es un formato intermedio propio (colors/typography con nombres de alto nivel)
+ * que los consumidores mapean al estado del canvas (ver StitchGeneratorTab).
+ * Antes se anunciaba como `Partial<CanvasState>` mediante un cast, lo cual era
+ * falso y ocultaba el mapeo real.
+ */
+export interface MockTheme {
+    iconography: { collection: string; style: string };
+    positioning: {
+        density: string;
+        gridSystem: { columns: number; gutter: number; visible: boolean };
+        containerFlex: string;
+    };
+    typography: { headingFamily: string; bodyFamily: string; scale: number };
+    colors: {
+        primary: string;
+        secondary: string;
+        background: string;
+        surface: string;
+        accent: string;
+    };
+    widgets: {
+        shape: string;
+        borderStyle: string;
+        glassOpacity: number;
+        blur: number;
+        noiseTexture: boolean;
+        reflection: number;
+    };
+    backgrounds: {
+        mode: string;
+        meshColors: string[];
+        noiseIntensity: number;
+        pattern: string;
+    };
+    secondary: {
+        cursor: string;
+        scrollbars: string;
+        selectionMode: string;
+        selectionColor: string;
+    };
+}
+
 // Mock AI response for now. In the future, this will parse actual LLM JSON output.
-export const generateMockTheme = (prompt: string): Partial<CanvasState> => {
+export const generateMockTheme = (prompt: string): MockTheme => {
     // Deterministic-ish random based on prompt length for variety
     const seed = prompt.length;
 
@@ -68,7 +112,7 @@ export const generateMockTheme = (prompt: string): Partial<CanvasState> => {
             selectionMode: "precise",
             selectionColor: isNeon ? "#ff00ff" : "#3b82f6"
         }
-    } as Partial<CanvasState>;
+    };
 };
 
 export const parseAIResponse = (response: string): Partial<CanvasState> => {

@@ -3,7 +3,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useAppearance } from "@/context/appearance-context";
 import { TextureLoader } from 'three';
-// @ts-ignore
 import LiquidBackground from 'threejs-components/build/backgrounds/liquid1.min.js';
 
 export function LiquidMetal() {

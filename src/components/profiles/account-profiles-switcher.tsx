@@ -166,7 +166,8 @@ export function AccountProfilesSwitcher({ compact = false }: { compact?: boolean
                 try {
                     created = await createProfile(input);
                 } catch (e) {
-                    toast.error(e.message || "Error al crear el perfil.");
+                    const msg = e instanceof Error ? e.message : String(e ?? "");
+                    toast.error(msg || "Error al crear el perfil.");
                     return;
                 }
                 if (!created) {

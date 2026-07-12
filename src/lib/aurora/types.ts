@@ -55,7 +55,15 @@ export const AURORA_PROVIDERS: ProviderOption[] = [
   { id: "elevenlabs", label: "ElevenLabs (requiere clave)" },
 ];
 
-export type ParamMap = Record<string, number> & { _notes?: unknown };
+/**
+ * Parámetros de personalidad (0..100). La clave especial `_notes` guarda texto
+ * libre describiendo la interconexión entre parámetros, por eso el índice admite
+ * `string` además de `number` (todos los consumidores normalizan con Number()).
+ */
+export interface ParamMap {
+  [key: string]: number | string | undefined;
+  _notes?: string;
+}
 
 export interface Personality {
   id?: string;

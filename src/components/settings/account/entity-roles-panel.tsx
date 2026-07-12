@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Link as LinkIcon, ShieldCheck, UserPlus, X, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import { useActiveProfile } from "@/lib/profiles/profiles";
+import { useActiveProfile, profileKindLabel } from "@/lib/profiles/profiles";
 import { grantEntityRole, getEntityRoles, revokeEntityRole, type EntityRoleRecord } from "@/lib/social/entity-roles";
 
 export function EntityRolesPanel() {
@@ -64,8 +64,15 @@ export function EntityRolesPanel() {
         newRole
       );
 
+      // `error` puede ser un PostgrestError o un string ("No session"),
+      // así que comprobamos el código de forma defensiva.
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? (error as { code?: string }).code
+          : undefined;
+
       if (!ok) {
-        if (error?.code === "23505") { // Unique violation
+        if (code === "23505") { // Unique violation
           toast.error("El usuario ya tiene un rol asignado para esta entidad.");
         } else {
           toast.error("Error al asignar rol. Verifica que el ID de usuario sea correcto.");
@@ -139,7 +146,7 @@ export function EntityRolesPanel() {
           >
             {profiles.map(p => (
               <option key={p.id} value={p.id}>
-                {p.name} ({p.kind === "profile" ? "Perfil" : p.kind === "page" ? "Página" : "Grupo"})
+                {p.name} ({profileKindLabel(p.kind)})
               </option>
             ))}
           </select>

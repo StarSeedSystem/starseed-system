@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
 
 export async function POST(req: NextRequest) {
+    // `prompt` vive FUERA del try: el catch lo necesita para el fallback demo.
+    // (Antes se declaraba dentro del try, así que en el catch resolvía al `prompt`
+    // global del DOM → ReferenceError en el runtime de Node y 500 en vez de demo.)
+    let prompt = "";
     try {
-        const { prompt, layout, structureConfig } = await req.json();
+        const body = await req.json();
+        prompt = typeof body?.prompt === "string" ? body.prompt : "";
+        const { layout, structureConfig } = body;
 
         if (!prompt?.trim()) {
             return NextResponse.json({ error: "Prompt is required" }, { status: 400 });

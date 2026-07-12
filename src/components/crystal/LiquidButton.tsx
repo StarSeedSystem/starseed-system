@@ -2,9 +2,14 @@ import React from "react";
 import { LiquidGlassWrapper } from "@/components/ui/LiquidGlassWrapper";
 import { cn } from "@/lib/utils";
 
-interface LiquidButtonProps extends React.HTMLAttributes<HTMLButtonElement> {
+interface LiquidButtonProps extends Omit<React.HTMLAttributes<HTMLButtonElement>, "onClick"> {
     children: React.ReactNode;
     variant?: "primary" | "secondary" | "danger" | "ghost";
+    /**
+     * El click se escucha en el envoltorio (LiquidGlassWrapper → <div>), que es
+     * quien recibe el evento; por eso el handler es de HTMLDivElement.
+     */
+    onClick?: React.MouseEventHandler<HTMLDivElement>;
 }
 
 /**

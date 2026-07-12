@@ -97,6 +97,11 @@ export interface AppearanceConfig {
         webglZoom?: number;
         webglSpeed?: number;
         liquidColors?: string[]; // Array of 6 hex colors
+        // ── Metal líquido (three.js) — opcional, configs antiguas válidas ──
+        /** 0..1 — metalicidad del material (LiquidMetal). Por defecto 0.75. */
+        liquidMetalness?: number;
+        /** 0..1 — rugosidad del material (LiquidMetal). Por defecto 0.25. */
+        liquidRoughness?: number;
         // ── Fondo "audiomorphic" (visualizador embebido) — opcional, configs antiguas válidas ──
         audiomorphic?: {
             /** URL del visualizador Audiomorphic a embeber a pantalla completa. */
@@ -218,6 +223,12 @@ export interface AppearanceConfig {
         saturation: number;
         cornerRadius: number;
         mode: "standard" | "polar" | "prominent" | "shader";
+        /** 0..1 → --glass-opacity (opacidad del cristal en la UI). */
+        distortWidth: number;
+        /** 0..1 → --glass-blur (value * 50px). */
+        distortRadius: number;
+        /** 0..1 → --glass-saturation (100% + value * 100%). */
+        smoothStepEdge: number;
     };
     textDiffusion: {
         blur: number;
@@ -540,6 +551,9 @@ const defaultConfig: AppearanceConfig = {
         elasticity: 0.2,
         cornerRadius: 24,
         mode: "standard",
+        distortWidth: 0.4,
+        distortRadius: 0.4,
+        smoothStepEdge: 0.8,
     },
     textDiffusion: {
         blur: 15,
