@@ -4,7 +4,10 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * StarSeed OS · Directorio de usuarios (os_profiles) — búsqueda + recomendaciones
  * ---------------------------------------------------------------------------
- * Capa de datos sobre `public.os_profiles` (Supabase dzkjapinnewkxzjltadv):
+ * Capa de datos sobre `public.os_profiles` en la base del OS: Supabase
+ * **`nxstilnyidvkqeosofuh`** (ref corregida el 2026-07-12 -- decia
+ * `dzkjapinnewkxzjltadv`, que es el proyecto de Nexus/Cafe. La tabla SI existe
+ * en el OS; verificado):
  *   os_profiles(user_id, username unique, display_name, avatar_url, bio,
  *               tags[], searchable, updated_at)
  *   RLS: SELECT → searchable=true OR propio; UPSERT → solo propio (user_id=auth.uid()).

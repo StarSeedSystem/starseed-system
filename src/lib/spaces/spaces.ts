@@ -4,7 +4,13 @@
  * spaces — ESPACIOS SINCRONIZADOS/COMPARTIDOS (SOP §11): escritorios,
  * dashboards y pizarras compartibles entre perfiles, cuentas o público.
  *
- * Backend YA aplicado (Supabase dzkjapinnewkxzjltadv):
+ * RECTIFICACION (2026-07-12): esta cabecera decia "Backend YA aplicado
+ * (Supabase dzkjapinnewkxzjltadv)". Era FALSO: `dzkjapinnewkxzjltadv` es el
+ * proyecto de Nexus/Cafe. La base del OS es **`nxstilnyidvkqeosofuh`** y ahi
+ * estas tablas NO existian -> compartir un escritorio o invitar a alguien
+ * fallaba en silencio. Creadas el 2026-07-12 con la migracion
+ * `supabase/migrations/20260712090100_missing_core_tables_spaces.sql`
+ * (RLS verificada + realtime). Esquema REAL, ya aplicado en la base del OS:
  *   os_spaces(id, kind desktop|dashboard|board, title, owner_account,
  *   anchor_profile, access private|profiles|invite|public,
  *   allowed_profiles uuid[], group_slug, doc jsonb, device_id, rev(trigger),
@@ -13,7 +19,8 @@
  *   público=edición, grupo por os_memberships, editor member, perfil en
  *   allowed_profiles). Realtime ON en ambas tablas.
  *
- * RLS observada (auditada en vivo antes de escribir este módulo):
+ * RLS observada (verificada EN VIVO el 2026-07-12 contra `nxstilnyidvkqeosofuh`,
+ * ya con la migración aplicada):
  *   · os_spaces: select (público O space_can_read), insert (dueño), update
  *     (space_can_edit), delete (dueño).
  *   · os_space_editors: select (mi fila O space_can_read del espacio),

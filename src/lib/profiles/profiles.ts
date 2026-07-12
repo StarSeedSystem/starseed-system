@@ -6,7 +6,9 @@
  * vinculadas a la misma Cuenta soberana (dualidad Cuenta/Perfil, CLAUDE.md §6).
  *
  * SOP / fuente de verdad: architecture/libreria-biblioteca-sync.md §10.
- * Backend YA aplicado (Supabase dzkjapinnewkxzjltadv):
+ * Backend en la base del OS: Supabase **`nxstilnyidvkqeosofuh`** (ref corregida
+ * el 2026-07-12 -- la cabecera decia `dzkjapinnewkxzjltadv`, que es el proyecto
+ * de Nexus/Cafe, NO el del OS. La tabla SI existe en el OS; verificado):
  *   os_account_profiles(id, account, handle unique, name, kind, avatar_url,
  *   cover_url, bio, is_default, created_at, updated_at) — RLS: lectura para
  *   todos (facetas públicas), escritura solo del dueño (account=auth.uid()).

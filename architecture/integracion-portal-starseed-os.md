@@ -6,9 +6,28 @@
 El **Portal StarSeed Nexus** (`https://starseed-nexus.vercel.app`, repo `alexbordongarrigos/Starseed-Cafe`, carpeta local `~/Documents/StarSeed Café/app`) es la **página principal del ecosistema**. Presenta las 6 áreas (Sociedad, Network, Café, Estudio, Fundación, Audiomorphic), integra los archivos del Drive de la Fundación y se llama "StarSeed Nexus"; este repo (el SOSD) es **StarSeed OS** y vive en starseed-os.vercel.app. El Nexus aloja a **Astraura**, el Exocórtex global.
 
 ## Cuenta soberana unificada
-- **Proyecto Supabase compartido:** `dzkjapinnewkxzjltadv` (eu-west-3). El Portal, el Café y este SOSD usan el MISMO proyecto → un usuario = una cuenta en todo StarSeed.
-- Variables en `.env.local` (gitignored): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` ya apuntan a ese proyecto.
-- Tablas relevantes del lado Portal/Café: `cafe_accounts` (cuenta raíz + columna `apps` jsonb con programas vinculados), `cafe_profiles` (perfiles/facetas), `wallets` (semillas + granos jsonb por tipo, FK a `auth.users`), `economy_ledger` (historial), `grain_types` y `seed_market` (catálogo + bolsa simulada beta, lectura pública).
+> ### ⚠️ RECTIFICACIÓN (2026-07-12) — NO hay proyecto Supabase compartido
+>
+> Este SOP afirmaba que el Portal, el Café y el SOSD compartían el proyecto
+> `dzkjapinnewkxzjltadv`. **Es falso y ha sido la causa de varios meses de
+> documentación engañosa.** La realidad, verificada en vivo:
+>
+> | Superficie | Proyecto Supabase |
+> |---|---|
+> | **StarSeed OS / SOSD (este repo)** | **`nxstilnyidvkqeosofuh`** |
+> | Nexus / Portal / Café | `dzkjapinnewkxzjltadv` |
+>
+> **Las cuentas NO se comparten**: un usuario registrado en el Café **no** es el
+> mismo registro `auth.users` que un usuario del OS. Ver CLAUDE.md §2.
+> Varios módulos (`spaces.ts`, `os-files.ts`, `dm.ts`, `app-servers.ts`…) decían
+> en su cabecera «Backend YA APLICADO en `dzkjapinnewkxzjltadv`» y, por eso,
+> **13 tablas que el código usaba no existían en la base del OS** y todas las
+> escrituras fallaban en absoluto silencio. Creadas el 2026-07-12 con
+> `supabase/migrations/20260712090000_*.sql`, `_090100_*.sql` y `_090200_*.sql`.
+
+- **Proyecto Supabase del OS:** **`nxstilnyidvkqeosofuh`**. El Portal y el Café usan otro (`dzkjapinnewkxzjltadv`, eu-west-3). Un usuario ≠ una cuenta en todo StarSeed (todavía): la cuenta unificada es un objetivo, no el estado actual.
+- Variables en `.env.local` (gitignored): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` apuntan al proyecto del OS `nxstilnyidvkqeosofuh`.
+- Tablas relevantes del lado Portal/Café (⚠️ existen **también** dentro del proyecto del OS, pero con datos y cuentas DISTINTOS — no hay lectura cruzada entre proyectos): `cafe_accounts` (cuenta raíz + columna `apps` jsonb con programas vinculados), `cafe_profiles` (perfiles/facetas), `wallets` (semillas + granos jsonb por tipo, FK a `auth.users`), `economy_ledger` (historial), `grain_types` y `seed_market` (catálogo + bolsa simulada beta, lectura pública).
 - El SOSD puede leer/escribir la cartera vía esas tablas con la sesión del usuario (RLS por `auth.uid()`).
 - El login del Portal es OTP por email (`signInWithOtp` + `verifyOtp`, storageKey `starseed.auth`). El SOSD usa su propio flujo (password) sobre los mismos `auth.users`; ambos comparten identidad.
 
@@ -84,7 +103,7 @@ El dock Trinity (Anchor/`OmniDock`) desbordaba en pantallas ≤480px: 11 botones
 
 ## Widget Cartera StarSeed (v1)
 
-> Añadido: 2026-06-11 · Widget de dashboard del SOSD que consume **la cuenta soberana unificada** (proyecto Supabase compartido `dzkjapinnewkxzjltadv`). Componente: `src/components/dashboard/widgets/cartera-starseed.tsx` · Tipo de widget: `CARTERA_STARSEED` (registrado en `dashboard-types.ts`, `widget-registry.tsx`, `widget-manifest.ts`, `dashboard-defaults.ts` y `add-widget-dialog.tsx`; disponible en la Biblioteca de Widgets para añadir manualmente — **no** se fuerza en los tableros predeterminados).
+> Añadido: 2026-06-11 · Widget de dashboard del SOSD que consume la cuenta del OS (proyecto Supabase del OS `nxstilnyidvkqeosofuh`; ⚠️ corregido 2026-07-12 — NO es `dzkjapinnewkxzjltadv`, que es el de Nexus/Café, ni hay cuenta unificada todavía). Componente: `src/components/dashboard/widgets/cartera-starseed.tsx` · Tipo de widget: `CARTERA_STARSEED` (registrado en `dashboard-types.ts`, `widget-registry.tsx`, `widget-manifest.ts`, `dashboard-defaults.ts` y `add-widget-dialog.tsx`; disponible en la Biblioteca de Widgets para añadir manualmente — **no** se fuerza en los tableros predeterminados).
 
 ### Fuentes de datos (cliente browser `@/utils/supabase/client`)
 | Tabla | Acceso | Uso en el widget |
@@ -174,7 +193,7 @@ Componente nuevo bajo `PerimeterProvider`. No duplica lógica: ambas vías hacen
 
 ## Sincronización de preferencias con la cuenta StarSeed (v1 · 2026-06-13)
 
-`src/lib/settings-sync.ts` + panel `src/components/settings/account/account-sync-panel.tsx` (en Ajustes → Perfil). Lleva las preferencias locales a la cuenta soberana compartida (Supabase `dzkjapinnewkxzjltadv`) para recuperarlas en cualquier dispositivo / superficie del ecosistema (Nexus, Café, OS).
+`src/lib/settings-sync.ts` + panel `src/components/settings/account/account-sync-panel.tsx` (en Ajustes → Perfil). Lleva las preferencias locales a la cuenta del OS (Supabase `nxstilnyidvkqeosofuh`) para recuperarlas en cualquier dispositivo. ⚠️ Corregido 2026-07-12: decía «cuenta soberana compartida (`dzkjapinnewkxzjltadv`)» y «cualquier superficie del ecosistema (Nexus, Café, OS)» — falso: Nexus/Café viven en OTRO proyecto Supabase y NO comparten cuentas con el OS.
 - **Claves sincronizadas** (`SYNCED_KEYS`, ampliable sin migración): `appearance-config-v2`, `starseed.dock.items.v1`, `os.trinity.fab`, `os.trinity.fab.pos`, `starseed_user_memory`.
 - **Opt-in y tolerante a fallos:** no actúa hasta que el usuario pulsa subir/recuperar; si no hay sesión o falta la tabla, lo informa sin romper nada (localStorage sigue siendo la fuente de verdad offline). Al recuperar, escribe en localStorage y recarga para que todos los contextos relean limpio.
 - **Migración SQL (ejecutar una vez en Supabase, RLS por usuario):**

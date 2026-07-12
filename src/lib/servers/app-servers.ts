@@ -5,7 +5,13 @@
  * StarSeed OS · Servidores de apps (os_app_servers / os_app_server_members)
  * ---------------------------------------------------------------------------
  * Apps/juegos/entornos/programas compartidos en tiempo real entre miembros.
- * Backend YA APLICADO en Supabase (dzkjapinnewkxzjltadv):
+ * RECTIFICACION (2026-07-12): esta cabecera decia "Backend YA APLICADO en
+ * Supabase (dzkjapinnewkxzjltadv)". Era FALSO: `dzkjapinnewkxzjltadv` es el
+ * proyecto de Nexus/Cafe. La base del OS es **`nxstilnyidvkqeosofuh`** y ahi
+ * estas tablas NO existian -> crear o unirse a un servidor fallaba en silencio.
+ * Creadas el 2026-07-12 con la migracion
+ * `supabase/migrations/20260712090100_missing_core_tables_spaces.sql`
+ * (RLS verificada + realtime). Esquema REAL, ya aplicado en la base del OS:
  *
  *   os_app_servers(id, slug, name, description, kind 'app'|'juego'|'entorno'|
  *                  'programa'|'otro', visibility 'public'|'private'|'group',

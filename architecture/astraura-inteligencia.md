@@ -143,8 +143,10 @@ inteligencia, defaults por función, voz, neuronas, instalados de Biblioteca,
 mine/published. **Las claves API NO viajan** (`starseed.ai.providers` es local
 por diseño; sensibles). Nexus y Café cargan `astraura-core.js` (núcleo vanilla
 con la MISMA cadena gratis-primero + failover + transparencia) y leen esa misma
-config. ⚠️ **Nexus usa su propio proyecto Supabase `nxstilnyidvkqeosofuh`** (no
-el `dzkjapinnewkxzjltadv` del OS/Café): su `astraura-core.js` usa el cliente del
+config. ⚠️ **CORREGIDO 2026-07-12 — este párrafo estaba INVERTIDO.** Lo correcto:
+el **StarSeed OS** (este repo) usa **`nxstilnyidvkqeosofuh`**; **Nexus y Café**
+usan **`dzkjapinnewkxzjltadv`**. Son proyectos DISTINTOS y las cuentas **NO** se
+comparten (CLAUDE.md §2). El `astraura-core.js` de Nexus usa el cliente del
 portal (`window.STARSEED.client()`), no un proyecto hardcodeado.
 
 ---

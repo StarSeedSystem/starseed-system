@@ -2126,3 +2126,79 @@ Principio: el OS SIEMPRE funciona con opciones gratuitas/OSS elegidas por Astrau
 - `entity-roles-panel.tsx` sigue casteando `profile.kind` (`personal`, `civic`…) a `EntityType` (`profile|page|group`) al escribir en `os_entity_roles.entity_type`: se está guardando un valor de otro dominio. Hay que decidir el mapeo correcto (probablemente `"profile"` fijo) — **no se ha tocado para no cambiar lo que se escribe en la BD**.
 - `hermes-integration/` en la raíz es código muerto duplicado: se puede borrar.
 - `next.config.ts` mantiene `ignoreBuildErrors: true`. Ahora que tsc está en 0, se podría quitar para que el build vuelva a proteger de regresiones (requiere que CI corra tsc).
+
+---
+
+## 2026-07-12 — Tablas núcleo AUSENTES (I): Mensajería + Voto Delegado
+**Sesión por:** Claude (subagente · ola "tablas que faltan")
+**Resumen ejecutivo:** `/messages`, Correos y el voto líquido delegado NO podían funcionar: sus tablas **nunca existieron** en el Supabase del OS (`nxstilnyidvkqeosofuh`). Creadas y aplicadas en producción.
+
+### Hecho
+- Nueva migración `supabase/migrations/20260712090200_missing_core_tables_messages.sql`, **APLICADA** (Management API) y verificada en vivo. Crea:
+  - `os_dm_threads` / `os_dm_members` / `os_dm_messages` — esquema derivado literalmente de `src/lib/messages/dm.ts` y `src/lib/mail/os-mail.ts` (Correos reutiliza los mismos hilos con `meta.mail = true`). PK compuesta `(thread_id, user_id)` en members: la exige el `upsert onConflict "thread_id,user_id"` de `addMembers`. `attachments jsonb` (NO `jsonb[]`, pese al comentario de la cabecera de `dm.ts`: se inserta un array JSON). `deleted boolean NOT NULL default false` (el contador de no-leídos filtra `.eq("deleted", false)`).
+  - `os_messages` — **no es la mensajería**: es el buzón de memorias de Astraura (`astraura-realtime.ts#injectAstrauraMemory` + `sync-manager.ts`). `thread_id` es **TEXTO** (`"<kind>_<id>_astraura"`), no uuid. El código no envía `user_id` → la columna lo rellena con `DEFAULT auth.uid()`; RLS privada por cuenta.
+  - `vote_delegations` — cláusulas pétreas en el esquema: `expires_at NOT NULL` (caducidad obligatoria), `CHECK delegator <> delegate`, índice único parcial `(delegator_user, topic) WHERE revoked_at IS NULL` (una activa por tema, como asume `delegations.ts`). SELECT público (el poder delegado es transparente, §6); escritura solo sobre lo propio.
+- **RLS estricta y SIN recursión**: las políticas de mensajería no se consultan entre sí desde SQL inline (eso daría `42P17`), sino a través de dos funciones `SECURITY DEFINER`: `public.is_dm_member(thread, uid)` e `public.is_dm_thread_owner(thread, uid)` (misma técnica que `20260711000001_fix_entity_roles_rls.sql`). `is_dm_thread_owner` es imprescindible para el ALTA: al crear un DM, el creador inserta **también** la fila de membresía del otro usuario.
+- Las 5 tablas añadidas a `supabase_realtime` (los mensajes lo necesitan: `subscribeThread` / `subscribeThreadsList`).
+- **Prueba funcional real** (3 usuarios temporales, rol `authenticated`, RLS activa, todo borrado después): crear DM + 2 miembros + mensajes ✅; el no-miembro no ve nada y no puede escribir (42501) ✅; no se puede suplantar el `sender` de otro ✅; upsert de miembros ✅; editar/borrar solo lo propio ✅; delegar, re-delegar (revoca la previa), leer el tema y contar peso recibido ✅; no se puede delegar en nombre de otro ni auto-delegarse ✅. **Cero 42P17.**
+
+### Pendiente / Próximos pasos
+- `os_messages` no tiene lector todavía (solo `injectAstrauraMemory` escribe). Si en el futuro las memorias de Astraura deben ser visibles por un grupo/página entero, habrá que ampliar su RLS (hoy es privada por cuenta).
+
+---
+
+## 2026-07-12 — Tablas núcleo AUSENTES (II): entity_state · os_files · entity_mentions · os_contexts
+**Sesión por:** Claude (subagente · ola "tablas que faltan")
+**Resumen ejecutivo:** Las cuatro tablas sobre las que se apoya TODA la sincronización del OS (biblioteca por entidad, escritorios, layouts de páginas/grupos, archivos reales, menciones y contexto de Aurora) **nunca existieron** en el Supabase del OS (`nxstilnyidvkqeosofuh`). Creadas, aplicadas en producción y verificadas con RLS real.
+
+### Causa raíz (por qué "solo se veía en el dispositivo donde se subía")
+Todos los módulos degradan en silencio (`if (error) return null / [] / 0` — filosofía "nunca lanza"). Sin tabla detrás, cada escritura a la nube fallaba **sin un solo error visible**: la biblioteca/escritorios/layout vivían solo en `localStorage`, y en las subidas el objeto SÍ llegaba a Storage pero su fila de índice no se insertaba, así que ningún otro dispositivo (ni la vista "Archivos de la Red") podía listarlo. No era un bug de sync: era la ausencia del esquema.
+
+### Hecho
+- Nueva migración `supabase/migrations/20260712090000_missing_core_tables_library.sql`, **APLICADA** (Management API, `[]`) y **re-aplicada** para probar idempotencia. Esquema derivado literalmente del código, no de suposiciones:
+  - `entity_state` (src/lib/sync/entity-state.ts) — `owner_kind/owner_id/key → value jsonb`, `rev`, `device_id`, `updated_by`, `updated_at`. **UNIQUE (owner_kind, owner_id, key)**: la exige el `upsert onConflict "owner_kind,owner_id,key"`. `rev`/`updated_at`/`updated_by` los mantiene un **trigger** (`entity_state_touch`), porque el cliente no los envía y el módulo hace LWW por `rev`.
+  - `os_files` (src/lib/files/os-files.ts) — metadatos del bucket `os-files`: `owner/profile_id/name/mime/size/path/url/device_id/is_public/acl_read/acl_write/group_slug/meta`. Índice único en `path` e índice en `url` (`findFileByUrl`).
+  - `entity_mentions` (src/lib/mentions/mentions.ts) — `source_type/source_id/target_type/target_id/kind('@'|'#')` + `created_by DEFAULT auth.uid()`. **Sin UNIQUE a propósito**: `persistMentions` hace un `.insert(rows)` plano y una violación de unicidad tumbaría el lote entero (y se perdería en silencio).
+  - `os_contexts` (src/ai/astraura/astraura-realtime.ts) — `user_id/target_kind/target_id/settings` + UNIQUE natural del lookup.
+- **RLS (privado en lo personal, transparente en lo público — §3/§6)** vía funciones `SECURITY DEFINER` (`es_can_read`, `es_can_write`, `es_is_entity_member`, `es_can_access_other`):
+  - ámbitos `user`/`profile` → solo la propia cuenta (lee y escribe);
+  - ámbitos de entidad pública (`page/group/community/event/ef/party`, identificados por slug) → **lectura pública** (es lo que ya asume la UI: `/pagina/[slug]` y `/grupo/[slug]` construyen su `EntityRef` para CUALQUIER visitante, no solo para el dueño) y **escritura solo de dueño (`os_pages`/`os_groups.owner_id`) o miembro (`os_memberships`)**;
+  - ámbito `other`: `network-politics` (recursos comunes + mediación) → lectura pública, escritura de cualquier autenticado (gobernanza colectiva); `srv:<uuid>` → solo miembros del servidor, comprobado **dinámicamente** (`to_regclass`) para no romper si `os_app_server_members` aún no existe.
+  - `os_files`: dueño todo; lectura si `is_public` / ACL / miembro del grupo; escritura compartida si estás en `acl_write`. `os_contexts`: privado del usuario (el Exocórtex es leal al usuario).
+- Las 4 tablas añadidas a `supabase_realtime` + `REPLICA IDENTITY FULL` (sin ella los DELETE no traen `owner_id`/`owner` y los filtros de `subscribeEntityState`/`subscribeMyFiles` no dispararían).
+- **Storage endurecido**: `20260711000000_storage_policies.sql` permitía a CUALQUIER autenticado actualizar/borrar CUALQUIER objeto del bucket `os-files`. Sustituidas por políticas de prefijo propio `(storage.foldername(name))[1] = auth.uid()` — el contrato que ya documentaba `os-files.ts` y que exige la Identidad Soberana (§6). No rompe nada: todas las subidas pasan por `uploadFile()`, que siempre escribe en `${uid}/…`.
+- **Prueba funcional real** (rol `authenticated` con JWT, RLS activa; todo borrado después): upsert doble de `entity_state` → `rev` 1→2 y `updated_by` autorrellenado ✅; insert+select de `os_files`, `entity_mentions` y `os_contexts` ✅; otra cuenta NO ve tu `entity_state` personal ni tu `os_contexts`, y sus UPDATE/DELETE afectan 0 filas ✅; sí ve tu archivo público ✅; la dueña de una página escribe su `layout` y una intrusa lo lee pero no lo modifica ✅; **anon lee el layout de una página pública** (imprescindible para los visitantes) y no ve nada personal ✅.
+
+### Incoherencias encontradas (no corregidas, solo documentadas)
+- La cabecera de `src/lib/files/os-files.ts` afirma que el backend estaba "YA APLICADO y verificado" en **`dzkjapinnewkxzjltadv`** — que es el Supabase de **Nexus/Café**, no el del OS. De ahí venía la falsa sensación de que la tabla existía.
+- `public.os_pages.slug` **no tiene UNIQUE** en la BD real (la migración `20260710000000` declaraba `handle unique`, pero la tabla viva usa `slug`). No lo he tocado (tabla de otra ola), pero cualquier `upsert onConflict "slug"` sobre `os_pages` fallará con `42P10`.
+
+---
+
+## 2026-07-12 — Tablas núcleo AUSENTES (III): os_spaces · os_space_editors · neuron_devices · os_app_servers · os_app_server_members
+**Sesión por:** Claude (subagente · ola "tablas que faltan")
+**Resumen ejecutivo:** El **sistema universal de permisos y compartición** (Adenda 63 §5), los **espacios colaborativos** (escritorios/dashboards/pizarras), las **neuronas** y los **servidores de apps** escribían contra cinco tablas que **nunca existieron** en el Supabase del OS (`nxstilnyidvkqeosofuh`). Creadas, aplicadas en producción y verificadas con RLS real (36 aserciones).
+
+### Causa raíz
+`spaces.ts`, `access.ts`, `neurons.ts` y `app-servers.ts` documentan en su cabecera un backend "YA APLICADO en Supabase **dzkjapinnewkxzjltadv**" — que es el proyecto de **Nexus/Café**, no el del OS. Como todos los módulos tragan el error (`catch { return null / [] / false }`), compartir un escritorio, invitar a alguien, registrar una neurona o crear un servidor **fallaba en absoluto silencio**: el modelo de permisos vivía solo en `starseed.sharing.local.v1` (localStorage), sin enforcement ninguno.
+
+### Hecho
+- Nueva migración `supabase/migrations/20260712090100_missing_core_tables_spaces.sql`, **APLICADA** (Management API → `[]`) y re-aplicada para probar idempotencia. Esquema derivado del código (columnas, `onConflict`, filtros `.eq()`, valores de los CHECK que el cliente escribe de verdad):
+  - `os_spaces` — `kind ∈ desktop|dashboard|board` (los recursos brain/file/folder/library de `access.ts::spaceKindFor` ya caen a `dashboard`; el tipo real viaja en `doc.sharing.resource.type`), `access ∈ private|profiles|invite|public`, `allowed_profiles uuid[]`, `group_slug`, `doc jsonb`, `device_id`, `rev` (**trigger** `os_spaces_touch`, que además **blinda `owner_account`/`id`/`created_at`** para que un editor no pueda robar el espacio). Índice **GIN sobre `doc`** para el `.contains("doc", …)` de `findSpaceForResource`.
+  - `os_space_editors` — PK `(space_id, account)` (la exige el `upsert onConflict "space_id,account"`), `role ∈ editor|viewer`, `status ∈ member|invited|pending`.
+  - `neuron_devices` — **`id` es TEXT, no uuid** (`thisDeviceId()` cae a `n-<base36>` si `crypto.randomUUID` falla). `name`/`kind` NULLABLE a propósito: el heartbeat solo manda `{id, owner, last_seen_at}` y un upsert sobre fila inexistente los dejaría en null.
+  - `os_app_servers` (slug **UNIQUE**: `createServer` reintenta el slug ante el código `23505`) + `os_app_server_members` (PK `(server_id, user_id)`).
+- **RLS sin recursión.** `os_spaces ↔ os_space_editors` (y `os_app_servers ↔ os_app_server_members`) se consultan mutuamente ⇒ ciclo. Roto con funciones `SECURITY DEFINER` (patrón `check_entity_role` de `20260711000001`): `os_is_group_member`, `os_owns_profile`, `space_editor_status/role`, `space_can_read/edit`, `app_server_member_status/can_read`.
+- ⚠️ **REGLA DE ORO descubierta a base de fallo real:** una política de una tabla **NUNCA** debe llamar a una función que **relea esa misma tabla**. Postgres aplica las políticas de SELECT también a `INSERT … RETURNING`, que es exactamente lo que genera PostgREST con `.insert({…}).select("*")` (`createSpace`, `createServer`) — y la fila recién insertada **aún no es visible** para el snapshot de la función ⇒ la política devolvía false y **el insert fallaba SIEMPRE** (42501). Por eso `sp_select`/`sp_update`/`as_select` se evalúan **inline sobre las columnas de la propia fila** y solo delegan en funciones definer para consultar OTRAS tablas.
+- **Modelo de permisos aplicado:** dueño → todo · editor `member` con `role='editor'`, miembro del `group_slug` y dueño de un perfil de `allowed_profiles` → leer + editar · `viewer member` e `invited` → solo leer (el `invited` necesita leer para que la bandeja de invitaciones muestre título/kind antes de aceptar) · `pending` (auto-solicitud) → **NADA** · `public` → lectura para todos, **incluido anónimo** (enlaces compartidos). Neuronas: privadas de la cuenta (Identidad Soberana §6). Servidores: alta directa solo si son públicos; en privado/grupo solo `pending` que aprueba el dueño.
+- Escalada de privilegios cerrada con un **trigger** `os_space_editors_guard` (BEGIN…EXCEPTION en RLS no basta: las políticas permisivas hacen OR de los `WITH CHECK`, así que "invited→member sí, pending→member NO" no se puede expresar solo con políticas). Solo permite `invited→member` y los upserts idempotentes.
+- Las 5 tablas añadidas a `supabase_realtime` + `REPLICA IDENTITY FULL` (sin ella Realtime no puede evaluar RLS ni los filtros `id=eq.…`/`space_id=eq.…`/`server_id=eq.…` en UPDATE/DELETE).
+- **Prueba funcional real** (rol `authenticated` con JWT + rol `anon`, RLS activa, 0 filas residuales): 36/36 ✅ — crear/leer/editar espacio, `rev` que sube por trigger, búsqueda por `doc @>`, invitar → leer → aceptar → editar, `INSERT/UPDATE … RETURNING` (las rutas exactas de `createSpace`/`updateSpaceDoc`/`createServer`), y **todos los intentos de escalada bloqueados**: autoinsertarse como `member` (42501), `pending→member` (42501), editar/borrar espacio ajeno (0 filas), robar `owner_account` (trigger lo revierte), unirse directo a un servidor privado (42501), ver la neurona de otra cuenta (0 filas).
+
+### Incoherencias encontradas
+- Las cabeceras de `spaces.ts` y `app-servers.ts` dicen "Backend YA APLICADO en Supabase **dzkjapinnewkxzjltadv**" (proyecto de Nexus/Café). **Documentación falsa**: en el OS no existía nada. Mismo patrón que `os-files.ts` en la ola II.
+- `spaces.ts` afirma que la RLS auditada daba **"público = edición"**. **Desviación consciente:** aquí `public` concede **solo lectura**. El diálogo de la Adenda 63 (`share-access-dialog.tsx`) ofrece explícitamente "Público · Ver" como rol por defecto del enlace, y ese rol vive únicamente en `doc.sharing` — que el propio `access.ts` documenta que **se reescribe** al colaborar. Conceder escritura global a todo espacio público habría convertido cada "Público · Ver" en editable por cualquiera. Para colaborar con externos: `invite` (os_space_editors) o `profiles`/grupo.
+
+### Pendiente / Próximos pasos
+- `access.ts::pushEnforcement` traduce cualquier grant de perfil a `allowed_profiles` **perdiendo el rol** (un perfil con rol `view` acaba pudiendo editar, porque la columna no lleva rol). Si se quiere fidelidad de roles por perfil, hay que añadir rol a nivel de fila (p. ej. reutilizar `os_space_editors` para perfiles) — hoy el rol fino solo sobrevive en `doc.sharing`.
+- Código NO tocado (`src/` intacto): las cabeceras con el proyecto Supabase equivocado convendría corregirlas en una pasada de documentación.

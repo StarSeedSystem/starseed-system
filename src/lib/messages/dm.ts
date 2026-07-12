@@ -6,7 +6,15 @@
  * ---------------------------------------------------------------------------
  * Capa de datos REAL para la mensajería estilo WhatsApp/Telegram: DMs y grupos,
  * adjuntos de cualquier formato, responder-citando, editar/borrar propios,
- * Aurora opcional por hilo. Backend YA APLICADO en Supabase (dzkjapinnewkxzjltadv):
+ * Aurora opcional por hilo.
+ *
+ * RECTIFICACION (2026-07-12): esta cabecera decia "Backend YA APLICADO en
+ * Supabase (dzkjapinnewkxzjltadv)". Era FALSO: `dzkjapinnewkxzjltadv` es el
+ * proyecto de Nexus/Cafe. La base de datos del OS es **`nxstilnyidvkqeosofuh`**,
+ * y ahi estas tablas NO existian -> la mensajeria fallaba en absoluto silencio.
+ * Creadas el 2026-07-12 con la migracion
+ * `supabase/migrations/20260712090200_missing_core_tables_messages.sql`
+ * (RLS verificada + realtime). Esquema REAL, ya aplicado en la base del OS:
  *
  *   os_dm_threads(id, kind 'dm'|'group', title, avatar_url, created_by,
  *                 agent jsonb, meta jsonb, last_msg_at, created_at)

@@ -19,7 +19,15 @@
 
 ## 2. Modelo de datos
 
-### Tabla `public.entity_state` (Supabase `dzkjapinnewkxzjltadv`, migración `entity_state_sync`)
+### Tabla `public.entity_state` (Supabase del OS **`nxstilnyidvkqeosofuh`**)
+
+> ⚠️ **Corregido 2026-07-12.** Aquí ponía «Supabase `dzkjapinnewkxzjltadv`,
+> migración `entity_state_sync`» — `dzkjapinnewkxzjltadv` es el proyecto de
+> Nexus/Café, NO el del OS, y esa migración **nunca se aplicó en la base del OS**.
+> La tabla se creó de verdad el 2026-07-12 con
+> `supabase/migrations/20260712090000_missing_core_tables_library.sql`
+> (RLS verificada + realtime).
+
 - PK `(owner_kind, owner_id, key)`; `value jsonb`, `rev` (trigger +1), `updated_at`,
   `updated_by (auth.uid())`, `device_id` (neurona que escribió).
 - `owner_kind`: `user|profile|page|group|community|event|ef|party|other`.

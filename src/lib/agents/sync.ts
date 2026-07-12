@@ -5,8 +5,10 @@
  * StarSeed OS — Agentes · SINCRONIZACIÓN con la cuenta soberana
  * ---------------------------------------------------------------------------
  * Lleva los AGENTES, sus VÍNCULOS (bindings) y el registro público "stub" a la
- * cuenta soberana compartida por el ecosistema (Supabase `dzkjapinnewkxzjltadv`,
- * tabla `user_settings`, jsonb `prefs`), siguiendo EXACTAMENTE el patrón de
+ * cuenta soberana DEL OS — Supabase **`nxstilnyidvkqeosofuh`**, tabla
+ * `user_settings`, jsonb `prefs`. ⚠️ Ref corregida el 2026-07-12: NO es
+ * `dzkjapinnewkxzjltadv` (ese es el proyecto de Nexus/Café) y las cuentas del OS
+ * NO se comparten con ellos (CLAUDE.md §2). Sigue EXACTAMENTE el patrón de
  * `src/lib/library-sync.ts`:
  *   · LOCAL ES LA VERDAD (localStorage manda sin conexión).
  *   · MERGE NO DESTRUCTIVO de `prefs`: se lee y se mezclan SOLO nuestras claves.

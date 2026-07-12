@@ -13,8 +13,9 @@ import { samplePosts, diceBearAvatar } from "@/data/sample-entities";
 
 // ════════════════════════════════════════════════════════════════
 // RelevantPostsWidget — publicaciones más resonantes para ti.
-// Lee publicaciones reales de la comunidad (`cafe_posts` del proyecto
-// Supabase unificado dzkjapinnewkxzjltadv) con conteo total. Realtime:
+// Lee publicaciones reales de la comunidad (`cafe_posts` en la base del OS,
+// Supabase `nxstilnyidvkqeosofuh` -- NO `dzkjapinnewkxzjltadv`, que es la de
+// Nexus/Cafe y NO comparte cuentas; corregido 2026-07-12) con conteo total. Realtime:
 // suscripción a `cafe_posts` (postgres_changes). Si no hay datos o
 // falla, cae con elegancia a la corriente simulada "social.posts".
 // Diseño data-driven: la resonancia define el estado (viral/resonando/

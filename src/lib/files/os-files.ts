@@ -5,7 +5,13 @@
  * os-files — SUBIDA UNIVERSAL de archivos (cualquier tipo, cualquier contexto)
  * ---------------------------------------------------------------------------
  * Capa de datos para el almacenamiento REAL en la nube de StarSeed OS.
- * Backend YA APLICADO en Supabase (`dzkjapinnewkxzjltadv`), verificado:
+ * RECTIFICACION (2026-07-12): esta cabecera decia "Backend YA APLICADO en
+ * Supabase (`dzkjapinnewkxzjltadv`), verificado". Era FALSO:
+ * `dzkjapinnewkxzjltadv` es el proyecto de Nexus/Cafe. La base del OS es
+ * **`nxstilnyidvkqeosofuh`** y ahi no existia NADA de esto (las subidas
+ * fallaban en silencio). Creado el 2026-07-12 con la migracion
+ * `supabase/migrations/20260712090000_missing_core_tables_library.sql`
+ * (RLS verificada + realtime). Esquema REAL, ya aplicado en la base del OS:
  *
  *   Storage: bucket `os-files` (público-lectura; escritura/actualización/
  *   borrado SOLO en tu propio prefijo `<auth.uid()>/...`, vía

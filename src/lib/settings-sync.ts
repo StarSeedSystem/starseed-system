@@ -4,9 +4,11 @@
  * settings-sync — Sincronización de preferencias con la cuenta StarSeed (StarSeed ID).
  * ----------------------------------------------------------------------------------
  * Lleva las preferencias locales (apariencia, dock, Trinity, memoria del Exocórtex)
- * a la cuenta soberana compartida por TODO el ecosistema (Supabase
- * `dzkjapinnewkxzjltadv`), para que la misma identidad —Nexus, Café, OS— recupere
- * su configuración en cualquier dispositivo.
+ * a la cuenta soberana DEL OS (Supabase **`nxstilnyidvkqeosofuh`**), para que la
+ * misma cuenta recupere su configuración en cualquier dispositivo.
+ * ⚠️ Corregido el 2026-07-12: decía `dzkjapinnewkxzjltadv` y «la misma identidad
+ * —Nexus, Café, OS—». FALSO: `dzkjapinnewkxzjltadv` es el proyecto de Nexus/Café;
+ * sus cuentas NO son las del OS (CLAUDE.md §2).
  *
  * Principios (alineados con CLAUDE.md · Identidad Soberana e Invariantes):
  *  - ADITIVO Y OPT-IN: no cambia nada hasta que el usuario pulsa sincronizar.

@@ -8,8 +8,9 @@
 
 ## Vocabulario de capacidades (fijo, compartido)
 
-`prefs.capabilities: string[]` en `user_settings.prefs` (Supabase soberano
-`dzkjapinnewkxzjltadv`). Espejo local para invitados: `localStorage["starseed.capabilities.v1"]`.
+`prefs.capabilities: string[]` en `user_settings.prefs` (Supabase del OS
+**`nxstilnyidvkqeosofuh`** — ⚠️ corregido 2026-07-12: `dzkjapinnewkxzjltadv` es
+el proyecto de Nexus/Café, con cuentas separadas). Espejo local para invitados: `localStorage["starseed.capabilities.v1"]`.
 
 | id | Disparadores (skill/paquete) | systemPrompt (resumen) | routing bias |
 |---|---|---|---|

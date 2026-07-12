@@ -6,11 +6,14 @@
  * ---------------------------------------------------------------------------
  * Contexto honesto: el "Correos" anterior (`@/lib/mail/starseed-mail.ts`,
  * tablas `ss_mail` / `account_emails` / `starseed_mail_config`) referencia
- * tablas que NO EXISTEN en la base real (dzkjapinnewkxzjltadv) — verificado
+ * tablas que NO EXISTEN en la base real del OS —que es
+ * **`nxstilnyidvkqeosofuh`**; esta cabecera decía `dzkjapinnewkxzjltadv`, que es
+ * la de Nexus/Café (ref corregida el 2026-07-12)— verificado
  * por consulta directa a information_schema. Esa capa degrada en silencio a
  * vacío (nunca lanza) pero nunca ha llegado a enviar ni recibir un correo
  * real. Esta capa nueva construye el correo interno sobre la infraestructura
- * que SÍ existe y SÍ funciona: `os_dm_threads` / `os_dm_members` /
+ * que SÍ existe en la base del OS desde el 2026-07-12 (creada por la migración
+ * `20260712090200_missing_core_tables_messages.sql`): `os_dm_threads` / `os_dm_members` /
  * `os_dm_messages` (la misma de Mensajes, ver `@/lib/messages/dm.ts`).
  *
  * Un "correo" es un hilo os_dm_threads normal marcado con `meta.mail = true`

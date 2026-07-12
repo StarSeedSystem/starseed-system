@@ -4,9 +4,13 @@
  * library-sync — Sincronización del store soberano (Biblioteca + Apps) con la cuenta StarSeed.
  * ------------------------------------------------------------------------------------------
  * Lleva el store soberano local (`library-store.ts`: recursos guardados + apps
- * instaladas) a la cuenta soberana compartida por TODO el ecosistema (Supabase
- * `dzkjapinnewkxzjltadv`, tabla `user_settings`), de modo que la misma
- * identidad —Nexus, Café, OS— recupere su Biblioteca y su Launcher en cualquier
+ * instaladas) a la cuenta soberana DEL OS (Supabase **`nxstilnyidvkqeosofuh`**,
+ * tabla `user_settings`), de modo que la misma cuenta del OS recupere su
+ * Biblioteca y su Launcher en cualquier dispositivo.
+ * ⚠️ Corregido el 2026-07-12: la cabecera decía `dzkjapinnewkxzjltadv` y hablaba
+ * de una cuenta «compartida por TODO el ecosistema». FALSO:
+ * `dzkjapinnewkxzjltadv` es el proyecto de Nexus/Café y sus cuentas están
+ * SEPARADAS de las del OS (CLAUDE.md §2).
  * dispositivo. Refleja una imagen espejo en `cafe_accounts.apps` cuando existe
  * fila del usuario (defensivo, opcional).
  *

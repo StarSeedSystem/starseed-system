@@ -5,7 +5,18 @@
 El sistema ha superado una migración total de su infraestructura de sincronización y esquemas de base de datos para garantizar la coherencia en todos los contextos (Perfiles, Páginas, Astraura, Lienzos).
 
 ### 1. Esquema de Base de Datos Expandido
-Se aplicó la migración `20260708000004_os_full_schema.sql` en Supabase (`https://dzkjapinnewkxzjltadv.supabase.co`).
+> ⚠️ **RECTIFICACIÓN (2026-07-12).** Esta sección decía que la migración se aplicó
+> en `https://dzkjapinnewkxzjltadv.supabase.co` — **ese es el Supabase de
+> Nexus/Café, NO el del OS**. La base del OS es **`nxstilnyidvkqeosofuh`**, y allí
+> **13 tablas que el código usaba no existían** (`entity_state`, `os_spaces`,
+> `os_space_editors`, `os_files`, `entity_mentions`, `os_contexts`,
+> `os_dm_threads/_members/_messages`, `os_messages`, `neuron_devices`,
+> `os_app_servers`, `os_app_server_members`, `vote_delegations`). Se crearon el
+> 2026-07-12 con `supabase/migrations/20260712090000_missing_core_tables_library.sql`,
+> `…_090100_missing_core_tables_spaces.sql` y `…_090200_missing_core_tables_messages.sql`
+> (RLS verificada + publicación realtime).
+
+Se aplicó la migración `20260708000004_os_full_schema.sql` en el Supabase del OS (`https://nxstilnyidvkqeosofuh.supabase.co`).
 Se añadieron y activaron en `supabase_realtime`:
 - **`os_contexts`**: Almacena configuraciones relativas de los usuarios para diferentes vistas (ej. temas o vistas por defecto al entrar a una página).
 - **`os_libraries` & `os_brains`**: Estructuras para gestionar jerarquías de archivos y los cerebros de IA asignados a grupos/cuentas.
@@ -26,7 +37,7 @@ Se añadieron y activaron en `supabase_realtime`:
 El sistema está configurado en modo `standalone` con un Dockerfile *multi-stage* optimizado (<150MB), escalado a 0 instancias para mantener el coste en $0.
 
 ## Enlaces y Conexiones Activas
-- **Supabase**: `https://dzkjapinnewkxzjltadv.supabase.co`
+- **Supabase (base del OS)**: `https://nxstilnyidvkqeosofuh.supabase.co` — ⚠️ el de Nexus/Café es `dzkjapinnewkxzjltadv` y **NO comparte cuentas** con el OS (corregido 2026-07-12).
 - **Frontend OS**: `https://starseed-os.vercel.app` (temporal, hasta rotar a GCP).
 - **Nexus**: `https://starseed-nexus.vercel.app`
 
