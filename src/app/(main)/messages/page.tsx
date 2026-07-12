@@ -13,20 +13,23 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { NotificationCenter } from "@/components/layout/notification-center";
 import { UserNav } from "@/components/layout/user-nav";
 import { cn } from "@/lib/utils";
-import { Mail, MessageSquare, MessageSquareOff } from "lucide-react";
+import { AlertTriangle, Loader2, Mail, MessageSquare, MessageSquareOff, X } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { CorreosPanel } from "@/components/messages/correos-panel";
 import { ThreadList } from "@/components/messages/dm/thread-list";
 import { ThreadView } from "@/components/messages/dm/thread-view";
 import { NewChatDialog } from "@/components/messages/dm/new-chat-dialog";
 import {
-    listThreads, subscribeThreadsList, type DmAttachment, type DmThreadSummary,
+    createDm, listThreads, subscribeThreadsList, type DmAttachment, type DmThreadSummary,
 } from "@/lib/messages/dm";
-import { seedMyProfile, fetchProfilesByIds, type OsProfile } from "@/lib/social/os-profiles";
+import {
+    seedMyProfile, fetchProfilesByIds, fetchProfileByUsername, type OsProfile,
+} from "@/lib/social/os-profiles";
 
 type MessagesSurface = "chats" | "mail";
 
@@ -68,9 +71,55 @@ function EmptyThreadState() {
     );
 }
 
-export default function MessagesPage() {
+/* ── Estado del deep-link `?to=<handle>` (Adenda 63 · P-4) ─────────────────
+   Honesto: mientras resuelve el perfil se avisa; si el @ no existe (o eres tú
+   mismo, o no hay sesión) se muestra un aviso descartable — nunca un crash. */
+type DeepLink =
+    | { state: "idle" }
+    | { state: "resolving"; handle: string }
+    | { state: "error"; message: string };
+
+function DeepLinkBanner({ deepLink, onDismiss }: { deepLink: DeepLink; onDismiss: () => void }) {
+    if (deepLink.state === "idle") return null;
+    const resolving = deepLink.state === "resolving";
+    return (
+        <div
+            role="status"
+            className={cn(
+                "shrink-0 flex items-center gap-2 px-4 py-2 text-xs border-b",
+                resolving
+                    ? "border-white/10 bg-primary/10 text-foreground"
+                    : "border-amber-400/20 bg-amber-500/10 text-amber-200",
+            )}
+        >
+            {resolving ? (
+                <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    <span className="truncate">Abriendo tu conversación con @{deepLink.handle}…</span>
+                </>
+            ) : (
+                <>
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1">{deepLink.message}</span>
+                    <button
+                        type="button"
+                        onClick={onDismiss}
+                        aria-label="Descartar aviso"
+                        className="shrink-0 grid place-items-center w-5 h-5 rounded-full hover:bg-foreground/10 transition-colors cursor-pointer"
+                    >
+                        <X className="w-3 h-3" />
+                    </button>
+                </>
+            )}
+        </div>
+    );
+}
+
+function MessagesContent() {
+    const searchParams = useSearchParams();
     const [surface, setSurface] = useState<MessagesSurface>("chats");
     const [userId, setUserId] = useState<string | null>(null);
+    const [authReady, setAuthReady] = useState(false);
     const [threads, setThreads] = useState<DmThreadSummary[]>([]);
     const [profiles, setProfiles] = useState<Record<string, OsProfile>>({});
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -78,8 +127,12 @@ export default function MessagesPage() {
     const [newChatOpen, setNewChatOpen] = useState(false);
     const [mobileView, setMobileView] = useState<"list" | "thread">("list");
     const [pendingServerAttachment, setPendingServerAttachment] = useState<DmAttachment | null>(null);
+    const [deepLink, setDeepLink] = useState<DeepLink>({ state: "idle" });
+    const [focusComposer, setFocusComposer] = useState(false);
+    /** @handle ya procesado (evita recrear/reabrir en cada render o realtime). */
+    const handledToRef = useRef<string | null>(null);
 
-    // Usuario actual + siembra del perfio propio en el directorio.
+    // Usuario actual + siembra del perfil propio en el directorio.
     useEffect(() => {
         (async () => {
             try {
@@ -88,6 +141,8 @@ export default function MessagesPage() {
                 setUserId(data.user?.id ?? null);
             } catch {
                 setUserId(null);
+            } finally {
+                setAuthReady(true);
             }
             void seedMyProfile();
         })();
@@ -97,10 +152,16 @@ export default function MessagesPage() {
         const rows = await listThreads();
         setThreads(rows);
         const allMemberIds = Array.from(new Set(rows.flatMap((t) => t.memberIds)));
-        if (allMemberIds.length) setProfiles(await fetchProfilesByIds(allMemberIds));
+        if (allMemberIds.length) {
+            const fetched = await fetchProfilesByIds(allMemberIds);
+            setProfiles((prev) => ({ ...prev, ...fetched }));
+        }
         setLoading(false);
-        if (!selectedId && rows.length) setSelectedId(rows[0].id);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // Selección por defecto SOLO si no hay ninguna: actualización funcional
+        // para no leer un `selectedId` obsoleto (este callback tiene deps []; con
+        // la lectura directa, cada recarga realtime saltaba al primer hilo y
+        // pisaba la selección del deep-link `?to=`).
+        setSelectedId((cur) => cur ?? (rows.length ? rows[0].id : null));
     }, []);
 
     useEffect(() => {
@@ -111,21 +172,82 @@ export default function MessagesPage() {
     useEffect(() => subscribeThreadsList(() => void reloadThreads()), [reloadThreads]);
 
     // Deep-link ?attachServer=<slug> → prepara un adjunto de servidor para el
-    // hilo activo. SSR-safe: lee `window.location` en cliente (evita el boundary
-    // de Suspense que exige `useSearchParams` en App Router), igual que /hub.
+    // hilo activo.
     useEffect(() => {
-        if (typeof window === "undefined") return;
-        const slug = new URLSearchParams(window.location.search).get("attachServer");
+        const slug = searchParams?.get("attachServer");
         if (!slug) return;
         setPendingServerAttachment({ kind: "server", name: slug, refKind: "server", refId: slug, route: `/servidores-apps?panel=${encodeURIComponent(slug)}` });
-    }, []);
+    }, [searchParams]);
+
+    // ── Deep-link ?to=<handle> (Adenda 63 · P-4) ────────────────────────────
+    // Resuelve el @ en el directorio (os_profiles), abre el DM existente con esa
+    // persona o crea uno nuevo (createDm ya reutiliza el hilo 1:1 si existe) y
+    // enfoca el compositor. Idempotente: `handledToRef` impide reprocesarlo.
+    const toHandle = (searchParams?.get("to") ?? "").trim().replace(/^@+/, "");
+
+    useEffect(() => {
+        if (!toHandle || !authReady) return;
+        if (handledToRef.current === toHandle) return;
+        handledToRef.current = toHandle;
+
+        if (!userId) {
+            setDeepLink({ state: "error", message: `Inicia sesión para escribir a @${toHandle}.` });
+            return;
+        }
+
+        let alive = true;
+        (async () => {
+            setSurface("chats");
+            setDeepLink({ state: "resolving", handle: toHandle });
+
+            const profile = await fetchProfileByUsername(toHandle);
+            if (!alive) return;
+            if (!profile) {
+                setDeepLink({ state: "error", message: `No encontramos a @${toHandle} en el directorio. Puede que el @ haya cambiado o que esa cuenta no aparezca en búsquedas.` });
+                return;
+            }
+            if (profile.userId === userId) {
+                setDeepLink({ state: "error", message: "Ese eres tú: no puedes abrir una conversación contigo mismo." });
+                return;
+            }
+
+            setProfiles((prev) => ({ ...prev, [profile.userId]: profile }));
+
+            const res = await createDm(profile.userId);
+            if (!alive) return;
+            if (!res.ok || !res.thread) {
+                setDeepLink({
+                    state: "error",
+                    message: res.needsAuth
+                        ? `Inicia sesión para escribir a @${toHandle}.`
+                        : `No se pudo abrir la conversación con @${toHandle}. Inténtalo de nuevo.`,
+                });
+                return;
+            }
+
+            await reloadThreads();
+            if (!alive) return;
+            setSelectedId(res.thread.id);
+            setMobileView("thread");
+            setFocusComposer(true);
+            setDeepLink({ state: "idle" });
+        })();
+
+        return () => { alive = false; };
+    }, [toHandle, authReady, userId, reloadThreads]);
 
     const selectedThread = threads.find((t) => t.id === selectedId) ?? null;
+
+    const selectThread = useCallback((threadId: string) => {
+        setSelectedId(threadId);
+        setFocusComposer(false);
+    }, []);
 
     const handleThreadCreated = (threadId: string) => {
         void reloadThreads().then(() => {
             setSelectedId(threadId);
             setMobileView("thread");
+            setFocusComposer(true);
         });
     };
 
@@ -136,6 +258,8 @@ export default function MessagesPage() {
     return (
         <div className="h-screen flex flex-col overflow-hidden">
             <NewChatDialog open={newChatOpen} onOpenChange={setNewChatOpen} onCreated={handleThreadCreated} />
+
+            <DeepLinkBanner deepLink={deepLink} onDismiss={() => setDeepLink({ state: "idle" })} />
 
             {/* ── DESKTOP: two-pane layout ── */}
             <div className="hidden md:flex flex-1 overflow-hidden bg-muted/10">
@@ -150,7 +274,7 @@ export default function MessagesPage() {
                                 profiles={profiles}
                                 myUserId={userId}
                                 selectedId={selectedId}
-                                onSelect={(t) => setSelectedId(t.id)}
+                                onSelect={(t) => selectThread(t.id)}
                                 onNewChat={() => setNewChatOpen(true)}
                                 loading={loading}
                                 className="flex-1 min-h-0"
@@ -164,6 +288,7 @@ export default function MessagesPage() {
                                     onThreadUpdated={handleThreadUpdated}
                                     pendingServerAttachment={pendingServerAttachment}
                                     onConsumePendingAttachment={() => setPendingServerAttachment(null)}
+                                    autoFocusComposer={focusComposer}
                                 />
                             ) : (
                                 <EmptyThreadState />
@@ -216,7 +341,7 @@ export default function MessagesPage() {
                             myUserId={userId}
                             selectedId={selectedId}
                             onSelect={(t) => {
-                                setSelectedId(t.id);
+                                selectThread(t.id);
                                 setMobileView("thread");
                             }}
                             onNewChat={() => setNewChatOpen(true)}
@@ -233,10 +358,30 @@ export default function MessagesPage() {
                             onThreadUpdated={handleThreadUpdated}
                             pendingServerAttachment={pendingServerAttachment}
                             onConsumePendingAttachment={() => setPendingServerAttachment(null)}
+                            autoFocusComposer={focusComposer}
                         />
                     )
                 )}
             </div>
         </div>
+    );
+}
+
+/**
+ * `useSearchParams` exige un boundary de Suspense en el App Router (si no, el
+ * build falla con "should be wrapped in a suspense boundary"). Regla del repo:
+ * componente interno con los hooks + export por defecto que lo envuelve.
+ */
+export default function MessagesPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="h-screen flex items-center justify-center text-sm text-muted-foreground">
+                    Cargando tus mensajes…
+                </div>
+            }
+        >
+            <MessagesContent />
+        </Suspense>
     );
 }

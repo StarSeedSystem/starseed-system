@@ -16,6 +16,11 @@
 //     map_zone), eventos (os_events) y comunidades/páginas (os_pages/os_groups).
 //   · Click derecho / pulsación larga → "Crear aquí": Lienzo Universal con geo,
 //     comentario rápido, o propuesta de nombre/uso de zona (Ontocracia).
+//   · Herramienta DIBUJAR ZONA (Adenda 63 · P-5): polígonos libres clic a clic
+//     o a mano alzada (src/lib/map/map-draw.ts, API base de Leaflet sin
+//     plugins), con edición de vértices, área esférica y centroide
+//     (src/lib/map/map-geometry.ts). Mientras se dibuja, "Crear aquí" queda
+//     desactivado. Las zonas se persisten en la MISMA propuesta `map_zone`.
 //   · Buscador de lugares Nominatim (debounce 600 ms, uso educado).
 //   · Estado persistido en starseed.map.view.v1 · compartición en
 //     starseed.map.location.v1 (ambas candidatas a SYNCED_KEYS).
@@ -80,6 +85,19 @@ import {
     type ZoneKind,
 } from "@/lib/map/map-data";
 import {
+    formatArea,
+    ringCentroid,
+    zoneAreaM2,
+    type LatLngTuple,
+    type ZoneGeometry,
+} from "@/lib/map/map-geometry";
+import {
+    createZoneDrawer,
+    MAX_EDITABLE_VERTICES,
+    type DrawSnapshot,
+    type ZoneDrawer,
+} from "@/lib/map/map-draw";
+import {
     loadShareConfig,
     saveShareConfig,
     topicsForSharing,
@@ -115,6 +133,11 @@ import {
     RefreshCw,
     Navigation,
     ExternalLink,
+    PenTool,
+    Undo2,
+    Check,
+    Hexagon,
+    Circle as CircleIcon,
 } from "lucide-react";
 
 // ── Constantes de render ─────────────────────────────────────────────────────
@@ -175,6 +198,9 @@ export function MapView({ className }: { className?: string }) {
     const groupRefs = useRef<Record<string, any>>({});
     const myLocRef = useRef<{ marker: any; circle: any } | null>(null);
     const previewCircleRef = useRef<any>(null);
+    const drawerRef = useRef<ZoneDrawer | null>(null);
+    /** Espejo del modo de dibujo para los handlers de Leaflet (sin closures viejos). */
+    const drawActiveRef = useRef(false);
     const presenceRef = useRef<MapPresenceHandle | null>(null);
     const geoWatchRef = useRef<number | null>(null);
     const lastShareSentRef = useRef(0);
@@ -216,6 +242,12 @@ export function MapView({ className }: { className?: string }) {
     const [propDesc, setPropDesc] = useState("");
     const [propRadius, setPropRadius] = useState(250);
     const [propBusy, setPropBusy] = useState(false);
+    /** Anillo dibujado a mano (si lo hay): la propuesta será POLIGONAL. */
+    const [propRing, setPropRing] = useState<LatLngTuple[] | null>(null);
+
+    // Herramienta "Dibujar zona" (Adenda 63 · P-5).
+    const [drawSnap, setDrawSnap] = useState<DrawSnapshot | null>(null);
+    const drawMode = drawSnap?.mode ?? "idle";
 
     const [counts, setCounts] = useState<Record<string, number | null>>({
         posts: null, proposals: null, events: null, places: null,
@@ -332,6 +364,9 @@ export function MapView({ className }: { className?: string }) {
                 // `contextmenu` con PULSACIÓN LARGA en pantallas táctiles.
                 map.on("contextmenu", (e: any) => {
                     try { e.originalEvent?.preventDefault?.(); } catch { /* noop */ }
+                    // Mientras se dibuja una zona, el mapa NO ofrece "Crear aquí"
+                    // (el clic derecho sirve para borrar vértices en edición).
+                    if (drawActiveRef.current) return;
                     setCreateAt({
                         x: e.containerPoint?.x ?? 0,
                         y: e.containerPoint?.y ?? 0,
@@ -349,6 +384,8 @@ export function MapView({ className }: { className?: string }) {
 
         return () => {
             alive = false;
+            try { drawerRef.current?.destroy(); } catch { /* noop */ }
+            drawerRef.current = null;
             try { presenceRef.current?.stop(); } catch { /* noop */ }
             presenceRef.current = null;
             if (geoWatchRef.current != null && typeof navigator !== "undefined") {
@@ -558,17 +595,22 @@ export function MapView({ className }: { className?: string }) {
                 const approved = APPROVED_STATUSES.includes(z.status);
                 const color = approved ? ZONE_APPROVED_COLOR : ZONE_OPEN_COLOR;
                 try {
-                    const circle = L.circle([z.lat, z.lng], {
-                        radius: z.radiusM,
+                    const style = {
                         color,
                         weight: approved ? 2 : 1.5,
                         dashArray: approved ? undefined : "6 6",
                         fillColor: color,
                         fillOpacity: approved ? 0.12 : 0.06,
-                    });
+                    };
+                    // CÍRCULO o POLÍGONO, indistintamente (Adenda 63 · P-5).
+                    const shape =
+                        z.geometry.kind === "polygon"
+                            ? L.polygon(z.geometry.ring, style)
+                            : L.circle(z.geometry.center, { ...style, radius: z.geometry.radiusM });
+
                     if (approved) {
                         // Nombre/uso APROBADO por la red → etiqueta de zona visible.
-                        circle.bindTooltip(escapeHtml(z.name), {
+                        shape.bindTooltip(escapeHtml(z.name), {
                             permanent: true,
                             direction: "center",
                             className: "ss-zone-label",
@@ -576,17 +618,22 @@ export function MapView({ className }: { className?: string }) {
                     }
                     const kindLabel = ZONE_KINDS.find((k) => k.id === z.zoneKind)?.label ?? z.zoneKind;
                     const estado = approved ? "Aprobada" : z.status === "open" ? "En votación" : escapeHtml(z.status);
-                    circle.bindPopup(
+                    const forma =
+                        z.geometry.kind === "polygon"
+                            ? `Polígono · ${z.geometry.ring.length} vértices`
+                            : `Círculo · radio ${Math.round(z.geometry.radiusM)} m`;
+                    shape.bindPopup(
                         `<div class="ss-pop">
                             <p class="ss-pop-author">${escapeHtml(z.name)} <span>· ${escapeHtml(kindLabel)}</span></p>
                             <p class="ss-pop-body">${escapeHtml(z.description || "Propuesta territorial de la red.")}</p>
+                            <p class="ss-pop-meta">${escapeHtml(forma)} · área ≈ ${escapeHtml(formatArea(z.areaM2))}</p>
                             <p class="ss-pop-meta">Estado: <b>${estado}</b> · ${escapeHtml(timeAgo(z.createdAt))}</p>
                             <a class="ss-pop-link" href="/decisiones?p=${escapeHtml(z.id)}">Votar / ver decisión →</a>
                             <a class="ss-pop-link" href="/network/politics">Ecosistema político →</a>
                         </div>`,
                         { maxWidth: 280 },
                     );
-                    group.addLayer(circle);
+                    group.addLayer(shape);
                 } catch { /* noop */ }
             }
             setCounts((c) => ({ ...c, proposals: rows.length }));
@@ -893,11 +940,73 @@ export function MapView({ className }: { className?: string }) {
         }
     }, [createAt, quickText, me, toast]);
 
-    // Previsualización del círculo de la propuesta mientras el diálogo está abierto.
+    // ── Herramienta "Dibujar zona" (polígonos libres · Adenda 63 · P-5) ──
+    // El trazador vive fuera de React (API base de Leaflet) y sólo emite
+    // instantáneas de su estado; aquí únicamente mandamos órdenes y pintamos UI.
+    useEffect(() => {
+        const L = lRef.current, map = mapRef.current;
+        if (!ready || !L || !map || drawerRef.current) return;
+        drawerRef.current = createZoneDrawer(L, map, {
+            color: ZONE_OPEN_COLOR,
+            onChange: (snap) => setDrawSnap(snap),
+            onCancel: () => setDrawSnap(null),
+        });
+        return () => {
+            try { drawerRef.current?.destroy(); } catch { /* noop */ }
+            drawerRef.current = null;
+        };
+    }, [ready]);
+
+    // Espejo del modo de dibujo: los handlers de Leaflet lo consultan (el
+    // popover "Crear aquí" queda DESACTIVADO mientras se dibuja).
+    useEffect(() => {
+        drawActiveRef.current = drawMode !== "idle";
+        if (drawMode !== "idle") setCreateAt(null);
+    }, [drawMode]);
+
+    const startDrawing = useCallback(() => {
+        setCreateAt(null);
+        setLayersOpen(false);
+        setShareOpen(false);
+        setPropRing(null); // rehacer desde cero: la propuesta olvida el anillo previo
+        drawerRef.current?.start();
+    }, []);
+
+    const cancelDrawing = useCallback(() => {
+        drawerRef.current?.cancel();
+        setDrawSnap(null);
+        setPropRing(null);
+    }, []);
+
+    /** Lleva la zona dibujada al diálogo de propuesta (geometría poligonal). */
+    const proposeDrawnZone = useCallback(() => {
+        const ring = drawerRef.current?.getRing() ?? [];
+        if (ring.length < 3) {
+            toast({ title: "Zona incompleta", description: "Una zona necesita al menos 3 vértices.", variant: "destructive" });
+            return;
+        }
+        const c = ringCentroid(ring);
+        setPropRing(ring);
+        setPropLatLng(c ? { lat: c[0], lng: c[1] } : null);
+        setPropOpen(true);
+    }, [toast]);
+
+    /** Geometría efectiva de la propuesta: polígono dibujado o círculo del slider. */
+    const propGeometry = useMemo<ZoneGeometry | null>(() => {
+        if (propRing && propRing.length >= 3) return { kind: "polygon", ring: propRing };
+        if (propLatLng) return { kind: "circle", center: [propLatLng.lat, propLatLng.lng], radiusM: propRadius };
+        return null;
+    }, [propRing, propLatLng, propRadius]);
+
+    const propAreaM2 = useMemo(() => (propGeometry ? zoneAreaM2(propGeometry) : 0), [propGeometry]);
+
+    // Previsualización del CÍRCULO mientras el diálogo está abierto (los
+    // polígonos ya los pinta el propio trazador, en modo edición).
     useEffect(() => {
         const L = lRef.current, map = mapRef.current;
         if (!L || !map) return;
-        if (propOpen && propLatLng) {
+        const showCircle = propOpen && propLatLng && !propRing;
+        if (showCircle) {
             try {
                 if (!previewCircleRef.current) {
                     previewCircleRef.current = L.circle([propLatLng.lat, propLatLng.lng], {
@@ -917,10 +1026,10 @@ export function MapView({ className }: { className?: string }) {
             try { map.removeLayer(previewCircleRef.current); } catch { /* noop */ }
             previewCircleRef.current = null;
         }
-    }, [propOpen, propLatLng, propRadius]);
+    }, [propOpen, propLatLng, propRadius, propRing]);
 
     const submitProposal = useCallback(async () => {
-        if (!propLatLng || !propName.trim()) {
+        if (!propGeometry || !propName.trim()) {
             toast({ title: "Falta el nombre", description: "Dale un nombre a la zona o uso propuesto.", variant: "destructive" });
             return;
         }
@@ -930,9 +1039,7 @@ export function MapView({ className }: { className?: string }) {
                 name: propName,
                 zoneKind: propKind,
                 description: propDesc,
-                lat: propLatLng.lat,
-                lng: propLatLng.lng,
-                radiusM: propRadius,
+                geometry: propGeometry,
             });
             if (res.ok) {
                 toast({
@@ -942,6 +1049,9 @@ export function MapView({ className }: { className?: string }) {
                 setPropOpen(false);
                 setPropName("");
                 setPropDesc("");
+                setPropRing(null);
+                try { drawerRef.current?.clear(); } catch { /* noop */ }
+                setDrawSnap(null);
                 setReloadTick((t) => t + 1);
             } else {
                 toast({ title: "No se pudo crear", description: res.error || "Inicia sesión e inténtalo de nuevo.", variant: "destructive" });
@@ -949,7 +1059,7 @@ export function MapView({ className }: { className?: string }) {
         } finally {
             setPropBusy(false);
         }
-    }, [propLatLng, propName, propKind, propDesc, propRadius, toast]);
+    }, [propGeometry, propName, propKind, propDesc, toast]);
 
     // ── Panel compartir: búsquedas (debounce corto sobre os_profiles/os_groups) ──
     useEffect(() => {
@@ -1084,6 +1194,16 @@ export function MapView({ className }: { className?: string }) {
                 </button>
                 <button type="button" onClick={() => { setShareOpen((v) => !v); setLayersOpen(false); }} className={cn(glassBtn, shareCfg.mode !== "off" ? "text-emerald-300 border-emerald-400/40" : shareOpen && "text-primary border-primary/40")} title="Compartir mi ubicación">
                     <Share2 className="h-[18px] w-[18px]" />
+                </button>
+                {/* Dibujar zona (polígono libre) — Adenda 63 · P-5 */}
+                <button
+                    type="button"
+                    onClick={() => (drawMode === "idle" ? startDrawing() : cancelDrawing())}
+                    className={cn(glassBtn, drawMode !== "idle" && "text-amber-300 border-amber-400/50 bg-amber-500/10")}
+                    title={drawMode === "idle" ? "Dibujar zona (polígono libre)" : "Salir del modo dibujo (Esc)"}
+                    aria-pressed={drawMode !== "idle"}
+                >
+                    <PenTool className="h-[18px] w-[18px]" />
                 </button>
 
                 {/* Panel de capas */}
@@ -1368,6 +1488,96 @@ export function MapView({ className }: { className?: string }) {
                 </button>
             </div>
 
+            {/* ── Barra de la herramienta "Dibujar zona" ── */}
+            {drawMode !== "idle" && drawSnap && (
+                <div className="absolute bottom-20 left-1/2 z-20 w-[min(600px,calc(100vw-1.5rem))] -translate-x-1/2 px-1">
+                    <div className={cn(glassPanel, "flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2")}>
+                        {drawMode === "drawing" ? (
+                            <>
+                                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-200">
+                                    <PenTool className="h-3.5 w-3.5" /> Dibujando zona
+                                </span>
+                                <span className="flex-1 min-w-[220px] text-[11px] leading-snug text-white/55">
+                                    Haz clic para añadir vértices · doble clic para cerrar · arrastra para trazo a mano alzada · Esc para cancelar
+                                </span>
+                                <span className="text-[11px] tabular-nums text-white/45">
+                                    {drawSnap.ring.length} vértice{drawSnap.ring.length === 1 ? "" : "s"}
+                                    {drawSnap.areaM2 > 0 ? ` · ${formatArea(drawSnap.areaM2)}` : ""}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => drawerRef.current?.undo()}
+                                        disabled={drawSnap.ring.length === 0}
+                                        className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1 text-[11px] text-white/75 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                        title="Deshacer último vértice (Backspace)"
+                                    >
+                                        <Undo2 className="h-3 w-3" /> Deshacer
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => drawerRef.current?.finish()}
+                                        disabled={!drawSnap.valid}
+                                        className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-500/20 px-2 py-1 text-[11px] font-medium text-amber-100 transition-colors hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+                                        title="Cerrar la zona (Enter o doble clic)"
+                                    >
+                                        <Check className="h-3 w-3" /> Cerrar zona
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={cancelDrawing}
+                                        className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] text-white/45 transition-colors hover:text-white"
+                                        title="Cancelar (Esc)"
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-200">
+                                    <Hexagon className="h-3.5 w-3.5" /> Zona dibujada
+                                </span>
+                                <span className="flex-1 min-w-[200px] text-[11px] leading-snug text-white/55">
+                                    {drawSnap.ring.length <= MAX_EDITABLE_VERTICES
+                                        ? "Arrastra los vértices para ajustarla · clic derecho (o pulsación larga) sobre un vértice lo elimina."
+                                        : "Trazo con muchos vértices: no es editable punto a punto — puedes rehacerlo."}
+                                </span>
+                                <span className="text-[11px] tabular-nums text-white/45">
+                                    {drawSnap.ring.length} vértices · {formatArea(drawSnap.areaM2)}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={startDrawing}
+                                        className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1 text-[11px] text-white/75 transition-colors hover:bg-white/10"
+                                        title="Rehacer el trazo desde cero"
+                                    >
+                                        <RefreshCw className="h-3 w-3" /> Rehacer
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={proposeDrawnZone}
+                                        className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-500/20 px-2 py-1 text-[11px] font-medium text-amber-100 transition-colors hover:bg-amber-500/30"
+                                        title="Lanzar esta zona a votación"
+                                    >
+                                        <Vote className="h-3 w-3" /> Proponer zona
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={cancelDrawing}
+                                        className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] text-white/45 transition-colors hover:text-white"
+                                        title="Descartar (Esc)"
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* ── Chip de estado del radar ── */}
             {overlaysOn.includes("rainviewer") && rain && (
                 <div className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2">
@@ -1436,6 +1646,10 @@ export function MapView({ className }: { className?: string }) {
                             <button
                                 type="button"
                                 onClick={() => {
+                                    // Propuesta CIRCULAR clásica: descarta cualquier trazo previo.
+                                    try { drawerRef.current?.clear(); } catch { /* noop */ }
+                                    setDrawSnap(null);
+                                    setPropRing(null);
                                     setPropLatLng({ lat: createAt.lat, lng: createAt.lng });
                                     setPropOpen(true);
                                     setCreateAt(null);
@@ -1443,7 +1657,15 @@ export function MapView({ className }: { className?: string }) {
                                 className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs text-white/80 transition-colors hover:bg-amber-500/15 hover:text-amber-200"
                             >
                                 <Vote className="h-4 w-4 text-amber-300" />
-                                Proponer nombre/uso de zona
+                                Proponer zona circular
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setCreateAt(null); startDrawing(); }}
+                                className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs text-white/80 transition-colors hover:bg-amber-500/15 hover:text-amber-200"
+                            >
+                                <PenTool className="h-4 w-4 text-amber-300" />
+                                Dibujar zona a mano (polígono)
                             </button>
                         </div>
                     ) : (
@@ -1511,22 +1733,50 @@ export function MapView({ className }: { className?: string }) {
                             <label className="text-xs text-white/60">Descripción / justificación</label>
                             <Textarea value={propDesc} onChange={(e) => setPropDesc(e.target.value)} rows={3} placeholder="Por qué este nombre o uso beneficia al procomún…" className="bg-black/30 border-white/10 text-sm" />
                         </div>
-                        <div className="grid gap-1.5">
-                            <label className="flex items-center justify-between text-xs text-white/60">
-                                Radio de la zona <span className="tabular-nums text-white/45">{propRadius} m</span>
-                            </label>
-                            <Slider value={[propRadius]} min={50} max={5000} step={50} onValueChange={(v) => setPropRadius(v[0] ?? 250)} />
-                            <p className="text-[10px] text-white/35">
-                                El círculo se previsualiza en el mapa (MVP: zona circular; polígonos libres, pendiente).
-                            </p>
-                        </div>
+                        {/* Geometría: POLÍGONO dibujado a mano o CÍRCULO ajustable */}
+                        {propRing && propRing.length >= 3 ? (
+                            <div className="grid gap-1.5 rounded-xl border border-amber-400/25 bg-amber-500/[0.07] p-2.5">
+                                <p className="flex items-center justify-between text-xs text-amber-100">
+                                    <span className="flex items-center gap-1.5">
+                                        <Hexagon className="h-3.5 w-3.5" /> Zona poligonal dibujada
+                                    </span>
+                                    <span className="tabular-nums text-amber-200/70">{propRing.length} vértices</span>
+                                </p>
+                                <p className="text-[10px] text-white/45">
+                                    Área aproximada: <span className="tabular-nums text-white/70">{formatArea(propAreaM2)}</span>
+                                    {" · "}
+                                    Cierra este diálogo para seguir ajustando los vértices en el mapa.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => { setPropOpen(false); startDrawing(); }}
+                                    className="inline-flex w-fit cursor-pointer items-center gap-1 rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1 text-[11px] text-white/70 transition-colors hover:bg-white/10"
+                                >
+                                    <RefreshCw className="h-3 w-3" /> Rehacer el trazo
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid gap-1.5">
+                                <label className="flex items-center justify-between text-xs text-white/60">
+                                    <span className="flex items-center gap-1.5">
+                                        <CircleIcon className="h-3.5 w-3.5 text-white/40" /> Radio de la zona
+                                    </span>
+                                    <span className="tabular-nums text-white/45">{propRadius} m</span>
+                                </label>
+                                <Slider value={[propRadius]} min={50} max={5000} step={50} onValueChange={(v) => setPropRadius(v[0] ?? 250)} />
+                                <p className="text-[10px] text-white/35">
+                                    El círculo se previsualiza en el mapa · área ≈ <span className="tabular-nums">{formatArea(propAreaM2)}</span>.
+                                    ¿Necesitas una forma libre? Usa <b className="font-medium text-white/50">Dibujar zona</b> (icono de pluma).
+                                </p>
+                            </div>
+                        )}
                         {propLatLng && (
                             <p className="text-[10px] text-white/35 tabular-nums">
-                                Centro: {propLatLng.lat.toFixed(5)}, {propLatLng.lng.toFixed(5)}
+                                {propRing ? "Centroide" : "Centro"}: {propLatLng.lat.toFixed(5)}, {propLatLng.lng.toFixed(5)}
                             </p>
                         )}
                         <Button
-                            disabled={propBusy || !propName.trim()}
+                            disabled={propBusy || !propName.trim() || !propGeometry}
                             onClick={() => void submitProposal()}
                             className="w-full cursor-pointer gap-2 bg-amber-500/20 border border-amber-400/40 text-amber-100 hover:bg-amber-500/30"
                         >
@@ -1579,6 +1829,19 @@ export function MapView({ className }: { className?: string }) {
                     70% { box-shadow: 0 0 0 14px rgba(56,189,248,0); }
                     100% { box-shadow: 0 0 0 0 rgba(56,189,248,0); }
                 }
+                /* Modo dibujo: cruz + sin gestos del navegador (trazo táctil). */
+                .ss-map .leaflet-container.ss-drawing { cursor: crosshair; touch-action: none; }
+                /* Mientras se traza, los pines/zonas existentes no capturan el
+                   clic (nada de popups a media zona). En edición se restaura. */
+                .ss-map .leaflet-container.ss-drawing .leaflet-marker-pane,
+                .ss-map .leaflet-container.ss-drawing .leaflet-overlay-pane { pointer-events: none; }
+                .ss-vertex {
+                    display: block; width: 14px; height: 14px; border-radius: 9999px;
+                    background: #fbbf24; border: 2px solid rgba(255,255,255,0.95);
+                    box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.22), 0 2px 6px rgba(0,0,0,0.5);
+                    cursor: grab;
+                }
+                .ss-vertex:active { cursor: grabbing; }
                 .ss-zone-label {
                     background: rgba(6, 78, 59, 0.85); color: #d1fae5;
                     border: 1px solid rgba(52, 211, 153, 0.5); border-radius: 9999px;

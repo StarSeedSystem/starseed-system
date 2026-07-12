@@ -2018,3 +2018,74 @@ Principio: el OS SIEMPRE funciona con opciones gratuitas/OSS elegidas por Astrau
 - `?to=` en /messages aún no abre hilo (la ruta existe; el parámetro queda forward-compatible).
 - QuickPublisher podría aceptar `?tipo=` para preseleccionar el tipo del chip pulsado (requiere tocar creation/**, fuera de esta ola).
 - tsc: 0 errores en los archivos tocados; persisten 15 errores PREEXISTENTES en 7 archivos ajenos (live-channel, realtime-sync, notifications, account-context, desktop-store, sync-manager, ai/client/keyStorage) — implicit any / tipos DOM.
+
+## 2026-07-12 — Adenda 63 · P-3 (panel de voz + visión de Aurora, montados) y P-4 (`/messages?to=<handle>`)
+
+**Sesión por:** Claude (subagente Cowork, ola P-3/P-4).
+**Resumen ejecutivo:** Los paneles de **voz** (`VoiceOssPanel`) y **visión** (`VisionPanel`) de Aurora estaban COMPLETOS pero huérfanos (no los renderizaba ninguna página). Ahora viven en Ajustes → Aurora e IA, que hoy **es `/cuenta`** (`/settings` redirige allí; la vieja página con pestañas ya no existe). Además, el deep-link `/messages?to=<handle>` de las acciones rápidas del perfil ya abre (o crea) el hilo con esa persona.
+
+### Hecho
+- **P-3 · Montaje de los sentidos de Aurora** — `src/app/(app)/cuenta/page.tsx`: dos secciones nuevas al final, con ancla propia y cabecera clara: `#aurora-voz` (§8, `<VoiceOssPanel />`) y `#aurora-sentidos` (§9, `<VisionPanel />`), justo después de `#aurora-ia`. Se añaden sus dos tarjetas-resumen al grid navegable superior (buscador propio de la página ya las filtra por «voz», «kokoro», «visión», «cámara»…). Deep-links: la página ahora entiende `?section=<id>` y `#<id>` (además de `?createProfile`), y espera a `loading=false` antes de hacer scroll (antes el nodo aún no existía → scroll silencioso a ninguna parte).
+- **P-3 · Anclas reales en el buscador de Ajustes** — `src/components/settings/settings-search.tsx`: campo opcional `anchor` en `SettingsSearchEntry` + scroll a esa sección en `selectEntry` (respeta `prefers-reduced-motion`). `aurora-voz → #aurora-voz`, `aurora-sentidos → #aurora-sentidos`, `aurora-canales`/`ia-modelos → #aurora-ia`, `neuronas → #seguridad` (donde vive `NeuronsPanel`). Todas existen en `/cuenta`.
+- **P-4 · `/messages?to=<handle>`** — `src/app/(main)/messages/page.tsx`: el cuerpo pasa a `MessagesContent` y el export por defecto lo envuelve en `<Suspense>` (obligatorio con `useSearchParams`, si no rompe el build). Al montar con `?to=`: resuelve el @ en el directorio (`fetchProfileByUsername`, os_profiles) → `createDm(userId)` (que YA reutiliza el hilo 1:1 existente, así que (a) abre el que hay y (b) crea uno nuevo si no) → recarga hilos, lo selecciona, salta a la vista de hilo en móvil y **enfoca el compositor** (prop nueva `autoFocusComposer` en `ThreadView`, con `ref` en el `Input` del composer). Estados honestos en un banner: «Abriendo tu conversación con @x…», @ inexistente, «ese eres tú», sin sesión → aviso descartable, nunca crash. Idempotente (`handledToRef`).
+- **Bug colateral corregido** (era imprescindible para P-4): `reloadThreads` leía un `selectedId` obsoleto (useCallback con deps `[]` + eslint-disable) y por eso **cada recarga realtime saltaba al primer hilo**, pisando cualquier selección. Ahora usa actualización funcional (`setSelectedId(cur => cur ?? rows[0]?.id)`), y `setProfiles` fusiona en vez de reemplazar (no se pierde el perfil resuelto por el deep-link). El deep-link `?attachServer=` pasa a leerse por `useSearchParams` (ya hay boundary de Suspense; se retira el `window.location` de apaño).
+
+### Decisiones tomadas
+- Los paneles se montan en `/cuenta` porque **es** la página de Ajustes (`src/app/(main)/settings/page.tsx` = `redirect("/cuenta")`). No se resucita la página de pestañas. Cambio quirúrgico en `cuenta/page.tsx` (2 imports, 1 icono, 2 tarjetas, 1 efecto, 2 secciones) — el archivo ya se rompió una vez, se verificó con tsc.
+- `SettingsSearch` sigue sin montarse en ninguna página (tiene su propio buscador `/cuenta`); las anclas quedan correctas para cuando se monte. No se tocó `settings-sync.ts`, `tts-oss/**`, personalidades, sharing/**, security/** ni map/**.
+- Crear el hilo con `createDm` (fila real) en vez de un borrador en memoria: es idempotente y es lo que ya hace `NewChatDialog`; un hilo vacío se lista sin problema (`lastMessage: null`).
+
+### Pendiente / Próximos pasos
+- Los `QuickLink` de `/cuenta` a `/settings?tab=appearance|trinity|ai` aterrizan en `/cuenta` (el redirect pierde el `tab`): o se convierten en anclas locales o `/settings` debería reenviar `?tab=` a `?section=`.
+- Otros paneles de `src/components/settings/ai/**` (proveedores, canales, mixture-of-agents, intelligence) siguen huérfanos igual que estaban voz y visión — merecen su propia ola de montaje.
+- tsc (tsconfig real del repo): **0 errores** en los 4 archivos tocados. Persisten 4 errores PREEXISTENTES en 2 archivos ajenos que importa `/cuenta` (`profiles/account-profiles-switcher.tsx`, `settings/account/entity-roles-panel.tsx`); el build no se bloquea (`next.config` → `ignoreBuildErrors: true`).
+
+## 2026-07-12 — Adenda 63 · P-5 (polígonos libres en el Mapa del Hub)
+
+**Sesión por:** Claude (subagente Cowork, ola P-5).
+**Resumen ejecutivo:** Las propuestas territoriales (`proposals` · kind `map_zone`) ya no están limitadas a un círculo: se pueden **dibujar zonas a mano** en `/hub/mapa` (clic a clic o a mano alzada) con la API BASE de Leaflet, sin plugins ni dependencias npm. La geometría se persiste en la MISMA propuesta y las zonas circulares ya guardadas siguen funcionando sin migración.
+
+### Hecho
+- **`src/lib/map/map-geometry.ts` (NUEVO)** — modelo único de zona: `{kind:"circle", center:[lat,lng], radiusM}` | `{kind:"polygon", ring:[[lat,lng],…]}`. Área por **shoelace esférico** (verificado: 0,01°×0,01° a lat 40 → 0,949 km²), centroide planar (proyección equirectangular local, con caída a la media si es degenerado), `zoneBounds`/`suggestedZoom` para el deep-link, `formatArea` (m²/ha/km²), simplificación (distancia mínima + Douglas-Peucker + tope `MAX_RING_VERTICES=220`) y **`parseZoneGeometry` / `serializeZoneGeometry`** (compatibilidad, ver abajo).
+- **`src/lib/map/map-draw.ts` (NUEVO)** — trazador `createZoneDrawer(L, map, opts)` con Polyline/Polygon/Marker/LayerGroup a pelo: clic = vértice (polilínea viva con `mousemove` + guía de cierre discontinua), **doble clic/doble toque = cerrar**, **arrastrar = trazo a mano alzada** (muestreo cada 15 px, simplificado al soltar), Backspace = deshacer, Enter = cerrar, Escape = cancelar. Al cerrar pasa a modo **edición**: marcadores de vértice **arrastrables** (clic derecho / pulsación larga sobre uno lo elimina, mínimo 3). Táctil (touchstart/move/end, pinch-zoom respetado) y sin fugas (`destroy()` en el unmount del mapa).
+- **`src/lib/map/map-data.ts`** — `MapZoneProposal` gana `geometry: ZoneGeometry` + `areaM2`; `lat`/`lng` pasan a ser el **centroide** y `radiusM` el radio real (círculos) o el **equivalente por área** (polígonos). `createZoneProposal({name, zoneKind, description, geometry})` serializa con `serializeZoneGeometry` y el deep-link del adjunto «Ver en el Mapa» usa centroide + zoom sugerido.
+- **`src/components/map/map-view.tsx`** — botón **Dibujar zona** (icono pluma, estado activo) en la barra derecha + entrada «Dibujar zona a mano (polígono)» en «Crear aquí» (la de siempre pasa a llamarse «Proponer zona circular»). Barra inferior con la ayuda («Haz clic para añadir vértices · doble clic para cerrar · arrastra para trazo a mano alzada · Esc para cancelar»), contador de vértices, **área en vivo** y botones Deshacer / Cerrar zona / Rehacer / Proponer zona / Cancelar. La capa de propuestas pinta **polígonos y círculos indistintamente** (mismo popup, ahora con forma + área; las aprobadas conservan estilo y etiqueta). El diálogo de propuesta es consciente de la geometría (slider de radio solo en círculos; en polígonos muestra vértices, área y «Rehacer el trazo»).
+
+### Decisiones tomadas
+- **Compatibilidad sin migración de datos (bidireccional).** `parseZoneGeometry` acepta 3 formas: `geometry` anidada (nuevo), geometría plana con `kind`, y el **legacy plano `{lat,lng,radiusM}` SIN `kind` → círculo**. Y al guardar seguimos escribiendo TAMBIÉN los campos legacy (centroide + radio de área equivalente), así que una versión ANTIGUA del OS desplegada pinta un polígono nuevo como círculo razonable en vez de ignorarlo.
+- **Sin plugins de dibujo** (Leaflet.draw/geoman): la Adenda prohíbe dependencias npm nuevas y Leaflet entra por CDN. Todo se hace con la API base + eventos DOM sobre el contenedor del mapa.
+- **Dibujar desactiva «Crear aquí»**: el `contextmenu` del mapa consulta `drawActiveRef`; además, mientras se traza, los paneles de marcadores/overlay quedan `pointer-events:none` (nada de popups a media zona) y el mapa no panea (dragging/doubleClickZoom/boxZoom off, restaurados al terminar).
+- El trazador vive **fuera de React** y sólo emite instantáneas (`onChange`), evitando re-renders por cada punto muestreado. Escape con un diálogo Radix abierto NO borra la zona (guarda por `[role=dialog][data-state=open]`).
+
+### Pendiente / Próximos pasos
+- Un polígono es un **anillo simple**: sin agujeros, sin multipolígonos y sin cruce del antimeridiano (documentado en la cabecera de `map-geometry.ts`). Si la red lo pide → GeoJSON + PostGIS.
+- No hay **auto-intersección** detectada: se puede dibujar un "lazo" y el área saldrá rara (el shoelace se cancela). Faltaría validación de simplicidad del anillo.
+- Sin marcadores intermedios para **insertar** vértices en el medio de una arista (solo mover/eliminar/rehacer).
+- Los trazos a mano alzada con >80 vértices no muestran marcadores editables (sería inmanejable): se rehacen.
+- tsc (tsconfig real del repo, archivos tocados + sus vecinos de `map/**`): **0 errores**. `next lint` no se pudo ejecutar (falla con "Converting circular structure to JSON", roto de antes en el repo).
+
+## 2026-07-12 — Adenda 63 · Sync en vivo SIN DDL (broadcast primero)
+
+**Sesión por:** Claude (subagente Cowork).
+**Resumen ejecutivo:** El sync en vivo (Biblioteca y publicaciones) dependía de `postgres_changes`, que exige que las tablas estén en la publicación `supabase_realtime` — migración `20260711120000_realtime_publication.sql` **imposible de aplicar sin credenciales de gestión**. Ahora el camino PRINCIPAL es Realtime **BROADCAST** (canales), que no requiere DDL: el sync funciona igual de bien con la migración pendiente, y si algún día se aplica, no hay ni duplicados ni doble trabajo.
+
+### Hecho
+- **`src/lib/sync/live-signal.ts` (NUEVO)** — motor de señales: `emitChange(topic, {id, updatedAt, entity, data})` / `onChange(topic, cb, {entity})`, un único evento de broadcast `live` sobre dos canales: `acct:<uid>` (otros **dispositivos** de la cuenta, multiplexado sobre el canal que ya gestiona `realtime-sync.ts` — sin abrir un 2.º websocket) y `ent:<kind>:<id>` (otras **cuentas** con acceso al recurso compartido; refcount + cierre con gracia de 60 s). Helpers de topic: `libraryTopic` / `entityFeedTopic` / `feedTopic` / `FEED_GLOBAL_TOPIC` + entidad virtual `ent:feed:global`. Incluye `checkRealtimeTables()` (diagnóstico).
+- **`src/lib/sync/realtime-sync.ts`** — `getOrCreateBroadcastChannel` ahora **re-cablea** los eventos custom ya registrados vía `onAccountBroadcast` al crear un canal nuevo: sin esto, tras un teardown/cambio de sesión los listeners (`live`, peticiones de archivo a neuronas) quedaban **sordos para siempre**.
+- **`src/lib/library/entity-library.ts`** — `pushCloud` y `flushPendingLibrarySync` emiten `signalLibraryChange(ref, row.updated_at)` tras un push con ÉXITO. `watchLibrary` escucha ahora **broadcast** (señal → `pullCloud` + merge LWW → `writeCache`, que ya emite `starseed:library-updated`) **y** `postgres_changes` (redundante, deduplicado).
+- **`src/lib/os-social.ts`** — `createPost` hace `select("id, created_at")` tras el insert y emite en `feed:<tipo>:<slug>` (canal de entidad) y en `feed:global` (canal compartido `ent:feed:global`).
+- **`src/hooks/use-os-entities.ts`** (`useOsPosts`) y **`src/components/social/PostFeed.tsx`** — escuchan el broadcast además de su `postgres_changes` (con dedupe por clave común).
+- **`src/components/settings/account/realtime-sync-panel.tsx`** — bloque «Sync en vivo: por broadcast · Activo» + nota gris opcional. Sin alarmas.
+
+### Decisiones tomadas
+- **Anti-eco en 2 capas:** canales con `broadcast: { self: false }` (el emisor nunca recibe lo suyo) + `deviceId` en el payload (descarta lo emitido por otra pestaña del MISMO dispositivo).
+- **Anti doble-procesado:** puerta única `shouldProcessChange(changeKey(topic, id, updatedAt))`, ventana ~5 s. La primera vía que llegue procesa; el resto (canal de cuenta, canal de entidad, `postgres_changes`) se descarta. **Regla:** los dos transportes deben construir la clave con el mismo `id` y `updatedAt` de la fila — por eso `createPost` recupera `id`/`created_at`.
+- **`emitChange` se llama SIEMPRE tras un push con éxito**, nunca antes (si no, anunciaríamos un cambio que nadie puede leer todavía).
+- **Diagnóstico honesto:** PostgREST no expone `pg_catalog`, así que `checkRealtimeTables()` normalmente devuelve `known:false` ("desconocido"). No es un problema y la UI no lo pinta como error: el sync funciona por broadcast.
+- El patrón es **señal + repull** (la señal lleva solo id + fecha, nunca contenido): cada cliente vuelve a consultar y **RLS decide** qué puede leer. Un canal compartido no filtra datos.
+
+### Pendiente / Próximos pasos
+- La migración `supabase/migrations/20260711120000_realtime_publication.sql` **sigue sin aplicar** — ya no es bloqueante, pero conviene aplicarla (dashboard/CLI) para tener el camino redundante: cubre a los clientes que estaban CERRADOS cuando se emitió el broadcast (el broadcast no persiste).
+- `cafe_posts` (que es lo que lee `PostFeed`) no emite señal: sus escrituras viven en otro flujo. Solo se refresca por `postgres_changes` de `cafe_posts` o por la señal de `os_posts`.
+- Los canales de entidad son públicos (cualquiera autenticado puede suscribirse a `ent:<kind>:<id>`). Como solo viaja la señal, no hay fuga; si se quisiera endurecer → Realtime Authorization (canales privados con RLS sobre `realtime.messages`).
+- tsc (tsconfig real del repo vía `extends`, con los 7 archivos tocados en `files`): **0 errores**.

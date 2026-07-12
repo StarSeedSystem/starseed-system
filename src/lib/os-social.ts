@@ -15,6 +15,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient } from "@/utils/supabase/client";
+// Señal en vivo SIN DDL (Adenda 63 §4): al publicar, avisamos por broadcast a
+// los demás dispositivos/cuentas. No depende de que `os_posts` esté en la
+// publicación `supabase_realtime` (migración que puede no estar aplicada).
+import { emitChange, entityFeedTopic, FEED_GLOBAL_ENTITY, FEED_GLOBAL_TOPIC } from "@/lib/sync/live-signal";
 import {
     samplePages,
     sampleGroups,
@@ -581,18 +585,61 @@ export async function createPost(input: CreatePostInput): Promise<MutationResult
     if (!uid) return { ok: false, needsAuth: true };
     const supabase = createClient();
     try {
-        const { error } = await supabase.from("os_posts").insert({
-            author_id: uid,
-            author_name: input.authorName || "Ciudadano StarSeed",
-            entity_type: input.entityType,
-            entity_slug: input.entitySlug,
-            body: input.body,
-            media_url: input.mediaUrl ?? null,
-        });
+        // `select()` tras el insert: necesitamos id + created_at de la fila para
+        // que la señal de broadcast y el eco de postgres_changes compartan la
+        // MISMA clave de deduplicación (ver live-signal.changeKey).
+        const { data, error } = await supabase
+            .from("os_posts")
+            .insert({
+                author_id: uid,
+                author_name: input.authorName || "Ciudadano StarSeed",
+                entity_type: input.entityType,
+                entity_slug: input.entitySlug,
+                body: input.body,
+                media_url: input.mediaUrl ?? null,
+            })
+            .select("id, created_at")
+            .maybeSingle();
         if (error) throw error;
+
+        // Publicado con ÉXITO → anunciarlo en vivo (no bloquea el retorno).
+        const row = (data ?? null) as { id?: string | null; created_at?: string | null } | null;
+        signalPostPublished(input.entityType, input.entitySlug, row?.id ?? undefined, row?.created_at ?? undefined);
+
         return { ok: true, active: true };
     } catch (e: any) {
         return { ok: false, error: e?.message || "error" };
+    }
+}
+
+/**
+ * Anuncia por BROADCAST una publicación nueva. Emite en dos temas:
+ *   · `feed:<entityType>:<entitySlug>` — feed de esa entidad/sección. Con
+ *     `entity` para que llegue por el canal `ent:<kind>:<slug>` también a las
+ *     OTRAS cuentas (miembros del grupo, seguidores de la página…).
+ *   · `feed:global` — cualquier feed genérico (PostFeed) puede refrescarse.
+ * Nunca lanza: una señal fallida jamás debe romper una publicación ya guardada.
+ */
+function signalPostPublished(
+    entityType: OsEntityType,
+    entitySlug: string,
+    postId?: string,
+    createdAt?: string,
+): void {
+    if (typeof window === "undefined") return;
+    try {
+        void emitChange(entityFeedTopic(entityType, entitySlug), {
+            id: postId,
+            updatedAt: createdAt,
+            entity: { kind: entityType, id: entitySlug },
+        });
+        void emitChange(FEED_GLOBAL_TOPIC, {
+            id: postId,
+            updatedAt: createdAt,
+            entity: FEED_GLOBAL_ENTITY, // canal compartido: llega también a OTRAS cuentas
+        });
+    } catch {
+        /* best-effort */
     }
 }
 

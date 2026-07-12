@@ -74,9 +74,15 @@ export interface ThreadViewProps {
     /** Adjunto de servidor prellenado (desde ?attachServer=<slug>), si aplica. */
     pendingServerAttachment?: DmAttachment | null;
     onConsumePendingAttachment?: () => void;
+    /**
+     * Enfoca el compositor al abrir el hilo (Adenda 63 · P-4): lo usa el
+     * deep-link `/messages?to=<handle>`, que abre (o crea) el chat con esa
+     * persona y deja el cursor listo para escribir.
+     */
+    autoFocusComposer?: boolean;
 }
 
-export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingServerAttachment, onConsumePendingAttachment }: ThreadViewProps) {
+export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingServerAttachment, onConsumePendingAttachment, autoFocusComposer }: ThreadViewProps) {
     const [messages, setMessages] = useState<DmMessage[]>([]);
     const [loading, setLoading] = useState(true);
     const [profiles, setProfiles] = useState<Record<string, OsProfile>>({});
@@ -88,7 +94,17 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
     const [auroraStatus, setAuroraStatus] = useState("");
     const [agentPanelOpen, setAgentPanelOpen] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const composerRef = useRef<HTMLInputElement>(null);
     const autoRepliedIds = useRef<Set<string>>(new Set());
+
+    // Deep-link `?to=<handle>`: al abrir el hilo, el cursor ya está en el
+    // compositor. Pequeño retardo para no pelear con el montaje/scroll inicial
+    // (y para que en móvil el teclado aparezca con el hilo ya pintado).
+    useEffect(() => {
+        if (!autoFocusComposer) return;
+        const t = setTimeout(() => composerRef.current?.focus(), 200);
+        return () => clearTimeout(t);
+    }, [autoFocusComposer, thread.id]);
 
     const title = threadTitle(thread, profiles, myUserId);
     const avatar = threadAvatar(thread, profiles, myUserId);
@@ -430,6 +446,7 @@ export function ThreadView({ thread, myUserId, onBack, onThreadUpdated, pendingS
                     </InviteComposerButton>
 
                     <Input
+                        ref={composerRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => {

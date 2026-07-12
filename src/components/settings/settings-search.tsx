@@ -51,6 +51,15 @@ export interface SettingsSearchEntry {
     icon: LucideIcon;
     /** Etiqueta legible de la categoría/pestaña, para el chip del resultado. */
     category: string;
+    /**
+     * `id` de una sección REAL del DOM a la que saltar tras navegar (Adenda 63
+     * · P-3). Los Ajustes viven hoy en `/cuenta` (`/settings` redirige allí),
+     * cuyas secciones tienen anclas: `info-personal`, `datos-privacidad`,
+     * `roles`, `seguridad`, `sincronizacion`, `personalizacion`,
+     * `notificaciones`, `aurora-ia`, `aurora-voz`, `aurora-sentidos`.
+     * Si se omite, solo se navega a la pestaña.
+     */
+    anchor?: string;
 }
 
 /* ── Catálogo de entradas — cubre las opciones más importantes de cada
@@ -134,6 +143,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
         description: "Motor de voz de Aurora: navegador, Kokoro (local), Bark, GPT-SoVITS u OmniVoice (por endpoint) + estilo emocional.",
         icon: Mic,
         category: "Aurora e IA",
+        anchor: "aurora-voz",
     },
     {
         id: "aurora-sentidos",
@@ -143,6 +153,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
         description: "Percepción visual de Aurora, 100% local vía WebGPU.",
         icon: Eye,
         category: "Aurora e IA",
+        anchor: "aurora-sentidos",
     },
     {
         id: "aurora-canales",
@@ -152,6 +163,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
         description: "Por dónde habla Aurora: interno, Telegram, Google Chat o API.",
         icon: Sparkles,
         category: "Aurora e IA",
+        anchor: "aurora-ia",
     },
     {
         id: "ia-modelos",
@@ -161,6 +173,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
         description: "Proveedores de tu Exocórtex: modelos locales o API.",
         icon: Cpu,
         category: "Aurora e IA",
+        anchor: "aurora-ia",
     },
     {
         id: "neuronas",
@@ -170,6 +183,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
         description: "Cada uno de tus dispositivos como cerebro + servidor de Astraura.",
         icon: Cpu,
         category: "Aurora e IA",
+        anchor: "seguridad",
     },
 
     // Cuenta y Sincronización
@@ -306,6 +320,17 @@ export function SettingsSearch({ onNavigate, className }: SettingsSearchProps) {
         onNavigate(entry.tab);
         setQuery("");
         setOpen(false);
+        // Si la entrada declara un ancla REAL (id de sección), salta a ella tras
+        // dejar que la pestaña destino pinte. Respeta prefers-reduced-motion.
+        if (entry.anchor && typeof window !== "undefined") {
+            const anchor = entry.anchor;
+            window.setTimeout(() => {
+                const el = document.getElementById(anchor);
+                if (!el) return;
+                const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+            }, 120);
+        }
     }
 
     function clearSearch() {

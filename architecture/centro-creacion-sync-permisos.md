@@ -30,6 +30,36 @@
 - Composer `/publish`: adjuntos suben a Storage (antes solo guardaba el nombre).
 - ⚠️ Supabase realtime: las tablas (`entity_state`, `os_posts`, `canvases`, `user_settings`) deben estar en la publicación `supabase_realtime` (revisar migraciones locales `supabase/migrations/`; si falta, migración nueva + aplicar en dashboard/CLI).
 
+### 4.1 Sync sin DDL: **broadcast primero** (2026-07-12)
+
+**Problema.** `postgres_changes` SOLO emite si la tabla está en la publicación `supabase_realtime`. Darla de alta es DDL (`supabase/migrations/20260711120000_realtime_publication.sql`) y **no siempre se puede aplicar** (sin credenciales de gestión). Con la migración pendiente, el usuario **no veía** sus cambios en otros dispositivos.
+
+**Decisión.** El camino PRINCIPAL del sync en vivo pasa a ser Realtime **BROADCAST** (canales), que **no requiere DDL, ni publicación, ni réplica lógica**. `postgres_changes` se mantiene como camino **redundante** (sobrevive reconexiones y cubre clientes que estaban cerrados). Si la migración se aplica algún día, **no hay duplicados**: los dos caminos se deduplican entre sí.
+
+**Motor:** `src/lib/sync/live-signal.ts`.
+
+**Contrato de canales** (un único evento de broadcast, `live`; el `topic` del payload discrimina el recurso):
+
+| Canal | Alcance | Quién lo gestiona |
+|---|---|---|
+| `acct:<uid>` | otros **dispositivos** de la misma cuenta | ya existía — `realtime-sync.ts` (`sendAccountBroadcast`/`onAccountBroadcast`, multiplexado: no se abre un 2.º websocket) |
+| `ent:<kind>:<id>` | otras **cuentas** con acceso al recurso compartido (grupo, página, comunidad, E.F.…) | `live-signal.ts` (refcount + cierre con gracia de 60 s) |
+| `ent:feed:global` | feed global (entidad "virtual") | `live-signal.ts` — sin él, un feed genérico solo vería sus propias publicaciones |
+
+**Temas (topics):** `library:<kind>:<id>` · `feed:<entityType>:<entitySlug>` · `feed:global` · `feed:<channelKey>` (helpers `libraryTopic` / `entityFeedTopic` / `feedTopic`).
+
+**API:** `emitChange(topic, { id, updatedAt, entity, data })` — llamar SIEMPRE **tras un push con éxito** · `onChange(topic, cb, { entity })` — devuelve función de limpieza.
+
+**Anti-eco (dos capas):** (1) los canales se crean con `broadcast: { self: false }` → el emisor nunca recibe su propio mensaje; (2) todo payload lleva `deviceId` → un cambio del propio dispositivo (p. ej. otra pestaña) se descarta.
+
+**Anti doble-procesado:** `shouldProcessChange(changeKey(topic, id, updatedAt))` es una puerta única con ventana de ~5 s. La PRIMERA vía que llegue procesa; broadcast por canal de cuenta, broadcast por canal de entidad y `postgres_changes` del mismo cambio comparten clave y se descartan entre sí. **Regla:** ambos transportes deben construir `changeKey` con el MISMO `id` y `updatedAt` de la fila (por eso `createPost` hace `select("id, created_at")` tras el insert).
+
+**Cableado:**
+- Biblioteca (`entity-library.ts`): `pushCloud`/`flushPendingLibrarySync` → `signalLibraryChange(ref, row.updated_at)`. `watchLibrary` escucha broadcast (señal → `pullCloud` + merge LWW → `writeCache` → evento `starseed:library-updated`, reutilizado) **y** `postgres_changes` (dedupe).
+- Publicaciones (`os-social.ts` → `createPost`): emite en `feed:<tipo>:<slug>` (canal de entidad) y en `feed:global` (canal `ent:feed:global`). Escuchan `useOsPosts` (secciones/páginas/grupos) y `PostFeed`, además de su `postgres_changes`.
+
+**Diagnóstico honesto (UI):** `checkRealtimeTables()` intenta leer `pg_publication_tables`; PostgREST no expone `pg_catalog`, así que **lo normal es "desconocido"** — y no pasa nada. `RealtimeSyncPanel` (/cuenta) muestra «Sync en vivo: por broadcast · Activo» y, como mucho, una nota gris de que el camino redundante no está disponible. **Nunca se presenta como error: el sync funciona.**
+
 ## 5. Permisos y compartición (escritorios, dashboards, pizarras, cerebros, archivos, carpetas)
 - Modelo único `src/lib/sharing/access.ts` sobre `os_spaces` (+ `os_space_editors`):
   - **Ámbitos:** `profile` (solo un perfil) · `account` (todos los perfiles de la cuenta) · `custom` (perfiles/cuentas/grupos externos) · `public`.

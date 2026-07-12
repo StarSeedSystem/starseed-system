@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { PostCard } from "@/components/social/PostCard";
 import { useCafePosts } from "@/hooks/use-cafe-posts";
 import { useRealtime } from "@/lib/realtime/realtime";
+import {
+    changeKey,
+    feedTopic,
+    onChange as onLiveChange,
+    shouldProcessChange,
+    FEED_GLOBAL_ENTITY,
+    FEED_GLOBAL_TOPIC,
+} from "@/lib/sync/live-signal";
 import { Sparkles, PenSquare } from "lucide-react";
 
 interface PostFeedProps {
@@ -59,9 +67,28 @@ export function PostFeed({
 
     // TIEMPO REAL (Adenda 63 §4/§8): publicaciones del OS (`os_posts`) —
     // INSERT/UPDATE/DELETE. Es la tabla donde publican los perfiles y las
-    // secciones (política/educación/cultura); así las publicaciones nuevas
-    // aparecen en vivo en todos los dispositivos sin recargar.
-    useRealtime("os_posts", { event: "*" }, () => refetch());
+    // secciones (política/educación/cultura). Camino REDUNDANTE: solo funciona
+    // si `os_posts` está en la publicación `supabase_realtime`. El camino que
+    // SIEMPRE funciona es el broadcast de abajo; se deduplican con la misma clave.
+    useRealtime("os_posts", { event: "*" }, (payload) => {
+        const row = (payload?.new ?? payload?.old) as { id?: string | null; created_at?: string | null } | null;
+        if (!shouldProcessChange(changeKey(FEED_GLOBAL_TOPIC, row?.id, row?.created_at))) return;
+        refetch();
+    });
+
+    // TIEMPO REAL SIN DDL (broadcast): `createPost` emite en `feed:global` y en
+    // el tema de la entidad. Escuchamos el global por el canal COMPARTIDO
+    // `ent:feed:global` (así llegan también las publicaciones de OTRAS cuentas,
+    // no solo las de otros dispositivos míos) y el tema de esta instancia del
+    // feed. No depende de ninguna migración.
+    React.useEffect(() => {
+        const offGlobal = onLiveChange(FEED_GLOBAL_TOPIC, () => refetch(), { entity: FEED_GLOBAL_ENTITY });
+        const offChannel = onLiveChange(feedTopic(channelKey), () => refetch());
+        return () => {
+            offGlobal();
+            offChannel();
+        };
+    }, [refetch, channelKey]);
 
     if (loading) {
         return (

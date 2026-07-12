@@ -12,6 +12,10 @@
 //   · Propuestas DEMOCRÁTICAS territoriales (tabla `proposals`, motor de
 //     src/lib/governance): kind dedicado "map_zone" (filtrable en servidor),
 //     con la zona en command.payload.mapZone. Aprobada = passed/executed.
+//     La zona puede ser un CÍRCULO o un POLÍGONO libre dibujado a mano
+//     (Adenda 63 · P-5): la geometría se parsea/serializa en map-geometry.ts,
+//     que mantiene la compatibilidad con las zonas circulares ya guardadas
+//     (payload plano {lat,lng,radiusM} sin `kind` → círculo).
 //   · Eventos (os_events) y Comunidades/Páginas/Grupos (os_pages/os_groups)
 //     con columnas geo aditivas lat/lng/place_label ya existentes en os-social.
 //
@@ -35,6 +39,16 @@ import {
     SECTION_SLUGS,
 } from "@/components/creation/creation-config";
 import { createProposal } from "@/lib/governance/engine";
+import {
+    describeZone,
+    equivalentRadiusM,
+    parseZoneGeometry,
+    serializeZoneGeometry,
+    suggestedZoom,
+    zoneAreaM2,
+    zoneCentroid,
+    type ZoneGeometry,
+} from "@/lib/map/map-geometry";
 
 // ── Publicaciones geolocalizadas ─────────────────────────────────────────────
 
@@ -202,9 +216,19 @@ export interface MapZoneProposal {
     zoneKind: ZoneKind;
     description: string;
     status: string;
+    /**
+     * Geometría REAL de la zona: círculo ajustable o POLÍGONO libre
+     * (Adenda 63 · P-5). Ver src/lib/map/map-geometry.ts — las propuestas
+     * antiguas (sin `kind`) se leen como círculo, sin migración de datos.
+     */
+    geometry: ZoneGeometry;
+    /** Centroide de la geometría (etiquetas, deep-link ?lat&lng&zoom). */
     lat: number;
     lng: number;
+    /** Radio en m: real en círculos, EQUIVALENTE por área en polígonos. */
     radiusM: number;
+    /** Área aproximada en m² (shoelace esférico). */
+    areaM2: number;
     createdAt: string;
 }
 
@@ -237,9 +261,16 @@ export async function fetchMapProposals(limit = 150): Promise<MapZoneProposal[]>
         for (const row of data as ProposalRow[]) {
             const mz = (row.command?.payload as { mapZone?: Record<string, unknown> } | undefined)?.mapZone;
             if (!mz) continue;
-            const lat = numOrNull(mz.lat);
-            const lng = numOrNull(mz.lng);
-            if (lat == null || lng == null) continue;
+
+            // COMPATIBILIDAD: geometría nueva ({kind:…}) o legacy plana
+            // ({lat,lng,radiusM} sin kind) → siempre un ZoneGeometry válido.
+            const geometry = parseZoneGeometry(mz);
+            if (!geometry) continue;
+
+            const centroid = zoneCentroid(geometry);
+            if (!centroid) continue;
+            const areaM2 = zoneAreaM2(geometry);
+
             out.push({
                 id: row.id,
                 title: row.title || "Propuesta territorial",
@@ -247,9 +278,14 @@ export async function fetchMapProposals(limit = 150): Promise<MapZoneProposal[]>
                 zoneKind: (typeof mz.zoneKind === "string" ? mz.zoneKind : "nombre-de-zona") as ZoneKind,
                 description: row.description || "",
                 status: row.status || "open",
-                lat,
-                lng,
-                radiusM: Math.max(20, numOrNull(mz.radiusM) ?? 250),
+                geometry,
+                lat: centroid[0],
+                lng: centroid[1],
+                radiusM:
+                    geometry.kind === "circle"
+                        ? Math.max(20, geometry.radiusM)
+                        : Math.max(20, Math.round(equivalentRadiusM(areaM2))),
+                areaM2,
                 createdAt: row.created_at || new Date().toISOString(),
             });
         }
@@ -265,33 +301,39 @@ export async function fetchMapProposals(limit = 150): Promise<MapZoneProposal[]>
  * /decisiones). La zona viaja en command.payload.mapZone — el tipo de comando
  * "custom" es un no-op seguro al ejecutarse ("registrado para revisión"), y
  * un adjunto de tipo enlace permite saltar del feed político al mapa.
+ *
+ * La geometría admite CÍRCULO o POLÍGONO libre (Adenda 63 · P-5) y se serializa
+ * con `serializeZoneGeometry`, que escribe el bloque nuevo `geometry` Y los
+ * campos planos legacy (lat/lng/radiusM ≈ centroide + radio equivalente), de
+ * modo que un cliente antiguo del OS siga pintando la zona como un círculo
+ * razonable en vez de ignorarla.
  */
 export async function createZoneProposal(input: {
     name: string;
     zoneKind: ZoneKind;
     description: string;
-    lat: number;
-    lng: number;
-    radiusM: number;
+    geometry: ZoneGeometry;
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
     const kindLabel = ZONE_KINDS.find((z) => z.id === input.zoneKind)?.label ?? "Zona";
-    const mapHref = `/hub/mapa?lat=${input.lat.toFixed(6)}&lng=${input.lng.toFixed(6)}&zoom=15`;
+    const centroid = zoneCentroid(input.geometry);
+    if (!centroid) return { ok: false, error: "La zona dibujada no es válida." };
+    const zoom = suggestedZoom(input.geometry);
+    const mapHref = `/hub/mapa?lat=${centroid[0].toFixed(6)}&lng=${centroid[1].toFixed(6)}&zoom=${zoom}`;
+
     return createProposal({
         scope: "global",
         kind: MAP_PROPOSAL_KIND,
         title: `[Mapa] ${kindLabel}: ${input.name.trim()}`,
         description:
             `${input.description.trim()}\n\n` +
-            `Zona propuesta: ${input.lat.toFixed(5)}, ${input.lng.toFixed(5)} · radio ${Math.round(input.radiusM)} m.`,
+            describeZone(input.geometry),
         command: {
             type: "custom",
             payload: {
                 mapZone: {
                     name: input.name.trim(),
                     zoneKind: input.zoneKind,
-                    lat: input.lat,
-                    lng: input.lng,
-                    radiusM: Math.round(input.radiusM),
+                    ...serializeZoneGeometry(input.geometry),
                 },
             },
         },

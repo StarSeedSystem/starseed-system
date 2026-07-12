@@ -379,13 +379,19 @@ function getOrCreateBroadcastChannel(userId: string): RealtimeChannel | null {
         if (broadcastChannel) { try { supabase.removeChannel(broadcastChannel); } catch { /* noop */ } }
         broadcastChannel = supabase.channel(`acct:${userId}`, { config: { broadcast: { self: false } } });
         broadcastUserId = userId;
-        broadcastChannel
-            .on<BroadcastPayload>("broadcast", { event: "changes" }, (msg) => {
-                const payload = msg?.payload as BroadcastPayload | undefined;
-                if (!payload || payload.deviceId === deviceId()) return; // anti-eco
-                applyRemoteChanges(payload.changes ?? {}, payload.deviceId);
-            })
-            .subscribe();
+        broadcastChannel.on<BroadcastPayload>("broadcast", { event: "changes" }, (msg) => {
+            const payload = msg?.payload as BroadcastPayload | undefined;
+            if (!payload || payload.deviceId === deviceId()) return; // anti-eco
+            applyRemoteChanges(payload.changes ?? {}, payload.deviceId);
+        });
+        // Re-cablea los eventos CUSTOM ya registrados vía onAccountBroadcast
+        // (p. ej. 'live' de live-signal, o las peticiones de archivo a neuronas):
+        // tras un teardown/cambio de sesión el canal es NUEVO y perdería sus
+        // bindings, dejando a esos listeners sordos para siempre.
+        for (const event of accountBroadcastListeners.keys()) {
+            ensureAccountEventWiring(broadcastChannel, event);
+        }
+        broadcastChannel.subscribe();
         return broadcastChannel;
     } catch {
         return null;

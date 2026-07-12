@@ -71,6 +71,13 @@ import {
     type UpdateGroupInput,
     type UpdateEventInput,
 } from "@/lib/os-social";
+// Señal en vivo por BROADCAST (no depende de la publicación `supabase_realtime`).
+import {
+    changeKey,
+    entityFeedTopic,
+    onChange as onLiveChange,
+    shouldProcessChange,
+} from "@/lib/sync/live-signal";
 import {
     detectMedia,
     splitBodyAttachments,
@@ -379,16 +386,37 @@ export function useOsPosts(
             if (mounted.current) setNeedsAuth(!uid);
         });
 
-        let unsub = () => {};
+        // TIEMPO REAL (Adenda 63 §4 · "Sync sin DDL: broadcast primero").
+        // Dos caminos redundantes, deduplicados con la MISMA clave:
+        //   (a) BROADCAST — SIEMPRE funciona (no exige que `os_posts` esté en la
+        //       publicación `supabase_realtime`). El canal de entidad hace que
+        //       lleguen también las publicaciones de OTRAS cuentas.
+        //   (b) postgres_changes vía syncManager — solo con la migración aplicada.
+        let unsubLive = () => {};
+        let unsubPg = () => {};
         if (realtime) {
+            const topic = entityFeedTopic(entityType, slug);
+            try {
+                unsubLive = onLiveChange(topic, () => load(), { entity: { kind: entityType, id: slug } });
+            } catch {
+                /* broadcast no disponible */
+            }
             try {
                 const { syncManager } = require("@/lib/sync/sync-manager");
                 // The os_posts table has a composite filter logically (entity_type and entity_slug)
                 // However, SyncManager currently supports single column filters by default in subscribe.
                 // We'll subscribe to the table generally or by entity_slug, but since the slug is unique enough, we can filter by entity_slug.
-                unsub = syncManager.subscribe("os_posts", "entity_slug", slug, () => {
-                    load();
-                });
+                unsubPg = syncManager.subscribe(
+                    "os_posts",
+                    "entity_slug",
+                    slug,
+                    (payload: { record?: { id?: string | null; created_at?: string | null } | null }) => {
+                        const row = payload?.record ?? null;
+                        // Si este mismo cambio ya entró por broadcast, no recargamos dos veces.
+                        if (!shouldProcessChange(changeKey(topic, row?.id, row?.created_at))) return;
+                        load();
+                    },
+                );
             } catch {
                 /* realtime no disponible */
             }
@@ -396,7 +424,8 @@ export function useOsPosts(
 
         return () => {
             mounted.current = false;
-            unsub();
+            unsubLive();
+            unsubPg();
         };
     }, [load, entityType, slug, realtime]);
 

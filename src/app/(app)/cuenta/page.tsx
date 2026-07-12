@@ -42,6 +42,12 @@ import { AccountSyncPanel } from "@/components/settings/account/account-sync-pan
 import { RealtimeSyncPanel } from "@/components/settings/account/realtime-sync-panel";
 import { ProfilesSyncPanel } from "@/components/profiles/profiles-sync-panel";
 import { EntityRolesPanel } from "@/components/settings/account/entity-roles-panel";
+// Sentidos de Aurora (Adenda 63 · P-3): los paneles ya existían pero NO estaban
+// montados en ninguna página. Viven aquí, dentro de «Aurora e inteligencia»
+// (§7), cada uno con su propia ancla (#aurora-voz / #aurora-sentidos) para que
+// el buscador de Ajustes y los enlaces profundos puedan saltar a ellos.
+import { VoiceOssPanel } from "@/components/settings/aurora/voice-oss-panel";
+import { VisionPanel } from "@/components/settings/aurora/vision-panel";
 
 // ── Recolectores de datos reales (para las tarjetas-resumen; sin duplicar lógica) ──
 import { listThreads } from "@/lib/messages/dm";
@@ -84,6 +90,7 @@ import {
   LayoutGrid,
   Compass,
   Radio,
+  Mic,
 } from "lucide-react";
 
 type Row = Record<string, any>;
@@ -484,6 +491,24 @@ function CuentaContent() {
         accent: "text-[#007FFF]",
         accentBg: "bg-[#007FFF]/10 border-[#007FFF]/20",
       },
+      {
+        id: "aurora-voz",
+        icon: Mic,
+        title: "Voz de Aurora",
+        summary: "Motor de voz (navegador, Kokoro local, Bark, GPT-SoVITS, OmniVoice) y estilo emocional",
+        keywords: "voz tts hablar kokoro kitten bark sovits omnivoice endpoint emocion clonar voz neurona sintesis",
+        accent: "text-[#39FF14]",
+        accentBg: "bg-[#39FF14]/10 border-[#39FF14]/20",
+      },
+      {
+        id: "aurora-sentidos",
+        icon: Eye,
+        title: "Visión de Aurora (sentidos)",
+        summary: "Percepción visual local con SmolVLM2 (WebGPU): pantalla, cámara o imagen",
+        keywords: "vision sentidos smolvlm camara pantalla imagen percepcion multimodal webgpu local",
+        accent: "text-violet-400",
+        accentBg: "bg-violet-400/10 border-violet-400/20",
+      },
     ];
   }, [profile, emails, facetProfiles, searchable, neurons, serversCount, desktopsInfo, notifInfo, remindersInfo, caps, brainRows, auroraCtx]);
 
@@ -498,11 +523,22 @@ function CuentaContent() {
     document.getElementById(id)?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   }, []);
 
+  // Enlaces profundos: ?createProfile / ?createIdentity → «Información personal»;
+  // ?section=<id> o #<id> → cualquier sección con ancla real (p. ej. aurora-voz,
+  // aurora-sentidos). Espera a que la página haya cargado: si no, el nodo aún no
+  // existe en el DOM y el scroll sería un no-op silencioso.
   useEffect(() => {
-    if (searchParams?.get("createProfile") === "true" || searchParams?.get("createIdentity") === "true") {
-      setTimeout(() => scrollTo("info-personal"), 300);
-    }
-  }, [searchParams, scrollTo]);
+    if (loading) return;
+    const wantsProfile =
+      searchParams?.get("createProfile") === "true" || searchParams?.get("createIdentity") === "true";
+    const section =
+      searchParams?.get("section") ||
+      (typeof window !== "undefined" ? window.location.hash.replace(/^#/, "") : "");
+    const target = wantsProfile ? "info-personal" : section;
+    if (!target) return;
+    const t = setTimeout(() => scrollTo(target), 300);
+    return () => clearTimeout(t);
+  }, [searchParams, scrollTo, loading]);
 
   if (loading) return <div style={{ padding: 28, opacity: .7 }}>Cargando tu cuenta…</div>;
 
@@ -907,6 +943,34 @@ function CuentaContent() {
             <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-1"><Radio className="w-3 h-3" /> Neuronas</p>
           </div>
         </div>
+      </section>
+
+      {/* ═══════════════════════ 8) VOZ DE AURORA ═══════════════════════ */}
+      <section id="aurora-voz" className="scroll-mt-6 pt-2 space-y-3">
+        <div>
+          <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
+            <Mic className="w-4 h-4 text-[#39FF14]" /> Voz de Aurora
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Con qué motor habla Aurora (navegador, Kokoro local o tus propios endpoints) y con qué estilo emocional.
+            Todo gratis y con fallback: Aurora siempre habla.
+          </p>
+        </div>
+        <VoiceOssPanel />
+      </section>
+
+      {/* ═══════════════════════ 9) VISIÓN DE AURORA (SENTIDOS) ═══════════════════════ */}
+      <section id="aurora-sentidos" className="scroll-mt-6 pt-2 space-y-3">
+        <div>
+          <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
+            <Eye className="w-4 h-4 text-violet-400" /> Visión de Aurora (sentidos)
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Percepción visual 100% en tu dispositivo (SmolVLM2 + WebGPU): pantalla, cámara o una imagen. Opt-in,
+            privada y sin enviar nada a ningún servidor.
+          </p>
+        </div>
+        <VisionPanel />
       </section>
     </div>
   );

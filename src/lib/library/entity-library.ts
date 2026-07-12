@@ -51,6 +51,19 @@ import {
 // Seguridad integrada (Adenda 63 §13): escaneo de secretos/PII al guardar/
 // compartir e instalar/importar ítems — ver saveItemSecure/importItemSecure.
 import { redactText, scanDeep, summarize, type Finding } from "@/lib/security/scanner";
+// Señal en vivo SIN DDL (Adenda 63 §4 · "Sync sin DDL: broadcast primero"):
+// `postgres_changes` exige que `entity_state` esté en la publicación
+// `supabase_realtime` (migración que puede no estar aplicada). El broadcast no
+// exige nada, así que es el camino PRINCIPAL y postgres_changes queda como
+// camino redundante — deduplicados entre sí con changeKey/shouldProcessChange.
+// (alias: este módulo ya tiene su propio `emitChange` local para eventos window)
+import {
+    changeKey,
+    emitChange as emitLiveChange,
+    libraryTopic,
+    onChange as onLiveChange,
+    shouldProcessChange,
+} from "@/lib/sync/live-signal";
 import { createClient } from "@/utils/supabase/client";
 import { useCallback, useEffect, useState } from "react";
 
@@ -438,6 +451,9 @@ export async function flushPendingLibrarySync(): Promise<{ flushed: number; rema
                 const row = await setEntityState(ref, LIBRARY_KEY, doc);
                 if (row) {
                     clearPendingSync(ref);
+                    // Subida diferida (venía de offline/sin sesión): también hay que
+                    // anunciarla en vivo al resto de dispositivos y cuentas con acceso.
+                    signalLibraryChange(ref, row.updated_at);
                     flushed++;
                 }
             } catch {
@@ -512,6 +528,28 @@ async function pullCloud(ref: EntityRef): Promise<EntityLibraryDoc | null> {
 }
 
 /**
+ * Anuncia por BROADCAST que esta biblioteca cambió (tras un push con ÉXITO).
+ * Llega a los demás dispositivos de la cuenta (canal `acct:<uid>`) y, por el
+ * canal de entidad `ent:<kind>:<id>`, a las OTRAS cuentas con acceso (grupos,
+ * páginas, comunidades…). No requiere DDL ni publicación `supabase_realtime`.
+ *
+ * `id` + `updatedAt` son la clave de deduplicación: el camino redundante de
+ * postgres_changes (watchLibrary) construye exactamente la misma clave, así que
+ * el cambio se procesa UNA sola vez llegue por donde llegue.
+ */
+function signalLibraryChange(ref: EntityRef, updatedAt?: string | null): void {
+    try {
+        void emitLiveChange(libraryTopic(ref), {
+            id: `${ref.kind}:${ref.id}`,
+            updatedAt: updatedAt ?? undefined,
+            entity: { kind: ref.kind, id: ref.id },
+        });
+    } catch {
+        /* best-effort: la señal nunca debe romper el guardado */
+    }
+}
+
+/**
  * Sube el documento a la nube y DEVUELVE si lo consiguió. En fallo (offline,
  * sin sesión, RLS) encola la entidad en la cola de pendientes — la copia local
  * sigue siendo válida y el reintento automático la subirá en cuanto pueda.
@@ -521,6 +559,7 @@ async function pushCloud(ref: EntityRef, doc: EntityLibraryDoc): Promise<boolean
         const row = await setEntityState(ref, LIBRARY_KEY, doc);
         if (row) {
             clearPendingSync(ref);
+            signalLibraryChange(ref, row.updated_at);
             return true;
         }
         enqueuePendingSync(ref);
@@ -543,6 +582,16 @@ const activeWatchers = new Map<string, { count: number; unsub: () => void }>();
  * Vigila en tiempo real la biblioteca de una entidad. Devuelve función de
  * limpieza. Reutiliza el canal si la entidad ya está vigilada (refcount).
  * SSR-safe: en el servidor es un no-op.
+ *
+ * DOS CAMINOS REDUNDANTES (Adenda 63 §4 · "Sync sin DDL: broadcast primero"):
+ *   (a) BROADCAST — no requiere DDL ni la publicación `supabase_realtime`: es
+ *       el camino que SIEMPRE funciona. Cubre otros dispositivos de la cuenta
+ *       y otras cuentas con acceso a la entidad compartida.
+ *   (b) postgres_changes — solo funciona si `entity_state` está en la
+ *       publicación. Se mantiene porque sobrevive a reconexiones y a clientes
+ *       que estaban cerrados cuando se emitió el broadcast.
+ * Ambos se deduplican con la MISMA clave (`changeKey`), así que un cambio se
+ * procesa una única vez aunque llegue por las dos vías.
  */
 export function watchLibrary(ref: EntityRef): () => void {
     if (!isClient()) return () => {};
@@ -551,16 +600,47 @@ export function watchLibrary(ref: EntityRef): () => void {
     if (existing) {
         existing.count += 1;
     } else {
-        const unsub = subscribeEntityState<EntityLibraryDoc>(ref, LIBRARY_KEY, (change) => {
+        const topic = libraryTopic(ref);
+
+        /** Trae la versión de la nube y la funde con la cache local (LWW). */
+        const pullAndMerge = async () => {
+            const remote = await pullCloud(ref);
+            if (!remote) return;
+            const merged = mergeDocs(readCache(ref), remote);
+            writeCache(ref, merged); // emite 'starseed:entitylib' + 'starseed:library-updated'
+        };
+
+        // (a) BROADCAST: señal → repull. `entity` hace que también escuchemos el
+        //     canal de la entidad, así que los cambios de OTRAS cuentas con
+        //     acceso (grupo/página/comunidad) también llegan en vivo aquí.
+        const unsubLive = onLiveChange(topic, () => void pullAndMerge(), { entity: { kind: ref.kind, id: ref.id } });
+
+        // (b) postgres_changes (redundante, requiere la migración de publicación).
+        const unsubPg = subscribeEntityState<EntityLibraryDoc>(ref, LIBRARY_KEY, (change) => {
             if (change.self) return; // anti-eco: este dispositivo ya aplicó el cambio local
+            // Si el mismo cambio ya entró por broadcast, no lo procesamos otra vez.
+            if (!shouldProcessChange(changeKey(topic, key, change.updated_at))) return;
             const remote = normalizeDoc({
                 ...change.value,
                 rev: change.rev,
                 updatedAt: change.updated_at,
             });
             const merged = mergeDocs(readCache(ref), remote);
-            writeCache(ref, merged); // emite 'starseed:entitylib' + 'starseed:library-updated'
+            writeCache(ref, merged);
         });
+
+        const unsub = () => {
+            try {
+                unsubLive();
+            } catch {
+                /* noop */
+            }
+            try {
+                unsubPg();
+            } catch {
+                /* noop */
+            }
+        };
         activeWatchers.set(key, { count: 1, unsub });
     }
     // Al montar cualquier vigía: activa el reintento y aprovecha para vaciar pendientes.

@@ -26,6 +26,7 @@ import {
     pushAllSyncedNow,
     type RealtimeSyncStatus,
 } from "@/lib/sync/realtime-sync";
+import { checkRealtimeTables, type RealtimeTablesReport } from "@/lib/sync/live-signal";
 import { listNeurons, NEURON_EVENT, type Neuron, type NeuronKind } from "@/lib/neurons/neurons";
 
 const KIND_ICONS: Record<NeuronKind, typeof Monitor> = {
@@ -57,19 +58,26 @@ export function RealtimeSyncPanel() {
     const [status, setStatus] = useState<RealtimeSyncStatus>(getRealtimeSyncStatus());
     const [neurons, setNeurons] = useState<Neuron[]>([]);
     const [syncingNow, setSyncingNow] = useState(false);
+    const [tables, setTables] = useState<RealtimeTablesReport | null>(null);
 
     const refreshNeurons = useCallback(async () => {
         try { setNeurons(await listNeurons()); } catch { /* defensivo */ }
     }, []);
 
     useEffect(() => {
+        let alive = true;
         hasStarseedSession().then(setSession);
         setEnabled(isRealtimeSyncEnabled());
         void refreshNeurons();
+        // Diagnóstico informativo (NO condiciona el sync: el broadcast va aparte).
+        checkRealtimeTables()
+            .then((report) => { if (alive) setTables(report); })
+            .catch(() => { /* desconocido: no pasa nada */ });
         const off = onRealtimeSyncStatus(setStatus);
         const onNeuronEvent = () => { void refreshNeurons(); };
         window.addEventListener(NEURON_EVENT, onNeuronEvent);
         return () => {
+            alive = false;
             off();
             window.removeEventListener(NEURON_EVENT, onNeuronEvent);
         };
@@ -139,6 +147,30 @@ export function RealtimeSyncPanel() {
                             <span className="hidden sm:inline">{syncingNow ? "Sincronizando…" : "Sincronizar ahora"}</span>
                         </button>
                     )}
+                </div>
+
+                {/* Sync en vivo por BROADCAST: funciona SIN la migración de publicación
+                    (`supabase_realtime`). El aviso de postgres_changes es informativo:
+                    el sync no depende de él, así que nunca se muestra como error. */}
+                <div className="rounded-xl border border-white/5 bg-black/20 p-3 space-y-1">
+                    <p className="flex items-center gap-2 text-xs">
+                        <Radio className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                        <span className="font-medium">Sync en vivo: por broadcast</span>
+                        <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-400/30 text-[9px]">Activo</Badge>
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                        Los cambios (biblioteca, publicaciones…) se anuncian por canales de tiempo real, sin
+                        depender de la configuración de replicación de la base de datos.
+                        {tables?.known === true && tables.missing.length > 0 && (
+                            <> El camino redundante (postgres_changes) no está disponible para{" "}
+                                {tables.missing.length} tabla{tables.missing.length === 1 ? "" : "s"} — funciona
+                                igual por broadcast.</>
+                        )}
+                        {tables?.known === false && (
+                            <> El estado de la replicación no es consultable desde el cliente (desconocido) — no
+                                hace falta: el broadcast cubre el sync.</>
+                        )}
+                    </p>
                 </div>
 
                 {neurons.length > 0 && (
