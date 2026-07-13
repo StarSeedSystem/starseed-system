@@ -1,45 +1,82 @@
+# =========================================================================
+# STARSEED OS — Cloud Build → Cloud Run (servidor soberano, coste ~0)
+# -------------------------------------------------------------------------
+# Proyecto canónico: gen-lang-client-0222660240 (el que tiene el billing).
+# Registro: Artifact Registry us-central1/starseed  (gcr.io está OBSOLETO).
+#   · Política de limpieza: solo 2 imágenes recientes → dentro de los 0,5 GB gratis.
+# Cloud Run: min-instances=0  → escala a CERO: 0 € cuando nadie lo usa.
+#   · Free tier mensual: 2 M peticiones · 360 k GB-s · 180 k vCPU-s.
+# Cloud Build: 120 min/día gratis en el pool por defecto (este build tarda ~5 min).
+#
+# Uso (desde la raíz del repo):
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_SUPABASE_URL=https://nxstilnyidvkqeosofuh.supabase.co,_SUPABASE_ANON=<anon-key> .
+#
+# Vercel sigue siendo el PRIMARIO (git push → deploy automático). Cloud Run es
+# el espejo soberano: mismo código, misma base (Supabase del OS), a demanda.
+# =========================================================================
+
+substitutions:
+  _REGION: us-central1
+  _REPO: starseed
+  _SERVICE: starseed-os
+  _SUPABASE_URL: ''
+  _SUPABASE_ANON: ''
+
 steps:
-  # 1. Construir la imagen Docker pasando las variables de entorno como ARGs para Next.js
+  # 1) Construir la imagen (Next.js standalone; `npm run build` ya lleva el guard
+  #    de memoria de 4 GB — sin él el build muere por OOM).
   - name: 'gcr.io/cloud-builders/docker'
-    args: 
+    id: build
+    args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/starseed-os:$COMMIT_SHA'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'
       - '--build-arg'
-      - 'NEXT_PUBLIC_SUPABASE_URL=$_NEXT_PUBLIC_SUPABASE_URL'
+      - 'NEXT_PUBLIC_SUPABASE_URL=${_SUPABASE_URL}'
       - '--build-arg'
-      - 'NEXT_PUBLIC_SUPABASE_ANON_KEY=$_NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      - 'NEXT_PUBLIC_SUPABASE_ANON_KEY=${_SUPABASE_ANON}'
       - '.'
-  
-  # 2. Subir la imagen al Container Registry
+
+  # 2) Subir la imagen a Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/starseed-os:$COMMIT_SHA']
-  
-  # 3. Desplegar en Cloud Run (Soberanía de Datos y Costo $0)
+    id: push
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}']
+
+  # 3) Desplegar en Cloud Run (escala a cero)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: deploy
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'starseed-os'
+      - '${_SERVICE}'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/starseed-os:$COMMIT_SHA'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID'
       - '--region'
-      - 'us-central1'
+      - '${_REGION}'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
-      # Escalar a 0 para mantener el costo en cero cuando no hay tráfico
-      - '--min-instances'
+      - '--min-instances'   # ← CLAVE del coste: 0 instancias en reposo
       - '0'
       - '--max-instances'
       - '5'
-      - '--cpu-boost'
+      - '--memory'
+      - '1Gi'
+      - '--cpu'
+      - '1'
       - '--port'
       - '3000'
-      # Pasar variables al runtime también por seguridad
       - '--set-env-vars'
-      - 'NEXT_PUBLIC_SUPABASE_URL=$_NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY=$_NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      - 'NEXT_PUBLIC_SUPABASE_URL=${_SUPABASE_URL},NEXT_PUBLIC_SUPABASE_ANON_KEY=${_SUPABASE_ANON}'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8   # build rápido (~4 min). Para 100 % free-tier, quitar esta línea.
 
 images:
-  - 'gcr.io/$PROJECT_ID/starseed-os:$COMMIT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'

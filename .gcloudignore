@@ -1,13 +1,21 @@
-Dockerfile
-.dockerignore
-.gcloudignore
-node_modules
-npm-debug.log
-README.md
-.next
-.git
-.github
-supabase
-.env*
+# Qué NO se sube a Cloud Build (menos subida = build más rápido y barato).
+# ⚠️ Los patrones de carpeta van ANCLADOS con "/" inicial: sin ancla, "hermes-integration/"
+# también excluía src/hermes-integration/ (que SÍ se usa) y el build fallaba con
+# "Module not found: @/hermes-integration/...". Lección de 2026-07-12.
+.git/
+node_modules/
+.next/
+*.log
+.DS_Store
+.env
+.env.*
 !.env.example
-*.md
+/out/
+/dist/
+/coverage/
+/.vercel/
+/starseed_memory_root/
+/dream-reports/
+/AI-refernces/
+/integraciones-de-codigo/
+/hermes-integration/

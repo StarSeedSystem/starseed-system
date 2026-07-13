@@ -38,6 +38,8 @@ import { emitChange } from "@/lib/sync/live-signal";
 // Historial de archivos (Adenda 66 §2): cada subida y cada versión nueva crean
 // una revisión en `os_versions`, con puntero INMUTABLE al objeto de Storage.
 import { logAccess, quickChecksum, recordVersion, versionStoragePath } from "@/lib/versions/versions";
+// Tipo solo (sin runtime): la capa de backends se carga dinámicamente donde se usa.
+import type { StorageBackend } from "@/lib/storage/backends";
 
 const BUCKET = "os-files";
 /** Límite honesto de subida (bytes). ~50MB. */
@@ -163,10 +165,31 @@ export interface UploadFileOptions {
     onProgress?: (pct: number) => void;
 }
 
+/**
+ * Resultado de replicar el binario a un backend externo REAL (Adenda 66 §13.1).
+ * La subida primaria es SIEMPRE Supabase (bucket `os-files`); la réplica es
+ * best-effort: si falla, se REPORTA (nunca en silencio) pero no rompe la subida.
+ */
+export interface FileReplicaResult {
+    backendId: string;
+    backendName: string;
+    kind: string;
+    ok: boolean;
+    /** Ruta del objeto en el backend externo (misma que en Supabase). */
+    path?: string;
+    error?: string;
+}
+
 export interface UploadFileResult {
     ok: boolean;
     file?: OsFile;
     error?: string;
+    /**
+     * Réplicas REALES intentadas (solo backends con driver real marcados como
+     * réplica del recurso «archivo» en `/almacenes`; hoy: Google Cloud Storage).
+     * Vacío si el usuario no ha marcado ninguna.
+     */
+    replicas?: FileReplicaResult[];
     /**
      * Adenda 66 §2 · El objeto SÍ está en Storage pero su fila `os_files` no se
      * pudo insertar (RLS, red, tabla…). Antes esto se devolvía como `ok: true`
@@ -338,6 +361,77 @@ async function recordFileVersion(file: OsFile, message: string, rev?: number): P
     }
 }
 
+/* ───────────── Réplicas REALES en backends externos (Adenda 66 §13.1) ─────────────
+ * ADITIVO: no cambia nada de la subida primaria. Si el usuario marcó en
+ * `/almacenes` un backend con DRIVER REAL (hoy: Google Cloud Storage) como
+ * RÉPLICA del recurso «archivo», el binario se copia también allí, con la MISMA
+ * ruta `<uid>/…` (el servidor de firma vuelve a forzar ese prefijo, así que un
+ * usuario nunca puede escribir en el espacio de otro).
+ * Best-effort HONESTO: un fallo de réplica NO rompe la subida, pero se devuelve
+ * en `result.replicas` y en `result.warning` — jamás se traga en silencio.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+async function replicateFileBestEffort(file: File, path: string): Promise<FileReplicaResult[]> {
+    try {
+        const { realReplicasFor, putObjectToBackend } = await import("@/lib/storage/backends");
+        const replicas = await realReplicasFor("file");
+        if (!replicas.length) return [];
+        const out: FileReplicaResult[] = [];
+        for (const b of replicas) {
+            try {
+                const res = await putObjectToBackend(b, file, path, { contentType: file.type || undefined });
+                out.push({
+                    backendId: b.id,
+                    backendName: b.name,
+                    kind: String(b.kind),
+                    ok: res.ok,
+                    path: res.path,
+                    error: res.error,
+                });
+            } catch (e) {
+                out.push({
+                    backendId: b.id,
+                    backendName: b.name,
+                    kind: String(b.kind),
+                    ok: false,
+                    error: (e as Error)?.message || "Error inesperado al replicar.",
+                });
+            }
+        }
+        return out;
+    } catch {
+        // Si la capa de backends no está disponible, no hay réplicas: la subida
+        // primaria (Supabase) sigue siendo la fuente de verdad.
+        return [];
+    }
+}
+
+/** Metadatos de las réplicas que SÍ se escribieron (se guardan en `os_files.meta`). */
+function replicaMeta(replicas: FileReplicaResult[]): Record<string, unknown> {
+    const ok = replicas.filter((r) => r.ok && r.path);
+    if (!ok.length) return {};
+    return {
+        replicas: ok.map((r) => ({
+            backendId: r.backendId,
+            kind: r.kind,
+            name: r.backendName,
+            path: r.path,
+            at: new Date().toISOString(),
+        })),
+    };
+}
+
+/** Aviso legible si alguna réplica falló (o null si todo fue bien / no había). */
+function replicaWarning(replicas: FileReplicaResult[]): string | null {
+    const failed = replicas.filter((r) => !r.ok);
+    if (!failed.length) return null;
+    return (
+        "El archivo se subió al servidor StarSeed, pero no se pudo replicar en " +
+        failed.map((r) => `«${r.backendName}»${r.error ? ` (${r.error})` : ""}`).join(", ") +
+        "."
+    );
+}
+
 /** Sube el `file` mediante XHR (para progreso real) al bucket `os-files` bajo `<uid>/<folder>/<nombre>`. */
 async function uploadBlobWithProgress(
     url: string,
@@ -441,6 +535,11 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
         const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
         const publicUrl = pub?.publicUrl ?? null;
 
+        // Réplica REAL best-effort en los backends externos marcados por el usuario
+        // (hoy: Google Cloud Storage). Nunca rompe la subida; sus fallos se avisan.
+        const replicas = await replicateFileBestEffort(file, path);
+        const replicasWarning = replicaWarning(replicas);
+
         const insertRow = {
             owner: uid,
             profile_id: options.profileId ?? null,
@@ -454,7 +553,7 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
             acl_read: options.aclRead ?? [],
             acl_write: options.aclWrite ?? [],
             group_slug: options.groupSlug ?? null,
-            meta: options.meta ?? {},
+            meta: { ...(options.meta ?? {}), ...replicaMeta(replicas) },
         };
 
         const { data, error } = await supabase.from("os_files").insert(insertRow).select("*").single();
@@ -469,10 +568,12 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
             enqueuePendingFile(path, insertRow, error?.message);
             return {
                 ok: true,
+                replicas,
                 warning:
                     "El archivo se subió, pero aún no se ha podido registrar en tu cuenta" +
                     (error?.message ? ` (${error.message})` : "") +
-                    ". Se reintentará automáticamente; hasta entonces no aparecerá en tus otros dispositivos.",
+                    ". Se reintentará automáticamente; hasta entonces no aparecerá en tus otros dispositivos." +
+                    (replicasWarning ? ` ${replicasWarning}` : ""),
                 file: {
                     id: path,
                     owner: uid,
@@ -498,7 +599,12 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
         // El archivo ya es real y compartible: anunciarlo en vivo y versionarlo.
         signalFilesChanged(uid, uploaded.id);
         void recordFileVersion(uploaded, `Subir «${uploaded.name}»`, 1);
-        return { ok: true, file: uploaded };
+        return {
+            ok: true,
+            file: uploaded,
+            replicas,
+            ...(replicasWarning ? { warning: replicasWarning } : {}),
+        };
     } catch (e: any) {
         return { ok: false, error: e?.message || "Error inesperado al subir el archivo." };
     }
@@ -686,13 +792,16 @@ export async function listByNeuron(): Promise<NeuronFileGroup[]> {
         .sort((a, b) => Number(b.isThisDevice) - Number(a.isThisDevice));
 }
 
-/** Borra un archivo propio: fila `os_files` + objeto en storage. Best-effort en ambos pasos. */
+/**
+ * Borra un archivo propio: fila `os_files` + objeto en storage + sus RÉPLICAS
+ * reales (Adenda 66 §13.1) en backends externos (GCS). Best-effort en cada paso.
+ */
 export async function deleteFile(id: string): Promise<boolean> {
     if (!id) return false;
     try {
         const supabase = createClient();
-        const { data } = await supabase.from("os_files").select("path, owner, name").eq("id", id).maybeSingle();
-        const row = data as { path?: string; owner?: string; name?: string } | null;
+        const { data } = await supabase.from("os_files").select("path, owner, name, meta").eq("id", id).maybeSingle();
+        const row = data as { path?: string; owner?: string; name?: string; meta?: unknown } | null;
         const path = row?.path;
         const { error } = await supabase.from("os_files").delete().eq("id", id);
         if (path) {
@@ -701,6 +810,9 @@ export async function deleteFile(id: string): Promise<boolean> {
             } catch {
                 /* fila ya borrada; el objeto huérfano no rompe nada visible */
             }
+            // Réplicas externas: se borran también (si no, quedan copias vivas de
+            // algo que el usuario cree haber borrado). Nunca rompe el borrado.
+            void deleteFileReplicas(row?.meta);
         }
         if (!error && row?.owner) {
             // El borrado también viaja: los demás dispositivos lo ven al instante.
@@ -716,6 +828,59 @@ export async function deleteFile(id: string): Promise<boolean> {
         return !error;
     } catch {
         return false;
+    }
+}
+
+/**
+ * Borra las réplicas externas registradas en `os_files.meta.replicas` (hoy: GCS).
+ * Best-effort: informa por consola si falla, pero nunca lanza ni bloquea.
+ */
+async function deleteFileReplicas(meta: unknown): Promise<void> {
+    try {
+        const list = (meta as { replicas?: { backendId?: string; kind?: string; name?: string; path?: string }[] })
+            ?.replicas;
+        if (!Array.isArray(list) || list.length === 0) return;
+        const { deleteObjectFromBackend, listBackends, isRealBackend } = await import("@/lib/storage/backends");
+        const backends = await listBackends();
+        for (const r of list) {
+            if (!r?.path || !r.kind || !isRealBackend(r.kind)) continue;
+            const b =
+                backends.find((x) => x.id === r.backendId) ??
+                ({ id: r.backendId ?? "", kind: r.kind, name: r.name ?? r.kind } as unknown as StorageBackend);
+            const res = await deleteObjectFromBackend(b, r.path);
+            if (!res.ok && res.error) {
+                // Visible en consola: el objeto externo puede haber quedado vivo.
+                console.warn(`[os-files] No se pudo borrar la réplica en ${r.name ?? r.kind}: ${res.error}`);
+            }
+        }
+    } catch (e) {
+        console.warn("[os-files] Error al borrar réplicas externas:", (e as Error)?.message);
+    }
+}
+
+/**
+ * URL de lectura de la RÉPLICA externa de un archivo (firmada y temporal en GCS).
+ * Útil si el objeto primario de Supabase no está disponible. Devuelve null si el
+ * archivo no tiene réplicas reales.
+ */
+export async function getReplicaUrl(file: OsFile): Promise<{ url: string; backend: string } | null> {
+    try {
+        const list = (file.meta as { replicas?: { backendId?: string; kind?: string; name?: string; path?: string }[] })
+            ?.replicas;
+        if (!Array.isArray(list) || list.length === 0) return null;
+        const { getObjectUrlFromBackend, listBackends, isRealBackend } = await import("@/lib/storage/backends");
+        const backends = await listBackends();
+        for (const r of list) {
+            if (!r?.path || !r.kind || !isRealBackend(r.kind)) continue;
+            const b =
+                backends.find((x) => x.id === r.backendId) ??
+                ({ id: r.backendId ?? "", kind: r.kind, name: r.name ?? r.kind } as unknown as StorageBackend);
+            const res = await getObjectUrlFromBackend(b, r.path);
+            if (res.ok && res.url) return { url: res.url, backend: r.name ?? String(r.kind) };
+        }
+        return null;
+    } catch {
+        return null;
     }
 }
 

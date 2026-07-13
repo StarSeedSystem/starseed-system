@@ -10,14 +10,15 @@
  * (Supabase del OS) aparece siempre, activo por defecto y como primario inicial.
  *
  * HONESTIDAD RADICAL (se declara en la propia UI):
- *   · FUNCIONAL hoy: registro de backends, selección de primario/réplicas por
- *     recurso, y el backend oficial StarSeed (ya usado por todo el acceso a
- *     datos del OS).
- *   · ANDAMIAJE: los DRIVERS de lectura/escritura reales de cada externo
- *     (Supabase propio, GCS/Cloud Run, Vercel Blob, S3, CasaOS/neurona, WebDAV,
- *     IPFS…) se conectan por endpoint/referencia-a-clave y, donde aplica, vía el
- *     servidor del cerebro o un proxy en runtime. Esta capa NO reescribe el
- *     acceso a datos: lo complementa.
+ *   · REAL hoy: registro de backends, selección de primario/réplicas por recurso,
+ *     el backend oficial StarSeed (Supabase del OS) y —desde la Adenda 66 §13.1—
+ *     **Google Cloud Storage**, que ya sube/lee/borra de verdad vía URLs firmadas
+ *     V4 (`/api/storage/gcs/sign`), con la credencial SOLO en el servidor y cada
+ *     cuenta aislada en su prefijo «<uid>/».
+ *   · ANDAMIAJE: los DRIVERS de lectura/escritura del resto de externos
+ *     (Supabase propio, Cloud Run, Vercel Blob, S3, CasaOS/neurona, WebDAV,
+ *     IPFS…) siguen sin I/O real: se registran y seleccionan, pero no escriben.
+ *     Esta capa NO reescribe el acceso a datos: lo complementa.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
@@ -41,6 +42,10 @@ import {
   Check,
   ShieldCheck,
   Boxes,
+  Plug,
+  CircleCheck,
+  CircleAlert,
+  Cloud,
 } from "lucide-react";
 import {
   STORAGE_KINDS,
@@ -55,6 +60,9 @@ import {
   setResourcePrimary,
   toggleResourceReplica,
   getResourceRouting,
+  isRealBackend,
+  testBackend,
+  type BackendTestResult,
   type StorageBackend,
   type ResourceType,
 } from "@/lib/storage/backends";
@@ -83,6 +91,10 @@ export default function BackendsNetworkPanel() {
   const [newKind, setNewKind] = useState("supabase");
   const [newName, setNewName] = useState("");
   const [newFields, setNewFields] = useState<Record<string, string>>({});
+
+  /** Estado REAL por backend (resultado de «Probar conexión»). */
+  const [status, setStatus] = useState<Record<string, BackendTestResult>>({});
+  const [testing, setTesting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -164,6 +176,25 @@ export default function BackendsNetworkPanel() {
     else toast.error("No se pudo asignar el primario del recurso");
   }
 
+  /**
+   * PRUEBA REAL de conexión. Para GCS pide al servidor una URL firmada de sonda:
+   * si sale bien, subir/leer/borrar funciona de verdad (misma credencial y bucket).
+   * Nunca maquilla el resultado — el motivo del fallo se muestra tal cual.
+   */
+  async function probe(b: StorageBackend) {
+    setTesting(b.id);
+    try {
+      const res = await testBackend(b);
+      setStatus((prev) => ({ ...prev, [b.id]: res }));
+      if (res.ok) toast.success(`«${b.name}» conectado`);
+      else if (res.real) toast.error(res.detail);
+      else toast.message(res.detail);
+    } catch (e) {
+      toast.error((e as Error)?.message ?? "No se pudo probar la conexión");
+    }
+    setTesting(null);
+  }
+
   async function flipReplica(resource: ResourceType, b: StorageBackend, on: boolean) {
     const ok = await toggleResourceReplica(resource, b.id, on);
     if (ok) await load();
@@ -209,9 +240,26 @@ export default function BackendsNetworkPanel() {
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
           <span>
             <b className="text-amber-200">Qué es real hoy:</b> registro de backends, selección de primario/réplicas por
-            recurso y el backend oficial StarSeed (Supabase del OS, ya usado por todo el acceso a datos).{" "}
-            <b className="text-amber-200">Andamiaje:</b> los drivers de lectura/escritura reales de cada externo se
-            conectan por endpoint/clave y, donde aplica, vía el servidor del cerebro o un proxy en runtime.
+            recurso, el backend oficial StarSeed (Supabase del OS) y <b className="text-amber-200">Google Cloud
+            Storage</b>, que ya sube, lee y borra de verdad.{" "}
+            <b className="text-amber-200">Andamiaje:</b> el resto de externos (Supabase propio, Cloud Run, Vercel Blob,
+            S3, CasaOS, WebDAV, IPFS…) se registran y seleccionan, pero todavía no escriben nada.
+          </span>
+        </div>
+
+        {/* Aviso honesto de plataforma para GCS: qué hace falta en cada host. */}
+        <div className="mt-2 flex items-start gap-2 rounded-lg border border-sky-500/20 bg-sky-950/15 px-3 py-2 text-[11px] leading-relaxed text-sky-100/85">
+          <Cloud className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" />
+          <span>
+            <b className="text-sky-200">Google Cloud Storage:</b> el navegador nunca ve la credencial de Google — sube y
+            lee con <b>URLs firmadas V4</b> de 10 minutos que emite el servidor, y cada cuenta queda aislada en su
+            prefijo <code className="rounded bg-black/30 px-1">&lt;uid&gt;/</code>.{" "}
+            <b className="text-sky-200">En Cloud Run</b> (espejo soberano) funciona automáticamente con la identidad del
+            servicio (ADC; la service account necesita <code className="rounded bg-black/30 px-1">serviceAccountTokenCreator</code>
+            {" "}sobre sí misma para firmar).{" "}
+            <b className="text-sky-200">En Vercel</b> (primario) hace falta la variable de entorno{" "}
+            <code className="rounded bg-black/30 px-1">GCP_SA_KEY_JSON</code>; sin ella, «Probar conexión» lo dirá y las
+            réplicas fallarán con aviso (nunca en silencio).
           </span>
         </div>
       </div>
@@ -287,6 +335,8 @@ export default function BackendsNetworkPanel() {
         {backends.map((b) => {
           const k = kindById(b.kind);
           const official = b.kind === "starseed";
+          const real = isRealBackend(b.kind);
+          const st = status[b.id];
           return (
             <div
               key={b.id}
@@ -313,9 +363,28 @@ export default function BackendsNetworkPanel() {
                         <Star className="mr-1 h-2.5 w-2.5" /> Primario
                       </Badge>
                     )}
+                    {/* Honestidad: driver REAL (escribe de verdad) vs andamiaje. */}
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[9px]",
+                        real ? "border-violet-400/40 text-violet-200" : "border-amber-400/30 text-amber-200/80",
+                      )}
+                    >
+                      {real ? "Driver real" : "Andamiaje"}
+                    </Badge>
                   </div>
                 </div>
                 <div className="ml-auto flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 gap-1 px-2 text-cyan-300 hover:bg-cyan-500/10"
+                    onClick={() => probe(b)}
+                    disabled={testing === b.id}
+                  >
+                    <Plug className={cn("h-3.5 w-3.5", testing === b.id && "animate-pulse")} /> Probar conexión
+                  </Button>
                   {!b.is_primary && (
                     <Button
                       size="sm"
@@ -334,6 +403,37 @@ export default function BackendsNetworkPanel() {
                   )}
                 </div>
               </div>
+
+              {/* Resultado REAL de la última prueba (bucket, credencial o motivo del fallo). */}
+              {st && (
+                <div
+                  className={cn(
+                    "mt-2 flex items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] leading-relaxed",
+                    st.ok
+                      ? "border-emerald-500/25 bg-emerald-950/15 text-emerald-100/90"
+                      : st.real
+                        ? "border-red-500/25 bg-red-950/15 text-red-100/90"
+                        : "border-amber-500/20 bg-amber-950/10 text-amber-100/80",
+                  )}
+                >
+                  {st.ok ? (
+                    <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  ) : (
+                    <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  )}
+                  <span className="break-words">
+                    {st.detail}
+                    {st.bucket && (
+                      <span className="ml-1 text-white/40">
+                        · bucket <code className="rounded bg-black/30 px-1">{st.bucket}</code>
+                        {st.credentials && st.credentials !== "none" && (
+                          <> · credencial {st.credentials === "adc" ? "ADC (Cloud Run)" : "GCP_SA_KEY_JSON"}</>
+                        )}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
             </div>
           );
         })}
@@ -401,8 +501,10 @@ export default function BackendsNetworkPanel() {
         <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-cyan-500/15 bg-cyan-950/10 px-3 py-2 text-[11px] leading-relaxed text-cyan-200/80">
           <Server className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           Sin asignación explícita, cada recurso usa el primario de la cuenta (por defecto, el servidor oficial
-          StarSeed). Las réplicas describen dónde se sincroniza además una copia; la sincronización real por driver es
-          andamiaje que se conecta por endpoint.
+          StarSeed). <b className="text-cyan-100">Réplica REAL:</b> si marcas Google Cloud Storage como réplica del
+          recurso «Archivo», cada archivo que subas se copia también al bucket soberano (la subida primaria sigue siendo
+          el servidor StarSeed; si la réplica falla, se te avisa y la subida no se rompe). Las réplicas del resto de
+          backends aún son andamiaje: no copian nada todavía.
         </p>
       </div>
     </div>

@@ -2533,3 +2533,45 @@ Migración aplicada (`[]`). Comprobado: 15 columnas de `os_versions`, RLS **ON**
 ### Notas / aprendizajes
 - **Diagnóstico honesto:** cuando el código, deps, imports, BD y `tsc` están todos limpios pero «no abre», el fallo suele ser **ruta/estado** (deep-link ausente), no una excepción. Aquí la pista estaba en que la tarjeta rotulaba «2D»/«3D» pero no seleccionaba la vista.
 - **Workspace bash inestable:** pipes a `python3 -m json.tool` dejaban el oneshot colgado (siguientes llamadas: «process already running»); se recupera solo al expirar (≤45 s). Evitar ese pipe; el Supabase MCP (26a13ed1) **no** tiene permiso sobre este proyecto → DB solo por Management API (curl + token de `.env.local`).
+
+
+---
+
+## 2026-07-12 — Google Cloud Storage: primer backend EXTERNO con I/O REAL (Adenda 66 §13.1)
+**Sesión por:** Claude (subagente · ola GCS)
+**Resumen ejecutivo:** GCS deja de ser andamiaje. El OS ya sube, lee y borra objetos de verdad en el bucket soberano `gs://starseed-os-334237619848` (proyecto `gen-lang-client-0222660240`) mediante **URLs firmadas V4 de 10 min** emitidas por una API route de Node — la credencial de Google NUNCA llega al navegador y cada cuenta queda aislada en su prefijo `<uid>/`. Vercel sigue siendo el primario; Cloud Run, el espejo soberano.
+
+### Hecho
+- **API route** `src/app/api/storage/gcs/sign/route.ts` (`runtime = "nodejs"`, `dynamic = "force-dynamic"`):
+  - **Auth:** exige sesión de Supabase (`@/utils/supabase/server` → `auth.getUser()`); sin sesión → **401**.
+  - `POST { path, method: "GET"|"PUT"|"DELETE", contentType? }` → URL firmada V4 (`getSignedUrl`, expira en 10 min).
+  - `GET` → **prueba de conexión real** (firma una sonda `<uid>/.starseed-probe`): es lo que ejercita el botón «Probar conexión» del panel.
+  - **Aislamiento por usuario:** normaliza la ruta, la fuerza bajo `<uid>/…` (misma regla que `os-files.ts` en Supabase Storage) y **rechaza con 403** rutas con `..`, absolutas, con caracteres de control o cuyo primer segmento sea el uuid de OTRA cuenta.
+  - **El bucket lo decide el servidor** (env `GCS_BUCKET`), nunca el cliente → un usuario no puede firmar escrituras en otros buckets alcanzables por la service account.
+  - **Credenciales, dos caminos reales:** `GCP_SA_KEY_JSON` (JSON de service account, texto plano **o base64**) → Vercel; si no está, **ADC** (Cloud Run/GCE). Sin ninguna de las dos: **501** con explicación honesta (no se simula éxito).
+- **Driver cliente** `src/lib/storage/gcs-driver.ts`: `uploadToGcs` (PUT por XHR con progreso real y `Content-Type` idéntico al firmado), `getGcsUrl`, `deleteFromGcs` (404 = ya borrado → ok), `testGcs`. Todos los fallos vuelven como `{ok:false,error}` con el motivo REAL (sesión, credencial, IAM signBlob, CORS, red).
+- **Capa de backends** `src/lib/storage/backends.ts`: `REAL_DRIVER_KINDS = ["starseed","gcs"]`, `isRealBackend`, `testBackend`, `putObjectToBackend`, `getObjectUrlFromBackend`, `deleteObjectFromBackend`, `realReplicasFor`. El kind `gcs` ya NO es andamiaje; el resto sí y lo declara (`scaffold: true` + mensaje).
+- **Réplica REAL de archivos** (ADITIVO, `src/lib/files/os-files.ts`): si el usuario marca GCS como réplica del recurso «Archivo» en `/almacenes`, cada subida se copia también al bucket con la MISMA ruta `<uid>/…`. **Primaria = Supabase siempre**; la réplica es best-effort y su fallo se devuelve en `result.replicas` + `result.warning` (jamás en silencio) sin romper la subida. Las réplicas OK se guardan en `os_files.meta.replicas` y `deleteFile` las borra también. Nuevo helper `getReplicaUrl(file)`.
+- **Panel `/almacenes`** (`backends-network-panel.tsx`): botón **«Probar conexión»** por backend con estado REAL (bucket + origen de la credencial o el error exacto), badge **«Driver real» / «Andamiaje»**, y aviso honesto de plataforma (Cloud Run = automático por ADC; Vercel = requiere `GCP_SA_KEY_JSON`).
+- **Docs:** `architecture/folders-permisos-publicaciones.md` §13.1 reescrito con la infra real (proyecto, bucket, Cloud Run, Artifact Registry con política de 2 imágenes), comando de redeploy y **tabla de costes honesta**. `.env.example` con `GCP_PROJECT_ID`, `GCS_BUCKET`, `GCP_SA_KEY_JSON` (solo comentarios, sin valores).
+
+### Decisiones tomadas
+- **Proyecto canónico = `gen-lang-client-0222660240`** (el que tiene billing). `starseed-system` (Firebase) queda descartado para deploy.
+- **Nunca credenciales de Google en el navegador** → todo pasa por URLs firmadas V4 de vida corta. Sin `signBlob` ni claves en el cliente.
+- **El bucket es del servidor, no del cliente.** Los campos `bucket`/`project` del formulario de `/almacenes` pasan a ser **informativos** (se quitó el campo `keyRef` del kind `gcs`: ya no hay credencial que referenciar en la UI).
+- Dependencia nueva **única**: `@google-cloud/storage@^7.21.0` (se descartó firmar a mano con IAM `signBlob` para priorizar que FUNCIONE).
+
+### Verificación
+- `npx tsc --noEmit` → **EXIT 0, 0 errores**.
+- `npm run build` → **EXIT 0** (`✓ Compiled successfully in 2.5min`), con la ruta `ƒ /api/storage/gcs/sign` presente en el manifiesto (server-rendered on demand, Node).
+- NO se probó una subida real end-to-end contra GCS (requiere sesión de navegador y, en Vercel, la env `GCP_SA_KEY_JSON` puesta): la validación honesta es tsc + build + el botón «Probar conexión», que es una firma REAL.
+
+### Pendiente / Próximos pasos
+- **Poner `GCP_SA_KEY_JSON` en Vercel** (Production + Preview) o GCS no funcionará en el primario: la UI lo dirá con claridad en vez de fallar en silencio.
+- **En Cloud Run:** conceder a la service account del servicio `roles/iam.serviceAccountTokenCreator` **sobre sí misma** (necesario para firmar V4 vía IAM signBlob con ADC). Sin eso, la firma falla con un error explícito.
+- Réplica solo del recurso **«Archivo»** (`os-files`). Páginas/publicaciones/biblioteca aún no replican a GCS.
+- Restauración desde la réplica: existe `getReplicaUrl(file)` pero ninguna UI la usa todavía (no hay failover automático de lectura).
+
+### Notas / aprendizajes
+- ⚠️ **TRAMPA DEL ENTORNO DEL MAC:** la shell tiene `NODE_ENV=production`, así que un `npm i <pkg>` **PODA las devDependencies** (typescript, eslint, tailwind, postcss desaparecieron y `npx tsc` empezó a fallar con «This is not the tsc command you are looking for»). Se restauró con `NODE_ENV=development npm install --include=dev`. **Regla: en este repo, instalar SIEMPRE con `NODE_ENV=development npm install --include=dev`.**
+- Un `route.ts` de Next 15 **no puede exportar** nada que no sea un handler HTTP o `runtime`/`dynamic` (los helpers auxiliares se dejaron sin `export`).

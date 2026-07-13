@@ -11,10 +11,15 @@ RUN apk add --no-cache libc6-compat
 # 2. Dependencies
 FROM base AS deps
 WORKDIR /app
-# Copiar package.json y archivos de bloqueo
-COPY package.json package-lock.json* ./
-# Instalar dependencias exactas
-RUN npm ci
+# Copiar package.json, el lockfile Y el .npmrc.
+# ⚠️ El .npmrc es OBLIGATORIO aquí: contiene `legacy-peer-deps=true`, sin el cual
+# `npm ci` falla — `liquid-glass-react` exige React >=19 y el proyecto usa React 18.
+# (Causa real del fallo del primer build en Cloud Build, 2026-07-12: el Dockerfile
+# copiaba solo package.json/lockfile, así que dentro del contenedor npm no veía la
+# regla que sí aplican Vercel y el Mac.)
+COPY package.json package-lock.json* .npmrc* ./
+# Instalar dependencias exactas (el flag repite la regla del .npmrc por robustez)
+RUN npm ci --legacy-peer-deps
 
 # 3. Builder
 FROM base AS builder

@@ -12,6 +12,9 @@
 "use client";
 
 import { createClient } from "@/utils/supabase/client";
+// Driver REAL de Google Cloud Storage (Adenda 66 §13.1): el primer backend
+// externo que deja de ser andamiaje y hace I/O de verdad vía URLs firmadas V4.
+import { deleteFromGcs, getGcsUrl, testGcs, uploadToGcs, type GcsStatus } from "./gcs-driver";
 
 export type StorageKindId =
   | "starseed"
@@ -358,14 +361,15 @@ export const STORAGE_KINDS: StorageKind[] = [
     label: "Google Cloud Storage",
     icon: "🪣",
     blurb:
-      "Buckets de Google Cloud Storage: escala prácticamente ilimitada para ficheros grandes. Se conecta por bucket + referencia a credencial en la bóveda.",
+      "REAL (no andamiaje): sube, lee y borra de verdad en el bucket soberano del OS mediante URLs firmadas V4 de 10 min. " +
+      "La credencial de Google JAMÁS toca el navegador y cada cuenta queda aislada en su prefijo «<uid>/». " +
+      "El bucket y el proyecto los decide el servidor (env GCS_BUCKET / GCP_PROJECT_ID); los campos de abajo son informativos.",
     fields: [
-      { key: "bucket", label: "Bucket" },
-      { key: "project", label: "Proyecto GCP (opcional)" },
-      { key: "keyRef", label: "Referencia de credencial (secreto → bóveda)", type: "password" },
+      { key: "bucket", label: "Bucket (informativo; manda el del servidor)" },
+      { key: "project", label: "Proyecto GCP (informativo)" },
     ],
     unlimited: true,
-    defaultRules: { prefersLarge: true, object: true },
+    defaultRules: { prefersLarge: true, object: true, realDriver: true },
     defaultQuotaMb: null,
   },
   {
@@ -844,4 +848,148 @@ export async function resolveBackendFor(
   );
 
   return { primary, replicas, reason };
+}
+
+/* ══════════════ DRIVERS REALES vs ANDAMIAJE (Adenda 66 §13.1) ══════════════
+ * A partir de aquí la capa deja de ser solo un registro: los backends con
+ * DRIVER REAL hacen I/O de verdad. Hoy son dos:
+ *   · `starseed` → Supabase del OS (bucket `os-files`): lo usa todo el sistema.
+ *   · `gcs`      → Google Cloud Storage vía `/api/storage/gcs/sign` (URLs
+ *                  firmadas V4; credencial solo en el servidor; prefijo `<uid>/`).
+ * El resto SIGUEN siendo andamiaje (registro + selección) y así se declara en la
+ * UI: nunca fingimos una escritura que no ocurre.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/** Kinds cuyo driver de lectura/escritura es REAL (no andamiaje). */
+export const REAL_DRIVER_KINDS: string[] = ["starseed", "gcs"];
+
+export function isRealBackend(kind: string): boolean {
+  return REAL_DRIVER_KINDS.includes(kind);
+}
+
+export interface BackendIoResult {
+  ok: boolean;
+  /** Ruta final del objeto en el backend (si aplica). */
+  path?: string;
+  /** URL (firmada y temporal en GCS) para leer el objeto. */
+  url?: string;
+  error?: string;
+  /** true si el backend NO tiene driver real: no se ha escrito nada (y se dice). */
+  scaffold?: boolean;
+}
+
+export interface BackendTestResult {
+  ok: boolean;
+  /** Explicación honesta en español para la UI. */
+  detail: string;
+  real: boolean;
+  /** Solo para GCS: de dónde sale la credencial en el servidor. */
+  credentials?: GcsStatus["credentials"];
+  bucket?: string;
+  project?: string;
+}
+
+function scaffoldResult(b: StorageBackend): BackendIoResult {
+  return {
+    ok: false,
+    scaffold: true,
+    error: `El backend «${b.name}» (${kindById(b.kind)?.label ?? b.kind}) todavía es andamiaje: está registrado pero aún no tiene driver real de escritura. No se ha copiado nada.`,
+  };
+}
+
+/**
+ * PRUEBA DE CONEXIÓN REAL de un backend. Para GCS pide al servidor que firme una
+ * URL de sonda (ejercita credencial + bucket de verdad). Para el oficial
+ * StarSeed comprueba la sesión. Para el resto dice la verdad: andamiaje.
+ */
+export async function testBackend(b: StorageBackend): Promise<BackendTestResult> {
+  if (b.kind === "gcs") {
+    const st = await testGcs();
+    if (st.ok) {
+      return {
+        ok: true,
+        real: true,
+        credentials: st.credentials,
+        bucket: st.bucket,
+        project: st.project,
+        detail:
+          st.credentials === "adc"
+            ? `Conectado con la identidad del propio servidor (ADC · Cloud Run). Bucket ${st.bucket}.`
+            : `Conectado con la clave de service account del servidor (GCP_SA_KEY_JSON). Bucket ${st.bucket}.`,
+      };
+    }
+    return {
+      ok: false,
+      real: true,
+      credentials: st.credentials,
+      bucket: st.bucket,
+      project: st.project,
+      detail: st.error ?? "Google Cloud Storage no respondió.",
+    };
+  }
+  if (b.kind === "starseed") {
+    try {
+      const sb = createClient();
+      const { data } = await sb.auth.getUser();
+      return data?.user?.id
+        ? { ok: true, real: true, detail: "Servidor oficial StarSeed (Supabase del OS): sesión válida y en uso." }
+        : { ok: false, real: true, detail: "Sin sesión de Supabase." };
+    } catch (e) {
+      return { ok: false, real: true, detail: (e as Error)?.message ?? "Error al comprobar la sesión." };
+    }
+  }
+  return {
+    ok: false,
+    real: false,
+    detail: "Andamiaje: registrado y seleccionable, pero sin driver real de lectura/escritura todavía.",
+  };
+}
+
+/** ESCRIBE un objeto en el backend indicado. Solo real donde hay driver real. */
+export async function putObjectToBackend(
+  b: StorageBackend,
+  file: File | Blob,
+  path: string,
+  options: { contentType?: string; onProgress?: (pct: number) => void } = {},
+): Promise<BackendIoResult> {
+  if (b.kind === "gcs") {
+    const res = await uploadToGcs(file, path, options);
+    return { ok: res.ok, path: res.path, error: res.error };
+  }
+  return scaffoldResult(b);
+}
+
+/** URL de lectura de un objeto en el backend (firmada y temporal en GCS). */
+export async function getObjectUrlFromBackend(b: StorageBackend, path: string): Promise<BackendIoResult> {
+  if (b.kind === "gcs") {
+    const res = await getGcsUrl(path);
+    return { ok: res.ok, url: res.url, path: res.path, error: res.error };
+  }
+  return scaffoldResult(b);
+}
+
+/** BORRA un objeto del backend (best-effort; el error se devuelve, no se traga). */
+export async function deleteObjectFromBackend(b: StorageBackend, path: string): Promise<BackendIoResult> {
+  if (b.kind === "gcs") {
+    const res = await deleteFromGcs(path);
+    return { ok: res.ok, path: res.path, error: res.error };
+  }
+  return scaffoldResult(b);
+}
+
+/**
+ * Réplicas CON DRIVER REAL activas para un tipo de recurso (excluye el primario
+ * y el oficial StarSeed, que ya es la copia primaria del OS). Es lo que usa
+ * `os-files.ts` para replicar de verdad una subida.
+ */
+export async function realReplicasFor(
+  resource: ResourceType,
+  preloaded?: StorageBackend[],
+): Promise<StorageBackend[]> {
+  try {
+    const { primary, replicas } = await resolveBackendFor(resource, preloaded);
+    return replicas.filter((b) => b.id !== primary?.id && isRealBackend(b.kind) && b.kind !== "starseed");
+  } catch {
+    return [];
+  }
 }
