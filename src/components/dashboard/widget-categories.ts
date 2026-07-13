@@ -57,7 +57,7 @@ export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
         icon: LayoutGrid,
         color: 'lime-400',
         description: 'Apps StarSeed, módulos del sistema y programas como pantalla de inicio.',
-        tags: ['apps', 'launcher', 'carpetas', 'programas', 'inicio', 'nexus', 'café', 'audiomorphic'],
+        tags: ['apps', 'launcher', 'folders', 'carpetas', 'programas', 'inicio', 'nexus', 'café', 'audiomorphic'],
         hasWidgets: true,
     },
     {
@@ -191,8 +191,8 @@ export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
         name: 'Archivos',
         icon: FolderOpen,
         color: 'yellow-600',
-        description: 'Gestor de archivos, carpetas y almacenamiento.',
-        tags: ['archivos', 'carpetas', 'almacenamiento', 'nube', 'ipfs'],
+        description: 'Gestor de archivos, folders y almacenamiento.',
+        tags: ['archivos', 'folders', 'carpetas', 'almacenamiento', 'nube', 'ipfs'],
         hasWidgets: true,
     },
     {

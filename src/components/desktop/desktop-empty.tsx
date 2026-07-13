@@ -169,7 +169,7 @@ export function EmptyDesktopState({
                 </h2>
                 <p className="mt-2 max-w-sm text-[13px] leading-relaxed text-muted-foreground">
                     Un espacio en blanco listo para tomar forma. Coloca apps, widgets vivos,
-                    archivos y carpetas — o deja que Aurora lo componga contigo.
+                    archivos y folders — o deja que Aurora lo componga contigo.
                 </p>
 
                 {/* Acción primaria: Aurora */}

@@ -5,7 +5,7 @@
  *   - Logs (timeline de eventos: creación, ediciones, conexiones, accesos)
  *   - Versiones (snapshots etiquetados que se pueden restaurar)
  *   - Archivos asociados (paths con tamaño y tipo)
- *   - Carpetas/ubicaciones de almacenamiento (local, IndexedDB, IPFS, fediverso)
+ *   - Folders/ubicaciones de almacenamiento (local, IndexedDB, IPFS, fediverso)
  *   - Configuraciones específicas del nodo
  *
  * Persiste en localStorage. La idea es que cada usuario tenga un control
@@ -54,7 +54,7 @@ export interface MemoryAdminRecord {
   weight: number;
   /** Ubicación principal de almacenamiento. */
   storage: StorageLocation;
-  /** Carpeta lógica dentro del perfil del usuario. */
+  /** Folder lógico dentro del perfil del usuario. */
   folder: string;
   /** Perfil al que pertenece (cuenta puede tener varios perfiles). */
   profileId: string;

@@ -1,7 +1,7 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════════════════
-// CommentsDialog — hilo de comentarios de un ítem/carpeta (Adenda 65, §15).
+// CommentsDialog — hilo de comentarios de un ítem/folder (Adenda 65, §15).
 // Persistido en entity_state(ref,'lib-comments:<targetId>'), realtime.
 // ════════════════════════════════════════════════════════════════════════════
 

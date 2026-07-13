@@ -2202,3 +2202,334 @@ Todos los módulos degradan en silencio (`if (error) return null / [] / 0` — f
 ### Pendiente / Próximos pasos
 - `access.ts::pushEnforcement` traduce cualquier grant de perfil a `allowed_profiles` **perdiendo el rol** (un perfil con rol `view` acaba pudiendo editar, porque la columna no lleva rol). Si se quiere fidelidad de roles por perfil, hay que añadir rol a nivel de fila (p. ej. reutilizar `os_space_editors` para perfiles) — hoy el rol fino solo sobrevive en `doc.sharing`.
 - Código NO tocado (`src/` intacto): las cabeceras con el proyecto Supabase equivocado convendría corregirlas en una pasada de documentación.
+
+---
+
+## 2026-07-12 — Adenda 66 (ola 2) · «carpeta» → **folder** en todo el OS · Cerebros de contexto · Cortina Logic
+**Sesión por:** agente (Claude)
+**Resumen ejecutivo:** Renombrado del concepto a **folder** (masculino) en toda la UI/comentarios, arreglado el popover «Cerebros de contexto» (que era imposible de usar) y corregidos los dos recortes de interfaz de la cortina Logic (apps fuera de pantalla + secciones cortadas por arriba).
+
+### A · Renombrado «carpeta» → «folder» (SOP §1)
+- ~430 textos en **117 archivos** de `src/` (UI en español, comentarios y JSDoc). Concepto único y **masculino**: «el folder», «los folders», «Nuevo folder», «Sin folder», «Nombre del folder». Incluye «carpetas del dock» → «folders del dock», Biblioteca/Finder, escritorios, galería, dashboard/launcher, exocórtex/Syncthing, publicar y organizador inteligente. También `subcarpeta` → `subfolder`.
+- Se corrigió la concordancia arrastrada: artículos («una carpeta» → «un folder»), contracciones («de la carpeta» → «del folder»), adjetivos pospuestos («carpeta vacía» → «folder vacío», «carpetas activas» → «folders activos») y pronombres («si la hay» → «si lo hay», «dentro de sí misma» → «dentro de sí mismo»).
+- **NO renombrado a propósito** (rompería datos ya guardados en cuentas): el discriminante persistido `"carpeta"` de `DestinationKindId` (`src/lib/publish/publish.ts`, `src/lib/reach/reach.ts`, `src/components/publish/publication-composer.tsx`). Sus **etiquetas visibles** sí pasan a «Folder/folders» (p. ej. `plural.carpeta: ["folder","folders"]`). Las claves de localStorage (`starseed.dock.folders.v1`, `FOLDERS_KEY`…) ya estaban en inglés. En los `tags` de búsqueda de widgets se **añadió** `folder`/`folders` **conservando** `carpeta`/`carpetas`, para no romper la búsqueda de quien siga escribiendo en español.
+- El contrato JSON del organizador inteligente (`smart-organizer.ts`) **sí** se renombró entero (`"carpeta"`→`"folder"`, `"carpetas_nuevas"`→`"folders_nuevos"`) porque vive solo en el par prompt→`parseAiPlan` y no se persiste.
+
+### B · Bug: «Cerebros de contexto» nunca reconocía el perfil — CAUSA RAÍZ
+`LibraryBrainsPopover` decidía con `ref.kind === 'profile'` (tanto `profileId` como `applicable`). Pero el selector de bibliotecas de `/library` se alimenta de `myLibraryDestinations()` (`entity-library.ts`), que **jamás emite `kind:'profile'`**: solo emite `user` («Mi biblioteca»), `page` y `group`. Por tanto `applicable` era **siempre false** y el popover mostraba «elige un perfil en el selector de arriba» — un aviso **imposible de satisfacer**, porque ese selector no ofrece perfiles. Además desincronizaba con el consumidor real: Aurora lee `getLibraryBrains(activeProfileId())` en `src/ai/astraura/context.ts`.
+**Fix:** el popover resuelve ahora el perfil **efectivo** con `useActiveProfile()` — `kind:'profile'` → ese perfil; `kind:'user'` (mi biblioteca) → **perfil activo**, sin pedir nada; `page`/`group` → aviso honesto que ya no manda a ningún sitio inexistente. Así el popover **escribe** en la misma clave (`entity_state(profile:<id>,'library-brains')`) que Aurora **lee**. Se muestra además el perfil sobre el que se guarda.
+
+### C · Interfaz de la cortina Logic (dock Trinity, lado derecho) — CAUSA RAÍZ ÚNICA
+Ambos síntomas (C1 «las apps se salen de la pantalla y no se pueden deslizar» y C2 «las secciones se cortan por arriba») venían del **mismo defecto de contención**: `ControlCenter` tenía **altura fija sin tope de viewport** (`md:h-[600px]` / `lg:h-[640px]`) y el wrapper de `side-curtains.tsx` lo centra con flexbox (`items-center`) dentro de un contenedor `fixed`. Cuando el viewport es más bajo que 600/640 px, el panel desborda arriba **y** abajo, y **el desbordamiento superior de un flex centrado es inalcanzable** (un `fixed` no scrollea) → cabecera, pestañas y apps quedaban cortadas e inaccesibles.
+- **C2:** el wrapper pasa a anclarse a **top + bottom** (`inset-y-0`, sin `h-[100dvh]` redundante ni el `md:h-[90vh] md:my-auto` que competía con él): su alto lo deriva el **viewport real** (también con la barra de URL móvil, donde `vh` miente). Safe-areas reservadas con padding (`md:pt/pb-[max(1rem,env(safe-area-inset-*))]`; en móvil, dentro del propio panel: cabecera y barra de estado). El panel conserva su altura deseada pero **topada con `max-h-full`** → nunca excede el viewport, nunca se corta.
+- **C1:** el carril de contenido pasa a ser el **único scroller** (`flex-1 min-h-0` + `overflow-y-auto overscroll-contain`; antes el scroll vivía en cada `TabsContent`, que además usaba `h-full` e impedía crecer). `TabsContent` usa `min-h-full`. Se añaden **sombras y flechas** arriba/abajo que solo aparecen cuando de verdad hay más que deslizar, con **guarda anti-bucle** en el `setState` del `ResizeObserver` (regla §15 de la Adenda 63: sin ella se reintroduce el glitcheo en loop).
+- Verificado razonando el CSS a 380 (móvil, panel a sangre + safe-areas internas), 834 (tablet, panel 420 px con gutter 1 rem) y 1440 px (escritorio, 460×640 topado por `max-h-full`).
+
+### Verificación
+- `tsc --noEmit` (tsconfig temporal que extiende el real): **0 errores**.
+
+### Pendiente
+- El aviso del popover para `page`/`group` es honesto, pero el SOP §12 solo contempla cerebros **por perfil**: si se quieren cerebros por página/grupo hay que ampliar `library-brains.ts` (hoy su clave es `profile:<id>`).
+- `DestinationKindId` sigue usando el literal `"carpeta"`: si algún día se migra, requiere migración de los datos de publicaciones/destinos ya guardados.
+
+---
+
+## 2026-07-12 — Adenda 66 §3-§4 · ACL por nodo (biblioteca · folder · archivo) + REGLA CUENTA↔PERFILES + Biblioteca pública del perfil
+**Sesión por:** agente (Claude)
+**Resumen ejecutivo:** Cada nodo de la Biblioteca tiene ya **ACL propia y heredable** (ámbito + roles), la regla **cuenta↔perfiles** se aplica en las DOS capas (RLS en la BD + `can()` en el cliente) y la pestaña Biblioteca de un perfil deja de decir «es privada»: muestra a las visitas **exactamente** los nodos que su dueño/a eligió mostrar.
+
+### A · Modelo de ACL y herencia (§3)
+- **Nodos:** `library` (nuevo) · `folder` · `file`. `ResourceType` de `src/lib/sharing/access.ts` ya los contemplaba; ahora los tres tienen ACL real.
+- **Ámbitos** (vocabulario del SOP, añadidos a `AccessScope` sin romper los de la Adenda 63): `private` · `account` · `profiles` · `groups` · `pages` · `public` (+ los legados `profile` / `custom`, que siguen sirviendo a escritorios/pizarras/cerebros). `private` = **cerrado con llave**: ni los grants aplican. `profiles`/`groups`/`pages`/`custom` solo cambian el buscador de destinatarios; los grants mandan igual.
+- **Roles:** `view` < `comment` < `edit` < `admin` (sin cambios).
+- **Herencia:** el hijo hereda del primer ancestro con ACL propia (archivo → folder → … → biblioteca). **La ACL propia siempre gana** (no se mezclan). API nueva en `access.ts`: `getEffectiveAccess`, `parentResourceRef`, `hasOwnAcl`, `detachInheritance` («dejar de heredar» = copia la efectiva como propia), `restoreInheritance` («volver a heredar» = borra la propia). Gemelo en cliente en `finder-types.ts` (`effectiveAclForItem/Folder`, `canReadItem/canWriteItem/canReadFolder/canWriteFolder`) → el Finder ya oculta/deshabilita **con herencia**, no solo por ACL literal del nodo.
+- **Persistencia:** ACL embebida en el doc de `entity_state` (clave `acl`) — nueva `EntityLibraryDoc.acl` para la biblioteca entera, `folders[].acl` y `items[].acl` para el resto. `ItemACL` se amplía de forma **aditiva** (v3): `scope`, `grants`, `showInProfile`, `updatedAt`, conservando `read`/`write` como **espejo** (los siguen consumiendo el Finder y las políticas legadas). Para los ARCHIVOS reales se espeja además a `os_files` (`is_public`/`acl_read`/`acl_write`/`group_slug`) vía `findFileByUrl` + `updateFileAccess` → ahí el enforcement **sí** es por fila.
+
+### B · Regla CUENTA↔PERFILES (la parte crítica)
+Dar acceso a UN perfil se lo da a **TODOS los perfiles de esa cuenta**, y al revés. Funciona porque `auth.uid()` **ES la cuenta** (los perfiles de `os_account_profiles` son facetas suyas), así que una sola comprobación cubre las dos direcciones.
+- **BD** — migración `supabase/migrations/20260712100100_account_profile_access.sql` (idempotente, **aplicada y verificada** en `nxstilnyidvkqeosofuh`):
+  - `account_of_profile(uuid)` · `profiles_of_account(uuid)` · `acl_ids_allow(uuid[])` — todas `SECURITY DEFINER` + `STABLE` (leen `os_account_profiles` **sin** pasar por su RLS → **cero recursión**).
+  - `es_acl_node_allows(jsonb,text)` / `es_doc_acl_allows(jsonb,text)` — leen la ACL embebida (v3 `scope`+`grants` y las listas v2) de la biblioteca, de cada folder y de cada ítem.
+  - `entity_state`: SELECT/UPDATE pasan a `es_can_read/es_can_write(...) OR es_doc_acl_allows(value, 'read'|'write')`. INSERT/DELETE siguen siendo **solo** del dueño/miembro (compartir nunca permite crear ni destruir la biblioteca ajena).
+  - `os_files`: `osf_select` y `osf_shared_write` usan `acl_ids_allow(...)` → `acl_read`/`acl_write` admiten indistintamente uuids de **cuenta o de perfil**.
+- **Cliente** — `identitySetOf(who)` en `access.ts` (cache 60 s) resuelve cuenta+perfiles equivalentes y `can()` compara los grants contra ese conjunto. En el Finder, `AclViewerContext.profileIds` (cargado en `entity-library-panel.tsx` con `listMyProfiles()`) hace lo mismo. **Cliente y RLS dicen siempre lo mismo.**
+
+### C · Verificación con impersonación (`authenticated`, datos de prueba borrados después)
+Cuentas A (comparte), B (con perfiles P1·P2·P3) y C (tercero):
+| Caso | Esperado | Resultado |
+|---|---|---|
+| A comparte un **folder** con el perfil **P2** → ¿accede la cuenta B (y por tanto P1 y P3)? | sí | **sí** (1 fila) |
+| A comparte con la **cuenta B** → ¿accede B con cualquiera de sus perfiles? | sí | **sí** (1 fila) |
+| Biblioteca privada de A → ¿la ve B? | no | **no** (0 filas) |
+| Archivo `os_files` con `acl_read=[P2]` → ¿lo lee B? | sí | **sí** |
+| Archivo privado de A → ¿lo lee B? | no | **no** |
+| **Tercero C** → ¿ve o escribe algo de A? | no | **no** (0 en todo) |
+| B con grant **rol `view`** → ¿puede escribir? | no | **no** (0 filas) |
+| B con grant **rol `edit`** (vía P2) → ¿puede escribir? | sí | **sí** (1 fila) |
+| B con archivo solo en `acl_read` → ¿puede escribirlo? | no | **no** |
+Datos de prueba (3 usuarios, 3 perfiles, 3 bibliotecas, 3 archivos) **eliminados**: verificado a 0.
+
+### D · UI
+- **Menú contextual → «Permisos»** (`finder-view.tsx`) abre ahora el `ShareAccessDialog` universal con el `ResourceRef` correcto (`file`/`folder`), en vez del viejo editor de listas read/write. Muestra **badge «Propio»/«Heredado»** + botón **«Dejar de heredar»/«Volver a heredar»**, y **editar un nodo heredado lo desengancha automáticamente** (editar es decidir).
+- **Permisos de la BIBLIOTECA entera**: botón «Permisos» en la cabecera de `entity-library-panel.tsx` (`type:"library"`, nodo raíz de la herencia).
+- **Destinatarios** según el ámbito: perfiles (buscador nuevo `searchAccountProfiles` sobre `os_account_profiles`), grupos y páginas (`searchGroups`, separados por `kind`), cuentas (`searchUsers`), «toda mi cuenta», público, privado. Aviso explícito en la UI de la regla cuenta↔perfiles.
+- `PermissionsPopover` queda **sin uso** (no se borra: sigue siendo válido como editor de listas v2).
+
+### E · Biblioteca pública del perfil (§4)
+- Interruptor **«Mostrar en mi perfil»** por nodo (en el diálogo de Permisos) y panel dedicado en **Ajustes → Cuenta → Información personal** (`profile-library-showcase-panel.tsx`).
+- Se persiste en la ACL del nodo (`acl.showInProfile`). **Marcar eleva el ámbito a `public`** — decisión honesta y avisada: si no, la visita ni siquiera podría leer la fila (RLS). **Desmarcar NO revoca** lo ya compartido: solo deja de listarse (justicia restaurativa, §6).
+- La pestaña **Biblioteca** de un perfil ajeno ya no dice «es privada»: renderiza `ProfilePublicLibrary` con **exactamente** los nodos marcados (`profilePublicNodes`). El uid real del perfil visitado sale de `resolveProfileData().id` (identidades soberanas de `os_profiles`).
+
+### Decisiones tomadas
+- **No se parte la biblioteca en filas por nodo** (sería un cambio de esquema mayor y otro agente está tocando su sync): se mantiene el doc jsonb único + ACL embebida.
+- La ACL v3 es **aditiva** sobre `ItemACL`: nada de lo guardado hoy se invalida, y el espejo `read`/`write` mantiene funcionando el código v2 que no conoce los grants.
+
+### Pendiente / límites honestos (no ocultos)
+- **Granularidad de la RLS en `entity_state`:** la biblioteca es **una fila jsonb**, así que si CUALQUIER nodo te concede acceso, la **fila entera** es legible y el filtrado por nodo lo hace el cliente (`visibleFor`). Consecuencia: quien tenga acceso a un solo folder podría leer el jsonb completo (títulos del resto) si consulta la API directamente. Igual para la escritura: un grant `edit` en cualquier nodo permite `UPDATE` de la fila (mismo modelo que ya tenían las bibliotecas de grupo, donde cualquier miembro escribe el doc). **Enforcement real por nodo solo en `os_files`** (una fila por archivo). Camino futuro: tabla `os_library_nodes` con una fila por nodo.
+- `scope:"private"` en una biblioteca **compartida** (grupo/página) se comporta como «solo el dueño de la entidad»: no se distingue el perfil concreto que creó el nodo (la cuenta es el ancla soberana).
+- El panel de Ajustes lista los **40 primeros** ítems; para el resto, «Permisos» desde la Biblioteca.
+- Perfiles **faceta** (`os_account_profiles`) como dueños de biblioteca (`kind:'profile'`): soportados en ACL y en el contexto del Finder, pero la página `/profile/[username]` solo resuelve la biblioteca pública de las identidades **soberanas** (`os_profiles`).
+
+---
+
+## 2026-07-12 — Adenda 66 §2 · Sync REAL de bibliotecas, folders y archivos + historial/ramas/registro (`os_versions`)
+
+**Sesión por:** Claude (Cowork, Opus 4.8) — ola «folders · permisos · publicaciones» (SOP `architecture/folders-permisos-publicaciones.md` §2).
+**Resumen ejecutivo:** El usuario reportó «la sincronización de folders y archivos en línea no funciona; solo se guardan localmente». Se diagnosticó contra la BD REAL (`nxstilnyidvkqeosofuh`): **no era un fallo de RLS ni de red — era un fallo SILENCIADO POR EL PROPIO CÓDIGO**. Arreglado de raíz, más historial de versiones/ramas/registro en la nube (tablas nuevas `os_versions` + `os_access_log`, aplicadas y verificadas).
+
+### CAUSA RAÍZ (evidencia dura de la BD, no conjeturas)
+
+Estado real de la base ANTES de tocar nada:
+- `entity_state`: **1 sola fila** en todo el proyecto (`profile/desktops`) — **cero** filas con `key='library'`.
+- `os_files`: **0 filas**… pero el bucket `os-files` de Storage tenía **6 objetos** subidos el 2026-07-11 desde `…/biblioteca/user-8be339d0…/`.
+
+Esa contradicción (binarios sí, metadatos no) es la prueba del delito. Tres causas encadenadas:
+
+1. **Histórica (ya corregida el 2026-07-12):** `entity_state` y `os_files` NO EXISTÍAN en el proyecto del OS. Toda escritura fallaba.
+2. **`os-files.ts` DISFRAZABA EL FALLO DE ÉXITO.** Si el `insert` en `os_files` fallaba, devolvía **`{ ok: true }` con una fila FALSA** (su `id` era la ruta de Storage, no un uuid) y sin ningún aviso. La UI cantaba «Archivo subido» mientras el archivo quedaba invisible para `listMyFiles`, el realtime, los permisos y cualquier otro dispositivo. **Y no había cola de reintento para archivos**, así que la subida nunca se recuperaba.
+3. **`entity-library.ts` se tragaba el motivo.** `setEntityState` devolvía `null` tanto para «no hay fila» como para «Supabase lo rechazó»; `pushCloud` lo traducía a «encolar pendiente» sin decir por qué. El usuario solo veía un «cambios pendientes» perpetuo, sin causa.
+
+Y dos bugs de fusión que impedían que el sync funcionara **aunque la nube respondiera bien**:
+
+4. **Los borrados NO se propagaban NUNCA.** `mergeDocs` era una **unión por id**: el dispositivo A borraba y subía el doc sin el ítem, pero B fusionaba su caché (que aún lo tenía) con lo remoto y **lo resucitaba**.
+5. **Renombrar/mover se perdía.** El reloj LWW era `addedAt`/`createdAt`, que **no cambian al editar**; con el desempate `>=` ganaba SIEMPRE el nodo remoto, así que toda edición local aún no subida **se revertía sola** en la siguiente lectura.
+
+### Hecho
+
+**A · Sync real (nada se guarda solo en local, y si falla se VE)**
+- `src/lib/sync/entity-state.ts`: nuevas `getEntityStateChecked`/`setEntityStateChecked` → devuelven `{ row, error }` con el **mensaje real** de Supabase. Las funciones antiguas se conservan (mismo contrato) como envoltorio.
+- `src/lib/library/entity-library.ts` (doc **v3**, migración normalizadora perezosa e idempotente v1/v2→v3, **sin DDL**):
+  - **Lápidas** (`deletedItems`/`deletedFolders`: id → ISO, podadas a 90 días) → el borrado viaja y gana la fusión. Un nodo solo «resucita» si se editó DESPUÉS de la lápida.
+  - **Reloj LWW por nodo** (`updatedAt` en `SavedItem` y `LibraryFolder`), tocado en TODA edición (`touchItem`/`touchFolder`) → renombrar/mover/etiquetar/ACL ya ganan la fusión.
+  - `pushCloud` guarda el **motivo** del rechazo en la cola (`lastError`) y lo expone (`lastSyncError`, `useLibraryPendingSync().error`).
+  - La cola offline sigue reintentando (online + cada 30 s) y ahora **actualiza el motivo** en cada reintento fallido en vez de perderlo.
+- `src/lib/files/os-files.ts`: se acabó el falso `ok`. Si la fila no entra, se devuelve **`warning`** y la fila se **encola** (`starseed.osfiles.pending.v1`) con reintento propio (online + 30 s). Subida, borrado y cambio de permisos **emiten señal en vivo** (`files:<uid>`) y `subscribeMyFiles` escucha ya por **broadcast + postgres_changes** (redundante, como la biblioteca).
+- UI: banner rojo con el **motivo textual** del rechazo de la nube en la cabecera de la Biblioteca + aviso «N archivo(s) sin registrar — reintentar»; toast de `warning` en el selector universal de archivos.
+
+**B · Historial, ramas y registro (§2) — tablas NUEVAS, aplicadas y verificadas**
+- Migración `supabase/migrations/20260712100000_os_versions.sql` (idempotente):
+  - `os_versions(id, resource_kind ∈ library|folder|file|brain|post, resource_id, owner, rev, parent_rev, branch='main', author, device_id, message, size, checksum, storage_path, snapshot jsonb, created_at)`.
+    UNIQUE `(resource_kind, resource_id, branch, rev)` + índice `(…, branch, rev DESC)`.
+  - `os_access_log(…, action, actor, device_id, detail jsonb, created_at)` — el «Registro» de accesos y cambios.
+  - **RLS derivada del recurso, no duplicada:** `owner` es la EntityRef serializada `<kind>:<id>`, y `osv_can_read`/`osv_can_write` delegan en las `es_can_read`/`es_can_write` que ya gobiernan `entity_state`. Resultado exacto: **ve el historial quien puede ver el recurso; crea revisiones quien puede editarlo**.
+  - **Append-only**: no existe política de UPDATE (una revisión jamás se reescribe). Realtime + `REPLICA IDENTITY FULL`.
+- API `src/lib/versions/versions.ts`: `recordVersion()` (con reintento ante carrera 23505), `listVersions()`, `listBranches()`, `headRev()`, `restoreVersion()` (no reescribe: devuelve el snapshot y **anota una revisión nueva**), `branchFrom()`, `logAccess()`, `listAccessLog()`, `quickChecksum()` (FNV-1a, sin depender de WebCrypto ni de npm nuevo).
+- **Cableado:** cada guardado real de biblioteca/folder/ítem crea revisión + entrada de registro (no bloqueante: si el historial falla, el guardado ya está hecho — es una garantía, no un peaje).
+- **Binarios:** `uploadFileVersion()` sube cada revisión a su **propio** objeto `<uid>/<fileId>/<rev>/<nombre>` con `upsert:false` — **nunca se sobrescribe**; `os_files` apunta a la última y `os_versions` guarda el puntero de todas.
+- UI: menú contextual → **«Historial…»** y **«Registro…»** (ítems **y** folders) → `src/components/library/finder/history-dialog.tsx` (Crystal Liquid Glass): pestañas Versiones/Registro, selector de ramas, autor/dispositivo/fecha/mensaje, **Restaurar**, **Crear rama**, **Comparar** (diff de líneas). Funde además los snapshots locales heredados (`item.versions`) para no perder el historial previo.
+
+### Verificado de verdad (contra la BD real, impersonando `authenticated`)
+Migración aplicada (`[]`). Comprobado: 15 columnas de `os_versions`, RLS **ON**, `REPLICA IDENTITY FULL`, 6 índices, ambas tablas en `supabase_realtime`. Prueba funcional: crear 3 revisiones → listar → **ramificar** (rama `idea` con `parent_rev`) → listar ramas (`main` head 2, `idea` head 1) → **restaurar** (snapshot correcto recuperado). Pruebas NEGATIVAS: otro usuario ve **0 filas** del historial ajeno y su INSERT es **rechazado por RLS** (42501); el `UPDATE` de una revisión afecta a **0 filas** (append-only). **Datos de prueba borrados** (verificado 0/0).
+`tsc` con el tsconfig real (extends + `files`): **0 errores**.
+
+### Decisiones tomadas
+- **Sin DDL para el doc de la biblioteca**: lápidas y relojes LWW son claves opcionales más en el mismo `jsonb`. Los docs v1/v2 se normalizan al leer y caen con elegancia a `addedAt`/`createdAt` hasta su primera edición.
+- **El historial hereda el permiso del recurso** (una sola fuente de verdad de permisos, `es_can_*`) en vez de reimplementar ACL en `os_versions`.
+- **Restaurar no reescribe el pasado**: anota una revisión nueva. El historial es un registro, no un borrador.
+- Se mantiene «Versiones (este dispositivo)» además de «Historial» para no tirar los snapshots locales ya guardados.
+
+### Pendiente / límites honestos
+- Los **6 objetos huérfanos** de Storage (subidos el 2026-07-11, sin fila en `os_files`) **siguen sin fila**: la cola solo recupera lo que falle a partir de ahora. Habría que reindexarlos (barrido de `storage.objects` → `os_files`) o volverlos a subir.
+- `uploadFileVersion()` existe y compila, pero **aún no tiene botón en el Finder** («Subir versión nueva…» del archivo): queda para la siguiente pasada.
+- La granularidad de RLS de la biblioteca sigue siendo la fila `entity_state` completa (ver límite ya anotado en la entrada de permisos). `os_versions` sí es fila por revisión.
+- El «Comparar» del historial solo tiene sentido en texto (contenido/nota/título); los binarios comparan tamaño/checksum.
+
+---
+
+## 2026-07-12 · Adenda 66 §5 + §7 — Compartir/Enviar universal + Filtros·Orden·Búsqueda inteligente de publicaciones
+
+**Motivo:** implementar (a) «Compartir cualquier cosa en cualquier sitio» (§5) y (b) filtros/orden/búsqueda con relevancia Astraura sobre CUALQUIER feed (§7). Regla dorada: el SOP `architecture/folders-permisos-publicaciones.md` ya existía; esta entrada documenta el código.
+
+### A) Compartir / Enviar a… (DESTINOS — distinto de PERMISOS)
+- **`src/lib/sharing/share-targets.ts`** (nuevo): capa de destinos. Tipo `ShareResourceRef {kind: cerebro|biblioteca|folder|archivo|publicacion, id, name, url?, route?, note?, mime?, libraryRef?, nodeId?}`. Helpers: `stageCreationAttach()/readCreationAttach()` (store efímero `sessionStorage` clave **`starseed.creation.attach.v1`** → el Lienzo `/crear?attach=1` lo lee y limpia; formato compacto `CreationAttachRef {kind,id,name,url?,route?,note?,mime?}`), `deepLinkFor()`, `toDmAttachment()`, `toShareBody()` (reusa la convención `**Adjuntos:**` que `splitBodyAttachments` ya renderiza), y efectos reales: `shareToThread()` (dm.sendMessage), `shareToEntity()` (os-social.createPost), `shareToBrain()` (cerebro/memory-files.saveMemoryFile), `shareToLibrary()` (entity-library.saveItem). NO toca `access.ts` (permisos).
+- **`src/components/sharing/share-to-dialog.tsx`** (nuevo): `ShareToDialog` con 6 destinos → Publicación (Lienzo), Mensaje (selector de hilo real, listThreads), Grupo·Página·Comunidad (buscador searchGroups → createPost), Cerebro (listBrains → memoria), Librería (myLibraryDestinations → saveItem a raíz), Enlace (copia deep-link). Crystal Liquid Glass, datos reales, degradación honesta sin sesión.
+- **Botones «Enviar a…» (Send)** cableados en: menú contextual del Finder (`finder-context-menu.tsx` nueva prop `onSendTo` + wiring en `finder-view.tsx`, construye la `ShareResourceRef` del ítem/folder con su libraryRef + deep-link), tarjeta de Cerebro (`cerebro-hub.tsx`, junto a «Compartir»), y visor de publicación (`PostCard.tsx`, junto a «Compartir/Copiar»).
+- **Explorar por temas/categorías**: `src/components/library/topics-explorer.tsx` (nuevo) agrupa el catálogo público (`usePublicCatalog`, `library_public_items`) por categoría y por tema/etiqueta, con vacío honesto; montado en la pestaña **Comunidad** de `/library` encima de `PublicCatalogSection`.
+
+### B) Filtros · orden · búsqueda inteligente (§7)
+- **`src/lib/social/feed-filters.ts`** (nuevo): `FeedPrefs {sort: reciente|relevante|popular|cronologico|propios, view: lista|tarjetas|compacta, tags[], query, forMe}`. Persistencia POR PERFIL (perfil activo `starseed.profile.active.v1`) y POR ENTORNO en **`starseed.feed.prefs.v1`** (mapa `${perfil}::${entorno}`; la `query` es efímera, no se persiste). `FEED_TAG_CATALOG` derivado de `creation-config.TIPOS_POR_DEST` (enganche listo: si aparece un array plano de etiquetas múltiples, sustituir el import). `filterAndSortPosts()` (puro/síncrono), `rankByRelevance(posts, profileContext)` (import dinámico de `astrauraChat`, prompt español SOLO-JSON, timeout 12s + AbortController, fallback = recencia), y `useFeedFiltered()` (filtro síncrono inmediato + reorden por relevancia cuando llega, NO bloquea la UI).
+- **`src/components/social/feed-controls.tsx`** (nuevo): barra reutilizable (búsqueda + orden + vista + etiquetas multiselección + «Para mí» con spinner). Presentacional.
+- **Montado en `src/components/social/PostFeed.tsx`** (feed principal usado por perfiles/secciones/páginas/grupos): controles arriba, filtro/orden aplicado antes de render, densidad por vista. **Realtime intacto** (los hooks `useCafePosts`/`useRealtime`/broadcast no se tocan; solo se transforma la lista para pintar).
+
+### Claves nuevas → reportar para SYNCED_KEYS (settings-sync.ts NO tocado)
+- **`starseed.feed.prefs.v1`** — preferencias de feed por perfil+entorno (orden/vista/tags/forMe). **SÍ** debe sincronizarse.
+- `starseed.creation.attach.v1` — store EFÍMERO navegador→/crear (un solo salto). **NO** añadir a SYNCED_KEYS (por diseño).
+
+### Verificación
+- `tsc` con tsconfig temporal (extends real + `include` de los 11 ficheros tocados): **0 errores en los ficheros de esta ola**.
+- Único error del grafo: `src/components/social/post-blocks-renderer.tsx(129): "entidad" no comparable a PostBlockType` — es de **OTRO agente** (bloques del Lienzo, off-limits); no creado ni tocado aquí. Debe cerrarlo esa ola (añadir `"entidad"` a `PostBlockType`).
+
+### Pendiente / límites honestos
+- `ShareToDialog` guarda en la **raíz** de la biblioteca elegida (sin selector de folder todavía) y el destino «Entidad» cubre grupo/página/comunidad vía `searchGroups` (eventos aún no tienen buscador propio).
+- La reordenación «Para mí» depende de que Astraura tenga alguna fuente disponible; si no, cae a recencia (documentado, nunca bloquea).
+- El contrato del Lienzo (`starseed.creation.attach.v1`) lo debe **consumir** el otro agente en `/crear` (yo solo lo dejo preparado).
+
+---
+
+## 2026-07-12 — Adenda 66 §5-§6 · Lienzo Universal: destino Librería, etiquetas múltiples, bloques ricos, SourcePicker
+
+**Sesión por:** Claude (subagente, Opus 4.8) bajo dirección de Alex.
+**Resumen ejecutivo:** El Centro de Creación / Lienzo Universal (`/crear`) gana: destino **Librería** (biblioteca+folder, guarda ÍTEM con ACL en vez de post), **tipo de publicación = etiquetas múltiples** (chips+búsqueda, 36 etiquetas), **9 tipos de bloque nuevos** (incl. código ejecutable AISLADO en iframe), un **SourcePicker universal** reutilizable y el **render de esos bloques + etiquetas** en `PostCard`. Todo **aditivo**: lo que ya publicaba sigue igual.
+
+### Hecho
+- **Destino «Librería»** (`creation-config.ts` → `CreationDest="libreria"`): sub-selector de UBICACIÓN (`library-location-picker.tsx`) con `myLibraryDestinations()` + árbol de folders (`useEntityLibrary`). Publicar a Librería = `saveItemSecure(ref, {type:"post",…}, folderId)` (ítem de biblioteca con su ACL), no `createPost`. Se mantienen todos los destinos previos; `/crear?area=publicar` (QuickPublisher) **excluye** Librería (solo publica en os_posts).
+- **Etiquetas múltiples** (`creation-config.ts` `PUBLICATION_TAGS`, 36 etiquetas con icono Lucide + desc + `sections`): componente `TagSelector` (chips seleccionables + búsqueda, en `creation-fields.tsx`). Se guarda `tags: string[]` en `ss:meta` y el `tipo` primario = `tags[0]` (compat). Sustituye al `TipoSelector` en Lienzo y QuickPublisher (`TipoSelector`/`TIPOS_POR_DEST` se conservan por compat con `/publish`).
+- **Bloques nuevos** (`creation-blocks.tsx` editores + `post-blocks-renderer.tsx` render): **portada** · **código ejecutable** (HTML/CSS/JS/JSX, preview y render en iframe `sandbox="allow-scripts"` SIN `allow-same-origin` → sin sesión) · **página interactiva** (reusa el sandbox) · **repo** · **pizarra** · **agente/bot** (chat embebido que llama `astrauraChat` con system+persona, aislado) · **mapa** (Leaflet bajo demanda + enlace `/hub/mapa`) · **gráfica** (tabla editable → recharts responsive, datos reales) · **referencia** (cerebro/biblioteca/folder/archivo/neurona/URL vía SourcePicker) · **entidad** (página/perfil/grupo/comunidad/evento).
+- **SourcePicker universal** (`source-picker.tsx`, EXPORTADO): dispositivo (→os-files) · biblioteca · folder · archivo · cerebro · neurona · URL. Devuelve `SourceRef` normalizada. Lo consume el Lienzo; queda listo para mensajes/composer (otro agente).
+- **Modelo compartido** `src/lib/creation/post-blocks.ts` (`PostBlock`, serialize/parse, `buildSandboxDoc`). Los bloques ricos viajan en `ss:meta.blocks`; los legados (texto/imagen/archivo/enlace/widget) siguen como markdown en el cuerpo (sin doble render).
+- **Render en el feed**: `splitBodyAttachments` (`social-posts.ts`) ahora devuelve `tags`+`blocks`; `NormalizedPost` los lleva; `osPostToNormalized` (`use-os-entities.ts`) los propaga; `PostCard` pinta `<PostBlocksRenderer>` + chips de etiquetas. Como los feeds de sección/perfil usan `PostCard`, lo heredan sin tocar `network/**`.
+- **Adaptación** (§6): rejilla responsive, imágenes lazy, iframe de altura acotada, gráficas `ResponsiveContainer`, respeto de `prefers-reduced-motion` + `data-perf="eco"` (device-tier); código y mini-mapa se cargan **bajo demanda** (no auto-ejecutan en el feed).
+- **Robustez**: `buildSsMetaComment` escapa `-->` → `-->` (los bloques de código/HTML ya no rompen el comentario `ss:meta`; `JSON.parse` lo revierte, sin cambio en los parsers).
+
+### Archivos
+- Nuevos: `src/lib/creation/post-blocks.ts`, `src/components/creation/source-picker.tsx`, `src/components/creation/library-location-picker.tsx`, `src/components/creation/creation-blocks.tsx`, `src/components/social/post-blocks-renderer.tsx`.
+- Editados: `creation-config.ts`, `creation-fields.tsx`, `lienzo-composer.tsx`, `quick-publisher.tsx`, `src/lib/social-posts.ts`, `src/hooks/use-os-entities.ts`, `src/components/social/PostCard.tsx`.
+- **Coordinación**: se añadió `"entidad"` a `PostBlockType` — resuelve el ÚNICO error de grafo que reportó la ola hermana (`post-blocks-renderer.tsx(129)`), que era de esta ola.
+
+### Verificación
+- `tsc` local **no pudo completar**: el mount FUSE es demasiado lento (incluso un fichero sin imports agota los 45s cargando node_modules) y el sandbox mata los procesos en background (`--die-with-parent`). Validado por: (a) revisión manual de tipos, (b) verificación por grep de todos los símbolos externos (iconos Lucide, exports de `entity-library`/`brains`/`neurons`/`os-files`/`astraura`/`leaflet-loader`/recharts), (c) cross-check de todos los literales de tipo de bloque contra la unión, (d) el `tsc` de la ola hermana sobre el grafo compartido, que solo marcó el `"entidad"` ya corregido.
+
+### Pendiente / próximos pasos
+- Reejecutar `tsc`/`next build` en una máquina con FS rápido para confirmación final (bloqueo puramente de entorno, no de código).
+- El SourcePicker en **mensajes/composer** lo engancha el agente hermano (yo lo dejo exportado y usado en el Lienzo).
+- Quedaron temp `tsconfig.check*.json` sin borrar (el mount bloquea `rm`, igual que los `tsconfig.agentcheck.json`/`acl-check.json` de las otras olas); untracked, no afectan al build.
+
+---
+
+## 2026-07-12 — Adenda 66 §11-§13 · Semilla OSS completa · Actualizaciones disponibles · Red descentralizada de backends
+
+**Sesión por:** Claude (subagente, Opus 4.8) bajo dirección de Alex.
+**Resumen ejecutivo:** (A) La semilla por defecto de la Biblioteca pasa a incluir **TODO el catálogo OSS** (`SEED_VERSION 12→13`), con 5 repos nuevos (Raven·Skales·Mouzi·Strix·Organic Maps) + los que faltaban (CasaOS·Bark·GPT-SoVITS·OmniVoice·OmniRoute + referencias). (B) El Centro de Notificaciones gana **«Actualizaciones disponibles»** con fuentes reales (catálogo StarSeed + GitHub releases/tags) e historial. (C) Nueva capa **red descentralizada de backends** (`storage/backends.ts`) con primario/réplicas por tipo de recurso + panel en Ajustes/Almacenes. Todo aditivo.
+
+### Hecho
+- **A · Semilla (§11):**
+  - `packages.ts`: +5 paquetes `function` en `starseed-ia-tools` — `iatool-raven`, `iatool-skales`, `iatool-mouzi`, `iatool-strix`, `iatool-organicmaps` (mismo patrón honesto: registran skill + guardan enlace; no descargan). Reflejan `oss-library.ts`.
+  - `skills.ts`: +4 capacidades (`agent-memory-backend` [raven+skales], `smart-file-organize`, `security-audit`, `offline-maps`) → los cerebros/neuronas las «ven» al instalarse (activeCapabilityIds usa packageIds/skillIds).
+  - `defaults-seed.ts`: `SEED_VERSION 12→13` + añadidos a `RECOMMENDED_PACKAGE_IDS`: `iatool-casaos/bark/gpt-sovits/omnivoice`, `ai-omniroute-local`, los 5 nuevos, y referencias OSS que faltaban (`routellm·litellm·agentos·opencode·openclaw·apple-container`). **Única exclusión deliberada:** `iatool-firecrawl` (free:false · clave de pago) — violaría gratis-primero.
+  - `setInstalledVersion(id, version)` nuevo en packages.ts (lo usa el actualizador).
+  - Re-siembra: idempotente por `starseed.library.seed.v1` (SYNCED_KEY). Al subir a v13, cuentas existentes reciben los ids nuevos la próxima vez que arranquen (respeta lo ya instalado; los ids nunca ofrecidos antes se auto-instalan). **Propagación a cerebros/neuronas** vía `library-sync.ts` (empuja `cydiaInstalled`+`cydiaFunctions`+`capabilities` a `user_settings.prefs`; el pull hace `mergeInstalledFromAccount`).
+- **B · Actualizaciones disponibles (§12):**
+  - `src/lib/notifications/available-updates.ts` (nuevo): lista paquetes instalados con repo GitHub (parseado de `payload.externalUrl/url`); comprueba **multi-fuente** — catálogo StarSeed (sin red) + GitHub `releases/latest` + `tags` — y muestra variaciones. Comparador semver-ish. `applyUpdate()` marca la versión nueva como instalada (`setInstalledVersion`) + historial. Caché 6 h + tope de 18 repos/consulta (respeta el rate-limit anónimo; **403 → gracia**). Claves nuevas: `starseed.updates.available.cache.v1`, **`starseed.updates.history.v1`**.
+  - `src/components/notifications/available-updates.tsx` (nuevo): tarjeta coherente con el centro; «Buscar actualizaciones», «Actualizar» por ítem, badges por fuente, historial, vacío honesto. Montado en `/notifications` (sección «Feed») sobre `NotificationsCenter`.
+- **C · Red descentralizada de backends (§13):**
+  - DDL aplicado y **verificado** en `nxstilnyidvkqeosofuh`: `alter table storage_backends add column if not exists is_primary boolean not null default false` + índice parcial por owner. (La tabla ya tenía config/rules jsonb, priority, scope, etc.)
+  - `storage/backends.ts` (ampliado, aditivo): +kinds `supabase·gcs·cloudrun·vercel-blob·casaos·ipfs`; `ResourceType`+`RESOURCE_TYPES` (cuenta/perfil/página/folder/archivo/biblioteca/cerebro/publicación); API nueva `addBackend()`, `defaultBackend()`, `setPrimary()`, `setResourcePrimary()`, `toggleResourceReplica()`, `getResourceRouting()`, `resolveBackendFor(resource)` (primario+réplicas). El primario por recurso vive en `rules.primaryFor/replicaFor` (jsonb real); el primario de cuenta en la columna `is_primary`. `ensureDefaults` marca el StarSeed oficial como `is_primary`.
+  - `src/components/storage/backends-network-panel.tsx` (nuevo): registra backends, elige primario (⭐) y réplicas por tipo de recurso; el StarSeed oficial siempre presente y no borrable. Montado en `/almacenes` bajo el `StoragePanel` existente.
+
+### Decisiones tomadas
+- **No tocar `settings-sync.ts`** (fuera de alcance): las claves de biblioteca/capacidades ya sincronizan por `library-sync.ts`; el historial de updates se **reporta** para SYNCED_KEYS (ver abajo) en vez de añadirlo yo.
+- La semilla ahora incluye CasaOS/voces (antes «disponibles»): seguro porque `ensureDefaultsSeeded` **ignora** `action/href` de `install()` → no abre pestañas ni descarga; solo registra skill/enlace/activa fuente local.
+- Backends externos: **honesto** — funcional el registro + selección + StarSeed oficial (Supabase del OS); los drivers de I/O reales de cada externo quedan como **andamiaje** (endpoint/ref-a-clave, o vía servidor del cerebro/proxy en runtime). Declarado en la propia UI.
+
+### Claves nuevas (para SYNCED_KEYS · settings-sync.ts, cuando se amplíe)
+- `starseed.updates.history.v1` — historial de actualizaciones aplicadas (viajaría con la cuenta).
+- (`starseed.updates.available.cache.v1` es caché local; NO hace falta sincronizarla.)
+- La sincronización real de la config de backends vive en la tabla `storage_backends` (por cuenta, RLS), no en localStorage.
+
+### Archivos
+- Nuevos: `src/lib/notifications/available-updates.ts`, `src/components/notifications/available-updates.tsx`, `src/components/storage/backends-network-panel.tsx`.
+- Editados: `src/lib/library/packages.ts` (+5 paquetes, `setInstalledVersion`, comentario CasaOS), `src/ai/astraura/skills.ts` (+4 capacidades), `src/lib/library/defaults-seed.ts` (v13 + recomendados), `src/lib/storage/backends.ts` (kinds+API+is_primary), `src/app/(app)/notifications/page.tsx`, `src/app/(app)/almacenes/page.tsx`.
+
+### Verificación
+- DDL: aplicado y verificado (`is_primary boolean NOT NULL DEFAULT false` confirmado por `information_schema`).
+- `tsc` (con `tsconfig.adenda66.json` que extiende el real): completó con **1 solo error en TODO el proyecto** y **NINGUNO en mis 8 ficheros** (grep confirmado). El único error es **pre-existente y ajeno**: `post-blocks-renderer.tsx(129)` `'entidad' is not comparable to PostBlockType` — de la ola paralela de Creación/Lienzo (`PostBlockType` vive en `src/lib/creation/**`, zona intocable para mí). Mis cambios = **0 errores de tipo**.
+
+### Pendiente / próximos pasos
+- Añadir `starseed.updates.history.v1` a `SYNCED_KEYS` (otro agente/ola; settings-sync.ts estaba fuera de mi alcance).
+- Drivers de I/O reales de los backends externos (Supabase propio, GCS/Cloud Run, Vercel Blob, S3, CasaOS, WebDAV, IPFS) — hoy andamiaje.
+- Temp `tsconfig.adenda66.json` sin borrar (mount bloquea `rm`; untracked, no afecta al build — Next usa `tsconfig.json`).
+
+---
+
+## 2026-07-12 — Hub: Red por defecto + datos reales + menús unificados + acceso a temas (Adenda 66 §8/§10)
+**Sesión por:** Claude (agente Hub/Menús)
+**Resumen ejecutivo:** El Hub abre en **Red** (sección principal), todas sus opciones muestran **solo datos reales** de Supabase (o vacío honesto con CTA), y se estrena un patrón ÚNICO de menú `SectionTabs` aplicado al Hub y a la Red. Acceso directo (Palette) al editor de temas desde ajustes.
+
+### Hecho
+- **Red como sección principal (§8):** `src/app/(app)/hub/page.tsx` — la pestaña por defecto pasa de `contributions` a **`red`** (`useState("red")`). El deep-link `?tab=` sigue funcionando; sin `?tab` abre Red.
+- **Menú unificado (§10):** nuevo `src/components/ui/section-tabs.tsx` — segmented-control glass con scroll-x limpio (`scrollbar-hide` + máscara de fundido lateral + `snap-x`), píldoras de redondeo consistente, estado activo tokenizado (primario), responsive y **accesible por teclado** (`role=tablist` + roving tabindex ← → Inicio/Fin). Dos modos: controlado (`value`/`onValueChange`) y navegación (`href`).
+  - Aplicado en el **Hub** (reemplaza el `TabsList`/`TabsTrigger` de 9 columnas; «Red» va primero) y en la **Red** (`network/_components/navigation.tsx` — Panorama/Política/Educación/Cultura, antes se recortaba/partía palabras en móvil). Componente listo para adoptar en el resto del OS.
+- **Datos reales en la Red** (`hub/red-section.tsx`, reescrito): los contadores «—» inventados ahora son **reales** desde Supabase con `count exact/head` — Nodos (`os_pages`+`os_groups`+`os_events`), Conexiones (`fetchMyConnectionIds` reales), Propuestas activas (`proposals` status=open), Publicaciones (`posts`≠comment). Añadido **«Pulso de la Red»**: últimas 3 publicaciones REALES del feed (`fetchNetworkFeed`+`enrichAuthors`) con vacío honesto + CTA a `/network`. Las tarjetas de nodo muestran contador real por sección (publicaciones/propuestas/eventos) o «—».
+- **Datos reales en Descubre** (`hub/discover-section.tsx`): dejaba de usar `useOsPages/useOsGroups/useOsEvents` (que **mezclan ejemplos** vía `mergeBySlug`) y ahora lee **solo real** con `fetchPages/fetchGroups/fetchRealEventsSafe` (try/catch → []). Vacío honesto con CTA **Crear** (`/crear`).
+- **Aportaciones — mocks eliminados** (`hub/page.tsx`): stats falsas `1842/347/9240/×2.4` → **0/0/0/×1.0**; `myBadges` `userBadges.slice(0,5)` → **[]** con vacío honesto; trends inventados («+24 esta semana»…) → descripciones honestas; **panel de desglose** (líneas «+500 pts…», «120 tareas…», «5 000 SC…», «×1.5…») → estado vacío honesto con CTA a la Red; **gráfica «Historial de Impacto»** (curvas SVG inventadas) → estado vacío honesto. Botones muertos «Nueva Página»/«Crear Grupo» → enlazan a `/crear`.
+- **Acceso al editor de temas (§10):** en `src/app/(app)/cuenta/page.tsx` — botón **Palette** en la cabecera de ajustes → `/estudio` (Estudio de Diseño = `ThemeMixerPanel`, el editor real; no se duplica) y el QuickLink de Personalización «Apariencia» (que apuntaba a `/settings?tab=appearance`, **roto** porque `/settings`→redirect `/cuenta`) ahora es «Editor de temas» → `/estudio`.
+
+### Decisiones tomadas
+- **No tocar los hooks `useOs*`** (los usa todo el OS): la honestidad del Hub se logra leyendo real directo en Descubre, sin cambiar la capa compartida.
+- Reputación/Seeds/Karma/Insignias **no tienen tabla en Supabase** todavía → lo honesto es 0/×1.0/vacío + «se construye con actividad real», no cifras inventadas.
+- `SectionTabs` NO sustituye a Radix `@/components/ui/tabs`: en el Hub convive con `<Tabs>`/`<TabsContent>` controlados por el mismo estado (drive vía `onValueChange`).
+
+### Pendiente / Próximos pasos
+- Adoptar `SectionTabs` en los `TabsList` que aún se recortan (política/cultura/cerebro/ajustes) — el componente ya está listo (educación la lleva otro agente).
+- Cablear un sistema real de reputación/seeds/insignias (tablas) para rellenar la pestaña Aportaciones con datos reales.
+- Contadores de nodo para Educación (sin fuente de conteo obvia hoy).
+
+### Notas / aprendizajes
+- **`tsc` en este repo:** con `allowJs:true` (el real) tsc recorre el enorme grafo `.js` y **no acaba en 45 s**; los procesos en background **mueren** al terminar cada llamada bash (bwrap `--die-with-parent`). Solución: tsconfig **temporal standalone** (sin `extends`, `allowJs:false`, `skipLibCheck`, `types:[react,node]`) con mis ficheros en `files` → cada check < 44 s. **Resultado: 0 errores** en los 6 ficheros (individual y combinado).
+- Verificado que `mergePages/mergeGroups/mergeEvents = mergeBySlug(real, sample)` **siempre** inyecta ejemplos → por eso el Hub no podía usar `useOs*` para «solo datos reales».
+- Temp `tsconfig.agentcheck.json` queda como `{}` inerte (mount bloquea `rm`; no afecta al build — Next usa `tsconfig.json`). Igual que la ola anterior con `tsconfig.adenda66.json`.
+
+---
+
+## 2026-07-12 — Adenda 66 §9 · Educación: FIX visores 2D/3D + Estudio con Aurora/Astraura
+
+**Sesión por:** Claude (subagente, Opus 4.8) bajo dirección de Alex.
+**Resumen ejecutivo:** (A) Arreglada la razón por la que la «Red 3D» y el «Mapa Conceptual 2D» **no abrían** desde Educación y blindados los visores; (B) construida la capa **Estudio con Aurora**: grupos de estudio (miembros + chat realtime), guías/itinerarios generados por Astraura + plantillas reales, exámenes opcionales que otorgan **insignias reales**, y tareas/recomendaciones/proyectos. Todo aditivo; `tsc` 0 errores; migración aplicada y RLS verificada en vivo.
+
+### A) FIX — por qué «no abrían» 2D/3D (causa raíz)
+- **Causa (ruta/estado):** la tarjeta «Red de Conocimiento» de Educación (`conocimiento-card.tsx`) ofrece tres accesos rotulados **exactamente** «Lista (árbol)», «Mapa Conceptual 2D» y «Red 3D», pero **los tres enlazaban a `/conocimiento` a secas**. `KnowledgeNetwork` arranca SIEMPRE en `view="lista"` y no leía ningún parámetro → pulsar «Mapa Conceptual 2D»/«Red 3D» abría la **Lista**, nunca el visor prometido. Ese es el «no abren».
+- **Descartado por evidencia** (no era ni dependencia ni import ni datos): `three@0.182` + `@react-three/fiber@8.18` + `@react-three/drei@9.122` + `three-stdlib@2.36.1` **instalados y compatibles** (drei peer `three>=0.137`; `Line2` carga); React 18.3.1 (no 19 → r3f v8 OK); tablas `knowledge_categories/topics/topic_categories` **existen con datos** (10/2/4); todos los imports resuelven; `loadKnowledge`/`loadCurriculum` y los renders 2D (SVG) / 3D (r3f) son correctos. **`tsc` scoped: 0 errores** sobre los 6 ficheros del grafo educativo.
+- **Fixes aplicados:**
+  1. `conocimiento-card.tsx`: los 3 accesos ahora enlazan a `/conocimiento?view=lista|mapa2d|red3d`.
+  2. `knowledge-network.tsx`: lee `?view=` en el montaje (client-only, sin `<Suspense>`) para abrir la vista pedida; además envuelve `Map2DView` y `Red3DView` en un ErrorBoundary.
+  3. `topic-graph.tsx` (visor propio de la pestaña «Mapa del Conocimiento»): corregido `computeLayout2D` que dejaba **todas las categorías raíz en el centro exacto (radio 0)** apiladas en un punto ilegible → ahora se separan a `ringGap*0.55` (mismo criterio que knowledge-network). 2D y 3D envueltos en ErrorBoundary.
+  4. **Nuevo** `view-error-boundary.tsx` (`ViewErrorBoundary`): si un visor lanza en cliente (WebGL, datos raros…), muestra mensaje legible + «Reintentar» en vez de pantalla en blanco (aísla el fallo a la vista). Cubre el hint «error en cliente».
+
+### B) NUEVO — Estudio con Aurora/Astraura (Educación → pestaña «Estudio con Aurora»)
+- **Migración** `supabase/migrations/20260712140000_estudio_aurora.sql` (idempotente, RLS sin recursión con `SECURITY DEFINER` sobre OTRAS tablas — patrón de `20260712090100`), **aplicada y verificada EN VIVO** contra `nxstilnyidvkqeosofuh`.
+  - Tablas (8): `study_groups`, `study_group_members`, `study_group_posts`, `study_guides`, `exams`, `exam_attempts`, `study_tasks`, `study_projects`. RLS ON en las 8 (24 políticas).
+  - Realtime + `REPLICA IDENTITY FULL`: `study_groups`, `study_group_members`, `study_group_posts`, `study_tasks`.
+  - Semillas: 4 insignias de educación (`exam_passed`, `quantum_initiate`, `ai_literate`, `civic_scholar`), 3 **guías/itinerario de ejemplo REALES** (Democracia Directa, IA, itinerario Física Cuántica 4 semanas), 3 **exámenes de ejemplo REALES** (cada uno mapeado a su insignia).
+  - **Verificación funcional (RLS, impersonando `authenticated`, con ROLLBACK → 0 filas persistidas):** U1 crea grupo/guía/examen/tarea/proyecto/post OK; U2 NO ve grupo privado ni tarea ajena; U2 NO puede unirse a grupo privado ni suplantar `owner`; U2 SÍ ve plantillas; U2 SÍ puede unirse y postear en grupo **público**. Todo verde.
+- **Data layer** `src/lib/education/study.ts` (defensivo, nunca lanza) + **IA** `src/lib/education/study-ai.ts` (`astrauraChat` gratis-primero + parseo JSON tolerante) → `generateStudyGuide`, `generateExam`, `recommendTasks`.
+- **Insignias reales:** `submitExamAttempt` corrige, guarda intento en `exam_attempts` y al aprobar (≥ `pass_threshold`) llama a `awardBadge(myProfileId(), badge_code)` de `src/lib/badges/badges.ts` → inserta en `profile_badges` (misma vía que usa el BadgesWidget).
+- **Componentes** `src/components/education/study/`: `study-hub.tsx` (shell + sub-pestañas) montado como pestaña «Estudio con Aurora» en `network/education/page.tsx`; `study-guides-panel.tsx` (generar/editar/forkear guías + pasos de itinerario → tareas/eventos `os_events`), `study-exams-panel.tsx` (generar/realizar/corregir + insignia), `study-groups-panel.tsx` (crear/unir/salir + chat realtime), `study-tasks-panel.tsx` (tareas + recomendaciones de Aurora + proyectos).
+
+### Archivos
+- Nuevos: `supabase/migrations/20260712140000_estudio_aurora.sql`, `src/lib/education/study.ts`, `src/lib/education/study-ai.ts`, `src/components/education/view-error-boundary.tsx`, `src/components/education/study/{study-hub,study-groups-panel,study-guides-panel,study-exams-panel,study-tasks-panel}.tsx`.
+- Editados: `src/app/(app)/network/education/page.tsx` (pestaña Estudio), `src/app/(app)/network/education/conocimiento-card.tsx` (deep-link `?view=`), `src/components/education/topic-graph.tsx` (layout raíces + boundary), `src/components/knowledge/knowledge-network.tsx` (`?view=` + boundary).
+
+### Verificación
+- `tsc` con `tsconfig.educheck.json` (extends el real, `include` = los 13 ficheros nuevos/tocados): **EXIT 0, 0 errores** (14 s / 516 MB — el scoping evita el grafo `.js` completo que agotaba los 45 s en olas previas).
+- Migración: `[]`/HTTP 201 al aplicar; verificación de tablas/RLS/políticas/semillas/realtime + 2 pruebas funcionales RLS con rollback (0 filas de prueba persistidas).
+
+### Pendiente / límites honestos
+- Itinerario→`os_events`: `createStudyEvent` es defensivo; NO verifiqué la RLS de INSERT de `os_events` (si estuviera restringida, el botón «Programar evento» avisa con toast y no rompe). Tareas desde pasos (study_tasks) sí 100% verificado.
+- Insignia por examen: si el usuario no tiene fila en `profiles` (`myProfileId()` = null), el examen se aprueba igual pero la insignia no se otorga (se avisa «crea tu perfil»). No creé perfiles de prueba.
+- Grupos: sin invitaciones a privados todavía (privado = solo dueño puede añadir; el modelo lo soporta vía política `sgm_owner`, falta UI de invitar). Sin buscador/paginación (lista simple, honesta).
+- `NO TOCADO`: creation/**, hub/**, src/lib/sharing/**, dock/trinity, settings-sync.ts, PostFeed/PostCard (respetado).
+- Temp `tsconfig.educheck.json` en la raíz (untracked; el mount bloquea `rm`; Next usa `tsconfig.json`, no afecta al build).
+
+### Notas / aprendizajes
+- **Diagnóstico honesto:** cuando el código, deps, imports, BD y `tsc` están todos limpios pero «no abre», el fallo suele ser **ruta/estado** (deep-link ausente), no una excepción. Aquí la pista estaba en que la tarjeta rotulaba «2D»/«3D» pero no seleccionaba la vista.
+- **Workspace bash inestable:** pipes a `python3 -m json.tool` dejaban el oneshot colgado (siguientes llamadas: «process already running»); se recupera solo al expirar (≤45 s). Evitar ese pipe; el Supabase MCP (26a13ed1) **no** tiene permiso sobre este proyecto → DB solo por Management API (curl + token de `.env.local`).

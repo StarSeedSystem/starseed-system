@@ -13,13 +13,13 @@ import type { EntityRef } from "@/lib/sync/entity-state";
 /** Modo de visualización del Finder. */
 export type FinderViewMode = "iconos" | "lista" | "columnas";
 
-/** Criterio de ordenación de ítems/carpetas. */
+/** Criterio de ordenación de ítems/folders. */
 export type FinderSort = "nombre" | "fecha" | "tipo";
 
 export const FINDER_VIEW_KEY = "starseed.entitylib.view.v1";
 export const FINDER_SORT_KEY = "starseed.entitylib.sort.v1";
 
-// ─────────────────────────── Árbol de carpetas ───────────────────────────
+// ─────────────────────────── Árbol de folders ───────────────────────────
 
 export interface FolderNode {
     folder: LibraryFolder;
@@ -27,7 +27,7 @@ export interface FolderNode {
     depth: number;
 }
 
-/** Construye el árbol de carpetas anidadas (parentId) a partir de la lista plana. */
+/** Construye el árbol de folders anidados (parentId) a partir de la lista plana. */
 export function buildFolderTree(folders: LibraryFolder[]): FolderNode[] {
     const byParent = new Map<string | null, LibraryFolder[]>();
     for (const f of folders) {
@@ -43,7 +43,7 @@ export function buildFolderTree(folders: LibraryFolder[]): FolderNode[] {
     return build(null, 0);
 }
 
-/** Todos los descendientes (ids) de una carpeta, incluyéndose a sí misma. */
+/** Todos los descendientes (ids) de un folder, incluyéndose a sí mismo. */
 export function folderSubtreeIds(folders: LibraryFolder[], rootId: string): Set<string> {
     const ids = new Set<string>([rootId]);
     let frontier = [rootId];
@@ -60,7 +60,7 @@ export function folderSubtreeIds(folders: LibraryFolder[], rootId: string): Set<
     return ids;
 }
 
-/** Ruta (breadcrumb) de nombres desde la raíz hasta la carpeta dada, inclusive. */
+/** Ruta (breadcrumb) de nombres desde la raíz hasta el folder dado, inclusive. */
 export function folderPath(folders: LibraryFolder[], folderId: string | null): LibraryFolder[] {
     const byId = new Map(folders.map((f) => [f.id, f] as const));
     const path: LibraryFolder[] = [];
@@ -87,39 +87,125 @@ export interface AclViewerContext {
     userId: string | null;
     /** slugs de grupo a los que pertenece el usuario actual (para ACL de tipo "group"). */
     groupSlugs: string[];
+    /**
+     * REGLA CUENTA↔PERFILES (Adenda 66 §3): ids de los perfiles
+     * (`os_account_profiles.id`) de la cuenta del usuario actual. Un acceso
+     * concedido a CUALQUIERA de ellos vale para la cuenta entera — es el gemelo
+     * en cliente de `acl_ids_allow()` en la BD.
+     */
+    profileIds?: string[];
+}
+
+/** ¿Este id (cuenta o perfil) identifica al usuario actual? (regla cuenta↔perfiles) */
+function isMe(id: string, ctx: AclViewerContext): boolean {
+    if (!ctx.userId) return false;
+    if (id === ctx.userId) return true;
+    return (ctx.profileIds ?? []).includes(id);
+}
+
+const ROLE_RANK: Record<string, number> = { view: 1, comment: 2, edit: 3, admin: 4 };
+
+/** ¿Alguno de los grants v3 me concede al menos el rol necesario? */
+function grantsAllow(acl: ItemACL | undefined, list: "read" | "write", ctx: AclViewerContext): boolean {
+    const need = list === "write" ? ROLE_RANK.edit : ROLE_RANK.view;
+    return (acl?.grants ?? []).some((g) => {
+        if ((ROLE_RANK[g.role] ?? 0) < need) return false;
+        if (g.granteeKind === "group" || g.granteeKind === "page") return ctx.groupSlugs.includes(g.granteeId);
+        if (g.granteeKind === "account" || g.granteeKind === "profile") return isMe(g.granteeId, ctx);
+        return false; // 'link' solo aplica con ámbito público (resuelto aparte)
+    });
+}
+
+/** ¿Alguna entrada de las listas legadas (v1/v2) me nombra? */
+function listAllows(acl: ItemACL | undefined, list: "read" | "write", ctx: AclViewerContext): boolean {
+    return (acl?.[list] ?? []).some(
+        (e) => (e.kind === "user" && isMe(e.id, ctx)) || (e.kind === "group" && ctx.groupSlugs.includes(e.id)),
+    );
 }
 
 function aclAllows(acl: ItemACL | undefined, list: "read" | "write", ctx: AclViewerContext): boolean {
     if (ctx.isOwner) return true;
-    const entries = acl?.[list] ?? [];
-    if (entries.length === 0) {
-        // Sin restricción explícita en esa lista: "read" vacío = visible para todos con
-        // acceso a la biblioteca; "write" vacío = editable por todos con acceso (v1 compat).
-        return true;
+
+    // ── ACL v3 PROPIA (Adenda 66 §3): manda el ámbito + los grants. ──
+    if (acl?.scope) {
+        if (acl.scope === "private") return false; // cerrado con llave: solo el dueño
+        if (acl.scope === "public" && list === "read") return true;
+        return grantsAllow(acl, list, ctx) || listAllows(acl, list, ctx);
     }
+
+    // ── v1/v2: listas read/write. Vacías = sin restricción propia (hereda). ──
+    const entries = acl?.[list] ?? [];
+    if (entries.length === 0) return true;
     if (!ctx.userId) return false;
-    return entries.some(
-        (e) => (e.kind === "user" && e.id === ctx.userId) || (e.kind === "group" && ctx.groupSlugs.includes(e.id)),
-    );
+    return listAllows(acl, list, ctx);
 }
 
-/** ¿Puede este visitante LEER (ver) el ítem/carpeta? */
+/** ¿Puede este visitante LEER (ver) el ítem/folder? */
 export function canRead(acl: ItemACL | undefined, ctx: AclViewerContext): boolean {
     return aclAllows(acl, "read", ctx);
 }
 
-/** ¿Puede este visitante EDITAR (mover/etiquetar/borrar/permisos) el ítem/carpeta? */
+/** ¿Puede este visitante EDITAR (mover/etiquetar/borrar/permisos) el ítem/folder? */
 export function canWrite(acl: ItemACL | undefined, ctx: AclViewerContext): boolean {
     return aclAllows(acl, "write", ctx);
 }
 
-/** Filtra items/carpetas visibles para el contexto dado (oculta los de lectura restringida). */
+/* ── Herencia (Adenda 66 §3): biblioteca → folder → archivo ───────────────────
+ * Un nodo sin ACL PROPIA se rige por la del primer ancestro que la tenga
+ * (folder padre → … → biblioteca). La ACL propia SIEMPRE gana. Gemelo en
+ * cliente de `es_doc_acl_allows()` en la BD.
+ */
+
+/** ¿Este nodo tiene ACL PROPIA (v3 con ámbito/grants, o v2 con listas no vacías)? */
+export function aclIsOwn(acl: ItemACL | undefined): boolean {
+    if (!acl) return false;
+    if (typeof acl.scope === "string" && acl.scope) return true;
+    if (Array.isArray(acl.grants) && acl.grants.length > 0) return true;
+    return (acl.read?.length ?? 0) > 0 || (acl.write?.length ?? 0) > 0;
+}
+
+/** ACL EFECTIVA de un folder: la suya, o la heredada (ancestros → biblioteca). */
+export function effectiveAclForFolder(doc: EntityLibraryDoc, folderId: string | null): ItemACL | undefined {
+    const byId = new Map(doc.folders.map((f) => [f.id, f] as const));
+    const seen = new Set<string>();
+    let cursor = folderId;
+    while (cursor) {
+        if (seen.has(cursor)) break;
+        seen.add(cursor);
+        const f = byId.get(cursor);
+        if (!f) break;
+        if (aclIsOwn(f.acl)) return f.acl;
+        cursor = f.parentId;
+    }
+    return aclIsOwn(doc.acl) ? doc.acl : undefined;
+}
+
+/** ACL EFECTIVA de un ítem: la suya, o la de su folder (o la de la biblioteca). */
+export function effectiveAclForItem(doc: EntityLibraryDoc, item: SavedItem): ItemACL | undefined {
+    if (aclIsOwn(item.acl)) return item.acl;
+    return effectiveAclForFolder(doc, item.folderId ?? null);
+}
+
+export function canReadItem(doc: EntityLibraryDoc, item: SavedItem, ctx: AclViewerContext): boolean {
+    return canRead(effectiveAclForItem(doc, item), ctx);
+}
+export function canWriteItem(doc: EntityLibraryDoc, item: SavedItem, ctx: AclViewerContext): boolean {
+    return canWrite(effectiveAclForItem(doc, item), ctx);
+}
+export function canReadFolder(doc: EntityLibraryDoc, folder: LibraryFolder, ctx: AclViewerContext): boolean {
+    return canRead(aclIsOwn(folder.acl) ? folder.acl : effectiveAclForFolder(doc, folder.parentId), ctx);
+}
+export function canWriteFolder(doc: EntityLibraryDoc, folder: LibraryFolder, ctx: AclViewerContext): boolean {
+    return canWrite(aclIsOwn(folder.acl) ? folder.acl : effectiveAclForFolder(doc, folder.parentId), ctx);
+}
+
+/** Filtra items/folders visibles para el contexto dado (lectura restringida, CON herencia). */
 export function visibleFor(doc: EntityLibraryDoc, ctx: AclViewerContext): EntityLibraryDoc {
     if (ctx.isOwner) return doc;
     return {
         ...doc,
-        items: doc.items.filter((it) => canRead(it.acl, ctx)),
-        folders: doc.folders.filter((f) => canRead(f.acl, ctx)),
+        items: doc.items.filter((it) => canReadItem(doc, it, ctx)),
+        folders: doc.folders.filter((f) => canReadFolder(doc, f, ctx)),
     };
 }
 
@@ -152,7 +238,7 @@ export function readClipboard(): ClipboardEntry | null {
     }
 }
 
-/** Escribe el portapapeles interno (copiar referencias de ítems para pegar en otra carpeta/biblioteca). */
+/** Escribe el portapapeles interno (copiar referencias de ítems para pegar en otro folder/biblioteca). */
 export function writeClipboard(entry: ClipboardEntry): void {
     if (!isClient()) return;
     try {
@@ -212,7 +298,7 @@ export function deepLinkFor(ref: EntityRef, itemId: string): string {
     return url.toString();
 }
 
-/** Enlace profundo de una CARPETA (p.ej. un repositorio) de biblioteca. */
+/** Enlace profundo de un folder (p.ej. un repositorio) de biblioteca. */
 export function deepLinkForFolder(ref: EntityRef, folderId: string): string {
     if (typeof window === "undefined") {
         return `/library?area=biblioteca&e=${ref.kind}:${ref.id}&folder=${folderId}`;
@@ -298,7 +384,7 @@ export function simpleLineDiff(a: string, b: string): DiffLine[] {
 
 // ─────────────────────────── Archivos relacionados ───────────────────────────
 
-/** Hasta `limit` ítems relacionados (misma carpeta o etiquetas compartidas), excluyendo el propio. */
+/** Hasta `limit` ítems relacionados (mismo folder o etiquetas compartidas), excluyendo el propio. */
 export function relatedItemsOf(doc: EntityLibraryDoc, item: SavedItem, limit = 6): SavedItem[] {
     const tagSet = new Set(item.tags);
     return doc.items

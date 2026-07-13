@@ -27,7 +27,7 @@ export type DeviceCapability = "terminal" | "memoria" | "archivos" | "ia";
 export const DEVICE_CAPABILITIES: { id: DeviceCapability; label: string; blurb: string; icon: string }[] = [
   { id: "terminal", label: "Terminal", blurb: "Consola integrada del OS (sandbox).", icon: "⌨️" },
   { id: "memoria", label: "Memoria", blurb: "Raíces de memoria conectadas.", icon: "🧠" },
-  { id: "archivos", label: "Archivos", blurb: "Ficheros y carpetas accesibles.", icon: "🗂️" },
+  { id: "archivos", label: "Archivos", blurb: "Ficheros y folders accesibles.", icon: "🗂️" },
   { id: "ia", label: "IA", blurb: "Runtimes / proveedores de IA disponibles.", icon: "✨" },
 ];
 

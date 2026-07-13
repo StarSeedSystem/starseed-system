@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * StarSeed OS — Exocórtex · Explorador de chats de Aurora (carpeta completa)
+ * StarSeed OS — Exocórtex · Explorador de chats de Aurora (folder completo)
  * ----------------------------------------------------------------------------
  * VISTA PRINCIPAL fusionada de la sección Aurora:
  *
@@ -10,9 +10,9 @@
  *      (universalSearch) y dentro de los propios chats. Conmutador claro
  *      "Preguntar / Buscar"; el botón de buscar TAMBIÉN invoca a Aurora.
  *
- *   2) EXPLORADOR TIPO CARPETA con dos EJES conmutables:
+ *   2) EXPLORADOR TIPO FOLDER con dos EJES conmutables:
  *        · por FECHA  → Hoy / Ayer / Esta semana / por mes.
- *        · por TEMA   → una carpeta por categoría (categorización automática).
+ *        · por TEMA   → un folder por categoría (categorización automática).
  *      Navegable, plegable, buscable y claro. Cada chat muestra su categoría,
  *      nº de mensajes, franja horaria y acciones: abrir, guardar en memorias,
  *      duplicar, interconectar.
@@ -161,7 +161,7 @@ export interface AuroraChatExplorerProps {
 type Axis = "fecha" | "tema";
 type BarMode = "chat" | "buscar";
 
-// ── Fila de un chat dentro de una carpeta ────────────────────────────────────
+// ── Fila de un chat dentro de un folder ────────────────────────────────────
 function ChatRow(props: {
   chat: CatalogChat;
   auroraName: string;
@@ -257,7 +257,7 @@ function ChatRow(props: {
   );
 }
 
-// ── Carpeta desplegable (fecha o tema) ───────────────────────────────────────
+// ── Folder desplegable (fecha o tema) ───────────────────────────────────────
 function Folder(props: {
   name: string;
   hint?: string;
@@ -276,7 +276,7 @@ function Folder(props: {
         className="axe-folder-head"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        title={open ? "Contraer carpeta" : "Expandir carpeta"}
+        title={open ? "Contraer folder" : "Expandir folder"}
       >
         <span
           className="axe-folder-ico"
@@ -613,7 +613,7 @@ export function AuroraChatExplorer(props: AuroraChatExplorerProps) {
         </div>
       )}
 
-      {/* ── Explorador de carpetas (fecha o tema) ── */}
+      {/* ── Explorador de folders (fecha o tema) ── */}
       <div className="axe-scroll relative z-[1] max-h-[26rem] overflow-y-auto pr-1">
         {catalog.total === 0 ? (
           <div className="axe-empty">

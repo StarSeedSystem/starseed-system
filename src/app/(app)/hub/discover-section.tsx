@@ -15,7 +15,7 @@
  * cual); se inserta ANTES de ese contenido como un bloque de descubrimiento.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +26,8 @@ import {
     Users, Users2, CalendarDays, Search, Compass, MessageSquare,
     UserPlus, UserCheck, CalendarCheck, Sparkles, Globe, Landmark,
 } from 'lucide-react';
-import { useOsPages, useOsGroups, useOsEvents, useFollow, useMembership, useAttendance } from '@/hooks/use-os-entities';
+import { useFollow, useMembership, useAttendance } from '@/hooks/use-os-entities';
+import { fetchPages, fetchGroups, fetchRealEventsSafe } from '@/lib/os-social';
 import type { OsPage, OsGroup, OsEvent } from '@/lib/os-social';
 import { openComposer } from '@/lib/share/bridge';
 
@@ -226,13 +227,21 @@ function DiscoverCardView({ card, reasonBadge }: { card: DiscoverCard; reasonBad
     );
 }
 
-function EmptyState({ label }: { label: string }) {
+function EmptyState({ label, cta }: { label: string; cta?: { label: string; href: string } }) {
     return (
         <div className="rounded-2xl border border-dashed border-white/12 p-10 text-center flex flex-col items-center gap-3">
             <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-muted-foreground">
                 <Compass className="w-6 h-6" />
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">{label}</p>
+            {cta && (
+                <Link
+                    href={cta.href}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+                >
+                    <Sparkles className="w-3.5 h-3.5" /> {cta.label}
+                </Link>
+            )}
         </div>
     );
 }
@@ -250,9 +259,35 @@ function reasonFor(card: DiscoverCard, index: number): string {
 }
 
 export function HubDiscoverSection({ focus }: { focus: 'paginas' | 'grupos' }) {
-    const { data: pages, loading: pagesLoading } = useOsPages();
-    const { data: groups, loading: groupsLoading } = useOsGroups();
-    const { data: events, loading: eventsLoading } = useOsEvents();
+    // Adenda 66 §8 · SOLO datos reales en el Hub: se leen las entidades REALES de
+    // Supabase directamente (sin la fusión con ejemplos de `useOs*`, que mezcla
+    // muestras). Si no hay datos → estado vacío honesto con CTA (nada inventado).
+    const [pages, setPages] = useState<OsPage[]>([]);
+    const [groups, setGroups] = useState<OsGroup[]>([]);
+    const [events, setEvents] = useState<OsEvent[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        let alive = true;
+        setLoading(true);
+        (async () => {
+            const [p, g, e] = await Promise.all([
+                fetchPages().catch(() => [] as OsPage[]),
+                focus === 'grupos'
+                    ? fetchGroups().catch(() => [] as OsGroup[])
+                    : Promise.resolve([] as OsGroup[]),
+                fetchRealEventsSafe().catch(() => [] as OsEvent[]),
+            ]);
+            if (!alive) return;
+            setPages(p);
+            setGroups(g);
+            setEvents(e);
+            setLoading(false);
+        })();
+        return () => {
+            alive = false;
+        };
+    }, [focus]);
 
     const [typeFilter, setTypeFilter] = useState<'todos' | DiscoverKind>('todos');
     const [query, setQuery] = useState('');
@@ -263,8 +298,6 @@ export function HubDiscoverSection({ focus }: { focus: 'paginas' | 'grupos' }) {
         const eventCards = events.map(eventToCard);
         return [...pageCards, ...groupCards, ...eventCards];
     }, [pages, groups, events, focus]);
-
-    const loading = pagesLoading || (focus === 'grupos' && groupsLoading) || eventsLoading;
 
     const filtered = useMemo(() => {
         return allCards.filter((c) => {
@@ -367,7 +400,15 @@ export function HubDiscoverSection({ focus }: { focus: 'paginas' | 'grupos' }) {
                         label={
                             query
                                 ? `Sin resultados para "${query}". Prueba con otro término.`
-                                : 'Aún no hay entidades de este tipo en la red. Sé el primero en crear una.'
+                                : 'Aún no hay entidades reales de este tipo en la red. Sé quien cree la primera.'
+                        }
+                        cta={
+                            query
+                                ? undefined
+                                : {
+                                      label: focus === 'grupos' ? 'Crear un grupo' : 'Crear una página',
+                                      href: '/crear',
+                                  }
                         }
                     />
                 ) : (

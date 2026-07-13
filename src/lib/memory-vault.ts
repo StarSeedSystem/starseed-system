@@ -7,11 +7,11 @@
  * Cada MemoryDoc es un archivo .md editable que vive en localStorage y puede
  * integrarse en el grafo 3D del cerebro como nodos de tipo "memoria".
  *
- * CARPETAS DENTRO DE MEMORIAS:
- * Las "carpetas" se modelan de dos formas complementarias:
+ * FOLDERS DENTRO DE MEMORIAS:
+ * Los "folders" se modelan de dos formas complementarias:
  *   1. Campo `category` del MemoryDoc → agrupa memorias a nivel de colección.
  *   2. Encabezados markdown (# ## ###) dentro del doc → crean jerarquía de nodos
- *      dentro del grafo de UNA memoria (igual que subcarpetas dentro de un archivo).
+ *      dentro del grafo de UNA memoria (igual que subfolders dentro de un archivo).
  *      Esto sigue el principio de "Singularidad del Contenido" del SOSD: la estructura
  *      interna se representa como árbol, no como ficheros separados.
  *

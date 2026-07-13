@@ -5,8 +5,8 @@
 // ----------------------------------------------------------------
 // Categorías: Apps StarSeed (app-catalog existente) · Widgets (registry
 // existente vía manifest) · Archivos (Mi Biblioteca, library-store) ·
-// Navegador (ventana con iframe defensivo) · Carpeta nueva.
-// Puede apuntar al escritorio o al interior de una carpeta (targetFolderId).
+// Navegador (ventana con iframe defensivo) · Nuevo folder.
+// Puede apuntar al escritorio o al interior de un folder (targetFolderId).
 // Solo referencias (Lienzo Universal): nunca duplica entidades.
 // ════════════════════════════════════════════════════════════════
 
@@ -32,7 +32,7 @@ const TABS: Array<{ id: AddPanelTab; label: string; icon: React.ElementType }> =
     { id: "widgets", label: "Widgets", icon: LayoutGrid },
     { id: "files", label: "Archivos", icon: FolderOpen },
     { id: "web", label: "Navegador", icon: Globe },
-    { id: "folder", label: "Carpeta", icon: FolderPlus },
+    { id: "folder", label: "Folder", icon: FolderPlus },
 ];
 
 const CONTENT_KINDS = new Set([
@@ -50,7 +50,7 @@ export function DesktopAddPanel({
     desktop: Desktop | null;
     open: boolean;
     initialTab?: AddPanelTab;
-    /** Si está definido, lo añadido entra DENTRO de esa carpeta. */
+    /** Si está definido, lo añadido entra DENTRO de ese folder. */
     targetFolderId?: string | null;
     onClose: () => void;
 }): React.ReactElement {
@@ -579,7 +579,7 @@ function WebTab({ added, onAdd, onOpenWindow }: {
     );
 }
 
-// ── Pestaña: Carpeta nueva ───────────────────────────────────────
+// ── Pestaña: Nuevo folder ───────────────────────────────────────
 function FolderTab({ onCreate }: { onCreate: (name: string) => void }): React.ReactElement {
     const [name, setName] = useState("");
     const [done, setDone] = useState(false);
@@ -596,7 +596,7 @@ function FolderTab({ onCreate }: { onCreate: (name: string) => void }): React.Re
     return (
         <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
             <label className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
-                Nombre de la carpeta
+                Nombre del folder
             </label>
             <input
                 value={name}
@@ -617,7 +617,7 @@ function FolderTab({ onCreate }: { onCreate: (name: string) => void }): React.Re
                 )}
             >
                 {done ? <Check className="size-3.5" /> : <FolderPlus className="size-3.5" />}
-                {done ? "Carpeta creada" : "Crear carpeta"}
+                {done ? "Folder creado" : "Crear folder"}
             </button>
         </div>
     );

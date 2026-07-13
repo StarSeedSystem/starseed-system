@@ -69,11 +69,29 @@ export async function currentUserRef(): Promise<EntityRef | null> {
     }
 }
 
-/** Lee el estado de una sección de una entidad. null si no existe o sin sesión. */
-export async function getEntityState<T = unknown>(
+/**
+ * Resultado EXPLÍCITO de una lectura/escritura en la nube.
+ *
+ * ── Por qué existe (Adenda 66 §2 · causa raíz del "solo se guarda en local") ──
+ * `getEntityState`/`setEntityState` devolvían `null` TANTO cuando no había fila
+ * como cuando Supabase rechazaba la operación (RLS, tabla inexistente, red). El
+ * llamador no podía distinguir "no hay nada" de "ha fallado", así que el fallo
+ * se propagaba en silencio y el usuario nunca sabía por qué su biblioteca no
+ * salía de este dispositivo. Las variantes `*Checked` devuelven el mensaje real
+ * para que la UI pueda MOSTRARLO. Las variantes originales se conservan (mismo
+ * contrato) para los consumidores que no necesitan el detalle.
+ */
+export interface EntityStateResult<T = unknown> {
+    row: EntityStateRow<T> | null;
+    /** Mensaje de error legible, o null si la operación fue bien. */
+    error: string | null;
+}
+
+/** Lee el estado de una sección distinguiendo "no existe" (row=null, error=null) de "falló" (error≠null). */
+export async function getEntityStateChecked<T = unknown>(
     ref: EntityRef,
     key: string,
-): Promise<EntityStateRow<T> | null> {
+): Promise<EntityStateResult<T>> {
     try {
         const supabase = createClient();
         const { data, error } = await supabase
@@ -83,19 +101,19 @@ export async function getEntityState<T = unknown>(
             .eq("owner_id", ref.id)
             .eq("key", key)
             .maybeSingle();
-        if (error || !data) return null;
-        return data as EntityStateRow<T>;
-    } catch {
-        return null;
+        if (error) return { row: null, error: error.message || "No se pudo leer de la nube." };
+        return { row: (data as EntityStateRow<T> | null) ?? null, error: null };
+    } catch (e) {
+        return { row: null, error: (e as Error)?.message || "Error de red al leer de la nube." };
     }
 }
 
-/** Escribe (upsert) el estado de una sección. Devuelve la fila resultante o null. */
-export async function setEntityState<T = unknown>(
+/** Escribe (upsert) el estado de una sección devolviendo el error real si lo hubo. */
+export async function setEntityStateChecked<T = unknown>(
     ref: EntityRef,
     key: string,
     value: T,
-): Promise<EntityStateRow<T> | null> {
+): Promise<EntityStateResult<T>> {
     try {
         const supabase = createClient();
         const { data, error } = await supabase
@@ -112,11 +130,34 @@ export async function setEntityState<T = unknown>(
             )
             .select("value, rev, updated_at, device_id")
             .maybeSingle();
-        if (error || !data) return null;
-        return data as EntityStateRow<T>;
-    } catch {
-        return null;
+        if (error) return { row: null, error: error.message || "No se pudo guardar en la nube." };
+        if (!data) {
+            return {
+                row: null,
+                error: "La nube aceptó la escritura pero no devolvió la fila (¿sin permiso de lectura sobre este ámbito?).",
+            };
+        }
+        return { row: data as EntityStateRow<T>, error: null };
+    } catch (e) {
+        return { row: null, error: (e as Error)?.message || "Error de red al guardar en la nube." };
     }
+}
+
+/** Lee el estado de una sección de una entidad. null si no existe o sin sesión. */
+export async function getEntityState<T = unknown>(
+    ref: EntityRef,
+    key: string,
+): Promise<EntityStateRow<T> | null> {
+    return (await getEntityStateChecked<T>(ref, key)).row;
+}
+
+/** Escribe (upsert) el estado de una sección. Devuelve la fila resultante o null. */
+export async function setEntityState<T = unknown>(
+    ref: EntityRef,
+    key: string,
+    value: T,
+): Promise<EntityStateRow<T> | null> {
+    return (await setEntityStateChecked<T>(ref, key, value)).row;
 }
 
 export interface EntityStateChange<T = unknown> extends EntityStateRow<T> {

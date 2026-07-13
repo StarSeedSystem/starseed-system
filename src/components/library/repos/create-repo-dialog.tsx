@@ -1,7 +1,7 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════════════════
-// CreateRepoDialog — crear un repositorio nuevo o convertir una carpeta
+// CreateRepoDialog — crear un repositorio nuevo o convertir un folder
 // existente en repositorio (Adenda 65, §16). Formulario puro: el llamador
 // decide qué hacer con el valor (`createRepo` o `convertFolderToRepo`).
 // ════════════════════════════════════════════════════════════════════════════
@@ -49,7 +49,7 @@ export interface CreateRepoSubmitValue {
 export interface CreateRepoDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    /** Si se pasa, es modo "convertir carpeta existente": el nombre queda fijo. */
+    /** Si se pasa, es modo "convertir folder existente": el nombre queda fijo. */
     fixedName?: string;
     initial?: CreateRepoFormInitial;
     title?: string;
@@ -100,7 +100,7 @@ export function CreateRepoDialog({ open, onOpenChange, fixedName, initial, title
                     <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
                         <GitBranch className="h-4 w-4 text-lime-300" /> {title ?? "Nuevo repositorio"}
                     </DialogTitle>
-                    <DialogDescription>Estructura estilo GitHub: carpeta raíz + README + releases, dentro de tu Biblioteca.</DialogDescription>
+                    <DialogDescription>Estructura estilo GitHub: folder raíz + README + releases, dentro de tu Biblioteca.</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-3">

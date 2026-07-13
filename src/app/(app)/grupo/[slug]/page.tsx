@@ -318,7 +318,7 @@ export default function GrupoPage() {
                     ref={libraryRef("group", group.slug)}
                     accent={accentForTabs}
                     title={`Biblioteca de ${group.name}`}
-                    subtitle="Referencias guardadas por los miembros del grupo, organizadas en carpetas propias."
+                    subtitle="Referencias guardadas por los miembros del grupo, organizadas en folders propios."
                 />
             ),
         });

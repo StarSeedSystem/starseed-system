@@ -44,7 +44,7 @@ export function ConocimientoCard() {
             <CardContent>
                 <div className="grid gap-3 sm:grid-cols-3">
                     <Link
-                        href="/conocimiento"
+                        href="/conocimiento?view=lista"
                         className="group flex items-start gap-2.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 transition-all hover:border-amber-400/40 hover:bg-white/[0.05]"
                     >
                         <Workflow className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
@@ -54,7 +54,7 @@ export function ConocimientoCard() {
                         </div>
                     </Link>
                     <Link
-                        href="/conocimiento"
+                        href="/conocimiento?view=mapa2d"
                         className="group flex items-start gap-2.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 transition-all hover:border-amber-400/40 hover:bg-white/[0.05]"
                     >
                         <Tags className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
@@ -64,7 +64,7 @@ export function ConocimientoCard() {
                         </div>
                     </Link>
                     <Link
-                        href="/conocimiento"
+                        href="/conocimiento?view=red3d"
                         className="group flex items-start gap-2.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 transition-all hover:border-amber-400/40 hover:bg-white/[0.05]"
                     >
                         <Globe2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />

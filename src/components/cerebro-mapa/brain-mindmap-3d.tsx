@@ -19,7 +19,7 @@
  * SELECCIÓN DIRECTA: al hacer clic en un nodo se abre un panel lateral para
  * inspeccionarlo y ajustarlo SIN salir del mapa:
  *   - Archivo: se abre su contenido .md (editable + autosave), se cambia su
- *     FUENTE/servidor (source), su server_config (endpoint, carpeta, claves por
+ *     FUENTE/servidor (source), su server_config (endpoint, folder, claves por
  *     referencia…) y su sincronización (sync). Se guarda en Supabase (RLS por
  *     owner) y el realtime refresca el mapa en vivo.
  *   - Cerebro / Memoria: ficha con sus parámetros reales (sólo lectura).

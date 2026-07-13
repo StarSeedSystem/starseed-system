@@ -1,39 +1,27 @@
-// src/app/(app)/network/_components/navigation.tsx
 'use client';
 
 import { usePathname } from 'next/navigation';
-import Link from 'next/link';
-import { cn } from '@/lib/utils';
+import { Network, Scale, School, Palette } from 'lucide-react';
+import { SectionTabs, type SectionTabItem } from '@/components/ui/section-tabs';
 
-const navItems = [
-    { href: '/network', label: 'Panorama' },
-    { href: '/network/politics', label: 'Política' },
-    { href: '/network/education', label: 'Educación' },
-    { href: '/network/culture', label: 'Cultura' },
+const navItems: { href: string; label: string; icon: SectionTabItem['icon'] }[] = [
+    { href: '/network', label: 'Panorama', icon: Network },
+    { href: '/network/politics', label: 'Política', icon: Scale },
+    { href: '/network/education', label: 'Educación', icon: School },
+    { href: '/network/culture', label: 'Cultura', icon: Palette },
 ];
 
 export function NetworkNavigation() {
     const pathname = usePathname();
 
-    return (
-        <div className="border-b">
-            {/* overflow-x + nowrap: en ≤480px las etiquetas partían palabras ("Panoram a") */}
-            <nav className="flex gap-4 overflow-x-auto scrollbar-hide" aria-label="Network navigation">
-                {navItems.map((item) => (
-                    <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                            'pb-3 px-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0',
-                            pathname === item.href
-                                ? 'border-b-2 border-primary text-primary'
-                                : 'border-b-2 border-transparent text-muted-foreground hover:text-foreground'
-                        )}
-                    >
-                        {item.label}
-                    </Link>
-                ))}
-            </nav>
-        </div>
-    );
+    // Menú unificado del OS (Adenda 66 §10): mismo componente que el Hub y el
+    // resto de secciones. Scroll-x limpio en móvil (antes las etiquetas partían).
+    const items: SectionTabItem[] = navItems.map((item) => ({
+        href: item.href,
+        label: item.label,
+        icon: item.icon,
+        active: pathname === item.href,
+    }));
+
+    return <SectionTabs items={items} ariaLabel="Navegación de la Red" className="mb-2" />;
 }

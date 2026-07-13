@@ -1,9 +1,9 @@
 "use client";
 
 /*
- * GalleryApp — Galería (espíritu iOS/Mac): grid por fecha, álbumes = carpetas
+ * GalleryApp — Galería (espíritu iOS/Mac): grid por fecha, álbumes = folders
  * de la biblioteca, filtros por tipo/formato/origen, visor con zoom/flechas/
- * info/acciones, configuración por carpeta/archivo (cerebros/permisos) y fila
+ * info/acciones, configuración por folder/archivo (cerebros/permisos) y fila
  * de Historias activas arriba del feed.
  */
 
@@ -141,7 +141,7 @@ export function GalleryApp() {
 
     const handleNewFolder = useCallback(async () => {
         if (!ref || !mediaFolders) return;
-        const name = window.prompt("Nombre de la nueva carpeta/álbum:");
+        const name = window.prompt("Nombre de la nuevo folder/álbum:");
         if (!name?.trim()) return;
         await createFolder(ref, name.trim(), mediaFolders.rootId);
         toast.success("Álbum creado.");

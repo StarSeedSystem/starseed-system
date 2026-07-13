@@ -69,10 +69,10 @@ const FOLDERS_KEY = 'starseed.dock.folders.v1';
 const FOLDER_STATE_KEY = 'starseed.dock.folders.open.v1';
 
 /**
- * Carpeta del dock: agrupa varios items (por id) bajo una sola entrada que,
+ * Folder del dock: agrupa varios items (por id) bajo una sola entrada que,
  * al pulsarse, se expande para revelar sus accesos directos hijos y se vuelve
  * a colapsar. Es ADITIVO: los items siguen existiendo en el catálogo; una
- * carpeta solo decide cuáles se muestran agrupados. El estado abierto/cerrado
+ * folder solo decide cuáles se muestran agrupados. El estado abierto/cerrado
  * se persiste aparte (FOLDER_STATE_KEY) para no ensuciar la definición.
  */
 export interface DockFolderConfig {
@@ -80,13 +80,13 @@ export interface DockFolderConfig {
   label: string;
   iconKey: DockIconKey;
   color: DockColor;
-  /** ids de DockItemConfig contenidos en la carpeta, en orden. */
+  /** ids de DockItemConfig contenidos en el folder, en orden. */
   itemIds: string[];
   /** Visible en el dock. */
   enabled: boolean;
 }
 
-/** Carpetas por defecto: ninguna (el usuario las crea desde el editor). */
+/** Folders por defecto: ninguno (el usuario los crea desde el editor). */
 export const DOCK_FOLDER_PRESETS: DockFolderConfig[] = [];
 
 export function loadDockFolders(): DockFolderConfig[] {
@@ -96,12 +96,12 @@ export function loadDockFolders(): DockFolderConfig[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        // Defensivo: normaliza cada carpeta y descarta entradas corruptas.
+        // Defensivo: normaliza cada folder y descarta entradas corruptas.
         return parsed
           .filter((f) => f && typeof f.id === 'string' && Array.isArray(f.itemIds))
           .map((f) => ({
             id: String(f.id),
-            label: String(f.label ?? 'Carpeta'),
+            label: String(f.label ?? 'Folder'),
             iconKey: (f.iconKey ?? 'LayoutGrid') as DockIconKey,
             color: (f.color ?? 'neutral') as DockColor,
             itemIds: (f.itemIds as unknown[]).map((x) => String(x)),
@@ -124,7 +124,7 @@ export function resetDockFolders() {
   saveDockFolders(DOCK_FOLDER_PRESETS);
 }
 
-/** Estado abierto/cerrado de cada carpeta (id → boolean). Persistido. */
+/** Estado abierto/cerrado de cada folder (id → boolean). Persistido. */
 export function loadDockFolderOpenState(): Record<string, boolean> {
   if (typeof window === 'undefined') return {};
   try {
@@ -259,7 +259,7 @@ function applyOneShotMigration(parsed: DockItemConfig[]): DockItemConfig[] {
  *   (a) DESCARTA los items guardados de origen 'preset' y los sustituye por
  *       los DOCK_PRESETS nuevos (fusionados), con su orden y enabled canónicos.
  *   (b) CONSERVA al final los items origin:'user' (accesos personalizados).
- *   (c) Repunta en las carpetas guardadas (FOLDERS_KEY) los itemIds viejos que
+ *   (c) Repunta en los folders guardados (FOLDERS_KEY) los itemIds viejos que
  *       ya no existen a sus equivalentes nuevos (library/biblioteca/store →
  *       'mylib'; red → 'nodes') y elimina los ids huérfanos restantes.
  *   (d) Persiste el resultado y deja la marca para no repetirse.
@@ -269,7 +269,7 @@ function applyOneShotMigration(parsed: DockItemConfig[]): DockItemConfig[] {
  */
 const DOCK_MIGRATION_V4_KEY = 'starseed.dock.items.migrated.v4';
 
-/** id viejo → id fusionado equivalente (para repuntar carpetas guardadas). */
+/** id viejo → id fusionado equivalente (para repuntar folders guardados). */
 const LEGACY_DOCK_ID_ALIASES: Record<string, string> = {
   library: 'mylib',
   biblioteca: 'mylib',
@@ -281,7 +281,7 @@ const LEGACY_DOCK_ID_ALIASES: Record<string, string> = {
  * Aplica la migración v4 si aún no se aplicó. Devuelve la lista final de items
  * si el usuario tenía config guardada y se migró en esta carga; `null` si no
  * procede (ya migrado, SSR, storage inaccesible o usuario sin config guardada
- * — en este último caso solo repunta carpetas y deja la marca). Con `null`,
+ * — en este último caso solo repunta folders y deja la marca). Con `null`,
  * el llamador sigue el flujo normal.
  */
 function applyDockFusionMigrationV4(saved: DockItemConfig[] | null): DockItemConfig[] | null {
@@ -315,8 +315,8 @@ function applyDockFusionMigrationV4(saved: DockItemConfig[] | null): DockItemCon
     });
   }
 
-  // (c) Carpetas: repunta ids viejos a sus equivalentes fusionados y elimina
-  //     los huérfanos. Solo escribimos si había carpetas guardadas.
+  // (c) Folders: repunta ids viejos a sus equivalentes fusionados y elimina
+  //     los huérfanos. Solo escribimos si había folders guardados.
   try {
     const validIds = new Set(migrated.map((i) => i.id));
     const rawFolders = window.localStorage.getItem(FOLDERS_KEY);
@@ -334,13 +334,13 @@ function applyDockFusionMigrationV4(saved: DockItemConfig[] | null): DockItemCon
       });
       saveDockFolders(folders);
     }
-  } catch { /* noop: las carpetas no deben impedir la migración de items */ }
+  } catch { /* noop: los folders no deben impedir la migración de items */ }
 
   // (d) Persistir y marcar (v4 subsume la v3: la marcamos también).
   try {
     // Solo se snapshot-ea la lista si el usuario TENÍA config guardada; si no,
     // se mantiene en modo "presets vivos" (ya fusionados de serie) y solo se
-    // repuntan carpetas + se deja la marca.
+    // repuntan folders + se deja la marca.
     if (saved) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
     window.localStorage.setItem(DOCK_MIGRATION_V4_KEY, '1');
     window.localStorage.setItem(DOCK_MIGRATION_KEY, '1');
@@ -359,12 +359,12 @@ function applyDockFusionMigrationV4(saved: DockItemConfig[] | null): DockItemCon
  *       el usuario (origin:'user') se conserva SIEMPRE, aunque coincida el id.
  *   (b) INSERTA 'escritorios' habilitado al inicio si falta (y lo habilita
  *       si estaba apagado): es la puerta principal del OS.
- *   (c) PURGA de las carpetas guardadas los ids huérfanos (referencias a
+ *   (c) PURGA de los folders guardados los ids huérfanos (referencias a
  *       items que ya no existen, p. ej. 'tienda').
  *   (d) Persiste (solo si había config guardada) y deja la marca one-shot.
  *
  * Defensiva y SSR-safe: en el servidor no hace nada; ante storage corrupto
- * degrada sin lanzar. Sin config guardada solo purga carpetas + marca.
+ * degrada sin lanzar. Sin config guardada solo purga folders + marca.
  */
 const DOCK_MIGRATION_V5_KEY = 'starseed.dock.items.migrated.v5';
 /** Presets retirados del dock en v5 (la Tienda ya ni existe en el catálogo). */
@@ -395,7 +395,7 @@ function applyDockLibraryMigrationV5(items: DockItemConfig[], hadSaved: boolean)
     }
   }
 
-  // (c) Carpetas: purga ids huérfanos (items que ya no existen tras la v5).
+  // (c) Folders: purga ids huérfanos (items que ya no existen tras la v5).
   try {
     const validIds = new Set(migrated.map((i) => i.id));
     const rawFolders = window.localStorage.getItem(FOLDERS_KEY);
@@ -406,7 +406,7 @@ function applyDockLibraryMigrationV5(items: DockItemConfig[], hadSaved: boolean)
       }));
       saveDockFolders(folders);
     }
-  } catch { /* noop: las carpetas no deben impedir la migración */ }
+  } catch { /* noop: los folders no deben impedir la migración */ }
 
   // (d) Persistir y marcar.
   try {
@@ -516,7 +516,7 @@ export function loadDockConfig(): DockItemConfig[] {
       );
     }
   } catch { /* noop */ }
-  // Sin config guardada: presets vivos (ya sin 'tienda'); la v5 purga carpetas
+  // Sin config guardada: presets vivos (ya sin 'tienda'); la v5 purga folders
   // huérfanas, la v6 confirma 'escritorios' al inicio y la v7 confirma Medios al final (ambos ya lo están en presets).
   return applyDockMediaGroupV7(applyDockEscritorioFirstV6(applyDockLibraryMigrationV5(DOCK_PRESETS, false), false), false);
 }

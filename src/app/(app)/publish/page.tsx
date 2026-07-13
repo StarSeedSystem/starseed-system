@@ -646,7 +646,7 @@ function PublishPage() {
         if (!first) {
             // Sin destino explícito: si hay sección preseleccionada (?area=…),
             // publica en la cola canónica de esa sección (page/<seccion>).
-            if (seccion && seccion !== "perfil" && seccion !== "propia") {
+            if (seccion && seccion !== "perfil" && seccion !== "propia" && seccion !== "libreria") {
                 return {
                     entityType: "page" as OsEntityType,
                     entitySlug: SECTION_SLUGS[seccion],

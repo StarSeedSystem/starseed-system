@@ -25,7 +25,7 @@ interface HeaderProps {
     activeId: string;
     allDashboards: Dashboard[];
     isEditMode?: boolean;
-    /** nº de widgets por dashboard (para la insignia de "carpeta"). Opcional. */
+    /** nº de widgets por dashboard (para la insignia de "folder"). Opcional. */
     widgetCounts?: Record<string, number>;
     /** Tipo de dispositivo actual (para resaltar los tableros afines). Opcional. */
     currentDevice?: DeviceType;
@@ -86,7 +86,7 @@ function SortableTab({
             ref={setNodeRef}
             style={style}
             className={cn(
-                // box-border + shrink-0: cada "carpeta" (pestaña) conserva su tamaño y
+                // box-border + shrink-0: cada "folder" (pestaña) conserva su tamaño y
                 // NUNCA se recorta; el track las desplaza horizontalmente con scroll.
                 // rounded-t-lg (esquinas superiores) + borde inferior transparente en
                 // activo → la pestaña se ASIENTA sobre el lienzo sin dejar hueco muerto
@@ -108,7 +108,7 @@ function SortableTab({
                 title={dashboard.name}
                 className="box-border cursor-pointer flex items-center gap-1.5 pl-3 pr-2 py-2 max-w-[180px] min-w-0"
             >
-                {/* Punto de estado de "carpeta activa" (claridad visual del tab activo). */}
+                {/* Punto de estado de "folder activo" (claridad visual del tab activo). */}
                 <span
                     aria-hidden
                     className={cn(
@@ -126,7 +126,7 @@ function SortableTab({
                                 ? "bg-cyan-500/15 border-cyan-500/30 text-cyan-200"
                                 : "bg-white/5 border-white/10 text-white/40 group-hover:text-white/60"
                         )}
-                        title={`${count} widget${count === 1 ? "" : "s"} en esta carpeta`}
+                        title={`${count} widget${count === 1 ? "" : "s"} en este folder`}
                     >
                         {count}
                     </span>
@@ -138,7 +138,7 @@ function SortableTab({
                 botón para no interferir con el arrastre/click de selección. */}
             {deviceMenu}
 
-            {/* Subrayado de acento del tab activo (asienta la "carpeta" sobre el lienzo). */}
+            {/* Subrayado de acento del tab activo (asienta el "folder" sobre el lienzo). */}
             {isActive && (
                 <span aria-hidden className="pointer-events-none absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" />
             )}
@@ -231,7 +231,7 @@ export function DashboardPanelHeader({
 
     return (
         // box-border + w-full + overflow-hidden en el contenedor externo: la barra
-        // (menú de "carpetas") NUNCA excede el ancho del panel ni empuja el lienzo.
+        // (menú de "folders") NUNCA excede el ancho del panel ni empuja el lienzo.
         // px reducido (px-1.5) para no desperdiciar espacio en los bordes; el track
         // de pestañas llega casi al borde y los controles quedan fijados a la derecha
         // sin recortarse. El scroll horizontal vive SOLO en el track de pestañas.
@@ -268,7 +268,7 @@ export function DashboardPanelHeader({
                         size="icon"
                         className="w-7 h-7 rounded-lg ml-0.5 mb-1 text-white/40 hover:text-cyan-400 hover:bg-cyan-500/10 border border-dashed border-white/20 shrink-0 cursor-pointer"
                         onClick={onCreateDashboard}
-                        title="Crear carpeta / dashboard"
+                        title="Crear folder / dashboard"
                     >
                         <Plus className="w-3.5 h-3.5" />
                     </Button>
@@ -276,7 +276,7 @@ export function DashboardPanelHeader({
             </div>
 
             {/* Panel Controls — fijados a la derecha; nunca se recortan. Un separador
-                marca el borde con el track de carpetas cuando hay scroll. */}
+                marca el borde con el track de folders cuando hay scroll. */}
             <div className="shrink-0 flex items-center gap-0.5 pb-1.5 pl-1.5 self-center border-l border-white/5">
                 {/* Gestor de dispositivos / sincronización (visible siempre; discreto). */}
                 {onOpenDeviceManager && (
@@ -298,7 +298,7 @@ export function DashboardPanelHeader({
                                 variant="ghost"
                                 size="icon"
                                 className="w-7 h-7 rounded-lg text-white/30 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
-                                title="Configuración de Dashboard (carpeta)"
+                                title="Configuración de Dashboard (folder)"
                             >
                                 <Settings2 className="w-3.5 h-3.5" />
                             </Button>

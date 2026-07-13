@@ -4,11 +4,11 @@
 // StarSeed OS — Menús contextuales del escritorio (tipo computadora)
 // ----------------------------------------------------------------
 // Dos menús de clic derecho (y pulsación larga táctil):
-//   • Lienzo: Nuevo (carpeta/nota/enlace) · Organizar iconos · Ordenar
+//   • Lienzo: Nuevo (folder/nota/enlace) · Organizar iconos · Ordenar
 //     por (nombre/tipo/fecha) · Ver como (iconos/lista) · Rejilla ·
 //     Cambiar fondo · Añadir apps/widgets · Ajustes del escritorio.
 //   • Icono: Abrir · Renombrar · Duplicar · Tamaño · Vista previa ·
-//     Enviar a carpeta · Eliminar.
+//     Enviar a folder · Eliminar.
 // Presentacional + posicionado dentro del lienzo, con auto-clamp a los
 // bordes. Ejecuta acciones del store directamente y cierra al elegir.
 // ════════════════════════════════════════════════════════════════
@@ -156,7 +156,7 @@ export function CanvasContextMenu({
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
             <MenuLabel>Nuevo</MenuLabel>
-            <MenuItem icon={FolderPlus} label="Carpeta" onClick={() => run(() => addIcon(desktop.id, { kind: "folder", name: "Nueva carpeta", accent: "#FFBF00" }))} />
+            <MenuItem icon={FolderPlus} label="Folder" onClick={() => run(() => addIcon(desktop.id, { kind: "folder", name: "Nuevo folder", accent: "#FFBF00" }))} />
             <MenuItem icon={StickyNote} label="Nota" onClick={() => run(() => createNoteIcon(desktop.id, "Nota"))} />
             <MenuItem icon={LayoutGrid} label="Añadir apps…" onClick={() => run(onAddApps)} />
             <MenuItem icon={MonitorPlay} label="Añadir widgets…" onClick={() => run(onAddWidgets)} />
@@ -206,7 +206,7 @@ export function IconContextMenu({
 }): React.ReactElement {
     const run = (fn: () => void) => { fn(); onClose(); };
     const canPreview = icon.kind === "widget" || (icon.kind === "file" && (icon.fileKind === "image" || icon.fileKind === "gif"));
-    // Carpetas raíz destino (no la propia si es carpeta).
+    // Folders raíz destino (no la propia si es folder).
     const folders = desktop.icons.filter((i) => i.kind === "folder" && i.id !== icon.id);
 
     return (
@@ -241,7 +241,7 @@ export function IconContextMenu({
             </div>
 
             {folders.length > 0 && (
-                <SubMenu icon={FolderInput} label="Enviar a carpeta">
+                <SubMenu icon={FolderInput} label="Enviar a folder">
                     {folders.map((f) => (
                         <MenuItem key={f.id} icon={FolderPlus} label={f.name} onClick={() => run(() => moveIconToFolder(desktop.id, icon.id, f.id))} />
                     ))}

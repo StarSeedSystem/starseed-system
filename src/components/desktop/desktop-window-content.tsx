@@ -8,7 +8,7 @@
 //   • widget  → widget REAL del sistema (widget-registry, lazy)
 //   • file    → motor de contenido existente (ContentViewer, lazy)
 //   • browser → navegador con barra de URL + iframe defensivo
-//   • folder  → contenido de la carpeta (iconos hijos)
+//   • folder  → contenido del folder (iconos hijos)
 // Todo tolerante a errores: fallbacks explícitos, nunca en blanco.
 // ════════════════════════════════════════════════════════════════
 
@@ -96,8 +96,8 @@ export function resolveWindowChrome(ref: DesktopWindowContentRef): WindowChrome 
             };
         case "folder":
             return {
-                title: ref.name ?? "Carpeta",
-                subtitle: "Carpeta del escritorio",
+                title: ref.name ?? "Folder",
+                subtitle: "Folder del escritorio",
                 accent: "#FFBF00",
                 iconEl: <FolderOpen className="size-3 text-white" strokeWidth={2.2} />,
             };
@@ -110,7 +110,7 @@ export function DesktopWindowContent({
 }: {
     desktopId: string;
     win: DesktopWindow;
-    /** Abre el catálogo "+ Añadir" apuntando a una carpeta. */
+    /** Abre el catálogo "+ Añadir" apuntando a un folder. */
     onRequestAddInto?: (folderId: string) => void;
 }): React.ReactElement {
     const ref = win.contentRef;
@@ -480,5 +480,5 @@ function BrowserContent({ initialUrl }: { initialUrl: string }): React.ReactElem
     );
 }
 
-// La carpeta ahora se renderiza con <DesktopFolderView /> (explorador
+// El folder ahora se renderiza con <DesktopFolderView /> (explorador
 // ramificado con breadcrumb, rejilla/lista, tipos de archivo y anidamiento).

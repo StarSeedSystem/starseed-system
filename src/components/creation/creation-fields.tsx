@@ -11,13 +11,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 import { fetchMyEntities, type OsEntityType } from "@/lib/os-social";
 import {
     CREATION_DESTS,
     TIPOS_POR_DEST,
+    tagsForDest,
     type CreationDest,
 } from "@/components/creation/creation-config";
-import { BookOpen, Users2 } from "lucide-react";
+import { BookOpen, Users2, Search, Check } from "lucide-react";
 
 // ── Entidades propias (destino "propia") ─────────────────────────────────────
 
@@ -200,6 +202,96 @@ export function TipoSelector({ dest, value, onChange, className }: TipoSelectorP
                     </button>
                 );
             })}
+        </div>
+    );
+}
+
+// ── Selector de ETIQUETAS MÚLTIPLES (Adenda 66 §6) ───────────────────────────
+
+interface TagSelectorProps {
+    dest: CreationDest;
+    /** Ids de etiquetas seleccionadas. */
+    value: string[];
+    onChange: (tags: string[]) => void;
+    className?: string;
+}
+
+/**
+ * Multi-selección de etiquetas (chips seleccionables + búsqueda). Las etiquetas
+ * relevantes al destino se muestran primero (`tagsForDest`). El orden de `value`
+ * importa: la PRIMERA etiqueta se usa como `tipo` primario (compat).
+ */
+export function TagSelector({ dest, value, onChange, className }: TagSelectorProps) {
+    const [query, setQuery] = useState("");
+    const all = useMemo(() => tagsForDest(dest), [dest]);
+    const q = query.trim().toLowerCase();
+    const visible = useMemo(
+        () =>
+            q
+                ? all.filter(
+                      (t) =>
+                          t.label.toLowerCase().includes(q) ||
+                          t.desc.toLowerCase().includes(q) ||
+                          t.id.includes(q),
+                  )
+                : all,
+        [all, q],
+    );
+    const selected = new Set(value);
+
+    const toggle = (id: string) => {
+        if (selected.has(id)) {
+            onChange(value.filter((v) => v !== id));
+        } else {
+            onChange([...value, id]);
+        }
+    };
+
+    return (
+        <div className={cn("space-y-2.5", className)}>
+            <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/30" />
+                <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Busca una etiqueta…"
+                    className="h-8 bg-black/30 border-white/10 pl-8 text-xs"
+                />
+            </div>
+
+            {value.length > 0 && (
+                <p className="text-[10px] text-white/35">
+                    {value.length} etiqueta{value.length === 1 ? "" : "s"} · la primera define el tipo
+                </p>
+            )}
+
+            <div className="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto pr-0.5">
+                {visible.map((t) => {
+                    const Icon = t.icon;
+                    const active = selected.has(t.id);
+                    return (
+                        <button
+                            key={t.id}
+                            type="button"
+                            title={t.desc}
+                            onClick={() => toggle(t.id)}
+                            aria-pressed={active}
+                            className={cn(
+                                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-150 cursor-pointer",
+                                active
+                                    ? "border-emerald-400/50 bg-emerald-500/15 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.12)]"
+                                    : "border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.07] hover:text-white/85",
+                            )}
+                        >
+                            {active ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+                            {t.label}
+                        </button>
+                    );
+                })}
+                {visible.length === 0 && (
+                    <p className="text-xs text-white/35 py-1">Sin etiquetas para «{query}».</p>
+                )}
+            </div>
         </div>
     );
 }

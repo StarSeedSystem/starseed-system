@@ -102,7 +102,7 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
     THEME_MANAGER: { label: "Gestor de Temas", category: "ciberdelia", w: 4, h: 4, minW: 3, minH: 3, relevance: 28 },
     AI_GENERATED: { label: "Widget IA", category: "ciberdelia", w: 3, h: 4, minW: 2, minH: 2, relevance: 45 },
 
-    // ── Launcher de apps / carpetas ──────────────────────────────
+    // ── Launcher de apps / folders ──────────────────────────────
     APP_LAUNCHER: { label: "Apps StarSeed", category: "aplicaciones", w: 6, h: 3, minW: 2, minH: 2, relevance: 96 },
     UNIVERSAL_OPENER: { label: "Visor Universal", category: "aplicaciones", w: 4, h: 5, minW: 3, minH: 4, relevance: 94 },
 

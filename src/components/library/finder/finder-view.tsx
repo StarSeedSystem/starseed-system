@@ -2,9 +2,9 @@
 
 // ════════════════════════════════════════════════════════════════════════════
 // FinderView — gestor de archivos tipo Finder de macOS para una Biblioteca de
-// entidad (mejor: carpetas anidadas, etiquetas, alias, ramas vinculadas, ACL
+// entidad (mejor: folders anidados, etiquetas, alias, ramas vinculadas, ACL
 // por ítem, portapapeles interno, publicación al catálogo público). Orquesta:
-//   · Sidebar: árbol de carpetas anidadas con drag para mover ítems/carpetas.
+//   · Sidebar: árbol de folders anidados con drag para mover ítems/folders.
 //   · Toolbar: conmutador iconos/lista/columnas, ordenación, buscador.
 //   · Contenido: grid de iconos, lista, o columnas Miller.
 //   · Panel de preview embebido (FilePreview) al seleccionar un ítem.
@@ -30,16 +30,17 @@ import {
     useEntityLibrary,
     listLibrary,
     removeItem as removeItemFromLibrary,
+    applyItemSnapshot,
+    applyFolderSnapshot,
     type EntityRef,
     type SavedItem,
     type SavedItemType,
-    type ItemACL,
     type LibraryFolder,
     type VersionablePatch,
 } from "@/lib/library/entity-library";
 import { createClient } from "@/utils/supabase/client";
 // Subida universal de archivos (Adenda 64 §9): botón "Subir archivos…" de la
-// toolbar — sube al storage real y crea ítems type:'file' en la carpeta activa.
+// toolbar — sube al storage real y crea ítems type:'file' en el folder activo.
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import type { UniversalAttachment } from "@/lib/files/os-files";
 import {
@@ -47,10 +48,16 @@ import {
     folderPath, folderSubtreeIds, sortItems, sortFolders,
     readClipboard, writeClipboard, clearClipboard, deepLinkFor, deepLinkForFolder,
     type AclViewerContext, canWrite as aclCanWrite,
+    canReadItem, canWriteItem, canReadFolder, canWriteFolder,
 } from "./finder-types";
-// Compartir universal (Adenda 63 §5): ámbito + roles por ítem/carpeta; espeja
-// la ACL embebida ('acl' del doc de entity_state) y crea os_spaces para externos.
-import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
+// Compartir universal (Adenda 63 §5) + PERMISOS POR NODO con HERENCIA (Adenda 66
+// §3-§4): ámbito + roles por biblioteca/folder/archivo; espeja la ACL embebida
+// ('acl' del doc de entity_state), la ACL real de os_files y crea os_spaces para
+// externos.
+import { ShareAccessDialog, LIBRARY_SCOPES } from "@/components/sharing/share-access-dialog";
+// Adenda 66 §5: "Enviar a…" (DESTINOS) — distinto de ShareAccessDialog (PERMISOS).
+import { ShareToDialog } from "@/components/sharing/share-to-dialog";
+import type { ShareResourceRef } from "@/lib/sharing/share-targets";
 import { itemFormat } from "./item-meta";
 import { FolderTree, DRAG_MIME } from "./folder-tree";
 import { FinderBreadcrumb } from "./finder-breadcrumb";
@@ -61,10 +68,12 @@ import { FinderContextMenu, type FinderMenuTarget, type FinderExtraAction } from
 import { useContextTrigger } from "./use-context-trigger";
 import { MoveToDialog } from "./move-to-dialog";
 import { TagsDialog } from "./tags-dialog";
-import { PermissionsPopover } from "./permissions-popover";
 import { PublishDialog } from "./publish-dialog";
 // Adenda 65: versiones, ramas, comentarios, instalar/guardar en…
 import { VersionsDialog } from "./versions-dialog";
+// Adenda 66 §2: HISTORIAL (revisiones en la nube: autor/fecha/mensaje, restaurar,
+// crear rama, comparar) + REGISTRO (log de accesos y cambios). Ítems Y folders.
+import { HistoryDialog } from "./history-dialog";
 import { EditItemDialog } from "./edit-item-dialog";
 import { BranchesDialog } from "./branches-dialog";
 import { CommentsDialog } from "./comments-dialog";
@@ -126,7 +135,7 @@ export interface FinderViewProps {
 export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact }: FinderViewProps) {
     const {
         doc, loading, reload, saveItem, removeItem, moveItem, createFolder, renameFolder, removeFolder,
-        moveFolder, setItemTags, setItemAcl, setFolderAcl, createAlias, replicateItem, duplicateItem,
+        moveFolder, setItemTags, createAlias, replicateItem, duplicateItem,
         updateItemContent, restoreItemVersion, mergeBranch,
     } = useEntityLibrary(entityRef);
 
@@ -164,9 +173,13 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     // Diálogos
     const [moveDialog, setMoveDialog] = useState<{ kind: "item" | "folder"; ids: string[] } | null>(null);
     const [tagsDialog, setTagsDialog] = useState<SavedItem | null>(null);
-    const [permissionsTarget, setPermissionsTarget] = useState<{ kind: "item" | "folder"; id: string; title: string; acl?: ItemACL } | null>(null);
-    // Compartir universal por ítem/carpeta (ámbito + roles; Adenda 63 §5).
+    // Permisos POR NODO (Adenda 66 §3): abre ShareAccessDialog con herencia; la
+    // ACL vive en el doc (no hace falta pasarla — el diálogo lee la efectiva).
+    const [permissionsTarget, setPermissionsTarget] = useState<{ kind: "item" | "folder"; id: string; title: string } | null>(null);
+    // Compartir universal por ítem/folder (ámbito + roles; Adenda 63 §5).
     const [shareTarget, setShareTarget] = useState<{ kind: "item" | "folder"; id: string; title: string } | null>(null);
+    // "Enviar a…" (DESTINOS; Adenda 66 §5): publicación/mensaje/cerebro/entidad/librería/enlace.
+    const [sendToRef, setSendToRef] = useState<ShareResourceRef | null>(null);
     const [publishTarget, setPublishTarget] = useState<
         | { mode: "item"; item: SavedItem }
         | { mode: "folder"; folderId: string | null; folderName: string }
@@ -175,6 +188,8 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     // Adenda 65: versiones / ramas / comentarios / instalar-guardar-en / repositorios.
     const [editItemTarget, setEditItemTarget] = useState<SavedItem | null>(null);
     const [versionsTarget, setVersionsTarget] = useState<SavedItem | null>(null);
+    // Adenda 66 §2: Historial (revisiones en la nube) + Registro — ítems Y folders.
+    const [historyTarget, setHistoryTarget] = useState<{ kind: "item" | "folder"; id: string; title: string } | null>(null);
     const [branchesTarget, setBranchesTarget] = useState<SavedItem | null>(null);
     const [commentsTarget, setCommentsTarget] = useState<{ kind: "item" | "folder"; id: string; title: string } | null>(null);
     const [installTo, setInstallTo] = useState<{ item: SavedItem; defaultDest?: "biblioteca" | "escritorio" | "cerebro" | "servidor" } | null>(null);
@@ -207,7 +222,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     }, [doc.items]);
 
     const filteredItems = useMemo(() => {
-        let items: SavedItem[] = ctx.isOwner ? doc.items : doc.items.filter((it) => aclAllowsRead(it, ctx));
+        let items: SavedItem[] = ctx.isOwner ? doc.items : doc.items.filter((it) => canReadItem(doc, it, ctx));
         if (activeFolder !== null) items = items.filter((it) => (it.folderId ?? null) === activeFolder);
         if (typeFilter !== "todos") items = items.filter((it) => it.type === typeFilter);
         const q = query.trim().toLowerCase();
@@ -220,12 +235,12 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             );
         }
         return sortItems(items, sort);
-    }, [doc.items, activeFolder, typeFilter, query, sort, ctx]);
+    }, [doc, activeFolder, typeFilter, query, sort, ctx]);
 
     const visibleFolders = useMemo(() => {
-        const list = ctx.isOwner ? doc.folders : doc.folders.filter((f) => aclAllowsReadFolder(f, ctx));
+        const list = ctx.isOwner ? doc.folders : doc.folders.filter((f) => canReadFolder(doc, f, ctx));
         return sortFolders(list, sort === "tipo" ? "nombre" : sort);
-    }, [doc.folders, sort, ctx]);
+    }, [doc, sort, ctx]);
 
     const breadcrumbPath = useMemo(() => folderPath(visibleFolders, activeFolder), [visibleFolders, activeFolder]);
 
@@ -238,9 +253,13 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         return null;
     }, [selectedItem, itemsById]);
 
-    // La raíz de la biblioteca no tiene ACL propia (solo las carpetas/ítems la tienen);
-    // `aclCanWrite(undefined, ctx)` ya resuelve isOwner=true o "sin restricción" (v1 compat) → true.
-    const currentWriteAllowed = aclCanWrite(undefined, ctx);
+    // ¿Puedo escribir DONDE ESTOY? (Adenda 66 §3: la biblioteca ya tiene ACL propia
+    // — `doc.acl` — y los folders heredan de ella si no definen la suya.)
+    const currentWriteAllowed = useMemo(() => {
+        if (ctx.isOwner) return true;
+        const f = activeFolder ? doc.folders.find((x) => x.id === activeFolder) : null;
+        return f ? canWriteFolder(doc, f, ctx) : aclCanWrite(doc.acl, ctx);
+    }, [doc, activeFolder, ctx]);
 
     // ── Selección ────────────────────────────────────────────────────────────
 
@@ -306,7 +325,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     const handleCopy = useCallback((ids: string[], mode: "copiar" | "cortar") => {
         writeClipboard({ ref: entityRef, itemIds: ids, mode, at: new Date().toISOString() });
         toast.success(mode === "copiar" ? "Copiado al portapapeles" : "Cortado al portapapeles", {
-            description: `${ids.length} ítem(s). Usa «Pegar en carpeta» donde quieras colocarlos.`,
+            description: `${ids.length} ítem(s). Usa «Pegar en folder» donde quieras colocarlos.`,
         });
     }, [entityRef]);
 
@@ -445,13 +464,47 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             const title =
                 kind === "item"
                     ? itemsById.get(id)?.title ?? "Ítem"
-                    : doc.folders.find((f) => f.id === id)?.name ?? "Carpeta";
+                    : doc.folders.find((f) => f.id === id)?.name ?? "Folder";
             setShareTarget({ kind, id, title });
         },
         [itemsById, doc.folders],
     );
 
-    /** Archivos subidos desde el selector universal: crea un ítem type:'file' por cada uno en la carpeta activa. */
+    // "Enviar a…" (Adenda 66 §5): construye la referencia universal del nodo y
+    // abre el diálogo de DESTINOS (no de permisos).
+    const handleSendTo = useCallback(
+        (kind: "item" | "folder", id: string) => {
+            if (kind === "item") {
+                const it = itemsById.get(id);
+                if (!it) return;
+                setSendToRef({
+                    kind: "archivo",
+                    id: it.id,
+                    name: it.title || "Archivo",
+                    url: it.url,
+                    route: it.route ?? deepLinkFor(entityRef, it.id),
+                    note: it.note,
+                    mime: it.mime,
+                    libraryRef: entityRef,
+                    nodeId: it.id,
+                });
+            } else {
+                const f = doc.folders.find((x) => x.id === id);
+                if (!f) return;
+                setSendToRef({
+                    kind: "folder",
+                    id: f.id,
+                    name: f.name || "Folder",
+                    route: deepLinkForFolder(entityRef, f.id),
+                    libraryRef: entityRef,
+                    nodeId: f.id,
+                });
+            }
+        },
+        [itemsById, doc.folders, entityRef],
+    );
+
+    /** Archivos subidos desde el selector universal: crea un ítem type:'file' por cada uno en el folder activo. */
     const handleUploadedFiles = useCallback(
         async (attachments: UniversalAttachment[]) => {
             let created = 0;
@@ -507,6 +560,20 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             else toast.error("No se pudo restaurar la versión");
         },
         [versionsTarget, restoreItemVersion],
+    );
+
+    // ── Historial + Registro en la nube (Adenda 66 §2) ───────────────────────
+
+    /** Abre el Historial de un ítem o de un folder (mismo diálogo, dos pestañas). */
+    const openHistory = useCallback(
+        (kind: "item" | "folder", id: string) => {
+            const title =
+                kind === "item"
+                    ? itemsById.get(id)?.title ?? "Ítem"
+                    : doc.folders.find((f) => f.id === id)?.name ?? "Folder";
+            setHistoryTarget({ kind, id, title });
+        },
+        [itemsById, doc.folders],
     );
 
     // ── Ramas: fusión (§14) ──────────────────────────────────────────────────
@@ -663,7 +730,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             } else if (repoDialog.folder) {
                 await convertFolderToRepo(entityRef, repoDialog.folder, value);
                 setRepoBusy(false);
-                toast.success("Carpeta convertida en repositorio");
+                toast.success("Folder convertido en repositorio");
                 setRepoDialog(null);
             }
         },
@@ -677,12 +744,12 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         if (menu.payload.kind === "item") {
             const item = itemsById.get(menu.payload.id);
             if (!item) return null;
-            return { kind: "item", id: item.id, canWrite: ctx.isOwner || aclCanWrite(item.acl, ctx), isAlias: item.type === "alias" };
+            return { kind: "item", id: item.id, canWrite: ctx.isOwner || canWriteItem(doc, item, ctx), isAlias: item.type === "alias" };
         }
         const folder = doc.folders.find((f) => f.id === menu.payload.id);
         if (!folder) return null;
-        return { kind: "folder", id: folder.id, canWrite: ctx.isOwner || aclCanWrite(folder.acl, ctx) };
-    }, [menu, itemsById, doc.folders, ctx]);
+        return { kind: "folder", id: folder.id, canWrite: ctx.isOwner || canWriteFolder(doc, folder, ctx) };
+    }, [menu, itemsById, doc, ctx]);
 
     // ── Render ───────────────────────────────────────────────────────────────
 
@@ -823,7 +890,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                 </div>
             </div>
 
-            {/* ── Aviso: esta carpeta es un repositorio (§16) ── */}
+            {/* ── Aviso: este folder es un repositorio (§16) ── */}
             {activeFolder && (() => {
                 const active = doc.folders.find((f) => f.id === activeFolder);
                 if (!active?.repo) return null;
@@ -833,7 +900,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         onClick={() => setRepoDetailFolderId(active.id)}
                         className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-lime-500/25 bg-lime-500/[0.06] px-3 py-1.5 text-xs font-medium text-lime-300 hover:bg-lime-500/10"
                     >
-                        <GitBranch className="h-3.5 w-3.5" /> Esta carpeta es un repositorio — ver ficha
+                        <GitBranch className="h-3.5 w-3.5" /> Este folder es un repositorio — ver ficha
                     </button>
                 );
             })()}
@@ -852,10 +919,10 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         onRemove={(id) => {
                             void removeFolder(id);
                             if (activeFolder === id) setActiveFolder(null);
-                            toast.success("Carpeta eliminada", { description: "Sus referencias pasaron a la raíz." });
+                            toast.success("Folder eliminado", { description: "Sus referencias pasaron a la raíz." });
                         }}
                         onCreate={(name, parentId) => {
-                            void createFolder(name, parentId).then(() => toast.success(`Carpeta «${name}» creada`));
+                            void createFolder(name, parentId).then(() => toast.success(`Folder «${name}» creado`));
                         }}
                         onMoveFolder={(folderId, parentId) => void moveFolder(folderId, parentId)}
                         onDropItems={(ids, folderId) => void handleMoveItems(ids, folderId)}
@@ -870,7 +937,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         }}
                         onPermissionsFolder={(folderId) => {
                             const f = doc.folders.find((x) => x.id === folderId);
-                            if (f) setPermissionsTarget({ kind: "folder", id: f.id, title: f.name, acl: f.acl });
+                            if (f) setPermissionsTarget({ kind: "folder", id: f.id, title: f.name });
                         }}
                         onCommentsFolder={(folderId) => {
                             const f = doc.folders.find((x) => x.id === folderId);
@@ -891,7 +958,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                             folders={visibleFolders}
                             itemsByFolder={(folderId) =>
                                 sortItems(
-                                    doc.items.filter((it) => (ctx.isOwner || aclAllowsRead(it, ctx)) && (it.folderId ?? null) === folderId && (typeFilter === "todos" || it.type === typeFilter)),
+                                    doc.items.filter((it) => (ctx.isOwner || canReadItem(doc, it, ctx)) && (it.folderId ?? null) === folderId && (typeFilter === "todos" || it.type === typeFilter)),
                                     sort,
                                 )
                             }
@@ -950,7 +1017,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                                     layout={viewMode === "lista" ? "lista" : "iconos"}
                                     accent={accent}
                                     selected={selectedIds.has(item.id)}
-                                    readOnly={!ctx.isOwner && !aclCanWrite(item.acl, ctx)}
+                                    readOnly={!ctx.isOwner && !canWriteItem(doc, item, ctx)}
                                     onSelect={(e) => toggleSelect(e, item.id)}
                                     onOpen={() => handleOpenItem(item)}
                                     onDragStartExtra={dragSelectionIds}
@@ -1009,6 +1076,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         if (it) setTagsDialog(it);
                     }}
                     onShare={() => handleShare(menuTarget.kind, menuTarget.id)}
+                    onSendTo={() => handleSendTo(menuTarget.kind, menuTarget.id)}
                     onPublish={
                         menuTarget.kind === "item"
                             ? () => {
@@ -1036,10 +1104,10 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                     onPermissions={() => {
                         if (menuTarget.kind === "item") {
                             const it = itemsById.get(menuTarget.id);
-                            if (it) setPermissionsTarget({ kind: "item", id: it.id, title: it.title, acl: it.acl });
+                            if (it) setPermissionsTarget({ kind: "item", id: it.id, title: it.title });
                         } else {
                             const f = doc.folders.find((x) => x.id === menuTarget.id);
-                            if (f) setPermissionsTarget({ kind: "folder", id: f.id, title: f.name, acl: f.acl });
+                            if (f) setPermissionsTarget({ kind: "folder", id: f.id, title: f.name });
                         }
                     }}
                     onRemove={() => {
@@ -1047,7 +1115,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         else {
                             void removeFolder(menuTarget.id);
                             if (activeFolder === menuTarget.id) setActiveFolder(null);
-                            toast.success("Carpeta eliminada");
+                            toast.success("Folder eliminado");
                         }
                     }}
                     onEdit={
@@ -1066,6 +1134,10 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                               }
                             : undefined
                     }
+                    // Historial y Registro (Adenda 66 §2): abren el MISMO diálogo
+                    // (pestañas "Versiones" / "Registro") tanto para ítems como para folders.
+                    onHistory={() => openHistory(menuTarget.kind, menuTarget.id)}
+                    onLog={() => openHistory(menuTarget.kind, menuTarget.id)}
                     onBranches={
                         menuTarget.kind === "item"
                             ? () => {
@@ -1113,7 +1185,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                     }
                     onConfirm={(folderId) => {
                         if (moveDialog.kind === "item") void handleMoveItems(moveDialog.ids, folderId);
-                        else void moveFolder(moveDialog.ids[0], folderId).then(() => toast.success("Carpeta movida"));
+                        else void moveFolder(moveDialog.ids[0], folderId).then(() => toast.success("Folder movido"));
                         setMoveDialog(null);
                     }}
                 />
@@ -1132,17 +1204,30 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                 />
             )}
 
-            {/* ── Permisos (sin trigger visible: se abre desde el menú contextual, ancla al centro) ── */}
+            {/* ── Permisos POR NODO (Adenda 66 §3-§4): ACL propia/heredada del folder o
+                   del archivo, con roles, destinatarios (perfiles/grupos/páginas) y el
+                   interruptor «Mostrar en mi perfil». Se abre desde el menú contextual. ── */}
             {permissionsTarget && (
-                <PermissionsPopover
+                <ShareAccessDialog
                     open
                     onOpenChange={(o) => !o && setPermissionsTarget(null)}
-                    title={permissionsTarget.title}
-                    acl={permissionsTarget.acl}
-                    onSave={async (acl) => {
-                        if (permissionsTarget.kind === "item") await setItemAcl(permissionsTarget.id, acl);
-                        else await setFolderAcl(permissionsTarget.id, acl);
+                    resource={{
+                        type: permissionsTarget.kind === "item" ? "file" : "folder",
+                        id: permissionsTarget.id,
+                        title: permissionsTarget.title,
+                        ownerId: ctx.isOwner ? ctx.userId ?? undefined : undefined,
+                        libraryRef: entityRef,
                     }}
+                    scopes={LIBRARY_SCOPES}
+                    inheritance
+                    profileShowcase={entityRef.kind === "user" || entityRef.kind === "profile"}
+                    title={`Permisos · ${permissionsTarget.title}`}
+                    description="Cada nodo tiene sus propios permisos, o hereda los de su folder/biblioteca. La ACL propia siempre gana."
+                    buildLink={() =>
+                        permissionsTarget.kind === "item"
+                            ? deepLinkFor(entityRef, permissionsTarget.id)
+                            : deepLinkForFolder(entityRef, permissionsTarget.id)
+                    }
                 />
             )}
 
@@ -1165,6 +1250,15 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                             ? deepLinkFor(entityRef, shareTarget.id)
                             : deepLinkForFolder(entityRef, shareTarget.id)
                     }
+                />
+            )}
+
+            {/* ── Enviar a… (DESTINOS · Adenda 66 §5): publicación/mensaje/cerebro/entidad/librería/enlace ── */}
+            {sendToRef && (
+                <ShareToDialog
+                    open
+                    onOpenChange={(o) => !o && setSendToRef(null)}
+                    resource={sendToRef}
                 />
             )}
 
@@ -1202,13 +1296,45 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                 />
             )}
 
-            {/* ── Versiones (§13) ── */}
+            {/* ── Versiones locales heredadas (§13) ── */}
             {versionsTarget && (
                 <VersionsDialog
                     open
                     onOpenChange={(o) => !o && setVersionsTarget(null)}
                     item={itemsById.get(versionsTarget.id) ?? versionsTarget}
                     onRestore={(versionId) => void handleRestoreVersion(versionId)}
+                />
+            )}
+
+            {/* ── Historial (revisiones en la nube) + Registro — ítems Y folders (Adenda 66 §2) ── */}
+            {historyTarget && (
+                <HistoryDialog
+                    open
+                    onOpenChange={(o) => !o && setHistoryTarget(null)}
+                    entityRef={entityRef}
+                    resourceKind={historyTarget.kind === "item" ? "file" : "folder"}
+                    resourceId={historyTarget.id}
+                    title={historyTarget.title}
+                    item={historyTarget.kind === "item" ? itemsById.get(historyTarget.id) ?? null : null}
+                    onRestoreLocal={
+                        historyTarget.kind === "item"
+                            ? async (versionId) => {
+                                  const res = await restoreItemVersion(historyTarget.id, versionId);
+                                  if (!res.ok) toast.error("No se pudo restaurar la versión");
+                              }
+                            : undefined
+                    }
+                    onApplySnapshot={async (snapshot) => {
+                        const res =
+                            historyTarget.kind === "item"
+                                ? await applyItemSnapshot(entityRef, historyTarget.id, snapshot)
+                                : await applyFolderSnapshot(entityRef, historyTarget.id, snapshot);
+                        if (!res.ok) {
+                            toast.message("Revisión registrada", {
+                                description: "No se pudo aplicar el contenido de esa revisión al recurso actual.",
+                            });
+                        }
+                    }}
                 />
             )}
 
@@ -1298,17 +1424,8 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     );
 }
 
-// Helpers de visibilidad ACL a nivel de módulo (evita recrear closures pesadas).
-function aclAllowsRead(it: SavedItem, ctx: AclViewerContext): boolean {
-    if (!it.acl || it.acl.read.length === 0) return true;
-    if (!ctx.userId) return false;
-    return it.acl.read.some((e) => (e.kind === "user" && e.id === ctx.userId) || (e.kind === "group" && ctx.groupSlugs.includes(e.id)));
-}
-function aclAllowsReadFolder(f: { acl?: ItemACL }, ctx: AclViewerContext): boolean {
-    if (!f.acl || f.acl.read.length === 0) return true;
-    if (!ctx.userId) return false;
-    return f.acl.read.some((e) => (e.kind === "user" && e.id === ctx.userId) || (e.kind === "group" && ctx.groupSlugs.includes(e.id)));
-}
+// La visibilidad ACL (con HERENCIA biblioteca → folder → archivo, Adenda 66 §3)
+// vive en finder-types.ts: canReadItem / canWriteItem / canReadFolder / canWriteFolder.
 
 /**
  * Determina (de forma pragmática, sin re-derivar todo el contexto ACL de una

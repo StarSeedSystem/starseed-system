@@ -43,11 +43,15 @@
 import {
     currentUserRef,
     getEntityState,
-    setEntityState,
+    setEntityStateChecked,
     subscribeEntityState,
     type EntityKind as SyncEntityKind,
     type EntityRef,
 } from "@/lib/sync/entity-state";
+// Historial de versiones, ramas y registro en la NUBE (Adenda 66 §2 · tablas
+// `os_versions` / `os_access_log`). Cada guardado real crea una revisión; nunca
+// bloquea el guardado (se invoca con `void`).
+import { logAccess, quickChecksum, recordVersion } from "@/lib/versions/versions";
 // Seguridad integrada (Adenda 63 §13): escaneo de secretos/PII al guardar/
 // compartir e instalar/importar ítems — ver saveItemSecure/importItemSecure.
 import { redactText, scanDeep, summarize, type Finding } from "@/lib/security/scanner";
@@ -99,10 +103,46 @@ export interface ACLEntry {
     label?: string;
 }
 
-/** Lista de control de acceso de un ítem. Ausente/vacía = sin restricción (v1). */
+/** Rol de un acceso concedido (v3). Espejo de AccessRole en src/lib/sharing/access.ts. */
+export type AclGrantRole = "view" | "comment" | "edit" | "admin";
+
+/** Destinatario de un acceso concedido (v3). Espejo de AccessGrant en access.ts. */
+export interface AclGrant {
+    granteeKind: "profile" | "account" | "group" | "page" | "link";
+    /** uuid de perfil/cuenta · slug de grupo/página · 'public' (link). */
+    granteeId: string;
+    role: AclGrantRole;
+    label?: string;
+    sections?: string[];
+}
+
+/**
+ * Lista de control de acceso de un nodo (biblioteca · folder · ítem).
+ *
+ * v1/v2 — `read`/`write`: listas de usuarios/grupos. Ausente o AMBAS vacías =
+ * sin restricción propia (lo hereda todo del padre / de la biblioteca).
+ *
+ * v3 (Adenda 66 §3) — campos OPCIONALES y aditivos que convierten la ACL en el
+ * modelo universal de `src/lib/sharing/access.ts` (ámbito + roles):
+ *   · `scope`  — ámbito propio del nodo. **Su presencia es la que distingue una
+ *     ACL PROPIA de una HEREDADA**: sin `scope` ni grants ni listas, el nodo
+ *     hereda del padre.
+ *   · `grants` — accesos con rol (view/comment/edit/admin).
+ *   · `showInProfile` — §4: este nodo aparece en la Biblioteca pública del perfil.
+ * `read`/`write` se siguen escribiendo SIEMPRE como espejo (los consume el
+ * Finder en finder-types.ts y las políticas RLS legadas).
+ */
 export interface ItemACL {
     read: ACLEntry[];
     write: ACLEntry[];
+    /** v3: ámbito propio — private|account|profile|profiles|groups|pages|custom|public. */
+    scope?: string;
+    /** v3: accesos concedidos con rol. */
+    grants?: AclGrant[];
+    /** v3 (§4): mostrar este nodo en la Biblioteca pública del perfil. */
+    showInProfile?: boolean;
+    /** v3: marca temporal del último cambio de permisos (LWW en el diálogo). */
+    updatedAt?: string;
 }
 
 function emptyAcl(): ItemACL {
@@ -210,6 +250,13 @@ export interface SavedItem {
     versions?: ItemVersionEntry[];
     /** v2.1 (§17, `type==="repo"`): instantánea cacheada de un repo GIT externo conectado. */
     connectedRepo?: ConnectedRepoMeta;
+    /**
+     * v3 (Adenda 66 §2) · RELOJ LWW del ítem. Cambia en CADA edición (renombrar,
+     * mover, etiquetar, editar contenido, ACL…). Antes el merge usaba `addedAt`,
+     * que NO cambia al editar: por eso un renombrado o un movimiento nunca ganaba
+     * la fusión y "volvía" al valor viejo de la nube. Ver `mergeDocs`.
+     */
+    updatedAt?: string;
 }
 
 export interface LibraryFolder {
@@ -225,7 +272,20 @@ export interface LibraryFolder {
     acl?: ItemACL;
     /** v2.1 (§16): presencia = esta carpeta es la raíz de un repositorio estilo GitHub. */
     repo?: RepoMeta;
+    /** v3 (Adenda 66 §2): reloj LWW del folder (cambia al renombrar/mover/ACL/repo). */
+    updatedAt?: string;
 }
+
+/**
+ * v3 (Adenda 66 §2) · LÁPIDAS (tombstones): `id → fecha ISO del borrado`.
+ *
+ * Sin ellas, `mergeDocs` (que es una UNIÓN por id) RESUCITABA todo lo borrado:
+ * el dispositivo A borraba un ítem y subía el doc sin él, pero el dispositivo B
+ * fusionaba su caché (que aún lo tenía) con lo remoto y lo devolvía a la vida —
+ * el borrado no se propagaba NUNCA. Con lápidas, el borrado es un dato más que
+ * viaja por la nube y gana la fusión por fecha, como cualquier otra edición.
+ */
+export type Tombstones = Record<string, string>;
 
 export interface EntityLibraryDoc {
     items: SavedItem[];
@@ -233,41 +293,115 @@ export interface EntityLibraryDoc {
     /** Revisión local incremental (solo referencia informativa; el LWW real usa entity_state.rev). */
     rev: number;
     updatedAt: string;
-    /** Versión del esquema del documento. v1 (undefined) se normaliza en lectura. */
-    version?: 2;
+    /** Versión del esquema del documento. v1/v2 (undefined/2) se normalizan en lectura. */
+    version?: 3;
+    /**
+     * v3 (Adenda 66 §3): ACL de la BIBLIOTECA ENTERA (nodo raíz). Los folders y
+     * los ítems heredan de aquí si no definen la suya. Ausente = privada de su
+     * entidad dueña (comportamiento previo, sin cambios).
+     * La RLS de `entity_state` la lee con `es_doc_acl_allows(value, …)`
+     * (migración 20260712100100_account_profile_access.sql).
+     */
+    acl?: ItemACL;
+    /** v3 (Adenda 66 §2): ítems borrados (id → ISO). Ver `Tombstones`. */
+    deletedItems?: Tombstones;
+    /** v3 (Adenda 66 §2): folders borrados (id → ISO). Ver `Tombstones`. */
+    deletedFolders?: Tombstones;
 }
 
-const DOC_VERSION = 2 as const;
+const DOC_VERSION = 3 as const;
 
-const EMPTY_DOC: EntityLibraryDoc = { items: [], folders: [], rev: 0, updatedAt: "", version: DOC_VERSION };
+/** Las lápidas se podan a los 90 días (para entonces el borrado ya llegó a todo dispositivo vivo). */
+const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+const EMPTY_DOC: EntityLibraryDoc = {
+    items: [],
+    folders: [],
+    rev: 0,
+    updatedAt: "",
+    version: DOC_VERSION,
+    deletedItems: {},
+    deletedFolders: {},
+};
 
 function emptyDoc(): EntityLibraryDoc {
-    return { items: [], folders: [], rev: 0, updatedAt: new Date(0).toISOString(), version: DOC_VERSION };
+    return {
+        items: [],
+        folders: [],
+        rev: 0,
+        updatedAt: new Date(0).toISOString(),
+        version: DOC_VERSION,
+        deletedItems: {},
+        deletedFolders: {},
+    };
+}
+
+/** Reloj LWW de un ítem: su `updatedAt` (v3) o, en su defecto, `addedAt` (v1/v2). */
+function itemClock(it: SavedItem): number {
+    return Date.parse(it.updatedAt || it.addedAt || "") || 0;
+}
+
+/** Reloj LWW de un folder: su `updatedAt` (v3) o, en su defecto, `createdAt` (v1/v2). */
+function folderClock(f: LibraryFolder): number {
+    return Date.parse(f.updatedAt || f.createdAt || "") || 0;
+}
+
+function isTombstoneMap(v: unknown): v is Tombstones {
+    return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function pruneTombstones(t: unknown): Tombstones {
+    if (!isTombstoneMap(t)) return {};
+    const cutoff = Date.now() - TOMBSTONE_TTL_MS;
+    const out: Tombstones = {};
+    for (const [id, at] of Object.entries(t)) {
+        if (typeof at === "string" && (Date.parse(at) || 0) >= cutoff) out[id] = at;
+    }
+    return out;
+}
+
+/** Marca un id como borrado (lápida) sobre una copia del mapa. */
+function withTombstone(t: Tombstones | undefined, id: string, at: string): Tombstones {
+    return { ...(t ?? {}), [id]: at };
 }
 
 /**
- * Migración normalizadora v1→v2: completa campos nuevos con defaults seguros.
+ * Migración normalizadora v1/v2→v3: completa campos nuevos con defaults seguros.
  * Idempotente (aplicarla dos veces no cambia nada) y aditiva (nunca borra datos
- * v1). Los docs guardados hoy en v1 (sin `tags` en folders, sin `acl`, sin
- * `version`) siguen funcionando exactamente igual tras pasar por aquí.
+ * v1/v2). Los docs guardados hoy (sin `updatedAt` por nodo y sin lápidas) siguen
+ * funcionando igual: el reloj LWW cae con elegancia a `addedAt`/`createdAt` hasta
+ * la primera edición nueva. No hace falta migración de Supabase: mismo `jsonb`,
+ * solo más claves opcionales.
  */
 function normalizeDoc(raw: Partial<EntityLibraryDoc> | null | undefined): EntityLibraryDoc {
     if (!raw) return emptyDoc();
     const items = Array.isArray(raw.items) ? raw.items : [];
     const folders = Array.isArray(raw.folders) ? raw.folders : [];
+    const deletedItems = pruneTombstones(raw.deletedItems);
+    const deletedFolders = pruneTombstones(raw.deletedFolders);
     return {
-        items: items.map((it) => ({
-            ...it,
-            tags: Array.isArray(it?.tags) ? it.tags : [],
-            folderId: it?.folderId ?? null,
-        })),
-        folders: folders.map((f) => ({
-            ...f,
-            parentId: f?.parentId ?? null,
-        })),
+        // La lápida manda sobre la lista: si un doc antiguo aún arrastra algo ya
+        // borrado, aquí desaparece (nada resucita por la puerta de atrás).
+        items: items
+            .filter((it) => it?.id && !(it.id in deletedItems))
+            .map((it) => ({
+                ...it,
+                tags: Array.isArray(it?.tags) ? it.tags : [],
+                folderId: it?.folderId ?? null,
+            })),
+        folders: folders
+            .filter((f) => f?.id && !(f.id in deletedFolders))
+            .map((f) => ({
+                ...f,
+                parentId: f?.parentId ?? null,
+            })),
         rev: typeof raw.rev === "number" ? raw.rev : 0,
         updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : "",
         version: DOC_VERSION,
+        // v3 (§3): ACL de la biblioteca entera. Se preserva tal cual (ausente = sin ACL propia).
+        acl: raw.acl,
+        deletedItems,
+        deletedFolders,
     };
 }
 
@@ -363,6 +497,9 @@ interface PendingSyncEntry {
     id: string;
     queuedAt: string;
     attempts: number;
+    /** v3 (Adenda 66 §2): MOTIVO real del último fallo, para poder MOSTRARLO. */
+    lastError?: string;
+    lastTriedAt?: string;
 }
 
 function pendingKeyOf(ref: EntityRef): string {
@@ -407,7 +544,15 @@ export function hasPendingSync(ref: EntityRef): boolean {
     return pendingKeyOf(ref) in readPendingMap();
 }
 
-function enqueuePendingSync(ref: EntityRef): void {
+/**
+ * MOTIVO del último fallo de subida de esta biblioteca (o null si va todo bien).
+ * Existe para que el fallo NUNCA sea mudo: la UI lo enseña tal cual.
+ */
+export function lastSyncError(ref: EntityRef): string | null {
+    return readPendingMap()[pendingKeyOf(ref)]?.lastError ?? null;
+}
+
+function enqueuePendingSync(ref: EntityRef, error?: string): void {
     if (!isClient()) return;
     const map = readPendingMap();
     const key = pendingKeyOf(ref);
@@ -417,6 +562,8 @@ function enqueuePendingSync(ref: EntityRef): void {
         id: ref.id,
         queuedAt: prev?.queuedAt ?? new Date().toISOString(),
         attempts: (prev?.attempts ?? 0) + 1,
+        lastError: error ?? prev?.lastError,
+        lastTriedAt: new Date().toISOString(),
     };
     writePendingMap(map);
     ensureRetryLoop();
@@ -448,16 +595,24 @@ export async function flushPendingLibrarySync(): Promise<{ flushed: number; rema
             const ref: EntityRef = { kind: entry.kind, id: entry.id };
             try {
                 const doc = readCache(ref);
-                const row = await setEntityState(ref, LIBRARY_KEY, doc);
+                const { row, error } = await setEntityStateChecked(ref, LIBRARY_KEY, doc);
                 if (row) {
                     clearPendingSync(ref);
                     // Subida diferida (venía de offline/sin sesión): también hay que
                     // anunciarla en vivo al resto de dispositivos y cuentas con acceso.
                     signalLibraryChange(ref, row.updated_at);
+                    // Y dejar constancia de la revisión que no se pudo registrar en su momento.
+                    void recordLibraryVersion(ref, doc, {
+                        message: "Sincronización diferida (cambios hechos sin conexión)",
+                        action: "sync",
+                    });
                     flushed++;
+                } else {
+                    // Sigue fallando: se conserva el MOTIVO actualizado y visible.
+                    enqueuePendingSync(ref, error ?? "No se pudo guardar en la nube.");
                 }
-            } catch {
-                /* sigue pendiente; se reintentará en el próximo ciclo */
+            } catch (e) {
+                enqueuePendingSync(ref, (e as Error)?.message || "Error de red al reintentar la subida.");
             }
         }
     } finally {
@@ -488,29 +643,72 @@ function ensureRetryLoop(): void {
 
 // ─────────────────────────── Merge LWW (nube ↔ local) ───────────────────────────
 
-/** Fusiona dos documentos por id de item/carpeta; el más reciente (por addedAt/createdAt) gana. */
+/**
+ * Fusiona dos documentos NODO A NODO (Adenda 66 §2). Reescrito porque el merge
+ * anterior tenía dos fallos que hacían que la sincronización "no funcionara"
+ * aunque la nube respondiera bien:
+ *
+ *  1. **Los borrados resucitaban.** Era una UNIÓN por id: lo que faltaba en un
+ *     lado se recuperaba del otro. Borrar algo no se propagaba jamás. → Ahora
+ *     las LÁPIDAS (`deletedItems`/`deletedFolders`) viajan en el doc y ganan a
+ *     cualquier versión del nodo que sea ANTERIOR al borrado.
+ *  2. **Renombrar/mover se perdía.** El reloj LWW era `addedAt`/`createdAt`, que
+ *     NO cambian al editar; con el desempate `>=`, el nodo remoto ganaba SIEMPRE
+ *     y toda edición local aún no subida se revertía sola en la siguiente
+ *     lectura. → Ahora el reloj es `updatedAt` por nodo (`itemClock`/`folderClock`),
+ *     que cambia en cada edición real.
+ *
+ * `b` solo gana los empates exactos de reloj (misma marca temporal): es el orden
+ * de llamada quien decide, y todos los llamadores pasan lo REMOTO como `b`.
+ */
 function mergeDocs(a: EntityLibraryDoc, b: EntityLibraryDoc): EntityLibraryDoc {
+    // Lápidas: la unión de ambos lados (un borrado nunca se "des-borra"), con la
+    // fecha MÁS RECIENTE si el mismo id se borró en los dos.
+    const deletedItems: Tombstones = { ...(a.deletedItems ?? {}) };
+    for (const [id, at] of Object.entries(b.deletedItems ?? {})) {
+        const prev = deletedItems[id];
+        if (!prev || (Date.parse(at) || 0) > (Date.parse(prev) || 0)) deletedItems[id] = at;
+    }
+    const deletedFolders: Tombstones = { ...(a.deletedFolders ?? {}) };
+    for (const [id, at] of Object.entries(b.deletedFolders ?? {})) {
+        const prev = deletedFolders[id];
+        if (!prev || (Date.parse(at) || 0) > (Date.parse(prev) || 0)) deletedFolders[id] = at;
+    }
+
+    /** Un nodo sobrevive si NO tiene lápida, o si se editó DESPUÉS de que lo borraran (resurrección explícita). */
+    const survives = (tombs: Tombstones, id: string, clock: number): boolean => {
+        const at = tombs[id];
+        if (!at) return true;
+        return clock > (Date.parse(at) || 0);
+    };
+
     const itemMap = new Map<string, SavedItem>();
     for (const it of a.items) itemMap.set(it.id, it);
     for (const it of b.items) {
         const existing = itemMap.get(it.id);
-        if (!existing || Date.parse(it.addedAt || "") >= Date.parse(existing.addedAt || "")) {
-            itemMap.set(it.id, it);
-        }
+        if (!existing || itemClock(it) >= itemClock(existing)) itemMap.set(it.id, it);
     }
     const folderMap = new Map<string, LibraryFolder>();
     for (const f of a.folders) folderMap.set(f.id, f);
     for (const f of b.folders) {
         const existing = folderMap.get(f.id);
-        if (!existing || Date.parse(f.createdAt || "") >= Date.parse(existing.createdAt || "")) {
-            folderMap.set(f.id, f);
-        }
+        if (!existing || folderClock(f) >= folderClock(existing)) folderMap.set(f.id, f);
     }
+
+    // ACL de la biblioteca entera (v3): gana la del doc más reciente que la traiga.
+    const aAt = Date.parse(a.updatedAt || "") || 0;
+    const bAt = Date.parse(b.updatedAt || "") || 0;
+    const acl = bAt >= aAt ? (b.acl ?? a.acl) : (a.acl ?? b.acl);
+
     return {
-        items: Array.from(itemMap.values()),
-        folders: Array.from(folderMap.values()),
+        items: Array.from(itemMap.values()).filter((it) => survives(deletedItems, it.id, itemClock(it))),
+        folders: Array.from(folderMap.values()).filter((f) => survives(deletedFolders, f.id, folderClock(f))),
         rev: Math.max(a.rev, b.rev),
         updatedAt: new Date().toISOString(),
+        version: DOC_VERSION,
+        acl,
+        deletedItems: pruneTombstones(deletedItems),
+        deletedFolders: pruneTombstones(deletedFolders),
     };
 }
 
@@ -553,20 +751,100 @@ function signalLibraryChange(ref: EntityRef, updatedAt?: string | null): void {
  * Sube el documento a la nube y DEVUELVE si lo consiguió. En fallo (offline,
  * sin sesión, RLS) encola la entidad en la cola de pendientes — la copia local
  * sigue siendo válida y el reintento automático la subirá en cuanto pueda.
+ *
+ * Adenda 66 §2: el motivo REAL del fallo ya no se traga. Se guarda en la cola
+ * (`lastError`) y se emite `LIBRARY_PENDING_EVENT` para que la UI lo MUESTRE.
+ * Si la nube rechaza algo, el usuario tiene que verlo — nunca un fallo mudo.
  */
-async function pushCloud(ref: EntityRef, doc: EntityLibraryDoc): Promise<boolean> {
+async function pushCloud(
+    ref: EntityRef,
+    doc: EntityLibraryDoc,
+    audit?: AuditEntry,
+): Promise<{ ok: boolean; error?: string }> {
     try {
-        const row = await setEntityState(ref, LIBRARY_KEY, doc);
+        const { row, error } = await setEntityStateChecked(ref, LIBRARY_KEY, doc);
         if (row) {
             clearPendingSync(ref);
             signalLibraryChange(ref, row.updated_at);
-            return true;
+            // Historial en la nube (§2): cada guardado REAL crea una revisión.
+            // No bloqueante: si el versionado falla, el guardado ya está hecho.
+            if (audit) void recordLibraryVersion(ref, doc, audit);
+            return { ok: true };
         }
-        enqueuePendingSync(ref);
-        return false;
+        enqueuePendingSync(ref, error ?? "No se pudo guardar en la nube.");
+        return { ok: false, error: error ?? "No se pudo guardar en la nube." };
+    } catch (e) {
+        const msg = (e as Error)?.message || "Error inesperado al guardar en la nube.";
+        enqueuePendingSync(ref, msg);
+        return { ok: false, error: msg };
+    }
+}
+
+// ─────────────────────────── Historial en la nube (§2) ───────────────────────────
+
+/** Qué cambió exactamente en esta escritura (alimenta `os_versions` y `os_access_log`). */
+export interface AuditEntry {
+    /** Acción legible en español ("Crear folder «Ideas»"). */
+    message: string;
+    /** Verbo para el registro: create · edit · rename · move · delete · tags · permisos… */
+    action: string;
+    /** Qué nodo cambió (para versionar el folder/archivo concreto, no solo la biblioteca). */
+    node?: { kind: "folder" | "file"; id: string };
+}
+
+/**
+ * Registra la revisión de este guardado. Versiona SIEMPRE la biblioteca entera
+ * (snapshot del doc, que es la unidad real de `entity_state`) y, si el cambio
+ * afectó a un folder o a un archivo concretos, ANOTA además su propia línea de
+ * historial para que "Historial" sobre ese nodo tenga sentido.
+ */
+async function recordLibraryVersion(ref: EntityRef, doc: EntityLibraryDoc, audit: AuditEntry): Promise<void> {
+    try {
+        const snapshot = { items: doc.items, folders: doc.folders } as unknown as Record<string, unknown>;
+        const serialized = JSON.stringify(snapshot);
+        await recordVersion({
+            kind: "library",
+            resourceId: LIBRARY_KEY,
+            ref,
+            message: audit.message,
+            snapshot,
+            size: serialized.length,
+            checksum: quickChecksum(serialized),
+        });
+
+        if (audit.node) {
+            const nodeSnapshot: Record<string, unknown> =
+                audit.node.kind === "folder"
+                    ? { folder: doc.folders.find((f) => f.id === audit.node?.id) ?? null }
+                    : { item: doc.items.find((it) => it.id === audit.node?.id) ?? null };
+            const nodeSerialized = JSON.stringify(nodeSnapshot);
+            await recordVersion({
+                kind: audit.node.kind,
+                resourceId: audit.node.id,
+                ref,
+                message: audit.message,
+                snapshot: nodeSnapshot,
+                size: nodeSerialized.length,
+                checksum: quickChecksum(nodeSerialized),
+            });
+            void logAccess({
+                kind: audit.node.kind,
+                resourceId: audit.node.id,
+                ref,
+                action: audit.action,
+                detail: { message: audit.message },
+            });
+        }
+
+        void logAccess({
+            kind: "library",
+            resourceId: LIBRARY_KEY,
+            ref,
+            action: audit.action,
+            detail: { message: audit.message },
+        });
     } catch {
-        enqueuePendingSync(ref);
-        return false;
+        /* el historial NUNCA impide guardar (§2: es una garantía, no un peaje) */
     }
 }
 
@@ -690,16 +968,37 @@ export function readLibrarySnapshot(ref: EntityRef): EntityLibraryDoc {
     return readCache(ref);
 }
 
+/** Marca de tiempo del cambio actual (reloj LWW de los nodos tocados en esta mutación). */
+function now(): string {
+    return new Date().toISOString();
+}
+
+/** Aplica un parche a un ítem TOCANDO su reloj LWW (`updatedAt`). Usar SIEMPRE al editar. */
+function touchItem(it: SavedItem, patch: Partial<SavedItem>, at: string): SavedItem {
+    return { ...it, ...patch, updatedAt: at };
+}
+
+/** Aplica un parche a un folder TOCANDO su reloj LWW (`updatedAt`). Usar SIEMPRE al editar. */
+function touchFolder(f: LibraryFolder, patch: Partial<LibraryFolder>, at: string): LibraryFolder {
+    return { ...f, ...patch, updatedAt: at };
+}
+
+/**
+ * Aplica un cambio: cache local (instantáneo, local-first) + subida a la nube en
+ * segundo plano. Si `audit` viene, el guardado con éxito CREA UNA REVISIÓN en
+ * `os_versions` y una entrada en `os_access_log` (Adenda 66 §2) — nunca bloquea.
+ * Si la nube falla, `pushCloud` encola la entidad CON EL MOTIVO y el reintento
+ * automático la sube; la UI muestra el error (nada de fallos mudos).
+ */
 async function mutate(
     ref: EntityRef,
     fn: (doc: EntityLibraryDoc) => EntityLibraryDoc,
+    audit?: AuditEntry,
 ): Promise<EntityLibraryDoc> {
     const current = readCache(ref);
     const next = fn(current);
     writeCache(ref, next);
-    // Push a la nube en segundo plano (no bloquea la UI local-first). Si falla,
-    // pushCloud encola la entidad en pendientes y el reintento automático la sube.
-    void pushCloud(ref, next);
+    void pushCloud(ref, next, audit);
     return next;
 }
 
@@ -733,45 +1032,57 @@ export async function saveItem(
     const dedupOf = (it: { type: string; refId?: string; route?: string; url?: string }) =>
         `${it.type}::${it.refId ?? ""}::${it.route ?? ""}::${it.url ?? ""}`;
     const key = dedupOf(item);
+    const at = now();
     let resultId = "";
-    await mutate(ref, (doc) => {
-        const existing = doc.items.find((it) => dedupOf(it) === key);
-        if (existing) {
-            resultId = existing.id;
-            // Ya guardado: solo actualiza carpeta/nota si se pasaron explícitamente.
-            const next = doc.items.map((it) =>
-                it.id === existing.id
-                    ? {
-                          ...it,
-                          folderId: folderId !== undefined ? folderId : it.folderId,
-                          note: item.note !== undefined ? item.note : it.note,
-                      }
-                    : it,
-            );
-            return { ...doc, items: next, updatedAt: new Date().toISOString() };
-        }
-        const entry: SavedItem = {
-            id: makeId("item"),
-            type: item.type,
-            refId: item.refId,
-            route: item.route,
-            url: item.url,
-            title: item.title,
-            note: item.note,
-            tags: item.tags ?? [],
-            folderId: folderId ?? item.folderId ?? null,
-            addedAt: new Date().toISOString(),
-            addedBy: who,
-            mime: item.mime,
-            thumbnail: item.thumbnail,
-            content: item.content,
-            language: item.language,
-            description: item.description,
-            connectedRepo: item.connectedRepo,
-        };
-        resultId = entry.id;
-        return { ...doc, items: [entry, ...doc.items], updatedAt: new Date().toISOString() };
-    });
+    await mutate(
+        ref,
+        (doc) => {
+            const existing = doc.items.find((it) => dedupOf(it) === key);
+            if (existing) {
+                resultId = existing.id;
+                // Ya guardado: solo actualiza carpeta/nota si se pasaron explícitamente.
+                const next = doc.items.map((it) =>
+                    it.id === existing.id
+                        ? touchItem(
+                              it,
+                              {
+                                  folderId: folderId !== undefined ? folderId : it.folderId,
+                                  note: item.note !== undefined ? item.note : it.note,
+                              },
+                              at,
+                          )
+                        : it,
+                );
+                return { ...doc, items: next, updatedAt: at };
+            }
+            const entry: SavedItem = {
+                id: makeId("item"),
+                type: item.type,
+                refId: item.refId,
+                route: item.route,
+                url: item.url,
+                title: item.title,
+                note: item.note,
+                tags: item.tags ?? [],
+                folderId: folderId ?? item.folderId ?? null,
+                addedAt: at,
+                addedBy: who,
+                mime: item.mime,
+                thumbnail: item.thumbnail,
+                content: item.content,
+                language: item.language,
+                description: item.description,
+                connectedRepo: item.connectedRepo,
+                updatedAt: at,
+            };
+            resultId = entry.id;
+            // La lápida de un id reutilizado se levanta: este ítem vuelve a existir.
+            const deletedItems = { ...(doc.deletedItems ?? {}) };
+            delete deletedItems[entry.id];
+            return { ...doc, items: [entry, ...doc.items], deletedItems, updatedAt: at };
+        },
+        { message: `Guardar «${item.title}»`, action: "create" },
+    );
     return { ok: true, id: resultId };
 }
 
@@ -881,12 +1192,24 @@ export async function importItemSecure(
     return saveItemSecure(ref, item, folderId, opts);
 }
 
+/**
+ * Quita un ítem. Deja LÁPIDA (`deletedItems`) para que el borrado VIAJE a los
+ * demás dispositivos: sin ella, el merge (unión) lo resucitaba desde la caché
+ * del otro dispositivo y el borrado no se propagaba nunca (Adenda 66 §2).
+ */
 export async function removeItem(ref: EntityRef, itemId: string): Promise<void> {
-    await mutate(ref, (doc) => ({
-        ...doc,
-        items: doc.items.filter((it) => it.id !== itemId),
-        updatedAt: new Date().toISOString(),
-    }));
+    const at = now();
+    const title = readCache(ref).items.find((it) => it.id === itemId)?.title ?? itemId;
+    await mutate(
+        ref,
+        (doc) => ({
+            ...doc,
+            items: doc.items.filter((it) => it.id !== itemId),
+            deletedItems: withTombstone(doc.deletedItems, itemId, at),
+            updatedAt: at,
+        }),
+        { message: `Quitar «${title}»`, action: "delete", node: { kind: "file", id: itemId } },
+    );
 }
 
 export async function moveItem(
@@ -894,110 +1217,178 @@ export async function moveItem(
     itemId: string,
     folderId: string | null,
 ): Promise<void> {
-    await mutate(ref, (doc) => ({
-        ...doc,
-        items: doc.items.map((it) => (it.id === itemId ? { ...it, folderId } : it)),
-        updatedAt: new Date().toISOString(),
-    }));
+    const at = now();
+    const title = readCache(ref).items.find((it) => it.id === itemId)?.title ?? itemId;
+    await mutate(
+        ref,
+        (doc) => ({
+            ...doc,
+            items: doc.items.map((it) => (it.id === itemId ? touchItem(it, { folderId }, at) : it)),
+            updatedAt: at,
+        }),
+        { message: `Mover «${title}»`, action: "move", node: { kind: "file", id: itemId } },
+    );
 }
 
 export async function createFolder(ref: EntityRef, name: string, parentId: string | null = null): Promise<string> {
     const who = (await currentUserRef())?.id ?? "anon";
+    const at = now();
     let newId = "";
-    await mutate(ref, (doc) => {
-        const trimmed = name.trim() || "Carpeta";
-        const dup = doc.folders.find((f) => f.parentId === parentId && f.name.toLowerCase() === trimmed.toLowerCase());
-        if (dup) {
-            newId = dup.id;
-            return doc;
-        }
-        const folder: LibraryFolder = {
-            id: makeId("folder"),
-            name: trimmed,
-            parentId,
-            createdAt: new Date().toISOString(),
-            createdBy: who,
-        };
-        newId = folder.id;
-        return { ...doc, folders: [...doc.folders, folder], updatedAt: new Date().toISOString() };
-    });
+    const trimmed = name.trim() || "Folder";
+    await mutate(
+        ref,
+        (doc) => {
+            const dup = doc.folders.find((f) => f.parentId === parentId && f.name.toLowerCase() === trimmed.toLowerCase());
+            if (dup) {
+                newId = dup.id;
+                return doc;
+            }
+            const folder: LibraryFolder = {
+                id: makeId("folder"),
+                name: trimmed,
+                parentId,
+                createdAt: at,
+                createdBy: who,
+                updatedAt: at,
+            };
+            newId = folder.id;
+            const deletedFolders = { ...(doc.deletedFolders ?? {}) };
+            delete deletedFolders[folder.id];
+            return { ...doc, folders: [...doc.folders, folder], deletedFolders, updatedAt: at };
+        },
+        { message: `Crear folder «${trimmed}»`, action: "create" },
+    );
     return newId;
 }
 
 export async function renameFolder(ref: EntityRef, folderId: string, name: string): Promise<void> {
     const trimmed = name.trim();
     if (!trimmed) return;
-    await mutate(ref, (doc) => ({
-        ...doc,
-        folders: doc.folders.map((f) => (f.id === folderId ? { ...f, name: trimmed } : f)),
-        updatedAt: new Date().toISOString(),
-    }));
-}
-
-/** Elimina una carpeta; sus items pasan a la raíz (folderId=null), nunca se borran referencias. */
-export async function removeFolder(ref: EntityRef, folderId: string): Promise<void> {
-    await mutate(ref, (doc) => ({
-        ...doc,
-        folders: doc.folders.filter((f) => f.id !== folderId),
-        items: doc.items.map((it) => (it.folderId === folderId ? { ...it, folderId: null } : it)),
-        updatedAt: new Date().toISOString(),
-    }));
+    const at = now();
+    await mutate(
+        ref,
+        (doc) => ({
+            ...doc,
+            folders: doc.folders.map((f) => (f.id === folderId ? touchFolder(f, { name: trimmed }, at) : f)),
+            updatedAt: at,
+        }),
+        { message: `Renombrar folder a «${trimmed}»`, action: "rename", node: { kind: "folder", id: folderId } },
+    );
 }
 
 /**
- * Mueve/re-anida una carpeta bajo otra (o a la raíz con `parentId=null`).
- * Rechaza en silencio (no-op) si el destino crearía un ciclo (mover una
- * carpeta dentro de sí misma o de uno de sus propios descendientes).
+ * Elimina un folder; sus items pasan a la raíz (folderId=null), nunca se borran
+ * referencias. Deja LÁPIDA del folder para que el borrado se propague.
+ */
+export async function removeFolder(ref: EntityRef, folderId: string): Promise<void> {
+    const at = now();
+    const name = readCache(ref).folders.find((f) => f.id === folderId)?.name ?? folderId;
+    await mutate(
+        ref,
+        (doc) => ({
+            ...doc,
+            folders: doc.folders.filter((f) => f.id !== folderId),
+            items: doc.items.map((it) => (it.folderId === folderId ? touchItem(it, { folderId: null }, at) : it)),
+            deletedFolders: withTombstone(doc.deletedFolders, folderId, at),
+            updatedAt: at,
+        }),
+        { message: `Eliminar folder «${name}»`, action: "delete", node: { kind: "folder", id: folderId } },
+    );
+}
+
+/**
+ * Mueve/re-anida un folder bajo otro (o a la raíz con `parentId=null`).
+ * Rechaza en silencio (no-op) si el destino crearía un ciclo (mover un folder
+ * dentro de sí mismo o de uno de sus propios descendientes).
  */
 export async function moveFolder(ref: EntityRef, folderId: string, parentId: string | null): Promise<void> {
-    await mutate(ref, (doc) => {
-        if (folderId === parentId) return doc;
-        if (parentId) {
-            // Detecta ciclo: recorre ancestros de `parentId`; si llega a `folderId`, es inválido.
-            const byId = new Map(doc.folders.map((f) => [f.id, f] as const));
-            let cursor: string | null = parentId;
-            const seen = new Set<string>();
-            while (cursor) {
-                if (cursor === folderId) return doc; // ciclo: no-op
-                if (seen.has(cursor)) break;
-                seen.add(cursor);
-                cursor = byId.get(cursor)?.parentId ?? null;
+    const at = now();
+    const name = readCache(ref).folders.find((f) => f.id === folderId)?.name ?? folderId;
+    await mutate(
+        ref,
+        (doc) => {
+            if (folderId === parentId) return doc;
+            if (parentId) {
+                // Detecta ciclo: recorre ancestros de `parentId`; si llega a `folderId`, es inválido.
+                const byId = new Map(doc.folders.map((f) => [f.id, f] as const));
+                let cursor: string | null = parentId;
+                const seen = new Set<string>();
+                while (cursor) {
+                    if (cursor === folderId) return doc; // ciclo: no-op
+                    if (seen.has(cursor)) break;
+                    seen.add(cursor);
+                    cursor = byId.get(cursor)?.parentId ?? null;
+                }
             }
-        }
-        return {
-            ...doc,
-            folders: doc.folders.map((f) => (f.id === folderId ? { ...f, parentId } : f)),
-            updatedAt: new Date().toISOString(),
-        };
-    });
+            return {
+                ...doc,
+                folders: doc.folders.map((f) => (f.id === folderId ? touchFolder(f, { parentId }, at) : f)),
+                updatedAt: at,
+            };
+        },
+        { message: `Mover folder «${name}»`, action: "move", node: { kind: "folder", id: folderId } },
+    );
 }
 
 /** Sustituye por completo las etiquetas de un ítem. */
 export async function setItemTags(ref: EntityRef, itemId: string, tags: string[]): Promise<void> {
     const cleaned = Array.from(new Set(tags.map((t) => t.trim()).filter(Boolean)));
-    await mutate(ref, (doc) => ({
-        ...doc,
-        items: doc.items.map((it) => (it.id === itemId ? { ...it, tags: cleaned } : it)),
-        updatedAt: new Date().toISOString(),
-    }));
+    const at = now();
+    await mutate(
+        ref,
+        (doc) => ({
+            ...doc,
+            items: doc.items.map((it) => (it.id === itemId ? touchItem(it, { tags: cleaned }, at) : it)),
+            updatedAt: at,
+        }),
+        { message: `Etiquetas: ${cleaned.join(", ") || "(ninguna)"}`, action: "tags", node: { kind: "file", id: itemId } },
+    );
 }
 
 /** Establece (sustituye) la ACL de lectura/escritura de un ítem. `null` limpia la ACL (sin restricción, v1). */
 export async function setItemAcl(ref: EntityRef, itemId: string, acl: ItemACL | null): Promise<void> {
-    await mutate(ref, (doc) => ({
-        ...doc,
-        items: doc.items.map((it) => (it.id === itemId ? { ...it, acl: acl ?? undefined } : it)),
-        updatedAt: new Date().toISOString(),
-    }));
+    const at = now();
+    await mutate(
+        ref,
+        (doc) => ({
+            ...doc,
+            items: doc.items.map((it) => (it.id === itemId ? touchItem(it, { acl: acl ?? undefined }, at) : it)),
+            updatedAt: at,
+        }),
+        { message: "Cambiar permisos del ítem", action: "permisos", node: { kind: "file", id: itemId } },
+    );
 }
 
-/** Establece (sustituye) la ACL de una carpeta. `null` limpia la ACL. */
+/** Establece (sustituye) la ACL de un folder. `null` limpia la ACL. */
 export async function setFolderAcl(ref: EntityRef, folderId: string, acl: ItemACL | null): Promise<void> {
-    await mutate(ref, (doc) => ({
-        ...doc,
-        folders: doc.folders.map((f) => (f.id === folderId ? { ...f, acl: acl ?? undefined } : f)),
-        updatedAt: new Date().toISOString(),
-    }));
+    const at = now();
+    await mutate(
+        ref,
+        (doc) => ({
+            ...doc,
+            folders: doc.folders.map((f) => (f.id === folderId ? touchFolder(f, { acl: acl ?? undefined }, at) : f)),
+            updatedAt: at,
+        }),
+        { message: "Cambiar permisos del folder", action: "permisos", node: { kind: "folder", id: folderId } },
+    );
+}
+
+/**
+ * v3 (Adenda 66 §3): establece (sustituye) la ACL de la BIBLIOTECA ENTERA — el
+ * nodo raíz del que heredan folders e ítems. `null` la limpia (vuelve a ser
+ * privada de su entidad dueña). Es la ACL que la RLS de `entity_state` lee en
+ * `value->'acl'`.
+ */
+export async function setLibraryAcl(ref: EntityRef, acl: ItemACL | null): Promise<void> {
+    await mutate(
+        ref,
+        (doc) => ({
+            ...doc,
+            acl: acl ?? undefined,
+            updatedAt: now(),
+        }),
+        { message: "Cambiar permisos de la biblioteca", action: "permisos" },
+    );
 }
 
 /**
@@ -1012,23 +1403,29 @@ export async function createAlias(
     folderId: string | null = null,
 ): Promise<{ ok: boolean; id: string }> {
     const who = (await currentUserRef())?.id ?? "anon";
+    const at = now();
     let newId = "";
-    await mutate(ref, (doc) => {
-        const target = doc.items.find((it) => it.id === targetItemId);
-        if (!target) return doc;
-        const alias: SavedItem = {
-            id: makeId("alias"),
-            type: "alias",
-            title: target.title,
-            tags: [],
-            folderId,
-            addedAt: new Date().toISOString(),
-            addedBy: who,
-            targetItemId,
-        };
-        newId = alias.id;
-        return { ...doc, items: [alias, ...doc.items], updatedAt: new Date().toISOString() };
-    });
+    await mutate(
+        ref,
+        (doc) => {
+            const target = doc.items.find((it) => it.id === targetItemId);
+            if (!target) return doc;
+            const alias: SavedItem = {
+                id: makeId("alias"),
+                type: "alias",
+                title: target.title,
+                tags: [],
+                folderId,
+                addedAt: at,
+                addedBy: who,
+                targetItemId,
+                updatedAt: at,
+            };
+            newId = alias.id;
+            return { ...doc, items: [alias, ...doc.items], updatedAt: at };
+        },
+        { message: "Crear acceso directo", action: "create" },
+    );
     return { ok: !!newId, id: newId };
 }
 
@@ -1045,28 +1442,34 @@ export async function replicateItem(
     folderId: string | null = null,
 ): Promise<{ ok: boolean; id: string }> {
     const who = (await currentUserRef())?.id ?? "anon";
+    const at = now();
     let newId = "";
-    await mutate(ref, (doc) => {
-        const source = doc.items.find((it) => it.id === sourceItemId);
-        if (!source) return doc;
-        const branch: SavedItem = {
-            ...source,
-            id: makeId("branch"),
-            type: "branch",
-            folderId,
-            addedAt: new Date().toISOString(),
-            addedBy: who,
-            refKind: source.type,
-            refId2: source.refId ?? source.id,
-            // v2.1 (§14): lineage local sin ambigüedad — ver branchesOf()/mergeBranch() en finder-types.ts.
-            branchOf: source.id,
-            // La rama nace con su propia ACL/historial (no hereda restricciones ni versiones del origen).
-            acl: undefined,
-            versions: undefined,
-        };
-        newId = branch.id;
-        return { ...doc, items: [branch, ...doc.items], updatedAt: new Date().toISOString() };
-    });
+    await mutate(
+        ref,
+        (doc) => {
+            const source = doc.items.find((it) => it.id === sourceItemId);
+            if (!source) return doc;
+            const branch: SavedItem = {
+                ...source,
+                id: makeId("branch"),
+                type: "branch",
+                folderId,
+                addedAt: at,
+                addedBy: who,
+                refKind: source.type,
+                refId2: source.refId ?? source.id,
+                // v2.1 (§14): lineage local sin ambigüedad — ver branchesOf()/mergeBranch() en finder-types.ts.
+                branchOf: source.id,
+                // La rama nace con su propia ACL/historial (no hereda restricciones ni versiones del origen).
+                acl: undefined,
+                versions: undefined,
+                updatedAt: at,
+            };
+            newId = branch.id;
+            return { ...doc, items: [branch, ...doc.items], updatedAt: at };
+        },
+        { message: "Replicar (rama)", action: "branch" },
+    );
     return { ok: !!newId, id: newId };
 }
 
@@ -1081,23 +1484,29 @@ export async function duplicateItem(
     folderId: string | null = null,
 ): Promise<{ ok: boolean; id: string }> {
     const who = (await currentUserRef())?.id ?? "anon";
+    const at = now();
     let newId = "";
-    await mutate(ref, (doc) => {
-        const source = doc.items.find((it) => it.id === sourceItemId);
-        if (!source) return doc;
-        const copy: SavedItem = {
-            ...source,
-            id: makeId("item"),
-            folderId,
-            addedAt: new Date().toISOString(),
-            addedBy: who,
-            acl: undefined, // la copia nace sin restricciones propias
-            versions: undefined, // ni con el historial de ediciones del origen
-            branchOf: undefined,
-        };
-        newId = copy.id;
-        return { ...doc, items: [copy, ...doc.items], updatedAt: new Date().toISOString() };
-    });
+    await mutate(
+        ref,
+        (doc) => {
+            const source = doc.items.find((it) => it.id === sourceItemId);
+            if (!source) return doc;
+            const copy: SavedItem = {
+                ...source,
+                id: makeId("item"),
+                folderId,
+                addedAt: at,
+                addedBy: who,
+                acl: undefined, // la copia nace sin restricciones propias
+                versions: undefined, // ni con el historial de ediciones del origen
+                branchOf: undefined,
+                updatedAt: at,
+            };
+            newId = copy.id;
+            return { ...doc, items: [copy, ...doc.items], updatedAt: at };
+        },
+        { message: "Duplicar ítem", action: "create" },
+    );
     return { ok: !!newId, id: newId };
 }
 
@@ -1140,53 +1549,152 @@ export async function updateItemContent(
     opts?: { label?: string },
 ): Promise<{ ok: boolean }> {
     const who = (await currentUserRef())?.id ?? "anon";
+    const at = now();
     let ok = false;
-    await mutate(ref, (doc) => {
-        const item = doc.items.find((it) => it.id === itemId);
-        if (!item) return doc;
-        ok = true;
-        const changed = versionableFieldsChanged(item, patch);
-        const versions = changed
-            ? [snapshotVersion(item, who, opts?.label), ...(item.versions ?? [])].slice(0, MAX_ITEM_VERSIONS)
-            : item.versions;
-        const nextItem: SavedItem = { ...item, ...patch, versions };
-        return {
-            ...doc,
-            items: doc.items.map((it) => (it.id === itemId ? nextItem : it)),
-            updatedAt: new Date().toISOString(),
-        };
-    });
+    let title = itemId;
+    await mutate(
+        ref,
+        (doc) => {
+            const item = doc.items.find((it) => it.id === itemId);
+            if (!item) return doc;
+            ok = true;
+            title = item.title;
+            const changed = versionableFieldsChanged(item, patch);
+            const versions = changed
+                ? [snapshotVersion(item, who, opts?.label), ...(item.versions ?? [])].slice(0, MAX_ITEM_VERSIONS)
+                : item.versions;
+            const nextItem: SavedItem = touchItem(item, { ...patch, versions }, at);
+            return {
+                ...doc,
+                items: doc.items.map((it) => (it.id === itemId ? nextItem : it)),
+                updatedAt: at,
+            };
+        },
+        { message: opts?.label ?? `Editar «${title}»`, action: "edit", node: { kind: "file", id: itemId } },
+    );
     return { ok };
 }
 
 /** Restaura una versión anterior. Snapshotea el estado ACTUAL antes (para poder deshacer la restauración). */
 export async function restoreItemVersion(ref: EntityRef, itemId: string, versionId: string): Promise<{ ok: boolean }> {
     const who = (await currentUserRef())?.id ?? "anon";
+    const at = now();
     let ok = false;
-    await mutate(ref, (doc) => {
-        const item = doc.items.find((it) => it.id === itemId);
-        if (!item) return doc;
-        const version = (item.versions ?? []).find((v) => v.id === versionId);
-        if (!version) return doc;
-        ok = true;
-        const preRestoreSnapshot = snapshotVersion(item, who, "antes de restaurar");
-        const nextItem: SavedItem = {
-            ...item,
-            title: version.title,
-            note: version.note,
-            content: version.content,
-            url: version.url,
-            mime: version.mime,
-            language: version.language,
-            description: version.description,
-            versions: [preRestoreSnapshot, ...(item.versions ?? [])].slice(0, MAX_ITEM_VERSIONS),
-        };
-        return {
-            ...doc,
-            items: doc.items.map((it) => (it.id === itemId ? nextItem : it)),
-            updatedAt: new Date().toISOString(),
-        };
-    });
+    await mutate(
+        ref,
+        (doc) => {
+            const item = doc.items.find((it) => it.id === itemId);
+            if (!item) return doc;
+            const version = (item.versions ?? []).find((v) => v.id === versionId);
+            if (!version) return doc;
+            ok = true;
+            const preRestoreSnapshot = snapshotVersion(item, who, "antes de restaurar");
+            const nextItem: SavedItem = touchItem(
+                item,
+                {
+                    title: version.title,
+                    note: version.note,
+                    content: version.content,
+                    url: version.url,
+                    mime: version.mime,
+                    language: version.language,
+                    description: version.description,
+                    versions: [preRestoreSnapshot, ...(item.versions ?? [])].slice(0, MAX_ITEM_VERSIONS),
+                },
+                at,
+            );
+            return {
+                ...doc,
+                items: doc.items.map((it) => (it.id === itemId ? nextItem : it)),
+                updatedAt: at,
+            };
+        },
+        { message: "Restaurar versión anterior", action: "restore", node: { kind: "file", id: itemId } },
+    );
+    return { ok };
+}
+
+/**
+ * Aplica al ítem el SNAPSHOT de una revisión de `os_versions` (historial en la
+ * nube, Adenda 66 §2). Complementa `restoreItemVersion` (snapshots locales):
+ * `restoreVersion()` de versions.ts devuelve el snapshot y esto lo escribe en la
+ * biblioteca, con lo que la restauración también se propaga a todos los dispositivos.
+ */
+export async function applyItemSnapshot(
+    ref: EntityRef,
+    itemId: string,
+    snapshot: Record<string, unknown> | null | undefined,
+): Promise<{ ok: boolean }> {
+    const raw = (snapshot?.item ?? null) as Partial<SavedItem> | null;
+    if (!raw) return { ok: false };
+    const at = now();
+    let ok = false;
+    await mutate(
+        ref,
+        (doc) => {
+            const item = doc.items.find((it) => it.id === itemId);
+            if (!item) return doc;
+            ok = true;
+            const nextItem = touchItem(
+                item,
+                {
+                    title: raw.title ?? item.title,
+                    note: raw.note,
+                    content: raw.content,
+                    url: raw.url,
+                    mime: raw.mime,
+                    language: raw.language,
+                    description: raw.description,
+                    tags: Array.isArray(raw.tags) ? raw.tags : item.tags,
+                },
+                at,
+            );
+            return {
+                ...doc,
+                items: doc.items.map((it) => (it.id === itemId ? nextItem : it)),
+                updatedAt: at,
+            };
+        },
+        { message: "Restaurar revisión del historial", action: "restore", node: { kind: "file", id: itemId } },
+    );
+    return { ok };
+}
+
+/** Aplica al folder el SNAPSHOT de una revisión de `os_versions` (nombre/ubicación/ACL/repo). */
+export async function applyFolderSnapshot(
+    ref: EntityRef,
+    folderId: string,
+    snapshot: Record<string, unknown> | null | undefined,
+): Promise<{ ok: boolean }> {
+    const raw = (snapshot?.folder ?? null) as Partial<LibraryFolder> | null;
+    if (!raw) return { ok: false };
+    const at = now();
+    let ok = false;
+    await mutate(
+        ref,
+        (doc) => {
+            const folder = doc.folders.find((f) => f.id === folderId);
+            if (!folder) return doc;
+            ok = true;
+            const nextFolder = touchFolder(
+                folder,
+                {
+                    name: raw.name ?? folder.name,
+                    parentId: raw.parentId ?? null,
+                    category: raw.category,
+                    acl: raw.acl,
+                    repo: raw.repo,
+                },
+                at,
+            );
+            return {
+                ...doc,
+                folders: doc.folders.map((f) => (f.id === folderId ? nextFolder : f)),
+                updatedAt: at,
+            };
+        },
+        { message: "Restaurar revisión del folder", action: "restore", node: { kind: "folder", id: folderId } },
+    );
     return { ok };
 }
 
@@ -1221,48 +1729,65 @@ export async function mergeBranch(
     opts?: { removeBranchAfter?: boolean },
 ): Promise<{ ok: boolean; originId?: string; message?: string }> {
     const who = (await currentUserRef())?.id ?? "anon";
+    const at = now();
     let result: { ok: boolean; originId?: string; message?: string } = { ok: false, message: "No se encontró la rama." };
-    await mutate(ref, (doc) => {
-        const branch = doc.items.find((it) => it.id === branchItemId);
-        if (!branch || branch.type !== "branch") {
-            result = { ok: false, message: "Ese ítem no es una rama." };
-            return doc;
-        }
-        const origin = resolveBranchOrigin(doc, branch);
-        if (!origin) {
-            result = { ok: false, message: "No se pudo resolver el ítem de origen de esta rama (quizás ya se eliminó)." };
-            return doc;
-        }
-        const originSnapshot = snapshotVersion(origin, who, "antes de fusionar rama");
-        const mergedOrigin: SavedItem = {
-            ...origin,
-            title: branch.title,
-            note: branch.note,
-            content: branch.content,
-            url: branch.url,
-            mime: branch.mime,
-            language: branch.language,
-            description: branch.description,
-            tags: branch.tags,
-            versions: [originSnapshot, ...(origin.versions ?? [])].slice(0, MAX_ITEM_VERSIONS),
-        };
-        let items = doc.items.map((it) => (it.id === origin.id ? mergedOrigin : it));
-        if (opts?.removeBranchAfter) items = items.filter((it) => it.id !== branchItemId);
-        result = { ok: true, originId: origin.id };
-        return { ...doc, items, updatedAt: new Date().toISOString() };
-    });
+    await mutate(
+        ref,
+        (doc) => {
+            const branch = doc.items.find((it) => it.id === branchItemId);
+            if (!branch || branch.type !== "branch") {
+                result = { ok: false, message: "Ese ítem no es una rama." };
+                return doc;
+            }
+            const origin = resolveBranchOrigin(doc, branch);
+            if (!origin) {
+                result = { ok: false, message: "No se pudo resolver el ítem de origen de esta rama (quizás ya se eliminó)." };
+                return doc;
+            }
+            const originSnapshot = snapshotVersion(origin, who, "antes de fusionar rama");
+            const mergedOrigin: SavedItem = touchItem(
+                origin,
+                {
+                    title: branch.title,
+                    note: branch.note,
+                    content: branch.content,
+                    url: branch.url,
+                    mime: branch.mime,
+                    language: branch.language,
+                    description: branch.description,
+                    tags: branch.tags,
+                    versions: [originSnapshot, ...(origin.versions ?? [])].slice(0, MAX_ITEM_VERSIONS),
+                },
+                at,
+            );
+            let items = doc.items.map((it) => (it.id === origin.id ? mergedOrigin : it));
+            let deletedItems = doc.deletedItems;
+            if (opts?.removeBranchAfter) {
+                items = items.filter((it) => it.id !== branchItemId);
+                deletedItems = withTombstone(doc.deletedItems, branchItemId, at);
+            }
+            result = { ok: true, originId: origin.id };
+            return { ...doc, items, deletedItems, updatedAt: at };
+        },
+        { message: "Fusionar rama con su origen", action: "merge" },
+    );
     return result;
 }
 
 // ─────────────────────────── Repositorios: folder-repo (§16) ───────────────────────────
 
-/** Establece (sustituye) los metadatos de repositorio de una carpeta. `null` la des-marca como repo. */
+/** Establece (sustituye) los metadatos de repositorio de un folder. `null` lo des-marca como repo. */
 export async function setFolderRepoMeta(ref: EntityRef, folderId: string, repo: RepoMeta | null): Promise<void> {
-    await mutate(ref, (doc) => ({
-        ...doc,
-        folders: doc.folders.map((f) => (f.id === folderId ? { ...f, repo: repo ?? undefined } : f)),
-        updatedAt: new Date().toISOString(),
-    }));
+    const at = now();
+    await mutate(
+        ref,
+        (doc) => ({
+            ...doc,
+            folders: doc.folders.map((f) => (f.id === folderId ? touchFolder(f, { repo: repo ?? undefined }, at) : f)),
+            updatedAt: at,
+        }),
+        { message: repo ? "Actualizar repositorio" : "Des-marcar como repositorio", action: "edit", node: { kind: "folder", id: folderId } },
+    );
 }
 
 // ─────────────────────────── Repos externos conectados (§17) ───────────────────────────
@@ -1274,23 +1799,29 @@ export async function addConnectedRepoItem(
     folderId: string | null = null,
 ): Promise<{ ok: boolean; id: string }> {
     const who = (await currentUserRef())?.id ?? "anon";
+    const at = now();
     let newId = "";
-    await mutate(ref, (doc) => {
-        const item: SavedItem = {
-            id: makeId("repo"),
-            type: "repo",
-            title: meta.fullName,
-            url: meta.htmlUrl,
-            tags: meta.topics.slice(0, 8),
-            folderId,
-            addedAt: new Date().toISOString(),
-            addedBy: who,
-            description: meta.description,
-            connectedRepo: meta,
-        };
-        newId = item.id;
-        return { ...doc, items: [item, ...doc.items], updatedAt: new Date().toISOString() };
-    });
+    await mutate(
+        ref,
+        (doc) => {
+            const item: SavedItem = {
+                id: makeId("repo"),
+                type: "repo",
+                title: meta.fullName,
+                url: meta.htmlUrl,
+                tags: meta.topics.slice(0, 8),
+                folderId,
+                addedAt: at,
+                addedBy: who,
+                description: meta.description,
+                connectedRepo: meta,
+                updatedAt: at,
+            };
+            newId = item.id;
+            return { ...doc, items: [item, ...doc.items], updatedAt: at };
+        },
+        { message: `Conectar repo «${meta.fullName}»`, action: "create" },
+    );
     return { ok: !!newId, id: newId };
 }
 
@@ -1300,20 +1831,28 @@ export async function resyncConnectedRepoItem(
     itemId: string,
     meta: ConnectedRepoMeta,
 ): Promise<{ ok: boolean }> {
+    const at = now();
     let ok = false;
-    await mutate(ref, (doc) => {
-        const item = doc.items.find((it) => it.id === itemId);
-        if (!item || item.type !== "repo") return doc;
-        ok = true;
-        const next: SavedItem = {
-            ...item,
-            title: meta.fullName,
-            url: meta.htmlUrl,
-            description: meta.description,
-            connectedRepo: meta,
-        };
-        return { ...doc, items: doc.items.map((it) => (it.id === itemId ? next : it)), updatedAt: new Date().toISOString() };
-    });
+    await mutate(
+        ref,
+        (doc) => {
+            const item = doc.items.find((it) => it.id === itemId);
+            if (!item || item.type !== "repo") return doc;
+            ok = true;
+            const next: SavedItem = touchItem(
+                item,
+                {
+                    title: meta.fullName,
+                    url: meta.htmlUrl,
+                    description: meta.description,
+                    connectedRepo: meta,
+                },
+                at,
+            );
+            return { ...doc, items: doc.items.map((it) => (it.id === itemId ? next : it)), updatedAt: at };
+        },
+        { message: `Sincronizar metadatos de «${meta.fullName}»`, action: "edit", node: { kind: "file", id: itemId } },
+    );
     return { ok };
 }
 
@@ -1334,6 +1873,8 @@ export interface UseEntityLibrary {
     setItemTags: (itemId: string, tags: string[]) => Promise<void>;
     setItemAcl: (itemId: string, acl: ItemACL | null) => Promise<void>;
     setFolderAcl: (folderId: string, acl: ItemACL | null) => Promise<void>;
+    /** v3 (§3): ACL de la biblioteca entera (nodo raíz de la herencia). */
+    setLibraryAcl: (acl: ItemACL | null) => Promise<void>;
     createAlias: (targetItemId: string, folderId?: string | null) => Promise<{ ok: boolean; id: string }>;
     replicateItem: (sourceItemId: string, folderId?: string | null) => Promise<{ ok: boolean; id: string }>;
     duplicateItem: (sourceItemId: string, folderId?: string | null) => Promise<{ ok: boolean; id: string }>;
@@ -1442,6 +1983,10 @@ export function useEntityLibrary(ref: EntityRef | null): UseEntityLibrary {
         (folderId: string, acl: ItemACL | null) => (ref ? setFolderAcl(ref, folderId, acl) : Promise.resolve()),
         [ref],
     );
+    const boundSetLibraryAcl = useCallback(
+        (acl: ItemACL | null) => (ref ? setLibraryAcl(ref, acl) : Promise.resolve()),
+        [ref],
+    );
     const boundCreateAlias = useCallback(
         (targetItemId: string, folderId: string | null = null) =>
             ref ? createAlias(ref, targetItemId, folderId) : Promise.resolve({ ok: false, id: "" }),
@@ -1500,6 +2045,7 @@ export function useEntityLibrary(ref: EntityRef | null): UseEntityLibrary {
         setItemTags: boundSetItemTags,
         setItemAcl: boundSetItemAcl,
         setFolderAcl: boundSetFolderAcl,
+        setLibraryAcl: boundSetLibraryAcl,
         createAlias: boundCreateAlias,
         replicateItem: boundReplicateItem,
         duplicateItem: boundDuplicateItem,
@@ -1519,17 +2065,23 @@ export interface UseLibraryPendingSync {
     pending: boolean;
     /** Nº total de bibliotecas con cambios pendientes (todas las entidades). */
     count: number;
+    /**
+     * MOTIVO del último rechazo de la nube (RLS, sin sesión, red…), o null.
+     * Adenda 66 §2: si la nube rechaza algo, el usuario TIENE que verlo.
+     */
+    error: string | null;
     /** Fuerza un reintento inmediato de subida. */
     retryNow: () => void;
 }
 
 /**
- * Estado reactivo de la cola de pendientes (para avisos discretos en la UI,
- * p.ej. "cambios pendientes de sincronizar" con icono CloudOff). SSR-safe.
+ * Estado reactivo de la cola de pendientes (para avisos honestos en la UI:
+ * "cambios pendientes de sincronizar" + el motivo real del fallo). SSR-safe.
  */
 export function useLibraryPendingSync(ref: EntityRef | null): UseLibraryPendingSync {
     const [count, setCount] = useState(0);
     const [pending, setPending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const refKind = ref?.kind ?? "";
     const refId = ref?.id ?? "";
@@ -1538,7 +2090,9 @@ export function useLibraryPendingSync(ref: EntityRef | null): UseLibraryPendingS
         if (!isClient()) return;
         const update = () => {
             setCount(pendingSyncCount());
-            setPending(refKind && refId ? hasPendingSync({ kind: refKind as SyncEntityKind, id: refId }) : false);
+            const thisRef = refKind && refId ? { kind: refKind as SyncEntityKind, id: refId } : null;
+            setPending(thisRef ? hasPendingSync(thisRef) : false);
+            setError(thisRef ? lastSyncError(thisRef) : null);
         };
         update();
         window.addEventListener(LIBRARY_PENDING_EVENT, update);
@@ -1555,7 +2109,7 @@ export function useLibraryPendingSync(ref: EntityRef | null): UseLibraryPendingS
         void flushPendingLibrarySync();
     }, []);
 
-    return { pending, count, retryNow };
+    return { pending, count, error, retryNow };
 }
 
 // ─────────────────────────── Descubrimiento de bibliotecas disponibles ───────────────────────────

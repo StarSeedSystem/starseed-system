@@ -25,7 +25,7 @@ export type DesktopIconViewMode = "icon" | "preview";
 /**
  * Apariencia personalizable de un widget (icono en vista previa viva o
  * ventana). Todo opcional: sin `appearance`, el widget usa el cristal por
- * defecto del sistema. Aditivo — no afecta a apps/archivos/carpetas.
+ * defecto del sistema. Aditivo — no afecta a apps/archivos/folders.
  */
 export interface DesktopWidgetAppearance {
     /** Opacidad del fondo cristal (0.2..1). */
@@ -70,7 +70,7 @@ export interface DesktopIcon {
     /** Marca temporal de creación (ms) — habilita ordenar por fecha. */
     createdAt?: number;
     /**
-     * Carpetas: contenido. Desde v1.1 admite ANIDAR carpetas (ramificación
+     * Folders: contenido. Desde v1.1 admite ANIDAR folders (ramificación
      * jerárquica ilimitada). Retrocompatible: el contenido antiguo se conserva.
      */
     children?: DesktopIcon[];
@@ -84,7 +84,7 @@ export type DesktopWindowContentType = "app" | "file" | "widget" | "browser" | "
 
 export interface DesktopWindowContentRef {
     type: DesktopWindowContentType;
-    /** app id · widget_type · url de archivo · url inicial · id de icono carpeta. */
+    /** app id · widget_type · url de archivo · url inicial · id de icono folder. */
     ref: string;
     name?: string;
     meta?: Record<string, string | undefined>;
@@ -242,8 +242,8 @@ function normalizeIcon(raw: unknown, depth = 0): DesktopIcon | null {
         appearance: normalizeWidgetAppearance(r.appearance),
         widgetSpan: normalizeWidgetSpan(r.widgetSpan),
     };
-    // Carpetas: ramificación jerárquica. Admite carpetas anidadas (v1.1) pero
-    // conserva intactos los datos antiguos (que solo tenían hijos no-carpeta).
+    // Folders: ramificación jerárquica. Admite folders anidados (v1.1) pero
+    // conserva intactos los datos antiguos (que solo tenían hijos no-folder).
     if (kind === "folder" && Array.isArray(r.children) && depth < MAX_FOLDER_DEPTH) {
         icon.children = r.children
             .map((c) => normalizeIcon(c, depth + 1))
@@ -458,7 +458,7 @@ function isDescendant(icons: DesktopIcon[], ancestorId: string, nodeId: string):
     return findIconInTree(anc.children, nodeId) !== null;
 }
 
-/** Inserta `node` como hijo de la carpeta `folderId` (en cualquier nivel). */
+/** Inserta `node` como hijo del folder `folderId` (en cualquier nivel). */
 function insertIntoFolder(icons: DesktopIcon[], folderId: string, node: DesktopIcon): DesktopIcon[] {
     return icons.map((i) => {
         if (i.id === folderId && i.kind === "folder") {
@@ -611,8 +611,8 @@ function buildIcon(input: NewIconInput, id: string, spot: { x: number; y: number
 }
 
 /**
- * Añade un icono al escritorio (o DENTRO de una carpeta, en cualquier nivel).
- * Desde v1.1 se admiten carpetas dentro de carpetas (ramificación). Devuelve su id.
+ * Añade un icono al escritorio (o DENTRO de un folder, en cualquier nivel).
+ * Desde v1.1 se admiten folders dentro de folders (ramificación). Devuelve su id.
  */
 export function addIcon(desktopId: string, input: NewIconInput, folderId?: string): string {
     const id = newId("icon");
@@ -673,7 +673,7 @@ export function moveIcon(desktopId: string, iconId: string, x: number, y: number
 
 export function removeIcon(desktopId: string, iconId: string): void {
     mutateDesktop(desktopId, (d) => {
-        // Recolecta ids de la subrama borrada (para cerrar ventanas de carpeta huérfanas).
+        // Recolecta ids de la subrama borrada (para cerrar ventanas de folder huérfanas).
         const target = findIconInTree(d.icons, iconId);
         const orphanIds = new Set<string>([iconId]);
         const collect = (node: DesktopIcon) => {
@@ -693,8 +693,8 @@ export function removeIcon(desktopId: string, iconId: string): void {
 }
 
 /**
- * Mueve un icono existente DENTRO de una carpeta (o al raíz si folderId es null).
- * Evita ciclos (no permite meter una carpeta dentro de sí misma o de su
+ * Mueve un icono existente DENTRO de un folder (o al raíz si folderId es null).
+ * Evita ciclos (no permite meter un folder dentro de sí mismo o de su
  * descendencia). Retrocompatible y aditivo.
  */
 export function moveIconToFolder(desktopId: string, iconId: string, folderId: string | null): void {
@@ -702,9 +702,9 @@ export function moveIconToFolder(desktopId: string, iconId: string, folderId: st
         if (folderId === iconId) return d;
         const node = findIconInTree(d.icons, iconId);
         if (!node) return d;
-        // Destino carpeta explícito pero inválido (no es carpeta) → no-op.
+        // Destino folder explícito pero inválido (no es folder) → no-op.
         if (folderId !== null && findIconInTree(d.icons, folderId)?.kind !== "folder") return d;
-        // No mover una carpeta a su propia descendencia.
+        // No mover un folder a su propia descendencia.
         if (node.kind === "folder" && folderId && isDescendant(d.icons, iconId, folderId)) return d;
         const stripped = removeFromTree(d.icons, iconId);
         if (folderId) {
@@ -736,7 +736,7 @@ export function duplicateIcon(desktopId: string, iconId: string): string | null 
 }
 
 // ── Organización de iconos (opciones tipo computadora) ───────────
-/** Peso de tipo para ordenar (carpetas primero, luego apps, widgets…). */
+/** Peso de tipo para ordenar (folders primero, luego apps, widgets…). */
 function kindRank(k: DesktopIconKind): number {
     switch (k) {
         case "folder": return 0;

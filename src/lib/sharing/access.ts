@@ -64,22 +64,52 @@ import {
 import {
     setItemAcl,
     setFolderAcl,
+    setLibraryAcl,
     readLibrarySnapshot,
     LIBRARY_UPDATED_EVENT,
+    type EntityLibraryDoc,
     type ItemACL,
     type ACLEntry,
 } from "@/lib/library/entity-library";
+// Enforcement REAL por archivo: os_files tiene una fila por archivo (a diferencia
+// del doc de biblioteca, que es una sola fila jsonb) → su ACL sí se aplica en la BD.
+import { findFileByUrl, updateFileAccess } from "@/lib/files/os-files";
 import type { EntityRef } from "@/lib/sync/entity-state";
 
 /* ─────────────────────────── Tipos ─────────────────────────── */
 
-export type AccessScope = "profile" | "account" | "custom" | "public";
+/**
+ * Ámbito de un recurso. Vocabulario de la Adenda 66 §3
+ * (`private · account · profiles · groups · pages · public`) + los dos ámbitos
+ * históricos de la Adenda 63 (`profile`, `custom`), que se conservan para no
+ * romper escritorios/pizarras/cerebros ya compartidos.
+ *
+ *   · private  — CERRADO: solo la cuenta dueña. Los grants NO se aplican.
+ *   · account  — la cuenta dueña (todos sus perfiles) + los grants concedidos.
+ *   · profile  — (legado) un perfil concreto de la cuenta.
+ *   · profiles — perfiles concretos (de cualquier cuenta).
+ *   · groups   — grupos concretos (por slug).
+ *   · pages    — páginas/comunidades concretas (por slug).
+ *   · custom   — (legado) mezcla libre de perfiles/cuentas/grupos.
+ *   · public   — cualquiera en la red.
+ *
+ * profiles/groups/pages/custom son ÁMBITOS DE DESTINATARIO: se comportan igual
+ * (los grants mandan) y solo cambian qué buscador ofrece la UI.
+ */
+export type AccessScope = "private" | "profile" | "account" | "profiles" | "groups" | "pages" | "custom" | "public";
 export type AccessRole = "view" | "comment" | "edit" | "admin";
-export type GranteeKind = "profile" | "account" | "group" | "link";
+export type GranteeKind = "profile" | "account" | "group" | "page" | "link";
+
+const ALL_SCOPES: AccessScope[] = ["private", "profile", "account", "profiles", "groups", "pages", "custom", "public"];
+
+/** ¿Es un ámbito cuyos destinatarios se listan en `grants`? */
+export function isCustomScope(scope: AccessScope): boolean {
+    return scope === "custom" || scope === "profiles" || scope === "groups" || scope === "pages";
+}
 
 export interface AccessGrant {
     granteeKind: GranteeKind;
-    /** uuid de perfil (profile) · uuid de cuenta (account) · slug (group) · 'public' (link). */
+    /** uuid de perfil (profile) · uuid de cuenta (account) · slug (group/page) · 'public' (link). */
     granteeId: string;
     role: AccessRole;
     /** Etiqueta legible para la UI (nombre de perfil, @usuario, nombre de grupo…). */
@@ -100,6 +130,17 @@ export interface ResourceRef {
     libraryRef?: EntityRef;
     /** Espacio os_spaces ya conocido para este recurso (evita búsquedas). */
     spaceId?: string | null;
+}
+
+/** ResourceRef del nodo RAÍZ (la biblioteca entera) de una entidad. */
+export function libraryResourceRef(libraryRef: EntityRef, title?: string): ResourceRef {
+    return {
+        type: "library",
+        id: `${libraryRef.kind}:${libraryRef.id}`,
+        libraryRef,
+        title,
+        ownerId: libraryRef.kind === "user" ? libraryRef.id : undefined,
+    };
 }
 
 export interface ResourceAccess {
@@ -126,8 +167,12 @@ export const ROLE_LABELS: Record<AccessRole, string> = {
 };
 
 export const SCOPE_LABELS: Record<AccessScope, string> = {
+    private: "Privado",
     profile: "Solo un perfil",
     account: "Toda mi cuenta",
+    profiles: "Perfiles concretos",
+    groups: "Grupos",
+    pages: "Páginas",
     custom: "Personalizado",
     public: "Público",
 };
@@ -140,6 +185,11 @@ function isClient(): boolean {
 
 export function resourceKey(ref: ResourceRef): string {
     return `${ref.type}:${ref.id}`;
+}
+
+/** ¿Es un nodo de Biblioteca (biblioteca · folder · archivo), con ACL propia y heredable? */
+export function isLibraryResource(ref: ResourceRef): boolean {
+    return ref.type === "library" || ref.type === "folder" || ref.type === "file";
 }
 
 function nowIso(): string {
@@ -218,16 +268,18 @@ function writeLocalAccessIfChanged(ref: ResourceRef, access: ResourceAccess): vo
     writeLocalAccess(ref, access);
 }
 
+const GRANTEE_KINDS: GranteeKind[] = ["profile", "account", "group", "page", "link"];
+
 function normalizeAccess(raw: Partial<ResourceAccess> | null | undefined): ResourceAccess {
     if (!raw) return defaultAccess();
     const scope: AccessScope =
-        raw.scope === "profile" || raw.scope === "custom" || raw.scope === "public" ? raw.scope : "account";
+        raw.scope && ALL_SCOPES.includes(raw.scope as AccessScope) ? (raw.scope as AccessScope) : "account";
     const grants = Array.isArray(raw.grants)
         ? raw.grants.filter(
               (g): g is AccessGrant =>
                   !!g &&
                   typeof g.granteeId === "string" &&
-                  (g.granteeKind === "profile" || g.granteeKind === "account" || g.granteeKind === "group" || g.granteeKind === "link") &&
+                  GRANTEE_KINDS.includes(g.granteeKind as GranteeKind) &&
                   (g.role === "view" || g.role === "comment" || g.role === "edit" || g.role === "admin"),
           )
         : [];
@@ -249,10 +301,12 @@ function spaceKindFor(type: ResourceType): SpaceKind {
 
 function spaceAccessFor(access: ResourceAccess): SpaceAccess {
     if (access.scope === "public") return "public";
-    if (access.scope === "account") return "private";
-    if (access.scope === "profile") return "profiles";
-    // custom: si SOLO hay perfiles propios → 'profiles'; si hay cuentas/grupos → 'invite'.
-    const hasExternal = access.grants.some((g) => g.granteeKind === "account" || g.granteeKind === "group");
+    if (access.scope === "account" || access.scope === "private") return "private";
+    if (access.scope === "profile" || access.scope === "profiles") return "profiles";
+    // custom/groups/pages: si SOLO hay perfiles → 'profiles'; si hay cuentas/grupos/páginas → 'invite'.
+    const hasExternal = access.grants.some(
+        (g) => g.granteeKind === "account" || g.granteeKind === "group" || g.granteeKind === "page",
+    );
     return hasExternal ? "invite" : "profiles";
 }
 
@@ -358,27 +412,150 @@ export async function ensureResourceSpace(ref: ResourceRef, opts: EnsureSpaceOpt
     return null;
 }
 
-/* ─────────────────────────── Espejo de enforcement ─────────────────────────── */
+/* ───────────────── Espejo de enforcement · ACL de nodo (biblioteca · folder · archivo) ───────────────── */
 
-/** Traducción grants → ACL embebida de biblioteca (solo cuentas y grupos; roles ≥ edit escriben). */
-function grantsToItemAcl(access: ResourceAccess): ItemACL | null {
-    if (access.scope === "public" || access.scope === "account") return null; // sin restricción embebida
+/** ¿Este nodo tiene ACL PROPIA (v3 con scope/grants, o v2 con listas no vacías)? */
+export function aclIsOwn(acl: ItemACL | undefined | null): boolean {
+    if (!acl) return false;
+    if (typeof acl.scope === "string" && acl.scope) return true;
+    if (Array.isArray(acl.grants) && acl.grants.length > 0) return true;
+    return (acl.read?.length ?? 0) > 0 || (acl.write?.length ?? 0) > 0;
+}
+
+/** ACL embebida del nodo (lectura síncrona desde la cache local de la biblioteca). */
+function readNodeAcl(ref: ResourceRef): ItemACL | undefined {
+    if (!ref.libraryRef) return undefined;
+    try {
+        const doc = readLibrarySnapshot(ref.libraryRef);
+        if (ref.type === "library") return doc.acl;
+        if (ref.type === "file") return doc.items.find((it) => it.id === ref.id)?.acl;
+        if (ref.type === "folder") return doc.folders.find((f) => f.id === ref.id)?.acl;
+    } catch {
+        /* sin cache: se resolverá por herencia */
+    }
+    return undefined;
+}
+
+/** ACL de nodo → ResourceAccess (v3 nativo; v2 legado derivado de read/write). */
+function aclToAccess(acl: ItemACL | undefined | null): ResourceAccess | null {
+    if (!aclIsOwn(acl) || !acl) return null;
+    if (acl.scope || (Array.isArray(acl.grants) && acl.grants.length > 0)) {
+        return normalizeAccess({
+            scope: acl.scope as AccessScope,
+            grants: (acl.grants ?? []) as AccessGrant[],
+            spaceId: null,
+            updatedAt: acl.updatedAt ?? "",
+        });
+    }
+    // v2: listas read/write → grants con rol derivado (write ⇒ edit).
+    const writeIds = new Set((acl.write ?? []).map((e) => `${e.kind}:${e.id}`));
+    const grants: AccessGrant[] = (acl.read ?? []).map((e) => ({
+        granteeKind: e.kind === "user" ? "account" : "group",
+        granteeId: e.id,
+        label: e.label,
+        role: writeIds.has(`${e.kind}:${e.id}`) ? "edit" : "view",
+    }));
+    for (const e of acl.write ?? []) {
+        if (!grants.some((g) => g.granteeId === e.id)) {
+            grants.push({
+                granteeKind: e.kind === "user" ? "account" : "group",
+                granteeId: e.id,
+                label: e.label,
+                role: "edit",
+            });
+        }
+    }
+    return { scope: "custom", grants, spaceId: null, updatedAt: acl.updatedAt ?? "" };
+}
+
+/**
+ * ResourceAccess → ACL de nodo (v3). Escribe SIEMPRE el modelo rico
+ * (scope + grants) y, como ESPEJO, las listas legadas read/write que ya
+ * consumen el Finder (finder-types.ts) y las políticas RLS.
+ * `showInProfile` (§4) se conserva: es una decisión de publicación, no de acceso.
+ */
+function accessToNodeAcl(access: ResourceAccess, prev?: ItemACL | null): ItemACL {
     const read: ACLEntry[] = [];
     const write: ACLEntry[] = [];
-    for (const g of access.grants) {
-        if (g.granteeKind !== "account" && g.granteeKind !== "group") continue;
-        const entry: ACLEntry = { kind: g.granteeKind === "account" ? "user" : "group", id: g.granteeId, label: g.label };
-        read.push(entry);
-        if (ROLE_RANK[g.role] >= ROLE_RANK.edit) write.push(entry);
+    // 'private' cierra el nodo y 'public' no necesita listas: el ámbito manda.
+    if (access.scope !== "private" && access.scope !== "public") {
+        for (const g of access.grants) {
+            if (g.granteeKind === "link") continue;
+            const entry: ACLEntry = {
+                kind: g.granteeKind === "group" || g.granteeKind === "page" ? "group" : "user",
+                id: g.granteeId,
+                label: g.label,
+            };
+            read.push(entry);
+            if (ROLE_RANK[g.role] >= ROLE_RANK.edit) write.push(entry);
+        }
     }
-    if (read.length === 0 && write.length === 0) return null;
-    return { read, write };
+    return {
+        read,
+        write,
+        scope: access.scope,
+        grants: access.grants,
+        showInProfile: prev?.showInProfile,
+        updatedAt: access.updatedAt || nowIso(),
+    };
+}
+
+/** Escribe la ACL del nodo en el doc de la biblioteca (entity_state · clave `acl`). */
+async function writeNodeAcl(ref: ResourceRef, acl: ItemACL | null): Promise<void> {
+    if (!ref.libraryRef) return;
+    if (ref.type === "library") await setLibraryAcl(ref.libraryRef, acl);
+    else if (ref.type === "file") await setItemAcl(ref.libraryRef, ref.id, acl);
+    else if (ref.type === "folder") await setFolderAcl(ref.libraryRef, ref.id, acl);
+}
+
+/**
+ * Espejo del acceso de un ARCHIVO real en `os_files` (la única tabla con una
+ * fila por archivo → enforcement REAL por nodo, no solo por documento).
+ * Solo aplica a ítems de biblioteca `type:"file"` cuya `url` resuelve una fila
+ * de os_files. Best-effort: sin fila, no hace nada.
+ */
+async function pushFileEnforcement(ref: ResourceRef, access: ResourceAccess): Promise<void> {
+    if (ref.type !== "file" || !ref.libraryRef) return;
+    try {
+        const doc = readLibrarySnapshot(ref.libraryRef);
+        const item = doc.items.find((it) => it.id === ref.id);
+        const url = item?.url;
+        if (!url) return;
+        const row = await findFileByUrl(url);
+        if (!row) return;
+
+        const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+        const aclRead: string[] = [];
+        const aclWrite: string[] = [];
+        let groupSlug: string | null = null;
+        if (access.scope !== "private") {
+            for (const g of access.grants) {
+                if (g.granteeKind === "group" || g.granteeKind === "page") {
+                    groupSlug = groupSlug ?? g.granteeId;
+                    continue;
+                }
+                // acl_read/acl_write son uuid[]: admiten cuentas Y perfiles — la
+                // función `acl_ids_allow` de la BD resuelve perfil→cuenta y cuenta→perfiles.
+                if (!isUuid(g.granteeId)) continue;
+                aclRead.push(g.granteeId);
+                if (ROLE_RANK[g.role] >= ROLE_RANK.edit) aclWrite.push(g.granteeId);
+            }
+        }
+        await updateFileAccess(row.id, {
+            isPublic: access.scope === "public",
+            aclRead,
+            aclWrite,
+            groupSlug,
+        });
+    } catch {
+        /* best-effort: la ACL embebida ya quedó escrita */
+    }
 }
 
 /** ¿El ámbito/los grants requieren un espacio en la nube para que otros lo vean? */
 function needsCloudSpace(access: ResourceAccess): boolean {
     if (access.scope === "public" || access.scope === "profile") return true;
-    if (access.scope === "custom" && access.grants.some((g) => g.granteeKind !== "link")) return true;
+    if (isCustomScope(access.scope) && access.grants.some((g) => g.granteeKind !== "link")) return true;
     return false;
 }
 
@@ -396,11 +573,13 @@ async function pushEnforcement(
     opts: EnsureSpaceOptions = {},
 ): Promise<void> {
     try {
-        // 1) Espejo de biblioteca (ACL 'acl' dentro del doc de entity_state).
-        if ((ref.type === "file" || ref.type === "folder") && ref.libraryRef) {
-            const acl = grantsToItemAcl(access);
-            if (ref.type === "file") await setItemAcl(ref.libraryRef, ref.id, acl);
-            else await setFolderAcl(ref.libraryRef, ref.id, acl);
+        // 1) ACL PROPIA del nodo (clave 'acl' del doc de entity_state) — biblioteca,
+        //    folder o archivo. Al escribirla, el nodo DEJA DE HEREDAR (§3).
+        if (isLibraryResource(ref) && ref.libraryRef) {
+            const acl = accessToNodeAcl(access, readNodeAcl(ref));
+            await writeNodeAcl(ref, acl);
+            // Enforcement REAL por archivo (una fila por archivo en os_files).
+            await pushFileEnforcement(ref, access);
         }
 
         const uid = await getUserId();
@@ -454,37 +633,10 @@ async function pushEnforcement(
 
 /* ─────────────────────────── Lectura ─────────────────────────── */
 
-/** ACL embebida de biblioteca → grants (para recursos file/folder sin estado propio guardado). */
+/** ACL embebida de biblioteca (biblioteca/folder/archivo) → ResourceAccess propio del nodo. */
 function accessFromLibraryAcl(ref: ResourceRef): ResourceAccess | null {
-    if ((ref.type !== "file" && ref.type !== "folder") || !ref.libraryRef) return null;
-    try {
-        const doc = readLibrarySnapshot(ref.libraryRef);
-        const acl =
-            ref.type === "file"
-                ? doc.items.find((it) => it.id === ref.id)?.acl
-                : doc.folders.find((f) => f.id === ref.id)?.acl;
-        if (!acl || (acl.read.length === 0 && acl.write.length === 0)) return null;
-        const writeIds = new Set(acl.write.map((e) => `${e.kind}:${e.id}`));
-        const grants: AccessGrant[] = acl.read.map((e) => ({
-            granteeKind: e.kind === "user" ? "account" : "group",
-            granteeId: e.id,
-            label: e.label,
-            role: writeIds.has(`${e.kind}:${e.id}`) ? "edit" : "view",
-        }));
-        for (const e of acl.write) {
-            if (!grants.some((g) => g.granteeId === e.id)) {
-                grants.push({
-                    granteeKind: e.kind === "user" ? "account" : "group",
-                    granteeId: e.id,
-                    label: e.label,
-                    role: "edit",
-                });
-            }
-        }
-        return { scope: "custom", grants, spaceId: null, updatedAt: "" };
-    } catch {
-        return null;
-    }
+    if (!isLibraryResource(ref) || !ref.libraryRef) return null;
+    return aclToAccess(readNodeAcl(ref));
 }
 
 /**
@@ -588,12 +740,179 @@ export async function removeGrant(
     );
 }
 
+/* ═══════════════════════ Herencia (biblioteca → folder → archivo) ═══════════════════════
+ *
+ * Adenda 66 §3: cada nodo tiene ACL PROPIA y HEREDABLE — el hijo hereda la del
+ * padre si no define la suya; la ACL propia SIEMPRE gana (no se mezclan).
+ * Cadena: archivo → su folder → folders ancestros → biblioteca (nodo raíz).
+ * Sin ninguna ACL propia en toda la cadena: `account` (privado en lo personal).
+ */
+
+/** Ref del nodo PADRE dentro de la biblioteca (null si es la raíz o no aplica). */
+export function parentResourceRef(ref: ResourceRef, doc?: EntityLibraryDoc): ResourceRef | null {
+    if (!isLibraryResource(ref) || !ref.libraryRef || ref.type === "library") return null;
+    const d = doc ?? readLibrarySnapshot(ref.libraryRef);
+    const parentFolderId =
+        ref.type === "file"
+            ? (d.items.find((it) => it.id === ref.id)?.folderId ?? null)
+            : (d.folders.find((f) => f.id === ref.id)?.parentId ?? null);
+    if (parentFolderId) {
+        const folder = d.folders.find((f) => f.id === parentFolderId);
+        return { type: "folder", id: parentFolderId, libraryRef: ref.libraryRef, ownerId: ref.ownerId, title: folder?.name };
+    }
+    return libraryResourceRef(ref.libraryRef, ref.title);
+}
+
+export interface EffectiveAccess extends ResourceAccess {
+    /** true si la ACL es PROPIA del nodo; false si la HEREDA de un ancestro. */
+    own: boolean;
+    /** Nodo del que hereda (null si es propia o si no hay ancestro con ACL). */
+    inheritedFrom: ResourceRef | null;
+    /** Etiqueta legible del origen ("Biblioteca", nombre del folder…). */
+    inheritedFromLabel?: string;
+}
+
+/** ¿Este nodo tiene ACL PROPIA (no heredada)? Síncrono (cache local del doc). */
+export function hasOwnAcl(ref: ResourceRef): boolean {
+    if (!isLibraryResource(ref)) return true; // escritorios/pizarras/cerebros no heredan
+    return aclIsOwn(readNodeAcl(ref));
+}
+
+/**
+ * Acceso EFECTIVO del nodo: su ACL propia si la tiene; si no, la del primer
+ * ancestro que la tenga (folder padre → … → biblioteca). Nunca lanza.
+ */
+export async function getEffectiveAccess(ref: ResourceRef): Promise<EffectiveAccess> {
+    if (!isLibraryResource(ref) || !ref.libraryRef) {
+        const access = await getResourceAccess(ref);
+        return { ...access, own: true, inheritedFrom: null };
+    }
+    if (hasOwnAcl(ref)) {
+        const access = await getResourceAccess(ref);
+        return { ...access, own: true, inheritedFrom: null };
+    }
+    const doc = readLibrarySnapshot(ref.libraryRef);
+    const seen = new Set<string>([resourceKey(ref)]);
+    let cursor = parentResourceRef(ref, doc);
+    while (cursor) {
+        if (seen.has(resourceKey(cursor))) break; // ciclo imposible, pero nunca colgamos la UI
+        seen.add(resourceKey(cursor));
+        if (hasOwnAcl(cursor)) {
+            const access = await getResourceAccess(cursor);
+            return {
+                ...access,
+                spaceId: null, // el espacio pertenece al ancestro, no a este nodo
+                own: false,
+                inheritedFrom: cursor,
+                inheritedFromLabel: cursor.type === "library" ? "Biblioteca" : (cursor.title ?? "Folder"),
+            };
+        }
+        cursor = parentResourceRef(cursor, doc);
+    }
+    return { ...defaultAccess(), own: false, inheritedFrom: null, inheritedFromLabel: "Biblioteca" };
+}
+
+/**
+ * «Dejar de heredar»: copia el acceso EFECTIVO como ACL propia del nodo. A
+ * partir de aquí el nodo decide por sí mismo (los cambios del padre ya no le
+ * afectan).
+ */
+export async function detachInheritance(ref: ResourceRef, opts: EnsureSpaceOptions = {}): Promise<ResourceAccess> {
+    const effective = await getEffectiveAccess(ref);
+    const next: ResourceAccess = {
+        scope: effective.scope,
+        grants: effective.grants,
+        spaceId: null,
+        updatedAt: nowIso(),
+    };
+    writeLocalAccess(ref, next);
+    void pushEnforcement(ref, next, null, opts);
+    return next;
+}
+
+/**
+ * «Volver a heredar»: borra la ACL propia del nodo — vuelve a regirse por la de
+ * su padre. No es punitivo: no se borra nada del contenido, solo la excepción
+ * de permisos (CLAUDE.md §6).
+ */
+export async function restoreInheritance(ref: ResourceRef): Promise<EffectiveAccess> {
+    if (isLibraryResource(ref) && ref.libraryRef) {
+        // Conservamos `showInProfile` (§4): publicar en el perfil no es un permiso.
+        const prev = readNodeAcl(ref);
+        const keepShow = prev?.showInProfile === true;
+        await writeNodeAcl(ref, keepShow ? { read: [], write: [], showInProfile: true } : null);
+    }
+    // Limpia la cache local del recurso para que no "resucite" la ACL borrada.
+    const map = readStore();
+    delete map[resourceKey(ref)];
+    writeStore(map, resourceKey(ref));
+    return getEffectiveAccess(ref);
+}
+
+/* ═══════════════════════ Regla CUENTA ↔ PERFILES (§3) ═══════════════════════
+ *
+ * Conceder acceso a UN perfil concede acceso a TODOS los perfiles de esa cuenta,
+ * y a la inversa. Gemelo EXACTO en cliente de la función `acl_ids_allow` de la
+ * BD (migración 20260712100100_account_profile_access.sql): la comprobación del
+ * cliente y la de la RLS dicen siempre lo mismo.
+ */
+
+const IDENTITY_TTL_MS = 60_000;
+const identityCache = new Map<string, { at: number; ids: Set<string> }>();
+
+/**
+ * Conjunto de identidades EQUIVALENTES a `who` (uuid de cuenta o de perfil):
+ * su cuenta + TODOS los perfiles de esa cuenta. Un grant a cualquiera de ellas
+ * autoriza a todas las demás. Cacheado 60s; sin red degrada a `{who}`.
+ */
+export async function identitySetOf(who: string): Promise<Set<string>> {
+    const cached = identityCache.get(who);
+    if (cached && Date.now() - cached.at < IDENTITY_TTL_MS) return cached.ids;
+
+    const ids = new Set<string>([who]);
+    try {
+        const supabase = createClient();
+        // ¿`who` es una cuenta (sus perfiles tienen account=who) o un perfil (id=who)?
+        const { data } = await supabase
+            .from("os_account_profiles")
+            .select("id, account")
+            .or(`id.eq.${who},account.eq.${who}`);
+        const rows = (data ?? []) as Array<{ id: string; account: string }>;
+        const accounts = new Set<string>();
+        for (const r of rows) {
+            ids.add(r.id);
+            ids.add(r.account);
+            accounts.add(r.account);
+        }
+        // Si `who` era un PERFIL, faltan sus perfiles HERMANOS (misma cuenta).
+        const siblingsOf = Array.from(accounts).filter((a) => a !== who);
+        if (siblingsOf.length > 0) {
+            const { data: sib } = await supabase
+                .from("os_account_profiles")
+                .select("id, account")
+                .in("account", siblingsOf);
+            for (const r of (sib ?? []) as Array<{ id: string; account: string }>) {
+                ids.add(r.id);
+                ids.add(r.account);
+            }
+        }
+    } catch {
+        /* sin red / sin sesión: solo la identidad literal */
+    }
+    identityCache.set(who, { at: Date.now(), ids });
+    return ids;
+}
+
 /* ─────────────────────────── Comprobación ─────────────────────────── */
 
 /**
  * ¿`who` (uuid de cuenta o de perfil) puede actuar con el rol mínimo pedido?
- * Reglas: dueño ⇒ todo · public ⇒ rol del grant 'link' (view por defecto) ·
- * account ⇒ la cuenta dueña (todos sus perfiles) · grants explícitos ⇒ su rol.
+ *
+ * Reglas: se evalúa el acceso EFECTIVO (propio o heredado del padre) ·
+ * dueño ⇒ todo · private ⇒ solo el dueño · public ⇒ rol del grant 'link'
+ * (view por defecto) · account ⇒ la cuenta dueña (todos sus perfiles) ·
+ * grants explícitos ⇒ su rol, aplicando la REGLA CUENTA↔PERFILES (un grant a un
+ * perfil vale para toda su cuenta y viceversa).
  * `section` opcional: si el grant es parcial, la subsección debe estar incluida.
  */
 export async function can(
@@ -603,7 +922,7 @@ export async function can(
     section?: string,
 ): Promise<boolean> {
     const need = ROLE_RANK[role];
-    const access = await getResourceAccess(ref);
+    const access = await getEffectiveAccess(ref);
 
     const grantOk = (g: AccessGrant): boolean => {
         if (ROLE_RANK[g.role] < need) return false;
@@ -611,19 +930,108 @@ export async function can(
         return true;
     };
 
+    const isOwner = async (): Promise<boolean> => {
+        if (!who) return false;
+        if (ref.ownerId && who === ref.ownerId) return true;
+        if (!ref.ownerId) return false;
+        const uid = await getUserId();
+        return !!uid && uid === ref.ownerId;
+    };
+
+    // 'private': cerrado con llave — ni los grants aplican. Solo el dueño.
+    if (access.scope === "private") return isOwner();
+
     if (access.scope === "public") {
         const pub = access.grants.find((g) => g.granteeKind === "link");
         if (pub ? grantOk(pub) : need <= ROLE_RANK.view) return true;
     }
     if (!who) return false;
-    if (ref.ownerId && who === ref.ownerId) return true;
-    if (access.scope === "account" && ref.ownerId) {
-        // Todos los perfiles de la cuenta dueña comparten la sesión de esa cuenta:
-        // si la sesión actual ES la cuenta dueña, cualquier perfil suyo accede.
-        const uid = await getUserId();
-        if (uid && uid === ref.ownerId) return true;
+    if (await isOwner()) return true;
+
+    // REGLA CUENTA↔PERFILES: el grant puede nombrar a la cuenta o a CUALQUIER
+    // perfil suyo — todas esas identidades son equivalentes.
+    const ids = await identitySetOf(who);
+    return access.grants.some((g) => g.granteeKind !== "link" && ids.has(g.granteeId) && grantOk(g));
+}
+
+/* ═══════════════════════ Biblioteca pública del perfil (§4) ═══════════════════════
+ *
+ * Cada perfil elige QUÉ bibliotecas/folders/archivos aparecen en su sección
+ * pública de Biblioteca. Lo NO seleccionado no se lista aunque sea público.
+ */
+
+/** ¿Este nodo está marcado para aparecer en la Biblioteca pública del perfil? */
+export function isShownInProfile(ref: ResourceRef): boolean {
+    return readNodeAcl(ref)?.showInProfile === true;
+}
+
+/**
+ * Marca/desmarca un nodo como visible en la Biblioteca pública del perfil.
+ * Al MOSTRARLO se asegura además que sea legible por las visitas: si su ámbito
+ * efectivo no es `public`, se eleva a `public` (honesto: publicar en el perfil
+ * ES hacerlo público; la UI lo advierte). Al ocultarlo NO se toca el ámbito —
+ * quitar de la vitrina no revoca lo que ya se compartió a propósito.
+ */
+export async function setShowInProfile(ref: ResourceRef, show: boolean): Promise<EffectiveAccess> {
+    if (!isLibraryResource(ref) || !ref.libraryRef) return getEffectiveAccess(ref);
+
+    if (show) {
+        const effective = await getEffectiveAccess(ref);
+        // Publicar en el perfil ES hacerlo público (si no, la visita ni podría leerlo).
+        const next: ResourceAccess = {
+            scope: "public",
+            grants: effective.grants,
+            spaceId: effective.spaceId,
+            updatedAt: nowIso(),
+        };
+        writeLocalAccess(ref, next);
+        const acl = accessToNodeAcl(next, readNodeAcl(ref));
+        await writeNodeAcl(ref, { ...acl, showInProfile: true });
+        void pushFileEnforcement(ref, next);
+    } else {
+        const prev = readNodeAcl(ref);
+        if (prev) await writeNodeAcl(ref, { ...prev, showInProfile: false });
     }
-    return access.grants.some((g) => g.granteeKind !== "link" && g.granteeId === who && grantOk(g));
+    return getEffectiveAccess(ref);
+}
+
+export interface ProfilePublicNode {
+    kind: "folder" | "file";
+    id: string;
+    title: string;
+}
+
+/**
+ * Nodos que un perfil ha elegido mostrar en su Biblioteca pública (§4).
+ * Lee el doc YA cargado (sin red). Si la BIBLIOTECA ENTERA está marcada, se
+ * devuelven todos sus nodos raíz — "mostrar la biblioteca" es mostrarla entera.
+ */
+export function profilePublicNodes(doc: EntityLibraryDoc): {
+    wholeLibrary: boolean;
+    folders: ProfilePublicNode[];
+    files: ProfilePublicNode[];
+} {
+    const wholeLibrary = doc.acl?.showInProfile === true;
+    if (wholeLibrary) {
+        return {
+            wholeLibrary: true,
+            folders: doc.folders
+                .filter((f) => !f.parentId)
+                .map((f) => ({ kind: "folder" as const, id: f.id, title: f.name })),
+            files: doc.items
+                .filter((it) => !it.folderId)
+                .map((it) => ({ kind: "file" as const, id: it.id, title: it.title })),
+        };
+    }
+    return {
+        wholeLibrary: false,
+        folders: doc.folders
+            .filter((f) => f.acl?.showInProfile === true)
+            .map((f) => ({ kind: "folder" as const, id: f.id, title: f.name })),
+        files: doc.items
+            .filter((it) => it.acl?.showInProfile === true)
+            .map((it) => ({ kind: "file" as const, id: it.id, title: it.title })),
+    };
 }
 
 /* ─────────────────────────── Enlaces ─────────────────────────── */

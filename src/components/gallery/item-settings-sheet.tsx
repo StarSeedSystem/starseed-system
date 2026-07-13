@@ -1,10 +1,10 @@
 "use client";
 
 /*
- * ItemSettingsSheet — configuración por CARPETA o ARCHIVO de la Galería:
+ * ItemSettingsSheet — configuración por FOLDER o ARCHIVO de la Galería:
  *   · Cerebros a sincronizar (patrón media-brains.ts — default: privados).
  *   · Permisos privado/público (os_files.is_public para archivos; ACL de
- *     entity-library para carpetas).
+ *     entity-library para folders).
  *   · "Servicios externos": Google Photos sigue siendo un conector futuro
  *     honesto (solo enlace/nota, sin OAuth todavía). Immich SÍ es un conector
  *     REAL de solo lectura v1 (src/lib/integrations, id "immich"): lista tus
@@ -168,7 +168,7 @@ export function ItemSettingsSheet({ open, onOpenChange, libraryRef, target }: It
             await setFolderAcl(libraryRef, target.folder.id, null);
         }
         setFolderPrivate(makePrivate);
-        toast.success(makePrivate ? "Carpeta marcada como privada." : "Carpeta marcada como visible para quien acceda a esta biblioteca.");
+        toast.success(makePrivate ? "Folder marcado como privado." : "Folder marcado como visible para quien acceda a esta biblioteca.");
     };
 
     return (
@@ -227,7 +227,7 @@ export function ItemSettingsSheet({ open, onOpenChange, libraryRef, target }: It
                             )
                         ) : (
                             <div className="flex items-center justify-between">
-                                <Label className="flex items-center gap-1.5"><Lock className="size-3.5" /> Carpeta privada (solo yo)</Label>
+                                <Label className="flex items-center gap-1.5"><Lock className="size-3.5" /> Folder privado (solo yo)</Label>
                                 <Switch checked={folderPrivate} onCheckedChange={(v) => void toggleFolderPrivacy(v)} />
                             </div>
                         )}

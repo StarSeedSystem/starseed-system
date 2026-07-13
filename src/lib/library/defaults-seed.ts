@@ -68,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 12;
+export const SEED_VERSION = 13;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -233,6 +233,42 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   "iatool-flowise",
   "iatool-anything-llm",
   "iatool-reor",
+  // ── (SEED_VERSION 13 · Adenda 66) EL CATÁLOGO OSS COMPLETO por defecto en
+  //    TODA cuenta/dispositivo/cerebro/neurona. El visionario pidió que NINGÚN
+  //    repo recomendado quede fuera de la semilla. Todo lo de abajo es paquete
+  //    gratis-primero cuyo install() SOLO registra skill/enlace o activa una
+  //    fuente local (nunca descarga, nunca clave, nunca abre pestaña durante la
+  //    siembra: ensureDefaultsSeeded ignora action/href). Los servidores/voces
+  //    (CasaOS/Bark/GPT-SoVITS/OmniVoice) se conectan por endpoint más tarde —
+  //    sembrarlos solo deja la capacidad y el enlace listos, sin lanzar nada.
+  //    ÚNICA exclusión deliberada: `iatool-firecrawl` (free:false · requiere
+  //    CLAVE de pago) — sembrarlo violaría el principio gratis-primero.
+  //
+  //    · Servidores caseros + voz neural (antes «disponibles», ahora por defecto):
+  "iatool-casaos",
+  "iatool-bark",
+  "iatool-gpt-sovits",
+  "iatool-omnivoice",
+  //    · OmniRoute — fuente ai-source local (proxy multi-proveedor con failover).
+  //      Activarla solo la saca de `disabledSources`; Aurora la usa si el proxy
+  //      corre en el equipo. Su id de fuente NO es descargable (defensa: la
+  //      guarda isDownloadablePackage), así que la siembra la aplica sin riesgo.
+  "ai-omniroute-local",
+  //    · Memoria agéntica · organizador · seguridad · mapas (nuevos en Adenda 66):
+  "iatool-raven",
+  "iatool-skales",
+  "iatool-mouzi",
+  "iatool-strix",
+  "iatool-organicmaps",
+  //    · Resto de referencias OSS del catálogo que quedaban fuera (repos/patrones
+  //      de referencia; instalar guarda su enlace en la Biblioteca, sin ejecutar
+  //      nada): enrutadores, agentes de código y aislamiento local.
+  "iatool-routellm",
+  "iatool-litellm",
+  "iatool-agentos",
+  "iatool-opencode",
+  "iatool-openclaw",
+  "iatool-apple-container",
 ];
 
 /**

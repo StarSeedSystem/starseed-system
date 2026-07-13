@@ -28,9 +28,42 @@ export type StorageKindId =
   | "minio"
   | "couchdb"
   | "nextcloud"
-  | "syncthing";
+  | "syncthing"
+  // ── Red descentralizada de backends (Adenda 66 §13) ──
+  | "supabase"     // Supabase propio del usuario (proyecto independiente)
+  | "gcs"          // Google Cloud Storage
+  | "cloudrun"     // Google Cloud Run (hosting/cómputo soberano)
+  | "vercel-blob"  // Vercel Blob store
+  | "casaos"       // CasaOS / neurona propia (servidor casero por endpoint)
+  | "ipfs";        // IPFS (almacenamiento por contenido, descentralizado)
 
 export type StorageScope = "account" | "profile" | "group" | "page" | "brain" | "vault";
+
+/**
+ * Tipo de RECURSO al que se le asigna un backend primario y réplicas (Adenda 66
+ * §13). Distinto de `StorageScope` (que ata un backend a una entidad concreta):
+ * aquí se decide, por CLASE de recurso, dónde vive primero y dónde se replica.
+ */
+export type ResourceType =
+  | "account"
+  | "profile"
+  | "page"
+  | "folder"
+  | "file"
+  | "library"
+  | "brain"
+  | "publication";
+
+export const RESOURCE_TYPES: { id: ResourceType; label: string; icon: string }[] = [
+  { id: "account", label: "Cuenta", icon: "🔐" },
+  { id: "profile", label: "Perfil", icon: "🪪" },
+  { id: "page", label: "Página", icon: "📄" },
+  { id: "folder", label: "Folder", icon: "🗂️" },
+  { id: "file", label: "Archivo", icon: "📎" },
+  { id: "library", label: "Biblioteca", icon: "📚" },
+  { id: "brain", label: "Cerebro", icon: "🧠" },
+  { id: "publication", label: "Publicación", icon: "📣" },
+];
 
 export interface StorageField {
   key: string;
@@ -65,9 +98,17 @@ export interface StorageBackend {
   quota_mb: number | null;
   used_mb: number | null;
   priority: number | null;
+  /**
+   * Reglas de enrutado (jsonb). Además de las de tamaño/plazo, la red
+   * descentralizada usa:
+   *   · `primaryFor?: ResourceType[]` → tipos de recurso para los que ES primario.
+   *   · `replicaFor?: ResourceType[]` → tipos de recurso que REPLICA.
+   */
   rules: Record<string, unknown> | null;
   enabled: boolean;
   status: string | null;
+  /** Primario por defecto de la cuenta (columna real `is_primary`, Adenda 66). */
+  is_primary?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -100,7 +141,7 @@ export const STORAGE_KINDS: StorageKind[] = [
     icon: "🟢",
     blurb:
       "Tu propia cuenta de Google Drive (OAuth). Perfecto para ficheros grandes y sincronizables online.",
-    fields: [{ key: "folderId", label: "Carpeta (ID, opcional)" }],
+    fields: [{ key: "folderId", label: "Folder (ID, opcional)" }],
     unlimited: true,
     defaultRules: { prefersLarge: true, minSizeMb: 5 },
     defaultQuotaMb: null,
@@ -114,7 +155,7 @@ export const STORAGE_KINDS: StorageKind[] = [
     fields: [
       { key: "path", label: "Ruta local" },
       { key: "capacityMb", label: "Capacidad (MB)", type: "number" },
-      { key: "syncthingFolderId", label: "Carpeta Syncthing (opcional)" },
+      { key: "syncthingFolderId", label: "Folder Syncthing (opcional)" },
     ],
     unlimited: false,
     defaultRules: { prefersLarge: true },
@@ -138,7 +179,7 @@ export const STORAGE_KINDS: StorageKind[] = [
     id: "obsidian",
     label: "Bóveda Obsidian",
     icon: "🪨",
-    blurb: "Tu bóveda de Obsidian (markdown). Vía carpeta local o repositorio GitHub.",
+    blurb: "Tu bóveda de Obsidian (markdown). Vía folder local o repositorio GitHub.",
     fields: [
       { key: "vaultPath", label: "Ruta de la bóveda" },
       { key: "repo", label: "Repo (opcional, owner/repo)" },
@@ -276,16 +317,113 @@ export const STORAGE_KINDS: StorageKind[] = [
   },
   {
     id: "syncthing",
-    label: "Carpeta Syncthing (open-source)",
+    label: "Folder Syncthing (open-source)",
     icon: "🔁",
     blurb:
-      "Carpeta sincronizada de forma continua y descentralizada (open-source) entre tus dispositivos. Sin servidor central.",
+      "Folder sincronizado de forma continua y descentralizada (open-source) entre tus dispositivos. Sin servidor central.",
     fields: [
-      { key: "folderId", label: "ID de carpeta Syncthing" },
+      { key: "folderId", label: "ID de folder Syncthing" },
       { key: "path", label: "Ruta local" },
     ],
     unlimited: false,
     defaultRules: { oss: true, sync: true, decentralized: true },
+    defaultQuotaMb: null,
+    oss: true,
+  },
+  /* ───────── Red descentralizada de backends (Adenda 66 §13) ─────────
+   * Cada recurso (cuenta/perfil/página/folder/archivo/biblioteca/cerebro/
+   * publicación) puede vivir en el servidor oficial StarSeed (por defecto) o en
+   * estos backends externos. HOY: registro + selección de primario/réplicas +
+   * el oficial StarSeed son funcionales; los DRIVERS de lectura/escritura reales
+   * de cada externo son andamiaje (se conectan por endpoint/credencial-referencia
+   * y, donde aplica, vía el servidor del cerebro/proxy en runtime). */
+  {
+    id: "supabase",
+    label: "Supabase propio",
+    icon: "⚡",
+    blurb:
+      "Tu propio proyecto Supabase (independiente del oficial StarSeed): Postgres + Storage + Realtime bajo tu control. Se conecta por URL del proyecto + referencia a la clave en la bóveda.",
+    fields: [
+      { key: "projectUrl", label: "URL del proyecto (https://xxxx.supabase.co)" },
+      { key: "keyRef", label: "Referencia de clave (secreto → bóveda)", type: "password" },
+      { key: "bucket", label: "Bucket de Storage (opcional)" },
+    ],
+    unlimited: true,
+    defaultRules: { oss: true, structured: true, prefersLarge: true },
+    defaultQuotaMb: null,
+    oss: true,
+  },
+  {
+    id: "gcs",
+    label: "Google Cloud Storage",
+    icon: "🪣",
+    blurb:
+      "Buckets de Google Cloud Storage: escala prácticamente ilimitada para ficheros grandes. Se conecta por bucket + referencia a credencial en la bóveda.",
+    fields: [
+      { key: "bucket", label: "Bucket" },
+      { key: "project", label: "Proyecto GCP (opcional)" },
+      { key: "keyRef", label: "Referencia de credencial (secreto → bóveda)", type: "password" },
+    ],
+    unlimited: true,
+    defaultRules: { prefersLarge: true, object: true },
+    defaultQuotaMb: null,
+  },
+  {
+    id: "cloudrun",
+    label: "Google Cloud Run",
+    icon: "🏃",
+    blurb:
+      "Servicio soberano en Google Cloud Run que expone un endpoint HTTP propio (alternativa a Vercel, ya soportada por el repo con Dockerfile + cloudbuild.yaml). Sirve como host de datos/servicios del recurso.",
+    fields: [
+      { key: "url", label: "URL del servicio (https://…run.app)" },
+      { key: "keyRef", label: "Referencia de clave/API (secreto → bóveda)", type: "password" },
+    ],
+    unlimited: true,
+    defaultRules: { hosting: true },
+    defaultQuotaMb: null,
+  },
+  {
+    id: "vercel-blob",
+    label: "Vercel Blob",
+    icon: "▲",
+    blurb:
+      "Almacén de blobs de Vercel para ficheros públicos/privados servidos por CDN. Se conecta con una referencia al token de lectura/escritura en la bóveda.",
+    fields: [
+      { key: "storeId", label: "Store ID (opcional)" },
+      { key: "keyRef", label: "Referencia de token (secreto → bóveda)", type: "password" },
+    ],
+    unlimited: true,
+    defaultRules: { prefersLarge: true, object: true },
+    defaultQuotaMb: null,
+  },
+  {
+    id: "casaos",
+    label: "CasaOS / neurona propia",
+    icon: "🏠",
+    blurb:
+      "Tu servidor casero (CasaOS en una neurona): almacena recursos en tu propio hardware y se conecta por endpoint. Misma pauta que en Cerebro → Neuronas/Servidores. Open-source y soberano.",
+    fields: [
+      { key: "endpoint", label: "Endpoint del panel/API (http://IP:puerto)" },
+      { key: "path", label: "Ruta/App destino (Files, Nextcloud…)" },
+      { key: "keyRef", label: "Referencia de clave (secreto → bóveda, opcional)", type: "password" },
+    ],
+    unlimited: true,
+    defaultRules: { oss: true, selfHost: true, prefersLarge: true },
+    defaultQuotaMb: null,
+    oss: true,
+  },
+  {
+    id: "ipfs",
+    label: "IPFS (por contenido)",
+    icon: "🌐",
+    blurb:
+      "Almacenamiento por contenido descentralizado (IPFS/Kubo). Direcciona por CID; ideal para contenido inmutable y replicable entre nodos. Se conecta a un nodo/gateway propio por endpoint.",
+    fields: [
+      { key: "endpoint", label: "API del nodo (http://127.0.0.1:5001) o gateway" },
+      { key: "gateway", label: "Gateway público (opcional)" },
+    ],
+    unlimited: true,
+    defaultRules: { oss: true, contentAddressed: true, decentralized: true },
     defaultQuotaMb: null,
     oss: true,
   },
@@ -336,6 +474,7 @@ function normalize(b: StorageBackend): StorageBackend {
     rules: (b.rules as Record<string, unknown>) ?? {},
     enabled: b.enabled ?? true,
     priority: typeof b.priority === "number" ? b.priority : 99,
+    is_primary: b.is_primary === true,
   };
 }
 
@@ -363,6 +502,8 @@ export async function saveBackend(
       status: input.status ?? "unknown",
       updated_at: new Date().toISOString(),
     };
+    // Solo tocamos is_primary si viene explícito (no clobber en ediciones simples).
+    if (typeof input.is_primary === "boolean") row.is_primary = input.is_primary;
     if (input.id) {
       const { data } = await sb.from("storage_backends").update(row).eq("id", input.id).eq("owner", uid).select("*").single();
       return data ? normalize(data as StorageBackend) : null;
@@ -502,10 +643,205 @@ export async function ensureDefaults(owner?: string): Promise<StorageBackend[]> 
       rules: star?.defaultRules ?? {},
       enabled: true,
       status: "ok",
+      is_primary: true, // el servidor oficial StarSeed es el primario por defecto
       updated_at: new Date().toISOString(),
     });
     return listBackends();
   } catch {
     return [];
   }
+}
+
+/* ═══════════════ Red descentralizada de backends (Adenda 66 §13) ═══════════════
+ * Capa de selección de backends por RECURSO (cuenta/perfil/página/folder/archivo/
+ * biblioteca/cerebro/publicación). El servidor oficial StarSeed aparece SIEMPRE y
+ * es el primario por defecto y automático. HONESTIDAD: hoy es funcional el
+ * REGISTRO + la SELECCIÓN de primario/réplicas + el backend oficial StarSeed
+ * (Supabase del OS, ya usado por todo el acceso a datos). Los DRIVERS de
+ * lectura/escritura reales de cada externo son andamiaje: se conectan por
+ * endpoint / referencia-a-clave y, donde aplica, vía el servidor del cerebro o un
+ * proxy en runtime (los pings directos desde el navegador suelen bloquearse por
+ * CORS). Esta capa NO reescribe el acceso a datos existente: lo complementa.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/** Lee las reglas de enrutado por recurso de un backend (arrays defensivos). */
+export function getResourceRouting(b: StorageBackend): { primaryFor: ResourceType[]; replicaFor: ResourceType[] } {
+  const rules = (b.rules as Record<string, unknown> | null) ?? {};
+  const asTypes = (v: unknown): ResourceType[] =>
+    Array.isArray(v)
+      ? (v.filter((x): x is ResourceType => typeof x === "string" && RESOURCE_TYPES.some((r) => r.id === x)))
+      : [];
+  return { primaryFor: asTypes(rules.primaryFor), replicaFor: asTypes(rules.replicaFor) };
+}
+
+/**
+ * Añade (inserta) un backend nuevo. Wrapper sobre saveBackend que garantiza que
+ * NO lleva id (siempre inserta). Devuelve la fila creada o null.
+ */
+export async function addBackend(
+  input: Partial<StorageBackend> & { kind: string; name: string },
+): Promise<StorageBackend | null> {
+  const { id: _omit, ...rest } = input;
+  void _omit;
+  return saveBackend(rest);
+}
+
+/**
+ * Devuelve el backend PRIMARIO por defecto de la cuenta: el marcado `is_primary`
+ * o, en su defecto, el servidor oficial StarSeed (sembrándolo si falta). Nunca
+ * lanza; null solo si no hay sesión.
+ */
+export async function defaultBackend(): Promise<StorageBackend | null> {
+  try {
+    const all = await ensureDefaults();
+    const list = all.length ? all : await listBackends();
+    const primary = list.find((b) => b.is_primary === true);
+    if (primary) return primary;
+    const star = list.find((b) => b.kind === "starseed");
+    if (star) return star;
+    return [...list].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Marca un backend como PRIMARIO de la cuenta (columna real `is_primary`) y quita
+ * la marca del resto (uno solo primario a la vez). Devuelve true si se aplicó.
+ */
+export async function setPrimary(id: string): Promise<boolean> {
+  try {
+    const sb = createClient();
+    const { data: au } = await sb.auth.getUser();
+    const uid = au?.user?.id;
+    if (!uid) return false;
+    // Quita la marca de todos y la pone solo en `id` (dos updates atómicos suaves).
+    await sb
+      .from("storage_backends")
+      .update({ is_primary: false, updated_at: new Date().toISOString() })
+      .eq("owner", uid)
+      .neq("id", id);
+    const { error } = await sb
+      .from("storage_backends")
+      .update({ is_primary: true, updated_at: new Date().toISOString() })
+      .eq("owner", uid)
+      .eq("id", id);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fija qué backend es PRIMARIO para un tipo de recurso concreto: lo añade a su
+ * `rules.primaryFor` y lo quita del de los demás (un primario por recurso). Si
+ * `id` es null, deja ese recurso sin primario explícito (cae al primario de la
+ * cuenta / StarSeed). Devuelve true si se aplicó.
+ */
+export async function setResourcePrimary(resource: ResourceType, id: string | null): Promise<boolean> {
+  try {
+    const list = await listBackends();
+    const ops: Promise<boolean>[] = [];
+    for (const b of list) {
+      const { primaryFor, replicaFor } = getResourceRouting(b);
+      const has = primaryFor.includes(resource);
+      if (b.id === id) {
+        if (!has) {
+          ops.push(
+            updateBackend(b.id, { rules: { ...(b.rules ?? {}), primaryFor: [...primaryFor, resource], replicaFor } }),
+          );
+        }
+      } else if (has) {
+        ops.push(
+          updateBackend(b.id, {
+            rules: { ...(b.rules ?? {}), primaryFor: primaryFor.filter((r) => r !== resource), replicaFor },
+          }),
+        );
+      }
+    }
+    const res = await Promise.all(ops);
+    return res.every(Boolean);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Activa/desactiva un backend como RÉPLICA de un tipo de recurso (varias réplicas
+ * permitidas). Devuelve true si se aplicó.
+ */
+export async function toggleResourceReplica(resource: ResourceType, id: string, on: boolean): Promise<boolean> {
+  try {
+    const list = await listBackends();
+    const b = list.find((x) => x.id === id);
+    if (!b) return false;
+    const { primaryFor, replicaFor } = getResourceRouting(b);
+    const has = replicaFor.includes(resource);
+    if (on === has) return true; // ya está en el estado pedido
+    const nextReplica = on ? [...replicaFor, resource] : replicaFor.filter((r) => r !== resource);
+    return updateBackend(b.id, { rules: { ...(b.rules ?? {}), primaryFor, replicaFor: nextReplica } });
+  } catch {
+    return false;
+  }
+}
+
+export interface ResolvedBackends {
+  /** Backend primario para el recurso (nunca null si hay al menos StarSeed). */
+  primary: StorageBackend | null;
+  /** Réplicas activas para el recurso (excluye al primario). */
+  replicas: StorageBackend[];
+  /** Por qué se eligió este primario (español, para la UI). */
+  reason: string;
+}
+
+/**
+ * Resuelve dónde vive un recurso: su backend PRIMARIO y sus RÉPLICAS. Prioridad
+ * del primario:
+ *   1) backend habilitado con `rules.primaryFor` que incluya el recurso;
+ *   2) el primario de la cuenta (`is_primary`);
+ *   3) el servidor oficial StarSeed (kind "starseed");
+ *   4) el backend habilitado de menor `priority`.
+ * Las réplicas = backends habilitados (≠ primario) con `rules.replicaFor` que
+ * incluya el recurso. Acepta una lista pre-cargada para no releer. Nunca lanza.
+ */
+export async function resolveBackendFor(
+  resource: ResourceType,
+  preloaded?: StorageBackend[],
+): Promise<ResolvedBackends> {
+  let list = preloaded;
+  if (!list) {
+    list = await ensureDefaults();
+    if (!list.length) list = await listBackends();
+  }
+  const enabled = list.filter((b) => b.enabled !== false);
+
+  let primary: StorageBackend | null = null;
+  let reason = "";
+
+  const byResource = enabled.find((b) => getResourceRouting(b).primaryFor.includes(resource));
+  if (byResource) {
+    primary = byResource;
+    reason = `Primario asignado a «${RESOURCE_TYPES.find((r) => r.id === resource)?.label ?? resource}».`;
+  } else {
+    const acctPrimary = enabled.find((b) => b.is_primary === true);
+    if (acctPrimary) {
+      primary = acctPrimary;
+      reason = "Primario por defecto de la cuenta.";
+    } else {
+      const star = enabled.find((b) => b.kind === "starseed");
+      if (star) {
+        primary = star;
+        reason = "Servidor oficial StarSeed (por defecto y automático).";
+      } else {
+        primary = [...enabled].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))[0] ?? null;
+        reason = primary ? "Backend de mayor prioridad disponible." : "No hay ningún backend activo.";
+      }
+    }
+  }
+
+  const replicas = enabled.filter(
+    (b) => b.id !== primary?.id && getResourceRouting(b).replicaFor.includes(resource),
+  );
+
+  return { primary, replicas, reason };
 }

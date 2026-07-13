@@ -61,6 +61,7 @@ import {
     searchNodes,
 } from "@/lib/education/curriculum";
 import { LearningPathPanel } from "@/components/education/learning-path";
+import { ViewErrorBoundary } from "@/components/education/view-error-boundary";
 import type { Graph3DNode, Graph3DEdge } from "@/components/education/topic-graph-3d";
 
 const TopicGraph3D = dynamic(() => import("./topic-graph-3d"), {
@@ -129,6 +130,14 @@ function computeLayout2D(tree: EduTreeNode[]): { pos: Map<string, XY>; width: nu
     for (const r of tree) {
         const span = ((leafCount.get(r.id) ?? 1) / total) * Math.PI * 2;
         place(r, cursor, cursor + span);
+        // `place` deja toda raíz (depth 0) en el centro exacto (radio 0): con
+        // varias categorías se apilarían en un único punto ilegible. Las
+        // separamos a un pequeño radio en el centro de su sector (mismo criterio
+        // que knowledge-network.tsx).
+        if (tree.length > 1) {
+            const mid = cursor + span / 2;
+            pos.set(r.id, { x: cx + Math.cos(mid) * (ringGap * 0.55), y: cy + Math.sin(mid) * (ringGap * 0.55) });
+        }
         cursor += span;
     }
 
@@ -737,11 +746,15 @@ export function TopicGraph() {
                         </div>
                     ) : view === "mapa2d" ? (
                         <div className="min-h-[60vh] h-[70vh]">
-                            <Map2DView tree={tree} byId={byId} activityById={activityById} selectedId={selectedId} onSelect={selectNode} />
+                            <ViewErrorBoundary label="el Mapa 2D">
+                                <Map2DView tree={tree} byId={byId} activityById={activityById} selectedId={selectedId} onSelect={selectNode} />
+                            </ViewErrorBoundary>
                         </div>
                     ) : (
                         <div className="min-h-[60vh] h-[70vh]">
-                            <TopicGraph3D nodes={graph3DNodes} edges={edges} selectedId={selectedId} onSelect={selectNode} />
+                            <ViewErrorBoundary label="la Red 3D">
+                                <TopicGraph3D nodes={graph3DNodes} edges={edges} selectedId={selectedId} onSelect={selectNode} />
+                            </ViewErrorBoundary>
                         </div>
                     )}
                 </div>

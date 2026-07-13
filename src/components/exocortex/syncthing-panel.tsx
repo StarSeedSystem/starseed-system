@@ -144,10 +144,10 @@ export function SyncthingPanel() {
     });
     setWorking(false);
     if (!res.ok) {
-      setMsg({ kind: "err", text: res.error || "No se pudo crear la carpeta." });
+      setMsg({ kind: "err", text: res.error || "No se pudo crear el folder." });
       return;
     }
-    setMsg({ kind: "ok", text: `Carpeta «${FOLDER_LABEL}» creada/actualizada en Syncthing.` });
+    setMsg({ kind: "ok", text: `Folder «${FOLDER_LABEL}» creado/actualizado en Syncthing.` });
     await refresh();
   }, [userId, refresh]);
 
@@ -322,11 +322,11 @@ export function SyncthingPanel() {
         )}
       </div>
 
-      {/* Carpetas */}
+      {/* Folders */}
       <div className="rounded-xl border border-white/10 bg-white/5 p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-cyan-400/60">
-            <FolderSync className="h-3.5 w-3.5" /> Carpetas ({folders.length})
+            <FolderSync className="h-3.5 w-3.5" /> Folders ({folders.length})
           </div>
           <div className="ml-auto flex gap-2">
             <Button
@@ -335,7 +335,7 @@ export function SyncthingPanel() {
               onClick={addFolder}
               disabled={!userId || working}
             >
-              <FolderSync className="h-4 w-4" /> Crear carpeta StarSeed Memorias
+              <FolderSync className="h-4 w-4" /> Crear folder StarSeed Memorias
             </Button>
             <Button
               size="sm"
@@ -350,7 +350,7 @@ export function SyncthingPanel() {
         </div>
         {folders.length === 0 ? (
           <div className="text-sm text-white/50">
-            Aún no hay carpetas. Crea «{FOLDER_LABEL}» (id <span className="font-mono">{FOLDER_ID}</span>, ruta sugerida{" "}
+            Aún no hay folders. Crea «{FOLDER_LABEL}» (id <span className="font-mono">{FOLDER_ID}</span>, ruta sugerida{" "}
             <span className="font-mono">{DEFAULT_FOLDER_PATH}</span>) y compártela con tus dispositivos desde Syncthing.
           </div>
         ) : (

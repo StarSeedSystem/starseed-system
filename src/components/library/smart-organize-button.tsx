@@ -45,7 +45,7 @@ import {
 import { summarize } from "@/lib/security/scanner";
 import { buildOrganizePlan, type OrganizePlan } from "@/lib/files/smart-organizer";
 
-/* ── Helpers de carpetas (id ↔ ruta "A/B") ── */
+/* ── Helpers de folders (id ↔ ruta "A/B") ── */
 
 function folderPathOf(folderId: string | null | undefined, folders: LibraryFolder[]): string {
     if (!folderId) return "";
@@ -63,7 +63,7 @@ function folderPathOf(folderId: string | null | undefined, folders: LibraryFolde
     return segs.join("/");
 }
 
-/** Crea (o reutiliza) la jerarquía "A/B/C" y devuelve el id de la carpeta hoja. */
+/** Crea (o reutiliza) la jerarquía "A/B/C" y devuelve el id del folder hoja. */
 async function ensureFolderPath(ref: EntityRef, path: string): Promise<string | null> {
     const segs = path.split("/").map((s) => s.trim()).filter(Boolean);
     let parent: string | null = null;
@@ -220,7 +220,7 @@ export function SmartOrganizeButton({ libraryRef, accent = "#7FB8FF" }: SmartOrg
                                 {plan.newFolders.length > 0 && (
                                     <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                                         <FolderPlus className="h-3.5 w-3.5" />
-                                        Carpetas nuevas:
+                                        Folders nuevos:
                                         {plan.newFolders.map((f) => (
                                             <span key={f} className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5">{f}</span>
                                         ))}

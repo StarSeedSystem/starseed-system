@@ -86,7 +86,7 @@ export const MEMORY_SOURCES: MemorySourceDef[] = [
     icon: "🟢",
     oss: false,
     fields: [
-      { key: "folderId", label: "ID de carpeta de Drive (opcional)", placeholder: "raíz si se deja vacío" },
+      { key: "folderId", label: "ID de folder de Drive (opcional)", placeholder: "raíz si se deja vacío" },
       { key: "fileId", label: "ID del archivo en Drive (se rellena al sincronizar)" },
     ],
   },
@@ -111,7 +111,7 @@ export const MEMORY_SOURCES: MemorySourceDef[] = [
     oss: true,
     fields: [
       { key: "endpoint", label: "URL local", placeholder: "http://localhost:8800/memory" },
-      { key: "syncthingFolderId", label: "Carpeta Syncthing (opcional)" },
+      { key: "syncthingFolderId", label: "Folder Syncthing (opcional)" },
     ],
   },
   {
@@ -151,7 +151,7 @@ export const MEMORY_SOURCES: MemorySourceDef[] = [
     fields: [
       { key: "endpoint", label: "Endpoint de Skales", placeholder: "http://tu-neurona:3000" },
       { key: "tokenRef", label: "Clave (nombre en la bóveda, opcional)", placeholder: "nunca el valor en claro" },
-      { key: "space", label: "Espacio/carpeta (opcional)", placeholder: "memorias" },
+      { key: "space", label: "Espacio/folder (opcional)", placeholder: "memorias" },
     ],
   },
 ];

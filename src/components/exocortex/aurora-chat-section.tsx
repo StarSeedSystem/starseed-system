@@ -79,7 +79,7 @@ import {
 import { useChatTree } from "@/lib/aurora/chat-tree";
 
 // ── Tipos locales ────────────────────────────────────────────────────────────
-type Tab = "carpeta" | "chat" | "chats" | "voz" | "control" | "personalidad" | "registro";
+type Tab = "folder" | "chat" | "chats" | "voz" | "control" | "personalidad" | "registro";
 
 /** El puente v4 añade voiceUnavailable a la instantánea (aditivo). */
 type SnapshotPlus = AuroraStateSnapshot & { voiceUnavailable?: boolean };
@@ -401,7 +401,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
   // Árbol de contextos/temas de conversación (ramificación) — persistido aparte.
   const tree = useChatTree();
 
-  const [tab, setTab] = useState<Tab>("carpeta");
+  const [tab, setTab] = useState<Tab>("folder");
   const [snap, setSnap] = useState<SnapshotPlus | null>(null);
   const [bridgeReady, setBridgeReady] = useState(false);
   const [draft, setDraft] = useState("");
@@ -893,7 +893,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
       {/* ── Pestañas ── */}
       <div className="axc-chips relative z-[1]">
         {([
-          { id: "carpeta", label: "Carpeta", Icon: FolderTree },
+          { id: "folder", label: "Folder", Icon: FolderTree },
           { id: "chat", label: "Chat", Icon: MessageSquare },
           { id: "chats", label: "Chats", Icon: Layers },
           { id: "voz", label: "Voz", Icon: Volume2 },
@@ -920,8 +920,8 @@ export function AuroraChatSection({ className }: { className?: string }) {
         </div>
       )}
 
-      {tab === "carpeta" ? (
-        /* Explorador de carpeta: TODOS los chats por fecha + tema, barra única
+      {tab === "folder" ? (
+        /* Explorador de folder: TODOS los chats por fecha + tema, barra única
            buscar⇄chatear (fusión), categorización automática, guardar-en-
            memorias/duplicar/interconectar. Reutiliza la vista de chat al abrir. */
         <div className="relative z-[1]">

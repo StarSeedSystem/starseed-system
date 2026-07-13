@@ -2,7 +2,7 @@
 
 // ════════════════════════════════════════════════════════════════════════════
 // FinderContextMenu — menú contextual (clic derecho / long-press) de un ítem
-// o carpeta de la Biblioteca. Posicionado en (x,y) mediante un ancla invisible
+// o folder de la Biblioteca. Posicionado en (x,y) mediante un ancla invisible
 // + DropdownMenu de Radix controlado (no hay ContextMenu de Radix instalado
 // en el repo; ver architecture/libreria-biblioteca-sync.md §6).
 // ════════════════════════════════════════════════════════════════════════════
@@ -16,8 +16,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
     ExternalLink, Eye, GitBranch, Copy, ClipboardCopy, ClipboardPaste,
-    Link2, FolderInput, Tags, Share2, ShieldCheck, Trash2, Package, Megaphone,
-    PenSquare, History, MessageSquare, Boxes,
+    Link2, FolderInput, Tags, Share2, Send, ShieldCheck, Trash2, Package, Megaphone,
+    PenSquare, History, MessageSquare, Boxes, ScrollText,
     type LucideIcon,
 } from "lucide-react";
 
@@ -54,11 +54,13 @@ export interface FinderContextMenuProps {
     onMove: () => void;
     onTags: () => void;
     onShare: () => void;
+    /** Adenda 66 §5: "Enviar a…" — abre el diálogo de destinos (publicación/mensaje/cerebro/entidad/librería/enlace). */
+    onSendTo?: () => void;
     /** Abre el Lienzo de Creación con este ítem precargado (/publish?attach=…). */
     onPublish?: () => void;
     /** Publica en el catálogo público de la Librería (biblioteca → Comunidad). */
     onPublishToCatalog?: () => void;
-    /** Solo carpetas: publica TODOS sus ítems (conservando estructura) en la Librería. */
+    /** Solo folders: publica TODOS sus ítems (conservando estructura) en la Librería. */
     onPublishFolderToCatalog?: () => void;
     onPermissions: () => void;
     onRemove: () => void;
@@ -66,9 +68,16 @@ export interface FinderContextMenuProps {
     onEdit?: () => void;
     /** v2.1 (§13): historial de versiones (restaurar/comparar). */
     onVersions?: () => void;
+    /**
+     * v3 (Adenda 66 §2): HISTORIAL en la nube — revisiones con autor/fecha/mensaje,
+     * restaurar, crear rama y comparar. Disponible para ítems Y folders.
+     */
+    onHistory?: () => void;
+    /** v3 (Adenda 66 §2): REGISTRO (log) de accesos y cambios. Ítems y folders. */
+    onLog?: () => void;
     /** v2.1 (§14): vista de ramas (linaje) + fusión con confirmación. */
     onBranches?: () => void;
-    /** v2.1 (§15): hilo de comentarios (ítems y carpetas). */
+    /** v2.1 (§15): hilo de comentarios (ítems y folders). */
     onComments?: () => void;
     /** v2.1 (§18): "Instalar/guardar en…" (biblioteca/escritorio/cerebro/servidor). */
     onInstallTo?: () => void;
@@ -80,8 +89,8 @@ export function FinderContextMenu({
     x, y, target, clipboardHasContent,
     onOpen, onClose, onPreview, onReplicate, onDuplicate,
     onCopy, onCut, onPaste, onCreateShortcut, onMove, onTags,
-    onShare, onPublish, onPublishToCatalog, onPublishFolderToCatalog, onPermissions, onRemove,
-    onEdit, onVersions, onBranches, onComments, onInstallTo, extraActions,
+    onShare, onSendTo, onPublish, onPublishToCatalog, onPublishFolderToCatalog, onPermissions, onRemove,
+    onEdit, onVersions, onHistory, onLog, onBranches, onComments, onInstallTo, extraActions,
 }: FinderContextMenuProps) {
     const isItem = target.kind === "item";
     const wrap = (fn?: () => void) => () => {
@@ -99,7 +108,7 @@ export function FinderContextMenu({
                 onCloseAutoFocus={(e) => e.preventDefault()}
             >
                 <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {isItem ? "Ítem" : "Carpeta"}
+                    {isItem ? "Ítem" : "Folder"}
                 </DropdownMenuLabel>
 
                 <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onOpen)}>
@@ -132,12 +141,29 @@ export function FinderContextMenu({
                     </>
                 )}
 
+                {/* Historial y Registro (Adenda 66 §2): también en FOLDERS, no solo en ítems. */}
+                {(onHistory || onLog) && (
+                    <>
+                        <DropdownMenuSeparator className="bg-white/10" />
+                        {onHistory && (
+                            <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onHistory)}>
+                                <History className="h-3.5 w-3.5" /> Historial…
+                            </DropdownMenuItem>
+                        )}
+                        {onLog && (
+                            <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onLog)}>
+                                <ScrollText className="h-3.5 w-3.5" /> Registro…
+                            </DropdownMenuItem>
+                        )}
+                    </>
+                )}
+
                 {isItem && !target.isAlias && (onVersions || onBranches) && (
                     <>
                         <DropdownMenuSeparator className="bg-white/10" />
                         {onVersions && (
                             <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onVersions)}>
-                                <History className="h-3.5 w-3.5" /> Versiones…
+                                <History className="h-3.5 w-3.5" /> Versiones (este dispositivo)…
                             </DropdownMenuItem>
                         )}
                         {onBranches && (
@@ -165,7 +191,7 @@ export function FinderContextMenu({
                 )}
                 {!isItem && target.canWrite && clipboardHasContent && onPaste && (
                     <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onPaste)}>
-                        <ClipboardPaste className="h-3.5 w-3.5" /> Pegar en esta carpeta
+                        <ClipboardPaste className="h-3.5 w-3.5" /> Pegar en este folder
                     </DropdownMenuItem>
                 )}
                 {isItem && onCreateShortcut && (
@@ -192,6 +218,11 @@ export function FinderContextMenu({
                 <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onShare)}>
                     <Share2 className="h-3.5 w-3.5" /> Compartir
                 </DropdownMenuItem>
+                {onSendTo && (
+                    <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onSendTo)}>
+                        <Send className="h-3.5 w-3.5" /> Enviar a…
+                    </DropdownMenuItem>
+                )}
                 {isItem && onPublish && (
                     <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(onPublish)}>
                         <Megaphone className="h-3.5 w-3.5" /> Publicar…
@@ -204,7 +235,7 @@ export function FinderContextMenu({
                 )}
                 {!isItem && onPublishFolderToCatalog && (
                     <DropdownMenuItem className="cursor-pointer gap-2 text-xs text-emerald-300 focus:text-emerald-200" onClick={wrap(onPublishFolderToCatalog)}>
-                        <Package className="h-3.5 w-3.5" /> Publicar carpeta completa…
+                        <Package className="h-3.5 w-3.5" /> Publicar folder completo…
                     </DropdownMenuItem>
                 )}
 

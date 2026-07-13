@@ -1,7 +1,7 @@
 "use client";
 
 /*
- * media-brains — CEREBROS DE CONTEXTO por carpeta/archivo de la Galería.
+ * media-brains — CEREBROS DE CONTEXTO por folder/archivo de la Galería.
  * ═══════════════════════════════════════════════════════════════════════════
  * Mismo patrón que src/lib/library/library-brains.ts (SOP §12), pero con
  * clave COMPUESTA por ítem: `targetId` es el id de una LibraryFolder o de un
@@ -12,7 +12,7 @@
  *
  * DEFECTO distinto a library-brains.ts a propósito: mode:'all' aquí resuelve
  * a "todos los cerebros PRIVADOS" (Brain.scope === 'account'), NO absolutamente
- * todos — una carpeta de fotos personal no debería filtrar automáticamente a
+ * todos — un folder de fotos personal no debería filtrar automáticamente a
  * cerebros compartidos de un grupo/página. Si el usuario elige `mode:'selected'`
  * puede escoger cualquier cerebro (privado o compartido) explícitamente.
  * ═══════════════════════════════════════════════════════════════════════════
@@ -73,7 +73,7 @@ export async function setMediaBrainsConfig(ref: EntityRef, targetId: string, doc
 
 /**
  * ENGANCHE para Aurora/Astraura: resuelve la lista de Brain (ya cargados) que
- * deben dar contexto a la carpeta/archivo `targetId`. Sin `targetId`/`ref`, o
+ * deben dar contexto al folder/archivo `targetId`. Sin `targetId`/`ref`, o
  * en mode='all', devuelve los cerebros PRIVADOS de la cuenta. mode='selected'
  * devuelve exactamente los ids elegidos (privados o compartidos).
  */

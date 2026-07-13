@@ -279,7 +279,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                 {/* Rejilla fluida tipo pantalla de inicio (móvil/tablet/desktop):
                     2 widgets por hilera en móvil (aprovecha el ancho sin desperdiciar),
                     3 en tablet y 4 en pantallas anchas. Los widgets anchos (footprint
-                    ≥ 10/12 en el grid, p. ej. la carpeta-dock de apps o accesos rápidos)
+                    ≥ 10/12 en el grid, p. ej. el folder-dock de apps o accesos rápidos)
                     ocupan la hilera completa. Sin recortes: box-border + separación
                     uniforme. */}
                 <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3 box-border" style={{ touchAction: "pan-y" }}>
@@ -287,7 +287,7 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                         const h = Math.max(widget.layout.h, 3);
                         const cardHeight = h * ROW + (h - 1) * GAP;
                         // Widgets anchos (ocupaban casi toda la fila del grid de 12) o
-                        // carpetas/lanzaderas de apps → hilera completa también en la
+                        // folders/lanzaderas de apps → hilera completa también en la
                         // rejilla táctil, para que respiren y no queden aplastados.
                         const spanFull = widget.layout.w >= 10
                             || widget.widget_type === "APP_LAUNCHER"

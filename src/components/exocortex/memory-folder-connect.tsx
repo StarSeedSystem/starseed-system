@@ -1,7 +1,7 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════
-// StarSeed OS — Conectar carpeta de memorias (memory root → cerebro/baúl)
+// StarSeed OS — Conectar folder de memorias (memory root → cerebro/baúl)
 // ----------------------------------------------------------------
 // Panel de VISTA PREVIA para vincular un memory root (`<nombre>_memory_root/`)
 // al sistema de memorias. Lee un `memory.manifest.json` (por URL o pegado),
@@ -213,7 +213,7 @@ export function MemoryFolderConnect() {
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold text-fuchsia-50 flex items-center gap-2 flex-wrap">
-              Conectar carpeta de memorias <PreviewBadge />
+              Conectar folder de memorias <PreviewBadge />
             </div>
             <div className="text-[11px] text-fuchsia-300/60">
               Vincula un <span className="font-mono">memory root</span> (su <span className="font-mono">memory.manifest.json</span>) y previsualiza qué se sincronizaría por memoria. No escribe en ninguna cuenta.
@@ -318,11 +318,11 @@ export function MemoryFolderConnect() {
         {/* Roots vinculados */}
         <div>
           <div className="text-[11px] uppercase tracking-widest text-fuchsia-300/50 mb-2 flex items-center gap-1">
-            <FolderSync className="w-3 h-3" /> Carpetas de memorias vinculadas
+            <FolderSync className="w-3 h-3" /> Folders de memorias vinculadas
           </div>
           {roots.length === 0 ? (
             <div className="text-[11px] text-white/40 px-1">
-              Aún no has vinculado ninguna carpeta. Previsualiza un manifiesto arriba y pulsa “Conectar”.
+              Aún no has vinculado ningún folder. Previsualiza un manifiesto arriba y pulsa “Conectar”.
             </div>
           ) : (
             <div className="space-y-2">

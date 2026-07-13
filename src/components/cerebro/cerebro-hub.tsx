@@ -41,10 +41,13 @@ import {
   Network,
   Cpu,
   Share2,
+  Send,
 } from "lucide-react";
 // Permisos universales (Adenda 63 §5): compartir un cerebro por ámbito y rol,
 // con acceso PARCIAL por ramas (memoria / habilidades / contexto / egos).
 import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
+// Enviar a… (DESTINOS · Adenda 66 §5): distinto de permisos.
+import { ShareToDialog } from "@/components/sharing/share-to-dialog";
 
 type Pillar = "memoria" | "habilidades" | "contexto" | "neuronas" | "egos";
 
@@ -104,6 +107,8 @@ export default function CerebroHub() {
   const [creating, setCreating] = useState(false);
   // Compartir el cerebro activo (permisos universales por ramas).
   const [shareOpen, setShareOpen] = useState(false);
+  // Enviar el cerebro activo a un destino (publicación/mensaje/entidad/librería/enlace).
+  const [sendToOpen, setSendToOpen] = useState(false);
 
   // Selecciona el primer cerebro al cargar.
   useEffect(() => {
@@ -203,6 +208,18 @@ export default function CerebroHub() {
                 Compartir
               </Button>
             )}
+            {activeBrain && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-white/15 text-white/80 cursor-pointer"
+                onClick={() => setSendToOpen(true)}
+                title={`Enviar «${activeBrain.name}» a un destino (publicación, mensaje, librería…)`}
+              >
+                <Send className="w-4 h-4" />
+                Enviar a…
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -296,6 +313,21 @@ export default function CerebroHub() {
             { id: "egos", label: "Egos de Aurora" },
           ]}
           description="Comparte este cerebro completo o solo algunas de sus ramas. Privado en lo personal, transparente en lo público."
+        />
+      )}
+
+      {/* ── Enviar cerebro a un destino (Adenda 66 §5) ── */}
+      {sendToOpen && activeBrain && (
+        <ShareToDialog
+          open
+          onOpenChange={(o) => !o && setSendToOpen(false)}
+          resource={{
+            kind: "cerebro",
+            id: activeBrain.id,
+            name: activeBrain.name,
+            route: `/cerebro?brain=${encodeURIComponent(activeBrain.id)}`,
+            note: activeBrain.description || undefined,
+          }}
         />
       )}
     </div>

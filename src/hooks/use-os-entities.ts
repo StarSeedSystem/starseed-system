@@ -335,6 +335,9 @@ function osPostToNormalized(p: OsPost): NormalizedPost {
         commentsCount: 0,
         media: detectMedia({ body, recipe: p.mediaUrl ? { media: [p.mediaUrl] } : null }),
         attachments: split.attachments.length > 0 ? split.attachments : undefined,
+        // Adenda 66 §6 · etiquetas múltiples + bloques ricos del Lienzo Universal.
+        tags: split.tags.length > 0 ? split.tags : undefined,
+        blocks: split.blocks.length > 0 ? split.blocks : undefined,
     };
 }
 

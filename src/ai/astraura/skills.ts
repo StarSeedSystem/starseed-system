@@ -396,6 +396,46 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: {},
     packageIds: ["iatool-tldraw"],
   },
+  /* ═══ Memoria agéntica · Organizador · Seguridad · Mapas (Adenda 66) ═══
+   * Cinco capacidades del catálogo OSS que faltaban. Mismo contrato: conocimiento
+   * + capacidad + paquete instalado. Raven/Skales comparten la capacidad de
+   * memoria agéntica (como los 3 motores de voz comparten «voice-neural»). */
+  {
+    id: "agent-memory-backend",
+    label: "Memoria agéntica (Raven · Skales)",
+    systemPrompt:
+      "Conoces Raven (EverMind) y Skales: backends open-source de MEMORIA e inteligencia de largo plazo para agentes. Son servidores que se autoalojan en una neurona propia o CasaOS y se conectan por endpoint (se declaran en Cerebro → Neuronas/Servidores). Si el usuario quiere que sus cerebros recuerden contexto de largo plazo con datos bajo su control, explica este patrón y señala sus repos; no finjas una conexión que no está configurada.",
+    routing: {},
+    skillIds: ["agent-memory-raven", "agent-memory-skales"],
+    packageIds: ["iatool-raven", "iatool-skales"],
+  },
+  {
+    id: "smart-file-organize",
+    label: "Organización inteligente de archivos (Mouzi)",
+    systemPrompt:
+      "Conoces Mouzi: organizador de archivos que clasifica por tipo, tema y fecha con IA y propone una estructura de folders. Es la inspiración de la acción «Organizar inteligentemente» que YA existe en la Biblioteca, los cerebros y los escritorios del OS: cuando el usuario tenga archivos desordenados, sugiere usarla.",
+    routing: {},
+    skillIds: ["smart-file-organize"],
+    packageIds: ["iatool-mouzi"],
+  },
+  {
+    id: "security-audit",
+    label: "Auditoría de seguridad (Strix)",
+    systemPrompt:
+      "Conoces Strix: agentes autónomos de seguridad ofensiva (pentesting/AppSec) que encuentran y VALIDAN vulnerabilidades reales. Recomiéndalo para auditar las neuronas, servidores caseros y despliegues PROPIOS del usuario, siempre con permiso explícito sobre el objetivo. Encaja con el escáner de seguridad estilo Strix del OS. Nunca sugieras auditar sistemas de terceros sin autorización.",
+    routing: {},
+    skillIds: ["security-audit"],
+    packageIds: ["iatool-strix"],
+  },
+  {
+    id: "offline-maps",
+    label: "Mapas offline OSM (Organic Maps)",
+    systemPrompt:
+      "Conoces Organic Maps: mapas offline basados en OpenStreetMap, sin rastreo ni anuncios. Es la misma filosofía de datos abiertos del Mapa del Hub del OS (que se dibuja con Leaflet + OSM). Si el usuario quiere cartografía soberana y sin rastreo, explica este patrón y señala su repo.",
+    routing: {},
+    skillIds: ["offline-maps"],
+    packageIds: ["iatool-organicmaps"],
+  },
 ];
 
 function isClient(): boolean {

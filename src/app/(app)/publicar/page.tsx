@@ -83,7 +83,7 @@ export default function PublicarPage() {
                 <p className="mb-6 mt-1 text-sm text-white/50">
                     Crea cualquier publicación de principio a fin: elige el tipo, los perfiles desde
                     los que publicas, los destinos (páginas, perfiles, grupos, comunidades, entidades
-                    federativas, mensajes, chats IA, bibliotecas, carpetas y tu red), y el formato,
+                    federativas, mensajes, chats IA, bibliotecas, folders y tu red), y el formato,
                     con vista previa y apertura completa.
                 </p>
                 <Suspense fallback={<div className="h-24 w-full" />}>

@@ -69,7 +69,7 @@ export interface UniversalFilePickerProps {
     onPick: (attachments: UniversalAttachment[]) => void;
     /** Filtro de tipo opcional para el input de dispositivo (p. ej. "image/*"). */
     accept?: string;
-    /** Carpeta lógica de subida (p. ej. "mensajes", "avatares", "biblioteca/<entidad>"). */
+    /** Folder lógico de subida (p. ej. "mensajes", "avatares", "biblioteca/<entidad>"). */
     folder?: string;
     /** Título del diálogo. */
     title?: string;
@@ -142,6 +142,15 @@ function DeviceTab({
                     setUploads((prev) =>
                         prev.map((u) => (u.id === uploadId ? { ...u, status: "hecho", pct: 100, attachment } : u)),
                     );
+                    // Adenda 66 §2: el objeto está en Storage pero su fila `os_files`
+                    // no se pudo registrar. Antes esto se daba por bueno en silencio
+                    // (por eso el archivo no llegaba a los otros dispositivos). Ahora
+                    // se DICE, y la fila queda en cola de reintento automático.
+                    if (res.warning) {
+                        toast.warning(`«${file.name}» subido, pero sin registrar aún`, {
+                            description: res.warning,
+                        });
+                    }
                 } else {
                     setUploads((prev) =>
                         prev.map((u) => (u.id === uploadId ? { ...u, status: "error", error: res.error } : u)),

@@ -3,9 +3,9 @@
 // ----------------------------------------------------------------
 // Un único punto de verdad para dibujar CUALQUIER formato de archivo
 // con icono + color + etiqueta claros (imagen · vídeo · audio · pdf ·
-// código · 3D · markdown · datos · carpeta…). Datos + helpers puros
+// código · 3D · markdown · datos · folder…). Datos + helpers puros
 // (dependen solo de lucide-react para el tipo de icono). Se usa en la
-// vista de carpetas ramificada y en cualquier lista de archivos.
+// vista de folders ramificada y en cualquier lista de archivos.
 // ════════════════════════════════════════════════════════════════
 
 import {
@@ -78,11 +78,11 @@ export function fileVisual(fileKind?: string, nameOrUrl?: string): FileTypeVisua
     return KIND_MAP.unknown;
 }
 
-/** Apariencia para CUALQUIER icono del escritorio (carpeta, app, widget, enlace, archivo). */
+/** Apariencia para CUALQUIER icono del escritorio (folder, app, widget, enlace, archivo). */
 export function desktopIconVisual(icon: DesktopIcon): FileTypeVisual {
     switch (icon.kind) {
         case "folder":
-            return { Icon: Folder, accent: icon.accent ?? "#FFBF00", label: "Carpeta", group: "folder" };
+            return { Icon: Folder, accent: icon.accent ?? "#FFBF00", label: "Folder", group: "folder" };
         case "app":
             return { Icon: LayoutGrid, accent: icon.accent ?? "#007FFF", label: "App", group: "app" };
         case "widget":
@@ -111,7 +111,7 @@ export function thumbnailUrl(icon: DesktopIcon): string | undefined {
     return undefined;
 }
 
-/** Cuenta recursiva de elementos dentro de una carpeta (para subtítulos). */
+/** Cuenta recursiva de elementos dentro de un folder (para subtítulos). */
 export function countFolderItems(icon: DesktopIcon): number {
     if (icon.kind !== "folder" || !icon.children) return 0;
     return icon.children.length;

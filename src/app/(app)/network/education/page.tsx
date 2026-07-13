@@ -33,6 +33,7 @@ import { CommentSystem } from "@/components/comment-system";
 import { ConocimientoCard } from "./conocimiento-card";
 import { SystemShowcase } from "@/components/showcase/SystemShowcase";
 import { TopicGraph } from "@/components/education/topic-graph";
+import { StudyHub } from "@/components/education/study/study-hub";
 import { builtinTree, type EduTreeNode } from "@/lib/education/curriculum";
 
 
@@ -437,10 +438,11 @@ export default function EducationPage() {
     </div>
 
     <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto">
             <TabsTrigger value="network" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Red de Categorías</TabsTrigger>
             <TabsTrigger value="themes" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Red de Temas</TabsTrigger>
             <TabsTrigger value="conocimiento" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Mapa del Conocimiento</TabsTrigger>
+            <TabsTrigger value="estudio" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Estudio con Aurora</TabsTrigger>
             <TabsTrigger value="featured" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Contenido Destacado</TabsTrigger>
             <TabsTrigger value="posts" className="px-2 sm:px-5 text-[clamp(0.7rem,2.2vw,0.875rem)] whitespace-normal sm:whitespace-nowrap leading-tight py-2">Publicaciones</TabsTrigger>
         </TabsList>
@@ -467,6 +469,10 @@ export default function EducationPage() {
                     <TopicGraph />
                 </CardContent>
             </Card>
+        </TabsContent>
+
+        <TabsContent value="estudio" className="mt-6 animate-in fade-in-50 duration-500">
+            <StudyHub />
         </TabsContent>
 
         <TabsContent value="featured" className="mt-6">

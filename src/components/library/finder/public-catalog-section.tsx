@@ -2,7 +2,7 @@
 
 // ════════════════════════════════════════════════════════════════════════════
 // PublicCatalogSection — sección "Comunidad" del área Librería de /library.
-// Navegación por categorías y carpetas públicas de `library_public_items`, con
+// Navegación por categorías y folders públicos de `library_public_items`, con
 // vista previa embebida (reusa FilePreview) y "Guardar en biblioteca" por
 // ítem. Distinta del catálogo de paquetes builtin (packages.ts/PackageStore):
 // esto es contenido PUBLICADO por usuarios desde sus propias Bibliotecas.
@@ -135,7 +135,7 @@ export function PublicCatalogSection() {
         <div className="flex flex-col gap-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Users className="h-4 w-4 text-emerald-300" />
-                Comunidad — archivos y carpetas publicados por otros usuarios de StarSeed, navegables por categoría.
+                Comunidad — archivos y folders publicados por otros usuarios de StarSeed, navegables por categoría.
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -226,7 +226,7 @@ export function PublicCatalogSection() {
                     <Users className="h-8 w-8 opacity-20" />
                     <p className="text-sm">Nada publicado aquí todavía.</p>
                     <p className="max-w-sm text-xs">
-                        Desde tu Biblioteca, usa «Publicar en la Librería…» sobre cualquier ítem o carpeta para que
+                        Desde tu Biblioteca, usa «Publicar en la Librería…» sobre cualquier ítem o folder para que
                         aparezca aquí para toda la red.
                     </p>
                 </div>

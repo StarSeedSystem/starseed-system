@@ -195,7 +195,7 @@ function ItemCard({
   );
 }
 
-/* -------- Panel principal (acordeón de carpetas) -------- */
+/* -------- Panel principal (acordeón de folders) -------- */
 export function StarSeedKnowledgePanel() {
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({
     constituciones: true,
@@ -223,13 +223,13 @@ export function StarSeedKnowledgePanel() {
             StarSeed · Nexus &amp; Drive
           </h2>
           <p className="text-xs text-muted-foreground">
-            Carpetas con todo StarSeed: documentos del Nexus y de Google Drive,
+            Folders con todo StarSeed: documentos del Nexus y de Google Drive,
             con visor embebido y enlace externo.
           </p>
         </div>
       </div>
 
-      {/* Acordeón de carpetas */}
+      {/* Acordeón de folders */}
       <div className="flex flex-col gap-3">
         {KNOWLEDGE_FOLDERS.map((folder) => {
           const isOpen = !!openFolders[folder.id];

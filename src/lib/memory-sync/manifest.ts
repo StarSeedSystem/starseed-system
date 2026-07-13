@@ -2,8 +2,8 @@
 // StarSeed OS — Memory Roots · Manifest (parsing + diff, PURO sin red)
 // ----------------------------------------------------------------
 // Lector y comparador del contrato portátil `memory.manifest.json` que
-// describe un **memory root** (`<nombre>_memory_root/`): una carpeta raíz
-// con RAMAS (subcarpetas) por tipo de memoria. El mismo formato sirve para
+// describe un **memory root** (`<nombre>_memory_root/`): un folder raíz
+// con RAMAS (subfolders) por tipo de memoria. El mismo formato sirve para
 // repo, Google Drive, cerebros, servidores y VMs.
 // Ver `architecture/memoria-cerebros-sync.md` y `starseed_memory_root/sync.md`.
 //
@@ -31,7 +31,7 @@ export const BRANCH_TIPOS = [
 ] as const;
 export type BranchTipo = (typeof BRANCH_TIPOS)[number];
 
-/** Una rama (subcarpeta) del memory root = una memoria del contrato. */
+/** Una rama (subfolder) del memory root = una memoria del contrato. */
 export interface MemoryBranch {
   /** Nombre lógico de la rama (p. ej. "soul"). */
   rama: string;

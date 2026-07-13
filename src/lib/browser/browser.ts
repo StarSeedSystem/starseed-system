@@ -6,12 +6,12 @@
 // iframes (muchos envían X-Frame-Options / CSP frame-ancestors que bloquean el
 // embebido) ni reemplazar el motor de un navegador real. Por eso esto NO es un
 // "navegador" en el sentido de Chrome/Safari, sino un GESTOR de ventanas que:
-//   · Guarda ventanas (url, grupo, carpeta, estado, suspendida) en la tabla
+//   · Guarda ventanas (url, grupo, folder, estado, suspendida) en la tabla
 //     pública `browser_windows`.
 //   · Renderiza URLs incrustables en iframes sandbox, con fallback claro
 //     ("este sitio no permite incrustarse — abrir en pestaña nueva") cuando el
 //     sitio rechaza el embebido.
-//   · Soporta operaciones de ventana: agrupar, archivar en carpetas, guardar,
+//   · Soporta operaciones de ventana: agrupar, archivar en folders, guardar,
 //     suspender, modo widget, pantalla completa, multivista, posición y tamaño.
 //   · Integra la NAVEGACIÓN REAL vía Astraura/Aurora a través de la extensión
 //     Claude-in-Chrome (Astraura conduce el navegador real; aquí solo emitimos
@@ -57,7 +57,7 @@ export interface BrowserWindow {
     name: string;
     /** Grupo lógico (pestañas relacionadas). Vacío = "Sin grupo". */
     groupName: string;
-    /** Carpeta de archivado. Vacío = "Sin carpeta". */
+    /** Folder de archivado. Vacío = "Sin folder". */
     folder: string;
     url: string;
     state: WindowState;
@@ -256,26 +256,26 @@ export function isLikelyEmbeddable(url: string): true | false | "try" {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Agrupación: grupos y carpetas
+// Agrupación: grupos y folders
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const NO_GROUP = "Sin grupo";
-export const NO_FOLDER = "Sin carpeta";
+export const NO_FOLDER = "Sin folder";
 
 export interface GroupsAndFolders {
     /** Nombres de grupo únicos presentes (incluye "Sin grupo" si aplica), ordenados. */
     groups: string[];
-    /** Nombres de carpeta únicos presentes (incluye "Sin carpeta" si aplica), ordenados. */
+    /** Nombres de folder únicos presentes (incluye "Sin folder" si aplica), ordenados. */
     folders: string[];
     /** Ventanas indexadas por nombre de grupo (clave normalizada a etiqueta visible). */
     byGroup: Record<string, BrowserWindow[]>;
-    /** Ventanas indexadas por carpeta (clave normalizada a etiqueta visible). */
+    /** Ventanas indexadas por folder (clave normalizada a etiqueta visible). */
     byFolder: Record<string, BrowserWindow[]>;
 }
 
 /**
- * Calcula los índices por grupo y por carpeta para alimentar la UI colapsable.
- * Las ventanas sin grupo/carpeta se agrupan bajo las etiquetas NO_GROUP/NO_FOLDER.
+ * Calcula los índices por grupo y por folder para alimentar la UI colapsable.
+ * Las ventanas sin grupo/folder se agrupan bajo las etiquetas NO_GROUP/NO_FOLDER.
  */
 export function groupsAndFolders(windows: BrowserWindow[]): GroupsAndFolders {
     const byGroup: Record<string, BrowserWindow[]> = {};
@@ -478,7 +478,7 @@ export async function setView(id: string, view: WindowView): Promise<MutationRes
     return patchState(id, { view });
 }
 
-/** Asigna (o limpia) la carpeta de archivado de una ventana. */
+/** Asigna (o limpia) el folder de archivado de una ventana. */
 export async function setFolder(id: string, folder: string): Promise<MutationResult> {
     return patchWindow(id, { folder: folder.trim() });
 }

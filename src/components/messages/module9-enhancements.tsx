@@ -12,17 +12,17 @@
 //                            por user_id) vía useRealtime; dispara un callback al
 //                            llegar nuevos mensajes. Si no hay sesión/Supabase,
 //                            degrada a no-op silencioso.
-//   • useChatFolders       — Carpetas de chats persistidas en localStorage,
+//   • useChatFolders       — Folders de chats persistidas en localStorage,
 //                            keyed por usuario (HONESTO: no hay tabla todavía).
 //                            Crear / renombrar / reordenar / asignar chats.
-//   • FoldersPanel         — panel visual de Carpetas que filtra la lista.
+//   • FoldersPanel         — panel visual de Folders que filtra la lista.
 //   • UniversalCompositor  — Compositor Universal: selector de formato
 //                            (Texto / Audio-Video / Galería / Archivo / Lienzo).
 //   • SharePublicationDialog — Interconexión: pegar/adjuntar una ref `/post/<id>`
 //                            y "Enviar al chat".
 //
 // NOTA DE HONESTIDAD:
-//   - Las carpetas viven en localStorage (no en BD). Se documenta en la UI.
+//   - Los folders viven en localStorage (no en BD). Se documenta en la UI.
 //   - La captura Audio/Video usa las APIs del navegador / "los sentidos"
 //     (getUserMedia); aquí marcamos el flujo como tal sin fingir backend.
 //   - El realtime escucha `astraura_messages`; la página actual usa datos en
@@ -102,7 +102,7 @@ export function useMessagesRealtime(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2) CARPETAS (folders) — localStorage, keyed por usuario (HONESTO, mínimo)
+// 2) FOLDERS (folders) — localStorage, keyed por usuario (HONESTO, mínimo)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ChatFolder {
@@ -165,7 +165,7 @@ export interface UseChatFoldersResult {
 }
 
 /**
- * Estado de Carpetas persistido en localStorage (per usuario). HONESTO: no hay
+ * Estado de Folders persistido en localStorage (per usuario). HONESTO: no hay
  * tabla `chat_folders`; esto es almacenamiento local del dispositivo.
  */
 export function useChatFolders(userId: string | null): UseChatFoldersResult {
@@ -212,7 +212,7 @@ export function useChatFolders(userId: string | null): UseChatFoldersResult {
     const deleteFolder = useCallback(
         (id: string) => {
             const assignments = { ...state.assignments };
-            // Desasigna los chats que apuntaban a esta carpeta.
+            // Desasigna los chats que apuntaban a este folder.
             for (const chatId of Object.keys(assignments)) {
                 if (assignments[chatId] === id) delete assignments[chatId];
             }
@@ -269,7 +269,7 @@ export function useChatFolders(userId: string | null): UseChatFoldersResult {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FoldersPanel — panel visual de Carpetas
+// FoldersPanel — panel visual de Folders
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function FoldersPanel({
@@ -310,13 +310,13 @@ export function FoldersPanel({
             <div className="flex items-center justify-between px-3 py-2.5 border-b shrink-0">
                 <div className="flex items-center gap-1.5">
                     <Folder className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-semibold">Carpetas</span>
+                    <span className="text-sm font-semibold">Folders</span>
                 </div>
                 <Button
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 cursor-pointer"
-                    title="Nueva carpeta"
+                    title="Nuevo folder"
                     onClick={() => {
                         setCreating(true);
                         setNewName("");
@@ -451,7 +451,7 @@ export function FoldersPanel({
                             <Folder className="w-4 h-4 shrink-0 text-muted-foreground ml-1" />
                             <Input
                                 autoFocus
-                                placeholder="Nombre de carpeta"
+                                placeholder="Nombre de folder"
                                 value={newName}
                                 onChange={(e) => setNewName(e.target.value)}
                                 onKeyDown={(e) => {
@@ -481,7 +481,7 @@ export function FoldersPanel({
 
                     {api.folders.length === 0 && !creating && (
                         <p className="px-2.5 py-3 text-[11px] text-muted-foreground leading-relaxed">
-                            Crea carpetas para organizar tus chats. Se guardan en este
+                            Crea folders para organizar tus chats. Se guardan en este
                             dispositivo (localStorage).
                         </p>
                     )}

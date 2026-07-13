@@ -1,10 +1,10 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-// AppLauncherWidget — carpeta / tile de apps en el dashboard
+// AppLauncherWidget — folder / tile de apps en el dashboard
 // ----------------------------------------------------------------
 // Variantes:
-//   • folder  → grid de iconos de apps (carpeta personalizable).
+//   • folder  → grid de iconos de apps (folder personalizable).
 //   • single  → tile grande de una sola app.
 // Personalizable vía DashboardWidget.settings (columnas, forma de
 // icono, estilo, densidad, etiquetas, modo de apertura por defecto).
@@ -157,7 +157,7 @@ function AppTile({ app, settings, big, onOpen, onMenu }: {
     );
 }
 
-// ── MiniTile: icono compacto de app (carpeta densa tipo móvil) ────
+// ── MiniTile: icono compacto de app (folder denso tipo móvil) ────
 // Icono pequeño con etiqueta minúscula opcional. Pensado para rejillas de
 // 4–8 por hilera. box-border + min-w-0 → nunca recorta ni desborda.
 function MiniTile({ app, settings, onOpen, onMenu }: {
@@ -236,7 +236,7 @@ function CompactAppGrid({ apps, settings, cols, onOpen, onMenu }: {
 }
 
 // ── Panel de ajustes del launcher (portado a body) ───────────────
-const VARIANTS: { v: LauncherVariant; label: string }[] = [{ v: "folder", label: "Carpeta" }, { v: "single", label: "Tile" }];
+const VARIANTS: { v: LauncherVariant; label: string }[] = [{ v: "folder", label: "Folder" }, { v: "single", label: "Tile" }];
 const COLLECTIONS: { c: LauncherCollection; label: string }[] = [{ c: "starseed", label: "StarSeed" }, { c: "sistema", label: "Sistema" }, { c: "media", label: "Media" }, { c: "custom", label: "Propia" }];
 const SHAPES: IconShape[] = ["squircle", "circle", "rounded", "hex"];
 const STYLES: IconStyle[] = ["glass", "solid", "outline", "gradient"];
@@ -269,16 +269,16 @@ function LauncherSettingsPanel({ settings, patch, onClose }: { settings: AppLaun
         patch({ appIds: Array.from(set), collection: "custom" });
     };
     return createPortal(
-        <div className="fixed inset-0 z-[125] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Ajustes de la carpeta">
+        <div className="fixed inset-0 z-[125] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Ajustes del folder">
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
             <div className="relative w-full max-w-md max-h-[85vh] overflow-auto custom-scrollbar rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl p-4 space-y-3.5">
                 <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-black flex items-center gap-2"><Settings2 className="size-4 text-primary" /> Ajustes de la carpeta</h3>
+                    <h3 className="text-sm font-black flex items-center gap-2"><Settings2 className="size-4 text-primary" /> Ajustes del folder</h3>
                     <button type="button" onClick={onClose} aria-label="Cerrar" className="grid place-items-center size-7 rounded-full hover:bg-white/10 cursor-pointer"><X className="size-4" /></button>
                 </div>
                 <SettingsRow label="Etiqueta">
                     <input value={settings.label ?? ""} onChange={(e) => patch({ label: e.target.value })}
-                        className="w-full rounded-lg border border-border/50 bg-white/5 px-2.5 py-1.5 text-sm outline-none focus:border-primary/50" placeholder="Nombre de la carpeta" />
+                        className="w-full rounded-lg border border-border/50 bg-white/5 px-2.5 py-1.5 text-sm outline-none focus:border-primary/50" placeholder="Nombre del folder" />
                 </SettingsRow>
                 <SettingsRow label="Variante">
                     {VARIANTS.map((x) => <Seg key={x.v} active={settings.variant === x.v} onClick={() => patch({ variant: x.v })}>{x.label}</Seg>)}
@@ -295,7 +295,7 @@ function LauncherSettingsPanel({ settings, patch, onClose }: { settings: AppLaun
                 <SettingsRow label="Densidad">
                     {DENSITIES.map((d) => <Seg key={d} active={(settings.density ?? "comfortable") === d} onClick={() => patch({ density: d })}>{d === "comfortable" ? "Cómoda" : "Compacta"}</Seg>)}
                 </SettingsRow>
-                <SettingsRow label="Estilo de carpeta">
+                <SettingsRow label="Estilo de folder">
                     <Seg active={settings.compactFolder !== false} onClick={() => patch({ compactFolder: true })}>Compacta (móvil)</Seg>
                     <Seg active={settings.compactFolder === false} onClick={() => patch({ compactFolder: false })}>Amplia</Seg>
                 </SettingsRow>
@@ -313,7 +313,7 @@ function LauncherSettingsPanel({ settings, patch, onClose }: { settings: AppLaun
                     <Seg active={settings.showLabels !== false} onClick={() => patch({ showLabels: true })}>Mostrar</Seg>
                     <Seg active={settings.showLabels === false} onClick={() => patch({ showLabels: false })}>Ocultar</Seg>
                 </SettingsRow>
-                <SettingsRow label="Apps de la carpeta">
+                <SettingsRow label="Apps del folder">
                     <div className="grid w-full gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(96px,1fr))" }}>
                         {APP_CATALOG.map((a) => {
                             const on = effectiveIds.includes(a.id);
@@ -360,7 +360,7 @@ export function AppLauncherWidget({ widget }: { widget: DashboardWidget }) {
         }
     };
     const gear = (
-        <button type="button" onClick={() => setPanelOpen(true)} title="Ajustes de la carpeta" aria-label="Ajustes de la carpeta"
+        <button type="button" onClick={() => setPanelOpen(true)} title="Ajustes del folder" aria-label="Ajustes del folder"
             className="grid place-items-center size-7 rounded-full text-muted-foreground/70 hover:text-foreground hover:bg-white/10 transition-colors cursor-pointer">
             <Settings2 className="size-3.5" />
         </button>
@@ -400,15 +400,15 @@ export function AppLauncherWidget({ widget }: { widget: DashboardWidget }) {
     }
 
     // ── Variante folder ──
-    // Carpeta COMPACTA (por defecto): rejilla densa de iconos + cabecera con
-    // contador y chevron para expandir/plegar (como una carpeta de móvil). Al
+    // Folder COMPACTO (por defecto): rejilla densa de iconos + cabecera con
+    // contador y chevron para expandir/plegar (como un folder de móvil). Al
     // expandir muestra TODAS las apps; plegada muestra un adelanto. Puede
-    // agruparse por categorías (secciones plegables). La carpeta "amplia"
+    // agruparse por categorías (secciones plegables). El folder "amplia"
     // (compactFolder=false) conserva el comportamiento clásico con etiquetas.
     const isCompact = settings.compactFolder !== false;
 
     if (!isCompact) {
-        // Carpeta amplia clásica (tiles grandes con etiqueta) — sin cambios de UX.
+        // Folder amplio clásica (tiles grandes con etiqueta) — sin cambios de UX.
         return (
             <WidgetShell title={settings.label ?? "Apps"} subtitle={`${apps.length} apps`} icon={LayoutGrid} accent="#39FF14" actions={gear}>
                 <div className="grid gap-3 py-1" style={{ gridTemplateColumns: gridCols }}>
@@ -419,7 +419,7 @@ export function AppLauncherWidget({ widget }: { widget: DashboardWidget }) {
                 </div>
                 {apps.length === 0 && (
                     <div className="h-full grid place-items-center">
-                        <p className="text-sm text-muted-foreground">Carpeta vacía.</p>
+                        <p className="text-sm text-muted-foreground">Folder vacío.</p>
                     </div>
                 )}
                 {mounted && menu && (
@@ -455,7 +455,7 @@ export function AppLauncherWidget({ widget }: { widget: DashboardWidget }) {
     );
 }
 
-// ── Carpeta compacta y expandible ────────────────────────────────
+// ── Folder compacto y expandible ────────────────────────────────
 // Cabecera con icono, etiqueta, contador y chevron. Plegada: adelanto denso
 // (una o dos hileras). Expandida: todas las apps, con animación suave. Puede
 // mostrarse agrupada por categorías (secciones plegables independientes).
@@ -522,8 +522,8 @@ function CompactFolder({
                     <button
                         type="button"
                         onClick={onToggleExpanded}
-                        title={expanded ? "Plegar carpeta" : "Expandir carpeta"}
-                        aria-label={expanded ? "Plegar carpeta" : "Expandir carpeta"}
+                        title={expanded ? "Plegar folder" : "Expandir folder"}
+                        aria-label={expanded ? "Plegar folder" : "Expandir folder"}
                         aria-expanded={expanded}
                         className="grid place-items-center size-7 rounded-full text-muted-foreground/70 hover:text-foreground hover:bg-white/10 transition-colors cursor-pointer"
                     >
@@ -537,7 +537,7 @@ function CompactFolder({
             <div ref={ref} className="box-border w-full">
                 {apps.length === 0 ? (
                     <div className="grid place-items-center py-6">
-                        <p className="text-sm text-muted-foreground">Carpeta vacía.</p>
+                        <p className="text-sm text-muted-foreground">Folder vacío.</p>
                     </div>
                 ) : settings.grouped ? (
                     <div className="space-y-2.5">

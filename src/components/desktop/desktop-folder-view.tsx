@@ -1,16 +1,16 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-// StarSeed OS — Vista de carpeta ramificada (jerarquía clara)
+// StarSeed OS — Vista de folder ramificado (jerarquía clara)
 // ----------------------------------------------------------------
 // Reemplaza el grid plano de FolderContent por un explorador real:
-//   • Breadcrumb navegable (entra en carpetas anidadas sin abrir más
+//   • Breadcrumb navegable (entra en folders anidados sin abrir más
 //     ventanas — ramificación dentro de la misma ventana).
 //   • Vista conmutable Rejilla / Lista.
 //   • Iconos por TIPO de archivo (imagen/vídeo/audio/pdf/código/3D/
-//     markdown/datos/carpeta) con color y etiqueta; miniatura si hay.
+//     markdown/datos/folder) con color y etiqueta; miniatura si hay.
 //   • Acciones por elemento: abrir · renombrar · duplicar · quitar.
-//   • Crear carpeta/nota/subcarpeta y "Añadir aquí".
+//   • Crear folder/nota/subfolder y "Añadir aquí".
 // Lee del store por id (reactivo) y navega por ruta de ids.
 // ════════════════════════════════════════════════════════════════
 
@@ -232,14 +232,14 @@ function FolderEntry({
     );
 }
 
-// ── Vista principal de carpeta ───────────────────────────────────
+// ── Vista principal de folder ───────────────────────────────────
 export function DesktopFolderView({
     desktopId, rootFolderId, onRequestAddInto,
 }: {
     desktopId: string;
-    /** Carpeta raíz que abrió la ventana. */
+    /** Folder raíz que abrió la ventana. */
     rootFolderId: string;
-    /** Abre el catálogo "+ Añadir" apuntando a una carpeta (por id). */
+    /** Abre el catálogo "+ Añadir" apuntando a un folder (por id). */
     onRequestAddInto?: (folderId: string) => void;
 }): React.ReactElement {
     const state = useDesktopsState();
@@ -249,7 +249,7 @@ export function DesktopFolderView({
     const [mode, setMode] = useState<FolderViewMode>("grid");
     const [sortMode, setSortMode] = useState<DesktopSortMode>("manual");
     const [sortOpen, setSortOpen] = useState(false);
-    // Ruta de navegación (ids de carpeta), empezando en la raíz.
+    // Ruta de navegación (ids de folder), empezando en la raíz.
     const [path, setPath] = useState<string[]>([rootFolderId]);
 
     useEffect(() => { setMode(readFolderView()); }, []);
@@ -260,7 +260,7 @@ export function DesktopFolderView({
         try { localStorage.setItem(VIEW_KEY, m); } catch { /* noop */ }
     };
 
-    // Carpeta actual = último id de la ruta que aún existe.
+    // Folder actual = último id de la ruta que aún existe.
     const trail = useMemo(() => {
         if (!desktop) return [];
         const out: DesktopIcon[] = [];
@@ -280,7 +280,7 @@ export function DesktopFolderView({
                 <div className="max-w-xs space-y-2">
                     <FolderOpen className="mx-auto size-8 text-amber-300/70" />
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                        Esta carpeta ya no existe en el escritorio.
+                        Este folder ya no existe en el escritorio.
                     </p>
                 </div>
             </div>
@@ -301,7 +301,7 @@ export function DesktopFolderView({
                 <button
                     type="button"
                     onClick={() => setPath([rootFolderId])}
-                    title="Raíz de la carpeta"
+                    title="Raíz del folder"
                     className="grid size-6 shrink-0 place-items-center rounded-lg text-muted-foreground/80 transition-colors hover:bg-white/10 hover:text-foreground cursor-pointer"
                 >
                     <Home className="size-3.5" />
@@ -393,15 +393,15 @@ export function DesktopFolderView({
             {/* Barra de acciones de creación */}
             <div className="flex shrink-0 items-center gap-1.5 border-b border-white/10 bg-white/[0.02] px-2.5 py-1.5">
                 <span className="mr-auto text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/70">
-                    {children.length === 0 ? "Carpeta vacía" : `${children.length} elemento${children.length === 1 ? "" : "s"}`}
+                    {children.length === 0 ? "Folder vacío" : `${children.length} elemento${children.length === 1 ? "" : "s"}`}
                 </span>
                 <button
                     type="button"
-                    onClick={() => addIcon(desktopId, { kind: "folder", name: "Nueva carpeta", accent: "#FFBF00" }, current.id)}
-                    title="Nueva subcarpeta"
+                    onClick={() => addIcon(desktopId, { kind: "folder", name: "Nuevo folder", accent: "#FFBF00" }, current.id)}
+                    title="Nuevo subfolder"
                     className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/[0.04] px-2 py-1 text-[10px] font-bold text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground cursor-pointer"
                 >
-                    <FolderPlus className="size-3" /> Carpeta
+                    <FolderPlus className="size-3" /> Folder
                 </button>
                 <button
                     type="button"
@@ -428,7 +428,7 @@ export function DesktopFolderView({
                     <div className="max-w-[280px] space-y-2">
                         <FolderOpen className="mx-auto size-8 text-amber-300/50" />
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                            Esta carpeta está esperando contenido. Crea una subcarpeta o una nota,
+                            Este folder está esperando contenido. Crea un subfolder o una nota,
                             o usa <strong>Añadir aquí</strong> para guardar apps, archivos y widgets.
                         </p>
                     </div>

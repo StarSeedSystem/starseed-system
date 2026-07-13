@@ -6,9 +6,25 @@
  * cerebros disponibles (src/lib/brains/brains.ts) con checkboxes y modo
  * "todos por defecto" sobre entity_state(profile:<id>,'library-brains').
  *
- * Solo tiene efecto real cuando la biblioteca seleccionada es de ámbito
- * PERFIL (EntityKind==='profile') — para otras entidades (usuario/página/
- * grupo…) se muestra un aviso honesto en vez de fingir que aplica.
+ * ── BUG CORREGIDO (Adenda 66) ────────────────────────────────────────────
+ * Antes: `profileId = ref.kind === 'profile' ? ref.id : null` y
+ * `applicable = ref.kind === 'profile'`. Pero el selector de bibliotecas
+ * (`myLibraryDestinations()` en entity-library.ts) NUNCA emite `kind:'profile'`:
+ * solo emite `user` (Mi biblioteca), `page` y `group`. Resultado: `applicable`
+ * era SIEMPRE false y el popover mostraba «elige un perfil en el selector de
+ * arriba» — un aviso IMPOSIBLE de satisfacer, porque ese selector no ofrece
+ * perfiles.
+ *
+ * Ahora se resuelve el perfil EFECTIVO igual que lo hace el consumidor real
+ * (Aurora/Astraura, `libraryBrainsContextLine()` en src/ai/astraura/context.ts,
+ * que lee `getLibraryBrains(activeProfileId())`):
+ *   · kind 'profile'  → ese perfil.
+ *   · kind 'user'     → MI biblioteca personal = cerebros del PERFIL ACTIVO
+ *                       (useActiveProfile), sin pedir nada al usuario.
+ *   · page/group/…    → no aplica (los cerebros de contexto son por perfil),
+ *                       con un aviso honesto que ya no manda a ningún sitio
+ *                       inexistente.
+ * Así el popover ESCRIBE en la misma clave que Aurora LEE.
  */
 
 import { useMemo } from "react";
@@ -21,14 +37,35 @@ import { Button } from "@/components/ui/button";
 import { Brain, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLibraryBrains } from "@/lib/library/library-brains";
+import { useActiveProfile } from "@/lib/profiles/profiles";
 import type { EntityRef } from "@/lib/library/entity-library";
 
 export function LibraryBrainsPopover({ ref }: { ref: EntityRef | null }) {
-    const profileId = ref?.kind === "profile" ? ref.id : null;
+    // Perfil activo de la cuenta (mismo que usa Aurora vía activeProfileId()).
+    const { profile: activeProfile, loading: profilesLoading } = useActiveProfile();
+
+    // ¿Es esta una biblioteca PERSONAL (mía)? `user` = "Mi biblioteca";
+    // `profile` = biblioteca de una faceta concreta. En ambos casos los
+    // cerebros de contexto se configuran contra un perfil de MI cuenta.
+    const isPersonal = ref?.kind === "user" || ref?.kind === "profile";
+
+    const profileId = useMemo(() => {
+        if (!ref) return null;
+        if (ref.kind === "profile") return ref.id;
+        if (ref.kind === "user") return activeProfile?.id ?? null;
+        return null;
+    }, [ref, activeProfile]);
+
     const { config, brains, loading, setMode, toggleBrain } = useLibraryBrains(profileId);
 
     const selectedSet = useMemo(() => new Set(config.brains), [config.brains]);
-    const applicable = ref?.kind === "profile";
+
+    // Aplicable = biblioteca personal CON perfil resuelto. Mientras los perfiles
+    // cargan no mostramos el aviso (mostramos "Cargando…"), para no acusar en
+    // falso a una biblioteca que sí es de perfil.
+    const resolvingProfile = isPersonal && !profileId && profilesLoading;
+    const noProfilesYet = isPersonal && !profileId && !profilesLoading;
+    const applicable = isPersonal && !!profileId;
 
     return (
         <Popover>
@@ -50,11 +87,25 @@ export function LibraryBrainsPopover({ ref }: { ref: EntityRef | null }) {
                         <p className="text-[11px] text-muted-foreground mt-0.5">
                             Qué memorias/cerebros dan contexto a Aurora sobre esta biblioteca.
                         </p>
+                        {/* Transparencia: se dice EXACTAMENTE sobre qué perfil se está guardando. */}
+                        {applicable && activeProfile && ref?.kind === "user" && (
+                            <p className="mt-1 text-[10px] text-primary/80">
+                                Perfil activo: <span className="font-semibold">{activeProfile.name}</span>
+                            </p>
+                        )}
                     </div>
 
-                    {!applicable ? (
+                    {resolvingProfile ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Resolviendo tu perfil…
+                        </div>
+                    ) : noProfilesYet ? (
                         <p className="text-[11px] text-amber-300/80 rounded-lg border border-amber-400/20 bg-amber-400/5 p-2">
-                            Esta biblioteca no es de un perfil — elige un perfil en el selector de arriba para configurar sus cerebros.
+                            Tu cuenta todavía no tiene ningún perfil. Crea uno en Ajustes → Perfiles y sus cerebros de contexto se configurarán aquí.
+                        </p>
+                    ) : !applicable ? (
+                        <p className="text-[11px] text-amber-300/80 rounded-lg border border-amber-400/20 bg-amber-400/5 p-2">
+                            Los cerebros de contexto se configuran por perfil. Cambia a «Mi biblioteca» en el selector para ajustar los de tu perfil activo.
                         </p>
                     ) : loading ? (
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">

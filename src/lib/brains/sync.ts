@@ -9,10 +9,10 @@
  * y devuelve un parte legible (en español) sin lanzar nunca:
  *
  *   1) Syncthing (sync de ficheros open-source, P2P): si el enlace (o el
- *      servidor) declara una carpeta de Syncthing, se pide un RE-ESCANEO de esa
- *      carpeta al Neurocortex (POST {BOT_BASE}/api/syncthing action:'scan').
+ *      servidor) declara un folder de Syncthing, se pide un RE-ESCANEO de esa
+ *      folder al Neurocortex (POST {BOT_BASE}/api/syncthing action:'scan').
  *      Reutiliza EXACTAMENTE el contrato que usa src/components/exocortex/
- *      syncthing-panel.tsx: { account_id, action:'scan', id:<carpeta> }.
+ *      syncthing-panel.tsx: { account_id, action:'scan', id:<folder> }.
  *
  *   2) Empuje del bundle del cerebro: si la dirección/rol implica subir datos
  *      (direction push/both o rol compute/primary), se ensambla el bundle del
@@ -93,7 +93,7 @@ function friendlyError(e: unknown, fallback: string): string {
   return fallback;
 }
 
-/** Carpeta de Syncthing declarada en el enlace o en la config del servidor. */
+/** Folder de Syncthing declarada en el enlace o en la config del servidor. */
 function syncthingFolderId(link: ServerLink, server: RegistryServer): string | null {
   const fromLink = (link?.sync as Record<string, unknown> | undefined)?.syncthingFolderId;
   if (typeof fromLink === "string" && fromLink.trim()) return fromLink.trim();
@@ -135,11 +135,11 @@ function toRuntimeServer(server: RegistryServer) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Paso 1 — Syncthing (re-escaneo de carpeta)                          */
+/* Paso 1 — Syncthing (re-escaneo de folder)                          */
 /* ------------------------------------------------------------------ */
 
 /**
- * Pide a Syncthing (vía Neurocortex) un re-escaneo de la carpeta. Usa el MISMO
+ * Pide a Syncthing (vía Neurocortex) un re-escaneo del folder. Usa el MISMO
  * contrato que syncthing-panel.tsx: POST /api/syncthing { account_id, action:'scan', id }.
  */
 async function runSyncthingScan(
@@ -161,11 +161,11 @@ async function runSyncthingScan(
       kind: "syncthing",
       ok,
       detail: ok
-        ? `Syncthing: re-escaneo solicitado para la carpeta «${folder}».`
+        ? `Syncthing: re-escaneo solicitado para el folder «${folder}».`
         : `Syncthing: no se pudo re-escanear «${folder}» (${(j.error as string) || `respondió ${res.status}`}).`,
     };
   } catch (e) {
-    return { kind: "syncthing", ok: false, detail: `Syncthing: ${friendlyError(e, "no se pudo re-escanear la carpeta.")}` };
+    return { kind: "syncthing", ok: false, detail: `Syncthing: ${friendlyError(e, "no se pudo re-escanear el folder.")}` };
   }
 }
 
@@ -206,7 +206,7 @@ async function runBundlePush(
 
 /**
  * Ejecuta la sincronización REAL de un enlace cerebro↔servidor:
- *  - dispara un re-escaneo de Syncthing si hay carpeta declarada,
+ *  - dispara un re-escaneo de Syncthing si hay folder declarado,
  *  - empuja el bundle del cerebro si la dirección/rol lo implica,
  *  - registra un paso informativo para datastores de replicación.
  *
@@ -225,7 +225,7 @@ export async function runLinkSync(
       return { ok: false, steps, detail: "No hay enlace o servidor que sincronizar." };
     }
 
-    // 1) Syncthing (carpeta de ficheros open-source).
+    // 1) Syncthing (folder de ficheros open-source).
     const folder = syncthingFolderId(link, server);
     if (folder) {
       steps.push(await runSyncthingScan(accountId, folder));
@@ -255,7 +255,7 @@ export async function runLinkSync(
         detail:
           dir === "pull"
             ? "Sin acciones de subida: este enlace está configurado solo para bajar (pull)."
-            : "Nada que sincronizar: configura una carpeta Syncthing o una dirección de subida (push/both).",
+            : "Nada que sincronizar: configura un folder Syncthing o una dirección de subida (push/both).",
       });
     }
 

@@ -4,7 +4,7 @@
 // InstallToDialog — "Instalar/guardar en…" (Adenda 65, §18): un único diálogo
 // con 4 destinos REALES (nunca inventados), cada uno sobre infraestructura ya
 // existente en el repo:
-//   · Biblioteca/carpeta   → saveItem() (entity-library.ts)
+//   · Biblioteca/folder   → saveItem() (entity-library.ts)
 //   · Escritorio (acceso directo) → addIcon() (desktop-store.ts)
 //   · Cerebro (memoria)    → saveBrain() empujando a includes.memories[] (brains.ts)
 //   · Servidor/host propio → api/integrations/proxy (ya existente) — mejor esfuerzo,
@@ -54,7 +54,7 @@ export function InstallToDialog({ open, onOpenChange, item, defaultDest = "bibli
     const [dest, setDest] = useState<Dest>(defaultDest);
     const [busy, setBusy] = useState(false);
 
-    // ── Biblioteca/carpeta ──
+    // ── Biblioteca/folder ──
     const { destinations, loading: loadingDests } = useMyLibraryDestinations();
     const [libKey, setLibKey] = useState("");
     const [folderId, setFolderId] = useState("__root__");
@@ -224,9 +224,9 @@ export function InstallToDialog({ open, onOpenChange, item, defaultDest = "bibli
                                     </SelectContent>
                                 </Select>
                                 <Select value={folderId} onValueChange={setFolderId}>
-                                    <SelectTrigger className="h-9 border-white/15 bg-black/30 text-xs"><SelectValue placeholder="Carpeta" /></SelectTrigger>
+                                    <SelectTrigger className="h-9 border-white/15 bg-black/30 text-xs"><SelectValue placeholder="Folder" /></SelectTrigger>
                                     <SelectContent className="border-white/10 bg-black/90 backdrop-blur-xl">
-                                        <SelectItem value="__root__" className="text-xs"><span className="flex items-center gap-1.5"><Folder className="h-3 w-3" /> Sin carpeta (raíz)</span></SelectItem>
+                                        <SelectItem value="__root__" className="text-xs"><span className="flex items-center gap-1.5"><Folder className="h-3 w-3" /> Sin folder (raíz)</span></SelectItem>
                                         {folders.map((f) => (
                                             <SelectItem key={f.id} value={f.id} className="text-xs"><span className="flex items-center gap-1.5"><Folder className="h-3 w-3" /> {f.name}</span></SelectItem>
                                         ))}

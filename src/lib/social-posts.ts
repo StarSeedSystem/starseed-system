@@ -5,6 +5,8 @@
 // tiene columnas de media dedicadas, así que inferimos adjuntos desde `body`,
 // `recipe` y `col`. Si un campo no existe simplemente se ignora.
 
+import { parseBlocks, type PostBlock } from "@/lib/creation/post-blocks";
+
 /** Forma cruda de una fila de `cafe_posts` (campos relevantes, todos opcionales/seguros). */
 export interface CafePostRow {
     id: string;
@@ -51,6 +53,10 @@ export interface NormalizedPost {
     media: PostMedia | null;
     /** Adjuntos adicionales extraídos del cuerpo (bloque "**Adjuntos:**" de /publish). */
     attachments?: PostMedia[];
+    /** Adenda 66 §6 · ETIQUETAS MÚLTIPLES de la publicación (ss:meta.tags). */
+    tags?: string[];
+    /** Adenda 66 §6 · Bloques RICOS del Lienzo (ss:meta.blocks) para el post-blocks-renderer. */
+    blocks?: PostBlock[];
     isFallback?: boolean;     // viene de datos de ejemplo
 }
 
@@ -139,6 +145,10 @@ export interface SplitBodyResult {
     attachments: PostMedia[];
     /** Metadata `ss:meta` (área/tipo especializado) si venía embebida. */
     meta: { area?: string; tipo?: string } | null;
+    /** Adenda 66 §6 · Etiquetas múltiples (ss:meta.tags). */
+    tags: string[];
+    /** Adenda 66 §6 · Bloques ricos (ss:meta.blocks) ya parseados. */
+    blocks: PostBlock[];
 }
 
 /** Infiere el PostMedia adecuado para una URL de adjunto (por extensión). */
@@ -161,6 +171,8 @@ function mediaFromUrl(url: string, name?: string): PostMedia {
 export function splitBodyAttachments(raw: string | null | undefined): SplitBodyResult {
     let body = raw || "";
     let meta: SplitBodyResult["meta"] = null;
+    let tags: string[] = [];
+    let blocks: PostBlock[] = [];
 
     // 1) Metadata embebida (invisible para la lectura humana).
     const mm = body.match(SS_META_COMMENT_RE);
@@ -172,6 +184,11 @@ export function splitBodyAttachments(raw: string | null | undefined): SplitBodyR
                     area: typeof parsed.area === "string" ? parsed.area : undefined,
                     tipo: typeof parsed.tipo === "string" ? parsed.tipo : undefined,
                 };
+                // Adenda 66 §6 · etiquetas múltiples + bloques ricos.
+                if (Array.isArray(parsed.tags)) {
+                    tags = parsed.tags.filter((t): t is string => typeof t === "string");
+                }
+                blocks = parseBlocks(parsed.blocks);
             }
         } catch {
             /* metadata corrupta: se ignora */
@@ -209,7 +226,7 @@ export function splitBodyAttachments(raw: string | null | undefined): SplitBodyR
         body = body.replace(ATTACH_BLOCK_RE, "\n");
     }
 
-    return { body: body.trim(), attachments, meta };
+    return { body: body.trim(), attachments, meta, tags, blocks };
 }
 
 /** Normaliza una fila cruda de Supabase a la forma de UI. */
@@ -230,6 +247,8 @@ export function normalizeCafePost(row: CafePostRow): NormalizedPost {
         commentsCount: Array.isArray(recipe.comments) ? recipe.comments.length : 0,
         media: detectMedia({ body, recipe }),
         attachments: split.attachments.length > 0 ? split.attachments : undefined,
+        tags: split.tags.length > 0 ? split.tags : undefined,
+        blocks: split.blocks.length > 0 ? split.blocks : undefined,
     };
 }
 

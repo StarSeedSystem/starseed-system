@@ -600,7 +600,7 @@ export default function BrainsPanel() {
             } elementos, ${b.servers.length} servidores${b.includes.bindScope ? ", vincula todo el alcance" : ""})`,
         )
         .join("\n");
-      const content = `Eres Astraura, guía de StarSeed OS. Un "cerebro" es el contenedor maestro y portable que empaqueta TODO el contexto del usuario: memorias, baúles y carpetas, conexiones, sistemas de IA (configs y adaptaciones a Astraura y Aurora), permisos, accesos, ficheros, APIs, cuentas, fuentes y servidores. Un cerebro puede conectarse a Higgsfield, a cualquier servidor online o a un servidor local. Los usuarios eligen cerebros por contexto (global, perfil, grupo, página, chat) y qué servidor(es) usar.
+      const content = `Eres Astraura, guía de StarSeed OS. Un "cerebro" es el contenedor maestro y portable que empaqueta TODO el contexto del usuario: memorias, baúles y folders, conexiones, sistemas de IA (configs y adaptaciones a Astraura y Aurora), permisos, accesos, ficheros, APIs, cuentas, fuentes y servidores. Un cerebro puede conectarse a Higgsfield, a cualquier servidor online o a un servidor local. Los usuarios eligen cerebros por contexto (global, perfil, grupo, página, chat) y qué servidor(es) usar.
 Cerebros actuales del usuario:
 ${summary || "(ninguno todavía)"}
 Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cerebros conviene tener, qué incluir en cada uno, qué servidores conectar y qué cerebro usar en cada contexto. Máximo 8 líneas.`;
@@ -634,7 +634,7 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-cyan-50">Cerebros · tu contexto portable</span>
             <span className="max-w-2xl text-[11px] text-cyan-300/70">
-              Un cerebro empaqueta TODO: memorias, baúles y carpetas, conexiones, sistemas de IA con sus configs y
+              Un cerebro empaqueta TODO: memorias, baúles y folders, conexiones, sistemas de IA con sus configs y
               adaptaciones a Astraura y Aurora, permisos, accesos, ficheros, APIs, cuentas, fuentes y servidores.
               Conéctalo a Higgsfield, a cualquier servidor online o a un servidor local, y elígelo por contexto.
             </span>
@@ -953,7 +953,7 @@ Sugiere en español, breve y accionable, cómo organizar sus cerebros: qué cere
             En un cerebro, añade un servidor de tipo «Servidor local» con la URL{" "}
             <code className="rounded bg-black/40 px-1 text-emerald-100">http://localhost:8800</code> y pulsa Probar.
           </li>
-          <li>Apunta una carpeta de Syncthing a ./starseed_brain para sincronizar entre dispositivos.</li>
+          <li>Apunta un folder de Syncthing a ./starseed_brain para sincronizar entre dispositivos.</li>
         </ol>
         <div className="mt-2 flex flex-wrap gap-2">
           <a
@@ -2611,7 +2611,7 @@ function BrainMemoriesSection({ brainId, isNew }: { brainId: string; isNew: bool
       {roots.length === 0 ? (
         <p className="text-[10px] text-white/40">
           No hay memorias conectadas. Conéctalas en{" "}
-          <strong className="text-white/55">Exocórtex → Memorias → Conectar carpeta de memorias</strong>.
+          <strong className="text-white/55">Exocórtex → Memorias → Conectar folder de memorias</strong>.
         </p>
       ) : (
         <div className="space-y-1.5">

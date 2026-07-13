@@ -41,10 +41,10 @@ const AVAILABLE_WIDGETS: WidgetDefinition[] = [
     // ── Aplicaciones (launcher) ──
     {
         type: 'APP_LAUNCHER', title: "Apps StarSeed",
-        description: "Carpeta de apps y módulos: Nexus, Café, Audiomorphic, Omnifrecuencias y más. Iconos personalizables y modos de apertura.",
+        description: "Folder de apps y módulos: Nexus, Café, Audiomorphic, Omnifrecuencias y más. Iconos personalizables y modos de apertura.",
         icon: <LayoutGrid className="h-5 w-5 text-lime-400" />,
         primaryCategory: 'aplicaciones', secondaryCategories: ['sistema', 'entretenimiento'],
-        tags: ['apps', 'launcher', 'carpeta', 'programas', 'inicio', 'nexus', 'café', 'audiomorphic', 'omnifrecuencias'], isPopular: true,
+        tags: ['apps', 'launcher', 'folder', 'carpeta', 'programas', 'inicio', 'nexus', 'café', 'audiomorphic', 'omnifrecuencias'], isPopular: true,
     },
     {
         type: 'UNIVERSAL_OPENER', title: "Visor Universal",

@@ -144,7 +144,7 @@ export async function createConversation(input: {
 }
 
 /**
- * Asigna (o limpia con `null`) la carpeta de una conversación propia.
+ * Asigna (o limpia con `null`) el folder de una conversación propia.
  * Owner-scoped. No lanza; devuelve `false` ante error.
  */
 export async function setFolder(

@@ -371,6 +371,17 @@ export function SideCurtains() {
                 interna (`logicSwipe.motionStyle`) para no pelear con la animación
                 de entrada/salida en `x`. Centrado vertical por top/bottom-0 + flex,
                 sin transform residual (evita la trampa del containing block).
+
+                ── C2 · Adenda 66 §14 (regla Adenda 63 §15) ─────────────────────────
+                El alto NO se declara: se DERIVA de anclar `inset-y-0` (top+bottom).
+                Antes convivían `top-0 bottom-0` + `h-[100dvh]` (redundante) y, en el
+                caso del board, un `md:h-[90vh] md:my-auto` que competía con ellos.
+                Anclando ambos bordes, el wrapper mide SIEMPRE el viewport real —
+                también cuando la barra de URL móvil aparece/desaparece, donde `vh`
+                miente — y las safe-areas (notch arriba, barra de gestos abajo) se
+                RESERVAN con padding, de modo que ningún hijo puede nacer por encima
+                del borde superior. El gutter `md:py-4` sustituye al viejo 90vh y
+                mantiene el aire alrededor del panel en tablet/escritorio.
             */}
             {activeEdge === "logic" && (
                 <motion.div
@@ -379,10 +390,15 @@ export function SideCurtains() {
                     exit={{ x: "110%", opacity: 0 }}
                     transition={{ type: "spring", damping: 30, stiffness: 200 }}
                     className={cn(
-                        "fixed z-[90] top-0 bottom-0 right-0 h-[100dvh] flex items-center justify-end box-border pointer-events-none",
+                        "fixed z-[90] inset-y-0 right-0 flex items-center justify-end box-border pointer-events-none",
+                        // Tablet/escritorio: gutter de 1rem que además NUNCA baja de la
+                        // safe-area (iPad en PWA con barra de gestos). En móvil el panel
+                        // va a sangre y reserva el notch con su propio padding interno
+                        // (cabecera y barra de estado del ControlCenter).
+                        "md:pt-[max(1rem,env(safe-area-inset-top,0px))] md:pb-[max(1rem,env(safe-area-inset-bottom,0px))]",
                         activeBoardId
                             // Board viewer: casi pantalla completa, pero acotado dentro del viewport.
-                            ? "w-full md:right-[max(1rem,env(safe-area-inset-right))] md:h-[90vh] md:my-auto md:w-[min(85vw,72rem)] md:max-w-[calc(100vw-2rem)]"
+                            ? "w-full md:right-[max(1rem,env(safe-area-inset-right))] md:w-[min(85vw,72rem)] md:max-w-[calc(100vw-2rem)]"
                             // Control Center: móvil casi todo el ancho; tablet/desktop panel lateral cómodo.
                             // min 28rem para alojar holgado el ControlCenter (md:w-[420px]) sin recortes.
                             : "w-full sm:w-[min(30rem,100vw)] md:right-[max(1rem,env(safe-area-inset-right))] md:w-[clamp(28rem,40vw,34rem)] md:max-w-[calc(100vw-2rem)]"

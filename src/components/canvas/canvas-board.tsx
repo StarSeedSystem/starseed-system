@@ -194,7 +194,7 @@ function MenuItem({
   );
 }
 
-// Metadatos de grupo/carpeta de un bloque (campo opcional `group`). Se modela
+// Metadatos de grupo/folder de un bloque (campo opcional `group`). Se modela
 // de forma aditiva aquí para no tocar el tipo base CanvasBlock del lib.
 type GroupedBlock = CanvasBlock & { group?: string };
 function blockGroup(b: CanvasBlock): string | undefined {
@@ -611,7 +611,7 @@ export default function CanvasBoard({
     }));
   }
 
-  // Asigna/limpia el grupo (carpeta) de un bloque.
+  // Asigna/limpia el grupo (folder) de un bloque.
   function setBlockGroup(id: string) {
     const cur = canvas.blocks.find((b) => b.id === id);
     const next = typeof window !== "undefined" ? window.prompt("Grupo del bloque", (cur ? blockGroup(cur) : "") ?? "") : null;
@@ -2085,7 +2085,7 @@ function BlockCard({
             onGroup();
           }}
           className="text-white/30 hover:text-fuchsia-300"
-          title="Grupo / carpeta del bloque"
+          title="Grupo / folder del bloque"
         >
           <Move className="w-3.5 h-3.5" />
         </button>
@@ -2478,9 +2478,9 @@ function PropertiesPanel({
         </div>
       </div>
 
-      {/* Grupo / carpeta */}
+      {/* Grupo / folder */}
       <div className="space-y-1">
-        <label className="text-[10px] text-white/50">Grupo / carpeta</label>
+        <label className="text-[10px] text-white/50">Grupo / folder</label>
         <Input
           value={block.group ?? ""}
           onChange={(e) => onPatch({ group: e.target.value.trim() || undefined } as Partial<CanvasBlock>)}

@@ -2,15 +2,15 @@
 
 /*
  * ═══════════════════════════════════════════════════════════════════════════
- * media-library — Carpeta compartida "Imágenes y videos" de la biblioteca
- * personal (u otra entidad), con SUBCARPETAS automáticas por ORIGEN (Cámara /
+ * media-library — Folder compartido "Imágenes y videos" de la biblioteca
+ * personal (u otra entidad), con SUBFOLDERS automáticas por ORIGEN (Cámara /
  * Importadas / Capturas). Usada por la app Cámara (/camara) y la Galería
  * (/galeria) — mismo modelo de datos, cero duplicación.
  *
- * Modelo: compone sobre entity-library.ts (carpetas + SavedItem type:"file")
+ * Modelo: compone sobre entity-library.ts (folders + SavedItem type:"file")
  * y os-files.ts (subida real a Supabase Storage) SIN modificarlos — solo su
  * API pública. Cada archivo sube primero a `os-files` (nube real) y luego se
- * referencia en la carpeta correspondiente (Lienzo Universal: referencia, no
+ * referencia en el folder correspondiente (Lienzo Universal: referencia, no
  * copia). Nunca lanza: cualquier fallo degrada a un resultado {ok:false}.
  * ═══════════════════════════════════════════════════════════════════════════
  */
@@ -38,8 +38,8 @@ export interface MediaFolders {
 }
 
 /**
- * Devuelve (creando si falta) la carpeta raíz "Imágenes y videos" + sus 3
- * subcarpetas automáticas, en la biblioteca de `ref`. Idempotente: `createFolder`
+ * Devuelve (creando si falta) el folder raíz "Imágenes y videos" + sus 3
+ * subfolders automáticas, en la biblioteca de `ref`. Idempotente: `createFolder`
  * ya deduplica por nombre+padre, así que llamarla varias veces no crea duplicados.
  */
 export async function ensureMediaFolders(ref: EntityRef): Promise<MediaFolders> {
@@ -66,7 +66,7 @@ export interface SaveMediaInput {
     /** Nombre de archivo (obligatorio si `file` es un Blob sin `.name`). */
     name: string;
     origin: MediaOrigin;
-    /** Carpeta destino explícita (si el usuario eligió otra distinta de la automática por origen). */
+    /** Folder destino explícita (si el usuario eligió otra distinta de la automática por origen). */
     destFolderId?: string | null;
     isPublic?: boolean;
     tags?: string[];
@@ -86,7 +86,7 @@ function toFile(input: File | Blob, name: string): File {
     return new File([input], name, { type: input.type || "application/octet-stream" });
 }
 
-/** Sube un archivo (foto/vídeo) a `os-files` y lo referencia en la carpeta de Media correspondiente. */
+/** Sube un archivo (foto/vídeo) a `os-files` y lo referencia en el folder de Media correspondiente. */
 export async function saveMediaToLibrary(ref: EntityRef, input: SaveMediaInput): Promise<SaveMediaResult> {
     try {
         const folders = await ensureMediaFolders(ref);
@@ -149,7 +149,7 @@ export async function moveMediaItem(ref: EntityRef, itemId: string, folderId: st
  * A diferencia de `saveMediaToLibrary` (sube un File/Blob real a os-files),
  * esto guarda una REFERENCIA (Lienzo Universal: enlaza, no duplica) a un
  * recurso que vive en un servicio conectado por el usuario (p.ej. un álbum o
- * asset de su propia instancia de Immich) dentro de la misma carpeta de
+ * asset de su propia instancia de Immich) dentro de la mismo folder de
  * Media. Honesto: no descarga ni realoja el archivo original.
  */
 
@@ -159,7 +159,7 @@ export interface SaveExternalRefInput {
     /** Enlace a donde vive de verdad el recurso (p.ej. tu propia instancia de Immich). */
     url: string;
     origin: MediaOrigin;
-    /** Carpeta destino explícita (si no, la subcarpeta automática por origen). */
+    /** Folder destino explícito (si no, el subfolder automático por origen). */
     destFolderId?: string | null;
     note?: string;
     tags?: string[];
@@ -172,7 +172,7 @@ export interface SaveExternalRefResult {
     folderId?: string | null;
 }
 
-/** Guarda una referencia externa (tipo "external") en la carpeta de Media correspondiente. */
+/** Guarda una referencia externa (tipo "external") en el folder de Media correspondiente. */
 export async function saveExternalRefToMedia(ref: EntityRef, input: SaveExternalRefInput): Promise<SaveExternalRefResult> {
     try {
         const folders = await ensureMediaFolders(ref);

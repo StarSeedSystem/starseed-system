@@ -359,7 +359,7 @@ export async function routeAndStore(
         return {
           backend: backendKind,
           reason,
-          detail: "Marcado para Syncthing (carpeta local). Se sincronizará entre tus dispositivos.",
+          detail: "Marcado para Syncthing (folder local). Se sincronizará entre tus dispositivos.",
           ok: ok || !memory.id,
         };
       }

@@ -387,7 +387,7 @@ export default function PaginaPage() {
                     ref={libraryRef("page", page.slug)}
                     accent={accentForTabs}
                     title={`Biblioteca de ${page.name}`}
-                    subtitle="Referencias guardadas por esta página, organizadas en carpetas propias."
+                    subtitle="Referencias guardadas por esta página, organizadas en folders propios."
                 />
             ),
         });

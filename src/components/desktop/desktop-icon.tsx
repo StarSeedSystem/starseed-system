@@ -3,7 +3,7 @@
 // ════════════════════════════════════════════════════════════════
 // StarSeed OS — Tile visual de icono de escritorio (presentacional)
 // ----------------------------------------------------------------
-// Dibuja UN icono (app/archivo/carpeta/widget/enlace) estilo desktop:
+// Dibuja UN icono (app/archivo/folder/widget/enlace) estilo desktop:
 // placa squircle de cristal con acento, imagen oficial (/app-icons/*)
 // si existe, Lucide o iniciales como respaldo, nombre debajo y marco
 // cristal de selección. En viewMode 'preview' los widgets se ven VIVOS
@@ -118,7 +118,7 @@ function IconLabel({
 export interface DesktopIconTileProps {
     icon: DesktopIcon;
     selected?: boolean;
-    /** Modo compacto (carpetas / móvil): tile pequeño e independiente del size. */
+    /** Modo compacto (folders / móvil): tile pequeño e independiente del size. */
     compact?: boolean;
     renaming?: boolean;
     onRenameCommit?: (name: string) => void;
@@ -268,7 +268,7 @@ export function DesktopIconTile({
                         {initialsOf(icon.name)}
                     </span>
                 )}
-                {/* Contador de carpeta */}
+                {/* Contador de folder */}
                 {icon.kind === "folder" && (icon.children?.length ?? 0) > 0 && (
                     <span className="absolute bottom-1 right-1 grid min-w-4 place-items-center rounded-full border border-white/25 bg-black/55 px-1 text-[9px] font-black text-white">
                         {icon.children!.length}

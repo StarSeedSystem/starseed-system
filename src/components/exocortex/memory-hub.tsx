@@ -15,7 +15,7 @@ import Link from "next/link";
 import { routeAndStore } from "@/lib/storage/route-memory";
 import { getPolicy } from "@/lib/storage/backends";
 import type { StoragePolicy } from "@/lib/storage/backends";
-// NUEVO (aditivo): conectar una carpeta de memorias (memory root) en modo
+// NUEVO (aditivo): conectar un folder de memorias (memory root) en modo
 // vista previa, sin tocar la cuenta. Ver architecture/memoria-cerebros-sync.md.
 import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connect";
 // Exocórtex × Aurora: lanzador compacto que abre la Aurora GLOBAL con el
@@ -369,7 +369,7 @@ export function MemoryHub() {
         </div>
       </div>
 
-      {/* NUEVO (aditivo): Conectar carpeta de memorias (memory root → cerebro/baúl),
+      {/* NUEVO (aditivo): Conectar folder de memorias (memory root → cerebro/baúl),
           modo vista previa, sin conexión a la cuenta. */}
       <MemoryFolderConnect />
 

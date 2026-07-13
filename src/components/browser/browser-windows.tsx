@@ -5,11 +5,11 @@
 // Navegador de StarSeed — espacio de trabajo de ventanas y pestañas.
 //
 // Es un GESTOR de ventanas (no un motor de navegador): guarda ventanas en
-// Supabase (`browser_windows`), las agrupa por GRUPO y por CARPETA (colapsables),
+// Supabase (`browser_windows`), las agrupa por GRUPO y por FOLDER (colapsables),
 // y permite operarlas: abrir (iframe sandbox con fallback), suspender/reanudar,
 // modo widget (flotante pequeño), multivista (varios iframes en mosaico),
 // pantalla completa, mover/redimensionar (persistido en `state`), asignar
-// grupo/carpeta, guardar, compartir (shareRef → portapapeles) y adjuntar a la
+// grupo/folder, guardar, compartir (shareRef → portapapeles) y adjuntar a la
 // pizarra/publicación. Los sitios no incrustables muestran un botón claro
 // "abrir en pestaña nueva".
 //
@@ -237,7 +237,7 @@ function WindowCard({
             const g = await setGroup(w.id, group);
             if (!g.ok) return g;
             return setFolder(w.id, folder);
-        }, "Grupo y carpeta guardados");
+        }, "Grupo y folder guardados");
         setEditMeta(false);
     }
 
@@ -399,7 +399,7 @@ function WindowCard({
                             )}
                             {w.folder && (
                                 <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200/80">
-                                    carpeta · {w.folder}
+                                    folder · {w.folder}
                                 </span>
                             )}
                         </div>
@@ -506,8 +506,8 @@ function WindowCard({
 
             {/* Acciones secundarias */}
             <div className="mt-1.5 flex flex-wrap gap-1.5">
-                <Button size="sm" variant="ghost" onClick={() => setEditMeta((e) => !e)} title="Asignar grupo / carpeta">
-                    <Tags className="h-4 w-4" /> Grupo/Carpeta
+                <Button size="sm" variant="ghost" onClick={() => setEditMeta((e) => !e)} title="Asignar grupo / folder">
+                    <Tags className="h-4 w-4" /> Grupo/Folder
                 </Button>
                 <Button size="sm" variant="ghost" onClick={persistAsSaved} disabled={busy} title="Guardar">
                     <Save className="h-4 w-4" /> Guardar
@@ -550,7 +550,7 @@ function WindowCard({
                 </Button>
             </div>
 
-            {/* Editor de grupo / carpeta */}
+            {/* Editor de grupo / folder */}
             {editMeta && (
                 <div className="mt-2 grid grid-cols-1 gap-2 rounded-xl border border-white/10 bg-black/20 p-2 sm:grid-cols-2">
                     <div className="flex items-center gap-2">
@@ -567,7 +567,7 @@ function WindowCard({
                         <Input
                             value={folder}
                             onChange={(e) => setFolderVal(e.target.value)}
-                            placeholder="Carpeta"
+                            placeholder="Folder"
                             className="h-8"
                         />
                     </div>
@@ -576,7 +576,7 @@ function WindowCard({
                             Cancelar
                         </Button>
                         <Button size="sm" variant="secondary" onClick={saveMeta} disabled={busy}>
-                            Guardar grupo/carpeta
+                            Guardar grupo/folder
                         </Button>
                     </div>
                 </div>
@@ -605,7 +605,7 @@ function WindowCard({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sección colapsable (por grupo o por carpeta)
+// Sección colapsable (por grupo o por folder)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CollapsibleSection({
@@ -1067,7 +1067,7 @@ export default function BrowserWindows() {
                                 : "text-white/50 hover:text-white/80",
                         )}
                     >
-                        Carpeta
+                        Folder
                     </button>
                 </div>
                 <Button size="sm" variant="ghost" className="ml-auto" onClick={refresh} disabled={loading}>
@@ -1097,7 +1097,7 @@ export default function BrowserWindows() {
                         Aún no tienes ventanas. Crea una desde la barra de arriba.
                     </p>
                     <p className="max-w-md text-xs text-white/35">
-                        Las ventanas se guardan en tu cuenta (Supabase) con su grupo, carpeta y
+                        Las ventanas se guardan en tu cuenta (Supabase) con su grupo, folder y
                         estado. Inicia sesión para conservarlas entre dispositivos.
                     </p>
                 </div>

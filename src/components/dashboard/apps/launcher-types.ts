@@ -1,8 +1,8 @@
 // ════════════════════════════════════════════════════════════════
 // Launcher de apps — tipos y presets
 // ----------------------------------------------------------------
-// Modelo declarativo de apps/carpetas para el dashboard. Una "app" es
-// una Entidad Única del catálogo (Lienzo Universal): las carpetas la
+// Modelo declarativo de apps/folders para el dashboard. Una "app" es
+// una Entidad Única del catálogo (Lienzo Universal): los folders la
 // REFERENCIAN por id, no la copian. La instancia del launcher guarda
 // su estado en DashboardWidget.settings (jsonb existente, sin migración).
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
@@ -63,9 +63,9 @@ export type LauncherDensity = "comfortable" | "compact";
 export type LauncherCollection = "starseed" | "sistema" | "media" | "custom";
 
 /**
- * Grupo de apps dentro de una carpeta (categorización). Cada grupo referencia
- * apps por id (Lienzo Universal: no copia, referencia). Permite organizar una
- * carpeta grande en secciones plegables ("Comunicación", "Media", "Sistema"…).
+ * Grupo de apps dentro de un folder (categorización). Cada grupo referencia
+ * apps por id (Lienzo Universal: no copia, referencia). Permite organizar un
+ * folder grande en secciones plegables ("Comunicación", "Media", "Sistema"…).
  */
 export interface LauncherGroup {
     id: string;
@@ -90,24 +90,24 @@ export interface AppLauncherSettings {
     iconStyle?: IconStyle;
     density?: LauncherDensity;
     showLabels?: boolean;
-    /** Anula open.primary de cada app (modo de apertura global de la carpeta). */
+    /** Anula open.primary de cada app (modo de apertura global del folder). */
     defaultOpen?: OpenMode;
-    // ── Carpeta compacta + expandible (pantalla de inicio tipo móvil/tablet) ──
+    // ── Folder compacto + expandible (pantalla de inicio tipo móvil/tablet) ──
     /**
-     * Carpeta COMPACTA: rejilla densa de iconos (4–8 por hilera según ancho),
+     * Folder COMPACTO: rejilla densa de iconos (4–8 por hilera según ancho),
      * pensada para ocupar poco y agrupar apps como en un teléfono. Por defecto
-     * true cuando la variante es 'folder' (una carpeta clásica del OS). Se puede
+     * true cuando la variante es 'folder' (un folder clásico del OS). Se puede
      * desactivar para volver a la rejilla amplia con etiquetas grandes.
      */
     compactFolder?: boolean;
-    /** Estado expandido/plegado de la carpeta (persistente). Default: false. */
+    /** Estado expandido/plegado del folder (persistente). Default: false. */
     expanded?: boolean;
     /**
-     * Grupos/categorías de apps dentro de la carpeta. Si hay grupos, la carpeta
+     * Grupos/categorías de apps dentro del folder. Si hay grupos, el folder
      * los muestra como secciones plegables (las apps sin grupo van a "General").
      */
     groups?: LauncherGroup[];
-    /** Mostrar la carpeta agrupada por categorías (usa `groups`). Default: false. */
+    /** Mostrar el folder agrupado por categorías (usa `groups`). Default: false. */
     grouped?: boolean;
 }
 
@@ -121,8 +121,8 @@ export const DEFAULT_LAUNCHER_SETTINGS: AppLauncherSettings = {
     iconStyle: "glass",
     density: "comfortable",
     showLabels: true,
-    // Por defecto una carpeta es compacta y plegada (como en un teléfono): ocupa
-    // poco espacio y se expande al tocarla. Aditivo — instancias existentes sin
+    // Por defecto un folder es compacto y plegado (como en un teléfono): ocupa
+    // poco espacio y se expande al tocarlo. Aditivo — instancias existentes sin
     // estos campos heredan estos valores.
     compactFolder: true,
     expanded: false,
@@ -131,7 +131,7 @@ export const DEFAULT_LAUNCHER_SETTINGS: AppLauncherSettings = {
 };
 
 /**
- * Número de columnas para una carpeta COMPACTA según el ancho disponible (px).
+ * Número de columnas para un folder COMPACTO según el ancho disponible (px).
  * Objetivo del OS adaptativo: 4–8 iconos por hilera (móvil → escritorio), sin
  * desperdiciar espacio ni recortar. Se usa cuando `columns` es 0 (auto).
  */

@@ -3,7 +3,7 @@
 /*
  * CameraApp — cámara real del OS (foto + vídeo), con controles AUTO y
  * MANUALES aplicando MediaTrackConstraints reales soportadas por el hardware.
- * Guarda en la biblioteca personal (carpeta "Imágenes y videos" → subcarpeta
+ * Guarda en la biblioteca personal (folder "Imágenes y videos" → subfolder
  * "Cámara") vía os-files + entity-library, con destino/nube/dispositivo
  * seleccionables y persistidos (camera-settings.ts).
  */
@@ -57,7 +57,7 @@ function formatMs(ms: number): string {
     return `${m}:${s}`;
 }
 
-/** Aplana el árbol de carpetas bajo `rootId` (raíz incluida) en una lista con indentación. */
+/** Aplana el árbol de folders bajo `rootId` (raíz incluida) en una lista con indentación. */
 function flattenFolders(folders: LibraryFolder[], rootId: string): Array<{ id: string; label: string }> {
     const byParent = new Map<string | null, LibraryFolder[]>();
     for (const f of folders) {
@@ -524,7 +524,7 @@ export function CameraApp() {
                             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Almacenamiento</h3>
 
                             <div className="space-y-1.5">
-                                <Label>Carpeta destino</Label>
+                                <Label>Folder destino</Label>
                                 <Select
                                     value={prefs.destFolderId ?? mediaFolders?.subfolders["Cámara"] ?? ""}
                                     onValueChange={(v) => updatePrefs({ destFolderId: v })}

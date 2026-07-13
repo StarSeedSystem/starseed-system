@@ -17,17 +17,20 @@ import { useToast } from "@/hooks/use-toast";
 import { createPost } from "@/lib/os-social";
 import {
     buildSsMetaComment,
-    defaultTipoFor,
+    defaultTagFor,
     destToEntity,
     CREATION_DEST_BY_ID,
     type CreationDest,
 } from "@/components/creation/creation-config";
 import {
     DestSelector,
-    TipoSelector,
+    TagSelector,
     type OwnEntityOption,
 } from "@/components/creation/creation-fields";
 import { Loader2, Send, Megaphone, ExternalLink } from "lucide-react";
+
+/** La Zona de Publicación publica SIEMPRE en os_posts (no guarda en Librería). */
+const QUICK_DESTS: CreationDest[] = ["perfil", "politica", "educacion", "cultura", "biblioteca", "propia"];
 
 /** Rutas de cada sección para el enlace "ver sección" tras publicar. */
 const SECTION_ROUTES: Partial<Record<CreationDest, string>> = {
@@ -44,7 +47,7 @@ interface QuickPublisherProps {
 export function QuickPublisher({ initialDest }: QuickPublisherProps) {
     const { toast } = useToast();
     const [dest, setDest] = useState<CreationDest>(initialDest ?? "politica");
-    const [tipo, setTipo] = useState<string>(defaultTipoFor(initialDest ?? "politica"));
+    const [tags, setTags] = useState<string[]>([defaultTagFor(initialDest ?? "politica")]);
     const [own, setOwn] = useState<OwnEntityOption | null>(null);
     const [titulo, setTitulo] = useState("");
     const [body, setBody] = useState("");
@@ -52,7 +55,7 @@ export function QuickPublisher({ initialDest }: QuickPublisherProps) {
 
     const changeDest = useCallback((d: CreationDest) => {
         setDest(d);
-        setTipo(defaultTipoFor(d));
+        setTags((prev) => (prev.length === 0 ? [defaultTagFor(d)] : prev));
     }, []);
 
     const handlePublish = useCallback(async () => {
@@ -66,7 +69,8 @@ export function QuickPublisher({ initialDest }: QuickPublisherProps) {
         }
         setPublishing(true);
         try {
-            const meta = buildSsMetaComment({ area: dest, tipo });
+            const primaryTipo = tags[0] || defaultTagFor(dest);
+            const meta = buildSsMetaComment({ area: dest, tipo: primaryTipo, tags });
             const text = titulo.trim() ? `${titulo.trim()}\n\n${body.trim()}` : body.trim();
             const entity = destToEntity(dest, own);
             const res = await createPost({
@@ -87,7 +91,7 @@ export function QuickPublisher({ initialDest }: QuickPublisherProps) {
                     dest === "propia" && own ? own.name : CREATION_DEST_BY_ID[dest].label;
                 toast({
                     title: "Publicado",
-                    description: `Tu ${tipo} se publicó en ${destLabel}.`,
+                    description: `Tu ${primaryTipo} se publicó en ${destLabel}.`,
                 });
                 setTitulo("");
                 setBody("");
@@ -101,7 +105,7 @@ export function QuickPublisher({ initialDest }: QuickPublisherProps) {
         } finally {
             setPublishing(false);
         }
-    }, [titulo, body, dest, tipo, own, toast]);
+    }, [titulo, body, dest, tags, own, toast]);
 
     const sectionRoute = SECTION_ROUTES[dest];
     const tipos = CREATION_DEST_BY_ID[dest];
@@ -127,14 +131,14 @@ export function QuickPublisher({ initialDest }: QuickPublisherProps) {
                 </div>
 
                 {/* Destino */}
-                <DestSelector value={dest} onChange={changeDest} ownValue={own} onOwnChange={setOwn} />
+                <DestSelector value={dest} onChange={changeDest} dests={QUICK_DESTS} ownValue={own} onOwnChange={setOwn} />
 
-                {/* Tipo especializado */}
+                {/* Etiquetas múltiples */}
                 <div className="space-y-1.5">
                     <p className="text-[11px] font-medium uppercase tracking-wider text-white/40">
-                        Tipo de publicación
+                        Etiquetas de la publicación
                     </p>
-                    <TipoSelector dest={dest} value={tipo} onChange={setTipo} />
+                    <TagSelector dest={dest} value={tags} onChange={setTags} />
                 </div>
 
                 {/* Contenido */}

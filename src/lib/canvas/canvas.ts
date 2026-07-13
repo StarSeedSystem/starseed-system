@@ -36,7 +36,7 @@ export type CanvasBlock = {
   data: Record<string, any>;
   title?: string;
   // ---- Capas / propiedades (Módulo 5, todos opcionales y aditivos) --------
-  group?: string; // carpeta / grupo (Propiedades del Elemento)
+  group?: string; // folder / grupo (Propiedades del Elemento)
   hidden?: boolean; // visibilidad de la capa (panel Capas)
   locked?: boolean; // capa bloqueada: no se arrastra ni redimensiona
   accent?: string; // color/acento del elemento (Propiedades del Elemento)

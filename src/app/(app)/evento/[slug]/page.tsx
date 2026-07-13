@@ -417,7 +417,7 @@ export default function EventoPage() {
                         ref={libraryRef("event", event.slug)}
                         accent={accent}
                         title={`Biblioteca de ${event.title}`}
-                        subtitle="Referencias guardadas relacionadas con este evento, organizadas en carpetas propias."
+                        subtitle="Referencias guardadas relacionadas con este evento, organizadas en folders propios."
                     />
                 </TabsContent>
 

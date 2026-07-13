@@ -9,7 +9,7 @@ const NEXUS_FOLDERS = [
   { id: "f1", name: "Proyectos Personales", chats: ["Planificación Ciudadela"] },
   { id: "f2", name: "Investigación Política", chats: ["Análisis de Constitución"] },
   { id: "f3", name: "Desarrollo Sistema", chats: ["Refactorización Core"] },
-  { id: "f0", name: "Sin carpeta", chats: ["Ideas Sueltas"] },
+  { id: "f0", name: "Sin folder", chats: ["Ideas Sueltas"] },
 ];
 
 export function ChatNeuralSidebar() {

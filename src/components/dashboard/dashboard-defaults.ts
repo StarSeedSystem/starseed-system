@@ -14,7 +14,7 @@ export interface WidgetCategoryMapping {
 
 export const WIDGET_CATEGORY_MAP: WidgetCategoryMapping[] = [
     // ── Aplicaciones (launcher) ──
-    { type: 'APP_LAUNCHER', primaryCategory: 'aplicaciones', secondaryCategories: ['sistema', 'entretenimiento'], tags: ['apps', 'launcher', 'carpeta', 'programas', 'inicio', 'nexus', 'café', 'audiomorphic', 'omnifrecuencias', 'pantalla de inicio'], isPopular: true },
+    { type: 'APP_LAUNCHER', primaryCategory: 'aplicaciones', secondaryCategories: ['sistema', 'entretenimiento'], tags: ['apps', 'launcher', 'folder', 'carpeta', 'programas', 'inicio', 'nexus', 'café', 'audiomorphic', 'omnifrecuencias', 'pantalla de inicio'], isPopular: true },
     { type: 'UNIVERSAL_OPENER', primaryCategory: 'aplicaciones', secondaryCategories: ['archivos', 'sistema'], tags: ['abridor', 'archivos', 'visor', 'pdf', 'imagen', 'vídeo', 'audio', '3d', 'html', 'markdown', 'biblioteca', 'universal'], isPopular: true },
 
     // ── Media center ──
@@ -523,7 +523,7 @@ const BASE_FUTURE_DASHBOARD_TEMPLATES: DefaultDashboardTemplate[] = [
 ];
 
 // ── Siembra automática de variaciones por tema ───────────────────
-// Cada dashboard predeterminado recibe la carpeta de apps StarSeed (dock)
+// Cada dashboard predeterminado recibe el folder de apps StarSeed (dock)
 // y los elementos funcionales correspondientes a su tema; la posición Y se
 // calcula tras el contenido existente (sin solapes) y no se duplica lo ya
 // presente. Así "cada tema con sus variaciones de elementos correspondientes".

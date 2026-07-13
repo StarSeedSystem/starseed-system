@@ -4,7 +4,7 @@
  * user-repos — REPOSITORIOS CREABLES estilo GitHub dentro de la Biblioteca
  * (Adenda 65, §16). Un repo = una `LibraryFolder` con `folder.repo` (RepoMeta):
  * reutiliza ÍNTEGRAMENTE entity-library.ts como backend de su contenido
- * (archivos/carpetas normales dentro de esa carpeta) y public-catalog.ts para
+ * (archivos/folders normales dentro de ese folder) y public-catalog.ts para
  * la visibilidad pública (`publishFolder`, ya existente — no se duplica
  * lógica de publicación).
  *
@@ -53,7 +53,7 @@ export interface CreateRepoInput {
     readme?: string;
 }
 
-/** Crea un repositorio nuevo (carpeta raíz + metadatos). Devuelve el id de la carpeta. */
+/** Crea un repositorio nuevo (folder raíz + metadatos). Devuelve el id del folder. */
 export async function createRepo(
     ref: EntityRef,
     input: CreateRepoInput,
@@ -62,7 +62,7 @@ export async function createRepo(
     const name = input.name.trim();
     if (!name) return { ok: false, error: "El repositorio necesita un nombre." };
     const folderId = await createFolder(ref, name, parentId);
-    if (!folderId) return { ok: false, error: "No se pudo crear la carpeta del repositorio." };
+    if (!folderId) return { ok: false, error: "No se pudo crear el folder del repositorio." };
     const repo: RepoMeta = {
         description: input.description?.trim() || undefined,
         visibility: input.visibility,
@@ -86,7 +86,7 @@ export async function updateRepoMeta(ref: EntityRef, folder: LibraryFolder, patc
     return { ok: true };
 }
 
-/** Marca/desmarca una carpeta EXISTENTE como repositorio ("Convertir en repositorio…"). */
+/** Marca/desmarca un folder EXISTENTE como repositorio ("Convertir en repositorio…"). */
 export async function convertFolderToRepo(
     ref: EntityRef,
     folder: LibraryFolder,
@@ -109,7 +109,7 @@ export async function convertFolderToRepo(
 
 /**
  * "Publicar versión" (release con nota): añade la entrada al changelog local y,
- * si el repo es público, vuelca de nuevo la carpeta al catálogo comunitario
+ * si el repo es público, vuelca de nuevo el folder al catálogo comunitario
  * (`publishFolder`, ya existente) — cada release pública es una fila NUEVA en
  * `library_public_items` (instantánea, no un diff real de git; así se explica
  * en la UI, honesto).
@@ -120,7 +120,7 @@ export async function publishRepoRelease(
     folder: LibraryFolder,
     input: { tag: string; note: string },
 ): Promise<{ ok: boolean; message: string }> {
-    if (!folder.repo) return { ok: false, message: "Esta carpeta no es un repositorio." };
+    if (!folder.repo) return { ok: false, message: "Este folder no es un repositorio." };
     const release: RepoRelease = {
         id: newLocalId("rel"),
         tag: input.tag.trim() || `v${folder.repo.releases.length + 1}`,
@@ -158,7 +158,7 @@ export async function publishRepoRelease(
 }
 
 /**
- * "Replicar" (fork): copia recursiva de una carpeta-repo (+ subcarpetas +
+ * "Replicar" (fork): copia recursiva de un folder-repo (+ subfolders +
  * ítems) a la biblioteca de `destRef`, como un repo NUEVO con
  * `repo.forkedFrom` apuntando al origen. Copia independiente (como
  * `duplicateItem`, no vinculada como `branch`) — un fork es tu propia copia
@@ -171,7 +171,7 @@ export async function forkRepo(
     destRef: EntityRef,
     destParentId: string | null = null,
 ): Promise<{ ok: boolean; folderId?: string; error?: string; itemsCopied?: number }> {
-    if (!sourceFolder.repo) return { ok: false, error: "Esa carpeta no es un repositorio." };
+    if (!sourceFolder.repo) return { ok: false, error: "Ese folder no es un repositorio." };
 
     const created = await createRepo(
         destRef,
@@ -277,7 +277,7 @@ export async function installRepoPackages(
  */
 export async function downloadRepoZip(doc: EntityLibraryDoc, folder: LibraryFolder): Promise<{ ok: boolean; error?: string }> {
     if (typeof window === "undefined") return { ok: false, error: "Solo disponible en el navegador." };
-    if (!folder.repo) return { ok: false, error: "Esa carpeta no es un repositorio." };
+    if (!folder.repo) return { ok: false, error: "Ese folder no es un repositorio." };
 
     const entries: { path: string; data: Uint8Array | string }[] = [
         { path: "README.md", data: folder.repo.readme || `# ${folder.name}\n` },

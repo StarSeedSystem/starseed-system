@@ -1066,8 +1066,10 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
   },
   /* ══ SERVIDORES CASEROS + VOZ NEURAL (jul-2026 · SOP centro-creacion §6b/§10) ══
    * CasaOS y los tres motores de voz neural del sistema de voz de Aurora.
-   * DISPONIBLES (no sembrados en defaults-seed: instalarlos es decisión del
-   * usuario). Mismo patrón honesto del repo: NINGUNO corre en el navegador —
+   * SEMBRADOS POR DEFECTO desde SEED_VERSION 13 (Adenda 66): instalar solo deja
+   * la capacidad + el enlace listos (no descarga, no clave, no abre pestaña en la
+   * siembra); el endpoint del servidor/voz se conecta después. Mismo patrón
+   * honesto del repo: NINGUNO corre en el navegador —
    * son servidores que se instalan EN una neurona (dispositivo) y se conectan
    * por endpoint. Instalar = registrar skill/enlace real + abrir el repo. */
   {
@@ -1101,6 +1103,60 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     icon: "Languages", tags: ["skill", "aurora", "voz", "tts", "multilingue", "oss"], version: "1.0.0",
     author: "k2-fsa", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { skillId: "aurora-voice-omnivoice", externalUrl: "https://github.com/k2-fsa/OmniVoice", note: "Voz neural multilingüe (Apache-2.0, Next-gen Kaldi). Servidor por endpoint; parte de la cadena de fallback de voz." },
+  },
+  /* ══ MEMORIA AGÉNTICA · ORGANIZADOR · SEGURIDAD · MAPAS (Adenda 66 · jul-2026) ══
+   * Cinco repos del catálogo OSS (oss-library.ts) que faltaban como PAQUETES
+   * instalables. Mismo patrón honesto del repo: `function` con `skillId` →
+   * registra la capacidad viva en skills.ts + guarda/abre el repo de referencia.
+   * NINGUNO corre en el navegador: Raven/Skales son servidores por endpoint
+   * (neurona propia o CasaOS, misma pauta que en brains/servers.ts); Mouzi,
+   * Strix y Organic Maps inspiran superficies PROPIAS del OS ya existentes
+   * (smart-organizer.ts · security/scanner.ts · lib/map + Leaflet). Instalar =
+   * solo registro de skill/capacidad + enlace; cero descarga, cero clave. */
+  /* ── Raven · backend de memoria agéntica (EverMind) ── */
+  {
+    id: "iatool-raven", kind: "function", name: "Raven (memoria agéntica)",
+    description:
+      "Backend open-source de MEMORIA e inteligencia para agentes (EverMind-AI/Raven): recuerda, indexa y recupera contexto de largo plazo para tus cerebros de Aurora/Astraura. Es un servidor: se conecta por ENDPOINT (tu neurona propia o CasaOS), no corre en el navegador — misma pauta de conector que CasaOS (se declara en Cerebro → Neuronas/Servidores). Instalar registra la skill de memoria agéntica para tus cerebros y abre su repo de referencia.",
+    icon: "Brain", tags: ["skill", "aurora", "memoria", "agentes", "cerebros", "oss"], version: "1.0.0",
+    author: "EverMind-AI", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "agent-memory-raven", externalUrl: "https://github.com/EverMind-AI/Raven", note: "Backend de memoria agéntica de largo plazo (servidor por endpoint: neurona propia o CasaOS)." },
+  },
+  /* ── Skales · adaptador de memoria e inteligencia para agentes ── */
+  {
+    id: "iatool-skales", kind: "function", name: "Skales (memoria e inteligencia)",
+    description:
+      "Backend/adaptador open-source de memoria e inteligencia (skalesapp/skales) para cerebros de Aurora/Astraura: capa opcional que un cerebro puede usar como fuente de memoria. Autoalojable en una neurona propia; se conecta por ENDPOINT, con tus datos bajo tu control. Instalar registra la skill de memoria agéntica para tus cerebros y abre su repo de referencia.",
+    icon: "Network", tags: ["skill", "aurora", "memoria", "inteligencia", "cerebros", "oss"], version: "1.0.0",
+    author: "skalesapp", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "agent-memory-skales", externalUrl: "https://github.com/skalesapp/skales", note: "Adaptador de memoria/inteligencia para agentes (servidor por endpoint; datos bajo tu control)." },
+  },
+  /* ── Mouzi · organizador inteligente de archivos ── */
+  {
+    id: "iatool-mouzi", kind: "function", name: "Mouzi (organizador de archivos)",
+    description:
+      "Organizador inteligente de archivos: clasifica por tipo, tema y fecha con IA y propone una estructura de folders. Qué reemplaza: organizadores de archivos de pago. Es la inspiración OSS de la acción «Organizar inteligentemente» que YA existe en Biblioteca, cerebros y escritorios del OS (lib/files/smart-organizer.ts). Instalar registra la skill «Organización inteligente» para que Aurora la aplique y abre su repo de referencia.",
+    icon: "FolderTree", tags: ["skill", "aurora", "archivos", "organizador", "clasificacion", "oss"], version: "1.0.0",
+    author: "hsr88", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "smart-file-organize", externalUrl: "https://github.com/hsr88/mouzi", note: "Organizador de archivos con IA (inspira «Organizar inteligentemente» del OS, ya funcional)." },
+  },
+  /* ── Strix · agentes autónomos de seguridad ofensiva ── */
+  {
+    id: "iatool-strix", kind: "function", name: "Strix (seguridad ofensiva)",
+    description:
+      "Agentes autónomos de seguridad ofensiva (pentesting/AppSec) que encuentran y VALIDAN vulnerabilidades reales: suite avanzada para auditar tus neuronas, servidores caseros y despliegues propios. Qué reemplaza: suites de pentesting comerciales. Encaja con la seguridad estilo Strix ya presente en el OS (lib/security/scanner.ts). Es un servicio que corre aislado (nunca contra objetivos sin permiso): instalar registra la skill «Auditoría de seguridad» para que Aurora la recomiende y abre su repo de referencia.",
+    icon: "ShieldAlert", tags: ["skill", "aurora", "seguridad", "pentesting", "agentes", "oss"], version: "1.0.0",
+    author: "usestrix", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "security-audit", externalUrl: "https://github.com/usestrix/strix", note: "Agentes de seguridad ofensiva que validan vulnerabilidades reales (Apache-2.0). Solo con permiso." },
+  },
+  /* ── Organic Maps · mapas offline OSM (misma filosofía que el Mapa del Hub) ── */
+  {
+    id: "iatool-organicmaps", kind: "function", name: "Organic Maps (mapas offline)",
+    description:
+      "Mapas offline basados en OpenStreetMap, sin rastreo ni anuncios (Apache-2.0). Qué reemplaza: mapas propietarios con rastreo. Misma filosofía de datos abiertos que el Mapa del Hub de Conexiones del OS, que ya se dibuja con Leaflet + OSM (lib/map + components/map). Instalar registra la skill «Mapas offline» para que Aurora conozca este patrón de cartografía soberana y abre su repo de referencia (la app nativa es para Android/iOS/escritorio).",
+    icon: "MapPinned", tags: ["skill", "aurora", "mapas", "osm", "leaflet", "offline", "oss"], version: "1.0.0",
+    author: "organicmaps", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "offline-maps", externalUrl: "https://github.com/organicmaps/organicmaps", note: "Mapas offline OSM sin rastreo (Apache-2.0). El Mapa del Hub del OS usa Leaflet + OSM." },
   },
 ];
 
@@ -1459,6 +1515,27 @@ function unregisterInstalled(id: string): void {
   delete map[id];
   writeJson(INSTALLED_KEY, map);
   emitLibraryEvent();
+}
+
+/**
+ * Marca una versión nueva como instalada para un paquete YA instalado (sin
+ * reejecutar su efecto). Lo usa el Centro de Notificaciones → «Actualizaciones
+ * disponibles» cuando el usuario acepta actualizar a la versión detectada en
+ * GitHub/registro. Actualiza el registro `starseed.library.installed.v1` (que
+ * viaja con la cuenta vía SYNCED_KEYS y library-sync). No-op si no está
+ * instalado. Devuelve true si cambió algo. SSR-safe.
+ */
+export function setInstalledVersion(id: string, version: string): boolean {
+  if (!isClient()) return false;
+  const map = getInstalledMap();
+  const entry = map[id];
+  if (!entry) return false;
+  const next = (version ?? "").trim();
+  if (!next || next === entry.version) return false;
+  map[id] = { ...entry, version: next };
+  writeJson(INSTALLED_KEY, map);
+  emitLibraryEvent();
+  return true;
 }
 
 /* ═══════════════ Registros de efectos (diseño / funciones) ═══════════════ */

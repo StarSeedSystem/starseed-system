@@ -3,7 +3,7 @@
 // ════════════════════════════════════════════════════════════════
 // FileExplorer (portado) — Guardar / Cargar presets en la Biblioteca
 // ----------------------------------------------------------------
-// La app original navegaba un árbol de carpetas. En el StarSeed OS los
+// La app original navegaba un árbol de folders. En el StarSeed OS los
 // presets viven como recursos planos en la Biblioteca soberana, así que
 // este explorador se simplifica a una LISTA PLANA de presets (la
 // funcionalidad central: guardar con nombre, cargar, mezclar, renombrar,

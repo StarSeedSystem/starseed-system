@@ -1,7 +1,7 @@
 "use client";
 
 // Breadcrumb propio (no hay componente shadcn Breadcrumb en el repo): ruta de
-// carpetas desde la raíz hasta la carpeta activa, cada tramo clicable.
+// folders desde la raíz hasta el folder activo, cada tramo clicable.
 
 import { ChevronRight, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ export function FinderBreadcrumb({
     onNavigate: (folderId: string | null) => void;
 }) {
     return (
-        <nav className="flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted-foreground" aria-label="Ruta de carpetas">
+        <nav className="flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted-foreground" aria-label="Ruta de folders">
             <button
                 type="button"
                 onClick={() => onNavigate(null)}

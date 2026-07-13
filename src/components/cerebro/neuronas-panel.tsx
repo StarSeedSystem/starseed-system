@@ -114,7 +114,7 @@ const ROLES: { id: NeuronRole; label: string; hint: string }[] = [
 const CASAOS_APPS: { name: string; why: string }[] = [
   { name: "Files", why: "Explorador de archivos del servidor: almacén directo para cerebros y memorias." },
   { name: "Nextcloud", why: "Nube personal completa: documentos, respaldo y sincronización soberana." },
-  { name: "Syncthing", why: "Sincroniza carpetas de memorias entre neuronas sin nube central (P2P)." },
+  { name: "Syncthing", why: "Sincroniza folders de memorias entre neuronas sin nube central (P2P)." },
   { name: "Jellyfin", why: "Servidor multimedia: tu biblioteca de audio/vídeo servida a todas las neuronas." },
   { name: "Ollama", why: "Motor de IA local para Astraura: Aurora usa modelos abiertos desde esta neurona." },
   { name: "AdGuard Home", why: "Escudo de red: bloquea rastreadores y anuncios en toda tu red doméstica." },

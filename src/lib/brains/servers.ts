@@ -48,7 +48,7 @@ export interface LinkSync {
   direction?: SyncDirection;
   /** Sincronización automática activada. */
   auto?: boolean;
-  /** Campos extra (intervalo, carpeta, etc.). */
+  /** Campos extra (intervalo, folder, etc.). */
   [k: string]: unknown;
 }
 

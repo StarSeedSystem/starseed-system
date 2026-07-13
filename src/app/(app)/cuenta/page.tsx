@@ -23,6 +23,8 @@ import { createClient } from "@/utils/supabase/client";
 import { useAccount } from "@/context/account-context";
 import { AccountProfilesSwitcher } from "@/components/profiles/account-profiles-switcher";
 import { ProfileIdentityPanel } from "@/components/settings/profile/profile-identity-panel";
+// Adenda 66 §4: elegir QUÉ bibliotecas/folders/archivos se muestran en el perfil público.
+import { ProfileLibraryShowcasePanel } from "@/components/settings/profile/profile-library-showcase-panel";
 import { useMyProfiles } from "@/lib/profiles/profiles";
 // Subida universal de archivos (Adenda 64 §9): cambiar foto/portada con un
 // archivo real (dispositivo o biblioteca) en vez de solo pegar una URL.
@@ -579,8 +581,20 @@ function CuentaContent() {
             </p>
           </div>
         </div>
-        <div className="sm:w-64 shrink-0">
-          <AccountProfilesSwitcher compact />
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Adenda 66 §10 · Acceso directo al Editor de temas/estilos desde la
+              cabecera de ajustes (no duplica: enlaza al Estudio de Diseño real). */}
+          <Link
+            href="/estudio"
+            title="Editor de temas y estilos"
+            aria-label="Editor de temas y estilos"
+            className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-primary transition-colors hover:border-primary/30 hover:bg-primary/10"
+          >
+            <Palette className="w-4 h-4" />
+          </Link>
+          <div className="sm:w-56">
+            <AccountProfilesSwitcher compact />
+          </div>
         </div>
       </div>
 
@@ -614,6 +628,11 @@ function CuentaContent() {
         <div className="mb-4">
           <ProfileIdentityPanel />
         </div>
+
+        {/* Biblioteca pública del perfil (Adenda 66 §4): qué se muestra a las visitas */}
+        <section style={card}>
+          <ProfileLibraryShowcasePanel />
+        </section>
 
         {/* Identidad interna */}
         <section style={card}>
@@ -838,7 +857,7 @@ function CuentaContent() {
           <p className="text-xs text-muted-foreground">Apariencia, tus escritorios y la navegación Trinity.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-          <QuickLink href="/settings?tab=appearance" icon={Palette} label="Apariencia" description="Tema, tipografía, fondo y vidrio" />
+          <QuickLink href="/estudio" icon={Palette} label="Editor de temas" description="Estudio de Diseño: tema, tipografía, fondo y vidrio" />
           <QuickLink
             href="/escritorios"
             icon={LayoutGrid}

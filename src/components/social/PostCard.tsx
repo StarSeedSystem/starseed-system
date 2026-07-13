@@ -33,6 +33,10 @@ import {
     formatCount,
     formatRelativeTime,
 } from "@/lib/social-posts";
+import { PostBlocksRenderer, PostTagChips } from "@/components/social/post-blocks-renderer";
+// Enviar a… (DESTINOS · Adenda 66 §5): publicar en el Lienzo, mensaje, cerebro, etc.
+import { ShareToDialog } from "@/components/sharing/share-to-dialog";
+import type { ShareResourceRef } from "@/lib/sharing/share-targets";
 
 const GOLD = "#E9C46A";
 
@@ -195,6 +199,21 @@ function PostCardShell({
     commentsPanel,
 }: PostCardShellProps) {
     const [likeHint, setLikeHint] = useState(false);
+    const [sendTo, setSendTo] = useState<ShareResourceRef | null>(null);
+
+    const openSendTo = () => {
+        const url =
+            typeof window !== "undefined"
+                ? `${window.location.origin}${window.location.pathname}#post-${post.id}`
+                : undefined;
+        setSendTo({
+            kind: "publicacion",
+            id: post.id,
+            name: post.title || post.authorName || "Publicación",
+            url,
+            note: post.body ? post.body.slice(0, 140) : undefined,
+        });
+    };
 
     const handleLike = async () => {
         await onToggleLike();
@@ -263,6 +282,12 @@ function PostCardShell({
 
                 {post.media && <PostMediaPreview post={post} />}
                 <PostAttachmentList post={post} />
+
+                {/* Adenda 66 §6 · bloques ricos del Lienzo (código, gráfica, mapa, agente…) */}
+                <PostBlocksRenderer blocks={post.blocks} accent={accent} />
+
+                {/* Adenda 66 §6 · etiquetas múltiples de la publicación */}
+                <PostTagChips tags={post.tags} />
             </CardContent>
 
             {/* ── Acciones ── */}
@@ -296,24 +321,36 @@ function PostCardShell({
                             <span className="tabular-nums">{formatCount(commentCount)}</span>
                         </Button>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={onShare}
-                        className="flex items-center gap-2 shrink-0 cursor-pointer"
-                    >
-                        {copied ? (
-                            <>
-                                <Check className="w-4 h-4 text-emerald-500" />
-                                <span className="hidden sm:inline">Copiado</span>
-                            </>
-                        ) : (
-                            <>
-                                <Share2 className="w-4 h-4" />
-                                <span className="hidden sm:inline">Compartir</span>
-                            </>
-                        )}
-                    </Button>
+                    <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={openSendTo}
+                            className="flex items-center gap-2 cursor-pointer"
+                            aria-label="Enviar a…"
+                        >
+                            <Send className="w-4 h-4" />
+                            <span className="hidden sm:inline">Enviar</span>
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onShare}
+                            className="flex items-center gap-2 cursor-pointer"
+                        >
+                            {copied ? (
+                                <>
+                                    <Check className="w-4 h-4 text-emerald-500" />
+                                    <span className="hidden sm:inline">Copiado</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Share2 className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Compartir</span>
+                                </>
+                            )}
+                        </Button>
+                    </div>
                 </div>
 
                 {likeHint && likeNeedsAuth && (
@@ -327,6 +364,10 @@ function PostCardShell({
 
                 {commentsPanel}
             </CardFooter>
+
+            {sendTo && (
+                <ShareToDialog open onOpenChange={(o) => !o && setSendTo(null)} resource={sendTo} />
+            )}
         </Card>
     );
 }

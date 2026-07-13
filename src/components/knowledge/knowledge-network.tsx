@@ -54,6 +54,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { ViewErrorBoundary } from "@/components/education/view-error-boundary";
 import { chat } from "@/ai/client/chat";
 import { loadConfigs, getActiveProviderId } from "@/ai/client/providerStore";
 import type { ChatMessage } from "@/ai/providers/types";
@@ -1180,6 +1181,15 @@ export default function KnowledgeNetwork() {
     };
   }, []);
 
+  // Deep-link de vista: la tarjeta "Red de Conocimiento" de Educación enlaza a
+  // /conocimiento?view=mapa2d|red3d|lista. Sin esto, esos accesos abrían SIEMPRE
+  // la Lista (la vista 2D/3D "no abría"). Lectura client-only → sin <Suspense>.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const v = new URLSearchParams(window.location.search).get("view");
+    if (v === "mapa2d" || v === "red3d" || v === "lista") setView(v as ViewMode);
+  }, []);
+
   const tree = useMemo(() => buildTree(categories), [categories]);
   const graph = useMemo(() => buildGraph(categories, topics, links), [categories, topics, links]);
   const layout2D = useMemo(
@@ -1487,11 +1497,15 @@ export default function KnowledgeNetwork() {
             </div>
           ) : view === "mapa2d" ? (
             <div className="min-h-[60vh] h-[72vh]">
-              <Map2DView graph={graph} layout={layout2D} focusedCat={focusedCat} onFocusCategory={onFocusCategory} />
+              <ViewErrorBoundary label="el Mapa Conceptual 2D">
+                <Map2DView graph={graph} layout={layout2D} focusedCat={focusedCat} onFocusCategory={onFocusCategory} />
+              </ViewErrorBoundary>
             </div>
           ) : (
             <div className="min-h-[60vh] h-[72vh]">
-              <Red3DView graph={graph} focusedCat={focusedCat} onFocusCategory={onFocusCategory} />
+              <ViewErrorBoundary label="la Red 3D">
+                <Red3DView graph={graph} focusedCat={focusedCat} onFocusCategory={onFocusCategory} />
+              </ViewErrorBoundary>
             </div>
           )}
         </div>

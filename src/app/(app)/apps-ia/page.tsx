@@ -8,7 +8,7 @@ export default function AppsIAPage() {
       <div className="mb-4 shrink-0">
         <h1 className="text-2xl font-bold text-amber-50">Apps con IA · Estudio</h1>
         <p className="mt-1 text-sm text-white/50">
-          Genera apps con Astraura: archivos, formatos, carpetas, conexiones y plugins. Un estudio
+          Genera apps con Astraura: archivos, formatos, folders, conexiones y plugins. Un estudio
           en el navegador estilo Cursor / Claude Code — describe tu idea, genera, edita en vivo,
           previsualiza, guarda y exporta.
         </p>

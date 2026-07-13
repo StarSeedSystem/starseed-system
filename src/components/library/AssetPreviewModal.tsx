@@ -2,7 +2,7 @@
 
 /* ============================================================
    STARSEED · ASSET PREVIEW MODAL ("app-store" para diseños)
-   Ventana emergente de preview por cada archivo/carpeta de diseño:
+   Ventana emergente de preview por cada archivo/folder de diseño:
    - Galería de fotos/vídeos (con fallback).
    - Descripción + info (autor, versión, licencia, descargas, atribución).
    - Pestañas: Reseñas y Versiones (autor + ramas de comunidad).

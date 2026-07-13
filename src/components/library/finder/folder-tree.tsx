@@ -1,8 +1,8 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════════════════
-// FolderTree — árbol de carpetas anidadas en el sidebar del Finder, con drag
-// para mover ítems y carpetas (arrastrar una fila sobre otra la re-anida o
+// FolderTree — árbol de folders anidados en el sidebar del Finder, con drag
+// para mover ítems y folders (arrastrar una fila sobre otra la re-anida o
 // mueve los ítems soltados dentro). Usa HTML5 drag nativo (mismo patrón que
 // grid-area.tsx: dataTransfer + onDragOver/onDrop), sin depender de @dnd-kit
 // aquí porque el árbol es una lista simple, no necesita reordenar por índice.
@@ -42,9 +42,9 @@ export interface FolderTreeProps {
     onPermissionsFolder?: (folderId: string) => void;
     /** v2.1 (§16): abre la ficha del repositorio (si `folder.repo` ya existe). */
     onOpenRepo?: (folderId: string) => void;
-    /** v2.1 (§16): abre el diálogo para convertir esta carpeta en repositorio. */
+    /** v2.1 (§16): abre el diálogo para convertir este folder en repositorio. */
     onConvertToRepo?: (folderId: string) => void;
-    /** v2.1 (§15): abre el hilo de comentarios de esta carpeta. */
+    /** v2.1 (§15): abre el hilo de comentarios de este folder. */
     onCommentsFolder?: (folderId: string) => void;
 }
 
@@ -195,7 +195,7 @@ function FolderRow({
                                     className="cursor-pointer gap-2 text-xs text-emerald-300 focus:text-emerald-200"
                                     onClick={() => props.onPublishFolder?.(folder.id)}
                                 >
-                                    <Package className="h-3.5 w-3.5" /> Publicar carpeta completa…
+                                    <Package className="h-3.5 w-3.5" /> Publicar folder completo…
                                 </DropdownMenuItem>
                             )}
                             {(props.onOpenRepo || props.onConvertToRepo) && <DropdownMenuSeparator className="bg-white/10" />}
@@ -219,7 +219,7 @@ function FolderRow({
                                 className="cursor-pointer gap-2 text-xs text-rose-300 focus:text-rose-200"
                                 onClick={() => props.onRemove(folder.id)}
                             >
-                                <Trash2 className="h-3.5 w-3.5" /> Eliminar carpeta
+                                <Trash2 className="h-3.5 w-3.5" /> Eliminar folder
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -314,7 +314,7 @@ export function FolderTree(props: FolderTreeProps) {
                                     setNewFolderName("");
                                 }
                             }}
-                            placeholder="Nombre de la carpeta"
+                            placeholder="Nombre del folder"
                             className="h-8 rounded-lg border-white/10 bg-black/20 text-xs"
                         />
                         <Button
@@ -337,7 +337,7 @@ export function FolderTree(props: FolderTreeProps) {
                         onClick={() => setNewFolderOpen(true)}
                         className="mt-1 flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
                     >
-                        <FolderPlus className="h-3.5 w-3.5 shrink-0" /> Nueva carpeta
+                        <FolderPlus className="h-3.5 w-3.5 shrink-0" /> Nuevo folder
                     </button>
                 )
             )}

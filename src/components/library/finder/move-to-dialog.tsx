@@ -1,7 +1,7 @@
 "use client";
 
-// MoveToDialog — selector de carpeta destino (árbol plano indentado) para
-// "Mover a…" de ítems o para re-anidar una carpeta.
+// MoveToDialog — selector de folder destino (árbol plano indentado) para
+// "Mover a…" de ítems o para re-anidar un folder.
 
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -15,7 +15,7 @@ export interface MoveToDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     folders: LibraryFolder[];
-    /** Carpetas a excluir del árbol de destino (p.ej. la propia carpeta y sus descendientes al mover una carpeta). */
+    /** Folders a excluir del árbol de destino (p.ej. el propio folder y sus descendientes al mover un folder). */
     excludeIds?: Set<string>;
     onConfirm: (folderId: string | null) => void;
 }
@@ -57,7 +57,7 @@ export function MoveToDialog({ open, onOpenChange, folders, excludeIds, onConfir
                             target === null ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-white",
                         )}
                     >
-                        <FolderOpen className="h-3.5 w-3.5 shrink-0" /> Raíz (sin carpeta)
+                        <FolderOpen className="h-3.5 w-3.5 shrink-0" /> Raíz (sin folder)
                     </button>
                     {tree.map(renderNode)}
                 </div>

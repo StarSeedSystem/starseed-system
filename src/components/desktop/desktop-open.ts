@@ -6,7 +6,7 @@
 // Un solo punto de verdad para "doble clic/tap abre": respeta el modo
 // de apertura REAL de cada app del catálogo (route → módulo nativo,
 // href embebible → ventana del escritorio, resto → pestaña), y abre
-// widgets/archivos/enlaces/carpetas en ventanas propias. Tolerante a
+// widgets/archivos/enlaces/folders en ventanas propias. Tolerante a
 // errores: nunca rompe el escritorio por una referencia inválida.
 // ════════════════════════════════════════════════════════════════
 

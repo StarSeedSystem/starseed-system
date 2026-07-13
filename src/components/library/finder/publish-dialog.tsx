@@ -1,8 +1,8 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════════════════
-// PublishDialog — "Publicar en la Librería…" (un ítem) y "Publicar carpeta
-// completa…" (todos los ítems de una carpeta, conservando estructura). Vuelca
+// PublishDialog — "Publicar en la Librería…" (un ítem) y "Publicar folder
+// completa…" (todos los ítems de un folder, conservando estructura). Vuelca
 // a `library_public_items` vía lib/library/public-catalog.ts. Los originales
 // quedan vinculados (payload.ref) — nunca se duplica el contenido a ciegas.
 // ════════════════════════════════════════════════════════════════════════════
@@ -90,10 +90,10 @@ export function PublishDialog(props: PublishDialogProps) {
                     recursive,
                 });
                 if (res.ok) {
-                    toast.success("Carpeta publicada", { description: `${res.count} ítem(s) volcados en ${CATEGORY_LABEL[category]}.` });
+                    toast.success("Folder publicado", { description: `${res.count} ítem(s) volcados en ${CATEGORY_LABEL[category]}.` });
                     onOpenChange(false);
                 } else {
-                    toast.error(res.error ?? "No se pudo publicar la carpeta");
+                    toast.error(res.error ?? "No se pudo publicar el folder");
                 }
             }
         } finally {
@@ -114,7 +114,7 @@ export function PublishDialog(props: PublishDialogProps) {
                     <DialogDescription>
                         {props.mode === "item"
                             ? `«${title}» quedará visible en la sección Comunidad de la Librería. El original sigue vinculado.`
-                            : `Todos los ítems de «${title}» se vuelcan conservando su estructura de carpetas.`}
+                            : `Todos los ítems de «${title}» se vuelcan conservando su estructura de folders.`}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -136,7 +136,7 @@ export function PublishDialog(props: PublishDialogProps) {
                     </div>
 
                     <div>
-                        <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Carpeta pública destino (opcional)</label>
+                        <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Folder público destino (opcional)</label>
                         <Input
                             value={destFolder}
                             onChange={(e) => setDestFolder(e.target.value)}
@@ -153,7 +153,7 @@ export function PublishDialog(props: PublishDialogProps) {
                                 onChange={(e) => setRecursive(e.target.checked)}
                                 className="cursor-pointer accent-emerald-500"
                             />
-                            Incluir subcarpetas
+                            Incluir subfolders
                         </label>
                     )}
                 </div>

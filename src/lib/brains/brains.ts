@@ -3,7 +3,7 @@
 /**
  * Cerebros (Brains) — CRUD + ensamblado + selección por contexto sobre Supabase
  * (RLS por owner). Un "cerebro" es el contenedor maestro que empaqueta TODO el
- * contexto del usuario: memorias, baúles y carpetas, conexiones, sistemas de IA
+ * contexto del usuario: memorias, baúles y folders, conexiones, sistemas de IA
  * (configs y adaptaciones a Astraura y Aurora), permisos, accesos, ficheros,
  * configuraciones, APIs, cuentas, fuentes y servidores. Un cerebro puede
  * conectarse a Higgsfield, a cualquier servicio de servidor online, o a un
@@ -121,7 +121,7 @@ export const SERVER_KINDS: ServerKind[] = [
     oss: true,
     fields: [
       { key: "endpoint", label: "URL local (p.ej. http://localhost:8800)" },
-      { key: "syncthingFolderId", label: "Carpeta Syncthing (opcional)" },
+      { key: "syncthingFolderId", label: "Folder Syncthing (opcional)" },
     ],
   },
   {

@@ -1,11 +1,14 @@
 // src/components/social/PostFeed.tsx
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { PostCard } from "@/components/social/PostCard";
+import { FeedControls } from "@/components/social/feed-controls";
+import { useFeedPrefs, useFeedFiltered } from "@/lib/social/feed-filters";
+import { fetchMyProfile } from "@/lib/social/os-profiles";
 import { useCafePosts } from "@/hooks/use-cafe-posts";
 import { useRealtime } from "@/lib/realtime/realtime";
 import {
@@ -48,6 +51,34 @@ export function PostFeed({
         channelKey,
         limit,
     });
+
+    // ── Filtros · orden · búsqueda inteligente (Adenda 66 §7) ──
+    // Preferencias POR PERFIL (perfil activo) y POR ENTORNO (grupo/perfil/canal).
+    const envKey = groupId ? `group:${groupId}` : profileId ? `profile:${profileId}` : `channel:${channelKey}`;
+    const { prefs, setPrefs } = useFeedPrefs(envKey);
+    // Contexto propio (para "propios" y para la relevancia con Astraura).
+    const [me, setMe] = useState<{ name?: string; ctx?: string }>({});
+    useEffect(() => {
+        let alive = true;
+        fetchMyProfile()
+            .then((p) => {
+                if (!alive || !p) return;
+                const ctx = [
+                    `Perfil: ${p.displayName}.`,
+                    p.bio ? `Bio: ${p.bio}.` : "",
+                    p.tags?.length ? `Intereses: ${p.tags.join(", ")}.` : "",
+                ]
+                    .filter(Boolean)
+                    .join(" ");
+                setMe({ name: p.displayName, ctx });
+            })
+            .catch(() => {});
+        return () => {
+            alive = false;
+        };
+    }, []);
+    const { visible, ranking } = useFeedFiltered(posts, prefs, { myName: me.name, profileContext: me.ctx });
+    const listGap = prefs.view === "compacta" ? "space-y-2" : prefs.view === "lista" ? "space-y-3" : "space-y-6";
 
     // TIEMPO REAL: re-cargamos el feed cuando cambia la tabla `posts` para que
     // nuevas publicaciones y ediciones aparezcan en vivo (el hook ya escucha
@@ -115,28 +146,56 @@ export function PostFeed({
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {usingFallback && (
                 <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
                     <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="min-w-0">{fallbackNotice}</span>
                 </div>
             )}
-            {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
-            ))}
-            {posts.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-border/50 p-8 text-center text-sm text-muted-foreground">
-                    <p>Aún no hay publicaciones. ¡Sé el primero en compartir algo!</p>
-                    {emptyCta && (
-                        <Button asChild variant="outline" size="sm" className="mt-4 gap-1.5 cursor-pointer">
-                            <Link href={emptyCta.href}>
-                                <PenSquare className="h-3.5 w-3.5" /> {emptyCta.label}
-                            </Link>
-                        </Button>
-                    )}
-                </div>
+
+            {/* Barra de control (solo si hay algo que filtrar/ordenar). */}
+            {posts.length > 0 && (
+                <FeedControls
+                    prefs={prefs}
+                    onChange={setPrefs}
+                    total={posts.length}
+                    shown={visible.length}
+                    ranking={ranking}
+                />
             )}
+
+            <div className={listGap}>
+                {visible.map((post) => (
+                    <PostCard key={post.id} post={post} />
+                ))}
+            </div>
+
+            {visible.length === 0 &&
+                (posts.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-border/50 p-8 text-center text-sm text-muted-foreground">
+                        <p>Aún no hay publicaciones. ¡Sé el primero en compartir algo!</p>
+                        {emptyCta && (
+                            <Button asChild variant="outline" size="sm" className="mt-4 gap-1.5 cursor-pointer">
+                                <Link href={emptyCta.href}>
+                                    <PenSquare className="h-3.5 w-3.5" /> {emptyCta.label}
+                                </Link>
+                            </Button>
+                        )}
+                    </div>
+                ) : (
+                    <div className="rounded-2xl border border-dashed border-border/50 p-8 text-center text-sm text-muted-foreground">
+                        <p>Ninguna publicación coincide con los filtros.</p>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-4 cursor-pointer"
+                            onClick={() => setPrefs({ query: "", tags: [] })}
+                        >
+                            Limpiar filtros
+                        </Button>
+                    </div>
+                ))}
         </div>
     );
 }

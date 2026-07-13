@@ -1,7 +1,7 @@
 /* ============================================================
    STARSEED · KNOWLEDGE LINKS (para la Librería Global)
    Corpus de enlaces a TODO el ecosistema StarSeed: documentos
-   fundacionales, Documento Maestro del SOSD, carpetas de Drive
+   fundacionales, Documento Maestro del SOSD, folders de Drive
    por área, presentaciones y enlaces del ecosistema (Nexus, Café,
    OS, Audiomorphic, Drive Fundación, Linktree).
    Adaptado desde StarSeed Café · app/assets/js/knowledge.js (DOCS).
@@ -108,7 +108,7 @@ const web = (
 });
 
 /* ============================================================
-   CARPETAS
+   FOLDERS
    ============================================================ */
 export const KNOWLEDGE_FOLDERS: KnowledgeFolder[] = [
   {
@@ -170,13 +170,13 @@ export const KNOWLEDGE_FOLDERS: KnowledgeFolder[] = [
   {
     id: "area-sociedad",
     title: "Área · Sociedad",
-    desc: "El Cuerpo — dimensión física. Documentos y carpeta de la Sociedad StarSeed.",
+    desc: "El Cuerpo — dimensión física. Documentos y folder de la Sociedad StarSeed.",
     items: [
       gfolder(
         "folder-fundamentos",
         "19HgI_-gnDHBt2fknze6i8_VBWWC7xVl0",
-        "Carpeta · Fundamentos de Sociedad StarSeed",
-        "Carpeta de Google Drive con los fundamentos de la Sociedad."
+        "Folder · Fundamentos de Sociedad StarSeed",
+        "Folder de Google Drive con los fundamentos de la Sociedad."
       ),
       gpdf(
         "pdf-ingenieria",
@@ -189,26 +189,26 @@ export const KNOWLEDGE_FOLDERS: KnowledgeFolder[] = [
   {
     id: "area-os",
     title: "Área · OS (Red / SOSD)",
-    desc: "La Mente — sistema nervioso digital. Carpeta de la Red StarSeed (SOSD).",
+    desc: "La Mente — sistema nervioso digital. Folder de la Red StarSeed (SOSD).",
     items: [
       gfolder(
         "folder-network",
         "1klIZq2ifSH8dOkzpAu7fgFZ8uIlnp3I7",
-        "Carpeta · StarSeed Network: SOSD",
-        "Carpeta de Google Drive del Sistema Operativo Social."
+        "Folder · StarSeed Network: SOSD",
+        "Folder de Google Drive del Sistema Operativo Social."
       ),
     ],
   },
   {
     id: "area-cafe",
     title: "Área · Café",
-    desc: "El Corazón — Fase Semilla hecha lugar. Documentos de ejecución y carpeta del Café.",
+    desc: "El Corazón — Fase Semilla hecha lugar. Documentos de ejecución y folder del Café.",
     items: [
       gfolder(
         "folder-cafe",
         "1jFul8UJFnRgjxfSshBX5BglnSajqrlIO",
-        "Carpeta · StarSeed Café",
-        "Carpeta de Google Drive del Café."
+        "Folder · StarSeed Café",
+        "Folder de Google Drive del Café."
       ),
       gdoc(
         "fase1",
@@ -233,13 +233,13 @@ export const KNOWLEDGE_FOLDERS: KnowledgeFolder[] = [
   {
     id: "area-estudio",
     title: "Área · Estudio",
-    desc: "Las Manos — laboratorio de creación. Catálogo, logo maestro y carpeta del Estudio.",
+    desc: "Las Manos — laboratorio de creación. Catálogo, logo maestro y folder del Estudio.",
     items: [
       gfolder(
         "folder-estudio",
         "1VfbI7LTrvPALncjdsXXCQNWjKCmVw5i0",
-        "Carpeta · StarSeed Studio",
-        "Carpeta de Google Drive del Estudio."
+        "Folder · StarSeed Studio",
+        "Folder de Google Drive del Estudio."
       ),
       gpdf(
         "studio-servicios",
@@ -263,7 +263,7 @@ export const KNOWLEDGE_FOLDERS: KnowledgeFolder[] = [
       gfolder(
         "folder-fundacion",
         "1oBD-sAhwNo2rgXKk95DBQbEnt4En85TL",
-        "Carpeta · Fundación StarSeed (raíz)",
+        "Folder · Fundación StarSeed (raíz)",
         "Raíz del Google Drive de la Fundación StarSeed."
       ),
       gpdf(
@@ -338,7 +338,7 @@ export const KNOWLEDGE_FOLDERS: KnowledgeFolder[] = [
         "drive-fundacion",
         "1oBD-sAhwNo2rgXKk95DBQbEnt4En85TL",
         "Drive · Fundación StarSeed",
-        "Carpeta raíz del Drive de la Fundación."
+        "Folder raíz del Drive de la Fundación."
       ),
       web(
         "linktree",

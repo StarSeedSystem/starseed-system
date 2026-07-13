@@ -5,7 +5,7 @@
  *
  * Un generador de apps con IA dentro del navegador, en la línea de Cursor /
  * Claude Code / Antigravity, pero con la libertad y las integraciones de
- * StarSeed: proyecto virtual multi-archivo (árbol de carpetas/archivos),
+ * StarSeed: proyecto virtual multi-archivo (árbol de folders/archivos),
  * editor por archivo, vista previa en vivo (iframe srcdoc), guardar/cargar en
  * Supabase, exportar, compartir y declarar plugins/conexiones.
  *
@@ -84,7 +84,7 @@ import { listBrains, type Brain, type BrainServer } from "@/lib/brains/brains";
 import { serversForBrain, listServers } from "@/lib/brains/servers";
 
 // ────────────────────────────────────────────────────────────────────────────
-// Árbol de archivos (deriva carpetas a partir de las rutas planas)
+// Árbol de archivos (deriva folders a partir de las rutas planas)
 // ────────────────────────────────────────────────────────────────────────────
 
 interface TreeNode {
@@ -815,7 +815,7 @@ export default function AiAppGenerator() {
               </Button>
             </div>
             <p className="mt-1 flex items-center gap-1 text-[10px] text-white/35">
-              <FolderPlus className="h-3 w-3" /> Usa «/» para crear carpetas.
+              <FolderPlus className="h-3 w-3" /> Usa «/» para crear folders.
             </p>
           </div>
         </aside>

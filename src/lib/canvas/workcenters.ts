@@ -1,10 +1,10 @@
 // src/lib/canvas/workcenters.ts
 // StarSeed · Centros de trabajo — Pizarras como CENTROS DE TRABAJO INFINITOS.
 // Un centro de trabajo agrupa múltiples lienzos (pizarras) y se puede guardar,
-// exportar, compartir como post/mensaje y almacenar en bibliotecas/carpetas.
+// exportar, compartir como post/mensaje y almacenar en bibliotecas/folders.
 // Vistas: libre, mapa-mental (grafo radial) o cerebro (memoria). Las ventanas
 // (bloques) son ajustables (tamaño/posición/conexiones) y se organizan en
-// grupos/carpetas. Las conexiones entre bloques viven en `canvases.edges`.
+// grupos/folders. Las conexiones entre bloques viven en `canvases.edges`.
 //
 // Tabla: work_centers(id, owner, name, canvas_ids jsonb, folder, view jsonb,
 //                     shared, created_at, updated_at).

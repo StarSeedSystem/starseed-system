@@ -3,7 +3,7 @@
 // src/components/canvas/work-centers.tsx
 // StarSeed · /pizarras — Hub de CENTROS DE TRABAJO INFINITOS.
 // Lista, crea, renombra y elimina centros; cada uno agrupa múltiples lienzos
-// (pizarras) que se pueden añadir/quitar. Asignación a carpeta, exportar (JSON),
+// (pizarras) que se pueden añadir/quitar. Asignación a folder, exportar (JSON),
 // compartir (toggle + referencia), guardar en biblioteca (vault/memoria) y
 // abrir un lienzo en el tablero. Rejilla estilo dashboards. SSR-safe.
 
@@ -102,7 +102,7 @@ export default function WorkCenters() {
     };
   }, [refresh]);
 
-  // Carpetas existentes (para el filtro superior).
+  // Folders existentes (para el filtro superior).
   const folders = useMemo(() => {
     const set = new Set<string>();
     for (const wc of centers) if (wc.folder) set.add(wc.folder);
@@ -162,15 +162,15 @@ export default function WorkCenters() {
     if (saved) setCenters((cur) => cur.map((c) => (c.id === saved.id ? saved : c)));
   }
 
-  // ---- carpeta -------------------------------------------------------------
+  // ---- folder -------------------------------------------------------------
   async function assignFolder(wc: WorkCenter) {
-    const next = typeof window !== "undefined" ? window.prompt("Carpeta del centro", wc.folder ?? "") : null;
+    const next = typeof window !== "undefined" ? window.prompt("Folder del centro", wc.folder ?? "") : null;
     if (next === null) return;
     const folder = next.trim() || null;
     const saved = await saveWorkCenter({ ...wc, folder });
     if (saved) {
       setCenters((cur) => cur.map((c) => (c.id === saved.id ? saved : c)));
-      toast.success(folder ? `Movido a «${folder}»` : "Carpeta quitada");
+      toast.success(folder ? `Movido a «${folder}»` : "Folder quitado");
     }
   }
 
@@ -282,7 +282,7 @@ export default function WorkCenters() {
         </div>
       </div>
 
-      {/* Filtro de carpetas */}
+      {/* Filtro de folders */}
       {folders.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <button
@@ -323,7 +323,7 @@ export default function WorkCenters() {
           <PanelsTopLeft className="w-10 h-10 text-fuchsia-400/40 mx-auto mb-3" />
           <p className="text-sm text-white/55">
             Aún no hay centros de trabajo. Crea uno para agrupar varias pizarras como un{" "}
-            <span className="text-fuchsia-200">centro infinito</span>: exportable, compartible y organizable en carpetas, con vista{" "}
+            <span className="text-fuchsia-200">centro infinito</span>: exportable, compartible y organizable en folders, con vista{" "}
             <span className="text-fuchsia-200">mapa mental</span> o <span className="text-fuchsia-200">cerebro</span>.
           </p>
         </div>
@@ -553,7 +553,7 @@ function WorkCenterCard({
           <Download className="w-3.5 h-3.5" /> Exportar
         </Button>
         <Button size="sm" variant="outline" className="gap-1.5 h-8 border-white/15 text-white/75" onClick={onAssignFolder}>
-          <FolderInput className="w-3.5 h-3.5" /> Carpeta
+          <FolderInput className="w-3.5 h-3.5" /> Folder
         </Button>
         <Button size="sm" variant="outline" className="gap-1.5 h-8 border-amber-500/30 text-amber-100" onClick={onLibrary}>
           <Library className="w-3.5 h-3.5" /> Biblioteca

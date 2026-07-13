@@ -1,7 +1,7 @@
 "use client";
 
 /*
- * item-comments — COMENTARIOS ligeros por ítem/carpeta de Biblioteca (Adenda 65, §15).
+ * item-comments — COMENTARIOS ligeros por ítem/folder de Biblioteca (Adenda 65, §15).
  * ═══════════════════════════════════════════════════════════════════════════
  * Hilo simple (lista plana, sin respuestas anidadas) persistido en
  * `entity_state(ref, key='lib-comments:<targetId>')` — NO en el doc principal
@@ -64,7 +64,7 @@ function makeCommentId(): string {
     return `cmt-${Date.now().toString(36)}-${(_seq++).toString(36)}`;
 }
 
-/** Lee el hilo de comentarios de un ítem/carpeta. Nunca lanza; sin datos devuelve lista vacía. */
+/** Lee el hilo de comentarios de un ítem/folder. Nunca lanza; sin datos devuelve lista vacía. */
 export async function listComments(ref: EntityRef, targetId: string): Promise<LibComment[]> {
     const row = await getEntityState<LibCommentsDoc>(ref, commentsKey(targetId));
     if (!row || !row.value) return [];
@@ -136,7 +136,7 @@ export interface UseLibComments {
     remove: (commentId: string) => Promise<{ ok: boolean }>;
 }
 
-/** Hook realtime del hilo de comentarios de un ítem/carpeta. `targetId` null = inactivo. */
+/** Hook realtime del hilo de comentarios de un ítem/folder. `targetId` null = inactivo. */
 export function useLibComments(ref: EntityRef | null, targetId: string | null): UseLibComments {
     const [comments, setComments] = useState<LibComment[]>([]);
     const [loading, setLoading] = useState<boolean>(!!ref && !!targetId);

@@ -126,7 +126,7 @@ export const EGO_SOURCES: EgoSourceDef[] = [
     icon: "🟢",
     oss: false,
     fields: [
-      { key: "folderId", label: "ID de carpeta de Drive (opcional)", placeholder: "raíz si se deja vacío" },
+      { key: "folderId", label: "ID de folder de Drive (opcional)", placeholder: "raíz si se deja vacío" },
       { key: "fileId", label: "ID del archivo en Drive (se rellena al sincronizar)" },
     ],
   },
@@ -151,7 +151,7 @@ export const EGO_SOURCES: EgoSourceDef[] = [
     oss: true,
     fields: [
       { key: "endpoint", label: "URL local", placeholder: "http://localhost:8800/ego" },
-      { key: "syncthingFolderId", label: "Carpeta Syncthing (opcional)" },
+      { key: "syncthingFolderId", label: "Folder Syncthing (opcional)" },
     ],
   },
 ];

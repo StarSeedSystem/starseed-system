@@ -61,7 +61,7 @@ export const SYNCED_KEYS = [
     "starseed.desktops.v1",              // escritorios (iconos, ventanas, fondos, vista) — desktop-store.ts
     "starseed.cursorfx.v1",              // cursor personalizado + animaciones de clic — cursor-fx.tsx
     "starseed.aurora.chatlog.v1",        // registro de conversación con Aurora — aurora-chat-log.ts
-    "starseed.dock.folders.v1",          // carpetas del OmniDock — dock-config.ts
+    "starseed.dock.folders.v1",          // folders del OmniDock — dock-config.ts
     "starseed.aurora.orb.pos.v1",        // posición del orbe de Aurora en pantalla — aurora-orb-bus.ts
     "starseed.a11y.settings",            // accesibilidad (contraste, movimiento reducido…) — accessibility-settings.tsx
     "starseed.perf.v1",                  // modo de rendimiento auto/alto/eco — device-tier.ts
@@ -98,6 +98,9 @@ export const SYNCED_KEYS = [
     //    oleada de rediseño): tareas y notas rápidas viajan con la cuenta.
     "starseed.tasks.quick.v1",   // lib/tasks/quick-tasks.ts
     "starseed.notes.quick.v1",   // lib/notes/quick-notes.ts
+    // ── Adenda 66 (2026-07-12): folders/permisos/publicaciones/red descentralizada ──
+    "starseed.feed.prefs.v1",       // filtros/orden/vista de publicaciones por perfil+entorno (feed-filters.ts)
+    "starseed.updates.history.v1",  // historial de actualizaciones de programas/repos (available-updates.ts)
     // ── Dashboard: versión de defaults (jul-2026 · dashboard-layout.tsx) ──────
     //    Marca qué generación de dashboards/widgets predeterminados ya
     //    re-sembró esta cuenta (DEFAULTS_VERSION). Los tableros/widgets en sí

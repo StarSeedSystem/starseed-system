@@ -2,7 +2,7 @@
  * StarSeed OS — App Generator (Astraura)
  *
  * Núcleo del "Estudio de Apps con IA": un proyecto virtual multi-archivo
- * (árbol de archivos, formatos, carpetas) que Astraura genera y refina con IA,
+ * (árbol de archivos, formatos, folders) que Astraura genera y refina con IA,
  * con vista previa en vivo (iframe srcdoc), edición, exportación y guardado en
  * Supabase. Pensado para ser, dentro del navegador, lo más parecido posible a
  * Cursor / Claude Code / Antigravity: generar apps con IA, con libertad de

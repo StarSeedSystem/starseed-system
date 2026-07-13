@@ -157,6 +157,31 @@ export async function getProfile(id: string): Promise<AccountProfile | null> {
 }
 
 /**
+ * Busca PERFILES (facetas públicas) de CUALQUIER cuenta por nombre o handle.
+ * Lo usa el selector de destinatarios de permisos (Adenda 66 §3): conceder
+ * acceso a un perfil concede acceso a toda su cuenta (regla cuenta↔perfiles),
+ * pero el destinatario se elige por su faceta pública, que es lo legible.
+ * Nunca lanza: [] ante cualquier fallo.
+ */
+export async function searchAccountProfiles(q: string, limit = 8): Promise<AccountProfile[]> {
+    const term = (q ?? "").trim();
+    if (term.length < 2) return [];
+    try {
+        const supabase = createClient();
+        const like = `%${term.replace(/[%_,]/g, "")}%`;
+        const { data, error } = await supabase
+            .from("os_account_profiles")
+            .select("*")
+            .or(`name.ilike.${like},handle.ilike.${like}`)
+            .limit(limit);
+        if (error || !Array.isArray(data)) return [];
+        return data.map(mapRow);
+    } catch {
+        return [];
+    }
+}
+
+/**
  * Intenta obtener el perfil por defecto de la cuenta.
  * Devuelve el perfil por defecto (existente), o null si no hay ninguno.
  * REQUISITO del SOP §10: llamar antes de anclar escritorio/dashboard/pizarra

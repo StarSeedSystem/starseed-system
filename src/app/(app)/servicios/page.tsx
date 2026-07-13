@@ -63,7 +63,7 @@ const DOMAINS: DomainDef[] = [
       "Dónde viven tus datos y memorias: tu servidor, StarSeed o un proveedor externo (S3, WebDAV…).",
     endpointPlaceholder: "https://mi-almacen.ejemplo",
     paramHints: [
-      { key: "bucket", label: "Bucket / carpeta", placeholder: "starseed-data" },
+      { key: "bucket", label: "Bucket / folder", placeholder: "starseed-data" },
       { key: "region", label: "Región", placeholder: "us-east-1" },
     ],
   },

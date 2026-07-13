@@ -2,13 +2,17 @@
 
 // src/components/creation/lienzo-composer.tsx
 // ─────────────────────────────────────────────────────────────────────────────
-// LIENZO UNIVERSAL (/crear?area=lienzo) — creador de PUBLICACIONES específicas
-// por BLOQUES (no es la pizarra): título + bloques de texto, imagen y archivo
-// (subida REAL a Storage vía os-files), enlace y widget forjado embebido.
+// LIENZO UNIVERSAL (/crear?area=lienzo) — creador de PUBLICACIONES por BLOQUES.
 //
-// Publica con el MISMO mecanismo que /publish (tabla os_posts, createPost de
-// src/lib/os-social.ts) guardando la metadata { area, tipo, blocks } embebida
-// en el cuerpo (comentario ss:meta) sin romper el esquema existente.
+// Bloques LEGADOS (texto/imagen/archivo/enlace/widget) → markdown en el cuerpo.
+// Bloques RICOS (portada, programa/código ejecutable, página interactiva, repo,
+// pizarra, agente/bot, mapa, gráfica, referencia, entidad) → se serializan en la
+// metadata `ss:meta.blocks` y los pinta el post-blocks-renderer (mismo render en
+// toda la red). El código se ejecuta AISLADO (iframe sandbox, sin sesión).
+//
+// Tipo de publicación = ETIQUETAS MÚLTIPLES (Adenda 66 §6). Destinos: los de
+// siempre + «Librería» (biblioteca + folder) → guarda un ÍTEM de biblioteca
+// (con su ACL) en vez de un post.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -19,18 +23,31 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { createPost } from "@/lib/os-social";
 import { uploadFile } from "@/lib/files/os-files";
+import { saveItemSecure } from "@/lib/library/entity-library";
 import {
     buildSsMetaComment,
-    defaultTipoFor,
+    defaultTagFor,
     destToEntity,
     CREATION_DEST_BY_ID,
     type CreationDest,
 } from "@/components/creation/creation-config";
 import {
     DestSelector,
-    TipoSelector,
+    TagSelector,
     type OwnEntityOption,
 } from "@/components/creation/creation-fields";
+import {
+    LibraryLocationPicker,
+    type LibraryLocation,
+} from "@/components/creation/library-location-picker";
+import { NEW_BLOCK_DEFS, RichBlockEditor } from "@/components/creation/creation-blocks";
+import {
+    isRichBlock,
+    newBlockId,
+    serializeBlocks,
+    type PostBlock,
+    type PostBlockType,
+} from "@/lib/creation/post-blocks";
 import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 import {
     Type,
@@ -48,25 +65,18 @@ import {
     Tags,
     MapPin,
     X,
+    type LucideIcon,
 } from "lucide-react";
 
-// ── Bloques ──────────────────────────────────────────────────────────────────
+// ── Definiciones de bloque (legado + rico) para la barra e iconos/labels ──────
 
-type BlockType = "texto" | "imagen" | "archivo" | "enlace" | "widget";
-
-interface LienzoBlock {
-    id: string;
-    type: BlockType;
-    /** texto: contenido · enlace: etiqueta · widget: título del widget. */
-    text: string;
-    /** imagen/archivo: URL pública subida · enlace: URL · widget: id del widget. */
-    url: string;
-    /** imagen/archivo: nombre del archivo original. */
-    name: string;
-    uploading?: boolean;
+interface LegacyDef {
+    type: PostBlockType;
+    label: string;
+    icon: LucideIcon;
 }
 
-const BLOCK_DEFS: Array<{ type: BlockType; label: string; icon: React.ElementType }> = [
+const LEGACY_BLOCK_DEFS: LegacyDef[] = [
     { type: "texto", label: "Texto", icon: Type },
     { type: "imagen", label: "Imagen", icon: ImageIcon },
     { type: "archivo", label: "Archivo", icon: FileUp },
@@ -74,17 +84,54 @@ const BLOCK_DEFS: Array<{ type: BlockType; label: string; icon: React.ElementTyp
     { type: "widget", label: "Widget", icon: Blocks },
 ];
 
-function newBlock(type: BlockType): LienzoBlock {
-    return {
-        id: `blk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-        type,
-        text: "",
-        url: "",
-        name: "",
-    };
+/** Mapa type → { label, icon } combinando legado + rico. */
+const BLOCK_META: Record<string, { label: string; icon: LucideIcon }> = {
+    ...Object.fromEntries(LEGACY_BLOCK_DEFS.map((d) => [d.type, { label: d.label, icon: d.icon }])),
+    ...Object.fromEntries(NEW_BLOCK_DEFS.map((d) => [d.type, { label: d.label, icon: d.icon }])),
+};
+
+/** Crea un bloque nuevo con los defaults propios de su tipo. */
+function makeBlock(type: PostBlockType): PostBlock {
+    const base: PostBlock = { id: newBlockId(), type };
+    if (type === "codigo" || type === "pagina") base.language = "html";
+    if (type === "grafica") {
+        base.chartType = "bar";
+        base.data = [{ label: "", value: 0 }];
+    }
+    return base;
 }
 
-/** Widgets forjados disponibles (AI_GENERATED) leídos del mismo almacén del dashboard. */
+/** ¿El bloque tiene contenido significativo (para validar antes de publicar)? */
+function blockHasContent(b: PostBlock): boolean {
+    switch (b.type) {
+        case "texto":
+        case "enlace":
+            return Boolean((b.text && b.text.trim()) || (b.url && b.url.trim()));
+        case "imagen":
+        case "archivo":
+        case "portada":
+        case "widget":
+        case "repo":
+        case "pizarra":
+            return Boolean(b.url && b.url.trim());
+        case "codigo":
+        case "pagina":
+            return Boolean(b.code && b.code.trim());
+        case "agente":
+            return Boolean((b.system && b.system.trim()) || (b.name && b.name.trim()));
+        case "mapa":
+            return typeof b.lat === "number" && typeof b.lng === "number";
+        case "grafica":
+            return Boolean(b.data && b.data.some((d) => d.label.trim() || Number.isFinite(d.value)));
+        case "referencia":
+        case "entidad":
+            return Boolean(b.ref && b.ref.id);
+        default:
+            return false;
+    }
+}
+
+/** Widgets forjados disponibles (AI_GENERATED) leídos del almacén del dashboard. */
 function listForgedWidgets(): Array<{ id: string; title: string }> {
     if (typeof window === "undefined") return [];
     try {
@@ -109,33 +156,30 @@ function listForgedWidgets(): Array<{ id: string; title: string }> {
 // ── Composer ─────────────────────────────────────────────────────────────────
 
 interface LienzoComposerProps {
-    /** Destino inicial (p. ej. desde ?dest=). */
     initialDest?: CreationDest;
-    /**
-     * Geolocalización inicial (?geo=lat,lng desde el Mapa del Hub, SOP §12):
-     * se adjunta como metadata.geo del post para pintarlo en /hub/mapa.
-     */
     initialGeo?: { lat: number; lng: number };
 }
 
 export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps) {
     const { toast } = useToast();
     const [titulo, setTitulo] = useState("");
-    const [blocks, setBlocks] = useState<LienzoBlock[]>([newBlock("texto")]);
+    const [blocks, setBlocks] = useState<PostBlock[]>([makeBlock("texto")]);
     const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(initialGeo ?? null);
     const [dest, setDest] = useState<CreationDest>(initialDest ?? "perfil");
-    const [tipo, setTipo] = useState<string>(defaultTipoFor(initialDest ?? "perfil"));
+    const [tags, setTags] = useState<string[]>([defaultTagFor(initialDest ?? "perfil")]);
     const [own, setOwn] = useState<OwnEntityOption | null>(null);
+    const [libLocation, setLibLocation] = useState<LibraryLocation | null>(null);
     const [publishing, setPublishing] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const forged = useMemo(listForgedWidgets, []);
 
     const changeDest = useCallback((d: CreationDest) => {
         setDest(d);
-        setTipo(defaultTipoFor(d));
+        // Sugiere una etiqueta por defecto solo si el usuario no eligió aún.
+        setTags((prev) => (prev.length === 0 ? [defaultTagFor(d)] : prev));
     }, []);
 
-    const patchBlock = useCallback((id: string, patch: Partial<LienzoBlock>) => {
+    const patchBlock = useCallback((id: string, patch: Partial<PostBlock>) => {
         setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
     }, []);
 
@@ -156,11 +200,10 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
         });
     }, []);
 
-    const addBlock = useCallback((type: BlockType) => {
-        const b = newBlock(type);
+    const addBlock = useCallback((type: PostBlockType) => {
+        const b = makeBlock(type);
         setBlocks((prev) => [...prev, b]);
         if (type === "imagen" || type === "archivo") {
-            // Abre el picker de inmediato para ese bloque.
             requestAnimationFrame(() => {
                 if (fileInputRef.current) {
                     fileInputRef.current.accept = type === "imagen" ? "image/*" : "*/*";
@@ -172,7 +215,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
         }
     }, []);
 
-    const pickFileFor = useCallback((block: LienzoBlock) => {
+    const pickFileFor = useCallback((block: PostBlock) => {
         if (!fileInputRef.current) return;
         fileInputRef.current.accept = block.type === "imagen" ? "image/*" : "*/*";
         fileInputRef.current.dataset.blockId = block.id;
@@ -180,7 +223,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
         fileInputRef.current.click();
     }, []);
 
-    // Subida REAL (bucket os-files) del archivo elegido para un bloque.
+    // Subida REAL (bucket os-files) del archivo elegido para un bloque legado.
     const handleFileChosen = useCallback(
         async (e: React.ChangeEvent<HTMLInputElement>) => {
             const file = e.target.files?.[0];
@@ -208,11 +251,47 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
 
     const anyUploading = blocks.some((b) => b.uploading);
 
-    // ── Publicación real (mismo mecanismo que /publish → os_posts) ──
+    // Compone el cuerpo (markdown de bloques legados) + metadata ss:meta.
+    const composeBody = useCallback((): { body: string; firstImage?: string } => {
+        const parts: string[] = [];
+        if (titulo.trim()) parts.push(titulo.trim());
+        let firstImage: string | undefined;
+
+        for (const b of blocks) {
+            if (b.type === "texto" && b.text?.trim()) {
+                parts.push(b.text.trim());
+            } else if (b.type === "imagen" && b.url) {
+                parts.push(`![${b.name || "imagen"}](${b.url})`);
+                if (!firstImage) firstImage = b.url;
+            } else if (b.type === "portada" && b.url) {
+                // La portada también sirve como media principal (primera imagen).
+                if (!firstImage) firstImage = b.url;
+            } else if (b.type === "archivo" && b.url) {
+                parts.push(`[${b.name || "archivo"}](${b.url})`);
+            } else if (b.type === "enlace" && b.url?.trim()) {
+                parts.push(`[${b.text?.trim() || b.url.trim()}](${b.url.trim()})`);
+            } else if (b.type === "widget" && b.url) {
+                parts.push(`[Widget embebido: ${b.text || "Widget forjado"}]`);
+            }
+        }
+
+        // Bloques RICOS → ss:meta.blocks (el renderer los pinta; no van como markdown).
+        const richBlocks = serializeBlocks(blocks.filter((b) => isRichBlock(b.type)));
+        const primaryTipo = tags[0] || defaultTagFor(dest);
+        const meta = buildSsMetaComment({
+            area: dest,
+            tipo: primaryTipo,
+            tags,
+            ...(richBlocks.length > 0 ? { blocks: richBlocks } : {}),
+            ...(geo ? { geo } : {}),
+        });
+        const body = `${parts.join("\n\n")}${meta ? `\n\n${meta}` : ""}`;
+        return { body, firstImage };
+    }, [titulo, blocks, tags, dest, geo]);
+
+    // ── Publicación real ──
     const handlePublish = useCallback(async () => {
-        const hasContent =
-            titulo.trim().length > 0 ||
-            blocks.some((b) => b.text.trim() || b.url.trim());
+        const hasContent = titulo.trim().length > 0 || blocks.some(blockHasContent);
         if (!hasContent) {
             toast({
                 title: "Lienzo vacío",
@@ -225,44 +304,60 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
             toast({ title: "Subida en curso", description: "Espera a que terminen los archivos." });
             return;
         }
+
+        // Destino LIBRERÍA: guardar como ÍTEM de biblioteca (no como post).
+        if (dest === "libreria") {
+            if (!libLocation) {
+                toast({
+                    title: "Elige una ubicación",
+                    description: "Selecciona la biblioteca y el folder destino.",
+                    variant: "destructive",
+                });
+                return;
+            }
+            setPublishing(true);
+            try {
+                const { body } = composeBody();
+                const title = titulo.trim() || firstTextSnippet(blocks) || "Creación del Lienzo";
+                const res = await saveItemSecure(
+                    libLocation.ref,
+                    {
+                        type: "post",
+                        title,
+                        content: body,
+                        tags,
+                        mime: "text/markdown",
+                    },
+                    libLocation.folderId,
+                );
+                if (res.ok) {
+                    const where = libLocation.folderLabel
+                        ? `${libLocation.libraryLabel} · ${libLocation.folderLabel}`
+                        : libLocation.libraryLabel;
+                    toast({
+                        title: "Guardado en la Librería",
+                        description: res.aviso || `Tu creación se guardó en ${where}.`,
+                    });
+                    setTitulo("");
+                    setBlocks([makeBlock("texto")]);
+                }
+            } catch (e: any) {
+                toast({
+                    title: "Error al guardar",
+                    description: e?.message || "Inténtalo de nuevo.",
+                    variant: "destructive",
+                });
+            } finally {
+                setPublishing(false);
+            }
+            return;
+        }
+
+        // Resto de destinos: publicar en os_posts (mismo mecanismo que /publish).
         setPublishing(true);
         try {
-            const parts: string[] = [];
-            if (titulo.trim()) parts.push(titulo.trim());
-            let firstImage: string | undefined;
-            const metaBlocks: Array<Record<string, unknown>> = [];
-
-            for (const b of blocks) {
-                if (b.type === "texto" && b.text.trim()) {
-                    parts.push(b.text.trim());
-                    metaBlocks.push({ t: "texto" });
-                } else if (b.type === "imagen" && b.url) {
-                    parts.push(`![${b.name || "imagen"}](${b.url})`);
-                    if (!firstImage) firstImage = b.url;
-                    metaBlocks.push({ t: "imagen", url: b.url, name: b.name });
-                } else if (b.type === "archivo" && b.url) {
-                    parts.push(`[${b.name || "archivo"}](${b.url})`);
-                    metaBlocks.push({ t: "archivo", url: b.url, name: b.name });
-                } else if (b.type === "enlace" && b.url.trim()) {
-                    parts.push(`[${b.text.trim() || b.url.trim()}](${b.url.trim()})`);
-                    metaBlocks.push({ t: "enlace", url: b.url.trim(), label: b.text.trim() });
-                } else if (b.type === "widget" && b.url) {
-                    parts.push(`[Widget embebido: ${b.text || "Widget forjado"}]`);
-                    metaBlocks.push({ t: "widget", id: b.url, title: b.text });
-                }
-            }
-
-            const meta = buildSsMetaComment({
-                area: dest,
-                tipo,
-                blocks: metaBlocks,
-                // Geo del Mapa del Hub (si vino por ?geo=): el post aparecerá
-                // como marcador en la capa "Publicaciones" de /hub/mapa.
-                ...(geo ? { geo } : {}),
-            });
-            const body = `${parts.join("\n\n")}${meta ? `\n\n${meta}` : ""}`;
+            const { body, firstImage } = composeBody();
             const entity = destToEntity(dest, own);
-
             const res = await createPost({
                 entityType: entity.entityType,
                 entitySlug: entity.entitySlug,
@@ -281,12 +376,9 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
             if (res.ok) {
                 const destLabel =
                     dest === "propia" && own ? own.name : CREATION_DEST_BY_ID[dest].label;
-                toast({
-                    title: "Publicado",
-                    description: `Tu creación se publicó en ${destLabel}.`,
-                });
+                toast({ title: "Publicado", description: `Tu creación se publicó en ${destLabel}.` });
                 setTitulo("");
-                setBlocks([newBlock("texto")]);
+                setBlocks([makeBlock("texto")]);
             } else {
                 toast({
                     title: "Error al publicar",
@@ -297,7 +389,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
         } finally {
             setPublishing(false);
         }
-    }, [titulo, blocks, dest, tipo, own, anyUploading, toast]);
+    }, [titulo, blocks, dest, tags, own, libLocation, anyUploading, composeBody, toast]);
 
     // ── Render ──
     return (
@@ -320,7 +412,6 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                         className="bg-black/30 border-white/10 text-base"
                     />
 
-                    {/* Ubicación adjunta desde el Mapa del Hub (?geo=lat,lng) */}
                     {geo && (
                         <div className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs text-sky-200">
                             <MapPin className="w-3.5 h-3.5" />
@@ -339,8 +430,8 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                     {/* Bloques */}
                     <div className="space-y-3">
                         {blocks.map((b, i) => {
-                            const def = BLOCK_DEFS.find((d) => d.type === b.type)!;
-                            const Icon = def.icon;
+                            const meta = BLOCK_META[b.type] ?? { label: b.type, icon: Blocks };
+                            const Icon = meta.icon;
                             return (
                                 <div
                                     key={b.id}
@@ -349,7 +440,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                     <div className="flex items-center gap-2">
                                         <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-300">
                                             <Icon className="w-3 h-3" />
-                                            {def.label}
+                                            {meta.label}
                                         </span>
                                         <div className="ml-auto flex items-center gap-1">
                                             <button
@@ -385,7 +476,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                         <Textarea
                                             placeholder="Escribe aquí…"
                                             rows={3}
-                                            value={b.text}
+                                            value={b.text || ""}
                                             onChange={(e) => patchBlock(b.id, { text: e.target.value })}
                                             className="bg-black/30 border-white/10 text-sm"
                                         />
@@ -431,13 +522,13 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                         <div className="grid gap-2 sm:grid-cols-2">
                                             <Input
                                                 placeholder="https://…"
-                                                value={b.url}
+                                                value={b.url || ""}
                                                 onChange={(e) => patchBlock(b.id, { url: e.target.value })}
                                                 className="bg-black/30 border-white/10 text-sm"
                                             />
                                             <Input
                                                 placeholder="Etiqueta (opcional)"
-                                                value={b.text}
+                                                value={b.text || ""}
                                                 onChange={(e) => patchBlock(b.id, { text: e.target.value })}
                                                 className="bg-black/30 border-white/10 text-sm"
                                             />
@@ -481,30 +572,34 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                                             )}
                                         </div>
                                     )}
+
+                                    {/* Bloques ricos: editor delegado */}
+                                    {isRichBlock(b.type) && (
+                                        <RichBlockEditor
+                                            block={b}
+                                            patch={(patch) => patchBlock(b.id, patch)}
+                                        />
+                                    )}
                                 </div>
                             );
                         })}
                     </div>
 
-                    {/* Añadir bloque */}
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                        {BLOCK_DEFS.map((d) => {
-                            const Icon = d.icon;
-                            return (
-                                <button
-                                    key={d.type}
-                                    type="button"
-                                    onClick={() => addBlock(d.type)}
-                                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.06] px-3 py-1.5 text-xs font-medium text-emerald-300/90 hover:bg-emerald-500/15 hover:text-emerald-200 transition-all duration-150 cursor-pointer"
-                                >
-                                    <Icon className="w-3.5 h-3.5" />
-                                    {d.label}
-                                </button>
-                            );
-                        })}
+                    {/* Añadir bloque (agrupado) */}
+                    <div className="space-y-2 pt-1">
+                        <div className="flex flex-wrap gap-1.5">
+                            {LEGACY_BLOCK_DEFS.map((d) => (
+                                <AddBlockButton key={d.type} label={d.label} icon={d.icon} onClick={() => addBlock(d.type)} />
+                            ))}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {NEW_BLOCK_DEFS.map((d) => (
+                                <AddBlockButton key={d.type} label={d.label} icon={d.icon} onClick={() => addBlock(d.type)} />
+                            ))}
+                        </div>
                     </div>
 
-                    {/* Input de archivos oculto (compartido por bloques de imagen/archivo) */}
+                    {/* Input de archivos oculto (compartido por bloques legados). */}
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -514,7 +609,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                 </div>
             </div>
 
-            {/* Columna derecha: destino + tipo + publicar */}
+            {/* Columna derecha: destino + etiquetas + publicar */}
             <div className="lg:col-span-2 space-y-4">
                 <div className="rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 sm:p-5 space-y-3">
                     <div className="flex items-center gap-2 text-white/70">
@@ -522,16 +617,23 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                         <h4 className="text-xs font-semibold uppercase tracking-wider">Destino</h4>
                     </div>
                     <DestSelector value={dest} onChange={changeDest} ownValue={own} onOwnChange={setOwn} />
+
+                    {/* Ubicación de la Librería (biblioteca + folder). */}
+                    {dest === "libreria" && (
+                        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.04] p-3">
+                            <LibraryLocationPicker value={libLocation} onChange={setLibLocation} />
+                        </div>
+                    )}
                 </div>
 
                 <div className="rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 sm:p-5 space-y-3">
                     <div className="flex items-center gap-2 text-white/70">
                         <Tags className="w-4 h-4 text-emerald-300" />
                         <h4 className="text-xs font-semibold uppercase tracking-wider">
-                            Tipo de publicación
+                            Etiquetas de la publicación
                         </h4>
                     </div>
-                    <TipoSelector dest={dest} value={tipo} onChange={setTipo} />
+                    <TagSelector dest={dest} value={tags} onChange={setTags} />
                 </div>
 
                 <Button
@@ -540,14 +642,37 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                     disabled={publishing || anyUploading}
                     className="w-full cursor-pointer gap-2 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/30 transition-all duration-200 shadow-[0_0_20px_rgba(16,185,129,0.12)]"
                 >
-                    {publishing ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                        <Send className="w-4 h-4" />
-                    )}
-                    {publishing ? "Publicando…" : "Publicar creación"}
+                    {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    {publishing
+                        ? dest === "libreria"
+                            ? "Guardando…"
+                            : "Publicando…"
+                        : dest === "libreria"
+                          ? "Guardar en la Librería"
+                          : "Publicar creación"}
                 </Button>
             </div>
         </div>
     );
+}
+
+/** Botón para añadir un bloque (mismo estilo esmeralda de la barra). */
+function AddBlockButton({ label, icon: Icon, onClick }: { label: string; icon: LucideIcon; onClick: () => void }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.06] px-3 py-1.5 text-xs font-medium text-emerald-300/90 hover:bg-emerald-500/15 hover:text-emerald-200 transition-all duration-150 cursor-pointer"
+        >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+        </button>
+    );
+}
+
+/** Primer fragmento de texto (para titular ítems de biblioteca sin título). */
+function firstTextSnippet(blocks: PostBlock[]): string {
+    const t = blocks.find((b) => b.type === "texto" && b.text?.trim())?.text?.trim();
+    if (!t) return "";
+    return t.length > 60 ? `${t.slice(0, 57)}…` : t;
 }

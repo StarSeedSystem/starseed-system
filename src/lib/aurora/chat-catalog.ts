@@ -19,9 +19,9 @@
  *   · una SESIÓN por día        → id `day:<YYYY-MM-DD>`  (fuente: el registro).
  *   · un CONTEXTO del árbol      → id `ctx:<contextId>`   (fuente: el árbol).
  * Ambos se proyectan a un modelo común `CatalogChat` (mensajes + categoría), y
- * se organizan en DOS EJES para el explorador de carpetas:
+ * se organizan en DOS EJES para el explorador de folders:
  *   · por FECHA  → hoy / ayer / esta semana / por mes.
- *   · por TEMA   → una carpeta por categoría (chat-auto-categorize).
+ *   · por TEMA   → un folder por categoría (chat-auto-categorize).
  *
  * "Guardar en memorias" reutiliza el sistema existente:
  *   · `createMemory()` de `memory-vault.ts` (baúl de memorias .md editables), y
@@ -338,7 +338,7 @@ export function buildCatalogChats(): CatalogChat[] {
   return chats;
 }
 
-// ── Ejes del explorador de carpetas ──────────────────────────────────────────
+// ── Ejes del explorador de folders ──────────────────────────────────────────
 /** Cubo de fecha para el eje temporal. */
 export type DateBucketId = "hoy" | "ayer" | "semana" | string; // string = "YYYY-MM"
 
@@ -416,8 +416,8 @@ export function groupByDate(chats: CatalogChat[]): DateBucket[] {
 }
 
 /**
- * Agrupa los chats por TEMA (categoría). Devuelve una carpeta por categoría con
- * al menos un chat, en el orden de la taxonomía. Cada carpeta lleva su meta
+ * Agrupa los chats por TEMA (categoría). Devuelve un folder por categoría con
+ * al menos un chat, en el orden de la taxonomía. Cada folder lleva su meta
  * visual (icono/color/hint) para el explorador.
  */
 export function groupByCategory(chats: CatalogChat[]): CategoryBucket[] {
@@ -439,7 +439,7 @@ export function groupByCategory(chats: CatalogChat[]): CategoryBucket[] {
       chats: list,
     });
   }
-  // Ordenamos las carpetas por el índice de la taxonomía (estable) usando el
+  // Ordenamos los folders por el índice de la taxonomía (estable) usando el
   // color/label; como categoryDef no expone índice, ordenamos por nº de chats
   // desc y luego alfabético para una presentación clara.
   buckets.sort((a, b) => (b.chats.length - a.chats.length) || a.label.localeCompare(b.label));

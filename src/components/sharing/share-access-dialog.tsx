@@ -3,7 +3,7 @@
 /*
  * ShareAccessDialog — diálogo UNIVERSAL de permisos y compartición (Adenda 63 §5).
  * Un solo componente para escritorios, dashboards, pizarras, cerebros y
- * archivos/carpetas de biblioteca, sobre el modelo src/lib/sharing/access.ts:
+ * archivos/folders de biblioteca, sobre el modelo src/lib/sharing/access.ts:
  *
  *   · Ámbito: profile · account · custom · public (iconos User/Lock/Users/Globe).
  *   · Accesos: lista de grants con selector de rol (ver/comentar/editar/administrar),
@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Lock, User, Users, Globe, Share2, Link as LinkIcon, Copy, Check, X, Search,
     Loader2, AtSign, ChevronDown, ChevronUp, SlidersHorizontal, Plus,
+    FileLock2, GitFork, Link2Off, Eye as EyeIcon, FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -33,22 +34,39 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
-    ensureResourceSpace, getResourceAccess, removeGrant, setResourceScope,
+    detachInheritance, ensureResourceSpace, getEffectiveAccess, getResourceAccess, isLibraryResource,
+    isShownInProfile, removeGrant, restoreInheritance, setResourceScope, setShowInProfile,
     shareLinkFor, subscribeResourceAccess, upsertGrant, ROLE_LABELS,
     type AccessGrant, type AccessRole, type AccessScope, type GranteeKind,
     type ResourceAccess, type ResourceRef,
 } from "@/lib/sharing/access";
-import { searchUsers } from "@/lib/social/os-profiles";
-import { useMyProfiles } from "@/lib/profiles/profiles";
+import { searchUsers, searchGroups } from "@/lib/social/os-profiles";
+import { searchAccountProfiles, useMyProfiles } from "@/lib/profiles/profiles";
 
 /* ─────────────────────────── Constantes de UI ─────────────────────────── */
 
-const SCOPE_OPTIONS: Array<{ id: AccessScope; label: string; icon: typeof Lock; desc: string }> = [
-    { id: "profile", label: "Un perfil", icon: User, desc: "Solo un perfil concreto de tu cuenta." },
-    { id: "account", label: "Mi cuenta", icon: Lock, desc: "Todos los perfiles de tu cuenta. Privado hacia fuera." },
-    { id: "custom", label: "Personalizado", icon: Users, desc: "Perfiles, cuentas o grupos externos concretos." },
-    { id: "public", label: "Público", icon: Globe, desc: "Cualquiera en la red. El poder público es transparente." },
-];
+interface ScopeOption {
+    id: AccessScope;
+    label: string;
+    icon: typeof Lock;
+    desc: string;
+}
+
+const SCOPE_META: Record<AccessScope, ScopeOption> = {
+    private: { id: "private", label: "Privado", icon: FileLock2, desc: "Cerrado con llave: solo tú. Ni siquiera los accesos concedidos aplican." },
+    profile: { id: "profile", label: "Un perfil", icon: User, desc: "Solo un perfil concreto de tu cuenta." },
+    account: { id: "account", label: "Mi cuenta", icon: Lock, desc: "Todos los perfiles de tu cuenta. Privado hacia fuera." },
+    profiles: { id: "profiles", label: "Perfiles", icon: User, desc: "Perfiles concretos. Dar acceso a un perfil lo da a TODA su cuenta (y a sus otros perfiles)." },
+    groups: { id: "groups", label: "Grupos", icon: Users, desc: "Grupos concretos: cualquiera de sus miembros accede." },
+    pages: { id: "pages", label: "Páginas", icon: FileText, desc: "Páginas o comunidades concretas." },
+    custom: { id: "custom", label: "Personalizado", icon: Users, desc: "Perfiles, cuentas o grupos externos concretos." },
+    public: { id: "public", label: "Público", icon: Globe, desc: "Cualquiera en la red. El poder público es transparente." },
+};
+
+/** Ámbitos por defecto (escritorios, pizarras, cerebros — Adenda 63). */
+const DEFAULT_SCOPES: AccessScope[] = ["profile", "account", "custom", "public"];
+/** Ámbitos de un nodo de Biblioteca (Adenda 66 §3). */
+export const LIBRARY_SCOPES: AccessScope[] = ["private", "account", "profiles", "groups", "pages", "public"];
 
 const ROLES: AccessRole[] = ["view", "comment", "edit", "admin"];
 
@@ -56,6 +74,7 @@ const GRANTEE_ICON: Record<GranteeKind, typeof User> = {
     profile: User,
     account: AtSign,
     group: Users,
+    page: FileText,
     link: LinkIcon,
 };
 
@@ -79,6 +98,19 @@ export interface ShareAccessDialogProps {
     buildLink?: (spaceId: string | null) => string | null;
     title?: string;
     description?: string;
+    /**
+     * Ámbitos ofrecidos. Por defecto los de la Adenda 63 (escritorios/pizarras);
+     * los nodos de Biblioteca pasan `LIBRARY_SCOPES` (Adenda 66 §3).
+     */
+    scopes?: AccessScope[];
+    /**
+     * Herencia (Adenda 66 §3): muestra si la ACL es PROPIA o HEREDADA del padre
+     * y permite «Dejar de heredar» / «Volver a heredar». Solo tiene sentido en
+     * nodos de Biblioteca (library/folder/file).
+     */
+    inheritance?: boolean;
+    /** §4: interruptor «Mostrar en mi perfil» (Biblioteca pública del perfil). */
+    profileShowcase?: boolean;
 }
 
 /* ─────────────────────────── Selector de rol ─────────────────────────── */
@@ -189,45 +221,88 @@ function GrantRow({
 
 /* ─────────────────────────── Diálogo principal ─────────────────────────── */
 
+/** Destinatario encontrado por el buscador (según el ámbito activo). */
+interface RecipientHit {
+    granteeKind: GranteeKind;
+    id: string;
+    label: string;
+    hint?: string;
+}
+
 export function ShareAccessDialog({
     open, onOpenChange, resource, makeSpaceDoc, sections, defaultSections, buildLink, title, description,
+    scopes, inheritance = false, profileShowcase = false,
 }: ShareAccessDialogProps) {
     const { profiles } = useMyProfiles();
     const [access, setAccess] = useState<ResourceAccess | null>(null);
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState("");
-    const [results, setResults] = useState<Array<{ id: string; label: string; hint?: string }>>([]);
+    const [results, setResults] = useState<RecipientHit[]>([]);
     const [searching, setSearching] = useState(false);
     const [groupInput, setGroupInput] = useState("");
     const [copied, setCopied] = useState(false);
     const [linking, setLinking] = useState(false);
+    // Herencia (§3) y vitrina del perfil (§4) — solo para nodos de Biblioteca.
+    const [own, setOwn] = useState(true);
+    const [inheritedFrom, setInheritedFrom] = useState<string | null>(null);
+    const [shown, setShown] = useState(false);
 
     const spaceOpts = useMemo(() => ({ makeDoc: makeSpaceDoc }), [makeSpaceDoc]);
+    const isLibNode = isLibraryResource(resource) && !!resource.libraryRef;
+    const useInheritance = inheritance && isLibNode;
+    const scopeOptions = useMemo(
+        () => (scopes ?? DEFAULT_SCOPES).map((s) => SCOPE_META[s]).filter(Boolean),
+        [scopes],
+    );
+
+    /** Relee el estado (efectivo si hay herencia; propio si no). */
+    const refresh = useCallback(async () => {
+        if (useInheritance) {
+            const eff = await getEffectiveAccess(resource);
+            setAccess({ scope: eff.scope, grants: eff.grants, spaceId: eff.spaceId, updatedAt: eff.updatedAt });
+            setOwn(eff.own);
+            setInheritedFrom(eff.own ? null : (eff.inheritedFromLabel ?? "Biblioteca"));
+            setShown(isShownInProfile(resource));
+            return;
+        }
+        setAccess(await getResourceAccess(resource));
+        setOwn(true);
+        setInheritedFrom(null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- type/id identifican el recurso de forma estable
+    }, [useInheritance, resource.type, resource.id]);
 
     // Carga inicial + realtime mientras el diálogo esté abierto.
     useEffect(() => {
         if (!open) return;
         let alive = true;
         setLoading(true);
-        void getResourceAccess(resource).then((a) => {
-            if (alive) {
-                setAccess(a);
-                setLoading(false);
-            }
+        void refresh().then(() => {
+            if (alive) setLoading(false);
         });
         const unsub = subscribeResourceAccess(resource, () => {
-            void getResourceAccess(resource).then((a) => {
-                if (alive) setAccess(a);
-            });
+            if (alive) void refresh();
         });
         return () => {
             alive = false;
             unsub();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- type/id identifican el recurso de forma estable
-    }, [open, resource.type, resource.id]);
+    }, [open, resource.type, resource.id, refresh]);
 
-    // Buscador de perfiles del directorio (os_profiles, como el Hub) con debounce.
+    const scope = access?.scope ?? "account";
+
+    /**
+     * Antes de cualquier cambio: si el nodo HEREDA, se desengancha copiando el
+     * acceso efectivo (la ACL propia siempre gana — §3). Editar es decidir.
+     */
+    const ensureOwn = useCallback(async () => {
+        if (!useInheritance || own) return;
+        await detachInheritance(resource, spaceOpts);
+        setOwn(true);
+        setInheritedFrom(null);
+    }, [useInheritance, own, resource, spaceOpts]);
+
+    // Buscador de destinatarios según el ámbito activo (perfiles · cuentas · grupos · páginas).
     useEffect(() => {
         if (!open) return;
         let alive = true;
@@ -238,17 +313,58 @@ export function ShareAccessDialog({
         }
         setSearching(true);
         const t = setTimeout(() => {
-            void searchUsers(term, 8).then((users) => {
+            void (async () => {
+                const hits: RecipientHit[] = [];
+                try {
+                    if (scope === "profiles") {
+                        const facets = await searchAccountProfiles(term, 8);
+                        for (const p of facets) {
+                            hits.push({
+                                granteeKind: "profile",
+                                id: p.id,
+                                label: p.name,
+                                hint: p.handle ? `@${p.handle}` : "Perfil",
+                            });
+                        }
+                    }
+                    if (scope === "groups" || scope === "pages") {
+                        const groups = await searchGroups(term, 10);
+                        for (const g of groups) {
+                            const isPage = g.kind === "pagina" || g.kind === "comunidad";
+                            if (scope === "pages" && !isPage) continue;
+                            if (scope === "groups" && isPage) continue;
+                            hits.push({
+                                granteeKind: scope === "pages" ? "page" : "group",
+                                id: g.slug,
+                                label: g.name || g.slug,
+                                hint: g.kind,
+                            });
+                        }
+                    }
+                    if (scope === "custom" || scope === "public" || scope === "profile" || scope === "account" || scope === "private") {
+                        const users = await searchUsers(term, 8);
+                        for (const u of users) {
+                            hits.push({
+                                granteeKind: "account",
+                                id: u.userId,
+                                label: u.displayName || u.username,
+                                hint: `@${u.username}`,
+                            });
+                        }
+                    }
+                } catch {
+                    /* sin red: lista vacía, nunca rompe el diálogo */
+                }
                 if (!alive) return;
-                setResults(users.map((u) => ({ id: u.userId, label: u.displayName || u.username, hint: `@${u.username}` })));
+                setResults(hits);
                 setSearching(false);
-            });
+            })();
         }, 250);
         return () => {
             alive = false;
             clearTimeout(t);
         };
-    }, [query, open]);
+    }, [query, open, scope]);
 
     const grants = useMemo(
         () => (access?.grants ?? []).filter((g) => g.granteeKind !== "link"),
@@ -259,45 +375,100 @@ export function ShareAccessDialog({
         [access],
     );
 
-    /* ── Acciones (aplican en vivo; local-first) ── */
+    /* ── Acciones (aplican en vivo; local-first). Editar un nodo heredado lo
+     *    desengancha primero: la ACL propia siempre gana (§3). ── */
 
     const applyScope = useCallback(
-        (scope: AccessScope) => {
-            void setResourceScope(resource, scope, spaceOpts).then(setAccess);
+        (next: AccessScope) => {
+            void (async () => {
+                await ensureOwn();
+                setAccess(await setResourceScope(resource, next, spaceOpts));
+            })();
         },
-        [resource, spaceOpts],
+        [resource, spaceOpts, ensureOwn],
     );
 
     const addGrant = useCallback(
         (granteeKind: GranteeKind, granteeId: string, label?: string, role: AccessRole = "view") => {
             if (!granteeId.trim()) return;
-            void upsertGrant(
-                resource,
-                { granteeKind, granteeId: granteeId.trim(), label, role, sections: defaultSections },
-                spaceOpts,
-            ).then((a) => {
+            void (async () => {
+                await ensureOwn();
+                const a = await upsertGrant(
+                    resource,
+                    { granteeKind, granteeId: granteeId.trim(), label, role, sections: defaultSections },
+                    spaceOpts,
+                );
                 setAccess(a);
-                toast.success("Acceso añadido", { description: label ?? granteeId });
-            });
+                toast.success("Acceso añadido", {
+                    description:
+                        granteeKind === "profile"
+                            ? `${label ?? granteeId} — y el resto de perfiles de su cuenta`
+                            : (label ?? granteeId),
+                });
+            })();
         },
-        [resource, spaceOpts, defaultSections],
+        [resource, spaceOpts, defaultSections, ensureOwn],
     );
 
     const updateGrant = useCallback(
         (grant: AccessGrant) => {
-            void upsertGrant(resource, grant, spaceOpts).then(setAccess);
+            void (async () => {
+                await ensureOwn();
+                setAccess(await upsertGrant(resource, grant, spaceOpts));
+            })();
         },
-        [resource, spaceOpts],
+        [resource, spaceOpts, ensureOwn],
     );
 
     const dropGrant = useCallback(
         (grant: AccessGrant) => {
-            void removeGrant(resource, grant.granteeKind, grant.granteeId, spaceOpts).then((a) => {
+            void (async () => {
+                await ensureOwn();
+                const a = await removeGrant(resource, grant.granteeKind, grant.granteeId, spaceOpts);
                 setAccess(a);
                 toast.message("Acceso retirado", { description: grant.label ?? grant.granteeId });
-            });
+            })();
         },
-        [resource, spaceOpts],
+        [resource, spaceOpts, ensureOwn],
+    );
+
+    /* ── Herencia (§3) ── */
+
+    const handleDetach = useCallback(() => {
+        void (async () => {
+            await detachInheritance(resource, spaceOpts);
+            await refresh();
+            toast.success("Permisos propios", {
+                description: "Este nodo ya no hereda: decide por sí mismo.",
+            });
+        })();
+    }, [resource, spaceOpts, refresh]);
+
+    const handleInherit = useCallback(() => {
+        void (async () => {
+            await restoreInheritance(resource);
+            await refresh();
+            toast.message("Vuelve a heredar", {
+                description: "Se rige de nuevo por los permisos de su folder/biblioteca.",
+            });
+        })();
+    }, [resource, refresh]);
+
+    /* ── Vitrina del perfil (§4) ── */
+
+    const handleShowcase = useCallback(
+        (next: boolean) => {
+            void (async () => {
+                await setShowInProfile(resource, next);
+                await refresh();
+                toast.message(next ? "Se mostrará en tu perfil" : "Ya no se muestra en tu perfil", {
+                    description: next
+                        ? "Al publicarlo en tu perfil pasa a ser PÚBLICO (si no, las visitas no podrían abrirlo)."
+                        : "Sigue compartido con quien ya tuviera acceso; solo deja de listarse.",
+                });
+            })();
+        },
+        [resource, refresh],
     );
 
     const handleCopyLink = useCallback(async () => {
@@ -335,8 +506,6 @@ export function ShareAccessDialog({
         [grants],
     );
 
-    const scope = access?.scope ?? "account";
-
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md border-white/10 bg-zinc-950/95 text-white backdrop-blur-2xl">
@@ -355,11 +524,49 @@ export function ShareAccessDialog({
                     </div>
                 ) : (
                     <div className="max-h-[62vh] space-y-3 overflow-y-auto py-1 pr-0.5">
+                        {/* ── Herencia: ¿ACL propia o heredada del padre? (§3) ── */}
+                        {useInheritance && (
+                            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5">
+                                <span
+                                    className={cn(
+                                        "shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold",
+                                        own
+                                            ? "border-cyan-300/40 bg-cyan-400/10 text-cyan-200"
+                                            : "border-amber-400/30 bg-amber-400/10 text-amber-300",
+                                    )}
+                                >
+                                    {own ? "Propio" : "Heredado"}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+                                    {own
+                                        ? "Este nodo tiene sus propios permisos."
+                                        : `Hereda los permisos de «${inheritedFrom ?? "Biblioteca"}».`}
+                                </span>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 shrink-0 gap-1 border-white/15 px-2 text-[10px] cursor-pointer"
+                                    onClick={own ? handleInherit : handleDetach}
+                                >
+                                    {own ? (
+                                        <>
+                                            <GitFork className="size-3" /> Volver a heredar
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Link2Off className="size-3" /> Dejar de heredar
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        )}
+
                         {/* ── Ámbito ── */}
                         <div>
                             <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Ámbito</label>
-                            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-                                {SCOPE_OPTIONS.map((opt) => (
+                            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+                                {scopeOptions.map((opt) => (
                                     <button
                                         key={opt.id}
                                         type="button"
@@ -377,9 +584,30 @@ export function ShareAccessDialog({
                                 ))}
                             </div>
                             <p className="mt-1 px-0.5 text-[10px] text-muted-foreground">
-                                {SCOPE_OPTIONS.find((o) => o.id === scope)?.desc}
+                                {SCOPE_META[scope]?.desc}
                             </p>
                         </div>
+
+                        {/* ── Vitrina: mostrar este nodo en la Biblioteca pública del perfil (§4) ── */}
+                        {profileShowcase && isLibNode && (
+                            <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2">
+                                <input
+                                    type="checkbox"
+                                    checked={shown}
+                                    onChange={(e) => handleShowcase(e.target.checked)}
+                                    className="mt-0.5 size-3 accent-emerald-400"
+                                />
+                                <span className="min-w-0 flex-1">
+                                    <span className="flex items-center gap-1.5 text-xs font-semibold text-white/85">
+                                        <EyeIcon className="size-3.5 text-emerald-300" /> Mostrar en mi perfil
+                                    </span>
+                                    <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                                        Aparecerá en la pestaña Biblioteca de tu perfil, para cualquier visita. Al activarlo
+                                        el nodo pasa a ser público.
+                                    </span>
+                                </span>
+                            </label>
+                        )}
 
                         {/* ── Público: rol de cualquiera con el enlace/la red ── */}
                         {scope === "public" && (
@@ -395,8 +623,8 @@ export function ShareAccessDialog({
                             </div>
                         )}
 
-                        {/* ── Perfil(es) de mi cuenta (ámbito perfil o personalizado) ── */}
-                        {(scope === "profile" || scope === "custom") && profiles.length > 0 && (
+                        {/* ── Perfil(es) de mi cuenta (ámbito perfil, perfiles o personalizado) ── */}
+                        {(scope === "profile" || scope === "profiles" || scope === "custom") && profiles.length > 0 && (
                             <div>
                                 <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
                                     {scope === "profile" ? "Perfil con acceso" : "Perfiles de mi cuenta"}
@@ -453,18 +681,31 @@ export function ShareAccessDialog({
                             )}
                         </div>
 
-                        {/* ── Añadir personas y grupos (ámbito personalizado o público) ── */}
-                        {(scope === "custom" || scope === "public") && (
+                        {/* ── Añadir destinatarios (según el ámbito activo) ── */}
+                        {scope !== "private" && scope !== "account" && (
                             <div className="space-y-2">
                                 <div className="relative">
                                     <Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
                                     <Input
                                         value={query}
                                         onChange={(e) => setQuery(e.target.value)}
-                                        placeholder="Buscar perfil por @usuario o nombre…"
+                                        placeholder={
+                                            scope === "profiles"
+                                                ? "Buscar perfil por nombre o @handle…"
+                                                : scope === "groups"
+                                                  ? "Buscar grupo…"
+                                                  : scope === "pages"
+                                                    ? "Buscar página o comunidad…"
+                                                    : "Buscar perfil por @usuario o nombre…"
+                                        }
                                         className="h-8 rounded-lg border-white/10 bg-black/30 pl-7 text-[12px]"
                                     />
                                 </div>
+                                {scope === "profiles" && (
+                                    <p className="text-[10px] text-amber-300/80">
+                                        Dar acceso a un perfil lo da también al resto de perfiles de su cuenta (y al revés).
+                                    </p>
+                                )}
                                 {searching && (
                                     <p className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                         <Loader2 className="size-3 animate-spin" /> Buscando…
@@ -475,53 +716,69 @@ export function ShareAccessDialog({
                                 )}
                                 {results.length > 0 && (
                                     <div className="space-y-1 rounded-lg border border-white/10 bg-black/20 p-1">
-                                        {results.map((r) => (
-                                            <button
-                                                key={r.id}
-                                                type="button"
-                                                onClick={() => {
-                                                    addGrant("account", r.id, r.label);
-                                                    setQuery("");
-                                                    setResults([]);
-                                                }}
-                                                className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-white/10"
-                                            >
-                                                <AtSign className="size-3.5 text-muted-foreground" />
-                                                <span className="min-w-0 flex-1 truncate">{r.label}</span>
-                                                {r.hint && <span className="shrink-0 text-[10px] text-muted-foreground">{r.hint}</span>}
-                                            </button>
-                                        ))}
+                                        {results.map((r) => {
+                                            const Icon = GRANTEE_ICON[r.granteeKind];
+                                            return (
+                                                <button
+                                                    key={`${r.granteeKind}:${r.id}`}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        addGrant(r.granteeKind, r.id, r.label);
+                                                        setQuery("");
+                                                        setResults([]);
+                                                    }}
+                                                    className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-white/10"
+                                                >
+                                                    <Icon className="size-3.5 text-muted-foreground" />
+                                                    <span className="min-w-0 flex-1 truncate">{r.label}</span>
+                                                    {r.hint && <span className="shrink-0 text-[10px] text-muted-foreground">{r.hint}</span>}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 )}
-                                <div className="flex items-center gap-1.5">
-                                    <div className="relative flex-1">
-                                        <Users className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
-                                        <Input
-                                            value={groupInput}
-                                            onChange={(e) => setGroupInput(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === "Enter" && groupInput.trim()) {
-                                                    addGrant("group", groupInput.trim().replace(/^@/, ""), groupInput.trim());
-                                                    setGroupInput("");
+                                {/* Grupo/página por slug directo (cuando no aparece en el buscador). */}
+                                {scope !== "profiles" && scope !== "profile" && (
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="relative flex-1">
+                                            <Users className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+                                            <Input
+                                                value={groupInput}
+                                                onChange={(e) => setGroupInput(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" && groupInput.trim()) {
+                                                        addGrant(
+                                                            scope === "pages" ? "page" : "group",
+                                                            groupInput.trim().replace(/^@/, ""),
+                                                            groupInput.trim(),
+                                                        );
+                                                        setGroupInput("");
+                                                    }
+                                                }}
+                                                placeholder={
+                                                    scope === "pages" ? "Añadir página por slug…" : "Añadir grupo por slug/id…"
                                                 }
+                                                className="h-8 rounded-lg border-white/10 bg-black/30 pl-7 text-[12px]"
+                                            />
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-8 gap-1 border-white/15 px-2 text-[11px] cursor-pointer"
+                                            disabled={!groupInput.trim()}
+                                            onClick={() => {
+                                                addGrant(
+                                                    scope === "pages" ? "page" : "group",
+                                                    groupInput.trim().replace(/^@/, ""),
+                                                    groupInput.trim(),
+                                                );
+                                                setGroupInput("");
                                             }}
-                                            placeholder="Añadir grupo por slug/id…"
-                                            className="h-8 rounded-lg border-white/10 bg-black/30 pl-7 text-[12px]"
-                                        />
+                                        >
+                                            <Plus className="size-3" /> {scope === "pages" ? "Página" : "Grupo"}
+                                        </Button>
                                     </div>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-8 gap-1 border-white/15 px-2 text-[11px] cursor-pointer"
-                                        disabled={!groupInput.trim()}
-                                        onClick={() => {
-                                            addGrant("group", groupInput.trim().replace(/^@/, ""), groupInput.trim());
-                                            setGroupInput("");
-                                        }}
-                                    >
-                                        <Plus className="size-3" /> Grupo
-                                    </Button>
-                                </div>
+                                )}
                             </div>
                         )}
 

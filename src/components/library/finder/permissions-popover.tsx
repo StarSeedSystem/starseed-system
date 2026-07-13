@@ -1,7 +1,7 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════════════════
-// PermissionsPopover — panel "Permisos…" de un ítem/carpeta de Biblioteca
+// PermissionsPopover — panel "Permisos…" de un ítem/folder de Biblioteca
 // ----------------------------------------------------------------------------
 // Busca USUARIOS y GRUPOS reales para añadirlos a las listas read/write de la
 // ACL, reutilizando el directorio real `os_profiles` (username/display_name)

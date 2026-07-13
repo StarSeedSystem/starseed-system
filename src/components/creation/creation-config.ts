@@ -41,20 +41,51 @@ import {
     LibraryBig,
     PenLine,
     ScrollText,
+    // Catálogo de etiquetas (Adenda 66 §6)
+    Globe,
+    Presentation,
+    ShieldAlert,
+    MessageSquarePlus,
+    FileSignature,
+    LifeBuoy,
+    HeartHandshake,
+    Siren,
+    Blocks,
+    Boxes,
+    ClipboardCheck,
+    Laugh,
+    Newspaper,
+    Gamepad2,
+    AppWindow,
+    Code2,
+    Microscope,
+    BarChart3,
+    Map as MapIcon,
+    PencilRuler,
+    GitBranch,
+    Bot,
     type LucideIcon,
 } from "lucide-react";
 import type { OsEntityType } from "@/lib/os-social";
+import type { PostBlock } from "@/lib/creation/post-blocks";
 
 // ── Destinos ─────────────────────────────────────────────────────────────────
 
-/** Destino de una creación: secciones de la red + perfil + entidad propia. */
+/** Destino de una creación: secciones de la red + perfil + entidad propia + Librería. */
 export type CreationDest =
     | "perfil"
     | "politica"
     | "educacion"
     | "cultura"
     | "biblioteca"
-    | "propia";
+    | "propia"
+    /**
+     * Adenda 66 §6 · «Librería» (con UBICACIÓN: biblioteca + folder). A diferencia
+     * de "biblioteca" (que publica un POST en la cola de la sección Biblioteca),
+     * este destino GUARDA el contenido como ÍTEM de biblioteca en la ubicación
+     * elegida (con su ACL), no como publicación. Sólo lo maneja el Lienzo.
+     */
+    | "libreria";
 
 export interface CreationDestDef {
     id: CreationDest;
@@ -108,6 +139,13 @@ export const CREATION_DESTS: CreationDestDef[] = [
         icon: Users2,
         accent: "border-indigo-500/50 text-indigo-300",
     },
+    {
+        id: "libreria",
+        label: "Librería",
+        desc: "Guardar en biblioteca + folder",
+        icon: LibraryBig,
+        accent: "border-cyan-500/50 text-cyan-300",
+    },
 ];
 
 export const CREATION_DEST_BY_ID: Record<CreationDest, CreationDestDef> =
@@ -141,6 +179,8 @@ export function parseDestParam(raw: string | null | undefined): CreationDest | n
         biblioteca: "biblioteca",
         library: "biblioteca",
         propia: "propia",
+        libreria: "libreria",
+        "librería": "libreria",
     };
     return map[k] ?? null;
 }
@@ -178,6 +218,11 @@ export const TIPOS_POR_DEST: Record<CreationDest, CreationTipoDef[]> = {
         { id: "wiki", label: "Wiki", desc: "Artículo de conocimiento vivo", icon: BookMarked },
         { id: "coleccion", label: "Colección", desc: "Conjunto curado de ítems", icon: LibraryBig },
     ],
+    libreria: [
+        { id: "archivo", label: "Archivo", desc: "Documento o pieza archivable", icon: FileText },
+        { id: "recurso", label: "Recurso", desc: "Material reutilizable", icon: Package },
+        { id: "coleccion", label: "Colección", desc: "Conjunto curado de ítems", icon: LibraryBig },
+    ],
     perfil: [
         { id: "publicacion", label: "Publicación", desc: "Comparte con tu red", icon: PenLine },
         { id: "articulo", label: "Artículo", desc: "Texto largo con título", icon: ScrollText },
@@ -194,6 +239,89 @@ export function defaultTipoFor(dest: CreationDest): string {
     return TIPOS_POR_DEST[dest]?.[0]?.id ?? "publicacion";
 }
 
+// ── Catálogo de ETIQUETAS MÚLTIPLES (Adenda 66 §6) ───────────────────────────
+//
+// El "tipo" de publicación deja de ser único: una creación lleva VARIAS
+// etiquetas (chips seleccionables). Cada etiqueta declara a qué destinos/áreas
+// aplica (`sections: "all"` o un subconjunto de CreationDest) para poder
+// sugerir las más relevantes según el destino elegido. `tipo` primario = tags[0].
+
+export interface PublicationTagDef {
+    id: string;
+    label: string;
+    desc: string;
+    icon: LucideIcon;
+    /** Áreas/destinos donde la etiqueta es relevante ("all" = todas). */
+    sections: "all" | CreationDest[];
+}
+
+export const PUBLICATION_TAGS: PublicationTagDef[] = [
+    { id: "general", label: "General", desc: "Publicación abierta", icon: PenLine, sections: "all" },
+    { id: "articulo", label: "Artículo", desc: "Texto largo con título", icon: ScrollText, sections: "all" },
+    { id: "pagina-web", label: "Página web", desc: "Página con contenido interactivo", icon: Globe, sections: "all" },
+    { id: "presentacion", label: "Presentación", desc: "Diapositivas o slides", icon: Presentation, sections: ["educacion", "cultura", "propia", "libreria"] },
+    { id: "propuesta", label: "Propuesta", desc: "Propuesta legislativa o de acción", icon: Lightbulb, sections: ["politica", "propia"] },
+    { id: "denuncia", label: "Denuncia", desc: "Reporte de un problema", icon: ShieldAlert, sections: ["politica", "perfil", "propia"] },
+    { id: "sugerencia", label: "Sugerencia", desc: "Idea de mejora", icon: MessageSquarePlus, sections: "all" },
+    { id: "peticion", label: "Petición", desc: "Solicitud con apoyos", icon: FileSignature, sections: ["politica", "propia"] },
+    { id: "ayuda", label: "Ayuda", desc: "Pide o ofrece ayuda", icon: LifeBuoy, sections: "all" },
+    { id: "voluntariado", label: "Voluntariado", desc: "Llamada a colaborar", icon: HeartHandshake, sections: ["cultura", "politica", "propia"] },
+    { id: "urgencia", label: "Urgencia", desc: "Asunto prioritario", icon: Siren, sections: "all" },
+    { id: "widget", label: "Widget", desc: "Interfaz forjada embebida", icon: Blocks, sections: "all" },
+    { id: "vr-ar", label: "VR/AR", desc: "Realidad virtual o aumentada", icon: Boxes, sections: ["cultura", "educacion"] },
+    { id: "examen", label: "Examen", desc: "Prueba con insignia opcional", icon: ClipboardCheck, sections: ["educacion", "propia"] },
+    { id: "meme", label: "Meme", desc: "Humor e imagen ligera", icon: Laugh, sections: ["perfil", "cultura", "propia"] },
+    { id: "noticia", label: "Noticia", desc: "Actualidad y novedades", icon: Newspaper, sections: "all" },
+    { id: "evento", label: "Evento", desc: "Encuentro físico o virtual", icon: CalendarDays, sections: "all" },
+    { id: "juego", label: "Juego", desc: "Juego jugable", icon: Gamepad2, sections: ["cultura", "educacion", "perfil"] },
+    { id: "app", label: "App", desc: "Aplicación funcional", icon: AppWindow, sections: "all" },
+    { id: "archivo", label: "Archivo", desc: "Documento o fichero", icon: FileText, sections: "all" },
+    { id: "programa", label: "Programa", desc: "Código ejecutable", icon: Code2, sections: "all" },
+    { id: "curso", label: "Curso", desc: "Itinerario de aprendizaje", icon: GraduationCap, sections: ["educacion", "propia", "libreria"] },
+    { id: "guia", label: "Guía", desc: "Instrucciones paso a paso", icon: BookOpen, sections: "all" },
+    { id: "recurso", label: "Recurso", desc: "Material reutilizable", icon: Package, sections: "all" },
+    { id: "obra", label: "Obra", desc: "Creación artística", icon: Brush, sections: ["cultura", "perfil", "propia"] },
+    { id: "convocatoria", label: "Convocatoria", desc: "Llamado a participar", icon: Megaphone, sections: ["cultura", "politica", "propia"] },
+    { id: "debate", label: "Debate", desc: "Deliberación estructurada", icon: MessagesSquare, sections: ["politica", "educacion", "propia"] },
+    { id: "votacion", label: "Votación", desc: "Consulta con opciones", icon: Vote, sections: ["politica", "propia"] },
+    { id: "iniciativa", label: "Iniciativa", desc: "Proyecto ciudadano", icon: Rocket, sections: ["politica", "propia"] },
+    { id: "tutoria", label: "Tutoría", desc: "Mentoría humano + IA", icon: UserCheck, sections: ["educacion", "propia"] },
+    { id: "investigacion", label: "Investigación", desc: "Estudio con fuentes", icon: Microscope, sections: ["educacion", "politica", "libreria"] },
+    { id: "dato-grafica", label: "Dato/Gráfica", desc: "Datos con visualización", icon: BarChart3, sections: "all" },
+    { id: "mapa", label: "Mapa", desc: "Ubicación o zona", icon: MapIcon, sections: "all" },
+    { id: "pizarra", label: "Pizarra", desc: "Lienzo de trabajo", icon: PencilRuler, sections: "all" },
+    { id: "repo", label: "Repo", desc: "Repositorio de código", icon: GitBranch, sections: "all" },
+    { id: "agente-bot", label: "Agente/Bot", desc: "Mini-agente con IA", icon: Bot, sections: "all" },
+];
+
+/** Índice id → definición de etiqueta. */
+export const PUBLICATION_TAG_BY_ID: Record<string, PublicationTagDef> =
+    Object.fromEntries(PUBLICATION_TAGS.map((t) => [t.id, t])) as Record<string, PublicationTagDef>;
+
+/**
+ * Etiquetas ORDENADAS para un destino: primero las que aplican a esa área, luego
+ * el resto (el usuario puede elegir cualquiera, pero las relevantes van arriba).
+ */
+export function tagsForDest(dest: CreationDest): PublicationTagDef[] {
+    const applies = (t: PublicationTagDef) =>
+        t.sections === "all" || t.sections.includes(dest);
+    const primary = PUBLICATION_TAGS.filter(applies);
+    const rest = PUBLICATION_TAGS.filter((t) => !applies(t));
+    return [...primary, ...rest];
+}
+
+/** Etiqueta por defecto de un destino (para no publicar nunca sin etiqueta). */
+export function defaultTagFor(dest: CreationDest): string {
+    const map: Partial<Record<CreationDest, string>> = {
+        politica: "propuesta",
+        educacion: "curso",
+        cultura: "obra",
+        biblioteca: "archivo",
+        libreria: "archivo",
+    };
+    return map[dest] ?? "general";
+}
+
 // ── Mapeo destino → entidad os_posts ─────────────────────────────────────────
 
 export interface CreationEntityRef {
@@ -206,7 +334,7 @@ export interface CreationEntityRef {
  * Los feeds de Política/Educación/Cultura/Biblioteca leen estas colas.
  */
 export const SECTION_SLUGS: Record<
-    Exclude<CreationDest, "perfil" | "propia">,
+    Exclude<CreationDest, "perfil" | "propia" | "libreria">,
     string
 > = {
     politica: "politica",
@@ -231,8 +359,9 @@ export function destToEntity(
         // Mismo shape que /publish para el destino "Mi Perfil".
         return { entityType: "page", entitySlug: "perfil-mi-perfil" };
     }
-    if (dest === "propia") {
-        // Sin entidad elegida: degrada al perfil (nunca rompe).
+    if (dest === "propia" || dest === "libreria") {
+        // "propia" sin entidad, o "libreria" (que NO publica un post sino que
+        // guarda un ítem de biblioteca): degrada al perfil para no romper nunca.
         return { entityType: "page", entitySlug: "perfil-mi-perfil" };
     }
     return { entityType: "page", entitySlug: SECTION_SLUGS[dest] };
@@ -244,10 +373,15 @@ export function destToEntity(
 export interface SsPostMeta {
     /** Sección/destino de la creación (politica/educacion/cultura/biblioteca…). */
     area?: string;
-    /** Tipo especializado (propuesta, curso, obra, archivo, pizarra…). */
+    /**
+     * Tipo PRIMARIO (compat): la PRIMERA etiqueta de `tags`. Se conserva para no
+     * romper el render antiguo (badge por `kind`) y `splitBodyAttachments`.
+     */
     tipo?: string;
-    /** Bloques del Lienzo Universal (forma compacta). */
-    blocks?: Array<Record<string, unknown>>;
+    /** Adenda 66 §6 · ETIQUETAS MÚLTIPLES de la publicación (ids de PUBLICATION_TAGS). */
+    tags?: string[];
+    /** Bloques del Lienzo Universal (forma serializada — ver PostBlock). */
+    blocks?: PostBlock[];
     /** Referencia a otra entidad (p. ej. { kind: "pizarra", id, href }). */
     ref?: Record<string, unknown>;
     /**
@@ -263,7 +397,12 @@ const SS_META_RE = /<!--ss:meta\s+([\s\S]*?)-->/;
 /** Serializa la metadata como comentario HTML (invisible en render markdown). */
 export function buildSsMetaComment(meta: SsPostMeta): string {
     try {
-        return `<!--ss:meta ${JSON.stringify(meta)}-->`;
+        // Los bloques de código/HTML pueden contener «-->», que cerraría el
+        // comentario antes de tiempo y rompería el parseo. Escapamos ese cierre
+        // como «-->» dentro del JSON: JSON.parse lo decodifica de vuelta a
+        // «-->» al leer, así que no hace falta paso inverso en los parsers.
+        const json = JSON.stringify(meta).replace(/-->/g, "--\\u003e");
+        return `<!--ss:meta ${json}-->`;
     } catch {
         return "";
     }

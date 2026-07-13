@@ -53,13 +53,13 @@ export interface ExternalMemoryDestination {
  * Destino "p2p" — espejo del cerebro vía la instancia SYNCTHING del propio
  * usuario (ver `sync-providers.ts::p2pSyncthingProvider`). NO duplica esa
  * config (endpoint/clave API): solo declara SI este cerebro debe pedirle a
- * Syncthing que sincronice, y opcionalmente QUÉ carpeta le corresponde.
+ * Syncthing que sincronice, y opcionalmente QUÉ folder le corresponde.
  * Default OFF (a diferencia de `starseed`, que es automático): requiere que
  * el usuario tenga su propio Syncthing configurado.
  */
 export interface P2pMemoryDestination {
   enabled: boolean;
-  /** Id de la carpeta Syncthing que espeja este cerebro (opcional). */
+  /** Id del folder Syncthing que espeja este cerebro (opcional). */
   folderId?: string;
   label?: string;
 }
@@ -68,7 +68,7 @@ export interface MemoryDestinationsConfig {
   local: { enabled: true };
   starseed: { enabled: boolean };
   external: ExternalMemoryDestination[];
-  /** Espejo por Syncthing (carpeta local sincronizada) — default OFF. */
+  /** Espejo por Syncthing (folder local sincronizada) — default OFF. */
   p2p: P2pMemoryDestination;
 }
 
@@ -350,7 +350,7 @@ export async function syncBrainMemoryNow(brain: Brain): Promise<MemoryDestinatio
     }
 
     // Espejo P2P (Syncthing propio) — best-effort, honesto: solo NUDGEA a
-    // Syncthing a reescanear/sincronizar la carpeta; no mueve el contenido de
+    // Syncthing a reescanear/sincronizar el folder; no mueve el contenido de
     // las memorias por aquí (eso lo hace Syncthing por su cuenta, por archivo).
     if (dest.p2p.enabled) {
       const cfg = getProviderConfig("p2p-syncthing") as { endpoint?: string; apiKey?: string };

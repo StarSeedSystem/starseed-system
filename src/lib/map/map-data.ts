@@ -120,10 +120,12 @@ export async function fetchGeoPosts(scan = 400): Promise<GeoPost[]> {
             for (const b of meta?.blocks ?? []) {
                 const url = typeof b.url === "string" ? b.url : "";
                 if (!url) continue;
+                // Compat: la serialización antigua usaba `t`/`label`; la actual usa `type`/`name`.
+                const legacy = b as { t?: unknown; label?: unknown };
                 attachments.push({
-                    kind: typeof b.t === "string" ? b.t : "archivo",
+                    kind: typeof b.type === "string" ? b.type : (typeof legacy.t === "string" ? legacy.t : "archivo"),
                     url,
-                    name: typeof b.name === "string" && b.name ? b.name : (typeof b.label === "string" ? b.label : "adjunto"),
+                    name: typeof b.name === "string" && b.name ? b.name : (typeof legacy.label === "string" ? legacy.label : "adjunto"),
                 });
             }
 

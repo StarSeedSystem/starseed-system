@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { NotificationsCenter } from "@/components/notifications/notifications-center";
+import { AvailableUpdates } from "@/components/notifications/available-updates";
 
 // --- Types for System Logs ---
 interface SystemLog {
@@ -253,9 +254,13 @@ export default function NotificationsPage() {
                 </div>
             </div>
 
-            {/* Feed Unificado (Centro de Notificaciones realtime, Supabase) */}
+            {/* Feed Unificado (Centro de Notificaciones realtime, Supabase) +
+                Actualizaciones disponibles de los programas/repos instalados. */}
             {activeSection === "feed" && (
-                <NotificationsCenter />
+                <div className="flex flex-col gap-6">
+                    <AvailableUpdates />
+                    <NotificationsCenter />
+                </div>
             )}
 
             {/* Layout Grid — vista Locales / System Logs (preservado) */}

@@ -6,7 +6,7 @@
 //   · PUBLICATION_TYPES → qué se publica (texto, artículo, imagen, archivo,
 //     enlace, encuesta, propuesta, lienzo/pizarra, app, mixto) + sus formatos.
 //   · DESTINATION_KINDS → a dónde se publica (página, perfil, grupo, comunidad,
-//     entidad federativa, mensaje, chat IA, biblioteca, carpeta, red/feed).
+//     entidad federativa, mensaje, chat IA, biblioteca, folder, red/feed).
 //   · listProfiles()   → los perfiles del usuario (tabla `profiles`).
 //   · listDestinations(kind) → opciones reales de cada tipo de destino.
 //   · publish({...})   → escribe en la tabla correcta por destino y devuelve un
@@ -275,10 +275,10 @@ export const DESTINATION_KINDS: DestinationKind[] = [
     },
     {
         id: "carpeta",
-        label: "Carpeta",
+        label: "Folder",
         icon: "Box",
         table: "memories",
-        blurb: "Archivar la referencia en una carpeta / memoria.",
+        blurb: "Archivar la referencia en un folder / memoria.",
         fulfillment: "registered",
     },
     // ── Adenda "Lienzo de Creación Universal" (aditivo) ──
@@ -471,7 +471,7 @@ async function myEntitySlugs(
  *    cruzando con `page_members` para mostrar a las que el usuario pertenece.
  *  · perfil → `profiles` (todos los perfiles del usuario actual).
  *  · biblioteca → `vaults`.
- *  · carpeta → `memories`.
+ *  · folder → `memories`.
  *  · mensaje / chat_ia → chats distintos de `astraura_messages` del usuario.
  *  · red → un único destino implícito ("Feed público").
  *  · entidad_federativa → `pages` de tipo entidad federativa (si existieran).
@@ -521,7 +521,7 @@ export async function listDestinations(
             case "entidad_federativa": {
                 // Sin tabla de entrega dedicada todavía (ni en os_pages/os_groups
                 // hay un `kind` de entidad federativa) — lista vacía honesta,
-                // igual que ya hacían biblioteca/carpeta cuando no hay backing real.
+                // igual que ya hacían biblioteca/folder cuando no hay backing real.
                 return [];
             }
 
@@ -610,7 +610,7 @@ export async function listDestinations(
                 if (error) throw error;
                 return ((data as MemoryRow[]) || []).map((r) => ({
                     id: r.id,
-                    label: r.name || "Carpeta",
+                    label: r.name || "Folder",
                     kind,
                 }));
             }
@@ -875,7 +875,7 @@ async function resolveAuthorNames(
  *       INSERT en `astraura_messages`:
  *         { user_id, chat_id, role:'user', content (texto), source:'publicacion' }
  *
- *   · biblioteca / carpeta →
+ *   · biblioteca / folder →
  *       Guarda una REFERENCIA: INSERT en `posts` etiquetado como library/folder
  *       (meta.visibility privada, post_references.library = destino). Resultado
  *       "registered".
@@ -958,7 +958,7 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
                 continue;
             }
 
-            // ── Biblioteca / Carpeta → referencia (posts taggeado) ──
+            // ── Biblioteca / Folder → referencia (posts taggeado) ──
             // (el fallback a `memories` se retiró: esa tabla no existe en este
             // proyecto — ver myEntitySlugs/listDestinations más abajo para el
             // mismo saneamiento en pagina/grupo/comunidad).
@@ -1468,7 +1468,10 @@ export function reachOf(destinations: SelectedDestination[]): string {
         mensaje: ["mensaje", "mensajes"],
         chat_ia: ["chat IA", "chats IA"],
         biblioteca: ["biblioteca", "bibliotecas"],
-        carpeta: ["carpeta", "carpetas"],
+        // `carpeta` es la CLAVE persistida (DestinationKindId): NO se renombra o
+        // se romperían las publicaciones ya guardadas. Los VALORES sí son la
+        // etiqueta visible → vocabulario nuevo (Adenda 66 §1).
+        carpeta: ["folder", "folders"],
         evento: ["evento", "eventos"],
     };
 

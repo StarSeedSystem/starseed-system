@@ -177,7 +177,7 @@ export function RepoDetailSheet({ open, onOpenChange, entityRef, doc, folder, on
                         <div className="space-y-2">
                             <p className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                 <span>
-                                    Archivos ({itemsDirect.length} ítem(s), {subfolders.length} carpeta(s))
+                                    Archivos ({itemsDirect.length} ítem(s), {subfolders.length} folder(s))
                                 </span>
                                 <Button
                                     size="sm"
@@ -289,7 +289,7 @@ export function RepoDetailSheet({ open, onOpenChange, entityRef, doc, folder, on
                             )}
                             <p className="text-[10px] text-muted-foreground">
                                 {repo.visibility === "publico"
-                                    ? "Al publicar, esta carpeta se vuelca de nuevo a la Librería pública (instantánea; no es un diff real de git)."
+                                    ? "Al publicar, este folder se vuelca de nuevo a la Librería pública (instantánea; no es un diff real de git)."
                                     : "Este repositorio es privado: la versión queda en el historial, sin volcarse a la Librería pública."}
                             </p>
                         </div>

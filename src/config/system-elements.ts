@@ -49,7 +49,7 @@ export const MASTER_SYSTEM_ELEMENTS: SystemElement[] = [
     { id: "content-image", label: "Imagen", icon: ImageIcon, category: "content" },
     { id: "content-video", label: "Video", icon: Video, category: "content" },
     { id: "content-audio", label: "Audio", icon: Music, category: "content" },
-    { id: "content-folder", label: "Carpeta", icon: Folder, category: "content" },
+    { id: "content-folder", label: "Folder", icon: Folder, category: "content" },
     { id: "content-favorite", label: "Favorito", icon: Star, category: "content" },
     { id: "content-liked", label: "Me Gusta", icon: Heart, category: "content" },
 

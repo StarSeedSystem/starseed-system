@@ -29,7 +29,7 @@ export type WidgetFunctionKind =
     | "location"     // mapa, tránsito, proximidad
     | "files"        // archivos, memorias, códice, baúles
     | "productivity" // flujo, proyectos, tareas
-    | "apps"         // lanzadera / carpetas de apps
+    | "apps"         // lanzadera / folders de apps
     | "identity"     // perfil, mérito, privacidad
     | "utility";     // calculadora, notificaciones, utilidades
 

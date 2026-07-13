@@ -337,7 +337,7 @@ export default function ServersPanel() {
     });
   }
 
-  /** Guarda la config de sync (dirección + carpeta Syncthing) en el enlace. */
+  /** Guarda la config de sync (dirección + folder Syncthing) en el enlace. */
   async function saveLinkSyncConfig(link: ServerLink) {
     if (!selectedId) return;
     const key = linkKey(link.brain_id);
@@ -689,7 +689,7 @@ export default function ServersPanel() {
                                     {SYNC_DIRECTIONS.find((d) => d.id === l.sync?.direction)?.label ?? "Bidireccional"}
                                   </Badge>
                                   {folderId && (
-                                    <Badge variant="outline" className="gap-1 border-cyan-400/30 text-[9px] text-cyan-200" title="Carpeta Syncthing">
+                                    <Badge variant="outline" className="gap-1 border-cyan-400/30 text-[9px] text-cyan-200" title="Folder Syncthing">
                                       <FolderSync className="h-3 w-3" /> {folderId}
                                     </Badge>
                                   )}
@@ -719,7 +719,7 @@ export default function ServersPanel() {
                                     variant="outline"
                                     className={cn("h-6 gap-1.5 border-white/15 px-2 text-[10px] text-white/70", open && "border-cyan-400/40 text-cyan-100")}
                                     onClick={() => toggleSyncConfig(l)}
-                                    title="Configurar sincronización (dirección y carpeta Syncthing)"
+                                    title="Configurar sincronización (dirección y folder Syncthing)"
                                   >
                                     <Settings2 className="h-3 w-3" /> Config. sync
                                   </Button>
@@ -749,7 +749,7 @@ export default function ServersPanel() {
                                       </select>
                                     </label>
                                     <label className="flex flex-col gap-0.5">
-                                      <span className="text-[9px] text-white/40">Carpeta Syncthing (id)</span>
+                                      <span className="text-[9px] text-white/40">Folder Syncthing (id)</span>
                                       <Input
                                         value={cfgFolder[lk] ?? ""}
                                         onChange={(e) => setCfgFolder((m) => ({ ...m, [lk]: e.target.value }))}

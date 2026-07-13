@@ -510,7 +510,7 @@ const EXTERNAL: DesignAsset[] = [
 ];
 
 /* ============================================================
-   CARPETAS (la estructura "Diseños · Código abierto")
+   FOLDERS (la estructura "Diseños · Código abierto")
    ============================================================ */
 export const DESIGN_ASSET_FOLDERS: DesignAssetFolder[] = [
   {

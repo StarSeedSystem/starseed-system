@@ -2,9 +2,9 @@
 
 /* ============================================================
    STARSEED · DESIGN ASSETS PANEL (Librería Global · Diseños)
-   Carpetas/acordeón con tarjetas de assets de diseño que abren el
+   Folders/acordeón con tarjetas de assets de diseño que abren el
    AssetPreviewModal ("app-store"). Incluye:
-   - Carpeta "Mis diseños subidos" persistida en localStorage.
+   - Folder "Mis diseños subidos" persistida en localStorage.
    - Botón "Subir diseño" → abre el modal en modo edición (asset nuevo).
    Estilo reutilizado de StarSeedKnowledgePanel: GlassCard, oro #E9C46A,
    Fraunces (font-headline), lucide, responsive. Sin dependencias nuevas.
@@ -202,7 +202,7 @@ export function DesignAssetsPanel() {
     setEditingNew(true);
   };
 
-  // Carpeta dinámica con los diseños del usuario.
+  // Folder dinámico con los diseños del usuario.
   const userFolder: DesignAssetFolder = {
     id: "user",
     title: "Mis diseños subidos",

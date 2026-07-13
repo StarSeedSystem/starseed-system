@@ -148,6 +148,8 @@ import { createClient } from "@/utils/supabase/client";
 import { LibraryBrainsPopover } from "@/components/library/library-brains-popover";
 // ── Catálogo público de la Librería — sección "Comunidad" (Adenda 64 §7) ──
 import { PublicCatalogSection } from "@/components/library/finder/public-catalog-section";
+// ── Explorar por temas y categorías (Adenda 66 §5) ──
+import { LibraryTopicsExplorer } from "@/components/library/topics-explorer";
 
 // --- Types ---
 
@@ -645,12 +647,12 @@ function SavedResourcesPanel({ onGoExplore }: { onGoExplore: () => void }) {
 // Explorador de archivos (compartido entre "Explorar" y "Mi Biblioteca")
 // ------------------------------------------------------------------
 // DATOS REALES (Adenda 63 §4, fuera los mocks):
-//   · PERSONAL → biblioteca por entidad del usuario (entity-library: carpetas
+//   · PERSONAL → biblioteca por entidad del usuario (entity-library: folders
 //     anidadas + ítems, realtime entre dispositivos) + archivos propios del
 //     bucket `os-files` (dedup por URL contra la biblioteca).
 //   · GLOBAL   → archivos PÚBLICOS reales de la red (os_files.is_public).
 // «Subir a la Red» sube de verdad a Storage y referencia en la biblioteca;
-// «Nuevo»/«Nueva Carpeta» crean una colección sincronizada en la cuenta.
+// «Nuevo»/«Nuevo folder» crean una colección sincronizada en la cuenta.
 // ══════════════════════════════════════════════════════════════════
 
 function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
@@ -862,7 +864,7 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
     }
   };
 
-  // ── Nueva colección/carpeta en la biblioteca (sincronizada en la cuenta) ──
+  // ── Nueva colección/folder en la biblioteca (sincronizada en la cuenta) ──
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
@@ -979,7 +981,7 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
                   onClick={openFolderCreator}
                   className="border-white/10 hover:bg-white/5 gap-2 cursor-pointer"
                 >
-                  <Folder className="w-4 h-4" /> Nueva Carpeta
+                  <Folder className="w-4 h-4" /> Nuevo folder
                 </Button>
               </>
             )}
@@ -1003,7 +1005,7 @@ function FileSystemExplorer({ mode }: { mode: "GLOBAL" | "PERSONAL" }) {
           </div>
         </div>
 
-        {/* Creador de colección/carpeta (sincronizada al instante en la cuenta) */}
+        {/* Creador de colección/folder (sincronizada al instante en la cuenta) */}
         {creatingFolder && mode === "PERSONAL" && (
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-2">
             <Folder className="ml-1 h-4 w-4 shrink-0 text-emerald-300" />
@@ -1439,7 +1441,7 @@ function OsDownloadStrip({ onOpenDetail }: { onOpenDetail: (item: LibraryDetailI
 // ------------------------------------------------------------------
 // Distinta de la Librería (catálogo en línea, arriba): aquí se elige la
 // entidad (Mi biblioteca + páginas/grupos donde soy dueño/miembro) y se
-// muestra su EntityLibraryPanel (carpetas + guardados propios).
+// muestra su EntityLibraryPanel (folders + guardados propios).
 // SOP: architecture/libreria-biblioteca-sync.md (§5)
 // ══════════════════════════════════════════════════════════════════
 
@@ -1565,7 +1567,7 @@ function EntityLibraryArea() {
       <EntityLibraryPanel
         ref={selected ? selected.ref : null}
         title={selected ? `Biblioteca · ${selected.label}` : "Biblioteca"}
-        subtitle="Tus referencias guardadas, organizadas en carpetas propias. Se guardan enlaces (Entidad Única), no copias."
+        subtitle="Tus referencias guardadas, organizadas en folders propios. Se guardan enlaces (Entidad Única), no copias."
       />
     </div>
   );
@@ -1769,8 +1771,9 @@ function LibraryContent() {
           </TabsContent>
         ))}
 
-        {/* ── COMUNIDAD: catálogo público (library_public_items) — Adenda 64 §7 ── */}
-        <TabsContent value="comunidad" className="mt-6">
+        {/* ── COMUNIDAD: explorar por temas/categorías + catálogo público — Adenda 64 §7 / 66 §5 ── */}
+        <TabsContent value="comunidad" className="mt-6 space-y-8">
+          <LibraryTopicsExplorer />
           <PublicCatalogSection />
         </TabsContent>
 

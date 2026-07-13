@@ -4,7 +4,7 @@
 // SaveToBookmarks — botón reutilizable "Guardar en Marcadores"
 // ----------------------------------------------------------------------------
 // Captura rápida de un enlace, nota o imagen y lo guarda como `SavedItem`
-// tipo "bookmark" en la carpeta "Marcadores" de una biblioteca (por defecto,
+// tipo "bookmark" en el folder "Marcadores" de una biblioteca (por defecto,
 // "Mi biblioteca" del usuario con sesión) — ver src/lib/library/bookmarks.ts.
 //
 // Úsalo en cualquier superficie que quiera ofrecer "Guardar en Marcadores…":

@@ -7,7 +7,7 @@
  *   · Hardware (por DISPOSITIVO): resolución/fps/facingMode/formato/calidad/
  *     grid/temporizador — localStorage. Cada dispositivo tiene su propia
  *     cámara y capacidades reales; no tiene sentido sincronizarlo entre neuronas.
- *   · Almacenamiento (por CUENTA, sincronizado): carpeta destino elegida +
+ *   · Almacenamiento (por CUENTA, sincronizado): folder destino elegida +
  *     guardar en dispositivo/nube — entity_state, para que la preferencia
  *     viaje con la cuenta a cualquier neurona (patrón library-brains.ts).
  * ═══════════════════════════════════════════════════════════════════════════
@@ -103,7 +103,7 @@ export function useCameraHwSettings(): [CameraHwSettings, (patch: Partial<Camera
 // ─────────────────────── Almacenamiento (sincronizado por cuenta) ───────────────────────
 
 export interface CameraStoragePrefs {
-    /** Carpeta destino explícita elegida por el usuario (id de LibraryFolder). null = automática por origen. */
+    /** Folder destino explícita elegida por el usuario (id de LibraryFolder). null = automática por origen. */
     destFolderId: string | null;
     saveToCloud: boolean;
     saveToDevice: boolean;

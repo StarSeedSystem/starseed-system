@@ -12,10 +12,10 @@
  *      SOLO JSON con la estructura propuesta. Con timeout y validación dura.
  *   2) FALLBACK heurístico DETERMINISTA (siempre funciona, offline):
  *      por tipo → Imágenes/Documentos/Audio/Vídeo/Código/Comprimidos;
- *      y además por año (subcarpetas "Tipo/AAAA") si hay >50 ítems.
+ *      y además por año (subfolders "Tipo/AAAA") si hay >50 ítems.
  *
  * Contrato: nunca lanza; siempre devuelve un plan (posiblemente vacío).
- * Las carpetas usan "/" para anidar (el aplicador crea la jerarquía real).
+ * Los folders usan "/" para anidar (el aplicador crea la jerarquía real).
  */
 
 import { astrauraChat } from "@/ai/astraura/router";
@@ -33,19 +33,19 @@ export interface OrganizerItem {
   mime?: string;
   /** ISO date de última actualización/guardado. */
   updatedAt?: string;
-  /** Nombre (o ruta "A/B") de la carpeta actual; null/"" = raíz. */
+  /** Nombre (o ruta "A/B") del folder actual; null/"" = raíz. */
   folder?: string | null;
 }
 
 export interface OrganizeMove {
   id: string;
-  /** Carpeta destino; admite ruta anidada con "/" (p.ej. "Imágenes/2025"). */
+  /** Folder destino; admite ruta anidada con "/" (p.ej. "Imágenes/2025"). */
   toFolder: string;
 }
 
 export interface OrganizePlan {
   moves: OrganizeMove[];
-  /** Carpetas (rutas) que habría que crear porque no existen todavía. */
+  /** Folders (rutas) que habría que crear porque no existen todavía. */
   newFolders: string[];
   /** Explicación en español del criterio aplicado. */
   reasoning: string;
@@ -56,7 +56,7 @@ export interface OrganizePlan {
 export interface OrganizeOptions {
   /** Intentar Astraura primero (por defecto true). false = solo heurística. */
   useAI?: boolean;
-  /** Nombres/rutas de carpetas YA existentes (para calcular newFolders). */
+  /** Nombres/rutas de folders YA existentes (para calcular newFolders). */
   existingFolders?: string[];
   /** Señal de cancelación para la llamada a Astraura. */
   signal?: AbortSignal;
@@ -161,7 +161,7 @@ export function heuristicOrganizePlan(items: OrganizerItem[], opts?: OrganizeOpt
       const year = byYear ? yearOf(it.updatedAt) : null;
       const target = year ? `${cat}/${year}` : cat;
       const current = normFolder(it.folder);
-      // Ya está bien colocado (misma carpeta exacta o ya dentro de la categoría destino).
+      // Ya está bien colocado (mismo folder exacto o ya dentro de la categoría destino).
       if (current === normFolder(target) || (!year && current.startsWith(`${normFolder(cat)}`) && current !== "")) continue;
       moves.push({ id: it.id, toFolder: target });
     }
@@ -191,24 +191,27 @@ function buildPrompt(items: OrganizerItem[], existingFolders: string[]): string 
       it.kind ? `tipo=${it.kind}` : "",
       it.mime ? `mime=${it.mime}` : "",
       yearOf(it.updatedAt) ? `año=${yearOf(it.updatedAt)}` : "",
-      it.folder ? `carpeta_actual=${String(it.folder).slice(0, 60)}` : "carpeta_actual=(raíz)",
+      it.folder ? `folder_actual=${String(it.folder).slice(0, 60)}` : "folder_actual=(raíz)",
     ].filter(Boolean);
     return `- ${parts.join(" · ")}`;
   });
   return [
     "Eres el organizador inteligente de la Biblioteca de StarSeed OS (inspirado en Mouzi).",
-    "Tu tarea: proponer una estructura de carpetas clara en ESPAÑOL y a qué carpeta mover cada ítem (por tipo, tema o fecha).",
+    "Tu tarea: proponer una estructura de folders clara en ESPAÑOL y a qué folder mover cada ítem (por tipo, tema o fecha).",
     "",
-    `Carpetas existentes: ${existingFolders.length ? existingFolders.join(", ") : "(ninguna)"}`,
+    `Folders existentes: ${existingFolders.length ? existingFolders.join(", ") : "(ninguno)"}`,
     "Ítems:",
     ...lines,
     "",
     "Responde SOLO con un JSON válido, sin markdown ni texto extra, con esta forma exacta:",
-    '{"movimientos":[{"id":"<id del ítem>","carpeta":"<nombre de carpeta>"}],"carpetas_nuevas":["<carpeta>"],"razonamiento":"<explicación breve en español>"}',
+    // Contrato JSON del organizador: vive SOLO aquí (prompt → modelo → parseAiPlan).
+    // No se persiste en BD ni localStorage, por lo que se renombra a `folder` /
+    // `folders_nuevos` junto con el resto del vocabulario (Adenda 66 §1).
+    '{"movimientos":[{"id":"<id del ítem>","folder":"<nombre de folder>"}],"folders_nuevos":["<folder>"],"razonamiento":"<explicación breve en español>"}',
     "Reglas:",
-    "- Usa nombres de carpeta cortos en español; \"/\" para subcarpetas (p.ej. \"Imágenes/2025\").",
-    "- Máximo 12 carpetas distintas. Reutiliza las existentes cuando encajen.",
-    "- NO incluyas ítems que ya están en una carpeta adecuada.",
+    "- Usa nombres de folder cortos en español; \"/\" para subfolders (p.ej. \"Imágenes/2025\").",
+    "- Máximo 12 folders distintos. Reutiliza los existentes cuando encajen.",
+    "- NO incluyas ítems que ya están en un folder adecuado.",
     "- No inventes ids: usa exactamente los proporcionados.",
   ].join("\n");
 }
@@ -230,8 +233,8 @@ function parseAiPlan(text: string, items: OrganizerItem[], opts?: OrganizeOption
     const end = body.lastIndexOf("}");
     if (start < 0 || end <= start) return null;
     const parsed = JSON.parse(body.slice(start, end + 1)) as {
-      movimientos?: Array<{ id?: unknown; carpeta?: unknown }>;
-      carpetas_nuevas?: unknown[];
+      movimientos?: Array<{ id?: unknown; folder?: unknown }>;
+      folders_nuevos?: unknown[];
       razonamiento?: unknown;
     };
     if (!Array.isArray(parsed.movimientos)) return null;
@@ -240,7 +243,7 @@ function parseAiPlan(text: string, items: OrganizerItem[], opts?: OrganizeOption
     const moves: OrganizeMove[] = [];
     for (const m of parsed.movimientos) {
       const id = typeof m?.id === "string" ? m.id : "";
-      const folder = sanitizeFolder(m?.carpeta);
+      const folder = sanitizeFolder(m?.folder);
       if (!id || !folder || !validIds.has(id) || seen.has(id)) continue;
       const current = normFolder(validIds.get(id)?.folder);
       if (current === normFolder(folder)) continue; // ya está ahí

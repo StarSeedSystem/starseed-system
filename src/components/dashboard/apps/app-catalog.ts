@@ -218,16 +218,16 @@ export function getApp(id: string): StarseedApp | undefined {
     return CATALOG_INDEX[id];
 }
 
-/** Colecciones predeterminadas (presets de origen de una carpeta). */
+/** Colecciones predeterminadas (presets de origen de un folder). */
 export const APP_COLLECTIONS: Record<LauncherCollection, string[]> = {
-    // 'starseed' = carpeta de inicio por defecto (marca + módulos clave)
+    // 'starseed' = folder de inicio por defecto (marca + módulos clave)
     starseed: ["nexus", "cafe", "audiomorphic", "omnifrecuencias", "messages", "network", "musica", "clima"],
     sistema: ["messages", "network", "library", "agent"],
     media: ["musica", "radio", "omnifrecuencias", "audiomorphic", "immersive"],
     custom: [],
 };
 
-/** Resuelve la lista de apps de una carpeta: ids explícitos o, si vacío, la colección. */
+/** Resuelve la lista de apps de un folder: ids explícitos o, si vacío, la colección. */
 export function resolveApps(appIds: string[] | undefined, collection?: LauncherCollection): StarseedApp[] {
     const ids = appIds && appIds.length > 0 ? appIds : APP_COLLECTIONS[collection ?? "starseed"];
     return ids.map(getApp).filter((a): a is StarseedApp => Boolean(a));

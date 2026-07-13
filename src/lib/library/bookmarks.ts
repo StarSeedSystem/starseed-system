@@ -10,7 +10,7 @@
  * `iatool-karakeep` (packages.ts) y la capacidad `bookmarks-ai` (skills.ts).
  *
  * Modelo de datos: cada marcador es un `SavedItem` normal de
- * `entity-library.ts` con `type:"bookmark"`, guardado dentro de una carpeta
+ * `entity-library.ts` con `type:"bookmark"`, guardado dentro de un folder
  * raíz "Marcadores" (auto-creada, una por biblioteca de entidad). Así los
  * marcadores viven DENTRO de la Biblioteca ya existente (Finder, permisos,
  * ramas, publicación…) sin duplicar infraestructura: esta capa solo añade el
@@ -42,7 +42,7 @@ import {
 } from "./entity-library";
 import { currentUserRef } from "@/lib/sync/entity-state";
 
-/** Nombre de la carpeta raíz donde viven todos los marcadores de una biblioteca. */
+/** Nombre del folder raíz donde viven todos los marcadores de una biblioteca. */
 export const BOOKMARKS_FOLDER_NAME = "Marcadores";
 
 export type BookmarkKind = "enlace" | "nota" | "imagen";
@@ -91,7 +91,7 @@ function uniqueRefId(prefix: string): string {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Busca (o crea) la carpeta raíz "Marcadores" de una biblioteca. Idempotente. */
+/** Busca (o crea) el folder raíz "Marcadores" de una biblioteca. Idempotente. */
 export async function ensureBookmarksFolder(ref: EntityRef): Promise<string> {
     const doc = await listLibrary(ref);
     const existing = doc.folders.find((f) => f.parentId === null && f.name === BOOKMARKS_FOLDER_NAME);
@@ -189,7 +189,7 @@ export async function suggestBookmarkTags(input: {
 }
 
 /**
- * Guarda un marcador (enlace/nota/imagen) dentro de la carpeta "Marcadores" de
+ * Guarda un marcador (enlace/nota/imagen) dentro del folder "Marcadores" de
  * una biblioteca. Si no se pasa `ref`, usa "Mi biblioteca" (requiere sesión).
  * Si faltan etiquetas y `suggestTags !== false`, intenta sugerirlas vía Aurora
  * (best-effort, nunca bloquea más de ~6s). NUNCA lanza.

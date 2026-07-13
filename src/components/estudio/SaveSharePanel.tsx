@@ -9,7 +9,7 @@
  *    de UN elemento (namespacing propio para no chocar con el formato
  *    compartido de temas completos).
  *  · "Guardar en biblioteca…" — reutiliza el componente SaveToLibrary ya
- *    existente (saveItem + selector de destino/carpeta).
+ *    existente (saveItem + selector de destino/folder).
  *  · "Publicar en Librería" — guarda primero (saveItem) y abre el
  *    PublishDialog público ya existente con el ítem resultante.
  *  · "Duplicar desde tema existente" — carga los tokens de un ThemePack

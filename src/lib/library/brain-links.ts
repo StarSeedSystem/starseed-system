@@ -36,7 +36,7 @@
 /**
  * Método de almacenamiento que respalda la librería.
  *  • `starseed` → almacenamiento soberano gestionado por la red (por defecto).
- *  • `local`    → este equipo (cerebro local / carpeta local).
+ *  • `local`    → este equipo (cerebro local / folder local).
  *  • `external` → endpoint/servicio propio (S3, IPFS, VPS, etc.).
  * Espejo compatible de `BrainSourceOrigin` en `@/lib/brains/brains`.
  */

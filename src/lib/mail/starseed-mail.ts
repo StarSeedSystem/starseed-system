@@ -429,7 +429,7 @@ export async function sendInternalMail(params: {
       return {
         ok: true,
         error:
-          "Enviado y guardado en tu carpeta de enviados. Aún no hay una cuenta StarSeed con esa dirección, así que quedará pendiente de entrega.",
+          "Enviado y guardado en tu folder de enviados. Aún no hay una cuenta StarSeed con esa dirección, así que quedará pendiente de entrega.",
       };
     }
     return { ok: true };

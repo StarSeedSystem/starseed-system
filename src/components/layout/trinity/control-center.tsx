@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
     Settings, Sliders, Home, Bell, Maximize2, Minimize2, Monitor, X,
     SlidersHorizontal, ArrowUp, ArrowDown, Eye, EyeOff, RotateCcw,
+    ChevronUp, ChevronDown,
 } from "lucide-react";
 import { SystemTab } from "./tabs/system-tab";
 import { QuickSettingsTab } from "./tabs/quick-settings-tab";
@@ -126,6 +127,49 @@ export function ControlCenter() {
 
     const editorOrder = resolveModuleOrder(config.controlCenter?.moduleOrder);
 
+    // ── Scroll REAL del carril de contenido + avisos de "hay más" (Adenda 66 §14) ──
+    // El carril (no cada pestaña) es el ÚNICO scroller: así el ref es estable al
+    // cambiar de módulo y podemos pintar sombras/flechas arriba y abajo.
+    const scrollRef = useRef<HTMLDivElement | null>(null);
+    const contentRef = useRef<HTMLDivElement | null>(null);
+    const [hints, setHints] = useState<{ up: boolean; down: boolean }>({ up: false, down: false });
+
+    const updateScrollHints = useCallback(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const up = el.scrollTop > 4;
+        const down = el.scrollTop < el.scrollHeight - el.clientHeight - 4;
+        // GUARDA anti-bucle (regla Adenda 63 §15): solo re-renderiza si el valor
+        // CAMBIA. Sin esto, un ResizeObserver que hace setState en cada medición
+        // puede reentrar y provocar el glitcheo en loop ya corregido en su día.
+        setHints((prev) => (prev.up === up && prev.down === down ? prev : { up, down }));
+    }, []);
+
+    useEffect(() => {
+        const el = scrollRef.current;
+        const content = contentRef.current;
+        if (!el) return;
+        updateScrollHints();
+        // Observa el CONTENIDO (su alto cambia al desplegar módulos) y el propio
+        // carril (su alto cambia con el viewport / rotación / barra de URL).
+        const ro = new ResizeObserver(() => updateScrollHints());
+        ro.observe(el);
+        if (content) ro.observe(content);
+        window.addEventListener("resize", updateScrollHints);
+        return () => {
+            ro.disconnect();
+            window.removeEventListener("resize", updateScrollHints);
+        };
+    }, [updateScrollHints]);
+
+    // Al cambiar de módulo (o abrir/cerrar el mini-editor) el contenido cambia de
+    // alto: volvemos arriba y recalculamos los avisos.
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (el) el.scrollTop = 0;
+        updateScrollHints();
+    }, [activeTab, editorOpen, updateScrollHints]);
+
     return (
         <motion.div
             initial={{ opacity: 0, x: 20, scale: 0.95, filter: "blur(10px)" }}
@@ -138,6 +182,20 @@ export function ControlCenter() {
                 // `fixed inset-0`, que caía en la trampa del containing block del
                 // transform padre y quedaba fuera de pantalla — ver SOP Bloque 3).
                 "w-full h-full rounded-none",
+                // ── C2 · Adenda 66 §14 (regla Adenda 63 §15) ───────────────────────
+                // ANTES: `md:h-[600px]` / `lg:h-[640px]` eran alturas FIJAS sin tope de
+                // viewport. El wrapper del SideCurtains centra este panel con flexbox
+                // (`items-center`) dentro de un contenedor `fixed`: si el viewport es
+                // más bajo que 600/640px (portátil con ventana reducida, tablet en
+                // apaisado con barras, móvil con teclado abierto…), el panel desborda
+                // arriba Y abajo, y el desbordamiento SUPERIOR de un flex centrado es
+                // INALCANZABLE (no hay scroll en un `fixed`) → la cabecera y las
+                // pestañas se "cortaban por arriba".
+                // AHORA: la altura deseada sigue siendo 600/640px, pero SIEMPRE topada
+                // por `max-h-full` (= alto del wrapper, que está anclado a top+bottom y
+                // ya descuenta las safe-areas). El panel nunca excede el viewport, así
+                // que nunca se corta; lo que no cabe se resuelve con el scroll interno.
+                "min-h-0 max-h-full",
                 "md:w-[420px] md:h-[600px] md:rounded-[2rem]",
                 "lg:w-[460px] lg:h-[640px]"
             )}
@@ -146,8 +204,11 @@ export function ControlCenter() {
             <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-cyan-500/10 via-primary/5 to-transparent rounded-full blur-[100px] pointer-events-none -z-10" />
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-purple-500/10 via-amber-500/5 to-transparent rounded-full blur-[80px] pointer-events-none -z-10" />
 
-            {/* Premium Header */}
-            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-white/5 bg-gradient-to-r from-white/[0.02] to-transparent shrink-0">
+            {/* Premium Header.
+                En móvil el panel va a sangre (sin gutter en el wrapper), así que es
+                AQUÍ donde se reserva el notch: `pt-[max(1.25rem,safe-area-inset-top)]`.
+                En md+ el gutter lo pone el wrapper y volvemos al pt-5 de siempre. */}
+            <div className="px-5 pt-[max(1.25rem,env(safe-area-inset-top,0px))] md:pt-5 pb-3 flex items-center justify-between border-b border-white/5 bg-gradient-to-r from-white/[0.02] to-transparent shrink-0">
                 <div className="flex items-center gap-3 min-w-0">
                     <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 shrink-0">
                         <Monitor className="w-4 h-4 text-cyan-400" />
@@ -286,31 +347,75 @@ export function ControlCenter() {
                     </TabsList>
                 </div>
 
-                {/* Content Area */}
-                <div className="flex-1 overflow-hidden relative min-h-0">
-                    {visibleModules.map((mod) => {
-                        const Content = mod.Content;
-                        return (
-                            <TabsContent
-                                key={mod.id}
-                                value={mod.id}
-                                className={cn(
-                                    "h-full m-0 overflow-y-auto overscroll-contain data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:zoom-in-95 data-[state=active]:slide-in-from-bottom-2 duration-300",
-                                    mod.id === "notif" ? "p-0" : "p-4 md:p-5"
-                                )}
-                            >
-                                <Content />
-                            </TabsContent>
-                        );
-                    })}
+                {/* ── C1 · Carril de contenido con SCROLL REAL (Adenda 66 §14) ──────────
+                    ANTES: el scroll vivía en cada TabsContent (`h-full overflow-y-auto`),
+                    pero como el PANEL desbordaba el viewport (ver C2 arriba) las apps
+                    quedaban fuera de pantalla y no había forma de deslizarlas.
+                    AHORA: el panel está topado al viewport y ESTE carril es el único
+                    scroller (`overflow-y-auto` + `overscroll-contain`, para no arrastrar
+                    el scroll de la página detrás de la cortina). Eje vertical: la rejilla
+                    de apps es de 2 columnas con `min-w-0`, así que nunca desborda en X.
+                    `min-h-0` es imprescindible: sin él, un hijo flex NO puede encogerse
+                    por debajo de su contenido y el `overflow-y-auto` no llega a activarse. */}
+                <div className="relative flex-1 min-h-0">
+                    <div
+                        ref={scrollRef}
+                        onScroll={updateScrollHints}
+                        className="h-full overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
+                    >
+                        <div ref={contentRef}>
+                            {visibleModules.map((mod) => {
+                                const Content = mod.Content;
+                                return (
+                                    <TabsContent
+                                        key={mod.id}
+                                        value={mod.id}
+                                        className={cn(
+                                            // `min-h-full` (no `h-full`): rellena el carril cuando el
+                                            // contenido es corto, pero LO DEJA CRECER cuando es largo
+                                            // — que es justo lo que permite el scroll.
+                                            "m-0 min-h-full data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:zoom-in-95 data-[state=active]:slide-in-from-bottom-2 duration-300",
+                                            mod.id === "notif" ? "p-0" : "p-4 md:p-5"
+                                        )}
+                                    >
+                                        <Content />
+                                    </TabsContent>
+                                );
+                            })}
+                        </div>
+                    </div>
 
-                    {/* Scroll Fade */}
-                    <div className="absolute bottom-0 left-0 w-full h-14 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+                    {/* Avisos de que HAY MÁS contenido: sombra + flecha, arriba y abajo.
+                        Solo aparecen cuando de verdad se puede seguir deslizando. */}
+                    <div
+                        aria-hidden
+                        className={cn(
+                            "pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-black/85 to-transparent transition-opacity duration-200",
+                            hints.up ? "opacity-100" : "opacity-0"
+                        )}
+                    />
+                    <div
+                        aria-hidden
+                        className={cn(
+                            "pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent transition-opacity duration-200",
+                            hints.down ? "opacity-100" : "opacity-0"
+                        )}
+                    />
+                    {hints.up && (
+                        <span aria-hidden className="pointer-events-none absolute left-1/2 top-1 -translate-x-1/2 text-white/50 animate-pulse">
+                            <ChevronUp className="w-4 h-4" />
+                        </span>
+                    )}
+                    {hints.down && (
+                        <span aria-hidden className="pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2 text-white/50 animate-pulse">
+                            <ChevronDown className="w-4 h-4" />
+                        </span>
+                    )}
                 </div>
             </Tabs>
 
-            {/* Bottom Status Bar */}
-            <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between shrink-0 bg-white/[0.01]">
+            {/* Bottom Status Bar — reserva la barra de gestos en móvil (ver cabecera). */}
+            <div className="px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] md:pb-3 border-t border-white/5 flex items-center justify-between shrink-0 bg-white/[0.01]">
                 <div className="flex items-center gap-2 min-w-0">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981] animate-pulse shrink-0" />
                     <span className="text-[9px] font-mono text-white/30 uppercase tracking-wider truncate">Sistema · En línea</span>

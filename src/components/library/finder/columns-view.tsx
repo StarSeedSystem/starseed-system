@@ -2,7 +2,7 @@
 
 // ════════════════════════════════════════════════════════════════════════════
 // ColumnsView — navegación Miller estilo Finder: una columna por nivel de
-// carpeta, cada clic en una subcarpeta abre una columna nueva a la derecha;
+// folder, cada clic en un subfolder abre una columna nueva a la derecha;
 // clic en un ítem lo selecciona (el padre muestra su preview en el panel
 // lateral). Reusa ItemCard en layout "lista" dentro de cada columna.
 // ════════════════════════════════════════════════════════════════════════════
@@ -15,7 +15,7 @@ import { ItemCard } from "./item-card";
 import { DRAG_MIME } from "./folder-tree";
 
 export interface ColumnsViewProps {
-    /** Cadena de carpetas activas (columnas), desde la raíz. */
+    /** Cadena de folders activos (columnas), desde la raíz. */
     chain: (string | null)[];
     folders: LibraryFolder[];
     itemsByFolder: (folderId: string | null) => SavedItem[];

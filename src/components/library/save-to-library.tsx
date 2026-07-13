@@ -5,7 +5,7 @@
 // ----------------------------------------------------------------------------
 // Botón + popover reutilizable: elegir la ENTIDAD destino (Mi biblioteca, o
 // cualquier página/grupo/comunidad/EF donde el usuario es dueño o miembro),
-// una carpeta opcional dentro de esa biblioteca y una nota, y guarda una
+// un folder opcional dentro de esa biblioteca y una nota, y guarda una
 // REFERENCIA (Entidad Única, nunca copia) vía lib/library/entity-library.
 //
 // Úsalo en cualquier ficha/tarjeta que quiera ofrecer "Guardar en biblioteca…":
@@ -68,7 +68,7 @@ export function SaveToLibrary({ item, variant = "button", label = "Guardar en bi
         }
     }, [destinations, selectedKey]);
 
-    // Carga carpetas de la entidad seleccionada (solo cache local; no bloquea la UI).
+    // Carga folders de la entidad seleccionada (solo cache local; no bloquea la UI).
     useEffect(() => {
         if (!selected) {
             setFolders([]);
@@ -189,16 +189,16 @@ export function SaveToLibrary({ item, variant = "button", label = "Guardar en bi
 
                         <div>
                             <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                Carpeta (opcional)
+                                Folder (opcional)
                             </label>
                             <Select value={folderId} onValueChange={setFolderId}>
                                 <SelectTrigger className="h-9 border-white/15 bg-black/30 text-xs">
-                                    <SelectValue placeholder="Sin carpeta" />
+                                    <SelectValue placeholder="Sin folder" />
                                 </SelectTrigger>
                                 <SelectContent className="border-white/10 bg-black/90 backdrop-blur-xl">
                                     <SelectItem value="__root__" className="text-xs">
                                         <span className="flex items-center gap-1.5">
-                                            <Folder className="h-3 w-3" /> Sin carpeta (raíz)
+                                            <Folder className="h-3 w-3" /> Sin folder (raíz)
                                         </span>
                                     </SelectItem>
                                     {folders.map((f) => (

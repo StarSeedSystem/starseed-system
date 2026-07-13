@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import {
     Search, Briefcase, Vote, Users, BookOpen, CalendarDays,
@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { studyGroups, politicalParties, userBadges } from "@/lib/data";
 import { slugify } from "@/lib/entity-links";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
@@ -35,6 +36,21 @@ import { UserDirectoryResults, GroupDirectoryResults, UserRecommendationsStrip }
 
 // Pestañas válidas del Hub (para deep-linking `?tab=` desde el dock / enlaces).
 const HUB_TABS = ["buscador", "contributions", "red", "my-pages", "groups", "calendar", "parties", "vote-management"] as const;
+
+// Menú unificado del Hub (Adenda 66 §10): mismo componente `SectionTabs` en todo
+// el OS. «Red» va primero por ser la sección principal (Adenda 66 §8). El Mapa
+// vive en su propia ruta a pantalla completa (item de navegación por `href`).
+const HUB_TAB_ITEMS: SectionTabItem[] = [
+    { value: "red", label: "Red", icon: Network },
+    { value: "buscador", label: "Buscador", icon: Search },
+    { value: "contributions", label: "Aportaciones", icon: Briefcase },
+    { value: "my-pages", label: "Mis Páginas", icon: Globe },
+    { value: "groups", label: "Grupos", icon: Users },
+    { value: "calendar", label: "Calendario", icon: CalendarDays },
+    { href: "/hub/mapa", label: "Mapa", icon: MapIcon, title: "Mapa de la Red (OpenStreetMap soberano)" },
+    { value: "parties", label: "Partidos", icon: Flame },
+    { value: "vote-management", label: "Votos", icon: Vote },
+];
 
 // ── TYPES & MOCK DATA FOR CONTRIBUTIONS ──
 interface Volunteer {
@@ -90,7 +106,8 @@ export default function HubPage() {
     );
 
     // ── CONTROLLED TABS & DYNAMIC USER DATA ──
-    const [activeTab, setActiveTab] = useState("contributions");
+    // Adenda 66 §8: al entrar al Hub la sección por defecto es «Red».
+    const [activeTab, setActiveTab] = useState("red");
 
     // Deep-linking por `?tab=` (p.ej. /hub?tab=red, /hub?tab=calendar) desde el
     // dock, la Red y otros enlaces. Lee window.location en cliente (SSR-safe:
@@ -109,10 +126,13 @@ export default function HubPage() {
     }, []);
     // Query del Buscador Universal (la barra del header la alimenta).
     const [headerQuery, setHeaderQuery] = useState("");
-    const [userReputation, setUserReputation] = useState(1842);
-    const [completedContributionsCount, setCompletedContributionsCount] = useState(347);
-    const [userSeeds, setUserSeeds] = useState(9240);
-    const [userKarma, setUserKarma] = useState(2.4);
+    // Adenda 66 §8 · SOLO datos reales: sin sistema de reputación/seeds/karma
+    // respaldado en Supabase todavía, los contadores arrancan HONESTOS en cero
+    // (karma base ×1.0) en vez de cifras inventadas. Suben con la actividad real.
+    const [userReputation, setUserReputation] = useState(0);
+    const [completedContributionsCount, setCompletedContributionsCount] = useState(0);
+    const [userSeeds, setUserSeeds] = useState(0);
+    const [userKarma, setUserKarma] = useState(1.0);
 
     // ── CONTRIBUTIONS & PARTICIPATIONS STATES ──
     const [recommendations, setRecommendations] = useState<ContributionRecommendation[]>(initialRecommendations);
@@ -122,7 +142,8 @@ export default function HubPage() {
     // ── Aditivo · Agente Aurora (ego.md) para esta solicitud/contexto ──
     const [egoForContext, setEgoForContext] = useState(false);
     const [egoName, setEgoName] = useState("");
-    const [myBadges, setMyBadges] = useState(userBadges.slice(0, 5));
+    // Insignias reales del usuario (vacío por defecto; se ganan con aportaciones).
+    const [myBadges, setMyBadges] = useState<typeof userBadges>([]);
 
     // ── INTERACTIVE GOALS & FILTERS ──
     const [goals, setGoals] = useState(initialGoals);
@@ -576,42 +597,16 @@ export default function HubPage() {
                 </div>
             </div>
 
-            {/* ── MENÚ TABS REORGANIZADO A LA PARTE SUPERIOR (CONSOLIDADOS) ── */}
+            {/* ── MENÚ UNIFICADO (SectionTabs · Adenda 66 §10) ── */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col mt-2">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-9 max-w-full lg:max-w-7xl mx-auto h-auto gap-2 bg-black/25 p-2 rounded-2xl border border-white/5 shadow-2xl backdrop-blur-md">
-                    <TabsTrigger value="buscador" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
-                        <Search className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0 text-primary" /><span className="truncate">Buscador</span>
-                    </TabsTrigger>
-                    {/* Mapa: sección a pantalla completa en su propia ruta (SOP §12) */}
-                    <Link
-                        href="/hub/mapa"
-                        className="min-h-[40px] inline-flex items-center justify-center py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap text-muted-foreground hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors cursor-pointer"
-                        title="Mapa de la Red (OpenStreetMap soberano)"
-                    >
-                        <MapIcon className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0 text-emerald-400" /><span className="truncate">Mapa</span>
-                    </Link>
-                    <TabsTrigger value="contributions" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
-                        <Briefcase className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0 text-cyan-400" /><span className="truncate">Aportaciones</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="red" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
-                        <Network className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0 text-cyan-400" /><span className="truncate">Red</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="my-pages" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
-                        <Globe className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0" /><span className="truncate">Mis Páginas</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="groups" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
-                        <Users className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0" /><span className="truncate">Grupos</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="calendar" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
-                        <CalendarDays className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0" /><span className="truncate">Calendario</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="parties" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
-                        <Flame className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0" /><span className="truncate">Partidos</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="vote-management" className="min-h-[40px] data-[state=active]:bg-primary/20 data-[state=active]:text-primary py-2.5 px-2 rounded-xl font-bold tracking-wider text-[clamp(0.65rem,2vw,0.875rem)] whitespace-nowrap">
-                        <Vote className="w-4 h-4 mr-1.5 sm:mr-2 shrink-0" /><span className="truncate">Votos</span>
-                    </TabsTrigger>
-                </TabsList>
+                <div className="mx-auto w-full max-w-full lg:max-w-7xl">
+                    <SectionTabs
+                        items={HUB_TAB_ITEMS}
+                        value={activeTab}
+                        onValueChange={setActiveTab}
+                        ariaLabel="Secciones del Hub"
+                    />
+                </div>
 
                 {/* ── BUSCADOR UNIVERSAL (búsqueda real e interconectada en toda la red) ── */}
                 <TabsContent value="buscador" className="mt-6 animate-in fade-in-50 duration-500">
@@ -642,8 +637,8 @@ export default function HubPage() {
                     {/* Stats de Aportaciones e Impacto — BOTONES CENTRADOS, DILIGENTES Y DINÁMICOS */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-[clamp(1rem,2vw,2rem)] w-full">
                         {[
-                            { id: "reputation", label: "Reputación de Ayuda", value: userReputation.toLocaleString(), icon: <Star className="w-6 h-6 text-amber-500" />, trend: "+24 esta semana", bg: "bg-amber-500/10" },
-                            { id: "contributions", label: "Aportaciones Realizadas", value: completedContributionsCount.toLocaleString(), icon: <Activity className="w-6 h-6 text-emerald-500" />, trend: "+12 este mes", bg: "bg-emerald-500/10" },
+                            { id: "reputation", label: "Reputación de Ayuda", value: userReputation.toLocaleString(), icon: <Star className="w-6 h-6 text-amber-500" />, trend: "Por actividad verificada", bg: "bg-amber-500/10" },
+                            { id: "contributions", label: "Aportaciones Realizadas", value: completedContributionsCount.toLocaleString(), icon: <Activity className="w-6 h-6 text-emerald-500" />, trend: "Aportaciones completadas", bg: "bg-emerald-500/10" },
                             { id: "seeds", label: "Seeds de Recompensas", value: userSeeds.toLocaleString(), icon: <Zap className="w-6 h-6 text-cyan-500" />, trend: "Canjeables por Assets/Servicios", bg: "bg-cyan-500/10" },
                             { id: "karma", label: "Karma Acumulado", value: `×${userKarma.toFixed(1)}`, icon: <Flame className="w-6 h-6 text-orange-500" />, trend: "Multiplicador de Gobernanza", bg: "bg-orange-500/10" },
                         ].map((stat) => (
@@ -684,126 +679,34 @@ export default function HubPage() {
                                 </Button>
                             </div>
 
-                            {selectedStat === 'reputation' && (
-                                <div className="space-y-4 w-full flex flex-col items-center">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500"><Star className="w-6 h-6 animate-pulse" /></div>
-                                        <div>
-                                            <h4 className="text-lg font-headline font-bold text-foreground">Desglose de Reputación de Ayuda</h4>
-                                            <p className="text-xs text-muted-foreground max-w-xl mx-auto">Calculado mediante contribuciones verificadas y valoradas democráticamente por asambleas en cada E.F.</p>
+                            {/* Adenda 66 §8 · SOLO datos reales: sin sistema de puntos respaldado en
+                                Supabase todavía, el desglose muestra un estado vacío HONESTO (nada de
+                                líneas inventadas) + explicación de cómo se calculará cada métrica. */}
+                            {(() => {
+                                const meta = {
+                                    reputation: { icon: <Star className="w-6 h-6 animate-pulse" />, ring: "bg-amber-500/10 border-amber-500/20 text-amber-500", title: "Desglose de Reputación de Ayuda", desc: "Se calculará con tus contribuciones verificadas y valoradas por las asambleas de cada E.F." },
+                                    contributions: { icon: <Activity className="w-6 h-6 animate-pulse" />, ring: "bg-emerald-500/10 border-emerald-500/20 text-emerald-500", title: "Aportaciones por Especialidad", desc: "Tareas completadas en el SOSD, categorizadas por tu especialidad técnica." },
+                                    seeds: { icon: <Zap className="w-6 h-6 animate-pulse" />, ring: "bg-cyan-500/10 border-cyan-500/20 text-cyan-500", title: "Bóveda de Recursos de la Red", desc: "Saldo en Semillas (Seeds) por méritos técnicos y gobernanza colectiva." },
+                                    karma: { icon: <Flame className="w-6 h-6 animate-pulse" />, ring: "bg-orange-500/10 border-orange-500/20 text-orange-500", title: "Multiplicador de Karma", desc: "Pondera tu opinión y tus Seeds. Base ×1.0; sube con actividad sostenida." },
+                                }[selectedStat];
+                                return (
+                                    <div className="space-y-4 w-full flex flex-col items-center">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className={cn("p-3 rounded-2xl border", meta.ring)}>{meta.icon}</div>
+                                            <div>
+                                                <h4 className="text-lg font-headline font-bold text-foreground">{meta.title}</h4>
+                                                <p className="text-xs text-muted-foreground max-w-xl mx-auto">{meta.desc}</p>
+                                            </div>
+                                        </div>
+                                        <div className="w-full rounded-2xl border border-dashed border-white/12 p-8 flex flex-col items-center gap-3">
+                                            <p className="text-sm text-muted-foreground max-w-md">Aún no hay actividad registrada. Participa en la red para construir este historial con datos reales.</p>
+                                            <Button size="sm" variant="outline" className="btn-pill border-white/10" onClick={() => setActiveTab("red")}>
+                                                <Network className="w-3.5 h-3.5 mr-1.5" /> Explorar la Red
+                                            </Button>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 w-full">
-                                        {[
-                                            { detail: "Verificación de Identidad Oficial", points: "+500 pts", category: "Gobernanza", date: "Sincronizado" },
-                                            { detail: "Auditoría de Código Bóvedas de Datos", points: "+800 pts", category: "Desarrollo", date: "hace 2 días" },
-                                            { detail: "Modelado Geodésico Huerto Norte", points: "+300 pts", category: "Diseño 3D", date: "hace 5 días" },
-                                            { detail: "Facilitación del caso Huerto A vs B", points: "+242 pts", category: "Resolución", date: "hace 1 semana" },
-                                        ].map((item, i) => (
-                                            <div key={i} className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl flex flex-col justify-between items-center text-center shadow-inner hover:border-amber-500/20 transition-all duration-300">
-                                                <div className="flex flex-col items-center">
-                                                    <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-400/5 px-2 py-0.5 rounded-full border border-amber-400/10">{item.category}</span>
-                                                    <p className="text-xs font-bold text-foreground mt-2.5 leading-relaxed">{item.detail}</p>
-                                                </div>
-                                                <div className="flex flex-col items-center gap-1 mt-4 pt-2 border-t border-white/5 w-full">
-                                                    <span className="text-[10px] text-muted-foreground font-semibold">{item.date}</span>
-                                                    <span className="text-sm text-amber-300 font-black">{item.points}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {selectedStat === 'contributions' && (
-                                <div className="space-y-4 w-full flex flex-col items-center">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500"><Activity className="w-6 h-6 animate-pulse" /></div>
-                                        <div>
-                                            <h4 className="text-lg font-headline font-bold text-foreground">Aportaciones Realizadas por Especialidad</h4>
-                                            <p className="text-xs text-muted-foreground max-w-xl mx-auto">Tareas completadas con éxito en el SOSD, categorizadas por tu especialidad técnica.</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 w-full">
-                                        {[
-                                            { category: "Desarrollo (Código)", value: "120 tareas", progress: 85, color: "from-cyan-400 to-blue-500" },
-                                            { category: "Diseño y Arte 3D", value: "85 assets", progress: 65, color: "from-purple-400 to-pink-500" },
-                                            { category: "Redacción y Educación", value: "92 lecciones", progress: 95, color: "from-emerald-400 to-teal-500" },
-                                            { category: "Organización y Soporte", value: "50 debates", progress: 40, color: "from-amber-400 to-orange-500" },
-                                        ].map((item, i) => (
-                                            <div key={i} className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-4 flex flex-col justify-between text-center hover:border-emerald-500/20 transition-all duration-300">
-                                                <div className="space-y-1">
-                                                    <span className="text-xs font-bold text-slate-300 block">{item.category}</span>
-                                                    <div className="text-xl font-black text-emerald-400">{item.value}</div>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <div className="flex justify-between text-[9px] text-muted-foreground font-semibold">
-                                                        <span>Eficiencia</span>
-                                                        <span>{item.progress}%</span>
-                                                    </div>
-                                                    <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                                                        <div className={cn("bg-gradient-to-r h-full rounded-full", item.color)} style={{ width: `${item.progress}%` }} />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {selectedStat === 'seeds' && (
-                                <div className="space-y-4 w-full flex flex-col items-center">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-500"><Zap className="w-6 h-6 animate-pulse" /></div>
-                                        <div>
-                                            <h4 className="text-lg font-headline font-bold text-foreground">Bóveda de Recursos de la Red</h4>
-                                            <p className="text-xs text-muted-foreground max-w-xl mx-auto">Saldo en Semillas (Seeds) acumulado por méritos técnicos y gobernanza colectiva.</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 w-full">
-                                        {[
-                                            { source: "Recompensas por Gobernanza Activa", amount: "5,000 SC", detail: "Votos validados en EF Valle Central", border: "border-cyan-500/20" },
-                                            { source: "Aportes Técnicos y Código Libre", amount: "2,500 SC", detail: "Recompensa del Exocórtex por bóvedas de datos", border: "border-purple-500/20" },
-                                            { source: "Intercambio en la Biblioteca / Store", amount: "1,740 SC", detail: "Descargas de tus Assets 3D y Blueprints", border: "border-emerald-500/20" },
-                                        ].map((item, i) => (
-                                            <div key={i} className={cn("bg-white/[0.02] border p-5 rounded-2xl flex flex-col justify-between items-center text-center shadow-lg hover:scale-[1.01] transition-transform", item.border)}>
-                                                <div className="space-y-2">
-                                                    <p className="text-xs font-bold text-slate-100">{item.source}</p>
-                                                    <p className="text-[10px] text-muted-foreground leading-normal max-w-xs">{item.detail}</p>
-                                                </div>
-                                                <div className="text-xl font-black text-cyan-300 pt-4 w-full text-center border-t border-white/5 mt-3">{item.amount}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {selectedStat === 'karma' && (
-                                <div className="space-y-4 w-full flex flex-col items-center">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <div className="p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-500"><Flame className="w-6 h-6 animate-pulse" /></div>
-                                        <div>
-                                            <h4 className="text-lg font-headline font-bold text-foreground">Multiplicador de Karma Activo</h4>
-                                            <p className="text-xs text-muted-foreground max-w-xl mx-auto">Incrementa proporcionalmente la ponderación de tu opinión y tus Seeds de recompensa.</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 w-full">
-                                        {[
-                                            { factor: "Multiplicador Base de Ciudadano", multiplier: "×1.5", detail: "Otorgado al verificar y autenticar tu cuenta oficial." },
-                                            { factor: "Racha Activa de Ayuda Comunitaria", multiplier: "+0.5", detail: "Completaste al menos 3 aportaciones por semana en los últimos 30 días." },
-                                            { factor: "Participación Democrática Consecuente", multiplier: "+0.4", detail: "Emitiste tu voto a tiempo en el 100% de las asambleas de tu EF local." },
-                                        ].map((item, i) => (
-                                            <div key={i} className="bg-white/[0.02] border border-white/5 p-5 rounded-2xl flex flex-col justify-between items-center text-center shadow-lg hover:border-orange-500/20 transition-all duration-300">
-                                                <div className="space-y-2">
-                                                    <span className="text-xs font-bold text-foreground block">{item.factor}</span>
-                                                    <p className="text-[10px] text-muted-foreground leading-normal max-w-xs">{item.detail}</p>
-                                                </div>
-                                                <div className="text-xl font-black text-orange-400 pt-4 w-full text-center border-t border-white/5 mt-3">{item.multiplier}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                                );
+                            })()}
                         </Card>
                     )}
 
@@ -811,6 +714,9 @@ export default function HubPage() {
                     <div className="flex flex-wrap gap-3 items-center justify-center w-full bg-white/5 p-4 rounded-2xl border border-white/10 shadow-inner">
                         <span className="text-sm font-semibold text-muted-foreground mr-2 tracking-wider uppercase">Tus insignias obtenidas:</span>
                         <div className="flex flex-wrap gap-2 justify-center items-center">
+                            {myBadges.length === 0 && (
+                                <span className="text-xs text-muted-foreground italic">Aún no tienes insignias — se ganan completando aportaciones reales.</span>
+                            )}
                             {myBadges.map((badge) => (
                                 <Badge key={badge.id} className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-sm cursor-default transition-transform hover:scale-105", {
                                     "bg-blue-500/10 border-blue-500/30 text-blue-300": badge.color === 'blue',
@@ -863,73 +769,16 @@ export default function HubPage() {
                                         </button>
                                     </div>
                               </CardHeader>
-                              <CardContent className="pt-4 h-64 flex flex-col justify-end text-center items-center">
-                                <div className="relative w-full h-full">
-                                    <svg className="w-full h-full overflow-visible" viewBox="0 0 600 200" preserveAspectRatio="none">
-                                        <defs>
-                                            <linearGradient id="chart-grad-cyan" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.4" />
-                                                <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.0" />
-                                            </linearGradient>
-                                            <linearGradient id="chart-grad-emerald" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#34d399" stopOpacity="0.4" />
-                                                <stop offset="100%" stopColor="#34d399" stopOpacity="0.0" />
-                                            </linearGradient>
-                                            <linearGradient id="chart-grad-orange" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#fb923c" stopOpacity="0.4" />
-                                                <stop offset="100%" stopColor="#fb923c" stopOpacity="0.0" />
-                                            </linearGradient>
-                                        </defs>
-
-                                        <line x1="0" y1="50" x2="600" y2="50" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
-                                        <line x1="0" y1="100" x2="600" y2="100" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
-                                        <line x1="0" y1="150" x2="600" y2="150" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
-
-                                        {activeChartTab === 'reputation' && (
-                                            <>
-                                                <path d="M 0 170 Q 100 130, 200 140 T 400 60 T 600 40 L 600 200 L 0 200 Z" fill="url(#chart-grad-cyan)" />
-                                                <path d="M 0 170 Q 100 130, 200 140 T 400 60 T 600 40" fill="none" stroke="#22d3ee" strokeWidth="3" filter="drop-shadow(0px 0px 8px rgba(34,211,238,0.5))" />
-                                                <circle cx="200" cy="140" r="4" fill="#22d3ee" stroke="white" strokeWidth="2" />
-                                                <circle cx="400" cy="60" r="4" fill="#22d3ee" stroke="white" strokeWidth="2" />
-                                                <circle cx="600" cy="40" r="4" fill="#22d3ee" stroke="white" strokeWidth="2" />
-                                            </>
-                                        )}
-
-                                        {activeChartTab === 'contributions' && (
-                                            <>
-                                                <path d="M 0 190 Q 120 160, 240 120 T 480 90 T 600 20 L 600 200 L 0 200 Z" fill="url(#chart-grad-emerald)" />
-                                                <path d="M 0 190 Q 120 160, 240 120 T 480 90 T 600 20" fill="none" stroke="#34d399" strokeWidth="3" filter="drop-shadow(0px 0px 8px rgba(52,211,153,0.5))" />
-                                                <circle cx="240" cy="120" r="4" fill="#34d399" stroke="white" strokeWidth="2" />
-                                                <circle cx="480" cy="90" r="4" fill="#34d399" stroke="white" strokeWidth="2" />
-                                                <circle cx="600" cy="20" r="4" fill="#34d399" stroke="white" strokeWidth="2" />
-                                            </>
-                                        )}
-
-                                        {activeChartTab === 'seeds' && (
-                                            <>
-                                                <path d="M 0 150 Q 100 150, 200 80 T 400 110 T 600 50 L 600 200 L 0 200 Z" fill="url(#chart-grad-orange)" />
-                                                <path d="M 0 150 Q 100 150, 200 80 T 400 110 T 600 50" fill="none" stroke="#fb923c" strokeWidth="3" filter="drop-shadow(0px 0px 8px rgba(251,146,60,0.5))" />
-                                                <circle cx="200" cy="80" r="4" fill="#fb923c" stroke="white" strokeWidth="2" />
-                                                <circle cx="400" cy="110" r="4" fill="#fb923c" stroke="white" strokeWidth="2" />
-                                                <circle cx="600" cy="50" r="4" fill="#fb923c" stroke="white" strokeWidth="2" />
-                                            </>
-                                        )}
-
-                                        {activeChartTab === 'karma' && (
-                                            <>
-                                                <path d="M 0 180 Q 150 120, 300 150 T 600 30 L 600 200 L 0 200 Z" fill="url(#chart-grad-orange)" />
-                                                <path d="M 0 180 Q 150 120, 300 150 T 600 30" fill="none" stroke="#fb923c" strokeWidth="3" filter="drop-shadow(0px 0px 8px rgba(251,146,60,0.5))" />
-                                                <circle cx="300" cy="150" r="4" fill="#fb923c" stroke="white" strokeWidth="2" />
-                                                <circle cx="600" cy="30" r="4" fill="#fb923c" stroke="white" strokeWidth="2" />
-                                            </>
-                                        )}
-                                    </svg>
+                              <CardContent className="pt-4 h-64 flex flex-col justify-center text-center items-center gap-3">
+                                {/* Adenda 66 §8 · SOLO datos reales: la curva se dibujará cuando exista
+                                    historial real (sin datos → estado vacío honesto, no una gráfica falsa). */}
+                                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-muted-foreground">
+                                    <BarChart3 className="w-6 h-6" />
                                 </div>
-                                <div className="flex justify-between text-[10px] text-muted-foreground mt-4 font-bold tracking-widest w-full">
-                                    <span>ENERO</span>
-                                    <span>MARZO</span>
-                                    <span>MAYO (HOY)</span>
-                                </div>
+                                <p className="text-sm text-muted-foreground max-w-sm">
+                                    Tu historial de impacto aparecerá aquí en cuanto registres actividad real
+                                    ({activeChartTab === 'reputation' ? 'reputación' : activeChartTab === 'contributions' ? 'aportaciones' : 'seeds'}).
+                                </p>
                               </CardContent>
                           </Card>
                         </div>
@@ -1838,8 +1687,10 @@ export default function HubPage() {
 
                     <div className="flex justify-between items-center mb-4 px-1">
                         <span className="section-label">{myPages.length} PÁGINAS ACTIVAS</span>
-                        <Button size="sm" className="btn-pill shadow-[0_0_15px_rgba(var(--primary-rgb),0.3)]">
-                            <Plus className="w-4 h-4 mr-1.5" /> Nueva Página
+                        <Button asChild size="sm" className="btn-pill shadow-[0_0_15px_rgba(var(--primary-rgb),0.3)]">
+                            <Link href="/crear?area=publicar&dest=pagina">
+                                <Plus className="w-4 h-4 mr-1.5" /> Nueva Página
+                            </Link>
                         </Button>
                     </div>
                     {myPages.length === 0 && (
@@ -1886,8 +1737,10 @@ export default function HubPage() {
                             </Button>
                             <Button variant="ghost" size="sm" className="btn-pill">Cultural</Button>
                         </div>
-                        <Button size="sm" className="btn-pill shadow-[0_0_15px_rgba(var(--primary-rgb),0.3)]">
-                            <Plus className="w-4 h-4 mr-1.5" /> Crear Grupo
+                        <Button asChild size="sm" className="btn-pill shadow-[0_0_15px_rgba(var(--primary-rgb),0.3)]">
+                            <Link href="/crear?area=publicar&dest=grupo">
+                                <Plus className="w-4 h-4 mr-1.5" /> Crear Grupo
+                            </Link>
                         </Button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1939,6 +1792,14 @@ export default function HubPage() {
                         Los partidos políticos te permiten replicar tu voto automáticamente y unificar la acción colectiva en las Entidades Federativas.
                     </p>
                     <div className="space-y-4">
+                        {politicalParties.length === 0 && (
+                            <div className="rounded-2xl border border-dashed border-white/12 p-10 text-center flex flex-col items-center gap-3">
+                                <p className="text-sm text-muted-foreground max-w-md">Aún no hay partidos en la red. Los partidos reales aparecerán aquí en cuanto se funden.</p>
+                                <Link href="/network/politics" className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20">
+                                    <Scale className="w-3.5 h-3.5" /> Ir a Gobernanza
+                                </Link>
+                            </div>
+                        )}
                         {politicalParties.map((party) => (
                             <Card key={party.id} className="liquid-glass-panel group shadow-lg hover:border-primary/40 transition-all duration-300 p-2">
                                 <CardContent className="p-4 flex flex-col md:flex-row md:items-center gap-4">

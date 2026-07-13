@@ -15,6 +15,8 @@ import { ProfileHeader } from "@/components/profile/profile-header";
 import { CollectionsGrid } from "@/components/profile/collections/collections-grid";
 import { GovernanceToolkit, hasToolkit, toolkitMeta } from "@/components/social/toolkits";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
+// Adenda 66 §4: Biblioteca PÚBLICA del perfil — lo que su dueño/a eligió mostrar.
+import { ProfilePublicLibrary } from "@/components/profile/profile-public-library";
 import { libraryRef } from "@/lib/library/entity-library";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { StoriesStrip } from "@/components/stories/stories-strip";
@@ -48,34 +50,44 @@ function str(v: unknown): string {
 }
 
 /**
- * Biblioteca del perfil: lo GUARDADO por la cuenta (distinto de la Librería).
- * `kind="user"` en entity_state usa el uid real (RLS: solo su dueño puede
- * leer/escribir) — por eso solo se muestra el panel cuando es el perfil
- * propio y hay sesión; en perfil ajeno, estado honesto (privado por diseño).
+ * Biblioteca del perfil (Adenda 66 §4).
+ *   · DUEÑO/A → panel completo (`EntityLibraryPanel`): gestiona todo y elige, por
+ *     nodo, qué se muestra en su perfil («Permisos → Mostrar en mi perfil»).
+ *   · VISITA  → `ProfilePublicLibrary`: EXACTAMENTE los nodos que ese perfil
+ *     eligió mostrar (antes esta pestaña decía "es privada" y no mostraba nada).
+ *
+ * `ownerUid` es el uid REAL del perfil visitado (lo trae `resolveProfileData` en
+ * `id` para las identidades soberanas de `os_profiles`). Sin él no hay
+ * biblioteca que resolver, y se dice con honestidad.
  */
-function ProfileLibraryCard({ name, uid, isOwner }: { name: string; uid: string | null; isOwner: boolean }) {
+function ProfileLibraryCard({
+    name, uid, ownerUid, isOwner,
+}: { name: string; uid: string | null; ownerUid: string | null; isOwner: boolean }) {
     if (isOwner && uid) {
         return (
             <EntityLibraryPanel
                 ref={libraryRef("user", uid)}
                 title={`Biblioteca de ${name}`}
-                subtitle="Tus referencias guardadas, organizadas en carpetas propias."
+                subtitle="Tus referencias guardadas. En «Permisos» de cada folder o archivo eliges qué se muestra en tu perfil."
             />
         );
+    }
+    if (ownerUid) {
+        return <ProfilePublicLibrary libraryRef={libraryRef("user", ownerUid)} name={name} />;
     }
     return (
         <Card>
             <CardHeader className="flex flex-row items-start justify-between gap-3">
                 <div>
                     <CardTitle className="font-headline">Biblioteca de {name}</CardTitle>
-                    <CardDescription>Espacio personal y privado de referencias guardadas.</CardDescription>
+                    <CardDescription>Lo que este perfil haya elegido mostrar públicamente.</CardDescription>
                 </div>
                 <Link href="/library" className="shrink-0 whitespace-nowrap text-sm text-primary hover:underline cursor-pointer">Ver biblioteca →</Link>
             </CardHeader>
             <CardContent>
                 <p className="rounded-xl border border-dashed border-white/12 p-6 text-center text-sm text-muted-foreground">
                     {uid
-                        ? "La Biblioteca de un perfil es privada: solo su dueño/a puede verla."
+                        ? "No se ha podido resolver la cuenta de este perfil: no hay Biblioteca que mostrar."
                         : "Inicia sesión para ver tu Biblioteca."}
                 </p>
             </CardContent>
@@ -284,6 +296,15 @@ export default function ProfilePage() {
     const pageType = profileData.pageType;
     const [activeTab, setActiveTab] = useState("dashboard");
 
+    // uid REAL de la cuenta dueña de ESTE perfil (Adenda 66 §4): para las
+    // identidades soberanas (`os_profiles`) `resolveProfileData` ya lo trae en
+    // `id` — es lo que permite resolver su Biblioteca pública para las visitas
+    // (y también para el propio dueño en modo "ver como visitante").
+    const visitedOwnerUid = useMemo(
+        () => (resolvedData?.type === "sovereign" ? (resolvedData.id ?? null) : (ownerReal ? user?.id ?? null : null)),
+        [resolvedData?.type, resolvedData?.id, ownerReal, user?.id],
+    );
+
 
 
     // ── Perfil como página libre: modo persistido por handle ──
@@ -357,7 +378,7 @@ export default function ProfilePage() {
             ),
         },
         { id: 'connections', title: 'Conexiones', node: <ConnectionsWidget pageType={pageType} /> },
-        { id: 'library', title: 'Biblioteca', node: <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} isOwner={isOwner} /> },
+        { id: 'library', title: 'Biblioteca', node: <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} ownerUid={visitedOwnerUid} isOwner={isOwner} /> },
         { id: 'collections', title: 'Colecciones', node: <CollectionsGrid /> },
         { id: 'enlaces', title: 'Enlaces', node: <ProfileLinksSection handle={pageHandle} isOwner={isOwner} name={profileData.name} /> },
         { id: 'archivos', title: 'Archivos', node: <ProfileFilesSection isOwner={isOwner} name={profileData.name} /> },
@@ -518,7 +539,7 @@ export default function ProfilePage() {
                             <ConnectionsWidget pageType={pageType} />
                         </TabsContent>
                         <TabsContent value="library" className="mt-6">
-                            <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} isOwner={isOwner} />
+                            <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} ownerUid={visitedOwnerUid} isOwner={isOwner} />
                         </TabsContent>
                         <TabsContent value="collections" className="mt-6">
                             <CollectionsGrid />

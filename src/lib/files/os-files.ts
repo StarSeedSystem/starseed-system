@@ -33,11 +33,20 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
-import { deviceId } from "@/lib/sync/entity-state";
+import { deviceId, type EntityRef } from "@/lib/sync/entity-state";
+import { emitChange } from "@/lib/sync/live-signal";
+// Historial de archivos (Adenda 66 §2): cada subida y cada versión nueva crean
+// una revisión en `os_versions`, con puntero INMUTABLE al objeto de Storage.
+import { logAccess, quickChecksum, recordVersion, versionStoragePath } from "@/lib/versions/versions";
 
 const BUCKET = "os-files";
 /** Límite honesto de subida (bytes). ~50MB. */
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
+/** Topic de señal en vivo de los archivos de una cuenta (`files:<uid>`). */
+export function filesTopic(uid: string): string {
+    return `files:${uid}`;
+}
 
 export interface OsFile {
     id: string;
@@ -137,7 +146,7 @@ function uniqueSegment(): string {
 }
 
 export interface UploadFileOptions {
-    /** Subcarpeta lógica dentro de tu prefijo (p. ej. "avatares", "mensajes", "biblioteca/<entidad>"). */
+    /** Subfolder lógica dentro de tu prefijo (p. ej. "avatares", "mensajes", "biblioteca/<entidad>"). */
     folder?: string;
     /** Perfil (faceta) de la cuenta que sube el archivo, si aplica. */
     profileId?: string | null;
@@ -158,6 +167,175 @@ export interface UploadFileResult {
     ok: boolean;
     file?: OsFile;
     error?: string;
+    /**
+     * Adenda 66 §2 · El objeto SÍ está en Storage pero su fila `os_files` no se
+     * pudo insertar (RLS, red, tabla…). Antes esto se devolvía como `ok: true`
+     * SIN aviso y con una fila FALSA: por eso había 6 objetos en el bucket y 0
+     * filas en la tabla, y el archivo "solo existía en el dispositivo que lo
+     * subió". Ahora se avisa y la fila queda ENCOLADA para reintento.
+     */
+    warning?: string;
+}
+
+// ── Cola de registros pendientes (`os_files`) ───────────────────────────────
+// El binario ya está en Storage; lo que falta es su fila. La encolamos y la
+// reintentamos igual que la biblioteca (al volver 'online' y cada ~30 s), para
+// que ninguna subida quede huérfana e invisible para el resto de dispositivos.
+
+const PENDING_FILES_KEY = "starseed.osfiles.pending.v1";
+/** Evento window cuando cambia la cola de archivos pendientes de registrar: detail = { count }. */
+export const FILES_PENDING_EVENT = "starseed:files-pending";
+
+interface PendingFileRow {
+    row: Record<string, unknown>;
+    queuedAt: string;
+    attempts: number;
+    lastError?: string;
+}
+
+function readPendingFiles(): Record<string, PendingFileRow> {
+    if (!isClient()) return {};
+    try {
+        const raw = localStorage.getItem(PENDING_FILES_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as Record<string, PendingFileRow>;
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function writePendingFiles(map: Record<string, PendingFileRow>): void {
+    if (!isClient()) return;
+    try {
+        localStorage.setItem(PENDING_FILES_KEY, JSON.stringify(map));
+    } catch {
+        /* cuota / modo privado */
+    }
+    try {
+        window.dispatchEvent(new CustomEvent(FILES_PENDING_EVENT, { detail: { count: Object.keys(map).length } }));
+    } catch {
+        /* noop */
+    }
+}
+
+/** Nº de archivos subidos a Storage cuya fila `os_files` aún no se ha podido registrar. */
+export function pendingFilesCount(): number {
+    return Object.keys(readPendingFiles()).length;
+}
+
+/** Motivo del último fallo de registro (o null). */
+export function lastPendingFileError(): string | null {
+    const entries = Object.values(readPendingFiles());
+    return entries.find((e) => e.lastError)?.lastError ?? null;
+}
+
+function enqueuePendingFile(path: string, row: Record<string, unknown>, error?: string): void {
+    if (!isClient()) return;
+    const map = readPendingFiles();
+    const prev = map[path];
+    map[path] = {
+        row,
+        queuedAt: prev?.queuedAt ?? new Date().toISOString(),
+        attempts: (prev?.attempts ?? 0) + 1,
+        lastError: error ?? prev?.lastError,
+    };
+    writePendingFiles(map);
+    ensureFilesRetryLoop();
+}
+
+let _flushingFiles = false;
+
+/**
+ * Reintenta registrar en `os_files` los archivos que ya están en Storage.
+ * Segura de llamar en cualquier momento. Nunca lanza.
+ */
+export async function flushPendingFiles(): Promise<{ flushed: number; remaining: number }> {
+    if (!isClient() || _flushingFiles) return { flushed: 0, remaining: pendingFilesCount() };
+    _flushingFiles = true;
+    let flushed = 0;
+    try {
+        const supabase = createClient();
+        const map = readPendingFiles();
+        for (const [path, entry] of Object.entries(map)) {
+            try {
+                const { data, error } = await supabase.from("os_files").insert(entry.row).select("*").single();
+                if (!error && data) {
+                    const current = readPendingFiles();
+                    delete current[path];
+                    writePendingFiles(current);
+                    const file = normalizeRow(data as OsFileRow);
+                    signalFilesChanged(file.owner);
+                    void recordFileVersion(file, "Registro diferido de la subida");
+                    flushed++;
+                } else if (error) {
+                    // 23505 (path ya registrado): la fila existe, la cola sobra.
+                    if ((error as { code?: string }).code === "23505") {
+                        const current = readPendingFiles();
+                        delete current[path];
+                        writePendingFiles(current);
+                        flushed++;
+                    } else {
+                        enqueuePendingFile(path, entry.row, error.message);
+                    }
+                }
+            } catch (e) {
+                enqueuePendingFile(path, entry.row, (e as Error)?.message);
+            }
+        }
+    } finally {
+        _flushingFiles = false;
+    }
+    return { flushed, remaining: pendingFilesCount() };
+}
+
+let _filesRetryLoopStarted = false;
+
+function ensureFilesRetryLoop(): void {
+    if (!isClient() || _filesRetryLoopStarted) return;
+    _filesRetryLoopStarted = true;
+    try {
+        window.addEventListener("online", () => {
+            void flushPendingFiles();
+        });
+        window.setInterval(() => {
+            if (pendingFilesCount() === 0) return;
+            if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+            void flushPendingFiles();
+        }, 30_000);
+    } catch {
+        /* noop */
+    }
+}
+
+/** Anuncia en vivo que los archivos de esta cuenta cambiaron (otros dispositivos refrescan). */
+function signalFilesChanged(uid: string, fileId?: string): void {
+    try {
+        void emitChange(filesTopic(uid), { id: fileId, updatedAt: new Date().toISOString() });
+    } catch {
+        /* la señal nunca rompe la subida */
+    }
+}
+
+/** Registra una revisión del archivo (no bloqueante; el `owner` del historial es la cuenta). */
+async function recordFileVersion(file: OsFile, message: string, rev?: number): Promise<void> {
+    try {
+        const ref: EntityRef = { kind: "user", id: file.owner };
+        await recordVersion({
+            kind: "file",
+            resourceId: file.id,
+            ref,
+            message,
+            rev,
+            size: file.size,
+            checksum: quickChecksum(`${file.path}|${file.size ?? 0}`),
+            storagePath: file.path,
+            snapshot: { name: file.name, mime: file.mime, size: file.size, path: file.path, url: file.url },
+        });
+        void logAccess({ kind: "file", resourceId: file.id, ref, action: "upload", detail: { name: file.name } });
+    } catch {
+        /* el historial NUNCA impide subir */
+    }
 }
 
 /** Sube el `file` mediante XHR (para progreso real) al bucket `os-files` bajo `<uid>/<folder>/<nombre>`. */
@@ -281,11 +459,20 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
 
         const { data, error } = await supabase.from("os_files").insert(insertRow).select("*").single();
         if (error || !data) {
-            // El archivo YA está en storage con URL pública: devolvemos igualmente un
-            // resultado usable (sin fila indexada) en vez de perder la subida.
+            // ── Adenda 66 §2 · CAUSA RAÍZ del "solo se guarda en local" ──────────
+            // El objeto YA está en Storage, pero su fila no. ANTES esto devolvía
+            // `ok: true` con una fila FALSA (id = ruta de storage) y sin decir nada:
+            // el archivo no existía para `listMyFiles`, ni para el realtime, ni para
+            // los permisos, ni para ningún otro dispositivo — y nadie se enteraba.
+            // Ahora: se ENCOLA para reintento y se DEVUELVE EL AVISO.
             options.onProgress?.(100);
+            enqueuePendingFile(path, insertRow, error?.message);
             return {
                 ok: true,
+                warning:
+                    "El archivo se subió, pero aún no se ha podido registrar en tu cuenta" +
+                    (error?.message ? ` (${error.message})` : "") +
+                    ". Se reintentará automáticamente; hasta entonces no aparecerá en tus otros dispositivos.",
                 file: {
                     id: path,
                     owner: uid,
@@ -307,9 +494,95 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
         }
 
         options.onProgress?.(100);
-        return { ok: true, file: normalizeRow(data as OsFileRow) };
+        const uploaded = normalizeRow(data as OsFileRow);
+        // El archivo ya es real y compartible: anunciarlo en vivo y versionarlo.
+        signalFilesChanged(uid, uploaded.id);
+        void recordFileVersion(uploaded, `Subir «${uploaded.name}»`, 1);
+        return { ok: true, file: uploaded };
     } catch (e: any) {
         return { ok: false, error: e?.message || "Error inesperado al subir el archivo." };
+    }
+}
+
+/**
+ * NUEVA VERSIÓN de un archivo YA registrado (Adenda 66 §2). Los binarios NUNCA
+ * se sobrescriben: cada revisión vive en su propio objeto de Storage
+ * `<uid>/<fileId>/<rev>/<nombre>`. La fila `os_files` apunta siempre a la última
+ * (`path`/`url`/`size`), y `os_versions` conserva el puntero de cada una — así
+ * "Restaurar" puede volver a cualquier revisión sin haber perdido nada.
+ */
+export async function uploadFileVersion(
+    fileId: string,
+    file: File,
+    options: { message?: string; onProgress?: (pct: number) => void } = {},
+): Promise<UploadFileResult> {
+    if (!isClient()) return { ok: false, error: "No disponible en el servidor." };
+    if (!file) return { ok: false, error: "Archivo inválido." };
+    if (file.size > MAX_UPLOAD_BYTES) {
+        return { ok: false, error: `«${file.name}» supera el límite de 50MB por archivo.` };
+    }
+
+    const uid = await getCurrentUserId();
+    if (!uid) return { ok: false, error: "Inicia sesión para subir una versión nueva." };
+
+    try {
+        const supabase = createClient();
+        const { data: existingRow, error: readErr } = await supabase
+            .from("os_files")
+            .select("*")
+            .eq("id", fileId)
+            .maybeSingle();
+        if (readErr || !existingRow) {
+            return { ok: false, error: readErr?.message || "No se encontró el archivo original." };
+        }
+        const existing = normalizeRow(existingRow as OsFileRow);
+
+        // Siguiente revisión = head actual + 1 (el historial es la fuente de verdad).
+        const { headRev } = await import("@/lib/versions/versions");
+        const rev = (await headRev("file", fileId, { kind: "user", id: existing.owner })) + 1;
+
+        const cleanName = safeFileName(file.name || existing.name);
+        const path = versionStoragePath(uid, fileId, rev, cleanName);
+
+        options.onProgress?.(0);
+        const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, {
+            cacheControl: "3600",
+            upsert: false, // jamás sobrescribir: cada revisión es un objeto nuevo
+            contentType: file.type || undefined,
+        });
+        if (upErr) return { ok: false, error: upErr.message || "No se pudo subir la versión." };
+
+        options.onProgress?.(90);
+        const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
+        const publicUrl = pub?.publicUrl ?? null;
+
+        const { data: updated, error: updErr } = await supabase
+            .from("os_files")
+            .update({
+                path,
+                url: publicUrl,
+                size: file.size,
+                mime: file.type || existing.mime,
+                device_id: deviceId(),
+            })
+            .eq("id", fileId)
+            .select("*")
+            .single();
+
+        if (updErr || !updated) {
+            return {
+                ok: false,
+                error: updErr?.message || "La versión se subió pero no se pudo apuntar como la actual.",
+            };
+        }
+
+        options.onProgress?.(100);
+        const next = normalizeRow(updated as OsFileRow);
+        signalFilesChanged(uid, fileId);
+        void recordFileVersion(next, options.message ?? `Nueva versión de «${next.name}»`, rev);
+        return { ok: true, file: next };
+    } catch (e) {
+        return { ok: false, error: (e as Error)?.message || "Error inesperado al subir la versión." };
     }
 }
 
@@ -418,8 +691,9 @@ export async function deleteFile(id: string): Promise<boolean> {
     if (!id) return false;
     try {
         const supabase = createClient();
-        const { data } = await supabase.from("os_files").select("path").eq("id", id).maybeSingle();
-        const path = (data as { path?: string } | null)?.path;
+        const { data } = await supabase.from("os_files").select("path, owner, name").eq("id", id).maybeSingle();
+        const row = data as { path?: string; owner?: string; name?: string } | null;
+        const path = row?.path;
         const { error } = await supabase.from("os_files").delete().eq("id", id);
         if (path) {
             try {
@@ -428,22 +702,51 @@ export async function deleteFile(id: string): Promise<boolean> {
                 /* fila ya borrada; el objeto huérfano no rompe nada visible */
             }
         }
+        if (!error && row?.owner) {
+            // El borrado también viaja: los demás dispositivos lo ven al instante.
+            signalFilesChanged(row.owner, id);
+            void logAccess({
+                kind: "file",
+                resourceId: id,
+                ref: { kind: "user", id: row.owner },
+                action: "delete",
+                detail: { name: row.name ?? "" },
+            });
+        }
         return !error;
     } catch {
         return false;
     }
 }
 
-/** Suscripción realtime a los archivos propios (INSERT/UPDATE/DELETE en `os_files`). Devuelve función de limpieza. */
+/**
+ * Suscripción a los archivos propios. DOS CAMINOS REDUNDANTES (mismo patrón que
+ * la biblioteca, Adenda 63 §4):
+ *   (a) BROADCAST (`files:<uid>` vía live-signal) — no depende de la publicación
+ *       `supabase_realtime`: es el que SIEMPRE funciona.
+ *   (b) postgres_changes — sobrevive a reconexiones y a clientes que estaban
+ *       cerrados cuando se emitió el broadcast.
+ * Además arranca el reintento de los registros pendientes (`os_files`).
+ */
 export function subscribeMyFiles(cb: () => void): () => void {
     if (!isClient()) return () => {};
     try {
         const supabase = createClient();
         let channel: ReturnType<typeof supabase.channel> | null = null;
+        let unsubLive: (() => void) | null = null;
         let cancelled = false;
+
+        ensureFilesRetryLoop();
+        if (pendingFilesCount() > 0) void flushPendingFiles();
+
         (async () => {
             const uid = await getCurrentUserId();
             if (!uid || cancelled) return;
+            // (a) broadcast
+            const { onChange } = await import("@/lib/sync/live-signal");
+            if (cancelled) return;
+            unsubLive = onChange(filesTopic(uid), () => cb());
+            // (b) postgres_changes
             channel = supabase
                 .channel(`osf:${uid}`)
                 .on(
@@ -453,8 +756,14 @@ export function subscribeMyFiles(cb: () => void): () => void {
                 )
                 .subscribe();
         })();
+
         return () => {
             cancelled = true;
+            try {
+                unsubLive?.();
+            } catch {
+                /* noop */
+            }
             if (channel) {
                 try {
                     supabase.removeChannel(channel);
@@ -490,7 +799,18 @@ export async function updateFileAccess(id: string, patch: UpdateFileAccessInput)
         if (patch.aclWrite !== undefined) update.acl_write = patch.aclWrite;
         if (patch.groupSlug !== undefined) update.group_slug = patch.groupSlug;
         if (Object.keys(update).length === 0) return true;
-        const { error } = await supabase.from("os_files").update(update).eq("id", id);
+        const { data, error } = await supabase.from("os_files").update(update).eq("id", id).select("owner").maybeSingle();
+        const owner = (data as { owner?: string } | null)?.owner;
+        if (!error && owner) {
+            signalFilesChanged(owner, id);
+            void logAccess({
+                kind: "file",
+                resourceId: id,
+                ref: { kind: "user", id: owner },
+                action: "permisos",
+                detail: { ...patch },
+            });
+        }
         return !error;
     } catch {
         return false;

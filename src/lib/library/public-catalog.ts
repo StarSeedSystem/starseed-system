@@ -6,7 +6,7 @@
  * Distinto de `entity-library.ts` (lo GUARDADO por una entidad, privado/grupal)
  * y de `packages.ts` (paquetes instalables built-in + repos por URL). Esta capa
  * es la sección "Comunidad": cualquier usuario puede PUBLICAR un archivo suyo
- * (de su Biblioteca) en una carpeta pública de una categoría, navegable por
+ * (de su Biblioteca) en un folder público de una categoría, navegable por
  * todo el mundo, con lectura sin sesión.
  *
  * Tabla Supabase `public.library_public_items` (ya aplicada):
@@ -68,7 +68,7 @@ export interface PublicItem {
     id: string;
     owner: string;
     category: PublicCategory;
-    /** Ruta de carpeta pública dentro de la categoría (p.ej. "diseño/temas"). "" = raíz. */
+    /** Ruta de folder público dentro de la categoría (p.ej. "diseño/temas"). "" = raíz. */
     folder: string;
     name: string;
     /** Tipo de contenido original (SavedItemType) para elegir icono/preview. */
@@ -102,7 +102,7 @@ function rowToItem(row: Record<string, unknown>): PublicItem {
     };
 }
 
-/** Lista ítems públicos, opcionalmente filtrados por categoría y/o carpeta exacta. */
+/** Lista ítems públicos, opcionalmente filtrados por categoría y/o folder exacto. */
 export async function listPublicItems(opts?: {
     category?: PublicCategory;
     folder?: string;
@@ -120,7 +120,7 @@ export async function listPublicItems(opts?: {
     }
 }
 
-/** Deriva la lista de subcarpetas únicas presentes en una categoría (para navegación). */
+/** Deriva la lista de subfolders únicas presentes en una categoría (para navegación). */
 export function foldersOf(items: PublicItem[], category: PublicCategory): string[] {
     const set = new Set<string>();
     for (const it of items) {
@@ -168,9 +168,9 @@ export async function publishItem(input: PublishItemInput): Promise<{ ok: boolea
 }
 
 /**
- * Publica una CARPETA completa de una Biblioteca (todos sus ítems directos,
- * más — si `recursive` — los de sus subcarpetas) conservando la estructura
- * carpeta→folder path bajo la categoría elegida. Los originales quedan
+ * Publica un folder completo de una Biblioteca (todos sus ítems directos,
+ * más — si `recursive` — los de sus subfolders) conservando la estructura
+ * folder→folder path bajo la categoría elegida. Los originales quedan
  * vinculados (`payload.ref`). No publica alias (no tienen contenido propio;
  * se resuelve su destino y se publica el ítem apuntado) ni ítems con `acl`
  * de lectura que excluya al publicador (defensivo, aunque siendo el propio
@@ -182,7 +182,7 @@ export async function publishFolder(opts: {
     folders: LibraryFolder[];
     sourceFolderId: string | null;
     category: PublicCategory;
-    /** Carpeta pública destino (raíz de la categoría si se omite). */
+    /** Folder público destino (raíz de la categoría si se omite). */
     destFolder?: string;
     recursive?: boolean;
 }): Promise<{ ok: boolean; count: number; error?: string }> {
@@ -194,7 +194,7 @@ export async function publishFolder(opts: {
 
         const folderById = new Map(opts.folders.map((f) => [f.id, f] as const));
 
-        // Recolecta el subárbol de carpetas a exportar (la propia + descendientes si recursive).
+        // Recolecta el subárbol de folders a exportar (la propia + descendientes si recursive).
         const targetFolderIds = new Set<string>();
         if (opts.sourceFolderId) targetFolderIds.add(opts.sourceFolderId);
         if (opts.recursive && opts.sourceFolderId) {
@@ -211,7 +211,7 @@ export async function publishFolder(opts: {
             }
         }
 
-        /** Ruta pública relativa (nombres de carpeta unidos por "/") de una carpeta local. */
+        /** Ruta pública relativa (nombres de folder unidos por "/") de un folder local. */
         function pathOf(folderId: string | null): string {
             const parts: string[] = [];
             let cursor = folderId;
@@ -240,7 +240,7 @@ export async function publishFolder(opts: {
 
         const rows = candidateItems.map((it) => {
             const itemPath = it.folderId ? pathOf(it.folderId) : "";
-            // Ruta relativa a la carpeta origen (quita el prefijo rootPath si aplica).
+            // Ruta relativa al folder origen (quita el prefijo rootPath si aplica).
             const relative = rootPath && itemPath.startsWith(rootPath) ? itemPath.slice(rootPath.length).replace(/^\//, "") : itemPath;
             const folder = [destBase, relative].filter(Boolean).join("/");
             const payload: PublicPayload = {
@@ -269,7 +269,7 @@ export async function publishFolder(opts: {
         if (error) return { ok: false, count: 0, error: error.message };
         return { ok: true, count: rows.length };
     } catch (e) {
-        return { ok: false, count: 0, error: e instanceof Error ? e.message : "Error al publicar la carpeta." };
+        return { ok: false, count: 0, error: e instanceof Error ? e.message : "Error al publicar el folder." };
     }
 }
 
