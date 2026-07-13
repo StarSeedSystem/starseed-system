@@ -99,6 +99,38 @@ export interface CatalogSource {
   privacy: "local" | "browser" | "cloud";
   /** Multiplicador de prioridad (privacidad/soberanía puntúan más). */
   weight: number;
+  /**
+   * (Adenda 67 · P0-2) La fuente FUNCIONA SIN CLAVE, pero acepta una clave
+   * opcional para subir sus límites (p.ej. LLM7.io: 30 req/min anónimo →
+   * 120 req/min con token gratuito). `requiresKey` sigue siendo false: el
+   * router la usa siempre; la clave solo la mejora.
+   */
+  keyOptional?: boolean;
+  /**
+   * (Adenda 67 · P0-2) NUNCA enfriar esta fuente tras un fallo/429. Reservado a
+   * las redes de seguridad SIN CLAVE: si Pollinations entra en cooldown 60 min,
+   * el usuario invitado se queda literalmente SIN CEREBRO. Un fallo transitorio
+   * jamás debe apagar el último recurso.
+   */
+  neverCooldown?: boolean;
+  /**
+   * Minutos de enfriamiento al recibir 429/cuota agotada (por defecto 60).
+   * Las fuentes limitadas por RPM (no por día) usan valores CORTOS: su cuota se
+   * recupera en segundos, apagarlas una hora sería absurdo.
+   */
+  cooldownMinutes?: number;
+  /**
+   * Preferir SIEMPRE los modelos con sufijo `:free` de esta fuente (OpenRouter):
+   * el router los rankea por encima y nunca gasta créditos de pago del usuario
+   * sin que lo pida. Ver §18.2 de architecture/astraura-inteligencia.md.
+   */
+  preferFreeModels?: boolean;
+  /**
+   * Timeout por petición (ms) para ESTA fuente. Sobrescribe el default por
+   * privacidad. Pollinations puede tardar ~40 s en horas punta: matarla a los
+   * 30 s convertía respuestas válidas en "fallos" y vaciaba la cadena.
+   */
+  timeoutMs?: number;
 }
 
 /* ───────────────────────── Catálogo ───────────────────────── */
@@ -217,24 +249,42 @@ export const FREE_CATALOG: CatalogSource[] = [
     ],
   },
   {
+    // OPENROUTER (Adenda 67 · P0-2 · "que el sistema de OpenRouter funcione de
+    // verdad"). Cambios reales de esta ola:
+    //   1. `providerId: "openrouter"` — adaptador DEDICADO (src/ai/providers/
+    //      openrouter.ts) que envía `HTTP-Referer` y `X-Title` (lo que OpenRouter
+    //      espera de una app de navegador) y fuerza `:free` cuando toca. Antes
+    //      iba por el adaptador OpenAI genérico y, al ser `openai-compatible`,
+    //      `userConfigForSource()` solo lo reconocía si el baseUrl coincidía
+    //      EXACTAMENTE: una config del proveedor "openrouter" con URL propia
+    //      quedaba invisible para el router → OpenRouter "no funcionaba".
+    //   2. `preferFreeModels` — el ranking sube los `:free` y NUNCA gasta
+    //      créditos de pago del usuario por su cuenta.
+    // Ids VERIFICADOS contra GET https://openrouter.ai/api/v1/models el
+    // 2026-07-13 (343 modelos, 21 con sufijo `:free`).
     id: "openrouter-free",
     label: "OpenRouter :free",
     tier: "free-key",
-    providerId: "openai-compatible",
+    providerId: "openrouter",
     baseUrl: "https://openrouter.ai/api/v1",
     requiresKey: true,
     getKeyUrl: "https://openrouter.ai/keys",
-    limits: "20 req/min · 50 req/día (1.000/día con recarga única de $10).",
-    why: "Una sola clave da acceso a ~26 modelos gratuitos variados (visión, código, 1M de contexto).",
+    preferFreeModels: true,
+    limits: "20 req/min · 50 req/día (1.000/día con recarga única de $10). Solo modelos :free = coste 0.",
+    why: "Una sola clave gratuita da acceso a ~21 modelos GRATIS variados (razonamiento, visión, código, 1M de contexto). Aurora solo usa los `:free`.",
     privacy: "cloud",
     weight: 1,
     models: [
-      { id: "openrouter/free", label: "Auto (mejor :free disponible)", strengths: ["chat", "summary"], quality: 7, note: "Router automático de OpenRouter" },
-      { id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B", strengths: ["chat", "vision", "translate"], quality: 8, vision: true, context: 262144 },
-      { id: "qwen/qwen3-coder:free", label: "Qwen3 Coder", strengths: ["code"], quality: 8, context: 1000000, note: "1M de contexto" },
+      { id: "openrouter/free", label: "Auto (mejor :free disponible)", strengths: ["chat", "summary"], quality: 7, note: "Router automático de OpenRouter, solo modelos gratis" },
       { id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super 120B", strengths: ["reasoning", "long"], quality: 8, context: 1000000 },
+      { id: "nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra 550B", strengths: ["reasoning", "long"], quality: 9, context: 1000000 },
+      { id: "qwen/qwen3-coder:free", label: "Qwen3 Coder", strengths: ["code"], quality: 8, context: 1000000, note: "1M de contexto" },
+      { id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B", strengths: ["chat", "vision", "translate"], quality: 8, vision: true, context: 262144 },
+      { id: "nvidia/nemotron-nano-12b-v2-vl:free", label: "Nemotron Nano 12B VL (visión)", strengths: ["vision", "fast"], quality: 7, vision: true },
       { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B", strengths: ["chat", "creative"], quality: 8 },
       { id: "openai/gpt-oss-120b:free", label: "GPT-OSS 120B", strengths: ["reasoning", "code"], quality: 8 },
+      { id: "qwen/qwen3-next-80b-a3b-instruct:free", label: "Qwen3 Next 80B", strengths: ["chat", "reasoning", "translate"], quality: 8 },
+      { id: "meta-llama/llama-3.2-3b-instruct:free", label: "Llama 3.2 3B", strengths: ["fast"], quality: 5 },
     ],
   },
   {
@@ -379,6 +429,123 @@ export const FREE_CATALOG: CatalogSource[] = [
     ],
   },
 
+  /* ── FREE-KEY añadidos en la Adenda 67 (P3-3 · awesome-freellm-apis) ──
+   *    Endpoints VERIFICADOS con `curl` el 2026-07-13 (responden y exigen clave:
+   *    401/200 según el caso). Todos tienen tier gratuito documentado y NO piden
+   *    tarjeta de crédito salvo donde se indica. Fuente de la lista:
+   *    https://github.com/open-free-llm-api/awesome-freellm-apis                  */
+  {
+    // VERIFICADO: GET https://router.huggingface.co/v1/models → 200 (catálogo público).
+    // El chat SÍ requiere token gratuito de HuggingFace (créditos mensuales gratis).
+    id: "huggingface-router",
+    label: "HuggingFace Inference (gratis)",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    baseUrl: "https://router.huggingface.co/v1",
+    requiresKey: true,
+    getKeyUrl: "https://huggingface.co/settings/tokens",
+    limits: "Créditos gratuitos mensuales; sin tarjeta. Enruta a los proveedores del Hub.",
+    why: "La puerta al Hub de HuggingFace con una sola clave: modelos abiertos servidos por múltiples proveedores. Casa con la Biblioteca y con Hugging Bay.",
+    privacy: "cloud",
+    weight: 0.95,
+    models: [
+      { id: "meta-llama/Llama-3.3-70B-Instruct", label: "Llama 3.3 70B", strengths: ["chat", "summary", "translate"], quality: 8, context: 131072 },
+      { id: "Qwen/Qwen3-Coder-30B-A3B-Instruct", label: "Qwen3 Coder 30B", strengths: ["code"], quality: 8 },
+      { id: "deepseek-ai/DeepSeek-V3.2", label: "DeepSeek V3.2", strengths: ["reasoning", "code"], quality: 9 },
+    ],
+  },
+  {
+    // VERIFICADO: POST https://ollama.com/v1/chat/completions sin clave → 401
+    // (existe y exige token). El catálogo de modelos es público (GET /v1/models).
+    id: "ollama-cloud",
+    label: "Ollama Cloud (gratis)",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    baseUrl: "https://ollama.com/v1",
+    requiresKey: true,
+    getKeyUrl: "https://ollama.com/settings/keys",
+    limits: "Tier gratuito con límites por sesión/semana. Misma cuenta que tu Ollama local.",
+    why: "Los modelos GRANDES que no caben en tu equipo, con la MISMA herramienta que ya usas en local (Ollama). Soberanía y continuidad.",
+    privacy: "cloud",
+    weight: 0.95,
+    models: [
+      { id: "gpt-oss:120b-cloud", label: "GPT-OSS 120B (nube)", strengths: ["reasoning", "code"], quality: 8, context: 128000 },
+      { id: "qwen3-coder:480b-cloud", label: "Qwen3 Coder 480B (nube)", strengths: ["code"], quality: 9, context: 128000 },
+      { id: "deepseek-v3.1:671b-cloud", label: "DeepSeek V3.1 671B (nube)", strengths: ["reasoning", "long"], quality: 9, context: 128000 },
+    ],
+  },
+  {
+    // VERIFICADO: GET https://inference.api.nscale.com/v1/models con token falso → 401 (vivo).
+    id: "nscale-free",
+    label: "Nscale (gratis)",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    baseUrl: "https://inference.api.nscale.com/v1",
+    requiresKey: true,
+    getKeyUrl: "https://console.nscale.com/",
+    limits: "Tier gratuito de uso razonable (fair-use).",
+    why: "Modelos abiertos grandes (Llama 3.3 70B, Qwen3 Coder) con un tier gratuito generoso y sin complicaciones.",
+    privacy: "cloud",
+    weight: 0.9,
+    models: [
+      { id: "meta-llama/Llama-3.3-70B-Instruct", label: "Llama 3.3 70B", strengths: ["chat", "summary", "translate"], quality: 8, context: 128000 },
+      { id: "Qwen/Qwen3-Coder-30B-A3B-Instruct", label: "Qwen3 Coder 30B", strengths: ["code"], quality: 8, context: 262144 },
+    ],
+  },
+  {
+    // VERIFICADO: GET https://api-inference.modelscope.cn/v1/models → 200 (catálogo público).
+    id: "modelscope-free",
+    label: "ModelScope (gratis)",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    baseUrl: "https://api-inference.modelscope.cn/v1",
+    requiresKey: true,
+    getKeyUrl: "https://modelscope.cn/my/myaccesstoken",
+    limits: "2.000 req/día en total (tope por modelo). Requiere registro.",
+    why: "2.000 peticiones diarias gratis a modelos abiertos muy recientes (Qwen3.5, DeepSeek): una de las cuotas gratuitas más altas que existen.",
+    privacy: "cloud",
+    weight: 0.88,
+    models: [
+      { id: "Qwen/Qwen3.5-35B-A3B", label: "Qwen3.5 35B", strengths: ["chat", "reasoning", "translate"], quality: 8, context: 131072 },
+      { id: "deepseek-ai/DeepSeek-V3.2", label: "DeepSeek V3.2", strengths: ["reasoning", "code"], quality: 9 },
+    ],
+  },
+  {
+    // VERIFICADO: GET https://api.siliconflow.cn/v1/models con token falso → 401 (vivo).
+    id: "siliconflow-free",
+    label: "SiliconFlow (gratis)",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    baseUrl: "https://api.siliconflow.cn/v1",
+    requiresKey: true,
+    getKeyUrl: "https://cloud.siliconflow.cn/account/ak",
+    limits: "30 req/min · 60K tokens/min en los modelos gratuitos.",
+    why: "Modelos destilados de razonamiento (DeepSeek-R1) gratis y rápidos; buena alternativa cuando las demás se agotan.",
+    privacy: "cloud",
+    weight: 0.85,
+    models: [
+      { id: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", label: "DeepSeek R1 Distill 7B", strengths: ["reasoning", "fast"], quality: 6, context: 131072 },
+    ],
+  },
+  {
+    // VERIFICADO: GET https://open.bigmodel.cn/api/paas/v4/models con token falso → 401 (vivo).
+    id: "zai-free",
+    label: "Z.ai / GLM Flash (gratis)",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    requiresKey: true,
+    getKeyUrl: "https://open.bigmodel.cn/usercenter/apikeys",
+    limits: "Modelos «Flash» gratis de forma permanente · 1 petición concurrente.",
+    why: "Los GLM «Flash» son gratis para siempre (texto y visión) y responden muy rápido: buen refuerzo del tier gratuito.",
+    privacy: "cloud",
+    weight: 0.85,
+    models: [
+      { id: "glm-4.7-flash", label: "GLM 4.7 Flash", strengths: ["chat", "fast", "translate"], quality: 7, context: 200000 },
+      { id: "glm-4.6v-flash", label: "GLM 4.6V Flash (visión)", strengths: ["vision", "fast"], quality: 7, vision: true, context: 128000 },
+    ],
+  },
+
   /* ── NAVEGADOR OSS (Transformers.js · WebGPU · sin clave) ──── */
   {
     id: "smollm3-webgpu",
@@ -428,20 +595,92 @@ export const FREE_CATALOG: CatalogSource[] = [
   },
 
   /* ── INSTANT (sin clave, funcionan YA) ────────────────────── */
+  // ⚠️ REGLA DE ORO (Adenda 67 · P0-2): estas tres fuentes son las ÚNICAS que un
+  // usuario recién llegado (sin claves, sin Ollama, sin modelos descargados)
+  // tiene disponibles. Antes SOLO existía Pollinations → cuando fallaba, Aurora
+  // se quedaba literalmente sin cerebro y devolvía "no conseguí respuesta".
+  // Ahora hay TRES cerebros gratis-sin-clave independientes entre sí, todos
+  // verificados con `curl` (endpoint + CORS `*`) el 2026-07-13.
   {
+    // VERIFICADO 2026-07-13: POST https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions
+    // sin cabecera Authorization (y también con `Authorization: Bearer ` vacío,
+    // que es lo que envía nuestro adaptador) → HTTP 200 en ~1,2 s.
+    // CORS: access-control-allow-origin: * · allow-headers: *  → usable desde el navegador.
+    // Límite anónimo: ~2 req/min (por eso `cooldownMinutes: 3`, no 60).
+    id: "ovh-anonymous",
+    label: "OVHcloud AI Endpoints (sin clave)",
+    tier: "instant",
+    providerId: "openai-compatible",
+    baseUrl: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+    requiresKey: false,
+    keyOptional: true,
+    getKeyUrl: "https://endpoints.ai.cloud.ovh.net/",
+    cooldownMinutes: 3,
+    timeoutMs: 45_000,
+    limits: "Sin clave: ~2 req/min (anónimo). Con cuenta gratuita OVH, mucho más.",
+    why: "Modelos ABIERTOS GRANDES (gpt-oss-120b, Qwen3.5-397B, Llama 3.3 70B, Qwen2.5-VL visión) gratis y SIN registro, en infraestructura europea. Es el mejor cerebro que un invitado puede tener sin dar un solo dato.",
+    privacy: "cloud",
+    weight: 0.88,
+    models: [
+      { id: "gpt-oss-120b", label: "GPT-OSS 120B", strengths: ["reasoning", "code", "chat"], quality: 8, context: 131072 },
+      { id: "Qwen3.5-397B-A17B", label: "Qwen3.5 397B", strengths: ["reasoning", "long", "chat"], quality: 9, context: 262144 },
+      { id: "Meta-Llama-3_3-70B-Instruct", label: "Llama 3.3 70B", strengths: ["chat", "summary", "translate", "creative"], quality: 8, context: 128000 },
+      { id: "Mistral-Small-3.2-24B-Instruct-2506", label: "Mistral Small 3.2 24B", strengths: ["chat", "fast", "translate"], quality: 7, context: 128000 },
+      { id: "Qwen3-Coder-30B-A3B-Instruct", label: "Qwen3 Coder 30B", strengths: ["code"], quality: 8, context: 262144 },
+      { id: "Qwen2.5-VL-72B-Instruct", label: "Qwen2.5-VL 72B (visión)", strengths: ["vision"], quality: 8, vision: true, context: 128000 },
+      { id: "Mistral-Nemo-Instruct-2407", label: "Mistral Nemo 12B", strengths: ["fast", "chat"], quality: 6, context: 128000 },
+    ],
+  },
+  {
+    // VERIFICADO 2026-07-13: POST https://api.llm7.io/v1/chat/completions SIN clave
+    // → HTTP 200 en ~1,5 s con `gemma3:27b` y `codestral-latest`. CORS: `*`.
+    // Los modelos propietarios del catálogo de LLM7 (gpt-5.x, claude-*, grok-*)
+    // devuelven 401 sin token → NO los declaramos: solo los que funcionan libres.
+    // Token gratuito opcional en https://token.llm7.io (30 → 120 req/min).
+    id: "llm7-free",
+    label: "LLM7.io (sin clave)",
+    tier: "instant",
+    providerId: "openai-compatible",
+    baseUrl: "https://api.llm7.io/v1",
+    requiresKey: false,
+    keyOptional: true,
+    getKeyUrl: "https://token.llm7.io",
+    cooldownMinutes: 3,
+    timeoutMs: 45_000,
+    limits: "Sin clave: ~30 req/min. Con token gratuito (token.llm7.io): ~120 req/min.",
+    why: "Segundo cerebro gratis SIN registro: modelos abiertos (Gemma 3 27B, Codestral) con respuesta rápida. Red de seguridad independiente de Pollinations y OVH.",
+    privacy: "cloud",
+    weight: 0.82,
+    models: [
+      { id: "gemma3:27b", label: "Gemma 3 27B", strengths: ["chat", "translate", "summary", "creative"], quality: 7, context: 131072 },
+      { id: "codestral-latest", label: "Codestral", strengths: ["code"], quality: 7 },
+    ],
+  },
+  {
+    // VERIFICADO 2026-07-13: el catálogo anónimo de Pollinations expone HOY UN
+    // SOLO modelo — `openai-fast` (GPT-OSS 20B, alias "openai"). El antiguo
+    // modelo "mistral" que declarábamos ESTÁ MUERTO: devuelve
+    // `404 Model not found: mistral` … ¡y tarda 28 s en decirlo!  Cada vez que
+    // el ranking lo elegía primero, Aurora quemaba media cadena de failover en
+    // un callejón sin salida. Eliminado. (GET https://text.pollinations.ai/models)
     id: "pollinations-text",
     label: "Pollinations (sin clave)",
     tier: "instant",
     providerId: "openai-compatible",
     baseUrl: "https://text.pollinations.ai/openai",
     requiresKey: false,
-    limits: "Gratis sin clave; puede tener colas en horas punta.",
-    why: "Funciona al instante sin registro: es la red de seguridad para que TODO usuario tenga IA desde el minuto uno.",
+    // NUNCA se enfría: es el último recurso universal del invitado. Un 429
+    // transitorio dejaba a Aurora 60 minutos sin cerebro (bug real, jul-2026).
+    neverCooldown: true,
+    // Pollinations encola en horas punta: 30 s la mataba viva. 60 s de margen.
+    timeoutMs: 60_000,
+    limits: "Gratis sin clave; puede tener colas (a veces ~40 s) en horas punta.",
+    why: "Funciona al instante sin registro: es la red de seguridad FINAL para que TODO usuario tenga IA desde el minuto uno. Nunca se desactiva.",
     privacy: "cloud",
     weight: 0.8,
     models: [
-      { id: "openai", label: "Pollinations · GPT (gateway)", strengths: ["chat", "summary", "creative"], quality: 6 },
-      { id: "mistral", label: "Pollinations · Mistral", strengths: ["chat", "translate"], quality: 6 },
+      { id: "openai", label: "Pollinations · GPT-OSS 20B", strengths: ["chat", "summary", "creative", "reasoning"], quality: 6 },
+      { id: "openai-fast", label: "Pollinations · GPT-OSS 20B (rápido)", strengths: ["fast", "chat"], quality: 6 },
     ],
   },
   {
@@ -549,7 +788,43 @@ export function scoreModelForTask(source: CatalogSource, model: CatalogModel, ta
   if (model.strengths.includes(task)) score += 3;
   if (task === "long" && (model.context ?? 0) >= 200000) score += 2;
   if (task === "fast" && source.id.startsWith("groq")) score += 2;
+  // OpenRouter (y cualquier fuente con `preferFreeModels`): los modelos `:free`
+  // ganan SIEMPRE. Un modelo de pago de esa fuente solo se usaría si el usuario
+  // lo fuerza a mano — Aurora jamás gasta créditos por su cuenta.
+  if (source.preferFreeModels) {
+    if (isFreeModelId(model.id)) score += 4;
+    else score -= 5;
+  }
   return score * source.weight;
+}
+
+/* ───────────────── Helpers de la Adenda 67 (gratis-siempre) ───────────────── */
+
+/** ¿Es un id de modelo explícitamente gratuito (convención `:free` de OpenRouter)? */
+export function isFreeModelId(modelId: string): boolean {
+  const id = String(modelId ?? "");
+  return id.endsWith(":free") || id === "openrouter/free";
+}
+
+/**
+ * Fuentes que funcionan SIN NINGUNA CLAVE ni instalación: la red de seguridad
+ * universal de Aurora (OVHcloud anónimo, LLM7.io, Pollinations). El router las
+ * añade SIEMPRE al final de la cadena de failover para que nunca se quede sin
+ * cerebro. Excluye las de navegador (requieren descarga opt-in del usuario).
+ */
+export function keylessCloudSources(): CatalogSource[] {
+  return FREE_CATALOG.filter((s) => !s.requiresKey && s.privacy === "cloud" && s.tier !== "paid");
+}
+
+/** ¿Esta fuente NUNCA debe entrar en cooldown? (últimos recursos sin clave). */
+export function isNeverCooldown(sourceId: string): boolean {
+  return !!findSource(sourceId)?.neverCooldown;
+}
+
+/** Minutos de enfriamiento declarados por la fuente (o el default del llamador). */
+export function cooldownMinutesFor(sourceId: string, fallback: number): number {
+  const m = findSource(sourceId)?.cooldownMinutes;
+  return typeof m === "number" && m > 0 ? m : fallback;
 }
 
 /* ───────────────────── Naming estilo LiteLLM (etiquetas/telemetría) ───────────────────── */

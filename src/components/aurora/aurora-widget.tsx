@@ -12,8 +12,11 @@ import { voiceModeChipLabel } from "@/lib/aurora/capabilities";
 import { usePerimeter, type PerimeterEdge } from "@/context/perimeter-context";
 import { AURORA_TRINITY_FLAG, AURORA_TRINITY_EVENT } from "@/components/layout/trinity-fab";
 import { AuroraOrb } from "./aurora-orb";
-import { AuroraSpeechBubble, type AuroraBubbleAnchor } from "./aurora-speech-bubble";
-import { AuroraMiniPlayer, type AuroraMiniPlayerAnchor } from "./aurora-mini-player";
+import {
+  AuroraMiniPlayer,
+  type AuroraMiniPlayerAnchor,
+  type AuroraProactive,
+} from "./aurora-mini-player";
 import {
   readOrbHidden,
   setOrbHidden as setOrbHiddenBus,
@@ -44,18 +47,21 @@ import {
  *   · CLIC DERECHO   → abre el chat completo en el EXOCÓRTEX (cortina Zenith +
  *                      CustomEvent 'starseed:open-aurora-exocortex').
  *
- * Superficies conversacionales ancladas al orbe (una sola a la vez — UN SOLO
- * CANAL):
- *   · REPRODUCTOR RESUMIDO (AuroraMiniPlayer): aparece al ARRANCAR una
- *     conversación (el usuario habla → interim/transcript, o Aurora responde).
- *     Widget pequeño translúcido: últimas 1-2 líneas, transporte ampliado
- *     (play/pausa · parar · anterior/siguiente · mic on/off), DESLIZAR para ver
- *     el HISTORIAL, iluminación reactiva a la voz (usuario Y Aurora), «Abrir en
- *     Exocórtex» + «Panel» (popover grande) y auto-ocultado ~10s.
- *   · GLOBO (AuroraSpeechBubble): SOLO para texto proactivo (aurora:suggest /
- *     aurora:notify) cuando NO hay conversación activa. Así no se duplica.
+ * ⚠️ UNA SOLA SUPERFICIE CONVERSACIONAL (Adenda 67 · P0-1). El chat de Aurora
+ * salía DUPLICADO: además del reproductor, aparecía un GLOBO («Aurora ·
+ * ESCUCHANDO / Te escucho… / ▶ ⏹ ↵ Continuar»). Ese globo era
+ * `AuroraSpeechBubble` y está ELIMINADO del árbol (componente borrado). Ahora
+ * existe UNA superficie anclada al orbe y solo una:
+ *
+ *   · REPRODUCTOR DE CONVERSACIÓN (AuroraMiniPlayer) — la superficie BUENA:
+ *     cabecera «Aurora · CONVERSACIÓN», historial de la sesión (burbujas
+ *     Tú/Aurora), chip de ruta del router, transporte ⏮ ▶ ⏹ ⏭ + micrófono y pie
+ *     «Menos · Panel · Exocórtex». Aparece al ARRANCAR una conversación (el
+ *     usuario habla → interim/transcript, o Aurora responde) y TAMBIÉN cuando
+ *     llega texto PROACTIVO (`aurora:suggest` / `aurora:notify`): esa
+ *     recomendación se pinta DENTRO del reproductor, no en otra ventana.
  *   · Popover grande clásico (pestañas): bajo demanda (clic derecho, «Panel» del
- *     resumido, o casos sin voz). El estado visual lleva DEBOUNCE ≥250ms: sin
+ *     reproductor, o casos sin voz). El estado visual lleva DEBOUNCE ≥250ms: sin
  *     parpadeos on/off aunque el reconocimiento reinicie por dentro.
  */
 
@@ -113,6 +119,54 @@ function useStableFlag(value: boolean, fallMs: number = VISUAL_FALL_MS): boolean
   return stable;
 }
 
+/**
+ * Eventos PROACTIVOS de Aurora (cualquier superficie del OS puede emitirlos):
+ * `aurora:suggest` (recomendación contextual) y `aurora:notify` (aviso corto).
+ * Antes los pintaba el GLOBO (AuroraSpeechBubble, ya eliminado); ahora se
+ * muestran DENTRO del reproductor de conversación → una sola superficie.
+ */
+export const AURORA_SUGGEST_EVENT = "aurora:suggest";
+export const AURORA_NOTIFY_EVENT = "aurora:notify";
+
+/** Cuánto permanece un texto proactivo no atendido antes de retirarse. */
+const PROACTIVE_AUTOHIDE_MS = 12_000;
+
+/**
+ * El evento `aurora:suggest` llega con TRES formas históricas:
+ *   · { text }                         — texto ya redactado (guía de onboarding)
+ *   · { context, desktopName }         — solo contexto (menús del escritorio)
+ *   · { hints: [{ text }], pathname }  — pistas del motor de contexto
+ * Normalizamos a UNA frase corta y decible. Nunca lanza.
+ */
+function suggestionTextFrom(detail: unknown): string {
+  const d = (detail || {}) as {
+    text?: string;
+    context?: string;
+    desktopName?: string;
+    hints?: Array<{ text?: string }>;
+  };
+  const direct = (d.text || "").trim();
+  if (direct) return direct;
+  const hint = (d.hints?.[0]?.text || "").trim();
+  if (hint) return hint;
+  const ctx = (d.context || "").trim().toLowerCase();
+  if (ctx) {
+    if (/(politic|gobern|votac|asamble)/.test(ctx))
+      return "Hay decisiones abiertas en la Ontocracia. ¿Quieres que te resuma lo que está en juego?";
+    if (/(educ|biblio|aprend|curso)/.test(ctx))
+      return "Puedo prepararte una ruta de aprendizaje con lo que tienes a mano. ¿La vemos?";
+    if (/(cultur|arte|multivers|event)/.test(ctx))
+      return "Se está moviendo algo en la esfera cultural. ¿Te enseño lo más relevante?";
+    if (/(cafe|café|elixir|barista)/.test(ctx))
+      return "Tengo una recomendación para tu carta de elixires. ¿Te la cuento?";
+    if (/(perfil|profile|cuenta)/.test(ctx))
+      return "Puedo ayudarte a pulir tu perfil para que refleje mejor lo que haces.";
+  }
+  const where = (d.desktopName || "").trim();
+  if (where) return `Estoy contigo en ${where}. Dime en qué te echo una mano.`;
+  return "Tengo una idea que puede venirte bien. ¿Quieres que te la cuente?";
+}
+
 export function AuroraWidget() {
   const aurora = useAurora();
   const { activeEdge, setActiveEdge } = usePerimeter();
@@ -157,6 +211,42 @@ export function AuroraWidget() {
       setMiniDismissed(false);
     }
   }, [interimLive, transcriptLive, lastReplyLive, speakingLive]);
+
+  // ── TEXTO PROACTIVO (aurora:suggest / aurora:notify) ───────────────────────
+  // ÚNICA SUPERFICIE: se pinta DENTRO del reproductor de conversación. Antes lo
+  // mostraba el GLOBO (AuroraSpeechBubble) → dos ventanas de Aurora a la vez.
+  // Nunca habla en voz alta: es texto; el usuario decide si continúa (mic/▶).
+  const [proactive, setProactive] = useState<AuroraProactive | null>(null);
+  const proactiveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const show = (kind: "suggest" | "notify", text: string) => {
+      const t = (text || "").trim();
+      if (!t) return;
+      setMiniDismissed(false); // una sugerencia nueva revive el reproductor
+      setProactive({ kind, text: t, key: Date.now() });
+      if (proactiveTimer.current) clearTimeout(proactiveTimer.current);
+      proactiveTimer.current = setTimeout(() => setProactive(null), PROACTIVE_AUTOHIDE_MS);
+    };
+    const onSuggest = (e: Event) => show("suggest", suggestionTextFrom((e as CustomEvent).detail));
+    const onNotify = (e: Event) => {
+      const d = ((e as CustomEvent).detail || {}) as { text?: string };
+      show("notify", d.text || "");
+    };
+    window.addEventListener(AURORA_SUGGEST_EVENT, onSuggest);
+    window.addEventListener(AURORA_NOTIFY_EVENT, onNotify);
+    return () => {
+      window.removeEventListener(AURORA_SUGGEST_EVENT, onSuggest);
+      window.removeEventListener(AURORA_NOTIFY_EVENT, onNotify);
+      if (proactiveTimer.current) { clearTimeout(proactiveTimer.current); proactiveTimer.current = null; }
+    };
+  }, []);
+  // Al descartar el reproductor, el texto proactivo se va con él (una superficie).
+  const dismissMini = useCallback(() => {
+    if (proactiveTimer.current) { clearTimeout(proactiveTimer.current); proactiveTimer.current = null; }
+    setProactive(null);
+    setMiniDismissed(true);
+  }, []);
 
   // ── Gestos del orbe (puntero unificado ratón/táctil) ──
   const gesture = useRef<{
@@ -436,6 +526,20 @@ export function AuroraWidget() {
       } catch { /* */ }
       return;
     }
+    // MÓVIL (Adenda 67 · P0-3): si el permiso de micrófono NO está concedido,
+    // ESTE TOQUE es el gesto de usuario que el navegador exige para pedirlo.
+    // Arrancar el `SpeechRecognition` sin permiso en Android solo devuelve
+    // 'not-allowed' y Aurora nace sorda. Pedimos acceso (sondeo puntual que se
+    // suelta en el acto, con respiro) y la escucha arranca sola al concederse.
+    if (
+      caps.isMobile &&
+      caps.micPermission !== "granted" &&
+      caps.hasSpeechRecognition &&
+      caps.isSecureContext
+    ) {
+      try { void aurora.requestAccess(); } catch { /* */ }
+      return;
+    }
     // Reconocimiento presente + contexto seguro pero el modo aún no es 'full'
     // → lo que falta es el permiso de micrófono: pídelo desde este gesto y deja
     // que arranque la escucha sola; NO abrimos el popover.
@@ -512,9 +616,12 @@ export function AuroraWidget() {
   // lo único que falta es el permiso de micrófono → el orbe invita a darlo.
   const needsMicPermission =
     !voiceUnavailable &&
-    voiceMode !== "full" &&
     capabilities.hasSpeechRecognition &&
-    capabilities.isSecureContext;
+    capabilities.isSecureContext &&
+    (voiceMode !== "full" ||
+      // MÓVIL: el permiso se consulta de verdad (Permissions API). Si aún no
+      // está concedido, el orbe lo dice (insignia ámbar) y el toque lo pide.
+      (capabilities.isMobile && capabilities.micPermission !== "granted"));
   // Este navegador no reconoce voz (Firefox / algunos WebView): NO es un error,
   // es un modo adaptado (te hablo si hay TTS; siempre puedes escribir).
   const noSttHere = !capabilities.hasSpeechRecognition;
@@ -591,17 +698,6 @@ export function AuroraWidget() {
       "radial-gradient(140% 80% at 18% -8%, rgba(159,232,112,0.10), transparent 60%), radial-gradient(150% 90% at 110% 0%, rgba(201,168,255,0.10), transparent 55%), rgba(9,13,18,0.9)",
   };
 
-  // ── Anclaje del GLOBO DE DIÁLOGO al orbe (se voltea arriba/abajo y clampa a
-  //    los bordes en cualquier tamaño; el ancho lo pone el CSS del globo). ────
-  const BUBBLE_MAX_W = "min(21rem, calc(100vw - 16px))";
-  const bubbleAnchor: AuroraBubbleAnchor = {
-    style: {
-      ...vAnchor,
-      ...hAnchor(BUBBLE_MAX_W),
-    },
-    openUp,
-    openLeft,
-  };
   // ── Anclaje del REPRODUCTOR RESUMIDO al orbe ──────────────────────────────
   // DESPLAZADO con margen EXTRA respecto al orbe: el resumido nunca debe cubrir
   // el área del orbe ni interceptar su mantener-pulsado (Trinity). Usamos una
@@ -623,29 +719,27 @@ export function AuroraWidget() {
     openLeft,
   };
 
-  // ── ¿ARRANCÓ la conversación? (decide QUÉ superficie se muestra — UN SOLO
-  //    CANAL). Es cierto cuando el usuario habla (interim/transcript), cuando
-  //    Aurora habla o respondió (visSpeaking / lastReply), o cuando la sesión ya
-  //    tiene mensajes. Usa los flags DEBOUNCED (visListening/visSpeaking) para
-  //    no parpadear con los reinicios internos del reconocimiento. ────────────
+  // ── ¿ARRANCÓ la conversación? (decide si se muestra LA superficie — no hay
+  //    otra). Es cierto cuando el usuario habla (interim/transcript), cuando
+  //    Aurora habla o respondió (visSpeaking / lastReply), cuando la sesión ya
+  //    tiene mensajes, o cuando hay TEXTO PROACTIVO pendiente. Usa los flags
+  //    DEBOUNCED (visListening/visSpeaking) para no parpadear con los reinicios
+  //    internos del reconocimiento. ────────────────────────────────────────────
   const conversationStarted =
     !!interim ||
     !!aurora.transcript ||
     !!aurora.lastReply ||
     visSpeaking ||
     visListening ||
+    !!proactive ||
     conversation.length > 0;
 
-  // El reproductor resumido es la superficie conversacional activa (salvo que
-  // esté descartado, oculto el orbe, o abierto el popover/menú Trinity).
-  // Y SIEMPRE cede ante el CHAT COMPLETO: si el Exocórtex está abierto, la
-  // conversación se lee allí y el resumido NO se monta (nada de chat duplicado).
+  // El REPRODUCTOR DE CONVERSACIÓN es la ÚNICA superficie de Aurora anclada al
+  // orbe (salvo que esté descartado, oculto el orbe, o abierto el popover/menú
+  // Trinity). Y SIEMPRE cede ante el CHAT COMPLETO: si el Exocórtex está
+  // abierto, la conversación se lee allí y el resumido NO se monta (nada de
+  // chat duplicado).
   const miniPlayerActive = conversationStarted && !miniDismissed && !fullChatOpen;
-
-  // El GLOBO queda RESERVADO al texto proactivo (suggest/notify) cuando NO hay
-  // conversación activa: así el resumido y el globo nunca se solapan (un canal).
-  // Por eso el globo ya no se dispara por "mención" mientras el resumido manda.
-  const bubbleMentioned = !!interim && !miniPlayerActive;
 
   // Últimas 2 líneas de la conversación (usuario y Aurora, voz o texto).
   const lastLines = conversation.slice(-2);
@@ -705,33 +799,21 @@ export function AuroraWidget() {
   return (
     <>
       {/* ══════════════════════════════════════════════════════════════════
-          REPRODUCTOR RESUMIDO — superficie conversacional PRINCIPAL al hablar:
-          widget pequeño translúcido con últimas líneas, transporte ampliado,
-          swipe→historial, iluminación reactiva y «Abrir en Exocórtex». Se
-          muestra cuando ARRANCA la conversación; no convive con el popover ni el
-          menú Trinity. UN SOLO CANAL: cuando está activo, el globo se calla.
+          REPRODUCTOR DE CONVERSACIÓN — la ÚNICA superficie de Aurora anclada al
+          orbe: historial de la sesión (Tú/Aurora), chip de ruta, transporte
+          ampliado (⏮ ▶ ⏹ ⏭ + micrófono), swipe→historial, iluminación reactiva
+          y pie «Menos · Panel · Exocórtex». Muestra también el texto PROACTIVO
+          (aurora:suggest / aurora:notify). NO existe ya el globo «Te escucho…»
+          (AuroraSpeechBubble, eliminado): nunca puede haber dos ventanas.
       ══════════════════════════════════════════════════════════════════ */}
       {!trinityOpen && !open && miniPlayerActive && (
         <AuroraMiniPlayer
           anchor={miniAnchor}
           active={miniPlayerActive}
+          proactive={proactive}
           onOpenExocortex={openExocortexChat}
           onExpandPanel={() => setOpen(true)}
-          onDismiss={() => setMiniDismissed(true)}
-        />
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════
-          GLOBO DE DIÁLOGO cristalino sobre el orbe — RESERVADO al texto
-          proactivo (aurora:suggest / aurora:notify) cuando NO hay conversación
-          activa. Si el reproductor resumido manda, el globo se silencia para no
-          duplicar (un solo canal). La voz solo suena a petición.
-      ══════════════════════════════════════════════════════════════════ */}
-      {!trinityOpen && !miniPlayerActive && !fullChatOpen && (
-        <AuroraSpeechBubble
-          anchor={bubbleAnchor}
-          mentioned={bubbleMentioned}
-          onOpenChat={openExocortexChat}
+          onDismiss={dismissMini}
         />
       )}
 
@@ -769,7 +851,7 @@ export function AuroraWidget() {
                   </div>
                 </div>
                 <button
-                  onClick={() => { hudDismissedRef.current = voiceActive; setOpen(false); setMiniDismissed(true); }}
+                  onClick={() => { hudDismissedRef.current = voiceActive; setOpen(false); dismissMini(); }}
                   aria-label="Cerrar"
                   className="text-white/40 hover:text-white cursor-pointer"
                 >

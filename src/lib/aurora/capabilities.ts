@@ -27,6 +27,7 @@
 
 import { isOssSttSupported } from "@/lib/aurora/stt-oss/oss-stt";
 import { isOssSttEnabled } from "@/lib/aurora/stt-oss/opt-in";
+import { isMobileDevice, queryMicPermission } from "@/lib/aurora/voice-autonomy";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,9 @@ export type BrowserGuess =
 
 /** Estado del permiso de micrófono tras intentar obtenerlo. */
 export type MicAccess = "granted" | "denied" | "unavailable";
+
+/** Estado CONSULTADO del permiso de micrófono (Permissions API). */
+export type MicPermission = "granted" | "denied" | "prompt" | "unknown";
 
 /** Informe completo de capacidades del entorno actual. */
 export interface CapabilityReport {
@@ -65,6 +69,19 @@ export interface CapabilityReport {
   isStandalonePWA: boolean;
   /** ¿El puntero primario es grueso (móvil/tablet táctil)? */
   isCoarsePointer: boolean;
+  /**
+   * ¿Es un móvil/tablet? (Android · iOS · táctil). Reglas propias de STT: nunca
+   * retener el micrófono con `getUserMedia`, y el permiso SIEMPRE se pide desde
+   * un GESTO del usuario. Ver `isMobileDevice()` en `voice-autonomy.ts`.
+   */
+  isMobile: boolean;
+  /**
+   * Permiso de micrófono CONSULTADO (Permissions API), no supuesto. Arranca en
+   * 'unknown' (la consulta es asíncrona) y el provider lo refresca al montar y
+   * tras cada petición de acceso. Con 'prompt'/'denied' en MÓVIL, el toque del
+   * orbe pide el permiso en el gesto — nunca arranca un STT que fallaría.
+   */
+  micPermission: MicPermission;
   /** Modo de voz efectivo derivado de lo anterior. */
   voiceMode: VoiceMode;
   /**
@@ -303,6 +320,8 @@ export function getCapabilities(): CapabilityReport {
       browser: "unknown",
       isStandalonePWA: false,
       isCoarsePointer: false,
+      isMobile: false,
+      micPermission: "unknown",
       voiceMode: "text-only",
       ossSttAvailable: false,
       ossSttEnabled: false,
@@ -348,11 +367,55 @@ export function getCapabilities(): CapabilityReport {
     browser,
     isStandalonePWA,
     isCoarsePointer,
+    isMobile: isMobileDevice(),
+    // La consulta real del permiso es ASÍNCRONA: aquí queda 'unknown' y el
+    // provider la refina con `withMicPermission()` al montar y tras pedir acceso.
+    micPermission: "unknown",
     voiceMode,
     ossSttAvailable,
     ossSttEnabled,
     note,
   };
+}
+
+/**
+ * Devuelve una COPIA del informe con el permiso de micrófono real ya aplicado
+ * (recalculando `voiceMode` y la nota). Con el permiso DENEGADO no hay voz
+ * completa por mucho que exista SpeechRecognition — antes lo dábamos por bueno y
+ * la UI decía "voz completa" mientras Aurora estaba sorda. Nunca lanza.
+ */
+export function withMicPermission(
+  report: CapabilityReport,
+  micPermission: MicPermission,
+): CapabilityReport {
+  const micGranted =
+    micPermission === "granted" ? true : micPermission === "denied" ? false : undefined;
+  const voiceMode = deriveVoiceMode(
+    report.hasSpeechRecognition,
+    report.hasTTS,
+    report.isSecureContext,
+    micGranted,
+  );
+  const note = noteFor(
+    report.browser,
+    report.hasSpeechRecognition,
+    report.hasTTS,
+    report.isSecureContext,
+    voiceMode,
+    micPermission === "denied",
+  );
+  return { ...report, micPermission, voiceMode, note };
+}
+
+/**
+ * Instantánea de capacidades CON el permiso de micrófono ya consultado. Es la
+ * que debe usar cualquier decisión de "¿puedo escuchar aquí?". Nunca lanza.
+ */
+export async function getCapabilitiesWithMic(): Promise<CapabilityReport> {
+  const base = getCapabilities();
+  let perm: MicPermission = "unknown";
+  try { perm = await queryMicPermission(); } catch { perm = "unknown"; }
+  return withMicPermission(base, perm);
 }
 
 /**
@@ -375,8 +438,22 @@ export async function requestMaxAccess(
   const caps = getCapabilities();
 
   // (a) Micrófono ─ objetivo esencial para la voz completa.
+  //
+  // ⚠️ MÓVIL (Adenda 67 · P0-3): si el permiso YA está concedido, NO tocamos
+  // `getUserMedia`. En Android abrir una captura paralela —aunque sea un sondeo
+  // de un instante— le quita el micrófono al `SpeechRecognition` y lo deja
+  // SORDO. El sondeo solo tiene sentido cuando falta el permiso (y entonces
+  // llega desde un GESTO del usuario, que es lo que exige el navegador).
   let mic: MicAccess = "unavailable";
-  if (caps.hasMediaDevices && caps.isSecureContext) {
+  let alreadyGranted = false;
+  try {
+    alreadyGranted = (await queryMicPermission()) === "granted";
+  } catch { alreadyGranted = false; }
+
+  if (alreadyGranted) {
+    // Permiso vivo: nada de capturas paralelas. El STT abrirá el suyo.
+    mic = "granted";
+  } else if (caps.hasMediaDevices && caps.isSecureContext) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mic = "granted";
@@ -386,6 +463,13 @@ export async function requestMaxAccess(
           try { t.stop(); } catch { /* */ }
         });
       } catch { /* */ }
+      // RESPIRO en móvil: Android tarda un instante en liberar el micrófono tras
+      // parar las pistas. Sin esta pausa, el `SpeechRecognition` que arranca a
+      // continuación se encuentra el mic ocupado (`audio-capture`/abort) y el
+      // usuario ve "no escucha" justo después de conceder el permiso.
+      if (isMobileDevice()) {
+        await new Promise((r) => setTimeout(r, 350));
+      }
     } catch (err) {
       // NotAllowedError / SecurityError → denegado; el resto → no disponible.
       const name = (err as { name?: string })?.name || "";

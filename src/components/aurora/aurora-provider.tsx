@@ -16,6 +16,7 @@ import {
   autonomyDisabled,
   queryMicPermission,
   isInstalledApp,
+  isMobileDevice,
 } from "@/lib/aurora/voice-autonomy";
 import {
   startAuroraLeaderElection,
@@ -24,6 +25,8 @@ import {
 } from "@/lib/aurora/single-instance";
 import {
   getCapabilities,
+  getCapabilitiesWithMic,
+  withMicPermission,
   requestMaxAccess,
   type CapabilityReport,
 } from "@/lib/aurora/capabilities";
@@ -108,8 +111,15 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
    */
   const [capabilities, setCapabilities] = useState<CapabilityReport>(() => getCapabilities());
   useEffect(() => {
-    // Recalcula ya en cliente (window disponible): detecta STT/TTS reales.
+    // Recalcula ya en cliente (window disponible): detecta STT/TTS reales y
+    // CONSULTA el permiso de micrófono de verdad (Permissions API) en vez de
+    // suponerlo. Con el permiso denegado, `voiceMode` deja de mentir ('full').
     setCapabilities(getCapabilities());
+    let alive = true;
+    void getCapabilitiesWithMic()
+      .then((c) => { if (alive) setCapabilities(c); })
+      .catch(() => { /* nos quedamos con el informe base */ });
+    return () => { alive = false; };
   }, []);
   /** ¿El usuario QUIERE que Aurora escuche ahora mismo? (intención explícita) */
   const wantListenRef = useRef(false);
@@ -167,6 +177,11 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     else superStart();
   }, [superStart, superStop]);
 
+  /** Ref a `requestAccess` (definido más abajo) para usarlo desde `retryVoice`. */
+  const requestAccessRef = useRef<(opts?: { wantFullscreen?: boolean }) => Promise<void>>(
+    async () => {},
+  );
+
   const retryVoice = useCallback(() => {
     const g = guardRef.current;
     g.drops = 0;
@@ -174,8 +189,16 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     g.lastStartAt = 0; // el gesto explícito del usuario salta el cooldown
     g.starting = false;
     setVoiceUnavailable(false);
+    // MÓVIL sin permiso concedido: reintentar NO es volver a arrancar un STT que
+    // volverá a fallar — es PEDIR EL PERMISO, y este toque es el gesto que el
+    // navegador exige. (Android: `SpeechRecognition.start()` sin permiso solo
+    // devuelve 'not-allowed'.) Con permiso, arranque normal supervisado.
+    if (isMobileDevice() && capabilities.micPermission !== "granted") {
+      void requestAccessRef.current();
+      return;
+    }
     superStart();
-  }, [superStart]);
+  }, [superStart, capabilities.micPermission]);
 
   /**
    * requestAccess — Pide el MÁXIMO acceso posible (micrófono → pantalla completa
@@ -193,16 +216,23 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     } catch {
       result = null;
     }
-    // Recalcula el informe de capacidades (el micrófono pudo cambiar el modo).
-    const fresh = getCapabilities();
+    // Recalcula el informe de capacidades CON el permiso real (el micrófono pudo
+    // cambiar el modo: concedido → 'full'; denegado → 'tts-only' honesto).
+    const micGranted = result?.mic === "granted";
+    const fresh = withMicPermission(
+      getCapabilities(),
+      micGranted ? "granted" : result?.mic === "denied" ? "denied" : "unknown",
+    );
     setCapabilities(fresh);
 
     const eng = engineRef.current;
     if (!eng?.enabled) return;
 
     // Con micrófono concedido + reconocimiento presente → arranca la escucha
-    // por el flujo supervisado (backoff/watchdog) y saluda una vez por sesión.
-    const micGranted = result?.mic === "granted";
+    // por el flujo supervisado (backoff/watchdog). En móvil, `requestMaxAccess`
+    // ya dejó un respiro tras soltar el stream de sondeo: el micrófono está
+    // libre para que lo tome el SpeechRecognition (si no, Android da
+    // 'audio-capture' y Aurora nace sorda).
     if (micGranted && fresh.hasSpeechRecognition && eng.supported !== false) {
       const g = guardRef.current;
       g.lastStartAt = 0; // el gesto explícito del usuario salta el cooldown
@@ -214,6 +244,25 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
     // Solo habla DESPUÉS de que el usuario hable (o escriba). Sin sonidos de
     // arranque, sin abrir chat/reproductor, sin conversación iniciada por ella.
   }, [superStart]);
+  useEffect(() => { requestAccessRef.current = requestAccess; }, [requestAccess]);
+
+  // ── FALLO FATAL DEL STT → estado VISIBLE ──────────────────────────────────
+  // El motor avisa cuando el reconocimiento queda fuera de juego (permiso
+  // denegado, micrófono ocupado, o se rindió tras arranques rotos). Sin esto,
+  // Aurora se quedaba SORDA EN SILENCIO en Android: el orbe seguía "normal" y
+  // nada volvía a arrancar el micrófono jamás. Ahora se ve y se puede reintentar
+  // (y en móvil el reintento PIDE el permiso, que es lo que suele faltar).
+  useEffect(() => {
+    const fatal = engine.sttFatal;
+    if (!fatal) return;
+    wantListenRef.current = false;
+    guardRef.current.drops = 0;
+    guardRef.current.starting = false;
+    setVoiceUnavailable(true);
+    if (fatal === "not-allowed" || fatal === "service-not-allowed") {
+      setCapabilities((c) => withMicPermission(c, "denied"));
+    }
+  }, [engine.sttFatal]);
 
   // WATCHDOG de flapping: observa las transiciones de `listening` del motor.
   useEffect(() => {

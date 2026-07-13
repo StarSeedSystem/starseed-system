@@ -1084,3 +1084,113 @@ Sembrar `iatool-immich`/`iatool-perplexica`/`iatool-anything-llm` NUNCA activa
 su conector: los tres quedan `enabled` ausente/false y sin endpoint hasta que
 el usuario los configure a propósito, igual que Audiobookshelf/Home Assistant
 en §19.4.
+
+---
+
+## 22. «Aurora se quedaba sin cerebro» — cadena de failover real, OpenRouter y catálogo ampliado (2026-07-13 · Adenda 67 · P0-2 + P3)
+
+### 22.1 · La causa raíz (por qué SOLO probaba Pollinations)
+
+El usuario reportaba que Aurora fallaba en **la mayoría** de preguntas con:
+
+> «No conseguí respuesta de ninguna fuente de inteligencia ahora mismo (probé: Pollinations (sin clave))…»
+
+No era un fallo del failover. Era que **no había a dónde hacer failover**.
+
+`detectAvailability()` marca `ready` una fuente solo si:
+- **free-key** (Groq, Cerebras, OpenRouter, Gemini, Mistral, NVIDIA, GitHub, Cloudflare, Scaleway, Cohere, SambaNova) → hay una `ProviderConfig` con clave. Sin clave → `ready:false`.
+- **local** (Ollama, LM Studio, OpenLLM, OmniRoute) → la sonda HTTP a `localhost` responde. Sin servidor → `ready:false`.
+- **browser** (Gemini Nano, WebLLM, SmolLM3, SmolVLM2, Sipp) → están en `DOWNLOADABLE_SOURCES`: `ready = instalado && motor`. Sin instalación explícita (opt-in, por diseño: no descargamos GB sin permiso) → `ready:false`.
+
+⇒ Para un usuario recién llegado (sin claves, sin Ollama, sin descargas) **la única fuente `ready` del catálogo entero era `pollinations-text`**. La "cadena de failover" era una cadena de **un solo eslabón**. Cuando ese eslabón fallaba, Aurora se quedaba literalmente **sin cerebro**.
+
+Y ese único eslabón fallaba a menudo, por cuatro razones **verificadas con `curl` el 2026-07-13**:
+
+1. **Un modelo MUERTO en el catálogo.** Declarábamos `mistral` en Pollinations. Hoy el tier anónimo expone **un solo modelo**: `openai-fast` (alias `openai`). `POST {"model":"mistral"}` → **`404 Model not found`… tras 28 segundos**. Cuando el ranking elegía ese modelo primero (tareas de traducción, empates), Aurora quemaba media cadena en un callejón sin salida.
+2. **Timeout demasiado corto.** `candidateTimeoutMs` daba 30 s a la nube. Pollinations encola: una petición real tardó **29,7 s** en una prueba y su propia doc admite ~40 s en punta. Respuestas válidas se mataban y se contaban como "fallo".
+3. **Cooldown suicida.** Un 429 transitorio disparaba `markCooldown(60 min)` sobre… la única fuente que tenía el invitado. Aurora quedaba una hora sin cerebro por un pico de tráfico.
+4. **Throws síncronos y sondas sin tope.** `detectAvailability()` se llamaba fuera de todo `try`; `runCandidate()` se invocaba sin `Promise.resolve().then()`; `LanguageModel.availability()` (Prompt API) no llevaba timeout.
+
+### 22.2 · La regla nueva: TRES cerebros gratis SIN CLAVE, no uno
+
+`free-catalog.ts` incorpora dos fuentes nuevas `instant` (cero clave, cero registro, CORS `*` verificado desde el navegador):
+
+| Fuente | Endpoint | Verificado (2026-07-13) | Límite sin clave |
+|---|---|---|---|
+| **OVHcloud AI Endpoints** | `https://oai.endpoints.kepler.ai.cloud.ovh.net/v1` | HTTP 200 · ~1-2 s · CORS `*` | ~2 req/min (anónimo) |
+| **LLM7.io** | `https://api.llm7.io/v1` | HTTP 200 · ~1 s · CORS `*` | ~30 req/min (120 con token gratis) |
+| **Pollinations** (ya existía) | `https://text.pollinations.ai/openai` | HTTP 200 · 1-30 s | sin límite duro; colas |
+
+OVHcloud es el hallazgo importante: da **modelos abiertos GRANDES** (`gpt-oss-120b`, `Qwen3.5-397B-A17B`, `Llama 3.3 70B`, `Qwen2.5-VL-72B` con **visión**, `Qwen3-Coder-30B`) a un invitado que no ha dado ni un dato. Es, con diferencia, el mejor cerebro gratuito de arranque del OS.
+
+**Invariantes del router (`router.ts`), a partir de ahora:**
+
+- La cadena **SIEMPRE** termina con **todas** las fuentes gratis-sin-clave (`keylessCloudSources()`), y **Pollinations es SIEMPRE la última** (red de seguridad final).
+- **Pollinations NUNCA entra en cooldown** (`neverCooldown: true` en el catálogo; `markCooldown()` lo respeta). Un fallo transitorio jamás puede apagar el último recurso.
+- Las fuentes limitadas por **RPM** (no por día) declaran cooldown **corto** (`cooldownMinutes: 3` en OVH/LLM7): su cuota se recupera en segundos.
+- **Timeouts generosos y por fuente** (`CatalogSource.timeoutMs`): Pollinations 60 s, OVH/LLM7 45 s, nube 40 s por defecto.
+- Cada paso va envuelto en **`Promise.resolve().then(step)`** — un throw síncrono escaparía del `catch` y rompería el failover entero.
+- **`detectAvailabilitySafe()`**: nunca lanza, tiene timeout global y, en el peor caso, devuelve las fuentes sin clave como listas.
+- Toda llamada a la **Prompt API** del navegador (`availability()` incluida) va topada con `Promise.race` + timeout.
+- **Último recurso REAL antes de rendirse:** si el navegador trae un modelo YA listo (`chromeAiReadyNow()` → solo `available`/`readily`, nunca dispara una descarga), Aurora responde con él sin red. Solo si eso tampoco existe se emite la respuesta local honesta (§17.1), que ahora además detecta `navigator.onLine === false` y lo dice.
+
+### 22.3 · OpenRouter, funcionando de verdad
+
+OpenRouter tenía **adaptador prestado**: en `providers/index.ts` era un spread de `openaiProvider` con otra `info` (y modelos por defecto obsoletos como `google/gemini-pro`). Consecuencias: nunca enviaba las cabeceras que OpenRouter espera de una app web, se atragantaba con sus keep-alive SSE, y no distinguía gratis de pago.
+
+Ahora hay **`src/ai/providers/openrouter.ts`**, adaptador dedicado:
+- Envía **`HTTP-Referer`** (origen real de la app) y **`X-Title`** (`StarSeed OS · Aurora`). Verificado: el CORS de OpenRouter permite ambas.
+- **Ignora los comentarios SSE** (`: OPENROUTER PROCESSING`), que son keep-alive mientras espera al proveedor.
+- **Errores accionables**: 401/403 → "revisa tu clave"; **402** → "ese modelo no es gratuito" (y el router sigue con los `:free`).
+- `listOpenRouterFreeModels()` lee el catálogo **público** (`GET /api/v1/models`, sin clave) para descubrir qué `:free` existen HOY.
+- La fuente del catálogo lleva **`preferFreeModels: true`**: en `scoreModelForTask()` los `:free` suman +4 y los de pago restan −5 ⇒ **Aurora jamás gasta créditos del usuario por su cuenta**.
+- Ids de modelo **re-verificados** contra el catálogo en vivo (343 modelos, 21 con sufijo `:free`).
+
+Y, sobre todo: **ahora se puede pegar la clave donde se te dice que la pegues.** Antes, Ajustes → Inteligencia solo ofrecía un enlace externo y la clave había que crearla a mano en OTRO panel con la URL base exacta; si no coincidía carácter a carácter con la del catálogo, `userConfigForSource()` no reconocía la fuente y OpenRouter "no funcionaba". El componente `SourceKeyInput` (`intelligence-panel.tsx`) guarda la clave **en la propia fila de la fuente**, con el `baseUrl` y el adaptador correctos del catálogo, cifrada con AES-GCM en el dispositivo (nunca viaja a la cuenta).
+
+Bug adyacente corregido en `runCandidate()`: usaba `chat({ providerId: cfg.id })`, que en el camino de config guardada busca **la primera** config habilitada con ese id. Con varios servicios distintos bajo el mismo `openai-compatible` (LM Studio, Cerebras, OpenRouter, LLM7…) podía mandar la petición **al endpoint equivocado con la clave equivocada**. Ahora se resuelve explícitamente: adaptador del catálogo + `baseUrl` y clave **de la config concreta que sirve a esa fuente**.
+
+### 22.4 · Catálogo ampliado (P3-3 · awesome-freellm-apis)
+
+De `open-free-llm-api/awesome-freellm-apis` (169+ APIs, 27 proveedores, refrescado a diario) se integraron, **verificando cada endpoint con `curl`**:
+
+- **Sin clave** (`instant`): OVHcloud anónimo, LLM7.io. → §22.2
+- **Con clave gratuita** (`free-key`): **HuggingFace Inference** (`router.huggingface.co/v1`), **Ollama Cloud** (`ollama.com/v1`), **ModelScope** (2.000 req/día), **Z.ai / GLM Flash** (gratis permanente, texto+visión), **Nscale**, **SiliconFlow**.
+
+`free-llm-sync.ts` deja de leer la lista antigua (`cheahjs/free-llm-api-resources`) y apunta a este repo, que sigue vivo y se actualiza solo.
+
+**Honestidad sobre lo que NO se añadió:**
+- **Hack Club AI** (`ai.hackclub.com`) — citado en varias listas como "gratis sin clave": **está muerto** (404 en todas sus rutas). No se añade.
+- **Together AI** — su tier gratuito ya no aparece en la lista actualizada; sin poder verificarlo, no se añade.
+- **FckSignups** (P3-2) — evaluado: es un **directorio de herramientas web sin registro**, no expone ninguna API de inferencia LLM. No hay nada que integrar como fuente. Su *principio* (nada de muros de registro) es exactamente lo que implementa §22.2: un invitado tiene tres cerebros de verdad sin dar un solo dato.
+- **Hugging Bay** (P3-1) — ya estaba integrado (§14) y se confirma **vivo** (API 200): es capa de **descubrimiento** de modelos (licencia, confianza, comando de instalación local), **no de inferencia**. Su sitio correcto es el que ya ocupa.
+
+### 22.5 · Auto-selección inteligente y pin por personalidad (P3)
+
+**La regla:** Aurora elige **siempre, sola, la mejor opción GRATUITA disponible** — ranking por disponibilidad real → calidad → fortaleza en la tarea → dificultad estimada (RouteLLM) → coste (0 primero) → privacidad.
+
+**El "salvo que":** la **personalidad activa** puede fijar fuente/modelo, para un **sentido** concreto o para toda Aurora. `PersonalityProfile.intelligence` (`src/lib/aurora/personalities.ts`):
+
+```ts
+intelligence: {
+  modo: "auto" | "fija",            // "auto" (defecto) = manda el router
+  global?:     { fuente?, modelo? },
+  porSentido?: { texto | voz | vision | codigo | razonamiento → { fuente?, modelo? } },
+  permitirPago: boolean,            // false por defecto: ni una personalidad "fija" gasta dinero sola
+}
+```
+
+`intelligencePinFor(persona, sentido)` resuelve `porSentido` → `global` → `null`. El router mapea tarea→sentido (`senseForTask`) y coloca la fuente fijada **la primera** de la cadena… **sin hacerla exclusiva**: si falla, la cadena automática sigue detrás. Un pin obsoleto **nunca** deja al usuario sin respuesta (autocorrección silenciosa; el registro de rutas de Ajustes → Inteligencia lo cuenta todo).
+
+### 22.6 · Verificación (no "debería funcionar": funciona)
+
+Cadena de failover completa **sin ninguna clave**, con las cabeceras exactas que envía el adaptador (`Authorization: Bearer ` vacío) y User-Agent de navegador:
+
+```
+ovh-anonymous        Qwen3.5-397B-A17B          HTTP 200   'HOLA'
+ovh-anonymous        Qwen2.5-VL-72B-Instruct    HTTP 200   'HOLA'      ← visión, gratis, sin clave
+llm7-free            gemma3:27b                 HTTP 200   'HOLA'
+pollinations-text    openai                     HTTP 200   'HOLA'
+```
+
+`npx tsc --noEmit` → **0 errores** (42 s, sin caché). `npm run build` → **Compiled successfully**, 92/92 páginas.

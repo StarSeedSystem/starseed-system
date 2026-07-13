@@ -109,6 +109,48 @@ export function isCoarsePointer(): boolean {
   }
 }
 
+/** ¿Es ANDROID? (su SpeechRecognition tiene reglas propias: ver isMobileDevice). */
+export function isAndroidDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  try {
+    return /android/i.test(navigator.userAgent || "");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ¿Es un DISPOSITIVO MÓVIL (Android / iOS / tablet táctil)?
+ * ----------------------------------------------------------------------------
+ * REGLA DE ORO DEL PROYECTO (Adenda 67 · P0-3, y el bug del "glitch loop"):
+ * **en móvil NO se retiene el micrófono con `getUserMedia`**. Android Chrome
+ * entrega el micrófono a UN solo consumidor: si mantenemos abierto un
+ * `getUserMedia` (precarga de permiso, analizador del halo del orbe, medidor de
+ * nivel…), el `SpeechRecognition` se queda SORDO — arranca, no recibe audio y
+ * termina en `no-speech` una y otra vez.
+ *
+ * Por eso todo módulo que vaya a tocar `getUserMedia` debe preguntar aquí antes
+ * y abstenerse (o, como mucho, hacer un sondeo puntual de permiso y SOLTARLO de
+ * inmediato, dejando un respiro antes de arrancar el reconocimiento).
+ */
+export function isMobileDevice(): boolean {
+  if (typeof navigator === "undefined" && typeof window === "undefined") return false;
+  try {
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+    if (/android|iphone|ipad|ipod|windows phone|mobile/i.test(ua)) return true;
+    // iPadOS 13+ se anuncia como Mac: lo delata el táctil.
+    const touchMac =
+      /macintosh/i.test(ua) &&
+      typeof navigator !== "undefined" &&
+      (navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints !== undefined &&
+      ((navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints ?? 0) > 1;
+    if (touchMac) return true;
+    return isCoarsePointer();
+  } catch {
+    return false;
+  }
+}
+
 /**
  * ¿Corre como APP INSTALADA (PWA standalone / TWA / app dedicada) y NO como una
  * pestaña web normal? SOLO en la app instalada dejamos la ESCUCHA DE FONDO

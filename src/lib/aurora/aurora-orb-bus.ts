@@ -21,6 +21,9 @@
  * 100% aditivo y defensivo: nada aquí rompe el funcionamiento actual de Aurora.
  */
 
+// En MÓVIL nunca abrimos un getUserMedia paralelo (compite con el STT).
+import { isMobileDevice } from "@/lib/aurora/voice-autonomy";
+
 // ── Claves de localStorage ───────────────────────────────────────────────────
 export const AURORA_ORB_POS_KEY = "starseed.aurora.orb.pos.v1";
 export const AURORA_ORB_HIDDEN_KEY = "starseed.aurora.orb.hidden.v1";
@@ -386,11 +389,12 @@ export function isMicAnalyserDisabled(): boolean {
 
 async function buildMicShared(): Promise<MicShared | null> {
   try {
-    // ANDROID: NO abrir un getUserMedia paralelo para el analizador — en Android
-    // Chrome compite con SpeechRecognition y provoca el loop "escuchando sin
-    // reconocer". La iluminación del orbe cae al latido por eventos de voz.
-    const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
-    if (/android/i.test(ua)) {
+    // MÓVIL (Android/iOS): NO abrir un getUserMedia paralelo para el analizador.
+    // El micrófono del móvil tiene UN solo dueño: esta captura compite con el
+    // `SpeechRecognition` y provoca el loop "escuchando sin reconocer" (Aurora
+    // sorda). Regla del proyecto (Adenda 67 · P0-3): en móvil, CERO getUserMedia
+    // retenido. La iluminación del orbe cae al latido por eventos de voz.
+    if (isMobileDevice()) {
       micDisabledForSession = true;
       return null;
     }

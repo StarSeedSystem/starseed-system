@@ -20,11 +20,13 @@
  */
 
 import { chat, type ChatRequest } from "@/ai/client/chat";
+import { decryptKey } from "@/ai/client/keyStorage";
 import type { ChatMessage, ChatResponse } from "@/ai/providers/types";
 import {
   FREE_CATALOG,
   TASK_LABELS,
   findSource,
+  keylessCloudSources,
   paidSuggestionsFor,
   scoreModelForTask,
   toProviderModel,
@@ -32,14 +34,22 @@ import {
   type CatalogSource,
   type TaskKind,
 } from "./free-catalog";
-import { detectAvailability, userConfigForSource, type SourceAvailability } from "./availability";
-import { chromeAiChat, webllmChat, transformersChat } from "./builtin-engines";
+import { detectAvailabilitySafe, userConfigForSource, type SourceAvailability } from "./availability";
+import { chromeAiChat, chromeAiReadyNow, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown } from "./usage";
 import { skillsSystemPrompt, skillsRoutingBias } from "./skills";
 // Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
 // la personalidad resuelta por contexto (chat > cerebro > sección > global).
 // Aditivo y tolerante: sin personalidad activa, no cambia NADA.
-import { resolvePersonalityForContext, compilePersonalityPrompt, sectionFromPath } from "@/lib/aurora/personalities";
+// Adenda 67 §P3: además de la voz y el estilo, la personalidad puede FIJAR la
+// fuente/modelo de inteligencia por sentido (`intelligencePinFor`).
+import {
+  resolvePersonalityForContext,
+  compilePersonalityPrompt,
+  sectionFromPath,
+  intelligencePinFor,
+  type AuroraSense,
+} from "@/lib/aurora/personalities";
 import { systemContextPrompt, screenContextLine, activeProvidersLine } from "./context";
 import { buildUserContext, getUserContextSettings } from "./user-context";
 import { modeForCategory } from "./provider-resolution";
@@ -461,13 +471,33 @@ export interface AstrauraChatRequest {
   forceSource?: { sourceId: string; modelId: string };
 }
 
-/** Tiempo máximo por candidato antes de pasar al siguiente (nunca cuelga). */
+/**
+ * Tiempo máximo por candidato antes de pasar al siguiente (nunca cuelga).
+ *
+ * (Adenda 67 · P0-2) Los timeouts son GENEROSOS a propósito: con 30 s fijos,
+ * Pollinations —que en horas punta encola y puede tardar ~40 s— se declaraba
+ * "fallida" cuando en realidad iba a responder. Al ser la única fuente del
+ * invitado, cada timeout prematuro se traducía en "no conseguí respuesta".
+ * Cada fuente puede declarar su propio `timeoutMs` en el catálogo.
+ */
 function candidateTimeoutMs(c: RouteCandidate): number {
+  if (typeof c.source.timeoutMs === "number" && c.source.timeoutMs > 0) return c.source.timeoutMs;
   // Modelos de navegador ya instalados pueden tardar más en la 1ª carga tras un
   // reinicio; el resto (nube/local HTTP) debe responder rápido o cedemos el turno.
   if (c.source.privacy === "browser") return 90_000;
   if (c.source.privacy === "local") return 20_000;
-  return 30_000;
+  return 40_000;
+}
+
+/** Sentido de Aurora al que corresponde una clase de tarea (para el pin de personalidad). */
+export function senseForTask(kind: TaskKind): AuroraSense {
+  switch (kind) {
+    case "fast": return "voz";
+    case "vision": return "vision";
+    case "code": return "codigo";
+    case "reasoning": return "razonamiento";
+    default: return "texto";
+  }
 }
 
 /** Antepone/mezcla un bloque de system prompt (Capacidades de Aurora) sin
@@ -551,18 +581,39 @@ async function runCandidate(c: RouteCandidate, req: AstrauraChatRequest): Promis
       },
     });
   }
-  // Config del usuario si existe (lleva su clave); si no, override sin clave
-  // (Pollinations/locales). Las free-key sin config NO llegan aquí (ready=false).
+  // Motores de navegador que NO tienen adaptador HTTP: si llegaran aquí por el
+  // camino genérico se enviaría un POST a "builtin://…" (fallo opaco). Fallamos
+  // rápido y con un mensaje claro → el failover pasa a la siguiente fuente.
+  if (c.source.baseUrl.startsWith("builtin://")) {
+    throw new Error(`Motor local "${c.source.label}" no disponible en este contexto.`);
+  }
+
+  // ── Resolución de credencial y endpoint (Adenda 67 · P0-2) ────────────────
+  // Antes: `chat({ providerId: cfg.id })` → el camino de config guardada busca
+  // la PRIMERA config habilitada con ese id. Con varios servicios distintos bajo
+  // el mismo id "openai-compatible" (LM Studio, Cerebras, OpenRouter, LLM7…) eso
+  // podía mandar la petición al ENDPOINT EQUIVOCADO con la CLAVE equivocada.
+  // Ahora resolvemos explícitamente: adaptador del catálogo + baseUrl y clave de
+  // la config concreta que sirve a ESTA fuente.
   const cfg = userConfigForSource(c.source);
-  if (cfg) {
-    return chat({ ...base, providerId: cfg.id, model: c.model.id === "local-model" ? cfg.defaultModel : c.model.id });
+  const modelId = c.model.id === "local-model" && cfg?.defaultModel ? cfg.defaultModel : c.model.id;
+  let apiKey = "";
+  if (cfg?.encryptedKey) {
+    // Passphrase por defecto ("") — la misma que usa chat() cuando no se le pasa.
+    try { apiKey = await decryptKey(cfg.encryptedKey, ""); } catch { apiKey = ""; }
+  }
+  if (c.source.requiresKey && !apiKey) {
+    throw new Error(`${c.source.label}: falta la clave (conéctala en Ajustes → Inteligencia).`);
   }
   return chat({
     ...base,
     providerOverride: {
       providerId: c.source.providerId,
-      baseUrl: c.source.baseUrl,
-      model: c.model.id,
+      baseUrl: cfg?.baseUrl || c.source.baseUrl,
+      model: modelId,
+      // Fuentes `keyOptional` (LLM7, OVH): si el usuario puso clave, sube sus
+      // límites; si no, se llama sin ella y funciona igual.
+      apiKey,
       label: c.source.label,
     },
   });
@@ -587,11 +638,15 @@ function buildHonestFallback(
   const triedLabels = failovers
     .map((f) => findSource(f.sourceId)?.label ?? f.sourceId)
     .filter(Boolean);
+  const uniqueTried = Array.from(new Set(triedLabels));
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
   const lines: string[] = [
-    triedLabels.length
-      ? `No conseguí respuesta de ninguna fuente de inteligencia ahora mismo (probé: ${triedLabels.join(", ")}).`
+    uniqueTried.length
+      ? `No conseguí respuesta de ninguna fuente de inteligencia ahora mismo (probé ${uniqueTried.length}: ${uniqueTried.join(", ")}).`
       : "No conseguí respuesta de ninguna fuente de inteligencia ahora mismo (no encontré ninguna disponible).",
-    "Puede ser un corte de conexión, un límite gratuito agotado, o que esas fuentes estén saturadas — no es que no quiera ayudarte; te lo digo con honestidad en vez de fingir una respuesta.",
+    offline
+      ? "Tu dispositivo está SIN CONEXIÓN: ninguna fuente de red puede responder. En cuanto vuelva internet, Aurora funciona sola."
+      : "Fallaron incluso las fuentes gratuitas que no necesitan clave, así que lo más probable es un corte de red o un cortafuegos — no es que no quiera ayudarte; te lo digo con honestidad en vez de fingir una respuesta.",
   ];
 
   const actions: string[] = [];
@@ -664,9 +719,12 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // compilada a un bloque en español. Tolerante: si nada está activo o algo
   // falla, personaText="" y el prompt queda EXACTAMENTE igual que antes.
   let personaText = "";
+  // `persona` se eleva al ámbito de la función: además del prompt, la Adenda 67
+  // la usa para el PIN de inteligencia (fuente/modelo fijados por sentido).
+  let persona: ReturnType<typeof resolvePersonalityForContext> = null;
   try {
     const section = typeof window !== "undefined" ? sectionFromPath(window.location.pathname) : undefined;
-    const persona = resolvePersonalityForContext({ section, chatId: req.chatId, brainId: req.brainId });
+    persona = resolvePersonalityForContext({ section, chatId: req.chatId, brainId: req.brainId });
     if (persona) personaText = compilePersonalityPrompt(persona);
   } catch { /* defensivo: sin personalidad, Aurora sigue igual */ }
   let ctxText = "";
@@ -708,25 +766,40 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   }
   if (capBias.vision) profile.needsVision = true;
   req.onStatus?.("Eligiendo la mejor inteligencia…");
-  const avail = await detectAvailability();
+  // BLINDADO (Adenda 67 · P0-2): `detectAvailability()` se llamaba a pelo, fuera
+  // de todo try/catch. Un throw aquí (localStorage corrupto, sonda colgada) mataba
+  // la respuesta ANTES de entrar al failover. `detectAvailabilitySafe` nunca lanza
+  // y, en el peor caso, devuelve las fuentes SIN CLAVE como listas.
+  const avail = await detectAvailabilitySafe();
   const candidates = rankCandidates(profile, avail, prefs);
 
-  if (!candidates.length) {
-    // GARANTÍA DE RESPUESTA ("Aurora siempre responde"): ni siquiera hay
-    // candidatos (caso extremo — catálogo vacío/offline total). NUNCA un error
-    // crudo: respuesta local honesta explicando qué pasó + alternativas.
-    const rec = honestFallbackRecord(profile, [], avail, undefined);
-    pushRouteRecord(rec);
-    req.onStatus?.("");
-    return { text: buildHonestFallback(profile, [], avail), route: rec };
-  }
-
   const failovers: { sourceId: string; error: string }[] = [];
+
+  // ── Cadena de failover ────────────────────────────────────────────────────
   // Saltamos fuentes en cooldown (cuota agotada / 429 reciente): así Aurora
   // SIEMPRE sigue funcionando con la siguiente mejor opción disponible.
   let chain = candidates.filter((c) => !isCoolingDown(c.source.id)).slice(0, 8);
   // Si TODO estaba en cooldown, reintenta igualmente con la mejor (por si ya pasó).
   if (!chain.length && candidates.length) chain.push(candidates[0]);
+
+  // PIN DE PERSONALIDAD (Adenda 67 · P3): si la personalidad activa FIJA una
+  // fuente/modelo para este sentido, va PRIMERA. No es exclusiva: si falla, la
+  // cadena automática sigue detrás (autocorrección silenciosa — el usuario nunca
+  // se queda sin respuesta por un pin obsoleto).
+  const pin = intelligencePinFor(persona, senseForTask(profile.kind));
+  let pinnedFirst: RouteCandidate | undefined;
+  if (pin) {
+    pinnedFirst = candidates.find(
+      (c) =>
+        (!pin.fuente || c.source.id === pin.fuente) &&
+        (!pin.modelo || c.model.id === pin.modelo),
+    );
+    if (pinnedFirst) {
+      const p = pinnedFirst;
+      chain = [p, ...chain.filter((c) => c !== p)];
+    }
+  }
+
   // REINTENTAR con proveedor elegido a mano (menú contextual de mensajes,
   // "Reintentar"): si sigue disponible AHORA se prueba en solitario; si ya no
   // lo está, degradamos con normalidad al ranking automático de arriba (nunca
@@ -737,19 +810,47 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     );
     if (forced) chain = [forced];
   }
-  // ÚLTIMO RECURSO garantizado: Pollinations (gratis, SIN clave, siempre disponible).
-  // Así Aurora casi NUNCA tiene que decir "hubo un error": si por lo que sea no
-  // quedó en la cadena, lo añadimos al final para que SIEMPRE haya una IA que
-  // responda antes de rendirse.
-  if (!chain.some((c) => c.source.id === "pollinations-text")) {
-    const fb = candidates.find((c) => c.source.id === "pollinations-text");
+
+  // ÚLTIMOS RECURSOS GARANTIZADOS (la raíz del bug P0-2).
+  // Antes solo se añadía Pollinations al final… y Pollinations era, además, la
+  // ÚNICA fuente sin clave del catálogo: la "cadena de failover" de un invitado
+  // era una cadena de UN eslabón. Si Pollinations encolaba, daba 404 en un modelo
+  // muerto o se enfriaba por un 429, Aurora se quedaba SIN CEREBRO.
+  // Ahora garantizamos que TODAS las fuentes gratis-SIN-CLAVE (OVHcloud anónimo,
+  // LLM7.io, Pollinations) estén al final de la cadena, en orden de calidad, y
+  // Pollinations SIEMPRE la última (nunca se enfría, es la red de seguridad final).
+  for (const src of keylessCloudSources()) {
+    if (prefs.disabledSources.includes(src.id)) continue;
+    if (chain.some((c) => c.source.id === src.id)) continue;
+    const fb = candidates.find((c) => c.source.id === src.id);
     if (fb) chain.push(fb);
   }
+  // Pollinations SIEMPRE la última (red de seguridad final: nunca se enfría, pero
+  // es la más lenta y la de menor calidad). `sort` es estable en JS ⇒ el resto de
+  // la cadena conserva su orden de ranking.
+  // EXCEPCIONES: si el usuario forzó una fuente a mano (`forceSource`) o la
+  // personalidad la fijó (`pinnedFirst`), su elección MANDA — no la degradamos.
+  const respectExplicitChoice = !!req.forceSource || !!pinnedFirst;
+  if (!respectExplicitChoice) {
+    chain.sort(
+      (a, b) =>
+        Number(a.source.id === "pollinations-text") - Number(b.source.id === "pollinations-text"),
+    );
+  }
+
   for (const c of chain) {
     const t0 = Date.now();
     try {
       req.onStatus?.(`Usando ${c.source.label} · ${c.model.label}…`);
-      const res = await withTimeout(runCandidate(c, reqX), candidateTimeoutMs(c), c.source.label);
+      // REGLA DURA DEL PROYECTO: `Promise.resolve().then(step)`. Si `runCandidate`
+      // lanzara de forma SÍNCRONA (antes del primer await — p.ej. `getProvider()`
+      // con un id desconocido), el throw escaparía del `try` y ROMPERÍA todo el
+      // failover en vez de pasar a la siguiente fuente.
+      const res = await withTimeout(
+        Promise.resolve().then(() => runCandidate(c, reqX)),
+        candidateTimeoutMs(c),
+        c.source.label,
+      );
       // Respuesta vacía = fallo real: NO la mostramos, pasamos a la siguiente IA.
       if (!res || !String(res.text ?? "").trim()) throw new Error("respuesta vacía");
       // Registra el uso (peticiones/tokens) para el panel de uso y límites.
@@ -793,6 +894,53 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       }
       failovers.push({ sourceId: c.source.id, error: msg.slice(0, 200) });
     }
+  }
+
+  // ── ÚLTIMO RECURSO REAL: el modelo del PROPIO NAVEGADOR ───────────────────
+  // Toda la cadena de red falló (offline, cortafuegos, todas las cuotas
+  // agotadas…). Antes de rendirnos: si este navegador trae la Prompt API con un
+  // modelo YA LISTO (Gemini Nano descargado), Aurora responde con él. Es IA de
+  // verdad, sin red y sin coste. Solo si está "available"/"readily" — jamás
+  // dispara una descarga de GB sin permiso — y siempre topado con timeout.
+  try {
+    if (await chromeAiReadyNow()) {
+      req.onStatus?.("Usando la IA de tu navegador (sin red)…");
+      const t0 = Date.now();
+      const res = await withTimeout(
+        Promise.resolve().then(() => chromeAiChat(reqX.messages, { signal: req.signal, onChunk: req.onChunk })),
+        60_000,
+        "IA del navegador",
+      );
+      if (res && String(res.text ?? "").trim()) {
+        const src = findSource("chrome-ai");
+        const rec: RouteRecord = {
+          at: Date.now(),
+          task: profile.kind,
+          taskLabel: TASK_LABELS[profile.kind],
+          sourceId: "chrome-ai",
+          sourceLabel: src?.label ?? "IA del navegador",
+          model: "gemini-nano",
+          modelLabel: "Gemini Nano (integrado)",
+          providerModel: "browser/gemini-nano",
+          tier: "instant",
+          free: true,
+          reason: "Ninguna fuente de red respondió; usé el modelo local de tu navegador.",
+          ok: true,
+          ms: Date.now() - t0,
+          difficulty: profile.difficulty,
+          alternatives: [],
+          paidSuggestions: [],
+          failovers,
+          attempts: failovers.length + 1,
+        };
+        try { noteUsage("chrome-ai", "gemini-nano"); } catch { /* */ }
+        pushRouteRecord(rec);
+        req.onStatus?.("");
+        return { ...res, route: rec };
+      }
+    }
+  } catch (e: any) {
+    failovers.push({ sourceId: "chrome-ai", error: String(e?.message ?? e).slice(0, 200) });
   }
 
   // Toda la cadena falló: GARANTÍA DE RESPUESTA — NUNCA un error crudo. En vez

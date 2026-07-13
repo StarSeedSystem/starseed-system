@@ -29,14 +29,21 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
-import { TASK_LABELS, findSource, type TaskKind, type SourceTier } from "@/ai/astraura/free-catalog";
+import { Input } from "@/components/ui/input";
+import { encryptKey } from "@/ai/client/keyStorage";
+import { loadConfigs, saveConfigs } from "@/ai/client/providerStore";
+import type { ProviderConfig, ProviderId } from "@/ai/providers/types";
+import { TASK_LABELS, findSource, type TaskKind, type SourceTier, type CatalogSource } from "@/ai/astraura/free-catalog";
 import { activeCapabilities, type SkillCapability } from "@/ai/astraura/skills";
 import {
   DOWNLOADABLE_SOURCES, DOWNLOAD_SIZES, MODEL_DOWNLOAD_EVENT, INSTALLED_MODELS_EVENT,
   isDownloadableSource, installModelInBackground, isModelInstalled, isDownloading,
   downloadProgress, markModelUninstalled,
 } from "@/ai/astraura/installed-models";
-import { detectAvailability, summarizeAvailability, type SourceAvailability } from "@/ai/astraura/availability";
+import {
+  detectAvailability, summarizeAvailability, userConfigForSource,
+  type SourceAvailability,
+} from "@/ai/astraura/availability";
 import {
   DEFAULT_INTELLIGENCE, getIntelligenceSettings, saveIntelligenceSettings,
   readRouteLog, ROUTE_EVENT,
@@ -86,16 +93,164 @@ function usageBarColor(pct: number): string {
  * catálogo, esa entrada simplemente se omite (degradación defensiva).
  */
 const FREE_KEY_SERVICE_IDS = [
+  "openrouter-free",
   "groq-free",
   "gemini-free",
-  "openrouter-free",
   "cerebras-free",
+  // Adenda 67 · P3-3 (awesome-freellm-apis): nuevas fuentes gratuitas verificadas.
+  "huggingface-router",
+  "ollama-cloud",
+  "modelscope-free",
+  "zai-free",
+  "nscale-free",
+  "siliconflow-free",
   "cloudflare-workers-ai",
   "cohere-free",
   "mistral-free",
   "github-models-free",
   "sambanova-free",
 ] as const;
+
+/**
+ * (Adenda 67 · P0-2) CONECTAR UNA CLAVE **AQUÍ MISMO**.
+ *
+ * Antes, este panel decía "conecta una clave gratuita de OpenRouter" y solo
+ * ofrecía un enlace externo: la clave había que pegarla en OTRO panel (Ajustes →
+ * IA & Modelos), creando una config a mano con la URL base exacta. Si esa URL no
+ * coincidía carácter a carácter con la del catálogo, el router NO reconocía la
+ * fuente y OpenRouter "no funcionaba". Ahora la clave se pega en la misma fila
+ * de la fuente y se guarda con el `baseUrl` y el adaptador CORRECTOS del catálogo.
+ *
+ * La clave se cifra (AES-GCM, `encryptKey`) con la passphrase por defecto — la
+ * misma que usa `chat()` — y NUNCA se sincroniza con la cuenta.
+ */
+function SourceKeyInput({ source, onSaved }: { source: CatalogSource; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const [account, setAccount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [hasKey, setHasKey] = useState(false);
+
+  // Algunas fuentes (Cloudflare) llevan un hueco en la URL: {ACCOUNT}.
+  const needsAccount = source.baseUrl.includes("{ACCOUNT}");
+
+  const refresh = useCallback(() => {
+    try { setHasKey(!!userConfigForSource(source)?.encryptedKey); } catch { setHasKey(false); }
+  }, [source]);
+  useEffect(() => { refresh(); }, [refresh]);
+
+  async function save() {
+    const key = value.trim();
+    if (!key) return;
+    if (needsAccount && !account.trim()) {
+      toast.error("Falta el Account ID de Cloudflare.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const enc = await encryptKey(key, "");
+      const baseUrl = needsAccount
+        ? source.baseUrl.replace("{ACCOUNT}", account.trim())
+        : source.baseUrl;
+      const configs = loadConfigs();
+      const norm = (u: string) => (u || "").replace(/\/+$/, "").toLowerCase();
+      const idx = configs.findIndex(
+        (c) =>
+          norm(c.baseUrl) === norm(baseUrl) ||
+          norm(c.baseUrl) === norm(source.baseUrl) ||
+          (source.providerId !== "openai-compatible" && source.providerId !== "starseed" && c.id === source.providerId),
+      );
+      const next: ProviderConfig = {
+        id: source.providerId as ProviderId,
+        label: source.label,
+        baseUrl,
+        encryptedKey: enc,
+        models: source.models.map((m) => m.id),
+        defaultModel: source.models[0]?.id ?? "",
+        enabled: true,
+      };
+      if (idx >= 0) configs[idx] = { ...configs[idx], ...next };
+      else configs.push(next);
+      saveConfigs(configs);
+      setValue("");
+      setAccount("");
+      setOpen(false);
+      refresh();
+      onSaved();
+      toast.success(`${source.label} conectado. Aurora ya puede usarlo.`);
+    } catch {
+      toast.error("No se pudo guardar la clave.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function remove() {
+    try {
+      const cfg = userConfigForSource(source);
+      if (!cfg) return;
+      const configs = loadConfigs().map((c) =>
+        c === cfg || (c.id === cfg.id && c.baseUrl === cfg.baseUrl)
+          ? { ...c, encryptedKey: "", enabled: false }
+          : c,
+      );
+      saveConfigs(configs);
+      refresh();
+      onSaved();
+      toast.success(`Clave de ${source.label} eliminada.`);
+    } catch {
+      toast.error("No se pudo eliminar la clave.");
+    }
+  }
+
+  if (!open) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="cursor-pointer h-7 px-2 text-[11px]"
+        onClick={() => (hasKey ? remove() : setOpen(true))}
+        title={hasKey ? "Quitar la clave guardada" : `Pegar tu clave de ${source.label}`}
+      >
+        <KeyRound className="h-3.5 w-3.5 mr-1" />
+        {hasKey ? "Quitar clave" : "Pegar clave"}
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 w-full max-w-xs">
+      {needsAccount && (
+        <Input
+          value={account}
+          onChange={(e) => setAccount(e.target.value)}
+          placeholder="Account ID de Cloudflare"
+          className="h-7 text-xs"
+        />
+      )}
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void save(); }}
+          placeholder={`Clave de ${source.label}`}
+          autoFocus
+          className="h-7 text-xs"
+        />
+        <Button size="sm" className="h-7 px-2 text-[11px] cursor-pointer" disabled={busy || !value.trim()} onClick={() => void save()}>
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar"}
+        </Button>
+        <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] cursor-pointer" onClick={() => { setOpen(false); setValue(""); }}>
+          Cancelar
+        </Button>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Se cifra en este dispositivo. Nunca viaja a la cuenta ni a StarSeed.
+      </p>
+    </div>
+  );
+}
 
 /** Icono lucide por tipo de sugerencia de Aurora. */
 const SUGGESTION_ICON: Record<SuggestionKind, typeof Gauge> = {
@@ -508,8 +663,18 @@ export function IntelligencePanel() {
                       Modelo local descargable · opcional. Aurora sigue con la mejor alternativa gratis mientras.
                     </p>
                   )}
+                  {/* Fuentes SIN clave que aceptan una opcional para subir límites. */}
+                  {a.source.keyOptional && (
+                    <p className="text-[10px] text-emerald-300/80 mt-1">
+                      Funciona SIN clave. Si añades una (gratuita), sube sus límites.
+                    </p>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {/* Pegar la clave AQUÍ MISMO (free-key + keyOptional). */}
+                  {(a.source.requiresKey || a.source.keyOptional) && (
+                    <SourceKeyInput source={a.source} onSaved={() => void detect()} />
+                  )}
                   {isDownloadableSource(a.source.id) && (
                     <DownloadableModelButton sourceId={a.source.id} label={a.source.label} />
                   )}

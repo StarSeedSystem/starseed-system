@@ -54,7 +54,8 @@ import { buildSystemKnowledge } from "@/lib/aurora/system-knowledge";
 import { containsWake, stripWake } from "@/lib/aurora/wake-word";
 // ¿App instalada? Solo ahí mantenemos el micrófono abierto en 2º plano; en la
 // web, al terminar la conversación se APAGA (no hay escucha de fondo).
-import { isInstalledApp } from "@/lib/aurora/voice-autonomy";
+// `isMobileDevice` gobierna las reglas de STT en móvil (ver §Android más abajo).
+import { isInstalledApp, isMobileDevice } from "@/lib/aurora/voice-autonomy";
 // Descriptor de "Revertir cambios" (Adenda "Aurora siempre responde", jul-2026).
 import type { AuroraUndoInfo } from "@/lib/aurora/undo";
 // VOZ NATURAL + ESTILO VIVO (Adenda voz de Aurora, jul-2026): ranking de voces
@@ -216,7 +217,22 @@ export interface AuroraEngine {
   engage: () => void;
   /** Vuelve al fondo pasivo silencioso sin apagar el micrófono. */
   disengage: () => void;
+  /**
+   * Fallo FATAL del reconocimiento (o null si todo va bien). El supervisor lo
+   * traduce a `voiceUnavailable` para que la UI NUNCA se quede sorda en
+   * silencio: si el STT muere, el orbe lo dice y ofrece reintentar / dar
+   * permiso. Ver §Android en `buildRecognition`.
+   */
+  sttFatal: SttFatal | null;
 }
+
+/**
+ * Motivo por el que el reconocimiento de voz quedó FUERA DE JUEGO.
+ *   · 'not-allowed' / 'service-not-allowed' → falta el PERMISO de micrófono.
+ *   · 'audio-capture' → el micrófono está ocupado (otra app/pestaña) o no existe.
+ *   · 'failed' → demasiados arranques rotos seguidos (el motor se rindió).
+ */
+export type SttFatal = "not-allowed" | "service-not-allowed" | "audio-capture" | "failed";
 
 /**
  * Guard SINGLETON a nivel de módulo: garantiza que SOLO una instancia del motor
@@ -383,15 +399,14 @@ export function useAuroraEngine(): AuroraEngine {
   // Mantener-vivo: si está activo, el reconocimiento se reinicia solo al terminar
   // (clave para que la voz NO se corte al navegar entre rutas/secciones del OS).
   const keepAliveRef = useRef<boolean>(false);
-  // ── Anti-loop de Android (STT) ──
-  // En Android Chrome `continuous=true` no es fiable: `onend` se dispara al
-  // instante sin resultados y el auto-reinicio entra en bucle ("escuchando sin
-  // reconocer"). Estos refs implementan un backoff y un tope de reinicios sin
-  // habla para NO martillar el micrófono y dejar que el supervisor muestre el
-  // reintento en vez de un loop infinito.
+  // ── Salud del STT (anti-loop) ─────────────────────────────────────────────
+  // Contador de arranques ROTOS consecutivos (ver `buildRecognition`). Un ciclo
+  // normal de Android (termina tras cada frase, o por silencio) NO cuenta como
+  // roto: solo cuenta el reconocimiento que muere NADA MÁS arrancar sin audio.
   const sttRestartsRef = useRef<number>(0);
-  const sttLastResultAtRef = useRef<number>(0);
   const sttRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Fallo fatal visible (permiso denegado / micro ocupado / se rindió).
+  const [sttFatal, setSttFatal] = useState<SttFatal | null>(null);
   // (La supresión de eco es GLOBAL: ttsGuardActive() a nivel de módulo, arriba.)
   // ── MEDIO-DÚPLEX (anti auto-escucha DEFINITIVO) ──
   // Mientras Aurora HABLA, DETENEMOS el reconocimiento (no solo ignoramos): el
@@ -1118,11 +1133,39 @@ export function useAuroraEngine(): AuroraEngine {
   useEffect(() => { runCommandRef.current = runCommand; }, [runCommand]);
 
   // ── STT (con operación en SEGUNDO PLANO) ──
-  // `continuous = true` + auto-reinicio en `onend` mantienen el micrófono vivo
-  // de forma continua. Como el motor vive en el layout global, navegar entre
-  // rutas/secciones NO desmonta el reconocimiento: Aurora sigue escuchando y
-  // hablando mientras opera. `keepAliveRef` distingue una parada deliberada
-  // (stop) de un fin natural de sesión (que reanudamos).
+  // ==========================================================================
+  // §ANDROID — POR QUÉ AURORA NO ESCUCHABA EN EL MÓVIL (Adenda 67 · P0-3)
+  // ==========================================================================
+  // El `SpeechRecognition` de Android NO es una sesión larga como en escritorio:
+  //
+  //   1. TERMINA SOLO tras CADA frase (aunque pidas `continuous`), y
+  //   2. TERMINA SOLO por SILENCIO a los pocos segundos, con `error:'no-speech'`.
+  //
+  // Es decir: en Android, **acabar sin haber oído nada es el estado NORMAL**, no
+  // un fallo. El auto-reinicio ya existía, pero la CONTABILIDAD DE SALUD estaba
+  // mal: contaba como "reinicio fallido" cualquier ciclo sin resultado
+  // (`sttLastResultAtRef`). Como el usuario NO habla todo el rato, bastaban ~6
+  // ciclos de silencio (≈30-45 s de uso normal) para que el motor se rindiera:
+  //     keepAliveRef = false  →  el micrófono se apagaba PARA SIEMPRE,
+  // en SILENCIO (sin `voiceUnavailable`, sin aviso). El orbe seguía pintado y
+  // Aurora, sorda. En escritorio no pasaba porque `continuous = true` mantiene
+  // la sesión abierta y casi no hay ciclos `no-speech`.
+  //
+  // CORRECCIÓN:
+  //   · Un ciclo que ESCUCHÓ de verdad (duró ≥ HEALTHY_RUN_MS) o que terminó por
+  //     `no-speech` / `aborted` / fin limpio es SANO → se reinicia rápido y NO
+  //     suma al contador de fallos (así el mic vive indefinidamente en Android).
+  //   · Solo cuenta como ROTO el reconocimiento que muere NADA MÁS arrancar sin
+  //     audio (la firma real del bucle competitivo: dos STT peleando por el mic).
+  //   · Errores FATALES (`not-allowed`, `service-not-allowed`, `audio-capture`) NO
+  //     se reintentan a ciegas: se exponen (`sttFatal`) para que el orbe pida el
+  //     permiso o avise. Aurora nunca vuelve a quedarse sorda EN SILENCIO.
+  //   · En móvil JAMÁS abrimos un `getUserMedia` paralelo (analizador del halo,
+  //     precarga de permiso): compite por el micrófono y deja sordo al STT.
+  //     Ver `isMobileDevice()` en `voice-autonomy.ts`.
+  //
+  // `keepAliveRef` distingue una parada deliberada (stop) de un fin natural de
+  // sesión (que reanudamos).
   const buildRecognition = useCallback(() => {
     if (typeof window === "undefined") return null;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -1131,29 +1174,42 @@ export function useAuroraEngine(): AuroraEngine {
     // Esta reconocimiento toma la GENERACIÓN vigente. Su onend solo reinicia si
     // sigue siendo la más reciente (evita reinicios en paralelo competitivos).
     const gen = ++recGenRef.current;
-    // Detección de móvil/Android: en estos, `continuous` NO es fiable.
-    const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
-    const isAndroid = /android/i.test(ua);
-    const isMobile = isAndroid || /iphone|ipad|ipod|mobile/i.test(ua) ||
-      (typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches);
+    // Móvil (Android/iOS): `continuous` NO es fiable → ciclo corto + reinicio.
+    const isMobile = isMobileDevice();
+    /** Un reconocimiento que vivió ≥ esto SÍ estuvo escuchando de verdad. */
+    const HEALTHY_RUN_MS = 900;
+    /** Arranques rotos seguidos tolerados antes de rendirse (y AVISAR). */
+    const MAX_BROKEN_RESTARTS = 8;
+    // Salud de ESTE reconocimiento (local: nada que se contamine entre ciclos).
+    let startedAt = 0;
+    let sawResult = false;
+    let lastErr = "";
+
     rec.lang = activeRef.current.voice?.lang || "es-MX";
     rec.interimResults = true;
-    // Móvil: NO continuo (Android reinicia solo tras cada frase, con backoff).
+    // Móvil: NO continuo (Android termina tras cada frase; lo reiniciamos aquí).
     rec.continuous = !isMobile;
     rec.maxAlternatives = 1;
     rec.onstart = () => {
       if (gen !== recGenRef.current) { try { rec.abort?.(); } catch { /* */ } return; }
+      startedAt = Date.now();
       setListening(true); setInterim("");
     };
     rec.onerror = (e: any) => {
       if (gen !== recGenRef.current) return; // reconocimiento obsoleto: ignora
-      // 'no-speech' / 'aborted' son transitorios: si seguimos vivos, reanudamos.
-      const err = e?.error;
-      if (keepAliveRef.current && err !== "not-allowed" && err !== "service-not-allowed") {
-        // Deja que onend gestione el reinicio (con backoff).
+      const err = String(e?.error || "");
+      lastErr = err;
+      // FATALES: no se reintentan a ciegas. Los exponemos para que la UI pida el
+      // permiso de micrófono (gesto del usuario) o avise de que el mic está
+      // ocupado. Antes 'not-allowed' caía en el auto-reinicio → bucle invisible.
+      if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") {
+        keepAliveRef.current = false;
+        sttRestartsRef.current = 0;
+        setSttFatal(err as SttFatal);
+        setListening(false);
         return;
       }
-      setListening(false);
+      // 'no-speech' | 'aborted' | 'network' → transitorios: los gestiona `onend`.
     };
     rec.onend = () => {
       // Este reconocimiento ya no escucha: suéltalo del registro del ÚNICO
@@ -1165,34 +1221,49 @@ export function useAuroraEngine(): AuroraEngine {
       setInterim("");
       if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
       // MEDIO-DÚPLEX: si el reconocimiento se detuvo porque Aurora va a hablar /
-      // está hablando, NO reiniciamos aquí. Lo reanudará `resumeListeningAfterTts`
-      // cuando termine el habla (evita que el micro capte su propia voz).
+      // está hablando, NO reiniciamos aquí. Lo reanudará `finishTts` cuando
+      // termine el habla (evita que el micro capte su propia voz).
       if (pausedForTtsRef.current || ttsGuardActive()) {
         setListening(false);
         return;
       }
-      // Reinicio automático si Aurora debe seguir escuchando (segundo plano),
-      // PERO con backoff y tope de reinicios sin habla para no entrar en loop.
+      // Fallo fatal (permiso/micro): ya lo trató `onerror`. No reintentamos.
+      if (lastErr === "not-allowed" || lastErr === "service-not-allowed" || lastErr === "audio-capture") {
+        setListening(false);
+        return;
+      }
+      // Reinicio automático si Aurora debe seguir escuchando (2º plano / sesión).
       if (keepAliveRef.current && typeof window !== "undefined") {
-        const now = Date.now();
-        // Si Aurora estaba HABLANDO, el fin de escucha es esperado (medio-dúplex):
-        // NO cuenta como "caída sin habla" → no penaliza el watchdog.
-        const sawResultRecently = now - sttLastResultAtRef.current < 15_000 || ttsGuardActive();
-        if (sawResultRecently) sttRestartsRef.current = 0; // ciclo sano
-        else sttRestartsRef.current += 1;
+        // ── CONTABILIDAD DE SALUD (la clave del bug de Android) ──
+        // SANO = oyó algo, o estuvo escuchando de verdad (≥ HEALTHY_RUN_MS), o
+        // terminó por silencio / abort limpio. En Android esto es lo NORMAL:
+        // jamás debe penalizar ni apagar el micrófono.
+        const ranMs = startedAt ? Date.now() - startedAt : 0;
+        const healthy =
+          sawResult ||
+          ranMs >= HEALTHY_RUN_MS ||
+          lastErr === "no-speech" ||
+          lastErr === "aborted" ||
+          lastErr === "";
+        if (healthy) sttRestartsRef.current = 0;
+        else sttRestartsRef.current += 1; // murió al nacer: firma del bucle real
 
-        // Tras 6 reinicios seguidos SIN habla, paramos de martillar: dejamos que
-        // el supervisor del provider muestre "voz no disponible · reintentar".
-        if (sttRestartsRef.current > 6) {
+        if (sttRestartsRef.current > MAX_BROKEN_RESTARTS) {
+          // Nos rendimos, pero NUNCA en silencio: el supervisor lo convierte en
+          // "voz no disponible · toca para reintentar".
           keepAliveRef.current = false;
           sttRestartsRef.current = 0;
+          setSttFatal("failed");
           setListening(false);
           return;
         }
 
-        // Backoff progresivo: base 500ms (700ms en móvil) → hasta ~2.5s.
-        const base = isMobile ? 700 : 500;
-        const delay = Math.min(base + sttRestartsRef.current * 300, 2500);
+        // Reinicio RÁPIDO cuando el ciclo fue sano (Android necesita reengancharse
+        // enseguida o se pierde el principio de la frase siguiente). Con ciclos
+        // rotos, backoff progresivo para no martillar el micrófono.
+        const delay = sttRestartsRef.current === 0
+          ? (isMobile ? 320 : 260)
+          : Math.min((isMobile ? 700 : 500) + sttRestartsRef.current * 300, 2500);
         try {
           const next = buildRecognition();
           if (next) {
@@ -1233,8 +1304,8 @@ export function useAuroraEngine(): AuroraEngine {
         else interimText += r[0].transcript;
       }
       // Cualquier resultado (incluso interino) prueba que el micro SÍ funciona:
-      // resetea el backoff anti-loop.
-      sttLastResultAtRef.current = Date.now();
+      // este ciclo es SANO y se resetea el backoff anti-loop.
+      sawResult = true;
       sttRestartsRef.current = 0;
 
       // ── MODO PASIVO (fondo): NO procesamos nada como comando ni mostramos el
@@ -1315,6 +1386,7 @@ export function useAuroraEngine(): AuroraEngine {
     // Aurora sorda para siempre por un guard permanente.
     if (!canOwnStt(instanceIdRef.current)) return;
     claimStt(instanceIdRef.current);
+    setSttFatal(null); // arranque nuevo: limpia el fallo fatal anterior
     keepAliveRef.current = true; // mantener vivo a través de la navegación
     // CANCELA cualquier reinicio PROGRAMADO: si no, al vencer arrancaba un
     // reconocimiento VIEJO en paralelo al que creamos aquí → dos motores de voz
@@ -1435,6 +1507,9 @@ export function useAuroraEngine(): AuroraEngine {
       engaged,
       engage,
       disengage,
+      // Fallo fatal del STT (permiso / micro ocupado / se rindió) — el supervisor
+      // lo convierte en `voiceUnavailable` visible. Nunca sorda en silencio.
+      sttFatal,
     }),
     [
       supported, enabled, listening, speaking, thinking, transcript, interim, lastReply, actionStatus,
@@ -1442,7 +1517,7 @@ export function useAuroraEngine(): AuroraEngine {
       start, stop, toggle, speak, runCommand, runDirectives, runAction, setActivePersonality, setEnabled, reloadPersonalities,
       paused, pauseSpeech, resumeSpeech, toggleSpeech, skipForward, skipBack, interrupt,
       replyHistory, conversation, send, actionLog,
-      engaged, engage, disengage,
+      engaged, engage, disengage, sttFatal,
     ]
   );
 }

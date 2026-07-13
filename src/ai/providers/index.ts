@@ -10,6 +10,7 @@ import { anthropicProvider } from "./anthropic";
 import { googleProvider } from "./google";
 import { deepseekProvider } from "./deepseek";
 import { groqProvider } from "./groq";
+import { openrouterProvider } from "./openrouter";
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
   starseed: starseedProvider,
@@ -21,19 +22,12 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
   google: googleProvider,
   deepseek: deepseekProvider,
   groq: groqProvider,
-  openrouter: {
-    ...openaiProvider,
-    info: {
-      id: "openrouter",
-      label: "OpenRouter",
-      description: "Accede a +100 modelos (muchos gratis) con una sola API.",
-      requiresKey: true,
-      local: false,
-      defaultBaseUrl: "https://openrouter.ai/api/v1",
-      getKeyUrl: "https://openrouter.ai/keys",
-      defaultModels: ["openrouter/auto", "google/gemini-pro", "meta-llama/llama-3-8b-instruct:free"],
-    },
-  },
+  // OpenRouter tiene adaptador PROPIO desde la Adenda 67 (P0-2): envía las
+  // cabeceras `HTTP-Referer`/`X-Title` que OpenRouter espera de una app web,
+  // ignora los keep-alive SSE (": OPENROUTER PROCESSING") y prioriza `:free`.
+  // Antes era un `openaiProvider` con otra `info` → sin cabeceras, y con ids de
+  // modelo por defecto obsoletos (`google/gemini-pro` ya no existe).
+  openrouter: openrouterProvider,
 };
 
 /** Ordered for the picker UI: privacy-first first. */

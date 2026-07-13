@@ -19,13 +19,54 @@ import type { ChatMessage, ChatResponse } from "@/ai/providers/types";
 
 /* ── Chrome Built-in AI (Prompt API / Gemini Nano) ───────────────── */
 
+/**
+ * REGLA DURA DEL PROYECTO (Adenda 63, reafirmada en la 67): TODA llamada a la
+ * Prompt API del navegador —`availability()` INCLUIDA— va topada con un timeout.
+ * `LanguageModel.availability()` puede quedarse colgada indefinidamente mientras
+ * Chrome decide si descarga Gemini Nano; sin `Promise.race` eso congela la
+ * detección de fuentes y, con ella, la respuesta de Aurora.
+ */
+function raceTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 export async function chromeAiAvailable(): Promise<boolean> {
   try {
     if (typeof window === "undefined") return false;
     const LM = (window as any).LanguageModel;
     if (!LM?.availability) return false;
-    const st = await LM.availability();
+    const st = await raceTimeout(
+      Promise.resolve().then(() => LM.availability()),
+      1500,
+      "unavailable",
+    );
     return st === "available" || st === "downloadable" || st === "readily";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ¿Existe la Prompt API del navegador Y está lista para responder YA (sin
+ * descargar nada)? Es el ÚLTIMO RECURSO local del router (Adenda 67 · P0-2):
+ * cuando ninguna fuente de red contesta, si el navegador trae un modelo listo,
+ * Aurora responde con él en vez de rendirse. Topado con timeout. Nunca lanza.
+ */
+export async function chromeAiReadyNow(): Promise<boolean> {
+  try {
+    if (typeof window === "undefined") return false;
+    const LM = (window as any).LanguageModel;
+    if (!LM?.availability || !LM?.create) return false;
+    const st = await raceTimeout(
+      Promise.resolve().then(() => LM.availability()),
+      1500,
+      "unavailable",
+    );
+    // "downloadable" NO cuenta: dispararía una descarga de ~3-4 GB sin permiso.
+    return st === "available" || st === "readily";
   } catch {
     return false;
   }

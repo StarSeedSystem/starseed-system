@@ -2764,3 +2764,65 @@ O sea: el bug afectaba a **todo ancho ≥1024px** (tablet horizontal **y escrito
 - **`activeCapabilityIds()` lee los paquetes instalados directos** (no solo el mirror `starseed.capabilities.v1`): añadir un `packageId` a una capacidad de `skills.ts` la enciende para cuentas que YA tengan ese paquete sembrado, sin re-sembrar. Por eso hooking ≠ re-seed.
 - **El default orgánico convive con "Restablecer"/"Neutra":** `resetVoiceStyle()` y el preset "Neutra" escriben `style: undefined` → neutro real; el default solo se aplica cuando NO hay clave (primer arranque) o vía el preset explícito. "Todo ajustable" incluye poder quitar la modulación.
 - **Secuenciado de onboarding:** intro (preferencias) primero, tour de interfaz después (guard por `starseed.aurora.intro.v1`) → nunca dos ventanas a la vez la primera vez.
+
+---
+
+## 2026-07-13 — Adenda 67 · P0-1 (chat duplicado) + P0-3 (Aurora sorda en Android)
+
+**Sesión por:** Claude (Cowork, subagente de la ola Adenda 67).
+**Resumen ejecutivo:** Eliminada la SEGUNDA superficie de chat de Aurora (`AuroraSpeechBubble`) y corregida la causa raíz por la que el reconocimiento de voz se apagaba solo en Android (contabilidad de salud del STT mal planteada).
+
+### Hecho
+
+**P0-1 · Chat duplicado — la superficie mala, eliminada**
+- **Borrado** `src/components/aurora/aurora-speech-bubble.tsx` (el GLOBO «Aurora · ESCUCHANDO / Te escucho… / ▶ ⏹ ↵ Continuar / X»). Cero referencias en el árbol.
+- El **mini-reproductor** (`aurora-mini-player.tsx`) es ahora la **ÚNICA** superficie de Aurora anclada al orbe. Sigue apareciendo **por defecto** (apagable con `starseed.aurora.fab.enabled.v1`).
+- El **texto proactivo** (`aurora:suggest` / `aurora:notify`) — que era la otra razón de existir del globo — se pinta **dentro** del reproductor: nueva prop `proactive` (`AuroraProactive`), cabecera «Sugerencia»/«Aviso», y ▶ lo dice en voz alta **solo si se pide** (una recomendación nunca habla sola). El listener y el auto-ocultado (12 s) viven en `aurora-widget.tsx`.
+- ⚠️ **Corrección de rumbo respecto a la ola anterior (`48c3990`)**: allí se hizo que el mini-player CEDIERA ante el chat completo asumiendo que el bueno era el otro. **El mini-player es el bueno.** No se toca su comportamiento salvo para darle el canal proactivo.
+
+**P0-3 · Aurora no escuchaba en Android — CAUSA RAÍZ**
+- `src/lib/aurora/engine.ts` → `buildRecognition().onend`: la contabilidad anti-loop (`sttLastResultAtRef`) contaba como **reinicio fallido** cualquier ciclo **sin resultado**. Pero en Android el `SpeechRecognition` **termina solo tras cada frase Y por silencio** (`no-speech`), así que **acabar sin haber oído nada es el estado NORMAL**. Con `> 6` de esos ciclos (≈30-45 s de uso normal, sin hablar) → `keepAliveRef = false` → **el micrófono se apagaba PARA SIEMPRE**, y encima **en silencio** (`voiceUnavailable` seguía false: el orbe parecía normal y Aurora estaba sorda). En escritorio no se veía porque `continuous = true` mantiene la sesión abierta y casi no hay ciclos `no-speech`.
+- **Fix (contabilidad de salud correcta):** ciclo SANO = oyó algo **o** duró ≥ 900 ms **o** terminó por `no-speech`/`aborted`/fin limpio → **no penaliza** y **reinicia rápido (~320 ms en móvil)**, así el micro vive indefinidamente en Android y no se pierde el principio de la frase siguiente. Solo cuenta como ROTO el reconocimiento que muere nada más nacer (la firma real de dos STT peleando por el micro); tope 8 → se rinde **avisando**.
+- **Nunca sorda en silencio:** nuevo `sttFatal` (`not-allowed` | `service-not-allowed` | `audio-capture` | `failed`) expuesto por el motor; el provider lo traduce a `voiceUnavailable` → el orbe muestra «voz no disponible · toca para reintentar». Antes `not-allowed` caía en el auto-reinicio a ciegas (bucle invisible).
+- **Permisos de micrófono (móvil):** `capabilities.ts` ahora **consulta** el permiso real (Permissions API → `micPermission`, + helpers `withMicPermission` / `getCapabilitiesWithMic`) en vez de **suponerlo** concedido — antes `voiceMode` decía «voz completa» con el micro denegado. En móvil, el **toque del orbe** es el gesto que pide el permiso (`requestAccess`), y `retryVoice` también.
+- **Cero `getUserMedia` retenido en móvil:** nuevo `isMobileDevice()` en `voice-autonomy.ts` (Android · iOS · iPadOS táctil · coarse pointer). El analizador del halo (`aurora-orb-bus.ts`) ya no abre captura en **ningún** móvil (antes solo se abstenía en Android) y `requestMaxAccess` **no sondea** el micro si el permiso ya está concedido; cuando sí sondea, lo suelta y espera **350 ms** (Android tarda en liberar el mic → si no, el STT nace con `audio-capture`).
+
+### Verificación
+- `npx tsc --noEmit` → **0 errores** (repo completo).
+- `npm run build` → **exit 0**.
+- **En vivo (Chrome)**: en producción (build viejo) `aurora:notify` abre la superficie `aurora-orb_bubble__…` con el botón «Continuar» (la ventana que sobraba). Con el fix, en el peor caso (Aurora hablando **+** sugerencia proactiva a la vez): **1 sola superficie fija** (el mini-reproductor), **0** burbujas, **0** botones «Continuar», sin «Te escucho…» huérfano. `getCapabilities()` ya devuelve `micPermission` real (`prompt`) e `isMobile`.
+
+### Pendiente / Próximos pasos
+- **Probar en un Android real** (el arreglo es determinista por código, pero el ciclo del recognizer varía por versión de Chrome/WebView).
+- P0-2 (router sin fuentes / OpenRouter) va en otro agente de esta misma ola.
+
+### Notas / aprendizajes
+- **Regla:** en móvil, **el micrófono tiene UN solo dueño**. Cualquier `getUserMedia` paralelo (analizador, precarga de permiso, medidor) deja SORDO al `SpeechRecognition`. Antes de tocar `getUserMedia`, preguntar `isMobileDevice()`.
+- **Regla:** en Android, **terminar sin oír nada NO es un fallo** — es el ciclo normal del recognizer. Cualquier watchdog que penalice el silencio acabará apagando el micrófono.
+- **Regla:** ningún guard puede apagar la voz **sin decirlo**. Si el motor se rinde, tiene que verse (`voiceUnavailable`) y tiene que haber camino de vuelta.
+
+---
+
+## 2026-07-13 — Adenda 67 · P0-2 + P3: Aurora se quedaba sin cerebro (router, OpenRouter, catálogo gratis)
+**Sesión por:** agente Claude (ola Astraura · inteligencia)
+**Resumen ejecutivo:** Aurora fallaba en la mayoría de preguntas («probé: Pollinations…») porque **Pollinations era la ÚNICA fuente utilizable sin clave** del catálogo: la cadena de failover tenía **un solo eslabón**. Ahora hay **tres cerebros gratis sin clave** (OVHcloud anónimo, LLM7.io, Pollinations), OpenRouter tiene adaptador propio y sitio donde pegar la clave, y el router no puede quedarse sin respuesta.
+
+### Hecho
+- **Causa raíz documentada** (`architecture/astraura-inteligencia.md` §22.1): sin claves + sin Ollama + sin descargas opt-in ⇒ `detectAvailability()` solo daba `ready` a `pollinations-text`. Y ese eslabón fallaba por: modelo `mistral` **muerto** (404 **tras 28 s**), timeout de 30 s frente a ~40 s reales, **cooldown de 60 min** sobre la única fuente del invitado, y throws síncronos / Prompt API sin tope que escapaban del failover.
+- **Catálogo** (`free-catalog.ts`): +2 fuentes **sin clave** verificadas con CORS `*` (**OVHcloud AI Endpoints** — incluye `Qwen2.5-VL-72B` de **visión** — y **LLM7.io**) y +6 **free-key** (HuggingFace router, Ollama Cloud, ModelScope, Z.ai GLM Flash, Nscale, SiliconFlow). Pollinations: modelo muerto fuera, `neverCooldown`, `timeoutMs: 60s`. Campos nuevos: `keyOptional`, `neverCooldown`, `cooldownMinutes`, `preferFreeModels`, `timeoutMs`.
+- **OpenRouter**: adaptador dedicado `src/ai/providers/openrouter.ts` (`HTTP-Referer` + `X-Title`, keep-alive SSE ignorados, 402 accionable, `listOpenRouterFreeModels()` público) + `preferFreeModels` en el ranking + **`SourceKeyInput`**: pegar la clave **en la fila de la fuente** (Ajustes → Inteligencia), cifrada en el dispositivo.
+- **Router**: cadena que **siempre** acaba en las fuentes sin clave (Pollinations la última), `Promise.resolve().then(step)`, `detectAvailabilitySafe()`, timeouts por fuente, **último recurso** = modelo del navegador si ya está listo, pin de personalidad por sentido.
+- **Personalidades**: `PersonalityProfile.intelligence` (`modo`, `global`, `porSentido`: texto/voz/visión/código/razonamiento, `permitirPago:false`) + `intelligencePinFor()`.
+- **Verificado con `curl`** (cabeceras exactas del adaptador, sin ninguna clave): OVH `Qwen3.5-397B` 200 · OVH `Qwen2.5-VL-72B` 200 · LLM7 `gemma3:27b` 200 · Pollinations `openai` 200. `tsc --noEmit` **0** · `npm run build` **OK** (92/92).
+
+### Decisiones tomadas
+- **NO se añaden fuentes sin verificar.** Hack Club AI (`ai.hackclub.com`) está **muerto** (404) → fuera. Together AI ya no figura en la lista actualizada → fuera hasta poder verificarlo.
+- **FckSignups** no aporta APIs LLM (es un directorio de herramientas sin registro): se integra su **principio**, no un endpoint.
+- **Hugging Bay** se queda donde estaba: es **descubrimiento**, no inferencia.
+
+### Notas / aprendizajes
+- **Regla:** el catálogo debe tener **SIEMPRE ≥2 fuentes utilizables sin clave, sin servidor local y sin descarga**. Con una sola, "failover" es una palabra vacía: cualquier fallo transitorio deja a Aurora sin cerebro.
+- **Regla:** una fuente **última recurso NUNCA entra en cooldown**. Enfriar 60 min a la única IA del invitado por un 429 es apagarle el cerebro una hora.
+- **Regla:** el cooldown debe medirse en la **unidad del límite**. Cuota **diaria** → 60 min. Límite por **minuto** (OVH: 2 RPM) → 3 min. Enfriar una hora algo que se recupera en 30 s es tirar la fuente a la basura.
+- **Regla:** un id de modelo en el catálogo es **una afirmación sobre el mundo** y caduca. `mistral` de Pollinations llevaba tiempo muerto y **tardaba 28 s en decir 404**. Verificar los ids con `curl` cada vez que se toque el catálogo.
+- **Trampa:** `chat({ providerId })` resuelve **la primera** config con ese id. Con varios servicios distintos bajo `openai-compatible`, eso manda la petición al **endpoint equivocado con la clave equivocada**. Resolver siempre baseUrl + clave de la config concreta.

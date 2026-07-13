@@ -21,8 +21,16 @@
 export const FREELLM_SEEN_KEY = "starseed.astraura.freellm.seen.v1";
 export const FREELLM_EVENT = "starseed:astraura-freellm-seen";
 
+/**
+ * (Adenda 67 · P3-3) Fuente actualizada: `open-free-llm-api/awesome-freellm-apis`
+ * — el sucesor vivo de la lista comunitaria (se refresca a DIARIO de forma
+ * automatizada desde freellm.net; ~169 APIs gratis de 27 proveedores).
+ * De ESTA lista salieron, verificadas una a una con `curl`, las fuentes nuevas
+ * del catálogo: OVHcloud anónimo, LLM7.io, HuggingFace router, Ollama Cloud,
+ * ModelScope, Z.ai, Nscale y SiliconFlow.
+ */
 const SOURCE_URL =
-  "https://raw.githubusercontent.com/cheahjs/free-llm-api-resources/main/README.md";
+  "https://raw.githubusercontent.com/open-free-llm-api/awesome-freellm-apis/main/README.md";
 
 export interface FreeLlmHint {
   /** Nº aproximado de proveedores gratuitos detectados en la lista comunitaria. */
@@ -55,9 +63,23 @@ export function readFreeLlmHint(): FreeLlmHint | null {
  */
 function countProviders(md: string): number {
   try {
+    // 1) `awesome-freellm-apis` publica la cifra exacta en su cabecera automática:
+    //    "169+ free LLM APIs from 27 providers".
+    const stats = /from\s+(\d+)\s+providers/i.exec(md);
+    if (stats) {
+      const n = parseInt(stats[1], 10);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    // 2) Si no, contamos las filas de la tabla de referencia rápida (una por
+    //    proveedor: | Proveedor | Base URL | clave | tarjeta |).
+    const quickRef = /<!--\s*BEGIN_QUICK_REF\s*-->([\s\S]*?)<!--\s*END_QUICK_REF\s*-->/i.exec(md);
+    if (quickRef) {
+      const rows = (quickRef[1].match(/^\|\s*[^|-]/gm) || []).length;
+      if (rows > 1) return rows - 1; // menos la cabecera de la tabla
+    }
+    // 3) Formatos antiguos: encabezados de nivel 3 o <summary>.
     const headings = (md.match(/^###\s+/gm) || []).length;
     if (headings > 0) return headings;
-    // Fallback: cuenta secciones tipo "<summary>Proveedor</summary>" o filas.
     const summaries = (md.match(/<summary>/gi) || []).length;
     return summaries;
   } catch {

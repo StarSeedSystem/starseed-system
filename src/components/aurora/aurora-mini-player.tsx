@@ -55,10 +55,24 @@ export interface AuroraMiniPlayerAnchor {
   openLeft: boolean;
 }
 
+/**
+ * Texto PROACTIVO de Aurora (`aurora:suggest` / `aurora:notify`). Antes lo
+ * pintaba un GLOBO aparte (AuroraSpeechBubble) → salían DOS ventanas de Aurora a
+ * la vez. Ahora vive DENTRO de este reproductor: una sola superficie.
+ */
+export interface AuroraProactive {
+  kind: "suggest" | "notify";
+  text: string;
+  /** Marca temporal (fuerza reaparición aunque el texto se repita). */
+  key: number;
+}
+
 export interface AuroraMiniPlayerProps {
   anchor: AuroraMiniPlayerAnchor;
   /** ¿Hay conversación activa? (el widget lo decide: interim o speaking o historial). */
   active: boolean;
+  /** Texto proactivo pendiente (sugerencia/aviso), o null. Se pinta aquí dentro. */
+  proactive?: AuroraProactive | null;
   /** Abre la ventana COMPLETA de Aurora en el Exocórtex (delegado por el widget). */
   onOpenExocortex?: () => void;
   /** Abre el popover grande clásico (pestañas Chat/Chats/Voz/Control) bajo demanda. */
@@ -78,6 +92,7 @@ interface Line {
 export function AuroraMiniPlayer({
   anchor,
   active,
+  proactive = null,
   onOpenExocortex,
   onExpandPanel,
   onDismiss,
@@ -110,13 +125,17 @@ export function AuroraMiniPlayer({
       : "idle";
 
   const accentRgb = turn === "aurora" ? "201 168 255" : turn === "user" ? "0 127 255" : "148 163 184";
+  // La etiqueta de la cabecera. Con texto PROACTIVO y sin voz en curso, lo
+  // anunciamos como «Sugerencia» / «Aviso» (antes esto abría un globo aparte).
   const turnLabel = speaking
     ? (paused ? "En pausa" : "Aurora habla")
     : listening || interim
       ? "Te escucho"
-      : conversation.length > 0
-        ? "Conversación"
-        : "Aurora";
+      : proactive
+        ? (proactive.kind === "notify" ? "Aviso" : "Sugerencia")
+        : conversation.length > 0
+          ? "Conversación"
+          : "Aurora";
 
   // Actividad viva: hay voz sonando/escuchando o transcripción parcial.
   const live = speaking || listening || !!interim;
@@ -164,11 +183,13 @@ export function AuroraMiniPlayer({
         aurora.resumeSpeech();
         return;
       }
-      // Nada sonando: reproduce la última respuesta de Aurora, si la hay.
-      const say = aurora.lastReply?.trim();
+      // Nada sonando: reproduce la última respuesta de Aurora. Si lo que hay es
+      // un texto PROACTIVO (sugerencia/aviso), ▶ lo dice en voz alta — la voz de
+      // una recomendación SOLO suena si se pide (nunca por sorpresa).
+      const say = aurora.lastReply?.trim() || proactive?.text?.trim() || "";
       if (say) aurora.speak(say);
     } catch { /* */ }
-  }, [aurora, speaking, paused, clearAutohide]);
+  }, [aurora, speaking, paused, proactive, clearAutohide]);
 
   const stop = useCallback(() => {
     if (!aurora) return;
@@ -344,7 +365,7 @@ export function AuroraMiniPlayer({
                   <History className="h-3 w-3" /> Historial de la sesión
                 </div>
                 <div ref={historyScrollRef} className={styles.history}>
-                  {conversation.length === 0 && (
+                  {conversation.length === 0 && !proactive && (
                     <p className="px-1 py-2 text-[11px] italic text-white/40">
                       Aún no hay mensajes en esta sesión.
                     </p>
@@ -352,6 +373,13 @@ export function AuroraMiniPlayer({
                   {conversation.map((m, i) => (
                     <LineRow key={`${m.at}-${i}`} line={m} />
                   ))}
+                  {/* Texto proactivo: una línea más de Aurora (no otra ventana). */}
+                  {proactive && (
+                    <LineRow
+                      key={`proactive-${proactive.key}`}
+                      line={{ role: "aurora", text: proactive.text, at: proactive.key }}
+                    />
+                  )}
                   {interim && (
                     <div className={cn(styles.line, styles.lineUser, styles.lineInterim)}>
                       <span className={styles.lineTag}>Tú</span>
@@ -369,7 +397,7 @@ export function AuroraMiniPlayer({
                 transition={{ duration: 0.15 }}
                 className="space-y-1"
               >
-                {collapsedLines.length === 0 && !interim && (
+                {collapsedLines.length === 0 && !interim && !proactive && (
                   <p className="px-1 text-[11px] italic text-white/45">
                     {listening ? "Te escucho…" : "Conversación de Aurora"}
                   </p>
@@ -377,6 +405,15 @@ export function AuroraMiniPlayer({
                 {collapsedLines.map((m, i) => (
                   <LineRow key={`${m.at}-${i}`} line={m} clamp />
                 ))}
+                {/* Texto proactivo (sugerencia/aviso): una línea más de Aurora,
+                    DENTRO del reproductor — nunca un globo aparte. */}
+                {proactive && (
+                  <LineRow
+                    key={`proactive-${proactive.key}`}
+                    line={{ role: "aurora", text: proactive.text, at: proactive.key }}
+                    clamp
+                  />
+                )}
                 {interim && (
                   <div className={cn(styles.line, styles.lineUser, styles.lineInterim, styles.lineClamp)}>
                     <span className={styles.lineTag}>Tú</span>

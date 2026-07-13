@@ -17,7 +17,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { findSource } from "./free-catalog";
+import { findSource, isNeverCooldown, cooldownMinutesFor } from "./free-catalog";
 
 export const USAGE_KEY = "starseed.astraura.usage.v1";
 export const COOLDOWN_KEY = "starseed.astraura.cooldown.v1";
@@ -35,7 +35,16 @@ export const FREE_DAILY_LIMITS: Record<string, { reqPerDay?: number; note?: stri
   "mistral-free": { note: "~1B tokens/mes" },
   "nvidia-nim-free": { reqPerDay: 1000 },
   "github-models-free": { reqPerDay: 150 },
-  "pollinations-text": { note: "sin clave · puede haber colas" },
+  "pollinations-text": { note: "sin clave · puede haber colas · nunca se desactiva" },
+  // Adenda 67 · nuevas fuentes gratis-sin-clave y free-key verificadas.
+  "ovh-anonymous": { note: "sin clave · ~2 req/min (anónimo)" },
+  "llm7-free": { note: "sin clave · ~30 req/min (120 con token gratis)" },
+  "huggingface-router": { note: "créditos gratuitos mensuales" },
+  "ollama-cloud": { note: "límites por sesión/semana" },
+  "modelscope-free": { reqPerDay: 2000 },
+  "nscale-free": { note: "fair-use" },
+  "siliconflow-free": { note: "30 req/min · 60K tokens/min" },
+  "zai-free": { note: "modelos Flash gratis · 1 concurrente" },
 };
 
 export interface DayUsage {
@@ -161,10 +170,25 @@ export function isCoolingDown(sourceId: string): boolean {
   return typeof until === "number" && Date.now() < until;
 }
 
-/** Marca una fuente como agotada durante `minutes` (por defecto 60). */
-export function markCooldown(sourceId: string, minutes = DEFAULT_COOLDOWN_MIN): void {
+/**
+ * Marca una fuente como agotada durante `minutes`.
+ *
+ * (Adenda 67 · P0-2) DOS REGLAS DURAS aprendidas de un bug real:
+ *
+ *  1. Las fuentes con `neverCooldown` (Pollinations y demás redes de seguridad
+ *     SIN CLAVE) **NUNCA se enfrían**. Un 429 transitorio de la ÚNICA fuente que
+ *     tiene un invitado la apagaba 60 minutos → Aurora se quedaba literalmente
+ *     sin cerebro y respondía "no conseguí respuesta de ninguna fuente".
+ *  2. El enfriamiento por defecto (60 min) solo tiene sentido para cuotas
+ *     DIARIAS. Las fuentes limitadas por peticiones/minuto declaran su propio
+ *     `cooldownMinutes` corto (p.ej. OVHcloud anónimo: 3 min) porque su cuota se
+ *     recupera en segundos.
+ */
+export function markCooldown(sourceId: string, minutes?: number): void {
+  if (isNeverCooldown(sourceId)) return; // último recurso: jamás se apaga
+  const mins = cooldownMinutesFor(sourceId, minutes ?? DEFAULT_COOLDOWN_MIN);
   const store = readCooldown();
-  store[sourceId] = Date.now() + minutes * 60_000;
+  store[sourceId] = Date.now() + mins * 60_000;
   writeCooldown(store);
 }
 

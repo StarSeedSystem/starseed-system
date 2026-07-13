@@ -132,7 +132,10 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
       continue;
     }
     if (!source.requiresKey) {
-      // Instant cloud (Pollinations): siempre listo salvo que estemos offline.
+      // Instant cloud SIN CLAVE (Pollinations, OVHcloud anónimo, LLM7): la red
+      // de seguridad universal. Siempre listas salvo que estemos offline.
+      // `keyOptional` = si el usuario añadió una clave, se usa para subir
+      // límites, pero JAMÁS es requisito para que la fuente esté disponible.
       const online = typeof navigator === "undefined" ? false : navigator.onLine !== false;
       out.push({ source, ready: online, userConfig, reason: online ? undefined : "Sin conexión." });
       continue;
@@ -145,6 +148,37 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
     });
   }
   return out;
+}
+
+/**
+ * (Adenda 67 · P0-2) Disponibilidad BLINDADA: `detectAvailability()` se llama en
+ * la ruta crítica de CADA respuesta de Aurora. Si lanzara (localStorage corrupto,
+ * un `import()` que falla, una sonda que se cuelga), el throw escaparía del
+ * failover y Aurora moriría con un error crudo.
+ *
+ * Esta envoltura garantiza que SIEMPRE se devuelve una lista utilizable:
+ *   · con timeout global (las sondas locales nunca bloquean la conversación);
+ *   · si todo falla, devuelve al menos las fuentes SIN CLAVE marcadas `ready`
+ *     (Pollinations/OVH/LLM7), que es exactamente lo que necesita un invitado.
+ * NUNCA lanza.
+ */
+export async function detectAvailabilitySafe(timeoutMs = 6000): Promise<SourceAvailability[]> {
+  const fallback = (): SourceAvailability[] =>
+    FREE_CATALOG.map((source) => ({
+      source,
+      // Sin sondas: damos por listas SOLO las que no necesitan clave ni descarga.
+      ready: !source.requiresKey && source.privacy === "cloud" && source.tier !== "paid",
+      reason: undefined,
+    }));
+  try {
+    const timed = new Promise<SourceAvailability[]>((resolve) => {
+      setTimeout(() => resolve(fallback()), timeoutMs);
+    });
+    const list = await Promise.race([detectAvailability().catch(() => fallback()), timed]);
+    return Array.isArray(list) && list.length ? list : fallback();
+  } catch {
+    return fallback();
+  }
 }
 
 /** Resumen legible de lo detectado (para el panel y para Aurora al presentarse). */

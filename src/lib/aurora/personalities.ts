@@ -503,6 +503,60 @@ export interface PersonalityVoiceStyle {
 }
 
 /** Personalidad de Aurora como ARCHIVO de configuración (JSON serializable). */
+/**
+ * SENTIDOS de Aurora a efectos de inteligencia (Adenda 67 · P3).
+ * Cada sentido puede tener su propia fuente/modelo forzados por la personalidad.
+ */
+export type AuroraSense = "texto" | "voz" | "vision" | "codigo" | "razonamiento";
+
+export const AURORA_SENSES: Array<{ id: AuroraSense; label: string; hint: string }> = [
+  { id: "texto", label: "Texto / conversación", hint: "Chat, resúmenes, traducción, escritura" },
+  { id: "voz", label: "Voz (tiempo real)", hint: "Respuestas habladas: prima la latencia" },
+  { id: "vision", label: "Visión", hint: "Entender imágenes, pantalla y cámara" },
+  { id: "codigo", label: "Código", hint: "Programar, depurar, refactorizar" },
+  { id: "razonamiento", label: "Razonamiento", hint: "Matemáticas, planificación, análisis profundo" },
+];
+
+/** Fuente + modelo forzados (ids del catálogo de Astraura, `free-catalog.ts`). */
+export interface PersonalitySourcePin {
+  /** Id de fuente del catálogo (p.ej. "openrouter-free", "ovh-anonymous"). */
+  fuente?: string;
+  /** Id de modelo dentro de esa fuente (p.ej. "openai/gpt-oss-120b:free"). */
+  modelo?: string;
+}
+
+/**
+ * INTELIGENCIA POR PERSONALIDAD (Adenda 67 · P3).
+ *
+ * Regla del proyecto: **Aurora elige SIEMPRE, sola, la mejor opción GRATUITA
+ * disponible… SALVO que la personalidad activa diga otra cosa** — para un
+ * sentido concreto o para toda Aurora. Esto es ese "salvo".
+ *
+ * Por defecto `modo: "auto"` → el router manda (gratis-primero) y esta
+ * estructura no cambia absolutamente nada.
+ */
+export interface PersonalityIntelligence {
+  /**
+   * · "auto"  (defecto) — Aurora elige la mejor fuente GRATIS disponible.
+   * · "fija"  — se fuerza `global` (y/o `porSentido`) para esta personalidad.
+   */
+  modo: "auto" | "fija";
+  /** Fuente/modelo forzados para TODA Aurora bajo esta personalidad. */
+  global?: PersonalitySourcePin;
+  /** Fuente/modelo forzados SOLO para un sentido (gana sobre `global`). */
+  porSentido?: Partial<Record<AuroraSense, PersonalitySourcePin>>;
+  /**
+   * Permitir que esta personalidad use fuentes de PAGO ya configuradas por el
+   * usuario. Por defecto false: ni siquiera una personalidad "fija" gasta dinero
+   * sin permiso explícito.
+   */
+  permitirPago: boolean;
+}
+
+export function defaultPersonalityIntelligence(): PersonalityIntelligence {
+  return { modo: "auto", permitirPago: false };
+}
+
 export interface PersonalityProfile {
   id: string;
   name: string;
@@ -527,6 +581,11 @@ export interface PersonalityProfile {
   tools: PersonalityTools;
   memoryPolicy: PersonalityMemoryPolicy;
   voiceStyle: PersonalityVoiceStyle;
+  /**
+   * Fuente/modelo de inteligencia por sentido (Adenda 67 · P3). Ausente o en
+   * modo "auto" = Aurora elige sola la mejor gratuita (comportamiento normal).
+   */
+  intelligence: PersonalityIntelligence;
   /** Temas/áreas/refs de conocimiento que domina o prioriza. */
   knowledge: string[];
 }
@@ -566,6 +625,7 @@ function baseProfile(over: Partial<PersonalityProfile> & { id: string; name: str
     tools: { enabledKinds: allToolKindIds(), plugins: [], mcp: [], apis: [] },
     memoryPolicy: { usarMemorias: true, nivelContexto: "breve", cerebrosPermitidos: "todos" },
     voiceStyle: { tone: "cálido", emotion: "calma", rate: 1, pitch: 1, energy: 55 },
+    intelligence: defaultPersonalityIntelligence(),
     knowledge: [],
     ...over,
     traits: { ...defaultPersonalityTraits(), ...(over.traits ?? {}) },
@@ -829,8 +889,60 @@ export function normalizePersonalityProfile(raw: Partial<PersonalityProfile> | n
       pitch: clamp(r.voiceStyle?.pitch, 0.5, 2, 1),
       energy: Math.round(clamp(r.voiceStyle?.energy, 0, 100, 55)),
     },
+    intelligence: normalizeIntelligence(r.intelligence),
     knowledge: cleanStrArray(r.knowledge, 24, 120),
   };
+}
+
+/** Saneado del bloque de inteligencia (aditivo: los perfiles antiguos no lo traen). */
+function normalizeIntelligence(raw: unknown): PersonalityIntelligence {
+  const base = defaultPersonalityIntelligence();
+  if (!raw || typeof raw !== "object") return base;
+  const r = raw as Partial<PersonalityIntelligence>;
+  const pin = (p: unknown): PersonalitySourcePin | undefined => {
+    if (!p || typeof p !== "object") return undefined;
+    const q = p as PersonalitySourcePin;
+    const fuente = cleanStr(q.fuente, 64);
+    const modelo = cleanStr(q.modelo, 120);
+    if (!fuente && !modelo) return undefined;
+    return { ...(fuente ? { fuente } : {}), ...(modelo ? { modelo } : {}) };
+  };
+  const porSentido: Partial<Record<AuroraSense, PersonalitySourcePin>> = {};
+  if (r.porSentido && typeof r.porSentido === "object") {
+    for (const s of AURORA_SENSES) {
+      const p = pin((r.porSentido as Record<string, unknown>)[s.id]);
+      if (p) porSentido[s.id] = p;
+    }
+  }
+  const global = pin(r.global);
+  return {
+    modo: r.modo === "fija" ? "fija" : "auto",
+    ...(global ? { global } : {}),
+    ...(Object.keys(porSentido).length ? { porSentido } : {}),
+    permitirPago: r.permitirPago === true,
+  };
+}
+
+/**
+ * (Adenda 67 · P3) Fuente/modelo que la personalidad ACTIVA impone para un
+ * sentido dado, o `null` si manda el router (auto = mejor opción gratuita).
+ *
+ * Prioridad: `porSentido[sentido]` → `global` → null.
+ * Lo consume `astrauraChat()` en `src/ai/astraura/router.ts`.
+ */
+export function intelligencePinFor(
+  profile: PersonalityProfile | null | undefined,
+  sense: AuroraSense,
+): (PersonalitySourcePin & { permitirPago: boolean }) | null {
+  try {
+    const intel = profile?.intelligence;
+    if (!intel || intel.modo !== "fija") return null;
+    const pin = intel.porSentido?.[sense] ?? intel.global;
+    if (!pin || (!pin.fuente && !pin.modelo)) return null;
+    return { ...pin, permitirPago: intel.permitirPago === true };
+  } catch {
+    return null;
+  }
 }
 
 function readProfileList(): PersonalityProfile[] | null {
