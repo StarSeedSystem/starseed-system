@@ -24,7 +24,15 @@
  *     · osf_own      (owner = auth.uid())              → dueño: todo.
  *     · osf_select   lectura si is_public/acl_read/acl_write/miembro de grupo.
  *     · osf_shared_write escritura si auth.uid() ∈ acl_write.
+ *   `acl_read`/`acl_write` admiten uuids de CUENTA o de PERFIL indistintamente:
+ *   `acl_ids_allow` (migración 20260712100100) resuelve cuenta↔perfil en las DOS
+ *   direcciones, así que un acceso a un perfil vale para toda su cuenta.
  *   Realtime ON (publicación `supabase_realtime`).
+ *
+ * DEFAULT DE COMPARTICIÓN (jul-2026): un archivo subido nace en ámbito CUENTA —
+ * `is_public=false` + `acl_read=acl_write=[uid]` → lo ven TODOS los perfiles de
+ * la cuenta y nadie más, sin configurar nada. Se cambia en el diálogo de
+ * permisos (`updateFileAccess`). Antes nacía PÚBLICO para toda la red.
  *
  * SOP: architecture/libreria-biblioteca-sync.md §9. Filosofía del repo:
  * nunca lanza, SSR-safe, degrada a null/[]/false sin sesión o ante error de
@@ -152,11 +160,18 @@ export interface UploadFileOptions {
     folder?: string;
     /** Perfil (faceta) de la cuenta que sube el archivo, si aplica. */
     profileId?: string | null;
-    /** Marca el archivo como público desde el registro (además de la lectura pública del bucket). */
+    /**
+     * Marca el archivo como público desde el registro (además de la lectura
+     * pública del bucket). **Por defecto `false`**: lo nuevo nace en ámbito
+     * CUENTA (todos tus perfiles), no público — ver cabecera del módulo.
+     */
     isPublic?: boolean;
     /** Grupo con el que se comparte (habilita lectura vía membresía en RLS). */
     groupSlug?: string | null;
-    /** ACL explícita adicional (uuids de usuario). */
+    /**
+     * ACL explícita (uuids de CUENTA o de PERFIL — `acl_ids_allow` resuelve ambos).
+     * **Por defecto `[uid]`**: la cuenta que sube y, con ella, todos sus perfiles.
+     */
     aclRead?: string[];
     aclWrite?: string[];
     /** Metadatos libres (p. ej. { context: "mensaje", threadId }). */
@@ -549,9 +564,22 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
             path,
             url: publicUrl,
             device_id: deviceId(),
-            is_public: options.isPublic ?? true,
-            acl_read: options.aclRead ?? [],
-            acl_write: options.aclWrite ?? [],
+            // ── DEFAULT AUTOMÁTICO (jul-2026): «toda mi cuenta (todos mis perfiles)» ──
+            // ANTES: `is_public ?? true` — todo archivo subido nacía PÚBLICO para
+            // toda la red y con la ACL vacía. Ahora nace en ámbito CUENTA:
+            //   · is_public=false  → no se lista en la red (listPublicFiles).
+            //   · acl_read/acl_write = [uid] → la cuenta y, por la regla
+            //     cuenta↔perfil de `acl_ids_allow` (migración 20260712100100),
+            //     TODOS sus perfiles. Verificado contra la RLS real.
+            // Sigue siendo cambiable: el diálogo de permisos llama a
+            // `updateFileAccess`, y quien quiera público lo pide explícitamente
+            // (`isPublic: true`, como hace /library en modo GLOBAL).
+            // Los bytes NO dependen de esto: el bucket es de lectura pública y la
+            // URL sigue funcionando (por eso las imágenes de las publicaciones no
+            // se rompen); `is_public` gobierna la FILA de metadatos, no el objeto.
+            is_public: options.isPublic ?? false,
+            acl_read: options.aclRead ?? [uid],
+            acl_write: options.aclWrite ?? [uid],
             group_slug: options.groupSlug ?? null,
             meta: { ...(options.meta ?? {}), ...replicaMeta(replicas) },
         };

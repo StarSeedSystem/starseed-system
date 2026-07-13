@@ -2290,44 +2290,84 @@ textarea:focus {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   OMNIDOCK RESPONSIVE — Trinity Anchor en pantallas chicas
+   OMNIDOCK — CARRIL DESLIZABLE EN TODOS LOS ANCHOS
    SOP: architecture/integracion-portal-starseed-os.md
-   → "OmniDock responsive (fix 2026-06-11)".
-   La píldora exterior conserva borde/cristal; este strip interior
-   hace scroll-x con snap en <640px para que los 11+ items sean
-   alcanzables COMPLETOS en 320–480px sin quitar ninguno.
+   → "OmniDock responsive". Causa raíz del bug de TABLET (3 reportes),
+   corregida aquí (jul-2026):
+
+   ANTES había DOS ramas @media y la de escritorio ganaba en tablet:
+       @media (max-width:1023px) { overflow-x:auto }   ← sí deslizaba
+       @media (min-width:1024px) { overflow: visible } ← MATABA el scroll
+   Un iPad en horizontal mide 1024–1366px CSS, así que caía SIEMPRE en la
+   segunda rama. Con `overflow:visible` el carril no es contenedor de scroll:
+   los items que no caben se PINTAN FUERA de la píldora (que está centrada),
+   se salen del viewport por ambos lados y quedan INALCANZABLES — no hay nada
+   que deslizar. Por eso los arreglos anteriores, que solo tocaban la rama
+   <1024px, nunca lo resolvieron: el tablet nunca pasaba por ahí.
+
+   Cuentas reales (24 tiles por defecto: 22 items + separador + editar):
+     · 390px  (móvil):     tile 58 + gap 6  → ~1.480px de contenido ≫ 382 de carril → DEBE deslizar.
+     · 834px  (tablet):    idem              → ~1.480px ≫ 826            → DEBE deslizar.
+     · 1024px (tablet H):  tile 78 + gap 16  → ~2.160px ≫ 943 (96vw-40)  → DEBE deslizar.
+     · 1440px (escritorio):idem              → ~2.160px ≫ 1.342          → DEBE deslizar.
+   Es decir: el contenido NO cabe en NINGÚN ancho realista. El carril tiene que
+   ser scrollable SIEMPRE; no existe un tamaño en el que `overflow:visible` sea
+   correcto. Regla única, sin @media.
    ═══════════════════════════════════════════════════════════ */
 .omni-dock-strip {
-  scrollbar-width: none;          /* Firefox */
-  -ms-overflow-style: none;       /* IE/Edge legacy */
-  /* Robustez táctil (gen10): la tira jamás excede su contenedor/viewport
-     y el gesto horizontal queda reservado para deslizar el propio dock. */
+  /* ── Scroll horizontal REAL en móvil, tablet y escritorio ── */
+  overflow-x: auto;
+  /* El eje Y DEBE recortarse. No hay alternativa, y conviene saber por qué:
+     CSS Overflow §3 obliga a que, cuando un eje es de scroll (auto/scroll/hidden),
+     el otro NO pueda ser `visible` ni `clip` — `visible` se convierte en `auto`
+     (aparecería una barra vertical absurda) y `clip` se convierte en `hidden`.
+     Verificado en vivo: con `overflow-x:auto`, un `overflow-y:clip` se computa
+     como `hidden` aunque CSS.supports() diga que `clip` está soportado. Por eso
+     `overflow-clip-margin` NO sirve aquí y no lo usamos: el headroom se compra
+     con padding (abajo). */
+  overflow-y: hidden;
+
+  /* Headroom para lo que sobresale por arriba de cada tile y que el recorte del
+     eje Y cortaría: insignia de folder (-6px), punto de "activo" (-4px), hover
+     (-2px de translate + ~1,5px de scale). El `margin-top` negativo compensa el
+     padding para que la PÍLDORA NO CREZCA ni un píxel: el contenido cae donde
+     siempre, pero ahora hay 10px de caja de recorte por encima de él. */
+  padding-top: 10px;
+  margin-top: -10px;
+
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;   /* momentum en iOS/iPadOS */
+  overscroll-behavior-x: contain;      /* no arrastra la página ni dispara "atrás" */
+  /* OJO: nada de `scroll-behavior: smooth` aquí — animaría cada asignación de
+     `scrollLeft` y el drag-to-scroll con ratón saldría "de goma". El
+     desplazamiento suave se pide caso a caso con scrollBy({behavior:'smooth'}). */
+
+  scrollbar-width: none;               /* Firefox: barra oculta pero funcional */
+  -ms-overflow-style: none;            /* IE/Edge legacy */
+
+  /* La tira jamás excede su contenedor/viewport y el gesto horizontal queda
+     reservado para deslizar el propio dock (no para hacer scroll de la página). */
   max-width: 100%;
   box-sizing: border-box;
   touch-action: pan-x;
+
+  /* Drag-to-scroll con ratón (ver omni-dock.tsx): la mano indica que se arrastra. */
+  cursor: grab;
+}
+
+.omni-dock-strip:active {
+  cursor: grabbing;
 }
 
 .omni-dock-strip::-webkit-scrollbar {
-  display: none;                  /* WebKit */
+  display: none;                       /* WebKit: barra oculta pero funcional */
 }
 
-@media (max-width: 1023px) {
-  .omni-dock-strip {
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x proximity;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-    /* Pista visual: degradado en ambos bordes indica que hay más items */
-    mask-image: linear-gradient(to right, transparent 0px, #000 18px, #000 calc(100% - 18px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, transparent 0px, #000 18px, #000 calc(100% - 18px), transparent 100%);
-  }
-}
-
-@media (min-width: 1024px) {
-  .omni-dock-strip {
-    overflow: visible;            /* desktop: tooltips y hover-scale intactos */
-  }
+/* Mientras se arrastra con el ratón, no se seleccionan las etiquetas de los items. */
+.omni-dock-strip--dragging {
+  cursor: grabbing;
+  user-select: none;
+  scroll-snap-type: none;              /* el snap pelearía con el arrastre */
 }
 
 /* ═══════════════════════════════════════════════════════════

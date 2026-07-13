@@ -55,13 +55,21 @@ interface ScopeOption {
 const SCOPE_META: Record<AccessScope, ScopeOption> = {
     private: { id: "private", label: "Privado", icon: FileLock2, desc: "Cerrado con llave: solo tú. Ni siquiera los accesos concedidos aplican." },
     profile: { id: "profile", label: "Un perfil", icon: User, desc: "Solo un perfil concreto de tu cuenta." },
-    account: { id: "account", label: "Mi cuenta", icon: Lock, desc: "Todos los perfiles de tu cuenta. Privado hacia fuera." },
+    account: { id: "account", label: "Toda mi cuenta", icon: Lock, desc: "Todos mis perfiles. Es el ámbito POR DEFECTO de lo que creas: cualquier faceta tuya (cívica, artística, profesional…) lo ve sin configurar nada. Privado hacia fuera; cámbialo aquí cuando quieras." },
     profiles: { id: "profiles", label: "Perfiles", icon: User, desc: "Perfiles concretos. Dar acceso a un perfil lo da a TODA su cuenta (y a sus otros perfiles)." },
     groups: { id: "groups", label: "Grupos", icon: Users, desc: "Grupos concretos: cualquiera de sus miembros accede." },
     pages: { id: "pages", label: "Páginas", icon: FileText, desc: "Páginas o comunidades concretas." },
     custom: { id: "custom", label: "Personalizado", icon: Users, desc: "Perfiles, cuentas o grupos externos concretos." },
     public: { id: "public", label: "Público", icon: Globe, desc: "Cualquiera en la red. El poder público es transparente." },
 };
+
+/**
+ * Ámbito por defecto de TODO recurso nuevo (biblioteca · folder · archivo ·
+ * escritorio…): «toda mi cuenta (todos mis perfiles)». Coincide con
+ * `defaultAccess()` en access.ts, con `defaultAccountAcl()` en entity-library.ts
+ * y con el default de `uploadFile()` en os-files.ts — una sola verdad.
+ */
+const DEFAULT_SCOPE: AccessScope = "account";
 
 /** Ámbitos por defecto (escritorios, pizarras, cerebros — Adenda 63). */
 const DEFAULT_SCOPES: AccessScope[] = ["profile", "account", "custom", "public"];
@@ -573,12 +581,23 @@ export function ShareAccessDialog({
                                         onClick={() => applyScope(opt.id)}
                                         title={opt.desc}
                                         className={cn(
-                                            "flex flex-col items-center gap-1 rounded-xl border px-2 py-2 text-[11px] font-bold transition-colors cursor-pointer",
+                                            "relative flex flex-col items-center gap-1 rounded-xl border px-2 py-2 text-[11px] font-bold transition-colors cursor-pointer",
                                             scope === opt.id
                                                 ? "border-cyan-300/50 bg-cyan-400/15 text-cyan-100"
                                                 : "border-white/10 text-muted-foreground hover:bg-white/[0.06]",
                                         )}
                                     >
+                                        {/* Marca el ámbito PREDETERMINADO: se entiende de un vistazo que
+                                            no hay que configurar nada para que todos tus perfiles accedan. */}
+                                        {opt.id === DEFAULT_SCOPE && (
+                                            <span
+                                                aria-hidden
+                                                title="Ámbito predeterminado"
+                                                className="absolute -top-1.5 right-1 rounded-full border border-emerald-300/40 bg-emerald-400/15 px-1 py-px text-[8px] font-bold uppercase tracking-wide text-emerald-200"
+                                            >
+                                                Def.
+                                            </span>
+                                        )}
                                         <opt.icon className="size-3.5" /> {opt.label}
                                     </button>
                                 ))}
@@ -586,6 +605,18 @@ export function ShareAccessDialog({
                             <p className="mt-1 px-0.5 text-[10px] text-muted-foreground">
                                 {SCOPE_META[scope]?.desc}
                             </p>
+                            {/* Línea de explicación del DEFAULT: por qué está así y cómo cambiarlo. */}
+                            {scope === DEFAULT_SCOPE && (
+                                <p className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-emerald-300/20 bg-emerald-400/[0.06] px-2 py-1.5 text-[10px] text-emerald-100/80">
+                                    <Lock className="mt-px size-3 shrink-0 text-emerald-300" />
+                                    <span>
+                                        <b className="font-semibold">Toda mi cuenta (todos mis perfiles)</b> es el ajuste
+                                        automático al crear. Tu cuenta es una sola y sus perfiles son facetas suyas: lo
+                                        que guardas con un perfil lo tienes en todos. Elige otro ámbito arriba para
+                                        cerrarlo (<b className="font-semibold">Privado</b>) o abrirlo a más gente.
+                                    </span>
+                                </p>
+                            )}
                         </div>
 
                         {/* ── Vitrina: mostrar este nodo en la Biblioteca pública del perfil (§4) ── */}

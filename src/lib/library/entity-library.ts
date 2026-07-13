@@ -149,6 +149,38 @@ function emptyAcl(): ItemACL {
     return { read: [], write: [] };
 }
 
+/**
+ * ÁMBITO POR DEFECTO DE TODO RECURSO NUEVO (jul-2026 · «compartir con todos mis
+ * perfiles es el default»).
+ *
+ * Regla de producto: al crear una biblioteca / folder / archivo, el recurso es
+ * accesible por TODOS los perfiles de la propia cuenta SIN configurar nada
+ * (ámbito `account`). Después se puede cambiar en el diálogo de permisos a
+ * private · profiles · groups · pages · public.
+ *
+ * Por qué esto BASTA para que "todos mis perfiles" lo vean: en el OS la sesión
+ * (`auth.uid()`) ES la Cuenta soberana y los perfiles son facetas suyas
+ * (CLAUDE.md §6 · «Dualidad Cuenta/Perfil»). El grant nombra a la CUENTA, y la
+ * función `acl_ids_allow` de la BD (migración 20260712100100) resuelve las dos
+ * direcciones cuenta↔perfil. Gemelo en cliente: `identitySetOf` en access.ts.
+ *
+ * Se escribe SOLO en el nodo RAÍZ (la biblioteca). Folders e ítems nacen SIN
+ * `acl` propia → HEREDAN esta (§3), así que siguen siendo cambiables uno a uno
+ * y un cambio en la raíz se propaga a todo lo que no haya decidido por su cuenta.
+ */
+export function defaultAccountAcl(account: string): ItemACL {
+    const at = new Date().toISOString();
+    const entry: ACLEntry = { kind: "user", id: account };
+    return {
+        // Espejo v2 (lo consumen el Finder y las políticas legadas).
+        read: [entry],
+        write: [entry],
+        scope: "account",
+        grants: [{ granteeKind: "account", granteeId: account, role: "admin" }],
+        updatedAt: at,
+    };
+}
+
 /** v2.1 (§13): snapshot de un estado anterior de un ítem, para historial/restaurar/comparar. */
 export interface ItemVersionEntry {
     id: string;
@@ -984,11 +1016,45 @@ function touchFolder(f: LibraryFolder, patch: Partial<LibraryFolder>, at: string
 }
 
 /**
+ * DEFAULT AUTOMÁTICO DE COMPARTICIÓN (jul-2026) — «todos los perfiles de mi cuenta».
+ *
+ * Si la biblioteca de una CUENTA (`kind:"user"`, donde `ref.id` ES el uuid de la
+ * cuenta) todavía no tiene ACL propia en su nodo RAÍZ, se le escribe la de
+ * `defaultAccountAcl` (ámbito `account`). Consecuencias buscadas:
+ *
+ *   · Folders e ítems nacen SIN `acl` → HEREDAN esta (§3): con no hacer nada, el
+ *     recurso ya es accesible por todos los perfiles de la cuenta.
+ *   · La RLS lo ve de verdad: `es_doc_acl_allows(value,…)` lee este `acl` y
+ *     `acl_ids_allow` resuelve cuenta↔perfil en las dos direcciones
+ *     (migración 20260712100100). Antes el doc no llevaba ACL alguna y la BD solo
+ *     podía autorizar por propiedad.
+ *   · Sigue siendo CAMBIABLE: el diálogo de permisos escribe una ACL explícita
+ *     (private · profiles · groups · pages · public) y este hook ya no toca nada
+ *     (solo actúa cuando NO hay ACL).
+ *
+ * Nota honesta sobre `setLibraryAcl(ref, null)`: limpiar la ACL de la RAÍZ la
+ * devuelve a este default (la raíz no tiene padre del que heredar — «sin ACL»
+ * y «ámbito cuenta» son lo mismo para ella). Es autorreparador, no un bug.
+ *
+ * Las bibliotecas de ENTIDADES (página/grupo/comunidad…) no se tocan: su acceso
+ * lo rige la membresía (`es_can_read`), no una cuenta.
+ */
+function withDefaultRootAcl(ref: EntityRef, doc: EntityLibraryDoc): EntityLibraryDoc {
+    if (ref.kind !== "user" || !ref.id) return doc;
+    if (doc.acl) return doc; // ACL propia ya decidida (incluida 'private'): se respeta.
+    return { ...doc, acl: defaultAccountAcl(ref.id) };
+}
+
+/**
  * Aplica un cambio: cache local (instantáneo, local-first) + subida a la nube en
  * segundo plano. Si `audit` viene, el guardado con éxito CREA UNA REVISIÓN en
  * `os_versions` y una entrada en `os_access_log` (Adenda 66 §2) — nunca bloquea.
  * Si la nube falla, `pushCloud` encola la entidad CON EL MOTIVO y el reintento
  * automático la sube; la UI muestra el error (nada de fallos mudos).
+ *
+ * Antes de persistir se materializa el ámbito por defecto de la raíz
+ * (`withDefaultRootAcl`): así el default «toda mi cuenta» existe en el documento
+ * y no solo en la cabeza del cliente.
  */
 async function mutate(
     ref: EntityRef,
@@ -996,7 +1062,7 @@ async function mutate(
     audit?: AuditEntry,
 ): Promise<EntityLibraryDoc> {
     const current = readCache(ref);
-    const next = fn(current);
+    const next = withDefaultRootAcl(ref, fn(current));
     writeCache(ref, next);
     void pushCloud(ref, next, audit);
     return next;

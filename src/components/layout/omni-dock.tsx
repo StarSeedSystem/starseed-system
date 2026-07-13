@@ -75,7 +75,11 @@ export function OmniDock() {
         const el = stripRef.current;
         if (!el) return;
         const max = el.scrollWidth - el.clientWidth;
-        setShadow({ l: el.scrollLeft > 4, r: el.scrollLeft < max - 4 });
+        const next = { l: el.scrollLeft > 4, r: el.scrollLeft < max - 4 };
+        // Guarda anti-bucle: solo re-renderiza si el valor CAMBIA. El
+        // ResizeObserver de abajo mide en cada render; sin esta comparación
+        // (medir → setState → render → medir…) se realimentaría solo.
+        setShadow((prev) => (prev.l === next.l && prev.r === next.r ? prev : next));
     }, []);
 
     useEffect(() => {
@@ -91,6 +95,78 @@ export function OmniDock() {
         window.addEventListener("resize", updateShadows);
         return () => { window.clearTimeout(id); window.removeEventListener("resize", updateShadows); };
     }, [isVisible, items, editMode, updateShadows]);
+
+    // El `resize` de window NO se dispara al girar un tablet dentro de una app
+    // instalada, ni al abrirse/cerrarse un folder, ni al cambiar la densidad del
+    // dock: el carril cambia de tamaño sin que la ventana lo haga. El
+    // ResizeObserver sí lo ve, así que las flechas "hay más" nunca mienten.
+    useEffect(() => {
+        if (!isVisible || typeof ResizeObserver === "undefined") return;
+        const el = stripRef.current;
+        if (!el) return;
+        const ro = new ResizeObserver(() => updateShadows());
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [isVisible, updateShadows]);
+
+    /* ── Deslizar el carril ────────────────────────────────────────────────
+     * Táctil y rueda funcionan solos (overflow-x:auto en .omni-dock-strip).
+     * Falta el RATÓN: aquí se añade arrastrar-para-desplazar, que además es lo
+     * que espera quien usa un tablet con teclado/trackpad o un portátil.
+     * Solo se intercepta `pointerType === "mouse"`: secuestrar el táctil
+     * rompería el momentum nativo y el scroll-snap de iOS/Android. */
+    const drag = useRef({ active: false, startX: 0, startLeft: 0, moved: false });
+    const justDragged = useRef(false);
+
+    const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        justDragged.current = false; // limpia un arrastre anterior que no acabó en click
+        if (e.pointerType !== "mouse" || e.button !== 0) return;
+        const el = stripRef.current;
+        if (!el || el.scrollWidth <= el.clientWidth) return; // si cabe todo, no hay nada que arrastrar
+        drag.current = { active: true, startX: e.clientX, startLeft: el.scrollLeft, moved: false };
+    }, []);
+
+    const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        const el = stripRef.current;
+        const d = drag.current;
+        if (!d.active || !el) return;
+        const dx = e.clientX - d.startX;
+        if (!d.moved) {
+            if (Math.abs(dx) <= 4) return; // umbral: por debajo sigue siendo un click
+            d.moved = true;
+            el.classList.add("omni-dock-strip--dragging");
+            // Capturamos el puntero: el arrastre continúa aunque el cursor salga del carril.
+            try { el.setPointerCapture(e.pointerId); } catch { /* navegador sin capture: degrada bien */ }
+        }
+        el.scrollLeft = d.startLeft - dx;
+        updateShadows();
+    }, [updateShadows]);
+
+    const endDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        const el = stripRef.current;
+        const d = drag.current;
+        if (!d.active || !el) return;
+        try { el.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+        el.classList.remove("omni-dock-strip--dragging");
+        // Si hubo arrastre REAL, el click que el navegador emite al soltar se
+        // descarta (si no, soltar encima de un icono navegaría sin querer).
+        justDragged.current = d.moved;
+        drag.current = { active: false, startX: 0, startLeft: 0, moved: false };
+    }, []);
+
+    const onClickCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        if (!justDragged.current) return;
+        justDragged.current = false;
+        e.stopPropagation();
+        e.preventDefault();
+    }, []);
+
+    /** Salta ~una pantalla de items (flechas «hay más»). */
+    const scrollByPage = useCallback((dir: -1 | 1) => {
+        const el = stripRef.current;
+        if (!el) return;
+        el.scrollBy({ left: dir * Math.max(160, el.clientWidth * 0.8), behavior: "smooth" });
+    }, []);
 
     const persist = (next: DockItemConfig[]) => {
         setItems(next);
@@ -281,11 +357,13 @@ export function OmniDock() {
                     )}
 
                     {/*
-                        Píldora del dock: el borde/cristal queda intacto; dentro, un strip
-                        (.omni-dock-strip, ver globals.css) que en <1024px hace scroll-x con
-                        scroll-snap + máscara de degradado en los bordes para que el dock
-                        completo sea usable en 320–1023px sin perder ningún item. En <lg
-                        los items van compactos (48px, ≥44px táctil); en ≥lg, diseño original.
+                        Píldora del dock: el borde/cristal queda intacto; dentro, un carril
+                        (.omni-dock-strip, ver globals.css) con scroll-x REAL + scroll-snap en
+                        TODOS los anchos — móvil, tablet y escritorio. Con 22 items por defecto
+                        el contenido no cabe en ninguna pantalla realista, así que el carril
+                        siempre tiene que poder deslizarse: táctil, rueda, arrastre con ratón y
+                        las flechas laterales. En <lg los items van compactos (48px, ≥44px
+                        táctil); en ≥lg, diseño original.
                     */}
                     <div className={cn(
                         "omni-dock-pill glass-depth glass-edge glass-sheen-slow pointer-events-auto",
@@ -314,25 +392,49 @@ export function OmniDock() {
                                 shadow.r ? "opacity-100" : "opacity-0"
                             )}
                         />
-                        {/* Chevron sutil que confirma que se puede seguir desplazando */}
+                        {/* Flechas «hay más»: ahora son BOTONES REALES (antes solo
+                            adorno con pointer-events-none). Con ratón o dedo, un
+                            toque salta una pantalla de items — otra vía más para
+                            que nada quede inalcanzable. */}
                         {shadow.r && (
-                            <span aria-hidden className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 z-20 text-foreground/50 animate-pulse">
-                                <ChevronRight className="w-4 h-4" />
-                            </span>
+                            <button
+                                type="button"
+                                onClick={() => scrollByPage(1)}
+                                aria-label="Ver más accesos a la derecha"
+                                title="Ver más accesos"
+                                className="pointer-events-auto absolute right-1.5 top-1/2 -translate-y-1/2 z-20 grid size-6 place-items-center rounded-full text-foreground/50 transition-colors duration-200 hover:bg-foreground/10 hover:text-foreground cursor-pointer"
+                            >
+                                <ChevronRight className="w-4 h-4 animate-pulse" />
+                            </button>
                         )}
                         {shadow.l && (
-                            <span aria-hidden className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 z-20 text-foreground/50 animate-pulse">
-                                <ChevronLeft className="w-4 h-4" />
-                            </span>
+                            <button
+                                type="button"
+                                onClick={() => scrollByPage(-1)}
+                                aria-label="Ver más accesos a la izquierda"
+                                title="Ver más accesos"
+                                className="pointer-events-auto absolute left-1.5 top-1/2 -translate-y-1/2 z-20 grid size-6 place-items-center rounded-full text-foreground/50 transition-colors duration-200 hover:bg-foreground/10 hover:text-foreground cursor-pointer"
+                            >
+                                <ChevronLeft className="w-4 h-4 animate-pulse" />
+                            </button>
                         )}
                         <div
                             ref={stripRef}
                             onScroll={updateShadows}
-                            // Tira deslizable: overflow-x táctil sin scrollbar (ver
-                            // .omni-dock-strip en globals.css: en ≥1024px vuelve a
-                            // overflow visible para tooltips/hover-scale), nunca más
-                            // ancha que el viewport (max-w + box-border) y con
-                            // padding consciente de las safe-areas laterales (notch).
+                            onPointerDown={onPointerDown}
+                            onPointerMove={onPointerMove}
+                            onPointerUp={endDrag}
+                            onPointerCancel={endDrag}
+                            onClickCapture={onClickCapture}
+                            role="group"
+                            aria-label="Accesos del dock (desliza para ver más)"
+                            // Carril deslizable en TODOS los anchos (móvil, tablet y
+                            // escritorio): ver .omni-dock-strip en globals.css, donde
+                            // está explicada la causa raíz del bug de tablet (la vieja
+                            // regla `overflow: visible` en ≥1024px anulaba el scroll y
+                            // dejaba los items de más fuera de la pantalla). Nunca más
+                            // ancho que el viewport (max-w + box-border) y con padding
+                            // consciente de las safe-areas laterales (notch).
                             className={cn(
                                 "omni-dock-strip flex items-end overflow-x-auto max-w-full box-border",
                                 "pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))]",

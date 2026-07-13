@@ -230,6 +230,94 @@ export interface AuroraEngine {
 let sttOwner: symbol | null = null;
 
 /**
+ * Momento del último LATIDO del dueño del testigo (ms). Ver `STT_OWNER_TTL_MS`.
+ */
+let sttOwnerTs = 0;
+
+/**
+ * Vida del testigo SIN latido. Regla del proyecto (memory/state.md): los guards
+ * son TEMPORALES, nunca booleanos permanentes.
+ *
+ * `sttOwner` era permanente: si el dueño moría SIN pasar por `stop()` ni por la
+ * limpieza del desmontaje (pestaña congelada, bundle viejo servido por el
+ * service worker, excepción en el unmount), el testigo quedaba apuntando a una
+ * instancia FANTASMA y `start()` volvía en silencio para siempre → Aurora SORDA
+ * de forma permanente ("no escucha", sin ningún error visible). Con TTL, el
+ * testigo caduca y cualquier instancia viva puede retomar la voz.
+ */
+const STT_OWNER_TTL_MS = 60_000;
+/** Cada cuánto late el dueño para renovar su testigo. */
+const STT_OWNER_HEARTBEAT_MS = 15_000;
+
+/** ¿Puede `id` arrancar el STT? (testigo libre, propio, o CADUCADO). */
+function canOwnStt(id: symbol): boolean {
+  if (!sttOwner || sttOwner === id) return true;
+  return Date.now() - sttOwnerTs > STT_OWNER_TTL_MS;
+}
+
+/** Toma (o renueva) el testigo del STT para `id`. */
+function claimStt(id: symbol): void {
+  sttOwner = id;
+  sttOwnerTs = Date.now();
+}
+
+/** Suelta el testigo si pertenece a `id`. */
+function releaseStt(id: symbol): void {
+  if (sttOwner === id) {
+    sttOwner = null;
+    sttOwnerTs = 0;
+  }
+}
+
+/**
+ * UN SOLO MOTOR DE VOZ — registro del ÚNICO SpeechRecognition VIVO del documento.
+ * ----------------------------------------------------------------------------
+ * `sttOwner` impide que dos INSTANCIAS del motor arranquen a la vez, pero NO
+ * impedía que UNA MISMA instancia tuviera DOS objetos SpeechRecognition vivos a
+ * la vez, que es la causa real de «Aurora no escucha y se repite en bucle»:
+ *
+ *   · `onend` programa un reinicio con `setTimeout(() => next.start(), delay)`.
+ *   · Si ANTES de que venza ese temporizador el usuario toca el orbe (o pulsa el
+ *     micro del chat), `start()` construía OTRO reconocimiento y lo arrancaba…
+ *     sin cancelar el reinicio pendiente. Al vencer, el objeto viejo TAMBIÉN
+ *     arrancaba → DOS reconocimientos peleando por el micrófono → se abortan
+ *     mutuamente (`aborted`) → ninguno entrega `onresult` («no escucha») y cada
+ *     `onend` vuelve a programar otro reinicio («loop»).
+ *
+ * Solución: TODO arranque pasa por `startRecognitionExclusive`, que ABORTA de
+ * verdad el reconocimiento vivo anterior antes de arrancar el nuevo. Así, en
+ * todo el OS, solo puede haber UN SpeechRecognition escuchando.
+ */
+let liveRecognition: any = null;
+
+/** Aborta (de verdad) el reconocimiento vivo, si lo hay. */
+function abortLiveRecognition(): void {
+  const prev = liveRecognition;
+  liveRecognition = null;
+  if (!prev) return;
+  try { prev.onend = null; } catch { /* */ }
+  try { prev.onerror = null; } catch { /* */ }
+  try { prev.onresult = null; } catch { /* */ }
+  try { prev.abort?.(); } catch { /* */ }
+}
+
+/**
+ * Arranca `rec` como el ÚNICO reconocimiento vivo del documento (aborta el
+ * anterior). Defensivo: nunca lanza.
+ */
+function startRecognitionExclusive(rec: any): void {
+  if (!rec) return;
+  if (liveRecognition && liveRecognition !== rec) abortLiveRecognition();
+  liveRecognition = rec;
+  try { rec.start(); } catch { /* ya iniciado / arranque solapado */ }
+}
+
+/** Da de baja `rec` del registro si es el vivo (lo llama su propio `onend`). */
+function releaseRecognition(rec: any): void {
+  if (liveRecognition === rec) liveRecognition = null;
+}
+
+/**
  * Guard de ECO a NIVEL DE MÓDULO (compartido por CUALQUIER instancia del motor y
  * por CUALQUIER ruta de voz). Mientras Aurora habla (TTS) —o durante un breve
  * cooldown— el reconocimiento DESCARTA lo que capta: es su propia voz, no un
@@ -1062,6 +1150,9 @@ export function useAuroraEngine(): AuroraEngine {
       setListening(false);
     };
     rec.onend = () => {
+      // Este reconocimiento ya no escucha: suéltalo del registro del ÚNICO
+      // reconocimiento vivo (si aún figuraba como tal).
+      releaseRecognition(rec);
       // OBSOLETO: si ya no es la generación vigente, no hace NADA (otro
       // reconocimiento más reciente manda) → no hay reinicios en paralelo.
       if (gen !== recGenRef.current) return;
@@ -1100,8 +1191,19 @@ export function useAuroraEngine(): AuroraEngine {
           const next = buildRecognition();
           if (next) {
             recognitionRef.current = next;
+            // Generación de ESTE reinicio programado. Si antes de que venza el
+            // temporizador alguien arranca otro reconocimiento (toque en el
+            // orbe, micro del chat, wake-word…), la generación avanza y este
+            // arranque queda CANCELADO: si no, se sumaba un SEGUNDO
+            // reconocimiento vivo que peleaba por el micrófono con el nuevo (se
+            // abortaban mutuamente → «no escucha» + reinicios en bucle).
+            const nextGen = recGenRef.current;
             sttRestartTimerRef.current = setTimeout(() => {
-              try { next.start(); } catch { /* */ }
+              sttRestartTimerRef.current = null;
+              if (nextGen !== recGenRef.current) return; // obsoleto: no arranques
+              if (!keepAliveRef.current) return;         // parada deliberada
+              if (pausedForTtsRef.current || ttsGuardActive()) return; // medio-dúplex
+              startRecognitionExclusive(next);
             }, delay);
             return;
           }
@@ -1201,18 +1303,29 @@ export function useAuroraEngine(): AuroraEngine {
     if (typeof window === "undefined") return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { toast.error("Tu navegador no soporta reconocimiento de voz."); return; }
-    // Guard singleton: si otra instancia ya posee el testigo del STT, esta cede
-    // (no arranca un segundo reconocimiento → no se duplican las acciones).
-    if (sttOwner && sttOwner !== instanceIdRef.current) return;
-    sttOwner = instanceIdRef.current;
+    // Guard singleton TEMPORAL: si otra instancia VIVA posee el testigo del STT,
+    // esta cede (no arranca un segundo reconocimiento → no se duplican acciones).
+    // Si el testigo está CADUCADO (dueño fantasma), lo retomamos: nunca dejamos a
+    // Aurora sorda para siempre por un guard permanente.
+    if (!canOwnStt(instanceIdRef.current)) return;
+    claimStt(instanceIdRef.current);
     keepAliveRef.current = true; // mantener vivo a través de la navegación
-    try { recognitionRef.current?.stop?.(); } catch { /* */ }
+    // CANCELA cualquier reinicio PROGRAMADO: si no, al vencer arrancaba un
+    // reconocimiento VIEJO en paralelo al que creamos aquí → dos motores de voz
+    // peleando por el micrófono (se abortan → «no escucha» → bucle de reinicios).
+    if (sttRestartTimerRef.current) {
+      clearTimeout(sttRestartTimerRef.current);
+      sttRestartTimerRef.current = null;
+    }
+    sttRestartsRef.current = 0;
     // Medio-dúplex: reanudar la escucha limpia cualquier pausa por TTS pendiente.
     pausedForTtsRef.current = false;
     const rec = buildRecognition();
     if (!rec) return;
     recognitionRef.current = rec;
-    try { rec.start(); } catch { /* ya iniciado */ }
+    // Arranque EXCLUSIVO: aborta de verdad el reconocimiento vivo anterior (un
+    // `stop()` es asíncrono y lo dejaba reteniendo el micro un rato más).
+    startRecognitionExclusive(rec);
   }, [buildRecognition]);
 
   // Mantén `startRef` apuntando a la última versión de `start` (para finishTts).
@@ -1224,9 +1337,15 @@ export function useAuroraEngine(): AuroraEngine {
     if (sttRestartTimerRef.current) { clearTimeout(sttRestartTimerRef.current); sttRestartTimerRef.current = null; }
     if (ttsWatchdogRef.current) { clearTimeout(ttsWatchdogRef.current); ttsWatchdogRef.current = null; }
     sttRestartsRef.current = 0;
+    // Invalida la generación: el `onend` del reconocimiento que paramos queda
+    // OBSOLETO y no puede programar otro reinicio.
+    recGenRef.current++;
     try { recognitionRef.current?.stop?.(); } catch { /* */ }
+    // Y suéltalo del registro del ÚNICO reconocimiento vivo (cinturón y tirantes:
+    // su `onend` también lo hace, pero puede tardar en llegar).
+    abortLiveRecognition();
     // Libera el testigo del STT para que cualquier instancia pueda retomarlo.
-    if (sttOwner === instanceIdRef.current) sttOwner = null;
+    releaseStt(instanceIdRef.current);
     setListening(false);
   }, []);
 
@@ -1234,10 +1353,19 @@ export function useAuroraEngine(): AuroraEngine {
   // del micrófono en WEB al desactivar/expirar la conversación).
   useEffect(() => { stopNowRef.current = stop; }, [stop]);
 
-  // Al desmontar la instancia dueña del STT, libera el testigo.
+  // LATIDO del testigo del STT: mientras esta instancia lo posea, lo renueva. Si
+  // la instancia muere sin ejecutar la limpieza (pestaña congelada, bundle viejo
+  // del SW), el testigo deja de latir y CADUCA a los 60s → otra instancia puede
+  // retomar la voz. Al desmontar, lo suelta de inmediato.
   useEffect(() => {
     const id = instanceIdRef.current;
-    return () => { if (sttOwner === id) sttOwner = null; };
+    const beat = setInterval(() => {
+      if (sttOwner === id) sttOwnerTs = Date.now();
+    }, STT_OWNER_HEARTBEAT_MS);
+    return () => {
+      clearInterval(beat);
+      releaseStt(id);
+    };
   }, []);
 
   const toggle = useCallback(() => {

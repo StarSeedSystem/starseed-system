@@ -2575,3 +2575,139 @@ Migración aplicada (`[]`). Comprobado: 15 columnas de `os_versions`, RLS **ON**
 ### Notas / aprendizajes
 - ⚠️ **TRAMPA DEL ENTORNO DEL MAC:** la shell tiene `NODE_ENV=production`, así que un `npm i <pkg>` **PODA las devDependencies** (typescript, eslint, tailwind, postcss desaparecieron y `npx tsc` empezó a fallar con «This is not the tsc command you are looking for»). Se restauró con `NODE_ENV=development npm install --include=dev`. **Regla: en este repo, instalar SIEMPRE con `NODE_ENV=development npm install --include=dev`.**
 - Un `route.ts` de Next 15 **no puede exportar** nada que no sea un handler HTTP o `runtime`/`dynamic` (los helpers auxiliares se dejaron sin `export`).
+
+---
+
+## 2026-07-12 — Aurora: chat duplicado + «no escucha y se repite en bucle» (causa raíz OBSERVADA en vivo)
+
+**Sesión por:** Claude (Cowork, subagente) bajo dirección de Alex Bordón Garrigós.
+**Resumen ejecutivo:** Dos bugs que el usuario reportaba por separado tenían la MISMA familia de causa: superficies de Aurora que se montan sin saber qué más hay montado. Se diagnosticó **en vivo** con Claude-in-Chrome sobre `https://starseed-os.vercel.app` (no por teoría), y se corrigió en el origen.
+
+### Causa raíz OBSERVADA (no supuesta)
+
+**Bug 1 — «el chat de Aurora se duplica».**
+- Instrumentando el DOM con el Exocórtex (cortina Zenith → `AuroraChatSection`) ABIERTO, el mismo mensaje (`"hola"`) aparecía **renderizado DOS VECES**: una en el `AuroraChatView` del chat completo y otra en una tarjeta `aurora-mini-player_player__*` de **312×193 px** anclada al orbe.
+- Causa: **`src/components/aurora/aurora-widget.tsx:665`** — el orbe montaba sus superficies conversacionales (`AuroraMiniPlayer`, `AuroraSpeechBubble`, mini-popover) con la condición `!trinityOpen && !open && miniPlayerActive`, que **NO comprueba si el chat COMPLETO ya está abierto**. Resultado: el chat principal (con todas las pestañas) arriba y, debajo, un segundo chat más simple repitiendo la MISMA conversación.
+- ⚠️ El fix anterior (ocultar con `hidden` la vista compacta detrás del fullscreen, `aurora-chat-section.tsx:960`) no bastaba **porque el duplicado no estaba ahí**: estaba en el ORBE, fuera de la cortina.
+
+**Bug 2 — «Aurora no escucha y se repite en bucle».**
+- Parcheando `SpeechRecognition` en vivo se observó que **NO hay dos motores** (`AuroraProvider` es único y el guard `sttOwner` aguanta), pero sí **dos objetos `SpeechRecognition` VIVOS a la vez** dentro del MISMO motor:
+  - `onend` programaba el reinicio con `setTimeout(() => next.start(), delay)` (`engine.ts`), y **`start()` no cancelaba ese temporizador pendiente**.
+  - Si el usuario tocaba el orbe (o el micro del chat) antes de que venciera —que es justo lo que hace cuando «no le escucha»—, `start()` construía OTRO reconocimiento y lo arrancaba; al vencer el temporizador, **el objeto viejo TAMBIÉN arrancaba**.
+  - Dos reconocimientos peleando por el micrófono → se abortan mutuamente (`aborted`) → ninguno entrega `onresult` (**«no escucha»**) y cada `onend` vuelve a programar otro reinicio (**«bucle»**).
+  - Además `start()` hacía `stop()` (asíncrono y gentil: el viejo retiene el micro un rato) en vez de `abort()`.
+- Log real capturado: `EV_error:no-speech → EV_end → CALL_start(#n+1) → EV_start → EV_speechstart → EV_end (sin EV_result) → CALL_start(#n+2)…`
+
+### Hecho
+- **`src/lib/aurora/aurora-orb-bus.ts`** — nuevo bus **UNA SOLA SUPERFICIE DE CHAT**: `setAuroraFullChatOpen()` / `isAuroraFullChatOpen()` / `subscribeAuroraFullChat()` + `AURORA_FULLCHAT_EVENT`. Es un **contador**, no un booleano (soporta varios montajes sin apagarse al desmontar uno).
+- **`src/components/exocortex/aurora-chat-section.tsx`** — se REGISTRA mientras está montada (la cortina Zenith solo la monta con `isActive`, así que el registro sigue la visibilidad real).
+- **`src/components/aurora/aurora-widget.tsx`** — el orbe se suscribe: con el chat completo abierto **no monta** mini-player, globo ni mini-popover (y cierra el popover si ya estaba abierto). El tap sin STT enfoca el chat que ya hay en vez de abrir un segundo. **El orbe, los gestos Trinity, el wake-word y el mini-player (con el chat cerrado) siguen intactos.**
+- **`src/lib/aurora/engine.ts`** — **UN SOLO MOTOR DE VOZ de verdad**: registro a nivel de módulo del ÚNICO `SpeechRecognition` vivo (`startRecognitionExclusive` / `abortLiveRecognition` / `releaseRecognition`). Todo arranque **aborta** el reconocimiento vivo anterior; `start()` **cancela el reinicio programado**; el temporizador de reinicio **comprueba la generación** (y `keepAlive` / medio-dúplex) antes de arrancar; `stop()` invalida la generación y aborta.
+
+### Decisiones tomadas
+- La exclusión se resuelve **en el bus**, no con `hidden`/CSS: ocultar no desmonta, y el mini-player además consume el analizador de micro. Mutua exclusión real = una sola superficie y un solo consumidor.
+- Se conserva el mini-player como superficie conversacional cuando el chat completo está CERRADO (es su razón de ser).
+
+### Notas / aprendizajes
+- 🔑 **Regla confirmada (otra vez):** cuando el orbe hace cosas raras, buscar SIEMPRE una **segunda capa** montada sobre el mismo canal. Esta vez no eran dos motores: eran **dos objetos de reconocimiento del mismo motor**, y **dos superficies de chat del mismo estado**.
+- 🔑 **`stop()` de SpeechRecognition es asíncrono y gentil**: no libera el micro al instante. Para relevar un reconocimiento hay que **`abort()`**, y hay que **cancelar los reinicios programados** o resucitan como rivales.
+- El analizador de micro (`acquireMicAnalyser`) ya era un singleton con refcount y ya estaba desactivado en Android: **no** era la causa del robo de micrófono.
+
+---
+
+## 2026-07-12 (bis) — Aurora: cierre de la ola (verificación en vivo + 3 causas que faltaban)
+
+**Sesión por:** Claude (Cowork, subagente) — continuación de la entrada anterior, que quedó **sin desplegar**.
+**Resumen ejecutivo:** Se verificó **en vivo contra producción** que el duplicado seguía ahí (porque el fix anterior nunca se subió), se confirmó la causa raíz observada, y se cerraron **tres agujeros** que quedaban: un guard permanente que podía dejar a Aurora sorda para siempre, un **segundo motor de voz** dormido en el repo, y el barge-in roto.
+
+### ⚠️ Hallazgo nº1: el fix anterior NUNCA llegó al usuario
+- La entrada anterior de esta bitácora describe el fix… pero los archivos estaban **solo modificados en local, sin commit ni push**. Producción (`starseed-os.vercel.app`) seguía sirviendo el commit `6596820`, **sin** el bus `fullChat`.
+- **Verificado en vivo** (Claude-in-Chrome, `/dashboard`): con la cortina Zenith abierta (`.axc-root` = 1) y una conversación en marcha, el **mini-player del orbe** estaba montado y visible al mismo tiempo (botón `title="Abrir el panel completo (Chat · Voz · Control)"`), repitiendo los mismos mensajes → **el «segundo chat más simple» que ve el usuario ES el mini-player del orbe**, no la vista compacta detrás del fullscreen (esa ya estaba correctamente oculta: `hidden` → `offsetParent === null`, comprobado).
+- 🔑 **Lección:** *«arreglado en local» no es «arreglado».* Un fix de UI **no existe** hasta que está desplegado. Verificar SIEMPRE `git status` antes de dar una ola por cerrada (ya pasó con los subagentes muertos por límite).
+
+### Hecho (además de lo de la entrada anterior)
+- **`src/lib/aurora/engine.ts` — `sttOwner` pasa a ser un guard TEMPORAL.** Era un **booleano permanente** (justo lo que prohíbe la regla del proyecto): si la instancia dueña moría sin pasar por `stop()` ni por la limpieza del desmontaje (pestaña congelada, bundle viejo del SW, excepción en el unmount), el testigo quedaba apuntando a una **instancia fantasma** y `start()` volvía **en silencio** para siempre → **Aurora sorda de forma permanente, sin ningún error visible**. Ahora: `canOwnStt()` / `claimStt()` / `releaseStt()` con **TTL de 60 s** y **latido cada 15 s**; el testigo caducado se puede retomar.
+- **`src/components/hermes/ai-overlay.tsx` — eliminado el SEGUNDO motor de voz.** El overlay retirado (`AiOverlay`, ya no montado pero conservado en el repo) seguía construyendo **su propio `new SpeechRecognition()`** y llamando a `r.start()` directamente, saltándose el singleton. Era exactamente la mina que la regla del proyecto avisa que hay que buscar. Ahora **delega** en el motor único vía el puente global (`toggleAuroraVoice` / `isAuroraReady`). Ya **no queda ningún otro `new SpeechRecognition()` en `src/`** fuera de `engine.ts:buildRecognition()` (única fábrica).
+- **`src/components/aurora/aurora-widget.tsx` — barge-in arreglado.** El tooltip del orbe prometía «Hablando… toca para interrumpir», pero el toque caía en la rama de abajo y, al estar `engaged`, hacía **`disengage()`**: cortaba la escucha en vez de interrumpir el habla. Ahora, si `aurora.speaking`, el toque **interrumpe el TTS y vuelve a escuchar al instante** (barge-in real).
+- **`src/components/aurora/aurora-widget.tsx`** — la píldora flotante de `actionStatus` también cede ante el chat completo (allí ya se muestra en su propia banda; se veía duplicada).
+
+### Verificación
+- `npx tsc --noEmit` → **0 errores**.
+- `npm run build` → **exit 0** (92/92 páginas).
+- ⚠️ **Trampa del entorno:** dos agentes construyendo a la vez **comparten `.next`** y el segundo build revienta con `ENOENT … page.js.nft.json` en «Collecting build traces». No es un fallo del código: es una **colisión de builds**. Regla: comprobar `pgrep -f "next build"` antes de construir.
+
+### Pendiente / Próximos pasos
+- 🚨 **DESPLEGAR** (commit + push desde el Mac). Mientras no se despliegue, **el usuario sigue viendo el bug**: es la única razón por la que seguía ahí.
+- No se pudo verificar la **voz** en vivo (el Chrome automatizado no tiene permiso de micrófono): la instrumentación de `SpeechRecognition` registró **0 instancias** porque la escucha nunca llegó a arrancar. El razonamiento del bucle está apoyado en el código y en el log capturado por la sesión anterior; conviene una pasada final con micrófono real.
+
+---
+
+## 2026-07-12 — Permisos: compartir con TODOS mis perfiles por defecto · Dock Trinity: causa raíz del «no se desliza en tablet» (3er reporte)
+
+**Sesión por:** Claude (Cowork, subagente) bajo dirección de Alex Bordón Garrigós.
+**Resumen ejecutivo:** Dos encargos. (A) El ámbito **por defecto** de todo lo que se crea pasa a ser **`account` — «toda mi cuenta (todos mis perfiles)»**, verificado contra la RLS REAL de Supabase. (B) Se encuentra por fin la **causa raíz** del bug del dock en tablet: NO estaba donde se buscó las dos veces anteriores.
+
+### A · Permisos — el default ahora es «toda mi cuenta»
+
+**Qué se cambió (una sola verdad, tres puntos de entrada):**
+- **`src/lib/library/entity-library.ts`** — `defaultAccountAcl(account)` (ACL v3: `scope:"account"` + grant `admin` a la cuenta + espejo v2 `read`/`write`) y `withDefaultRootAcl()`, aplicado dentro de `mutate()`: la **raíz** de la biblioteca de una cuenta nace con esa ACL si no tiene una propia. **Folders e ítems nacen SIN `acl` → la HEREDAN** (§3), así que siguen siendo cambiables uno a uno y un cambio en la raíz se propaga a lo que no haya decidido por su cuenta.
+- **`src/lib/files/os-files.ts` (`uploadFile`)** — **ANTES: `is_public ?? true`** (¡todo archivo subido nacía **PÚBLICO para toda la red** y con ACL vacía!). **AHORA: `is_public ?? false` + `acl_read`/`acl_write` = `[uid]`**. Sigue siendo cambiable (`updateFileAccess`) y quien quiera público lo pide explícitamente (`/library` en modo GLOBAL ya lo hacía: `isPublic: mode === "GLOBAL"`).
+- **`src/lib/sharing/access.ts`** — `defaultAccess()` ya devolvía `scope: "account"` (coherente, no se tocó).
+- **`src/components/sharing/share-access-dialog.tsx`** — el ámbito `account` se etiqueta **«Toda mi cuenta»**, lleva una insignia **«Def.»** y, al estar seleccionado, una línea que explica que es el ajuste automático al crear y cómo cambiarlo.
+
+**Verificación contra la BD REAL (Supabase del OS `nxstilnyidvkqeosofuh`, impersonando `authenticated`).** Los recursos de prueba se pusieron **a nombre de OTRA cuenta** a propósito: si el dueño fuese quien lee, la RLS le dejaría pasar por propiedad y la prueba no diría nada del default. Así el ÚNICO camino posible es la ACL:
+
+| Recurso | Sesión **cuenta A** (= cualquiera de sus perfiles) | Sesión **cuenta C** (tercero) |
+|---|---|---|
+| Biblioteca con el **default nuevo** (`scope:account` → grant a la cuenta A) | ✅ **la ve** | ❌ no la ve |
+| Biblioteca **sin ACL** (comportamiento VIEJO) | ❌ **no la ve** | ❌ no la ve |
+| Biblioteca cuyo grant nombra **un PERFIL** (A2) | ✅ la ve (regla cuenta↔perfil) | ❌ no la ve |
+| Biblioteca `private` (con grant a A) | ❌ cerrada, ni el grant aplica | ❌ no la ve |
+| Biblioteca cuya ACL está en un **folder** (raíz sin ACL) | ✅ la ve (`es_doc_acl_allows` recorre nodos) | ❌ no la ve |
+| Archivo con el **default nuevo** (`is_public=false`, `acl=[A]`) | ✅ lo ve | ❌ no lo ve |
+| Archivo con ACL a **un perfil** (A2) | ✅ lo ve | ❌ no lo ve |
+| Archivo con el **default VIEJO** (`is_public=true`) | ✅ lo ve | 🚨 **¡también lo ve!** ← la fuga que esto cierra |
+
+`acl_ids_allow()` confirmada en vivo en las dos direcciones: grant a la CUENTA A → `true` para la sesión A; grant al PERFIL A2 → `true` para la sesión A; grant a un perfil de C → `false`. Datos de prueba y usuarios QA **borrados** al terminar (0 filas residuales).
+
+**Nota conceptual importante:** en el OS la sesión (`auth.uid()`) **ES la Cuenta**; los perfiles son facetas suyas (CLAUDE.md §6). Por eso «que lo vea mi segundo perfil» se cumple nombrando a la CUENTA en el grant — y la migración `20260712100100` (`acl_ids_allow`) además resuelve cuenta↔perfil en **ambas** direcciones, de modo que un grant a un perfil concreto también vale.
+
+### B · Dock Trinity — CAUSA RAÍZ del «en tablet no se puede deslizar» (**archivo:línea**)
+
+**Causa raíz: `src/app/globals.css` — la regla `@media (min-width: 1024px) { .omni-dock-strip { overflow: visible } }`** (bloque OMNIDOCK, ~línea 2300 del archivo anterior al fix).
+
+Había **dos** ramas `@media` y **en tablet ganaba la de escritorio**:
+```css
+@media (max-width:1023px) { .omni-dock-strip { overflow-x:auto } }  /* sí deslizaba */
+@media (min-width:1024px) { .omni-dock-strip { overflow: visible } } /* MATABA el scroll */
+```
+Un **iPad en horizontal mide 1024–1366px CSS**, así que caía **siempre** en la segunda rama. Con `overflow: visible` el carril **no es contenedor de scroll**: los items que no caben se pintan **fuera** de la píldora (que está centrada), se salen del viewport y quedan **inalcanzables** — no hay nada que deslizar. **Por eso los dos arreglos anteriores no sirvieron: solo tocaban la rama `<1024px`, por la que el tablet nunca pasaba.**
+
+**Evidencia EN VIVO** (Claude-in-Chrome contra `https://starseed-os.vercel.app`, CSS desplegado, dock con 18 tiles):
+
+| Ancho | `overflow-x` | `scrollWidth` / `clientWidth` | `scrollLeft=99999` → | Items fuera del viewport |
+|---|---|---|---|---|
+| **1194px** (iPad horizontal) | `visible` | 1619 / 1104 (**+515px**) | **se queda en 0** → *scroll IMPOSIBLE* | **5** — «Clima y recordatorios», «Cámara», «Galería», separador y **«Personalizar dock»** |
+| **1440px** (escritorio) | `visible` | 1619 / 1340 (+279px) | **se queda en 0** | **3**, incluido **«Personalizar dock»** |
+| **834px** (tablet vertical) | `auto` | 1105 / 808 | sí desliza | 5 pero **alcanzables** |
+
+O sea: el bug afectaba a **todo ancho ≥1024px** (tablet horizontal **y escritorio**), y dejaba inalcanzable hasta el botón **«Personalizar dock»** — el usuario ni siquiera podía abrir el editor para quitar items.
+
+**Fix (`src/app/globals.css` + `src/components/layout/omni-dock.tsx`):**
+- **Regla ÚNICA sin `@media`**: `overflow-x: auto` en **todos** los anchos. El contenido (~24 tiles) **no cabe en ningún ancho realista** (390 / 834 / 1194 / 1440), así que **no existe un tamaño en el que `overflow:visible` sea correcto**.
+- `overscroll-behavior-x: contain`, `scroll-snap-type: x proximity`, `touch-action: pan-x`, momentum iOS, **scrollbar oculta pero funcional**.
+- **Drag-to-scroll con ratón** (`onPointerDown/Move/Up`, solo `pointerType==="mouse"`; el táctil se deja intacto para no romper el momentum/snap nativo) + guarda `justDragged` en `onClickCapture` para que soltar encima de un icono **no navegue** sin querer.
+- Las flechas «hay más» pasan de adorno (`pointer-events-none`) a **botones reales** que saltan una pantalla.
+- `ResizeObserver` sobre el carril: el `resize` de window **no** se dispara al girar un tablet en app instalada ni al abrir/cerrar un folder — las sombras/flechas ya no mienten. Con **guarda anti-bucle** en `setShadow` (comparar antes de re-renderizar).
+
+**Verificación EN VIVO del fix** (regla nueva inyectada en la página desplegada, 1440px): `overflow-x: auto` · `SCROLL_REAL_POSIBLE: true` · `scrollLeft` llega a 282,5 · **«Personalizar dock» pasa a ser ALCANZABLE**.
+
+### Decisiones tomadas / trampas del CSS
+- 🔑 **`overflow-y` NO puede quedar en `visible`**: CSS Overflow §3 obliga a que, si un eje es de scroll, el otro no sea `visible`/`clip` (se computan a `auto`/`hidden`). Verificado en vivo: con `overflow-x:auto`, un `overflow-y:clip` **se computa como `hidden`** aunque `CSS.supports()` diga que `clip` existe → `overflow-clip-margin` **no sirve** aquí.
+- El headroom de lo que sobresale por arriba (insignia de folder `-6px`, punto de activo `-4px`, hover `-2px` + scale) se compra con **`padding-top:10px` + `margin-top:-10px`**. Medido en vivo: **nada queda recortado** (4px de holgura) y **la píldora NO crece** (124px de alto con la regla vieja y con la nueva — idéntico).
+- Los tooltips del dock son `title=` **nativos** del navegador → **no** los recorta ningún `overflow`. El `overflow:visible` de escritorio, que se justificaba con «tooltips y hover-scale intactos», **no hacía falta para los tooltips**.
+
+### Notas / aprendizajes
+- 🔑 **Si un bug responsive «ya se arregló» dos veces y sigue vivo, sospecha del BREAKPOINT, no del gesto.** Aquí el arreglo se aplicaba a `<1024px` y el dispositivo del usuario (iPad horizontal, 1194px) entraba por la rama contraria. La pista definitiva no fue leer más CSS, sino **medir `scrollWidth` vs `clientWidth` y probar `scrollLeft = 99999`** en el ancho REAL del dispositivo.
+- 🔑 **Un default de compartición equivocado se ve mejor desde la RLS que desde la UI:** `uploadFile` llevaba `is_public ?? true` — cada archivo subido nacía **público para toda la red**. La prueba impersonando a un TERCERO lo enseñó de golpe (ver tabla: el tercero veía el archivo con el default viejo).
+- Para probar permisos, **pon el recurso a nombre de otra cuenta**: si lo posee quien lee, la RLS le deja pasar por propiedad y la prueba no demuestra nada.

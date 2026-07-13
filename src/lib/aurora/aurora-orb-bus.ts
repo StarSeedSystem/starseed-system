@@ -171,6 +171,61 @@ export function subscribeOrbVisibility(cb: (hidden: boolean) => void): () => voi
   };
 }
 
+// ── CHAT COMPLETO abierto (Exocórtex / Zenith) ───────────────────────────────
+/**
+ * UNA SOLA SUPERFICIE DE CHAT A LA VEZ.
+ *
+ * Causa raíz del bug «el chat de Aurora se duplica»: el orbe (AuroraWidget)
+ * montaba sus superficies conversacionales (reproductor resumido, globo,
+ * mini-popover) SIN saber si el CHAT COMPLETO (AuroraChatSection, dentro de la
+ * cortina Zenith) ya estaba abierto. Resultado: el usuario veía el chat
+ * principal (con todas las pestañas) y, debajo, un segundo chat más simple
+ * repitiendo la MISMA conversación.
+ *
+ * Este bus lo resuelve en el origen: la sección del chat completo se REGISTRA
+ * mientras está montada y el orbe se suscribe para callar sus superficies. Es un
+ * CONTADOR (no un booleano) para soportar varios montajes simultáneos sin que
+ * uno al desmontarse "apague" al otro.
+ */
+export const AURORA_FULLCHAT_EVENT = "starseed:aurora-fullchat";
+
+let fullChatMounts = 0;
+
+function emitFullChat(): void {
+  try {
+    window.dispatchEvent(
+      new CustomEvent<boolean>(AURORA_FULLCHAT_EVENT, { detail: fullChatMounts > 0 }),
+    );
+  } catch {
+    /* defensivo */
+  }
+}
+
+/**
+ * Registra (o da de baja) una superficie de CHAT COMPLETO de Aurora. Llámalo con
+ * `true` al montar y con `false` al desmontar — siempre en pareja.
+ */
+export function setAuroraFullChatOpen(open: boolean): void {
+  if (typeof window === "undefined") return;
+  const before = fullChatMounts > 0;
+  fullChatMounts = Math.max(0, fullChatMounts + (open ? 1 : -1));
+  const after = fullChatMounts > 0;
+  if (before !== after) emitFullChat();
+}
+
+/** ¿Hay un chat COMPLETO de Aurora abierto ahora mismo? */
+export function isAuroraFullChatOpen(): boolean {
+  return fullChatMounts > 0;
+}
+
+/** Suscribe un callback al estado del chat completo. Devuelve la limpieza. */
+export function subscribeAuroraFullChat(cb: (open: boolean) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const on = (e: Event) => cb(!!(e as CustomEvent<boolean>).detail);
+  window.addEventListener(AURORA_FULLCHAT_EVENT, on);
+  return () => window.removeEventListener(AURORA_FULLCHAT_EVENT, on);
+}
+
 // ── Glow: eventos de voz del motor (TTS) ─────────────────────────────────────
 /**
  * Emite un pulso de voz para el glow del orbe. Lo llama el motor (engine.ts) en

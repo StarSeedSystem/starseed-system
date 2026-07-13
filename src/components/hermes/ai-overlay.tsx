@@ -38,6 +38,10 @@ import { toast } from 'sonner';
 import { useAppearance } from '@/context/appearance-context';
 import { loadConfigs, getActiveProviderId } from '@/ai/client/providerStore';
 import { PROVIDERS } from '@/ai/providers';
+// UN SOLO MOTOR DE VOZ EN TODO EL OS: este overlay delega la escucha en el motor
+// ÚNICO de Aurora (src/lib/aurora/engine.ts) a través del puente global. Ver el
+// comentario de `toggleListen`.
+import { toggleAuroraVoice, isAuroraReady } from '@/lib/aurora/open-aurora';
 
 interface OverlayMessage {
   role: 'user' | 'agent';
@@ -87,7 +91,6 @@ export function AiOverlay() {
   const constraintsRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const dismissRef = useRef<HTMLDivElement>(null);
-  const recogRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Provider info
@@ -140,24 +143,31 @@ export function AiOverlay() {
   }, [senses, mounted]);
 
   // ── Voice: STT ──────────────────────────────────────────────────────
+  /**
+   * UN SOLO MOTOR DE VOZ EN TODO EL OS.
+   *
+   * Antes este overlay construía su PROPIO `SpeechRecognition` (`new SR()`), en
+   * paralelo al motor único de Aurora (`src/lib/aurora/engine.ts`). Dos
+   * reconocimientos vivos pelean por el MISMO micrófono: se abortan mutuamente
+   * (`aborted`), ninguno entrega `onresult` («Aurora no escucha») y cada `onend`
+   * reprograma otro arranque («se repite en loop»). Es exactamente el fallo que
+   * ya se vio en el Café.
+   *
+   * Ahora la escucha se DELEGA en el motor único vía el puente global. El
+   * componente no está montado hoy (se retiró del layout), pero se conserva en
+   * el repo: dejarlo con su propio motor era una mina para el futuro.
+   */
   const toggleListen = () => {
-    const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-    if (!SR) { toast.error('Tu navegador no soporta reconocimiento de voz.'); return; }
-    if (listening) { recogRef.current?.stop(); setListening(false); return; }
-    const r = new SR();
-    r.lang = 'es-ES';
-    r.interimResults = false;
-    r.continuous = false;
-    r.onresult = (e: any) => {
-      const text = e.results[0][0].transcript;
-      setInput(text);
-      handleSend(text);
-    };
-    r.onend = () => setListening(false);
-    r.onerror = () => setListening(false);
-    r.start();
-    recogRef.current = r;
-    setListening(true);
+    try {
+      if (!isAuroraReady()) {
+        toast.error('Aurora aún no está disponible. Ábrela desde su orbe o el Exocórtex.');
+        return;
+      }
+      toggleAuroraVoice();
+      setListening((v) => !v);
+    } catch {
+      toast.error('No se pudo activar la voz.');
+    }
   };
 
   // ── Voice: TTS ──────────────────────────────────────────────────────

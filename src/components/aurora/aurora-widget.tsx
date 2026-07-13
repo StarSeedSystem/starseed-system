@@ -22,6 +22,8 @@ import {
   writeOrbPosition,
   DEFAULT_ORB_POSITION,
   AURORA_EXOCORTEX_OPEN_EVENT,
+  isAuroraFullChatOpen,
+  subscribeAuroraFullChat,
   type AuroraOrbPosition,
 } from "@/lib/aurora/aurora-orb-bus";
 
@@ -182,6 +184,21 @@ export function AuroraWidget() {
     const unsub = subscribeOrbVisibility((h) => setHidden(h));
     return unsub;
   }, []);
+
+  // ── UN SOLO CHAT: ¿está abierto el chat COMPLETO (Exocórtex / Zenith)? ──
+  // Mientras lo esté, el orbe NO monta ninguna superficie conversacional propia
+  // (reproductor resumido, globo, mini-popover): la conversación ya se ve entera
+  // en el chat principal. Sin esto se veían DOS chats: el completo y, debajo,
+  // otro más simple repitiendo los mismos mensajes.
+  const [fullChatOpen, setFullChatOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setFullChatOpen(isAuroraFullChatOpen());
+    return subscribeAuroraFullChat((o) => setFullChatOpen(o));
+  }, []);
+  // Si el chat completo se abre con el mini-popover del orbe ya desplegado, lo
+  // cerramos: nunca deben coexistir.
+  useEffect(() => { if (fullChatOpen) setOpen(false); }, [fullChatOpen]);
 
   // Escape cierra popover y menú Trinity.
   useEffect(() => {
@@ -396,6 +413,21 @@ export function AuroraWidget() {
       try { aurora.retryVoice(); } catch { /* */ }
       return;
     }
+    // BARGE-IN: si Aurora está HABLANDO, un toque la INTERRUMPE y vuelve a
+    // escuchar al instante — que es justo lo que promete el tooltip del orbe
+    // ("Hablando… toca para interrumpir"). Antes este toque caía en la rama de
+    // abajo y, al estar `engaged`, hacía `disengage()`: cortaba la escucha en
+    // vez de interrumpir el habla, y Aurora seguía soltando su respuesta.
+    if (aurora.speaking) {
+      try {
+        aurora.interrupt();
+        if (aurora.supported && caps.hasSpeechRecognition) {
+          if (!aurora.listening) { try { aurora.start(); } catch { /* */ } }
+          aurora.engage();
+        }
+      } catch { /* */ }
+      return;
+    }
     // Reconocimiento presente + contexto seguro pero el modo aún no es 'full'
     // → lo que falta es el permiso de micrófono: pídelo desde este gesto y deja
     // que arranque la escucha sola; NO abrimos el popover.
@@ -422,8 +454,11 @@ export function AuroraWidget() {
     // que activar → el único canal es escribir, así que abrimos el popover como
     // FALLBACK. Este gesto también intenta subir el acceso por si el TTS espera.
     try { void aurora.requestAccess(); } catch { /* */ }
+    // Si el chat COMPLETO ya está abierto, NO abrimos el mini-popover: sería un
+    // SEGUNDO chat sobre el principal. Basta con enfocar el que ya hay.
+    if (fullChatOpen) { openExocortexChat(); return; }
     setOpen((o) => !o);
-  }, [aurora, dirFromDelta, overTrash, setActiveEdge]);
+  }, [aurora, dirFromDelta, overTrash, setActiveEdge, fullChatOpen, openExocortexChat]);
 
   const cancelGesture = useCallback((e: React.PointerEvent) => {
     const g = gesture.current;
@@ -595,7 +630,9 @@ export function AuroraWidget() {
 
   // El reproductor resumido es la superficie conversacional activa (salvo que
   // esté descartado, oculto el orbe, o abierto el popover/menú Trinity).
-  const miniPlayerActive = conversationStarted && !miniDismissed;
+  // Y SIEMPRE cede ante el CHAT COMPLETO: si el Exocórtex está abierto, la
+  // conversación se lee allí y el resumido NO se monta (nada de chat duplicado).
+  const miniPlayerActive = conversationStarted && !miniDismissed && !fullChatOpen;
 
   // El GLOBO queda RESERVADO al texto proactivo (suggest/notify) cuando NO hay
   // conversación activa: así el resumido y el globo nunca se solapan (un canal).
@@ -678,7 +715,7 @@ export function AuroraWidget() {
           activa. Si el reproductor resumido manda, el globo se silencia para no
           duplicar (un solo canal). La voz solo suena a petición.
       ══════════════════════════════════════════════════════════════════ */}
-      {!trinityOpen && !miniPlayerActive && (
+      {!trinityOpen && !miniPlayerActive && !fullChatOpen && (
         <AuroraSpeechBubble
           anchor={bubbleAnchor}
           mentioned={bubbleMentioned}
@@ -692,7 +729,7 @@ export function AuroraWidget() {
           en el Exocórtex (Zenith).
       ══════════════════════════════════════════════════════════════════ */}
       <AnimatePresence>
-        {open && !trinityOpen && (
+        {open && !trinityOpen && !fullChatOpen && (
           <motion.div
             initial={{ opacity: 0, y: openUp ? 10 : -10, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -834,8 +871,9 @@ export function AuroraWidget() {
       </AnimatePresence>
 
       {/* Píldora de acción flotante ANCLADA al orbe, visible aunque el popover
-          esté cerrado; descartable. */}
-      {!open && actionStatus && !pillDismissed && (
+          esté cerrado; descartable. Cede ante el CHAT COMPLETO: allí el mismo
+          `actionStatus` ya se muestra en su propia banda (no lo repetimos). */}
+      {!open && !fullChatOpen && actionStatus && !pillDismissed && (
         <div
           className="fixed z-[55] flex items-center gap-2 rounded-full border border-cyan-400/30 bg-zinc-950/90 px-3 py-1.5 shadow-lg shadow-cyan-900/20 backdrop-blur-xl"
           style={{ ...vAnchor, ...hAnchor("min(20rem, 70vw)") }}

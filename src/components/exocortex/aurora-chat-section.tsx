@@ -69,6 +69,7 @@ import {
   setOrbHidden,
   subscribeOrbVisibility,
   subscribeAuroraConversation,
+  setAuroraFullChatOpen,
 } from "@/lib/aurora/aurora-orb-bus";
 import {
   useAuroraChatLog,
@@ -438,6 +439,16 @@ export function AuroraChatSection({ className }: { className?: string }) {
     if (typeof window === "undefined") return;
     setOrbHiddenState(readOrbHidden());
     return subscribeOrbVisibility((h) => setOrbHiddenState(h));
+  }, []);
+
+  // UNA SOLA SUPERFICIE DE CHAT: mientras ESTA sección (el chat COMPLETO, con
+  // todas sus pestañas) esté montada, el orbe calla sus superficies
+  // conversacionales (reproductor resumido, globo y mini-popover). Antes se
+  // veían los dos a la vez: el chat principal y, debajo, otro más simple con la
+  // MISMA conversación. Registro/baja en pareja (contador en el bus).
+  useEffect(() => {
+    setAuroraFullChatOpen(true);
+    return () => { setAuroraFullChatOpen(false); };
   }, []);
 
   // Personalidad POR CHAT (Adenda 63 §11): registra el contexto de conversación
