@@ -2711,3 +2711,56 @@ O sea: el bug afectaba a **todo ancho ≥1024px** (tablet horizontal **y escrito
 - 🔑 **Si un bug responsive «ya se arregló» dos veces y sigue vivo, sospecha del BREAKPOINT, no del gesto.** Aquí el arreglo se aplicaba a `<1024px` y el dispositivo del usuario (iPad horizontal, 1194px) entraba por la rama contraria. La pista definitiva no fue leer más CSS, sino **medir `scrollWidth` vs `clientWidth` y probar `scrollLeft = 99999`** en el ancho REAL del dispositivo.
 - 🔑 **Un default de compartición equivocado se ve mejor desde la RLS que desde la UI:** `uploadFile` llevaba `is_public ?? true` — cada archivo subido nacía **público para toda la red**. La prueba impersonando a un TERCERO lo enseñó de golpe (ver tabla: el tercero veía el archivo con el default viejo).
 - Para probar permisos, **pon el recurso a nombre de otra cuenta**: si lo posee quien lee, la RLS le deja pasar por propiedad y la prueba no demuestra nada.
+
+---
+
+## 2026-07-13 — Aurora natural y completa DESDE EL PRIMER ARRANQUE (5 frentes, todo ajustable)
+
+**Sesión por:** Claude (Cowork, subagente, Opus 4.8) bajo dirección de Alex Bordón Garrigós.
+**Resumen ejecutivo:** Aurora nace lista de fábrica sin que el usuario configure nada, pero TODO es ajustable. (1) Voz ORGÁNICA por defecto (preset "Aurora · orgánica": cálida/serena, ritmo natural, sembrado en el arranque). (2) Repos de la Biblioteca ENGANCHADAS al comportamiento real (no solo instaladas). (3) ONBOARDING breve de Aurora (3-5 preguntas opcionales). (4) Orbe/botón flotante ON por defecto en TODO el OS con toggle + sync. (5) Sentidos por defecto (voz ON). `tsc` 0 errores; `build` exit 0. NO desplegado (pendiente push).
+
+### Frente 1 — Voz orgánica por defecto
+- **`src/lib/aurora/tts-oss/voice-config.ts`:** nuevo `DEFAULT_VOICE_STYLE` (emoción `serena` + tono `cálida` + `rate:1` ritmo natural + `pitch:1.03` + `energy:52`) incluido en `DEFAULT_VOICE_CONFIG.style`. Nuevo `VOICE_PRESETS` (5 presets de un toque; el 1.º, `AURORA_ORGANIC_PRESET_ID = "aurora-organica"`, es el de fábrica; incluye "Neutra" = `{}` que limpia estilo). Nuevo **seeder `ensureOrganicVoiceDefault()`**: si `starseed.aurora.voice.v1` está AUSENTE y no hay opt-in histórico de Kokoro, persiste el default orgánico (visible/ajustable). Nuevo `applyVoicePreset(id)`. La ruta de migración Kokoro también hereda el estilo.
+- **`engine.ts` (boot):** llama a `ensureOrganicVoiceDefault()` junto a `installVoiceStyleListener()`. El habla del navegador ya aplicaba `resolveVoiceParams()` (línea ~551) → el estilo orgánico modula la mejor voz neural rankeada del navegador SIN configurar. Regla de oro intacta (failover gratis-primero; Aurora siempre habla).
+- **`neural-tts.ts`:** `NEURAL_ENGINE_META` gana `defaultVoice`; Bark usa preset español cálido por defecto (`v2/es_speaker_1`) al activarse "de un toque" (SoVITS/OmniVoice: el servidor decide). `buildBody` usa `s.voice || meta.defaultVoice`.
+- **`voice-oss-panel.tsx`:** fila "Presets" (con ★ en el orgánico) que aplica `applyVoicePreset`; el panel ya estaba suscrito a la config → sliders/emoción se refrescan solos.
+- **Barrel `tts-oss/index.ts`:** re-exporta lo nuevo.
+
+### Frente 2 — Repos ENGANCHADAS por defecto (no solo instaladas)
+- Verificado (mapa): las repos CLAVE ya estaban enganchadas — voz `voice-neural` (Bark/SoVITS/OmniVoice), `vision` (SmolVLM2), `agent-memory-backend` (Raven/Skales), `smart-file-organize` (Mouzi), `security-audit` (Strix), `offline-maps` (Organic Maps); OmniRoute/OpenRouter son **fuentes reales del router** (`router.ts`), gratis-primero, y **NO fallan sin clave** (availability.ts:141 → keyless OpenRouter no es candidato → cae a gratis/Pollinations; Pollinations es el suelo garantizado). CasaOS = app/endpoint.
+- **`src/ai/astraura/skills.ts`:** enganchados los 6 ids sembrados que estaban instalados-pero-no-declarados, extendiendo `packageIds` + `systemPrompt` de capacidades existentes: `router-proxy` (+ `iatool-routellm`, `iatool-litellm`), `sandbox-exec` (+ `iatool-apple-container`), `agent-recipes` (+ `iatool-agentos`), `dev-agent` (+ `iatool-opencode`, `iatool-openclaw`). Ahora `activeCapabilityIds()` los enciende (leen paquetes instalados directos) → `skillsSystemPrompt()` los declara y `skillsRoutingBias()` los considera. **No hizo falta subir `SEED_VERSION`** (ya en la semilla v13 recomendada; el enganche aplica a cuentas nuevas y existentes en el próximo load).
+
+### Frente 3 — Onboarding breve de Aurora
+- **NUEVO `src/components/onboarding/aurora-intro.tsx`:** Aurora se presenta + 3-5 preguntas OPCIONALES (cómo llamarte · tono cercano/equilibrado/formal · intereses · idioma · ¿voz ON?). Al terminar alimenta: **contexto de usuario** (`saveUserContextSettings({ about })`), **personalidad** (`adjustActivePersonalityTrait("formalidad", …)` según tono), **voz** (`window.STARSEED_AURORA.setEnabled`). Todo saltable ("Prefiero configurarlo luego"); si se salta, Aurora ya funciona equilibrada/cálida. Persiste en **`starseed.aurora.intro.v1`** (no repetir). Relanzable con evento `starseed:open-aurora-intro` / `window.openAuroraIntro()`.
+- **`user-context.ts`:** `UserContextSettings` gana `about?: {callName, interests, tone, language}` (saneado, fusión campo a campo) DENTRO de la clave ya sincronizada `starseed.astraura.usercontext.v1` (sin claves nuevas). `buildUserContext` antepone SIEMPRE la línea de preferencias declaradas (aplica incluso sin ámbito de datos).
+- **Gate:** montado en `(app)/layout.tsx` junto a `OnboardingGate`; se muestra SOLO con sesión + `onboarding_state.completed` (tras el asistente de identidad, nunca a la vez) y fuera de rutas públicas. `aurora-guide.tsx` (tour de 11 pasos) ya NO auto-abre hasta que el intro esté hecho (evita dos ventanas la primera vez). Relanzable desde el `AuroraControlPanel` ("Repetir presentación de Aurora").
+
+### Frente 4 — Orbe/botón flotante ON por defecto en TODO el OS + toggle + sync
+- **`aurora-orb-bus.ts`:** nueva preferencia estable **`starseed.aurora.fab.enabled.v1` (default TRUE)** con `readFabEnabled`/`setFabEnabled`/`subscribeFabEnabled` + evento. Distinta de `hidden` (descarte de sesión por arrastre a la papelera): `fab.enabled` es la preferencia sincronizada.
+- **`aurora-widget.tsx`:** gate de render `if (!fabEnabled) return null;` (antes del gate `hidden`). El orbe se monta globalmente en el layout raíz → aparece en TODAS las secciones salvo que se apague.
+- **Toggles:** el switch "Botón flotante" del Exocórtex (`aurora-chat-section.tsx`) ahora dirige `fab.enabled` (al encender deshace también un `hidden`); "Reactivar orbe" reactiva ambos. Nuevo toggle "Botón flotante" en `AuroraControlPanel` (visible en la pestaña "control" del Exocórtex Y en los ajustes de Aurora `/aurora`).
+- **Sincronización verificada (por lectura):** orbe y Exocórtex comparten UNA SOLA `AuroraProvider`/motor (layout raíz) → mismo chatlog (`starseed.aurora.chatlog.v1`), misma personalidad (`resolvePersonalityForContext`), misma voz/motor (`starseed.aurora.voice.v1`). No hay instancias separadas.
+
+### Frente 5 — Sentidos por defecto
+- **`src/lib/aurora/types.ts`:** `DEFAULT_SETTINGS.enabled = true` (voz ON de fábrica). NO fuerza escucha en web (el provider solo auto-escucha en app instalada; en web se toca el orbe) ni pide permisos por sorpresa. Contexto de usuario ya estaba ON (nivel `breve`); visión disponible opt-in; tools locales (screen/voice/personality/files/web) ya disponibles por defecto de forma segura.
+
+### Claves nuevas para SYNCED_KEYS (settings-sync.ts — NO tocado, se reporta)
+- **`starseed.aurora.fab.enabled.v1`** (preferencia del botón flotante, default ON) — AÑADIR.
+- **`starseed.aurora.intro.v1`** (marca de intro hecho; para no repetir entre dispositivos) — AÑADIR.
+- Ya sincronizadas y reutilizadas: `starseed.aurora.voice.v1`, `starseed.astraura.usercontext.v1` (ahora con `about`), `starseed.aurora.personalities.v1`, `starseed.aurora.personality.active.v1`.
+
+### Verificación
+- `node_modules/.bin/tsc --noEmit` → **EXIT 0, 0 errores** (en el Mac, vía Desktop Commander).
+- `npm run build` → **EXIT 0** (`✓ Compiled successfully in 48s`, todas las páginas).
+- **Voz EN VIVO no verificada:** los cambios NO están desplegados y el Chrome automatizado no tiene micro/audio fiable; el razonamiento se apoya en el código (el navegador ya modula con `resolveVoiceParams`) + tsc/build. Pendiente pasada con navegador real tras desplegar.
+
+### Pendiente / Próximos pasos
+- **Desplegar** (commit + push desde el Mac a `StarSeedSystem/starseed-system`; verificar status "Vercel"). Mientras no se despliegue, el usuario no ve nada de esto.
+- Añadir `starseed.aurora.fab.enabled.v1` y `starseed.aurora.intro.v1` a `SYNCED_KEYS` (settings-sync.ts, fuera de mi alcance esta ola).
+- Verificar la voz orgánica en vivo con micrófono/audio real.
+- NO TOCADO (respetado): `src/lib/sharing/**`, `src/components/library/**`, `omni-dock`/`globals.css`, `src/lib/storage/**`, `cloudbuild.yaml`/`Dockerfile`, `settings-sync.ts`. Sin dependencias npm nuevas. Sin revolver el fix de Aurora del commit 48c3990 (motor de voz único, bus fullChat, permisos default) — todo lo nuevo es aditivo sobre él.
+
+### Notas / aprendizajes
+- **`activeCapabilityIds()` lee los paquetes instalados directos** (no solo el mirror `starseed.capabilities.v1`): añadir un `packageId` a una capacidad de `skills.ts` la enciende para cuentas que YA tengan ese paquete sembrado, sin re-sembrar. Por eso hooking ≠ re-seed.
+- **El default orgánico convive con "Restablecer"/"Neutra":** `resetVoiceStyle()` y el preset "Neutra" escriben `style: undefined` → neutro real; el default solo se aplica cuando NO hay clave (primer arranque) o vía el preset explícito. "Todo ajustable" incluye poder quitar la modulación.
+- **Secuenciado de onboarding:** intro (preferencias) primero, tour de interfaz después (guard por `starseed.aurora.intro.v1`) → nunca dos ventanas a la vez la primera vez.

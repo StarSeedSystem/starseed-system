@@ -80,6 +80,9 @@ export const SYNCED_KEYS = [
     // ── Mapa del Hub (Adenda 63 · lib/map/*) ──────────────────────────────────
     "starseed.map.view.v1",     // vista del mapa (centro/zoom/capas activas)
     "starseed.map.location.v1", // compartición de ubicación (off/red/grupos-usuarios)
+    // ── Aurora desde el arranque (2026-07-13) ─────────────────────────────────
+    "starseed.aurora.fab.enabled.v1", // botón/orbe flotante de Aurora visible por defecto (ON) en todo el OS
+    "starseed.aurora.intro.v1",       // onboarding de Aurora ya realizado (preguntas de preferencias)
     // ── Alarmas funcionales (jul-2026 · lib/alarms/alarms.ts) ─────────────────
     "starseed.alarms.v1", // alarmas del usuario (mensajes/correos/invitaciones a eventos) + snooze/descarte
     // ── Hub de Conectores por usuario (jul-2026 · connector-credentials.ts) ───

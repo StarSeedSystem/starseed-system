@@ -447,6 +447,12 @@ export function useAuroraEngine(): AuroraEngine {
     void import("@/lib/aurora/tts-oss/voice-style")
       .then((m) => m.installVoiceStyleListener())
       .catch(() => { /* */ });
+    // VOZ · preset ORGÁNICO por defecto (cálido/sereno, ritmo natural): siembra
+    // `starseed.aurora.voice.v1` en el PRIMER arranque si el usuario no eligió
+    // nada, para que Aurora ya suene orgánica de fábrica y sea ajustable.
+    void import("@/lib/aurora/tts-oss/voice-config")
+      .then((m) => m.ensureOrganicVoiceDefault())
+      .catch(() => { /* */ });
 
     (async () => {
       const [s, ps] = await Promise.all([getSettings(), listPersonalities()]);

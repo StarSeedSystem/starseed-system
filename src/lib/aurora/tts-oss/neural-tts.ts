@@ -79,24 +79,29 @@ const ENGINE_PATHS: Record<NeuralVoiceEngine, string[]> = {
 /** Metadatos de presentación por motor (etiquetas para UI y herramientas). */
 export const NEURAL_ENGINE_META: Record<
   NeuralVoiceEngine,
-  { label: string; hint: string; voicePlaceholder: string; repo: string }
+  { label: string; hint: string; voicePlaceholder: string; defaultVoice: string; repo: string }
 > = {
   bark: {
     label: "Bark (generativa)",
     hint: "TTS expresivo de Suno: entona, ríe y suspira",
     voicePlaceholder: "v2/es_speaker_1",
+    // Preset español CÁLIDO por defecto: al activar Bark de un toque ya suena
+    // bien sin configurar (ajustable a otro speaker en Ajustes → Voz).
+    defaultVoice: "v2/es_speaker_1",
     repo: "https://github.com/suno-ai/bark",
   },
   "gpt-sovits": {
     label: "GPT-SoVITS (clonación)",
     hint: "Clona una voz con ~5 s de muestra (refAudio)",
     voicePlaceholder: "id de voz (opcional)",
+    defaultVoice: "", // clonación: la voz la define refAudio, no un preset
     repo: "https://github.com/RVC-Boss/GPT-SoVITS",
   },
   omnivoice: {
     label: "OmniVoice (multilingüe)",
     hint: "Voz neural k2-fsa · Next-gen Kaldi",
     voicePlaceholder: "sid o nombre de voz",
+    defaultVoice: "", // el servidor elige su voz por defecto si no se indica
     repo: "https://github.com/k2-fsa/OmniVoice",
   },
 };
@@ -258,12 +263,15 @@ function buildBody(
   };
   if (engine === "bark") {
     // Servidores comunitarios de Bark: preset de voz bajo varios nombres.
+    // Si el usuario no fijó ninguno, usamos el preset español cálido por defecto
+    // (NEURAL_ENGINE_META) para que "un toque" ya suene bien.
     body.prompt = text;
-    if (s.voice) {
-      body.voice = s.voice;
-      body.speaker = s.voice;
-      body.voice_preset = s.voice;
-      body.history_prompt = s.voice;
+    const barkVoice = s.voice || NEURAL_ENGINE_META.bark.defaultVoice;
+    if (barkVoice) {
+      body.voice = barkVoice;
+      body.speaker = barkVoice;
+      body.voice_preset = barkVoice;
+      body.history_prompt = barkVoice;
     }
     body.language = lang;
   } else if (engine === "gpt-sovits") {

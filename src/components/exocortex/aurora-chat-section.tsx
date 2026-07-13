@@ -68,6 +68,9 @@ import {
   readOrbHidden,
   setOrbHidden,
   subscribeOrbVisibility,
+  readFabEnabled,
+  setFabEnabled,
+  subscribeFabEnabled,
   subscribeAuroraConversation,
   setAuroraFullChatOpen,
 } from "@/lib/aurora/aurora-orb-bus";
@@ -408,6 +411,8 @@ export function AuroraChatSection({ className }: { className?: string }) {
   const [draft, setDraft] = useState("");
   const [barDraft, setBarDraft] = useState("");
   const [orbHidden, setOrbHiddenState] = useState(false);
+  // Preferencia estable del botón flotante de Aurora (default ON, sincronizada).
+  const [fabEnabled, setFabEnabledState] = useState(true);
   const [openDay, setOpenDay] = useState<string | null>(null);
   // Overlay a pantalla completa de la vista de chat (2 columnas en escritorio).
   const [fullscreen, setFullscreen] = useState(false);
@@ -439,6 +444,13 @@ export function AuroraChatSection({ className }: { className?: string }) {
     if (typeof window === "undefined") return;
     setOrbHiddenState(readOrbHidden());
     return subscribeOrbVisibility((h) => setOrbHiddenState(h));
+  }, []);
+
+  // Preferencia estable del botón flotante (default ON) — sincroniza con orbe y Ajustes.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setFabEnabledState(readFabEnabled());
+    return subscribeFabEnabled((e) => setFabEnabledState(e));
   }, []);
 
   // UNA SOLA SUPERFICIE DE CHAT: mientras ESTA sección (el chat COMPLETO, con
@@ -806,15 +818,20 @@ export function AuroraChatSection({ className }: { className?: string }) {
           )}
         </button>
         <div className="ml-auto flex items-center gap-3">
-          <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-white/70" title="Mostrar u ocultar el orbe flotante de Aurora">
+          <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-white/70" title="Botón flotante de Aurora en todas las secciones del OS (preferencia, se sincroniza con tu cuenta)">
             <Orbit className="h-3.5 w-3.5 text-[#7fb8ff]" />
-            <span className="hidden sm:inline">Orbe flotante</span>
+            <span className="hidden sm:inline">Botón flotante</span>
             <button
               role="switch"
-              aria-checked={!orbHidden}
-              onClick={() => setOrbHidden(!orbHidden)}
+              aria-checked={fabEnabled}
+              onClick={() => {
+                const next = !fabEnabled;
+                setFabEnabled(next);
+                // Al reactivar, deshace también un descarte de sesión previo.
+                if (next && orbHidden) setOrbHidden(false);
+              }}
               className="axc-switch"
-              title={orbHidden ? "Mostrar el orbe flotante" : "Ocultar el orbe flotante"}
+              title={fabEnabled ? "Ocultar el botón flotante de Aurora en todo el OS" : "Mostrar el botón flotante de Aurora en todo el OS"}
             >
               <span className="knob" />
             </button>
@@ -858,14 +875,14 @@ export function AuroraChatSection({ className }: { className?: string }) {
           <ExternalLink className="h-3.5 w-3.5" /> Abrir sección completa
         </a>
         <button
-          onClick={() => setOrbHidden(false)}
-          disabled={!orbHidden}
-          className={cn("axc-btn", orbHidden ? "lime" : undefined)}
-          title={orbHidden
+          onClick={() => { setFabEnabled(true); setOrbHidden(false); }}
+          disabled={fabEnabled && !orbHidden}
+          className={cn("axc-btn", (!fabEnabled || orbHidden) ? "lime" : undefined)}
+          title={(!fabEnabled || orbHidden)
             ? "Volver a mostrar el orbe flotante de Aurora en todas las rutas"
             : "El orbe ya está visible en pantalla"}
         >
-          <Orbit className="h-3.5 w-3.5" /> {orbHidden ? "Reactivar orbe" : "Orbe activo"}
+          <Orbit className="h-3.5 w-3.5" /> {(!fabEnabled || orbHidden) ? "Reactivar orbe" : "Orbe activo"}
         </button>
       </div>
 

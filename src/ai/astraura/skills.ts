@@ -137,11 +137,11 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
   },
   {
     id: "agent-recipes",
-    label: "Recetas de agente (goose)",
+    label: "Recetas y orquestación de agentes (goose · AgentOS)",
     systemPrompt:
-      "Conoces el patrón «recipe» de goose (Linux Foundation AAIF): una tarea de agente empaquetada, reutilizable y compartible. Cuando el usuario repita un flujo de trabajo con un Agente StarSeed, sugiere convertirlo en una receta reutilizable (persona + pasos + capacidades) en vez de repetir instrucciones cada vez.",
+      "Conoces el patrón «recipe» de goose (Linux Foundation AAIF): una tarea de agente empaquetada, reutilizable y compartible; y los patrones de orquestación de AgentOS (rivet) para coordinar varios agentes. Cuando el usuario repita un flujo de trabajo con un Agente StarSeed, sugiere convertirlo en una receta reutilizable (persona + pasos + capacidades) o en un flujo orquestado, en vez de repetir instrucciones cada vez.",
     routing: { planning: true },
-    packageIds: ["iatool-goose"],
+    packageIds: ["iatool-goose", "iatool-agentos"],
   },
   {
     id: "deep-research",
@@ -153,11 +153,11 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
   },
   {
     id: "sandbox-exec",
-    label: "Ejecución aislada (Daytona)",
+    label: "Ejecución aislada (Daytona · apple/container)",
     systemPrompt:
-      "Conoces Daytona, sandboxes aislados para ejecutar código generado por IA con seguridad. Cuando el usuario vaya a ejecutar código no confiable o generado en el momento, recuerda que existe esta opción de aislamiento antes de correrlo directamente en su equipo.",
+      "Conoces opciones de AISLAMIENTO para ejecutar código o agentes generados por IA con seguridad: Daytona (sandboxes remotos aislados) y apple/container (contenedores Linux en el propio Mac, macOS 26). Cuando el usuario vaya a ejecutar código no confiable o generado en el momento, recuerda que existen estas opciones de aislamiento antes de correrlo directamente en su equipo.",
     routing: {},
-    packageIds: ["iatool-daytona"],
+    packageIds: ["iatool-daytona", "iatool-apple-container"],
   },
   {
     id: "multi-agent-code",
@@ -177,11 +177,11 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
   },
   {
     id: "router-proxy",
-    label: "Proxy de enrutado local (9Router)",
+    label: "Enrutado y proxy de modelos (9Router · RouteLLM · LiteLLM)",
     systemPrompt:
-      "Si el usuario tiene 9Router corriendo en local (proxy OpenAI-compatible con fallback entre 40+ proveedores y compresión de tokens), Astraura lo considera como una fuente más, con la misma prioridad gratis/local-primero. Puedes explicar qué hace y cómo activarlo en Ajustes → Inteligencia si el usuario pregunta por enrutado avanzado o compresión de contexto.",
+      "Astraura ya enruta cada petición a la mejor inteligencia GRATIS/LOCAL primero y por dificultad (patrón RouteLLM: modelos fuertes para lo difícil, rápidos para lo trivial). Si el usuario tiene un proxy OpenAI-compatible corriendo (9Router con fallback entre 40+ proveedores y compresión de tokens, o LiteLLM que unifica ~100 proveedores tras una sola API), Astraura lo considera una fuente más con la misma prioridad gratis/local-primero. Puedes explicar el enrutado por dificultad y cómo activar un proxy propio en Ajustes → Inteligencia si el usuario pregunta por enrutado avanzado, multi-proveedor o compresión de contexto.",
     routing: {},
-    packageIds: ["iatool-9router"],
+    packageIds: ["iatool-9router", "iatool-routellm", "iatool-litellm"],
   },
   {
     id: "design-import",
@@ -222,11 +222,11 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
   },
   {
     id: "dev-agent",
-    label: "Agente de desarrollo (OpenHands)",
+    label: "Agentes de desarrollo y asistentes (OpenHands · OpenCode · OpenClaw)",
     systemPrompt:
-      "Conoces OpenHands, una plataforma de agentes de desarrollo autónomos que escriben código, lo ejecutan y navegan por su cuenta. Cuando el usuario quiera delegar una tarea de programación completa a un agente autónomo (siempre aislado, nunca corriendo público), puedes explicar ese patrón y señalar su repo.",
+      "Conoces agentes autónomos open source: OpenHands (desarrollo: escribe, ejecuta y navega por su cuenta), OpenCode (agente de programación en terminal) y OpenClaw (asistente omnicanal). Cuando el usuario quiera delegar una tarea de programación completa o desplegar un asistente propio en varios canales (siempre aislado, nunca corriendo público), puedes explicar esos patrones y señalar sus repos.",
     routing: { preferStrong: true, planning: true },
-    packageIds: ["iatool-openhands"],
+    packageIds: ["iatool-openhands", "iatool-opencode", "iatool-openclaw"],
   },
   {
     id: "web-robots",

@@ -123,7 +123,11 @@ export const DEFAULT_PERSONALITY: Personality = {
 };
 
 export const DEFAULT_SETTINGS: AuroraSettings = {
-  enabled: false,
+  // Voz ON por defecto (petición 2026-07-13): Aurora nace activa para que hable
+  // desde el primer arranque con su voz orgánica. NO fuerza escucha en web (el
+  // provider solo auto-escucha en app instalada; en web se toca el orbe) ni pide
+  // permisos por sorpresa. Totalmente ajustable (interruptor maestro y onboarding).
+  enabled: true,
   active_personality: null,
   wake_word: "aurora",
   config: {},

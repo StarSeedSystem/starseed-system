@@ -71,6 +71,9 @@ import {
   resetVoiceStyle,
   isNeuralEngine,
   NEURAL_VOICE_ENGINES,
+  VOICE_PRESETS,
+  AURORA_ORGANIC_PRESET_ID,
+  applyVoicePreset,
   type AuroraVoiceEngine,
   type AuroraVoiceEmotion,
   type NeuralVoiceEngine,
@@ -908,6 +911,24 @@ export function VoiceOssPanel({ className }: { className?: string }) {
           >
             <RotateCcw className="w-3 h-3" /> Restablecer
           </button>
+        </div>
+
+        {/* Presets de un toque — el primero, "Aurora · orgánica", es el de fábrica */}
+        <div className="space-y-1">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Presets</div>
+          <div className="flex flex-wrap gap-1.5">
+            {VOICE_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                title={p.hint}
+                onClick={() => applyVoicePreset(p.id)}
+                className="cursor-pointer rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-[11px] text-muted-foreground transition-colors duration-200 hover:border-sky-300/50 hover:bg-sky-300/[0.08] hover:text-foreground"
+              >
+                {p.id === AURORA_ORGANIC_PRESET_ID ? "★ " : ""}{p.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">

@@ -18,6 +18,8 @@ import {
   readOrbHidden,
   setOrbHidden as setOrbHiddenBus,
   subscribeOrbVisibility,
+  readFabEnabled,
+  subscribeFabEnabled,
   readOrbPosition,
   writeOrbPosition,
   DEFAULT_ORB_POSITION,
@@ -127,6 +129,10 @@ export function AuroraWidget() {
   // Visibilidad del orbe (arrastrable a la zona de descarte → se oculta;
   // se reactiva desde el Exocórtex). SSR-safe: arranca visible.
   const [hidden, setHidden] = useState(false);
+  // Preferencia ESTABLE del botón flotante (default ON, sincronizada con la
+  // cuenta). Si el usuario la apaga (Exocórtex / Ajustes de Aurora), el orbe no
+  // se monta en ninguna sección. SSR-safe: arranca habilitado.
+  const [fabEnabled, setFabEnabled] = useState(true);
   const [moving, setMoving] = useState(false);
   const [overTrash, setOverTrash] = useState(false);
 
@@ -180,9 +186,11 @@ export function AuroraWidget() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     setHidden(readOrbHidden());
+    setFabEnabled(readFabEnabled());
     setPos(readOrbPosition());
-    const unsub = subscribeOrbVisibility((h) => setHidden(h));
-    return unsub;
+    const unsubVis = subscribeOrbVisibility((h) => setHidden(h));
+    const unsubFab = subscribeFabEnabled((e) => setFabEnabled(e));
+    return () => { unsubVis(); unsubFab(); };
   }, []);
 
   // ── UN SOLO CHAT: ¿está abierto el chat COMPLETO (Exocórtex / Zenith)? ──
@@ -686,7 +694,11 @@ export function AuroraWidget() {
     </div>
   );
 
-  // Si el orbe está oculto, no renderizamos NADA flotante.
+  // Botón flotante DESHABILITADO por preferencia (Exocórtex / Ajustes de Aurora):
+  // el orbe no se monta en ninguna sección. Aurora sigue accesible desde el
+  // Exocórtex (Zenith) y la sección Astraura.
+  if (!fabEnabled) return null;
+  // Si el orbe está oculto (descarte de sesión), no renderizamos NADA flotante.
   // La reactivación vive en el Exocórtex → sección "Chat de Aurora".
   if (hidden) return null;
 

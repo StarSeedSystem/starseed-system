@@ -24,9 +24,21 @@
 // ── Claves de localStorage ───────────────────────────────────────────────────
 export const AURORA_ORB_POS_KEY = "starseed.aurora.orb.pos.v1";
 export const AURORA_ORB_HIDDEN_KEY = "starseed.aurora.orb.hidden.v1";
+/**
+ * PREFERENCIA persistida del BOTÓN FLOTANTE de Aurora (el orbe) — default ON.
+ * Distinta de `hidden`: `hidden` es un descarte de SESIÓN (arrastrar a la
+ * papelera); `fab.enabled` es la preferencia estable, sincronizada con la cuenta
+ * (SYNCED_KEYS) y por defecto TRUE → el orbe aparece en TODAS las secciones del
+ * OS y la Red salvo que el usuario lo apague en el Exocórtex o en Ajustes de
+ * Aurora. Si es false, el orbe no se monta (pero Aurora sigue accesible desde el
+ * Exocórtex/Zenith y la sección Astraura).
+ */
+export const AURORA_ORB_FAB_KEY = "starseed.aurora.fab.enabled.v1";
 
 // ── Eventos internos (mismo tab) ─────────────────────────────────────────────
 export const AURORA_ORB_VISIBILITY_EVENT = "starseed:aurora-orb-visibility";
+/** Evento (mismo tab) al cambiar la preferencia del botón flotante. */
+export const AURORA_ORB_FAB_EVENT = "starseed:aurora-orb-fab";
 /** Evento de voz emitido por el motor (engine.ts) para animar el glow. */
 export const AURORA_SPEAK_EVENT = "aurora:speak";
 /**
@@ -167,6 +179,48 @@ export function subscribeOrbVisibility(cb: (hidden: boolean) => void): () => voi
   window.addEventListener("storage", onStorage);
   return () => {
     window.removeEventListener(AURORA_ORB_VISIBILITY_EVENT, onCustom);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+// ── Botón flotante de Aurora: preferencia estable (default ON) ───────────────
+/** ¿Está habilitado el botón flotante (orbe)? Por defecto TRUE. SSR-safe. */
+export function readFabEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    // Solo "0" apaga: cualquier otra cosa (ausente, "1", basura) = habilitado.
+    return window.localStorage.getItem(AURORA_ORB_FAB_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+/** Habilita/deshabilita el botón flotante y avisa a orbe + Exocórtex + Ajustes. */
+export function setFabEnabled(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(AURORA_ORB_FAB_KEY, enabled ? "1" : "0");
+  } catch {
+    /* defensivo */
+  }
+  try {
+    window.dispatchEvent(new CustomEvent<boolean>(AURORA_ORB_FAB_EVENT, { detail: enabled }));
+  } catch {
+    /* defensivo */
+  }
+}
+
+/** Suscribe a cambios del botón flotante (mismo tab + otros tabs). */
+export function subscribeFabEnabled(cb: (enabled: boolean) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const onCustom = (e: Event) => cb(!!(e as CustomEvent<boolean>).detail);
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === AURORA_ORB_FAB_KEY) cb(readFabEnabled());
+  };
+  window.addEventListener(AURORA_ORB_FAB_EVENT, onCustom);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(AURORA_ORB_FAB_EVENT, onCustom);
     window.removeEventListener("storage", onStorage);
   };
 }

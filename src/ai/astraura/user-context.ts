@@ -37,11 +37,30 @@ import { createClient } from "@/utils/supabase/client";
 
 export type UserContextLevel = "breve" | "completo";
 
+/**
+ * Preferencias declaradas por el usuario en el ONBOARDING de Aurora (opcional):
+ * cómo llamarle, temas de interés, tono deseado e idioma. Se guardan DENTRO de la
+ * misma clave sincronizada (nada de claves nuevas) y Aurora las tiene presentes
+ * en CADA conversación (buildUserContext las antepone). Todo opcional/ajustable.
+ */
+export interface UserAbout {
+  /** Cómo prefiere el usuario que Aurora se dirija a él/ella. */
+  callName?: string;
+  /** Temas de interés (texto libre, separado por comas). */
+  interests?: string;
+  /** Tono deseado ("cercano" | "equilibrado" | "formal" u otro descriptivo). */
+  tone?: string;
+  /** Idioma preferente ("es", "en"…). */
+  language?: string;
+}
+
 export interface UserContextSettings {
   /** Aurora conoce automáticamente tu contexto propio en cada conversación. */
   enabled: boolean;
   /** Nivel que se inyecta automáticamente cuando `enabled` es true. */
   defaultLevel: UserContextLevel;
+  /** Preferencias del onboarding (cómo llamarte, intereses, tono, idioma). */
+  about?: UserAbout;
 }
 
 export const USER_CONTEXT_SETTINGS_KEY = "starseed.astraura.usercontext.v1";
@@ -51,6 +70,24 @@ export const DEFAULT_USER_CONTEXT_SETTINGS: UserContextSettings = {
   enabled: true,
   defaultLevel: "breve",
 };
+
+/** Saneado defensivo del bloque "about" (recorta y descarta vacíos). */
+function sanitizeAbout(raw: unknown): UserAbout | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const str = (v: unknown, max: number) =>
+    typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined;
+  const out: UserAbout = {};
+  const callName = str(r.callName, 60);
+  if (callName) out.callName = callName;
+  const interests = str(r.interests, 400);
+  if (interests) out.interests = interests;
+  const tone = str(r.tone, 40);
+  if (tone) out.tone = tone;
+  const language = str(r.language, 12);
+  if (language) out.language = language;
+  return Object.keys(out).length ? out : undefined;
+}
 
 function isClient(): boolean {
   return typeof window !== "undefined";
@@ -63,9 +100,11 @@ export function getUserContextSettings(): UserContextSettings {
     const raw = window.localStorage.getItem(USER_CONTEXT_SETTINGS_KEY);
     if (!raw) return { ...DEFAULT_USER_CONTEXT_SETTINGS };
     const p = JSON.parse(raw) as Partial<UserContextSettings> | null;
+    const about = sanitizeAbout(p?.about);
     return {
       enabled: typeof p?.enabled === "boolean" ? p.enabled : DEFAULT_USER_CONTEXT_SETTINGS.enabled,
       defaultLevel: p?.defaultLevel === "completo" ? "completo" : "breve",
+      ...(about ? { about } : {}),
     };
   } catch {
     return { ...DEFAULT_USER_CONTEXT_SETTINGS };
@@ -74,7 +113,14 @@ export function getUserContextSettings(): UserContextSettings {
 
 /** Guarda (fusiona) los ajustes de contexto de usuario. Nunca lanza. */
 export function saveUserContextSettings(patch: Partial<UserContextSettings>): UserContextSettings {
-  const next = { ...getUserContextSettings(), ...patch };
+  const current = getUserContextSettings();
+  const next: UserContextSettings = { ...current, ...patch };
+  // El bloque "about" se FUSIONA campo a campo (no se pisa entero) y se sanea.
+  if ("about" in patch) {
+    const merged = sanitizeAbout({ ...(current.about ?? {}), ...(patch.about ?? {}) });
+    if (merged) next.about = merged;
+    else delete next.about;
+  }
   if (isClient()) {
     try {
       window.localStorage.setItem(USER_CONTEXT_SETTINGS_KEY, JSON.stringify(next));
@@ -442,19 +488,45 @@ function joinWithBudget(lines: string[], budget: number): string {
  * tool `get_user_context({ nivel: "completo" })`. Devuelve "" sin sesión, sin
  * datos, o ante cualquier fallo (nunca lanza; nunca bloquea la conversación).
  */
+/** Línea de PREFERENCIAS declaradas (onboarding): cómo llamarte, tono, idioma, intereses. */
+function aboutLine(): string {
+  try {
+    const about = getUserContextSettings().about;
+    if (!about) return "";
+    const parts: string[] = [];
+    if (about.callName) parts.push(`dirígete a mí como «${about.callName}»`);
+    if (about.tone) parts.push(`tono ${about.tone}`);
+    if (about.language) parts.push(`háblame en «${about.language}»`);
+    if (about.interests) parts.push(`me interesan: ${about.interests}`);
+    if (!parts.length) return "";
+    return `Preferencias declaradas por el usuario: ${parts.join("; ")}.`;
+  } catch {
+    return "";
+  }
+}
+
 export async function buildUserContext(level: UserContextLevel = "breve"): Promise<string> {
   try {
+    const about = aboutLine();
     const uid = await getUid();
-    if (!uid) return "";
+    if (!uid) {
+      // Sin sesión no hay ámbito propio que resumir, pero las PREFERENCIAS
+      // declaradas (cómo llamarte, tono, idioma, intereses) sí aplican siempre.
+      return about
+        ? ["CONTEXTO DEL USUARIO (privado; ámbito propio, nunca lo compartas fuera de esta conversación).", about].join("\n")
+        : "";
+    }
 
     const ligeros = [misPerfiles, misGruposYPaginas, misNotificaciones, misRecordatorios, misEscritoriosYWidgets];
     const pesados = [misMensajes, misArchivos, misPublicaciones, misProyectosYEspacios];
     const collectors = level === "completo" ? [...ligeros, ...pesados] : ligeros;
 
     const results = await Promise.allSettled(collectors.map((fn) => fn()));
-    const lines = results
+    const collected = results
       .map((r) => (r.status === "fulfilled" ? r.value : ""))
       .filter((l): l is string => !!l && l.trim().length > 0);
+    // Las preferencias declaradas van SIEMPRE primero (cómo llamarte, tono, idioma).
+    const lines = [about, ...collected].filter((l) => !!l && l.trim().length > 0);
 
     if (!lines.length) return "";
 

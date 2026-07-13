@@ -25,8 +25,15 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Power, ShieldCheck, Settings2 } from "lucide-react";
+import { Loader2, Power, ShieldCheck, Settings2, Orbit, Sparkles } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import {
+  readFabEnabled,
+  setFabEnabled as setFabEnabledBus,
+  subscribeFabEnabled,
+  setOrbHidden,
+  readOrbHidden,
+} from "@/lib/aurora/aurora-orb-bus";
 import {
   SENSES,
   getSenses,
@@ -102,7 +109,15 @@ export function AuroraControlPanel({
   const [perms, setPerms] = useState<Record<string, PermState>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  // Preferencia del botón flotante de Aurora (default ON, sincronizada).
+  const [fabEnabled, setFabEnabledState] = useState(true);
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setFabEnabledState(readFabEnabled());
+    return subscribeFabEnabled((e) => setFabEnabledState(e));
+  }, []);
 
   const refreshPerms = useCallback(async () => {
     const entries = await Promise.all(
@@ -234,6 +249,40 @@ export function AuroraControlPanel({
         </span>
         <MiniSwitch checked={enabled} onChange={onSetEnabled} />
       </div>
+
+      {/* Botón flotante (orbe) en todo el OS — preferencia estable (default ON) */}
+      <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+        <span className="inline-flex items-center gap-2 text-xs text-white/80">
+          <Orbit className="h-3.5 w-3.5 text-[#7fb8ff]" />
+          Botón flotante
+          <span className="hidden text-[10px] text-white/40 sm:inline">· en todas las secciones</span>
+        </span>
+        <MiniSwitch
+          checked={fabEnabled}
+          onChange={(v) => {
+            setFabEnabledBus(v);
+            // Al reactivar, deshace también un descarte de sesión previo.
+            if (v && readOrbHidden()) setOrbHidden(false);
+          }}
+        />
+      </div>
+
+      {/* Relanzar la presentación breve de Aurora (preferencias de onboarding) */}
+      <button
+        type="button"
+        onClick={() => {
+          try {
+            window.dispatchEvent(new CustomEvent("starseed:open-aurora-intro"));
+          } catch {
+            /* */
+          }
+        }}
+        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 transition-colors hover:border-white/20 hover:text-white/90"
+        title="Vuelve a presentarte y ajusta tono, idioma, intereses y voz"
+      >
+        <Sparkles className="h-3.5 w-3.5 text-[#7fb8ff]" />
+        Repetir presentación de Aurora
+      </button>
 
       {/* Sentidos */}
       <div>

@@ -419,8 +419,13 @@ export function AuroraGuide() {
     if (typeof window === "undefined") return;
     let seen = false;
     try { seen = window.localStorage.getItem(GUIDE_SEEN_KEY) === "1"; } catch { /* */ }
-    if (!seen) {
-      // Primera visita: arranca sola tras un instante (deja pintar la UI).
+    // No competir con la presentación breve de Aurora (AuroraIntro): el tour de
+    // interfaz solo arranca solo DESPUÉS de que el intro se haya completado, para
+    // no solapar dos ventanas la primera vez. El tour sigue disponible a demanda.
+    let introDone = false;
+    try { introDone = window.localStorage.getItem("starseed.aurora.intro.v1") === "1"; } catch { /* */ }
+    if (!seen && introDone) {
+      // Primera visita (tras el intro): arranca sola tras un instante.
       const t = setTimeout(() => setOpen(true), 900);
       return () => clearTimeout(t);
     }

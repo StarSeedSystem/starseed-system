@@ -187,10 +187,77 @@ export interface AuroraVoiceConfig {
   symbiotic?: boolean;
 }
 
-/** Config por defecto: navegador, sin voz forzada, sin autodescarga. */
+/**
+ * ESTILO DE VOZ POR DEFECTO — "Aurora · orgánica" (petición 2026-07-13).
+ * ----------------------------------------------------------------------------
+ * Cálida y serena, con ritmo NATURAL (ni lento ni acelerado). Se aplica desde el
+ * PRIMER arranque sin que el usuario configure nada: la mejor voz neural del
+ * navegador (browser-voices.ts) + esta modulación emocional = Aurora ya suena
+ * orgánica de fábrica. Los números explícitos MANDAN sobre los deltas de la
+ * emoción (ver resolveVoiceParams): `rate:1` fuerza ritmo natural pese a que la
+ * emoción "serena" tienda a frenar; `pitch` y `energy` dan la calidez.
+ * Totalmente ajustable después (panel de Voz, personalidades, `ajustar_voz`).
+ */
+export const DEFAULT_VOICE_STYLE: AuroraVoiceStyle = {
+  emotion: "serena",
+  tone: "cálida",
+  rate: 1,
+  pitch: 1.03,
+  energy: 52,
+};
+
+/** Un preset de voz con nombre: aplica un `AuroraVoiceStyle` de un toque. */
+export interface AuroraVoicePreset {
+  id: string;
+  label: string;
+  hint: string;
+  style: AuroraVoiceStyle;
+}
+
+/**
+ * Presets de voz de un toque (el primero es el DEFAULT de fábrica). Sirven al
+ * panel de Voz para ofrecer estilos bonitos sin tocar sliders. No son motores:
+ * son modulaciones emocionales que valen para CUALQUIER motor.
+ */
+export const AURORA_ORGANIC_PRESET_ID = "aurora-organica";
+export const VOICE_PRESETS: readonly AuroraVoicePreset[] = [
+  {
+    id: AURORA_ORGANIC_PRESET_ID,
+    label: "Aurora · orgánica",
+    hint: "Cálida y serena, ritmo natural (por defecto)",
+    style: DEFAULT_VOICE_STYLE,
+  },
+  {
+    id: "aurora-dulce",
+    label: "Cálida y cercana",
+    hint: "Suave, dulce, acompaña",
+    style: { emotion: "dulce", tone: "cálida", rate: 0.98, pitch: 1.08, energy: 50 },
+  },
+  {
+    id: "aurora-clara",
+    label: "Serena y clara",
+    hint: "Calmada, nítida, informativa",
+    style: { emotion: "serena", tone: "clara", rate: 1, pitch: 1, energy: 46 },
+  },
+  {
+    id: "aurora-vivaz",
+    label: "Vivaz",
+    hint: "Con chispa y energía",
+    style: { emotion: "entusiasta", tone: "luminosa", rate: 1.06, pitch: 1.1, energy: 78 },
+  },
+  {
+    id: "aurora-neutra",
+    label: "Neutra",
+    hint: "Sin modulación emocional",
+    style: {},
+  },
+];
+
+/** Config por defecto: navegador + estilo ORGÁNICO (cálido/sereno), sin autodescarga. */
 export const DEFAULT_VOICE_CONFIG: AuroraVoiceConfig = {
   engine: "browser",
   autoDownload: false,
+  style: { ...DEFAULT_VOICE_STYLE },
 };
 
 const VALID_ENGINES: readonly AuroraVoiceEngine[] = [
@@ -326,7 +393,7 @@ export function getVoiceConfig(): AuroraVoiceConfig {
     }
     // Sin config unificada: honra el opt-in histórico de Kokoro si estaba ON.
     if (isOssTtsEnabled()) {
-      return { engine: "kokoro", autoDownload: false };
+      return { engine: "kokoro", autoDownload: false, style: { ...DEFAULT_VOICE_STYLE } };
     }
   } catch {
     /* corrupto o inaccesible → default */
@@ -472,6 +539,55 @@ export function getEffectiveVoice(engine: AuroraVoiceEngine): string | undefined
     return cfg.engines?.[engine]?.voice || cfg.voice;
   }
   return cfg.voice;
+}
+
+/**
+ * SIEMBRA EL PRESET DE VOZ POR DEFECTO ("Aurora · orgánica") en el PRIMER
+ * arranque, solo si el usuario no ha elegido nada. Idempotente y NO destructivo:
+ *   · si ya existe `starseed.aurora.voice.v1` → no toca nada (respeta la elección);
+ *   · si el opt-in histórico de Kokoro estaba ON → tampoco pisa (getVoiceConfig
+ *     ya lo migra a `{engine:"kokoro"}` con estilo orgánico);
+ *   · si no hay NADA → persiste el default (navegador + estilo cálido/sereno) para
+ *     que aparezca visible y ajustable en el panel de Voz desde el minuto cero.
+ * SSR-safe; nunca lanza. Se llama desde el arranque de Aurora (engine.ts).
+ */
+export function ensureOrganicVoiceDefault(): void {
+  const ls = safeLocalStorage();
+  if (!ls) return;
+  try {
+    if (ls.getItem(AURORA_VOICE_CONFIG_KEY)) return; // ya hay config → respeta
+    if (isOssTtsEnabled()) return; // Kokoro histórico → lo cubre getVoiceConfig
+    const seeded: AuroraVoiceConfig = {
+      engine: "browser",
+      autoDownload: false,
+      style: { ...DEFAULT_VOICE_STYLE },
+    };
+    ls.setItem(AURORA_VOICE_CONFIG_KEY, JSON.stringify(seeded));
+    emitChange();
+  } catch {
+    /* cuota / modo privado → Aurora sigue orgánica por el default de getVoiceConfig */
+  }
+}
+
+/**
+ * Aplica un preset de voz con nombre (reemplaza el estilo, no lo fusiona: un
+ * preset "Neutra" con `{}` limpia la modulación). Nunca lanza.
+ */
+export function applyVoicePreset(presetId: string): void {
+  const preset = VOICE_PRESETS.find((p) => p.id === presetId);
+  if (!preset) return;
+  const ls = safeLocalStorage();
+  const current = getVoiceConfig();
+  const clean = sanitizeStyle(preset.style);
+  const next: AuroraVoiceConfig = { ...current, style: clean };
+  if (ls) {
+    try {
+      ls.setItem(AURORA_VOICE_CONFIG_KEY, JSON.stringify(next));
+    } catch {
+      /* */
+    }
+  }
+  emitChange();
 }
 
 function emitChange(): void {
