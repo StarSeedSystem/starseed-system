@@ -88,6 +88,14 @@
 - tsc en el Mac (~90 s), commit como `alexbordongarrigos@gmail.com`, push a `StarSeedSystem/starseed-system` → Vercel; verificar status "Vercel" del commit.
 
 ## 10. Voz de Aurora (petición 2026-07-11) — Bark · GPT-SoVITS · OmniVoice
+
+> ⚠️ **AMPLIADO por la Adenda 67 · P2 (2026-07-13)** → la fuente de verdad de la voz es
+> ahora **`architecture/aurora-voz-motores.md`**: añade **VoxCPM** (motor PRINCIPAL, el
+> más realista) y **Voicebox**, el **registro de motores** con metadatos
+> (`src/lib/aurora/tts-oss/engine-registry.ts`), la **selección automática** del mejor
+> motor disponible (basta con que exista un endpoint), el **override por personalidad**
+> (`intelligence.motorVoz`) y el catálogo ampliado de **tipos de voz prediseñados**.
+> Lo de abajo sigue siendo cierto; simplemente ya no está solo.
 - Nuevos MOTORES del sistema de voz (`starseed.aurora.voice.v1`): **Bark** (suno-ai/bark, TTS generativo expresivo), **GPT-SoVITS** (RVC-Boss/GPT-SoVITS, clonación few-shot) y **OmniVoice** (k2-fsa/OmniVoice) — son servidores Python: se conectan por ENDPOINT configurable (neurona propia/CasaOS u hospedado), simbióticos entre sí (SoVITS puede clonar la voz que Bark genera; OmniVoice como multilingüe).
 - **Regla Aurora siempre habla:** cadena de fallback gratis-primero (endpoint neural → Kokoro → voz del navegador mejor rankeada). Por defecto, voz NATURAL bonita: ranking automático de voces del navegador (neurales primero, es-*) sin configurar nada.
 - Modulación EMOCIONAL/tonal por parámetros (velocidad, tono, energía, emoción) mapeada desde la personalidad activa; ajustable por chat y por contexto; Aurora puede auto-ajustarla por herramienta ("kind:'voice'" en aurora-tools). Ruteo inteligente vía Astraura/OmniRoute (+OpenRouter para lo generativo).

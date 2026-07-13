@@ -22,6 +22,14 @@ import { createClient } from "@/utils/supabase/client";
 // Seguridad integrada (Adenda 63 §13): escaneo de secretos/PII al IMPORTAR
 // personalidades (redacción de `critical` + aviso). Ver importPersonalityJson.
 import { redactDeep, scanDeep, summarize, type Finding } from "@/lib/security/scanner";
+// Centro de Configuración (Adenda 67 · P1): matices por sentido, permisos del
+// perfil de la personalidad y overrides por entidad. `setup-config.ts` sólo
+// importa TIPOS de este módulo (se borran al compilar) ⇒ no hay ciclo real.
+import {
+  entityOverrideFromPath,
+  personaPermissionsPromptBlock,
+  sensesPromptBlock,
+} from "@/lib/aurora/setup-config";
 import {
   DEFAULT_PERSONALITY,
   DEFAULT_SETTINGS,
@@ -546,6 +554,18 @@ export interface PersonalityIntelligence {
   /** Fuente/modelo forzados SOLO para un sentido (gana sobre `global`). */
   porSentido?: Partial<Record<AuroraSense, PersonalitySourcePin>>;
   /**
+   * MOTOR DE VOZ forzado para esta personalidad (Adenda 67 · P2-3). Id de motor
+   * de `AuroraVoiceEngine`: "voxcpm" · "voicebox" · "gpt-sovits" · "bark" ·
+   * "omnivoice" · "kokoro" · "browser".
+   *
+   * Solo se aplica en `modo: "fija"`. Como el pin de inteligencia, va PRIMERO en
+   * la cadena pero NO es exclusivo: si ese motor no está disponible, la voz cae
+   * al siguiente eslabón (Aurora nunca se queda muda por un pin obsoleto).
+   * Alternativa equivalente: `porSentido.voz.fuente` con el id de un motor de voz.
+   * Lo resuelve `engine-registry.ts::refreshPersonalityVoicePin()`.
+   */
+  motorVoz?: string;
+  /**
    * Permitir que esta personalidad use fuentes de PAGO ya configuradas por el
    * usuario. Por defecto false: ni siquiera una personalidad "fija" gasta dinero
    * sin permiso explícito.
@@ -915,10 +935,14 @@ function normalizeIntelligence(raw: unknown): PersonalityIntelligence {
     }
   }
   const global = pin(r.global);
+  // Motor de voz forzado (Adenda 67 · P2-3). Aditivo: los perfiles antiguos no
+  // lo traen y siguen funcionando igual (sin pin = selección automática).
+  const motorVoz = cleanStr(r.motorVoz, 32);
   return {
     modo: r.modo === "fija" ? "fija" : "auto",
     ...(global ? { global } : {}),
     ...(Object.keys(porSentido).length ? { porSentido } : {}),
+    ...(motorVoz ? { motorVoz } : {}),
     permitirPago: r.permitirPago === true,
   };
 }
@@ -1217,17 +1241,33 @@ export function getActivePersonality(context?: PersonalityContext): PersonalityP
 
 /**
  * Resuelve la personalidad efectiva para un contexto compuesto con prioridad
- * chat > cerebro > sección > global. Tolerante: null si nada activo.
+ * chat > ENTIDAD (grupo/página/entidad de la ruta actual) > cerebro > sección >
+ * global. Tolerante: null si nada activo.
+ *
+ * (Adenda 67 · P1-3) El escalón de ENTIDAD viene del Centro de Configuración:
+ * `setEntityOverride("grupo:mi-grupo", personalidadId)`. Se deriva de la ruta en
+ * curso (`/grupo/mi-grupo`), así que funciona en CUALQUIER sección del OS sin
+ * que el llamante tenga que enterarse. Si el ámbito está desactivado en el
+ * scope, `entityOverrideFromPath()` devuelve null y aquí no cambia nada.
  */
 export function resolvePersonalityForContext(ctx: {
   section?: string;
   chatId?: string;
   brainId?: string;
+  /** Clave de entidad explícita (`grupo:slug`); si falta, se deriva de la URL. */
+  entityKey?: string;
 }): PersonalityProfile | null {
   const a = getPersonalityAssignments();
   const chatId = ctx.chatId ?? getRegisteredAuroraChatId() ?? undefined;
+  let entityId: string | null = null;
+  try {
+    entityId = entityOverrideFromPath();
+  } catch {
+    entityId = null;
+  }
   const candidates: Array<string | null | undefined> = [
     chatId ? a.porChat[chatId] : undefined,
+    entityId,
     ctx.brainId ? a.porCerebro[ctx.brainId] : undefined,
     ctx.section && isPersonalitySection(ctx.section) ? a.porSeccion[ctx.section] : undefined,
     a.global,
@@ -1467,6 +1507,22 @@ export function compilePersonalityPrompt(p: PersonalityProfile): string {
 
   if (p.knowledge.length) lines.push(`Conocimientos de referencia que dominas o priorizas: ${p.knowledge.join(", ")}.`);
   if (p.prompts.extra) lines.push(`Notas adicionales: ${p.prompts.extra}`);
+
+  // (Adenda 67 · P1) Centro de Configuración: matices por SENTIDO y PERMISOS del
+  // perfil de esta personalidad. Ambos bloques son "" si el usuario no ha tocado
+  // nada → el prompt queda EXACTAMENTE como antes (cero regresión).
+  try {
+    const senses = sensesPromptBlock();
+    if (senses) lines.push(senses);
+  } catch {
+    /* la personalidad se compila igual si el centro no está disponible */
+  }
+  try {
+    const permisos = personaPermissionsPromptBlock(p.id);
+    if (permisos) lines.push(permisos);
+  } catch {
+    /* idem */
+  }
 
   return lines.join("\n");
 }

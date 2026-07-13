@@ -67,6 +67,9 @@ const AURORA_ENGINE_LABEL: Record<AuroraVoiceEngine, string> = {
     // Motores NEURALES por endpoint (Adenda voz de Aurora, jul-2026): servidores
     // Python en una neurona propia/CasaOS. Si fallan, la cadena de respaldo
     // (Kokoro → navegador) mantiene a Aurora hablando siempre.
+    // VoxCPM es el PRINCIPAL recomendado (Adenda 67 · P2): el más realista.
+    voxcpm: "VoxCPM (principal)",
+    voicebox: "Voicebox (estudio local)",
     bark: "Bark (neuronal)",
     "gpt-sovits": "GPT-SoVITS (clonación)",
     omnivoice: "OmniVoice (multilingüe)",

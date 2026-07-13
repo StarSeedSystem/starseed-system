@@ -49,6 +49,8 @@ import {
     Image as ImageIcon,
     Link2,
     Locate,
+    Film,
+    ExternalLink,
     type LucideIcon,
 } from "lucide-react";
 
@@ -75,6 +77,9 @@ export const NEW_BLOCK_DEFS: BlockDef[] = [
     { type: "pizarra", label: "Pizarra", icon: PencilRuler, group: "interactivo" },
     { type: "referencia", label: "Referencia", icon: Boxes, group: "referencia", refHint: "source" },
     { type: "entidad", label: "Entidad", icon: Building2, group: "referencia", refHint: "entity" },
+    // ── Adenda 67 · P4 (aditivos) ──
+    { type: "penpot", label: "Diseño Penpot", icon: PencilRuler, group: "contenido" },
+    { type: "video", label: "Vídeo", icon: Film, group: "contenido" },
 ];
 
 // ── SourceRef → parche de bloque `referencia` ────────────────────────────────
@@ -171,9 +176,135 @@ export function RichBlockEditor({
             return <ReferenciaEditor block={block} patch={patch} />;
         case "entidad":
             return <EntidadEditor block={block} patch={patch} />;
+        // ── Adenda 67 · P4 (aditivos) ──
+        case "penpot":
+            return <PenpotEditor block={block} patch={patch} />;
+        case "video":
+            return <VideoEditor block={block} patch={patch} />;
         default:
             return null;
     }
+}
+
+// ── Diseño Penpot (P4-2) ─────────────────────────────────────────────────────
+//
+// Penpot (MPL-2.0) es la plataforma de diseño open source. Un diseño se comparte
+// con su «Share prototype link» (modo vista). Aquí solo guardamos ese enlace.
+//
+// HONESTIDAD (verificada con `curl -I`): design.penpot.app responde
+// `X-Frame-Options: SAMEORIGIN` → NO se puede incrustar en el OS. Por eso la
+// casilla «incrustar» se DESHABILITA sola cuando el enlace apunta a la instancia
+// oficial, y se explica por qué. En una instancia propia que lo permita, sí.
+
+function PenpotEditor({ block, patch }: EditorProps) {
+    const url = block.url ?? "";
+    const official = /(^|\/\/)(design\.)?penpot\.app/i.test(url.trim());
+    const embed = block.system === "embed";
+
+    return (
+        <div className="space-y-2">
+            <Input
+                placeholder="Enlace del diseño de Penpot (Modo Vista → «Compartir» → Obtener enlace)…"
+                value={url}
+                onChange={(e) => patch({ url: e.target.value })}
+                className={FIELD}
+            />
+            <Input
+                placeholder="Título del diseño (opcional)…"
+                value={block.text ?? ""}
+                onChange={(e) => patch({ text: e.target.value })}
+                className={FIELD}
+            />
+
+            <label
+                className={cn(
+                    "flex items-start gap-2 rounded-lg border border-white/10 bg-black/20 p-2.5",
+                    official ? "opacity-60" : "cursor-pointer hover:bg-black/30",
+                )}
+            >
+                <input
+                    type="checkbox"
+                    checked={embed && !official}
+                    disabled={official}
+                    onChange={(e) => patch({ system: e.target.checked ? "embed" : undefined })}
+                    className="mt-0.5 cursor-pointer accent-violet-500 disabled:cursor-not-allowed"
+                />
+                <span className="text-[11px] leading-relaxed text-white/60">
+                    Incrustar el diseño dentro de la publicación
+                    {official ? (
+                        <>
+                            {" "}
+                            —{" "}
+                            <span className="text-amber-200/80">
+                                no disponible con design.penpot.app: la instancia oficial envía{" "}
+                                <code className="text-amber-100">X-Frame-Options: SAMEORIGIN</code> y el navegador
+                                bloquearía el marco (se vería en blanco). La publicación mostrará una tarjeta con
+                                enlace, que sí funciona.
+                            </span>
+                        </>
+                    ) : (
+                        <> — solo funcionará si tu instancia de Penpot permite ser incrustada.</>
+                    )}
+                </span>
+            </label>
+
+            {url.trim() && (
+                <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] text-violet-300 hover:underline"
+                >
+                    <ExternalLink className="h-3 w-3" /> Abrir en Penpot para comprobarlo
+                </a>
+            )}
+        </div>
+    );
+}
+
+// ── Vídeo (P4-3) ─────────────────────────────────────────────────────────────
+//
+// OpenCut (MIT) es el editor de vídeo web open source. HONESTIDAD: hoy NO tiene
+// API (su «Editor API», el modo headless y su servidor MCP están anunciados como
+// FUTUROS en su propio README), así que el OS no puede editar por ti: te lleva al
+// editor, y tú publicas aquí el vídeo YA exportado (que sí se reproduce de verdad).
+
+const OPENCUT_URL = "https://opencut.app";
+
+function VideoEditor({ block, patch }: EditorProps) {
+    return (
+        <div className="space-y-2">
+            <Input
+                placeholder="URL del vídeo (súbelo a tu Biblioteca o pega un enlace directo .mp4/.webm)…"
+                value={block.url ?? ""}
+                onChange={(e) => patch({ url: e.target.value })}
+                className={FIELD}
+            />
+            <Input
+                placeholder="Título / pie del vídeo (opcional)…"
+                value={block.text ?? ""}
+                onChange={(e) => patch({ text: e.target.value })}
+                className={FIELD}
+            />
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/20 p-2.5">
+                <Film className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                <span className="text-[11px] text-white/55">¿Necesitas editarlo antes?</span>
+                <a
+                    href={OPENCUT_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-400/35 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-100 transition-colors hover:bg-emerald-500/20"
+                >
+                    <ExternalLink className="h-3 w-3" /> Abrir OpenCut
+                </a>
+                <span className="w-full text-[10px] leading-relaxed text-white/35">
+                    OpenCut es un editor de vídeo open source que corre en tu navegador (tus ficheros no salen de tu
+                    equipo). No tiene API todavía, así que el montaje lo haces allí y vuelves aquí con el vídeo
+                    exportado.
+                </span>
+            </div>
+        </div>
+    );
 }
 
 // ── Portada ──────────────────────────────────────────────────────────────────

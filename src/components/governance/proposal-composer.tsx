@@ -25,6 +25,7 @@ import {
   Zap,
   Network,
   CalendarRange,
+  Landmark,
 } from "lucide-react";
 import { createProposal } from "@/lib/governance/engine";
 import { COMMAND_TYPES, commandTypeById } from "@/lib/governance/commands";
@@ -40,6 +41,9 @@ import {
   type Urgency,
 } from "@/lib/governance/types";
 import AffectedEntitiesPicker from "@/components/governance/affected-entities-picker";
+// (Adenda 67 · P4-4) Consejo de Aurora: delibera la propuesta desde los cinco
+// fundamentos StarSeed (patrón llm-council con el router gratis-primero del OS).
+import { AuroraCouncilButton } from "@/components/governance/aurora-council";
 import {
   attachPoliticalMeta,
   sendAffectedNotifications,
@@ -395,6 +399,32 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta forma:
             Activa un proveedor de IA en Ajustes → IA & Modelos para usar a Astraura.
           </p>
         )}
+      </div>
+
+      {/* ── Consejo de Aurora (Adenda 67 · P4-4) ────────────────────────────
+          Cinco consejeros —ontocrático, ecológico, abundancia, simbiótico y
+          empático— dictaminan por separado sobre ESTA propuesta, se revisan
+          entre sí con las identidades ocultas (patrón llm-council de karpathy) y
+          Aurora sintetiza una recomendación citando el fundamento de cada uno.
+          Usa el router gratis-primero: NO necesita clave ni proveedor propio (a
+          diferencia del botón «Redactar», que usa el chat clásico). */}
+      <div className="rounded-lg border border-indigo-500/20 bg-indigo-950/10 p-3 space-y-2">
+        <div className="flex items-center gap-2 text-[11px] text-indigo-200/80">
+          <Landmark className="h-3.5 w-3.5" /> Deliberar con el Consejo de Aurora
+        </div>
+        <p className="text-[10px] leading-relaxed text-indigo-200/50">
+          Antes de publicar, escucha a los cinco fundamentos de la Constitución StarSeed. Cada consejero dictamina
+          desde el suyo y Aurora sintetiza. <strong>Aconseja; no decide.</strong>
+        </p>
+        <AuroraCouncilButton
+          disabled={!title.trim()}
+          input={() => ({
+            title,
+            description,
+            options: options.map((o) => o.label).filter(Boolean),
+            scope: scopeRef ? `${scope} · ${scopeRef}` : scope,
+          })}
+        />
       </div>
 
       {/* Básicos */}

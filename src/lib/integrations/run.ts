@@ -29,6 +29,12 @@ import * as HomeAssistant from "./clients/home-assistant";
 import * as Immich from "./clients/immich";
 import * as Perplexica from "./clients/perplexica";
 import * as AnythingLLM from "./clients/anything-llm";
+// ── Adenda 67 · P4 (jul-2026) ──
+import * as Typesense from "./clients/typesense";
+import * as Postiz from "./clients/postiz";
+import * as TdaiMemory from "./clients/tencentdb-memory";
+import * as Databasement from "./clients/databasement";
+import * as Instance from "./clients/instance";
 
 /** Comprueba que la integración pueda llamar (habilitada + endpoint). */
 function gate(cfg: IntegrationConfig, fallbackEndpoint?: string): { ok: true; cfg: IntegrationConfig } | { ok: false; error: string } {
@@ -121,6 +127,49 @@ export async function runIntegration(
       case "anything-llm":
         if (a === "chat") return await AnythingLLM.chat(c, input);
         break;
+
+      /* ── Adenda 67 · P4 ── */
+      case "typesense":
+        if (a === "search") return await Typesense.search(c, input);
+        if (a === "collections") return await Typesense.collections(c);
+        break;
+      case "postiz":
+        if (a === "integrations") return await Postiz.integrations(c);
+        // ⚠️ Efecto irreversible: el llamador DEBE haber pedido confirmación
+        // explícita al usuario (social-crosspost.tsx). Nunca lo dispara Aurora sola.
+        if (a === "publish") return await Postiz.publish(c, input);
+        if (a === "attach-url") return await Postiz.attachByUrl(c, String(input?.url ?? input ?? ""));
+        break;
+      case "tencentdb-memory":
+        if (a === "recall") return await TdaiMemory.recall(c, input);
+        if (a === "capture") return await TdaiMemory.capture(c, input);
+        if (a === "search-memories") return await TdaiMemory.searchMemories(c, input);
+        if (a === "session-end") return await TdaiMemory.endSession(c, input);
+        break;
+      case "databasement":
+        if (a === "servers") return await Databasement.servers(c);
+        if (a === "snapshots") return await Databasement.snapshots(c);
+        // ⚠️ Efecto real sobre datos: solo con acción explícita del usuario.
+        if (a === "backup-now") return await Databasement.backupNow(c, input);
+        break;
+      case "openmanus":
+        // Conector EXPERIMENTAL: OpenManus no trae API HTTP oficial (CLI + MCP).
+        // Reutilizamos el runner genérico de tarea (mismo patrón que OpenHands):
+        // el usuario declara la ruta exacta de su envoltorio en `extra.path`.
+        if (a === "run-task") return await GenericTask.runTask(id, c, input);
+        break;
+      case "penpot":
+      case "opencut":
+        // Sin API: el "conector" solo comprueba que la instancia responde.
+        if (a === "ping") {
+          return await Instance.health(
+            id,
+            c,
+            id === "penpot" ? Instance.PENPOT_DEFAULT : Instance.OPENCUT_DEFAULT,
+          );
+        }
+        break;
+
       default:
         return { ok: false, error: `Integración sin runner: "${id}".` };
     }
@@ -169,6 +218,23 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
         return await Perplexica.health(c);
       case "anything-llm":
         return await AnythingLLM.health(c);
+
+      /* ── Adenda 67 · P4 ── */
+      case "typesense":
+        return await Typesense.health(c);
+      case "postiz":
+        return await Postiz.health(c);
+      case "tencentdb-memory":
+        return await TdaiMemory.health(c);
+      case "databasement":
+        return await Databasement.health(c);
+      case "openmanus":
+        return await GenericTask.health(id, c);
+      case "penpot":
+        return await Instance.health(id, c, Instance.PENPOT_DEFAULT);
+      case "opencut":
+        return await Instance.health(id, c, Instance.OPENCUT_DEFAULT);
+
       default:
         return { ok: false, error: `Sin prueba de salud para "${id}".` };
     }

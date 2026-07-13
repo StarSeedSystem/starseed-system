@@ -24,6 +24,12 @@ function taskOf(input: any): string {
 const DEFAULT_PATHS: Record<string, string[]> = {
   openhands: ["/api/conversations", "/api/tasks", "/api/v1/tasks"],
   "browser-use": ["/api/v1/run/task", "/api/run", "/run", "/task"],
+  // OpenManus (Adenda 67 · P4-1). HONESTIDAD: su repo NO trae servidor HTTP —
+  // es CLI (`main.py`), flujo multi-agente (`run_flow.py`) y servidor MCP
+  // (`run_mcp_server.py`). Estas rutas son las de los ENVOLTORIOS habituales que
+  // la gente pone delante; si ninguna encaja, el usuario declara la suya en
+  // `extra.path` y el error que devolvemos lo dice sin adornos.
+  openmanus: ["/run", "/api/run", "/task", "/api/v1/run"],
 };
 
 /** Acción "run-task": envía una tarea en lenguaje natural al servidor. */

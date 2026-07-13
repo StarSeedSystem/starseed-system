@@ -35,6 +35,7 @@
 
 import {
   AURORA_VOICE_STYLE_EVENT,
+  getActiveVoicePreset,
   getVoiceConfig,
   getVoiceStyle,
   sanitizeStyle,
@@ -175,6 +176,116 @@ export function decorateTextForBark(
     }
     // [sighs] / [clears throat]: al principio, como apertura tonal.
     return `${tag} ${clean}`;
+  } catch {
+    return text;
+  }
+}
+
+// ── VoxCPM / Voicebox: el estilo como LENGUAJE NATURAL ───────────────────────
+
+/**
+ * Descripción de la EMOCIÓN en lenguaje natural (español), para los motores que
+ * entienden instrucciones habladas en vez de números: VoxCPM (Voice Design y
+ * clonación controlable) y Voicebox (campo `instruct` de los motores Qwen).
+ */
+const EMOTION_PROSE: Record<AuroraVoiceEmotion, string> = {
+  alegre: "alegre y luminosa, con energía amable",
+  serena: "serena y calmada, bien respirada",
+  dulce: "dulce y suave, muy cercana",
+  seria: "seria, formal y precisa",
+  entusiasta: "entusiasta y vibrante, con chispa",
+  empatica: "empática y comprensiva, que acompaña",
+  misteriosa: "grave e intrigante, casi susurrada",
+  juguetona: "juguetona y traviesa, ligera",
+};
+
+/** Traduce la velocidad a palabras (VoxCPM/Voicebox no reciben números). */
+function paceProse(rate: number): string {
+  if (rate <= 0.9) return "a ritmo pausado";
+  if (rate <= 0.97) return "algo más despacio de lo normal";
+  if (rate >= 1.12) return "a buen ritmo, ágil";
+  if (rate >= 1.03) return "algo más rápido de lo normal";
+  return "a ritmo natural";
+}
+
+/** Traduce la energía a palabras. */
+function energyProse(energy: number): string {
+  if (energy <= 35) return "en voz baja y contenida";
+  if (energy >= 75) return "con mucha energía";
+  if (energy >= 60) return "con energía";
+  return "";
+}
+
+/**
+ * DISEÑO DE VOZ para VoxCPM2 — descripción en lenguaje natural de CÓMO es la voz.
+ * Prioridad: lo que el usuario escribió en la config del motor > la descripción
+ * del PRESET activo > una descripción derivada de la emoción/estilo vivos.
+ * Devuelve "" si no hay nada que decir (el motor usará su voz por defecto).
+ * Nunca lanza.
+ */
+export function voiceDesignPrompt(explicit?: string): string {
+  try {
+    const clean = (explicit || "").trim();
+    if (clean) return clean.slice(0, 300);
+    const preset = getActiveVoicePreset();
+    if (preset?.voiceDesign) return preset.voiceDesign;
+    const p = resolveVoiceParams();
+    const bits: string[] = [];
+    if (p.emotion) bits.push(`Voz ${EMOTION_PROSE[p.emotion]}`);
+    else bits.push("Voz natural y cálida");
+    const pace = paceProse(p.rate);
+    if (pace) bits.push(pace);
+    const energy = energyProse(p.energy);
+    if (energy) bits.push(energy);
+    return bits.join(", ").slice(0, 300);
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * INSTRUCCIÓN DE ENTREGA en lenguaje natural (Voicebox `instruct`, ≤500 chars;
+ * también sirve a VoxCPM como guía de estilo en clonación controlable).
+ * Prioridad: explícita del motor > `instruct` del preset activo > derivada del
+ * estilo vivo. "" si no aplica. Nunca lanza.
+ */
+export function deliveryInstruction(explicit?: string): string {
+  try {
+    const clean = (explicit || "").trim();
+    if (clean) return clean.slice(0, 500);
+    const preset = getActiveVoicePreset();
+    if (preset?.instruct) return preset.instruct;
+    const p = resolveVoiceParams();
+    if (!p.emotion && p.rate === 1) return "";
+    const bits: string[] = ["Habla"];
+    if (p.emotion) bits.push(`de forma ${EMOTION_PROSE[p.emotion]}`);
+    const pace = paceProse(p.rate);
+    if (pace && pace !== "a ritmo natural") bits.push(pace);
+    const energy = energyProse(p.energy);
+    if (energy) bits.push(energy);
+    return bits.join(", ").slice(0, 500);
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Texto decorado para VoxCPM: el DISEÑO DE VOZ viaja ENTRE PARÉNTESIS al inicio
+ * del propio texto — es el contrato oficial de VoxCPM2:
+ *   `"(Voz femenina joven, cálida y serena)Hola, soy Aurora."`
+ * Con audio de referencia (`refAudio`), esos paréntesis pasan a ser control de
+ * estilo sobre la voz clonada (clonación controlable). Si el texto ya empieza
+ * por un paréntesis, se respeta tal cual (el usuario mandó su propia guía).
+ * Nunca lanza.
+ */
+export function decorateTextForVoxCPM(text: string, design?: string): string {
+  try {
+    const clean = (text || "").trim();
+    if (!clean) return clean;
+    if (clean.startsWith("(")) return clean; // ya trae su propia guía
+    const d = (design || "").trim();
+    if (!d) return clean;
+    return `(${d.replace(/[()]/g, "")})${clean}`;
   } catch {
     return text;
   }

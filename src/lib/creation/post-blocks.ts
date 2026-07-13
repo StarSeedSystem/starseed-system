@@ -35,7 +35,24 @@ export type PostBlockType =
     | "grafica"
     | "referencia"
     /** Referencia a entidad (página/perfil/grupo/comunidad/evento). */
-    | "entidad";
+    | "entidad"
+    // ── Adenda 67 · P4 (jul-2026): dos bloques nuevos, ADITIVOS ──
+    /**
+     * P4-2 · Diseño de Penpot (open source, MPL-2.0). Guarda el enlace de VISTA
+     * («share prototype link») del diseño. HONESTIDAD: la instancia oficial
+     * design.penpot.app manda `X-Frame-Options: SAMEORIGIN` (verificado), así
+     * que el render por defecto es una TARJETA con enlace; la incrustación solo
+     * se ofrece cuando el autor apunta a una instancia PROPIA que la permite
+     * (campo `system` = "embed"). Nunca mostramos un iframe que sabemos vacío.
+     */
+    | "penpot"
+    /**
+     * P4-3 · Vídeo ya exportado (p. ej. editado con OpenCut). Reproduce el
+     * fichero REAL (`url`) con <video>. HONESTIDAD: OpenCut no tiene API hoy
+     * (su Editor API/headless/MCP son futuros según su propio README), así que
+     * el OS no edita por ti: abre el editor y publica el vídeo que exportes.
+     */
+    | "video";
 
 /** Tipo de recurso referenciado por un bloque `referencia` (o por el SourcePicker). */
 export type PostBlockRefKind =
@@ -132,6 +149,9 @@ export const RICH_BLOCK_TYPES: readonly PostBlockType[] = [
     "grafica",
     "referencia",
     "entidad",
+    // Adenda 67 · P4 (aditivos: los antiguos siguen exactamente igual).
+    "penpot",
+    "video",
 ] as const;
 
 /** ¿Es un bloque RICO (serializado en ss:meta, renderizado por el post-blocks-renderer)? */

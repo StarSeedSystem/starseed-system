@@ -68,7 +68,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 13;
+export const SEED_VERSION = 15;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -269,6 +269,44 @@ export const RECOMMENDED_PACKAGE_IDS: string[] = [
   "iatool-opencode",
   "iatool-openclaw",
   "iatool-apple-container",
+  // ── (SEED_VERSION 14 · Adenda 67 · P2) LOS DOS MOTORES DE VOZ NUEVOS.
+  //    · VoxCPM   → el motor de voz PRINCIPAL (el más realista que tenemos).
+  //    · Voicebox → estudio de voz local con perfiles clonados.
+  //    Mismo contrato honesto que el resto: instalar SOLO registra la skill
+  //    `voice-engines` (Aurora sabe explicarlos y guiar su configuración) y
+  //    guarda el enlace al repo. NO descarga modelos, NO lanza servidores y NO
+  //    cambia la voz de nadie: hasta que el usuario pegue un endpoint, Aurora
+  //    sigue hablando exactamente igual (voz del navegador). Cuando lo pegue,
+  //    la selección automática los usará sola (engine-registry.ts).
+  "iatool-voxcpm",
+  "iatool-voicebox",
+  // ── (SEED_VERSION 15 · Adenda 67 · P4) LOS NUEVE REPOS DE CAPACIDADES.
+  //    Mismo contrato honesto de siempre: instalar SOLO registra la skill
+  //    (capacidad viva en skills.ts) + guarda el enlace del repo. Cero descarga,
+  //    cero clave, cero servidor lanzado por el OS, cero pestaña abierta durante
+  //    la siembra (ensureDefaultsSeeded ignora action/href).
+  //
+  //    Qué cambia DE VERDAD al sembrarlos (y qué NO):
+  //    · iatool-llm-council → la ÚNICA que ya funciona sola: el Consejo de Aurora
+  //      corre con el router gratis-primero (sin servidor ni clave). Sembrarla
+  //      hace que Aurora sepa convocarlo desde cualquier chat.
+  //    · typesense · tencentdb-memory · databasement · postiz · openmanus →
+  //      CONECTORES: sembrarlos deja la capacidad y el enlace listos, pero NO
+  //      configuran ningún endpoint ni activan ningún conector. Sin URL pegada a
+  //      mano por el usuario, no se llama a nada. En particular POSTIZ queda
+  //      inerte: sin clave no aparece el panel de crosspost y NADA sale a redes.
+  //    · penpot · opencut · mempalace → sin API usable: la capacidad solo hace que
+  //      Aurora sepa guiarte y enlazarte (y habilita los bloques de publicación
+  //      «Diseño Penpot» y «Vídeo», que sí son reales y locales).
+  "iatool-llm-council",
+  "iatool-typesense",
+  "iatool-tencentdb-memory",
+  "iatool-mempalace",
+  "iatool-databasement",
+  "iatool-postiz",
+  "iatool-openmanus",
+  "iatool-penpot",
+  "iatool-opencut",
 ];
 
 /**

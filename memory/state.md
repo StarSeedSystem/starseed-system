@@ -2826,3 +2826,106 @@ O sea: el bug afectaba a **todo ancho ≥1024px** (tablet horizontal **y escrito
 - **Regla:** el cooldown debe medirse en la **unidad del límite**. Cuota **diaria** → 60 min. Límite por **minuto** (OVH: 2 RPM) → 3 min. Enfriar una hora algo que se recupera en 30 s es tirar la fuente a la basura.
 - **Regla:** un id de modelo en el catálogo es **una afirmación sobre el mundo** y caduca. `mistral` de Pollinations llevaba tiempo muerto y **tardaba 28 s en decir 404**. Verificar los ids con `curl` cada vez que se toque el catálogo.
 - **Trampa:** `chat({ providerId })` resuelve **la primera** config con ese id. Con varios servicios distintos bajo `openai-compatible`, eso manda la petición al **endpoint equivocado con la clave equivocada**. Resolver siempre baseUrl + clave de la config concreta.
+
+---
+
+## 2026-07-13 — Adenda 67 · P1: Centro de Configuración de Aurora y Astraura
+**Sesión por:** agente Claude (ola Astraura+Aurora · P1-1 / P1-2 / P1-3)
+**Resumen ejecutivo:** La pantalla «Hola, soy Aurora» deja de ser un saludo con 4 preguntas y pasa a ser el **centro de configuración completo** de Aurora y Astraura (7 pestañas). Todo viene ya funcionando con las **mejores opciones gratuitas/OSS** y todo es editable desde el primer momento. Se cierra por fin el hueco de P3: el **pin de fuente/modelo por sentido** existía en el modelo pero **no tenía formulario** — ahora lo tiene, y lo que se elige llega de verdad al router.
+
+### Hecho
+- **Nuevo módulo de datos** `src/lib/aurora/setup-config.ts` (ligero, sin Supabase ni React, SSR-safe): gate de primera vez, config **por sentido** (12), **perfil+permisos por personalidad**, **reparto de habilidades/repos** por perfil·cerebro·neurona, y **ámbito unificado** + overrides por entidad. 5 claves nuevas (ver abajo).
+- **Nuevo `src/lib/aurora/persona-avatar.ts`**: avatar **procedural** (SVG determinista derivado de los niveladores de la personalidad — paleta por calidez/serenidad/creatividad/análisis; offline, sin dependencias) + avatar **generado con IA** gratis y sin clave (Pollinations, URL directa). Si el servicio externo falla, la UI lo dice y se queda el procedural.
+- **Nuevo `src/components/aurora/setup/`**: `aurora-setup-center.tsx` (shell + gates + `SectionTabs`) y 7 pestañas — bienvenida · personalidad · sentidos · conexiones · astraura · voz · memoria — con `setup-ui.tsx` de primitivas. Pestañas por `next/dynamic` (coste ~0 en el arranque, aunque el centro viva en el layout de la app).
+- **`aurora-intro.tsx` reconvertido**: ahora sólo monta el centro. Sus constantes y el evento legado `starseed:open-aurora-intro` siguen exportados/escuchados (lo usa `aurora-control-panel.tsx`).
+- **`personalities.ts` cableado** (3 puntos, todos aditivos y con try/catch): `compilePersonalityPrompt()` anexa **matices por sentido** y **permisos del perfil**; `resolvePersonalityForContext()` mete el escalón de **entidad** (chat > entidad > cerebro > sección > global).
+- **`intelligence-panel.tsx`**: `SourceKeyInput` pasa a estar **exportado** para reutilizarlo tal cual en «Conexiones» (una sola forma de guardar una clave en todo el OS).
+- **Puntos de entrada**: `/cuenta` §Aurora e inteligencia → tarjeta «Abrir centro»; `/agent` (AI Studio) → botón «Configurar Aurora» + auto-apertura si el perfil no está configurado.
+- **Verificado en el Mac:** `npx tsc --noEmit` **exit 0** (0 errores) · `npm run build` **exit 0** (compiled in 65 s, 92/92 páginas).
+
+### Claves nuevas (⚠️ PENDIENTE: añadirlas a `SYNCED_KEYS` en `src/lib/settings-sync.ts` — este agente NO lo tocó por acuerdo de ola)
+- `starseed.aurora.setup.v1` — gate + versión del centro.
+- `starseed.aurora.senses.v1` — config por sentido (on/off, pin, memoria, herramientas, tono, carácter).
+- `starseed.aurora.persona-profiles.v1` — perfil (avatar + permisos + aprendizaje) por personalidad.
+- `starseed.astraura.deploy.v1` — reparto de habilidades/repos por perfil·cerebro·neurona.
+- `starseed.astraura.scope.v1` — ámbitos (cuenta/grupos/páginas/entidades/red) + overrides por entidad.
+
+### Decisiones tomadas
+- **No duplicar nada.** Personalidad = `PersonalitiesPanel` + lo que faltaba. Voz = `VoiceOssPanel` + presets del registro real. Conexiones = `SourceKeyInput` + `UserConnectorsHub` + `McpPanel` + repos de la Biblioteca. El centro **orquesta**, no reimplementa.
+- **Motores de voz NO hardcodeados**: se leen del registro (`VOICE_PRESETS`, `VoiceOssPanel`), así VoxCPM y Voicebox aparecerán solos cuando el agente de P2 los registre.
+- **Defaults soberanos**: publicar y responder en nombre del usuario están **OFF** por defecto; aprender, gestionar Biblioteca y operar pantalla, ON. La libertad se amplía por decisión explícita, nunca por defecto.
+- **Semántica «todas»/«todos» viva** en el reparto de Astraura: mientras el objetivo esté completo se guarda como `"todas"`, de modo que lo que instales mañana entra solo. Sólo al quitar algo se materializa la lista.
+- **Auto-apertura una vez por sesión.** Cerrar el centro cuenta como «configurar luego» (marca hecho): los defaults ya funcionan y no se acosa al usuario. Sigue disponible siempre desde Ajustes y AI Studio.
+
+### Notas / aprendizajes
+- **Un modelo sin formulario es una promesa incumplida.** `intelligence.porSentido` llevaba una ola entera existiendo, normalizándose y siendo leído por el router… y **ningún usuario podía escribirlo**. Al cerrar una ola, comprobar que cada campo persistible tiene UI *o* está declarado explícitamente como interno.
+- **Ciclo de importación evitado por diseño**: `setup-config.ts` importa de `personalities.ts` **sólo tipos** (se borran al compilar) y `personalities.ts` importa funciones de `setup-config.ts`. La dependencia de valores es unidireccional; si algún día `setup-config` necesita un valor de `personalities`, habrá que romperlo con un módulo tercero.
+- **`next/image` no vale para avatares**: los `data:` URL de SVG y las URL de Pollinations no están en `images.remotePatterns`. El OS ya usa `<img>` en varios sitios; se usa `<img>` con el eslint-disable correspondiente.
+- **Honestidad en la UI**: los sentidos «sueño» y similares llevan insignia **«Sólo preferencia»** y explican que el OS guarda esas memorias y Aurora las lee, pero que **no hay proceso nocturno automático**. Mejor decirlo que fingir un motor que no existe.
+
+---
+
+## 2026-07-13 — Adenda 67 · P2 · La voz de Aurora: VoxCPM + Voicebox + fusión inteligente
+
+**Sesión por:** Claude (Cowork, agente de voz — en paralelo con el agente del Centro de Configuración)
+**Resumen ejecutivo:** Se integran **VoxCPM** (nuevo motor **PRINCIPAL**: el más realista) y **Voicebox**, y se crea el **registro de motores de voz** con **selección automática** del mejor disponible, **failover en cadena** y **override por personalidad**. Ahora basta con que exista un endpoint para que Aurora hable con el mejor motor — sin que el usuario cambie nada — y si ese motor se cae, la misma frase sale por el siguiente. SOP: `architecture/aurora-voz-motores.md`.
+
+### Hecho
+- **`engine-registry.ts` (NUEVO)** — el registro: metadatos por motor (`realism` 1-5, `requiresEndpoint`, `requiresDownload`, `free`, `langs`, `emotions`, `cloning`, `latency`, `license`, `requirements`) para los 8 motores, + `buildVoiceChain()` (la fusión), + la API pública del Centro de Configuración: `listVoiceEngines()` · `listVoiceEnginesWithStatus()` · `listVoicePresets()` · `listEngineVoices()` · `testVoice()` · `resolveActiveVoiceEngine()`.
+- **VoxCPM** (`voxcpm`, Apache-2.0) — motor por endpoint que cubre **las tres formas reales de servirlo**: vLLM-Omni (`POST /v1/audio/speech`, OpenAI-compatible), Nano-vLLM (`POST /generate` → MP3) y **Gradio** (`/gradio_api/call/generate`, 2 pasos). Timeout 45 s. Su **diseño de voz por descripción** se alimenta del preset/emoción activos.
+- **Voicebox** (`voicebox`, MIT) — motor por endpoint contra `POST /generate/stream` (WAV). Requisitos duros declarados (profile_id + CORS), `listVoiceboxProfiles()` para elegir la voz clonada de una lista.
+- **12 tipos de voz prediseñados** (antes 5) con tres capas: números (navegador/Kokoro) + `voiceDesign` (VoxCPM) + `instruct` (Voicebox).
+- **Librería**: categoría OSS nueva **`voice`** (6 motores; se mueven ahí bark/sovits/omnivoice, que estaban mal catalogados como "runtime") + paquetes `iatool-voxcpm`/`iatool-voicebox` + skill `voice-engines` + **SEED_VERSION 13 → 14**.
+- **Verificación**: `npx tsc --noEmit` **0 errores** · `npm run build` **exit 0** (92/92 páginas).
+
+### Decisiones tomadas
+- **La selección automática ya no exige "cambiar de motor".** Antes, `speakWithConfiguredEngine()` se salía de vacío si `engine === "browser"` — que es el DEFECTO. Es decir: un usuario podía tener un VoxCPM corriendo y Aurora **nunca lo habría usado**. Ahora la cadena se construye siempre: si hay un motor mejor **configurado**, lo usa. Pero con una guarda de coste: **si la cadena queda vacía (nadie tiene servidores), se sale al instante sin cargar módulos ni hacer fetch**. Cero peaje para el caso mayoritario.
+- **El pin de personalidad va primero pero NO es exclusivo** (mismo principio que el pin de inteligencia del router, §22 de `astraura-inteligencia.md`): si el motor fijado no está, la cadena sigue. Un pin obsoleto **no puede** dejar a Aurora muda.
+- **`testVoice()` NO usa el fallback, a propósito.** El fallback existe para que Aurora nunca calle en su uso normal; una **prueba** existe para *diagnosticar*. Si pides probar VoxCPM y no responde, se dice — no se disimula hablando con la voz del navegador y dejando creer que funcionó.
+- **Voicebox se declara "no configurado" sin `profile_id`.** Su API responde 404 sin él: llamarlo "configurado" sería mentir y gastaría el presupuesto de tiempo para nada.
+- **La emoción se traduce al idioma de cada motor.** Ni VoxCPM ni Voicebox toman números de pitch: toman *palabras*. Así que el mismo preset que modula el navegador con `rate/pitch/energy` modula VoxCPM con una descripción («voz femenina joven, cálida y serena») y Voicebox con una instrucción («habla con calidez, a ritmo natural»). **Un solo preset, tres lenguajes.**
+- `personalities.ts` gana `intelligence.motorVoz` (aditivo, saneado; los perfiles antiguos siguen igual). El registro lo lee con **`import()` dinámico cacheado** — `personalities.ts` arrastra el cliente de Supabase y este registro tiene que poder importarse barato.
+
+### Pendiente / Próximos pasos
+- **Probar contra servidores reales**: vLLM-Omni y Nano-vLLM (hace falta GPU) y la app Voicebox (no está instalada aquí). El cliente es tolerante justo por eso.
+- **P-3**: montar el panel de voz (`voice-oss-panel.tsx`) — sigue sin página. El Centro de Configuración (P1, otro agente) ya puede consumir la API de §6 del SOP.
+- Clonación con VoxCPM **por Gradio** no es posible (exigiría `/gradio_api/upload`): ahí funciona en modo diseño de voz. Para clonar → vLLM-Omni / Nano-vLLM.
+
+### Notas / aprendizajes
+- **Leer el código fuente antes de creerse el README.** El README de Voicebox anuncia `POST /generate` y `POST /speak` como *la* API. Leyendo `backend/routes/` resultó que **ninguna de las dos sirve** para el navegador: son asíncronas (devuelven una fila y hay que sondear un SSE) y `/speak` suena **en los altavoces del PC**. La ruta útil —`/generate/stream`, que devuelve WAV— **no está destacada en el README**. Sin leer el código, habríamos integrado un motor que "no hace nada" y el fallo habría sido silencioso.
+- **Verificar el contrato en vivo cuando se pueda.** El Space oficial de VoxCPM expone `GET /gradio_api/info`: eso dio la función (`/generate`) y sus **8 parámetros posicionales exactos** — y reveló que en Gradio el diseño de voz **NO va entre paréntesis en el texto** (eso es la API Python) sino en su **campo propio** `control_instruction`. Adivinar el orden habría producido un motor roto que declina en silencio. Un `curl` valió más que tres suposiciones.
+- **La app de escritorio no es un impedimento; el CORS sí.** Voicebox es integrable *precisamente porque* tiene API REST. Lo que hay que decirle al usuario no es "no se puede", sino "arranca la app con `VOICEBOX_CORS_ORIGINS=…`". La honestidad útil es la que trae la instrucción concreta.
+
+---
+
+## 2026-07-13 — Adenda 67 · P4: ocho repos integrados con estado REAL declarado
+
+**Sesión por:** agente (Claude, Cowork)
+**Resumen ejecutivo:** Integrados los 8 repos de P4 (OpenManus · Penpot · OpenCut · llm-council · Typesense · MemPalace + TencentDB-Agent-Memory · Databasement · Postiz) clasificando cada uno con honestidad en **FUNCIONAL** (el OS lo ejecuta), **CONECTOR** (servidor que el usuario levanta) o **CATÁLOGO** (sin API usable). El más importante — **llm-council** — no era un servidor sino un *patrón*, así que se **implementó de verdad** dentro del OS como el **Consejo de Aurora** del Área Política. `tsc --noEmit` 0 errores · `npm run build` exit 0 (92/92).
+
+### Hecho
+- **P4-4 · Consejo de Aurora (FUNCIONAL, lo más sustancial de la ola).** `src/lib/aurora/council.ts` implementa las 3 etapas del patrón de karpathy —dictámenes separados → **revisión cruzada anonimizada** → síntesis del «Chairman»— sobre `astrauraChat`, repartiendo las perspectivas entre **fuentes distintas** del router (`detectAvailabilitySafe` + `forceSource`). Los consejeros no son modelos rivales sino los **5 fundamentos StarSeed** (ontocrático · ecológico/Oikos · abundancia/post-escasez · simbiótico/Ciberdelia · empático/justicia restaurativa), y **cada dictamen cita su fundamento**. UI en `components/governance/aurora-council.tsx`: tarjeta en `/network/politics` + botón «Consultar al Consejo de Aurora» en el compositor de propuestas. Coste 0: usa el router gratis-primero (el repo original exige OpenRouter **de pago**).
+- **P4-5 · Typesense (CONECTOR con fallback).** Cliente real (`X-TYPESENSE-API-KEY`, `/health` · `/collections` · `/documents/search`) + `src/lib/search/unified-search.ts`: Typesense-primero, **fallback automático a Supabase** si no está / se cae / índice vacío. Enganchado aditivamente en Hub y Cultura (misma firma ⇒ cambio de import).
+- **P4-8 · Postiz (CONECTOR + confirmación explícita).** `social-crosspost.tsx` en el Lienzo Universal: solo aparece con clave, lista canales reales y **publicar es un acto separado** con diálogo que muestra **canales exactos + texto exacto**. Publicar en StarSeed **nunca** dispara Postiz; el prompt de la capacidad **prohíbe a Aurora publicar** aunque se lo pidan.
+- **P4-6 · Memoria.** TencentDB Agent Memory = **conector real** (tiene Gateway HTTP: `/recall` · `/capture` · `/search/memories`…). MemPalace = **catálogo**: no tiene API HTTP (MCP por **stdio**), y se dice literalmente en su ficha.
+- **P4-7 · Databasement.** Conector real, pero **no es lo que el encargo suponía** (ver Decisiones).
+- **P4-1/2/3.** OpenManus = conector experimental (hay que exponerlo uno mismo). Penpot y OpenCut = instancia + **bloques de publicación nuevos** (`penpot`, `video`), aditivos y sin romper los existentes.
+- **Transversal:** 9 entradas en `oss-library.ts` (+2 categorías: `search`, `creation`) · 9 paquetes en `packages.ts` · `SEED_VERSION` **14 → 15** · 8 capacidades nuevas en `skills.ts` · 5 conectores en el Hub · 4 servidores de cerebro · 2 fuentes de memoria · actualizaciones automáticas gratis (todos llevan `externalUrl` de GitHub ⇒ `available-updates.ts` ya los ve).
+
+### Decisiones tomadas
+- **Databasement NO es «una base de datos para cada cuenta».** Es un **gestor de COPIAS DE SEGURIDAD** de bases de datos (Laravel, MIT). Se rechazó forzar la premisa del encargo y se integró por lo que realmente es: el **servidor de respaldo** de una cuenta/cerebro/perfil — que además es la pieza que le faltaba a la invariante §6 (*el usuario es el único propietario de sus datos*). Queda escrito en su ficha para que nadie lo re-interprete mal.
+- **Penpot NO se incrusta.** `design.penpot.app` manda `X-Frame-Options: SAMEORIGIN` (comprobado con `curl -I`). El bloque renderiza **tarjeta con enlace** y la casilla «incrustar» se **auto-deshabilita** en la instancia oficial, explicando por qué. Un iframe habría sido un rectángulo en blanco con aspecto de bug.
+- **OpenCut sí es incrustable, y aun así no se incrusta.** No tiene API (Editor API/headless/MCP son **futuros** en su propio README): un editor cross-origin del que no puedes sacar el fichero es decorado. Se hace lo único real: lanzarlo y publicar el vídeo exportado (que **sí** se reproduce).
+- **La semilla no configura endpoints.** Sembrar los 9 paquetes registra capacidad + enlace y nada más: cero descargas, cero claves, cero servidores. **Postiz queda inerte** hasta que el usuario pegue su clave — ninguna cuenta puede publicar en redes por accidente.
+
+### Pendiente / Próximos pasos
+- **Sin probar contra servidor real** (no hay instancia pública): Typesense, Gateway de TencentDB, API de Databasement, OpenManus. Los contratos se implementaron leyendo **código fuente**, no adivinando.
+- Migrar a `unified-search` las superficies secundarias (`share-access-dialog`, `permissions-popover`, `map-view`, `new-chat-dialog`, `correos-panel`, `media-viewer`): una línea de import cada una.
+- Postiz + imágenes: `POST /upload` es multipart y el proxy del OS es JSON ⇒ se adjunta **por URL pública** de la Biblioteca; si la rechaza, se publica solo texto **y se avisa**.
+- Claves nuevas que deberían entrar en `SYNCED_KEYS` cuando toque tocar `settings-sync.ts` (NO tocado en esta ola): las de `starseed.integration.{typesense,postiz,tencentdb-memory,databasement,openmanus,penpot,opencut}`.
+
+### Notas / aprendizajes
+- **«Es un repo» no dice nada; hay que preguntarse QUÉ ejecuta.** De los 8, solo 4 tenían una API que el OS pudiera llamar. Dos (Penpot, OpenCut) son apps web sin API. Uno (MemPalace) habla MCP **por stdio** y es inalcanzable desde un navegador. Y **uno no era un servicio en absoluto**: llm-council es un *patrón* — y resultó ser, de largo, la integración de **más valor**, porque se podía ejecutar de verdad con lo que ya teníamos. **Lo que parece "solo un ejemplo" puede ser lo único realmente integrable.**
+- **`curl -I` antes de escribir un `<iframe>`.** Dos minutos comprobando cabeceras evitaron dos features que se habrían visto en blanco en producción y que nadie habría sabido explicar.
+- **El README miente por omisión; el código no.** La API real de TencentDB (`/recall`, `/capture`…) no está en su README: está en `src/gateway/server.ts`. Y el `docker-compose.yml` de MemPalace es el que confiesa que el MCP es **stdio**. Segunda ola consecutiva en que **leer el código fuente cambia el diseño de la integración** (la anterior fue Voicebox).
+- **La honestidad hay que codificarla, no solo documentarla.** No basta con un comentario: el prompt de `agent-delegation` **obliga** a Aurora a decir que no ha delegado si no hay endpoint, y el de `social-publish` le **prohíbe** publicar aunque el usuario insista. Si la regla no está en el prompt, no existe.

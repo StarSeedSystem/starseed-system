@@ -40,9 +40,12 @@ import {
     type FeedAlgorithmId, type FeedWeights,
 } from "@/lib/feed/feed-algorithms";
 import {
-    searchUsers, searchGroups, recommendations,
+    recommendations,
     type OsProfile, type SocialGroupHit, type UserRecommendation,
 } from "@/lib/social/os-profiles";
+// (Adenda 67 · P4-5) Búsqueda UNIFICADA con Typesense-primero y fallback
+// automático a Supabase. Misma firma que `os-profiles`: sustitución directa.
+import { searchUsers, searchGroups } from "@/lib/search/unified-search";
 import { NetworkStoriesBar } from "@/components/stories/network-stories-bar";
 
 // ───────────────────────────── Datos compartidos (una sola carga) ──────────

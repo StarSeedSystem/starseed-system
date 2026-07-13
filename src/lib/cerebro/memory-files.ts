@@ -37,7 +37,19 @@ import {
 /* ------------------------------------------------------------------ */
 
 /** Fuente/servidor donde vive y se sincroniza un fichero de memoria. */
-export type MemorySource = "starseed" | "gdrive" | "external" | "local" | "casaos" | "raven" | "skales";
+export type MemorySource =
+  | "starseed"
+  | "gdrive"
+  | "external"
+  | "local"
+  | "casaos"
+  | "raven"
+  | "skales"
+  // (Adenda 67 · P4-6) Dos fuentes nuevas de memoria para los cerebros.
+  // Ver MEMORY_SOURCES abajo: la primera es un CONECTOR REAL por endpoint;
+  // la segunda es LOCAL/CLI y lo dice sin adornos.
+  | "tencentdb"
+  | "mempalace";
 
 export interface MemoryFile {
   id: string;
@@ -152,6 +164,46 @@ export const MEMORY_SOURCES: MemorySourceDef[] = [
       { key: "endpoint", label: "Endpoint de Skales", placeholder: "http://tu-neurona:3000" },
       { key: "tokenRef", label: "Clave (nombre en la bóveda, opcional)", placeholder: "nunca el valor en claro" },
       { key: "space", label: "Espacio/folder (opcional)", placeholder: "memorias" },
+    ],
+  },
+  /* ── Adenda 67 · P4-6 · Dos fuentes de memoria nuevas ──────────────────
+   * IMPORTANTE, y la diferencia entre ellas es REAL, no cosmética:
+   *   · TencentDB Agent Memory  → SÍ trae un Gateway HTTP (leído en su código:
+   *     src/gateway/server.ts → /health · /recall · /capture · /search/memories
+   *     · /search/conversations · /session/end · /seed). Es un CONECTOR de
+   *     verdad: el OS lo llama y sincroniza. Cliente en
+   *     src/lib/integrations/clients/tencentdb-memory.ts.
+   *   · MemPalace              → NO tiene API HTTP. Es local-first: CLI +
+   *     servidor MCP **por stdio** (verificado en su README y docker-compose:
+   *     «The MCP server speaks JSON-RPC over stdio»). Desde el navegador NO se
+   *     puede sincronizar con él. Se declara igualmente porque es una fuente de
+   *     memoria REAL del usuario — pero se dice la verdad de qué puede y qué no.
+   */
+  {
+    id: "tencentdb",
+    label: "TencentDB Agent Memory (por capas)",
+    blurb:
+      "Memoria de largo plazo POR CAPAS para agentes (L0 conversación → L1 átomo → L2 escena → L3 persona) + memoria simbólica de corto plazo. 100% local por defecto (SQLite + sqlite-vec), sin APIs externas. Trae un Gateway HTTP propio: levántalo en tu neurona (Docker, puerto 8420), autoriza el origen del OS en su CORS y pega aquí su URL — el OS lo llama de verdad (/recall · /capture · /search/memories).",
+    icon: "🧬",
+    oss: true,
+    fields: [
+      { key: "endpoint", label: "Endpoint del Gateway", placeholder: "http://tu-neurona:8420" },
+      { key: "tokenRef", label: "Clave (nombre en la bóveda, opcional)", placeholder: "TDAI_GATEWAY_API_KEY · nunca el valor en claro" },
+      { key: "userId", label: "Id de usuario en la memoria (opcional)", placeholder: "starseed" },
+      { key: "sessionId", label: "Id de sesión (opcional)", placeholder: "cerebro-principal" },
+    ],
+  },
+  {
+    id: "mempalace",
+    label: "MemPalace (local · CLI y MCP)",
+    blurb:
+      "⚠️ HONESTIDAD: MemPalace es LOCAL-FIRST y NO expone API HTTP — su servidor MCP habla JSON-RPC por stdio (su propio docker-compose lo dice). El OS, desde el navegador, NO puede sincronizar con él. Declara aquí tu palacio para que Aurora sepa que tu memoria vive ahí y te guíe (`mempalace mine`, `mempalace search`, `mempalace wake-up`); la lectura/escritura real la hace tu agente local por MCP. Si TÚ has montado un puente HTTP delante, pega su URL en «Endpoint del puente» y entonces sí se sincroniza.",
+    icon: "🏛️",
+    oss: true,
+    fields: [
+      { key: "palacePath", label: "Ruta del palacio (en tu equipo)", placeholder: "~/.mempalace/palace" },
+      { key: "wing", label: "Ala / proyecto (opcional)", placeholder: "starseed-os" },
+      { key: "endpoint", label: "Endpoint del puente HTTP (solo si lo has montado tú)", placeholder: "vacío = sin sincronización desde el navegador" },
     ],
   },
 ];

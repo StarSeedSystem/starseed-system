@@ -2056,7 +2056,9 @@ function ossSlotKey(slot: OssSlot, brainId: string): string {
 /** Categorías OSS que alimentan cada hueco (slot). */
 const OSS_SLOT_CATEGORIES: Record<OssSlot, OssCategory[]> = {
   apps: ["moa", "agent-framework", "app-platform", "automation"],
-  runtimes: ["runtime"],
+  // "voice" (Adenda 67): los motores de voz también se sirven DESDE una neurona
+  // (VoxCPM, Voicebox, Bark…), así que viven junto a los runtimes del cerebro.
+  runtimes: ["runtime", "voice"],
   servers: ["devops"],
   storage: ["storage", "backend"],
 };

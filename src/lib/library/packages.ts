@@ -833,6 +833,27 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     author: "InfiniFlow", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
     payload: { skillId: "rag-knowledge", externalUrl: "https://github.com/infiniflow/ragflow", note: "Motor RAG enterprise con comprensión profunda de documentos y respuestas citadas." },
   },
+  /* ══ MOTORES DE VOZ DE AURORA (Adenda 67 · P2) ═══════════════════════════
+   * Instalar = registrar la skill `voice-engines` (Aurora sabe explicarlos y
+   * configurarlos) + guardar su repo. NO descarga modelos ni lanza servidores:
+   * el motor real vive en TU neurona/PC y se conecta por endpoint desde
+   * Ajustes → Voz. Registro vivo: src/lib/aurora/tts-oss/engine-registry.ts */
+  {
+    id: "iatool-voxcpm", kind: "function", name: "VoxCPM (voz principal)",
+    description:
+      "El motor de voz MÁS REALISTA de Aurora y el recomendado. TTS tokenizer-free de OpenBMB (difusión autoregresiva): 30 idiomas, 48 kHz y DISEÑO DE VOZ con palabras — describes la voz («mujer joven, cálida y serena») y la crea, sin necesidad de audio de referencia; también clona una voz a partir de una muestra. En cuanto tiene endpoint, Aurora lo elige SOLA como motor principal, y si se cae, la cadena de respaldo mantiene la voz (nunca se queda muda). Necesita un servidor VoxCPM con GPU en una neurona propia (vLLM-Omni, Nano-vLLM o su demo Gradio) y pegar su URL en Ajustes → Voz.",
+    icon: "AudioLines", tags: ["skill", "aurora", "voz", "tts", "clonacion", "principal", "oss"], version: "1.0.0",
+    author: "OpenBMB", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "voice-engines", externalUrl: "https://github.com/OpenBMB/VoxCPM", note: "Motor de voz PRINCIPAL (Apache-2.0). Endpoint: vLLM-Omni /v1/audio/speech · Nano-vLLM /generate · Gradio." },
+  },
+  {
+    id: "iatool-voicebox", kind: "function", name: "Voicebox (estudio de voz local)",
+    description:
+      "Estudio de voz local y libre (alternativa a ElevenLabs + WisprFlow en una sola app): clona voces con unos segundos de audio, trae 7 motores TTS dentro (Qwen3-TTS, Chatterbox, LuxTTS, Kokoro…), 23 idiomas, efectos y dictado global. HONESTIDAD: es una APP DE ESCRITORIO (Tauri), no un servicio web — pero expone una API REST real, así que Aurora SÍ puede hablar con tus voces clonadas. Para usarla como motor: ten la app abierta, crea un perfil de voz, pega su URL (http://127.0.0.1:17493) y el id del perfil en Ajustes → Voz, y arranca la app con VOICEBOX_CORS_ORIGINS=https://starseed-os.vercel.app (su CORS por defecto no deja entrar al navegador).",
+    icon: "Mic", tags: ["skill", "aurora", "voz", "tts", "clonacion", "escritorio", "dictado", "oss"], version: "1.0.0",
+    author: "Jamie Pine", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "voice-engines", externalUrl: "https://github.com/jamiepine/voicebox", note: "App de escritorio (MIT) con API REST en 127.0.0.1:17493. Ruta útil: POST /generate/stream (WAV). Requiere profile_id + CORS." },
+  },
   /* ── Pipecat · framework de agentes de voz/multimodal en tiempo real ── */
   {
     id: "iatool-pipecat", kind: "function", name: "Pipecat (voz en tiempo real)",
@@ -1157,6 +1178,105 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     icon: "MapPinned", tags: ["skill", "aurora", "mapas", "osm", "leaflet", "offline", "oss"], version: "1.0.0",
     author: "organicmaps", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { skillId: "offline-maps", externalUrl: "https://github.com/organicmaps/organicmaps", note: "Mapas offline OSM sin rastreo (Apache-2.0). El Mapa del Hub del OS usa Leaflet + OSM." },
+  },
+
+  /* ══ ADENDA 67 · P4 — Nueve repos (jul-2026) ══════════════════════════════
+   * Cada paquete dice EN SU FICHA qué hace REALMENTE al instalarse. Tres estados:
+   *   · FUNCIONAL → ya se ejecuta en el OS sin instalar nada (llm-council).
+   *   · CONECTOR  → servidor que TÚ levantas; instalar registra la capacidad +
+   *                 el enlace, y el endpoint se pega en Ajustes → Integraciones.
+   *   · CATÁLOGO  → sin API usable; instalar guarda el enlace y abre el repo.
+   * Ninguno descarga nada, ninguno lanza servidores, ninguno pide clave al
+   * instalarse. Todos traen `externalUrl` de GitHub → el Centro de
+   * Actualizaciones (available-updates.ts) detecta sus releases automáticamente.
+   */
+
+  /* ── P4-1 · OpenManus: Aurora delega tareas complejas ── */
+  {
+    id: "iatool-openmanus", kind: "function", name: "OpenManus (agente general)",
+    description:
+      "Da a Aurora la capacidad de DELEGAR tareas complejas de varios pasos a un agente general (MIT, del equipo de MetaGPT): planifica, navega con un navegador real, ejecuta código Python y encadena pasos hasta acabar. Instalar registra la capacidad «Delegación a agente general» para tus cerebros (Aurora sabrá cuándo conviene delegar y te lo propondrá) y guarda su repo. ⚠️ HONESTIDAD: OpenManus NO trae API HTTP — es CLI (main.py), flujo multi-agente (run_flow.py) y servidor MCP (run_mcp_server.py). Para que la delegación FUNCIONE de verdad tienes que exponerlo tú en tu neurona (su MCP en modo SSE o un envoltorio que acepte POST {task}) y pegar su URL + ruta en Ajustes → Integraciones → OpenManus. Sin endpoint, Aurora te lo dice y responde por su cuenta: nunca finge haber delegado.",
+    icon: "Bot", tags: ["skill", "aurora", "agentes", "delegacion", "python", "mcp", "oss"], version: "1.0.0",
+    author: "FoundationAgents (MetaGPT)", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "agent-delegation", externalUrl: "https://github.com/FoundationAgents/OpenManus", note: "Agente general OSS. CONECTOR EXPERIMENTAL: sin API HTTP oficial — exponlo tú (MCP SSE o envoltorio POST {task})." },
+  },
+
+  /* ── P4-2 · Penpot: lienzo, pizarras y entornos de edición ── */
+  {
+    id: "iatool-penpot", kind: "app", name: "Penpot (diseño y pizarras)",
+    description:
+      "La plataforma de DISEÑO de código abierto (MPL-2.0): lienzos, pizarras, componentes, prototipos e inspección de código — la alternativa soberana a Figma, con SVG estándar y sin encierro de datos. Instalar guarda el enlace, registra la capacidad «Diseño Penpot» para Aurora y habilita el BLOQUE DE PUBLICACIÓN «Diseño Penpot» en el Lienzo Universal: pegas el enlace de vista de un diseño y se publica en la red. ⚠️ HONESTIDAD: design.penpot.app envía «X-Frame-Options: SAMEORIGIN» (comprobado con curl) → NO se puede incrustar dentro del OS; el bloque muestra una tarjeta con enlace (que sí funciona) y solo ofrece incrustar si apuntas a una instancia PROPIA que lo permita.",
+    icon: "PencilRuler", tags: ["app", "diseño", "lienzo", "pizarra", "prototipo", "self-host", "oss"], version: "2.16.2",
+    author: "Penpot", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "design-penpot", externalUrl: "https://github.com/penpot/penpot", note: "Instancia oficial gratis (design.penpot.app) o auto-hospedada. Bloque de publicación «Diseño Penpot» en el Lienzo. NO incrustable en la instancia oficial." },
+  },
+
+  /* ── P4-3 · OpenCut: edición de vídeo ── */
+  {
+    id: "iatool-opencut", kind: "app", name: "OpenCut (edición de vídeo)",
+    description:
+      "Editor de VÍDEO open source (MIT) que corre en el navegador — la alternativa libre a CapCut. Tus ficheros no salen de tu equipo. Instalar guarda el enlace al editor (opencut.app, en vivo y gratis), registra la capacidad «Edición de vídeo» para Aurora y habilita el BLOQUE DE PUBLICACIÓN «Vídeo» en el Lienzo Universal, que reproduce de verdad el vídeo que exportes. ⚠️ HONESTIDAD: OpenCut NO tiene API todavía — su «Editor API», el modo headless y su servidor MCP están anunciados como FUTUROS en su propio README, así que el OS no puede editar por ti ni traerse tu montaje solo: montas allí, exportas, y publicas aquí.",
+    icon: "Film", tags: ["app", "video", "edicion", "navegador", "creacion", "oss"], version: "1.0.0",
+    author: "OpenCut", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "video-editing", externalUrl: "https://github.com/opencut-app/opencut", note: "Editor de vídeo web (MIT). Sin API hoy (Editor API/headless/MCP anunciados como futuros). Bloque «Vídeo» en el Lienzo." },
+  },
+
+  /* ── P4-4 · llm-council → Consejo de Aurora (¡YA FUNCIONA!) ── */
+  {
+    id: "iatool-llm-council", kind: "function", name: "Consejo de Aurora (llm-council)",
+    description:
+      "★ ESTE YA FUNCIONA, sin instalar nada más: es el CONSEJO DE AURORA del Área Política. Implementa de verdad el patrón llm-council de Andrej Karpathy (dictámenes por separado → revisión cruzada ANONIMIZADA → síntesis del «Chairman») usando el router gratis-primero de Astraura — sin servidor, sin clave y sin pagar OpenRouter (que es lo que exige el repo original). Nuestra variación: los consejeros no son modelos rivales sino los CINCO FUNDAMENTOS StarSeed (ontocrático · ecológico · abundancia · simbiótico · empático), y cada dictamen CITA el fundamento en que se apoya. Instalar registra la capacidad para que Aurora sepa convocarlo desde cualquier chat. Úsalo en Red → Política («Consejo de Aurora») o desde el compositor de propuestas («Consultar al Consejo de Aurora»). HONESTIDAD: si solo tienes UNA fuente de inteligencia disponible, el informe lo declara («fuente única») en lugar de fingir que han deliberado varias IAs.",
+    icon: "Landmark", tags: ["skill", "aurora", "politica", "deliberacion", "multi-modelo", "consejo", "funcional"], version: "1.0.0",
+    author: "karpathy · StarSeed", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "aurora-council", externalUrl: "https://github.com/karpathy/llm-council", route: "/network/politics", note: "IMPLEMENTADO en src/lib/aurora/council.ts. Corre con el router gratis-primero: cero coste, cero servidores." },
+  },
+
+  /* ── P4-5 · Typesense: búsqueda del OS ── */
+  {
+    id: "iatool-typesense", kind: "function", name: "Typesense (búsqueda)",
+    description:
+      "Motor de BÚSQUEDA open source (GPL-3.0), instantáneo y tolerante a erratas — la alternativa libre a Algolia. Instalar registra la capacidad «Búsqueda avanzada» para Aurora y guarda su repo. Si además levantas el servidor en tu neurona (Docker, puerto 8108) y lo activas en Ajustes → Integraciones, la búsqueda de personas y grupos del OS (Hub y Cultura) pasa a usarlo, con relevancia real y tolerancia a erratas. HONESTIDAD/SEGURIDAD DE LA CADENA: si NO lo tienes, si se cae o si su índice está vacío, la búsqueda cae SOLA a la de siempre (Supabase) y no te enteras. Es una mejora opcional, nunca un requisito. Usa una clave de SOLO BÚSQUEDA en el OS; jamás la admin key.",
+    icon: "Search", tags: ["skill", "aurora", "busqueda", "typesense", "self-host", "fallback", "oss"], version: "30.2.0",
+    author: "Typesense", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "advanced-search", externalUrl: "https://github.com/typesense/typesense", note: "Servidor de búsqueda por endpoint (:8108). Con fallback automático a Supabase: la búsqueda del OS NUNCA se queda sin motor." },
+  },
+
+  /* ── P4-6 · Memoria: MemPalace + TencentDB Agent Memory ── */
+  {
+    id: "iatool-mempalace", kind: "function", name: "MemPalace (memoria local)",
+    description:
+      "Memoria de IA local-first (MIT) que guarda tus conversaciones LITERALMENTE —no resume ni parafrasea— y las recupera por búsqueda semántica, organizadas como un palacio de la memoria: personas y proyectos son «alas», los temas «habitaciones» y el contenido original vive en «cajones». 96,6 % de recall en LongMemEval sin una sola llamada a ninguna API. Instalar registra la capacidad «Memoria agéntica» y añade MemPalace como FUENTE DE MEMORIA declarable en tus cerebros (Cerebro → Memoria → Fuente). ⚠️ HONESTIDAD DURA: MemPalace NO expone API HTTP — su servidor MCP habla JSON-RPC por stdio (lo dice su propio docker-compose), así que el OS, desde el navegador, NO puede sincronizar con él. Lo declaras para que Aurora sepa que tu memoria vive ahí y te guíe con sus comandos; la lectura/escritura real la hace tu agente local por MCP. Si montas un puente HTTP, pega su URL y entonces sí sincroniza.",
+    icon: "Library", tags: ["skill", "aurora", "memoria", "local-first", "mcp", "cerebros", "oss"], version: "3.5.0",
+    author: "MemPalace", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "agent-memory-mempalace", externalUrl: "https://github.com/mempalace/mempalace", note: "Local-first (CLI + MCP por stdio). SIN API HTTP: no sincronizable desde el navegador salvo puente propio." },
+  },
+  {
+    id: "iatool-tencentdb-memory", kind: "function", name: "TencentDB Agent Memory (memoria por capas)",
+    description:
+      "Memoria para agentes en dos frentes: (1) memoria SIMBÓLICA de corto plazo que condensa los logs de herramientas en un lienzo Mermaid compacto (miden hasta −61 % de tokens), y (2) memoria LARGA POR CAPAS que destila la conversación en una pirámide L0 conversación → L1 átomo → L2 escena → L3 persona, en vez de un montón plano de vectores. 100 % local por defecto (SQLite + sqlite-vec), sin APIs externas. Instalar registra la capacidad «Memoria agéntica» y lo añade como FUENTE DE MEMORIA de tus cerebros. A diferencia de MemPalace, ESTE SÍ trae un Gateway HTTP propio (/recall · /capture · /search/memories · /session/end): levántalo en tu neurona (Docker, :8420), autoriza el origen del OS en su CORS, pega su URL en Ajustes → Integraciones y el OS lo llama de verdad.",
+    icon: "Brain", tags: ["skill", "aurora", "memoria", "capas", "gateway", "cerebros", "oss"], version: "1.0.0",
+    author: "TencentCloud", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "agent-memory-tencentdb", externalUrl: "https://github.com/TencentCloud/TencentDB-Agent-Memory", note: "CONECTOR REAL: Gateway HTTP (:8420) con /recall · /capture · /search/memories. 100% local por defecto." },
+  },
+
+  /* ── P4-7 · Databasement: respaldo de bases de datos ── */
+  {
+    id: "iatool-databasement", kind: "function", name: "Databasement (respaldo de BD)",
+    description:
+      "Gestor auto-hospedado de COPIAS DE SEGURIDAD de bases de datos, con panel web (MIT): programa y ejecuta backups de MySQL, PostgreSQL, MariaDB, SQL Server, MongoDB, SQLite, Firebird y Redis hacia S3, SFTP, FTP o disco local; retención GFS, cifrado AES-256, túnel SSH, agentes remotos para redes cerradas y restauración cruzada. Instalar registra la capacidad «Respaldo de datos» para Aurora y guarda su repo; conéctalo por endpoint (API /api/v1 con token Sanctum) y decláralo como SERVIDOR DE RESPALDO de tu cuenta, tu cerebro o tu perfil (Cerebro → Servidores, rol «Almacenamiento»). ⚠️ HONESTIDAD: NO es «una base de datos para cada cuenta» — no provisiona bases de datos nuevas. Es quien las RESPALDA, que para soberanía de datos (§6: el usuario es el único propietario de sus datos) es justo la pieza que faltaba.",
+    icon: "DatabaseBackup", tags: ["skill", "aurora", "respaldo", "backup", "bases-de-datos", "soberania", "oss"], version: "1.0.0",
+    author: "David-Crty", sourceRepoId: "starseed-ia-tools", free: true,
+    payload: { skillId: "data-backup", externalUrl: "https://github.com/David-Crty/databasement", note: "CONECTOR REAL: /api/v1 (Sanctum). Es un gestor de COPIAS DE SEGURIDAD, no un proveedor de bases de datos." },
+  },
+
+  /* ── P4-8 · Postiz: Astraura en las redes sociales ── */
+  {
+    id: "iatool-postiz", kind: "function", name: "Postiz (publicar en redes)",
+    description:
+      "Gestor open source (AGPL-3.0) de publicación y programación en ~32 REDES SOCIALES (X, LinkedIn, Instagram, Facebook, Threads, Mastodon, Bluesky, Telegram, Discord, Reddit, YouTube, TikTok, Pinterest, Medium, Dev.to, WordPress…) — la alternativa libre a Buffer. Instalar registra la capacidad «Publicar en redes» para Aurora (sabrá adaptar un texto a cada red y prepararte el borrador) y lo añade al Hub de Conexiones. Con tu clave puesta (Ajustes → Integraciones → Postiz), el Lienzo Universal muestra el panel «Publicar también en redes». ⚠️ REGLA DE ORO DEL OS: publicar fuera de StarSeed es IRREVERSIBLE y toca cuentas de terceros → NUNCA es automático. Publicar en la red StarSeed jamás dispara Postiz. El crosspost es un acto SEPARADO, con la lista exacta de canales y el texto exacto a la vista, y una confirmación explícita tuya. Aurora puede redactar; pulsar el botón, no.",
+    icon: "Megaphone", tags: ["skill", "aurora", "redes-sociales", "publicacion", "postiz", "confirmacion-explicita", "oss"], version: "2.21.10",
+    author: "Gitroom", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
+    payload: { skillId: "social-publish", externalUrl: "https://github.com/gitroomhq/postiz-app", note: "CONECTOR REAL: API pública (Authorization en crudo). Publicar SIEMPRE requiere confirmación explícita del usuario." },
   },
 ];
 

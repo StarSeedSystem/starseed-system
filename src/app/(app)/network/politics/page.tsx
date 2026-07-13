@@ -23,6 +23,10 @@ import { listFederativeEntities, listPartidos } from "@/data/sample-governance";
 import { ExecutiveProjectsBoard, JudicialCaseList } from "./components";
 import { OntocraciaDecisionesCard } from "./ontocracia-decisiones";
 import { SystemShowcase } from "@/components/showcase/SystemShowcase";
+// (Adenda 67 · P4-4) «Aurora política»: el Consejo de Aurora — patrón
+// llm-council ejecutado con el router gratis-primero del OS. Cinco consejeros,
+// uno por fundamento StarSeed; cada dictamen cita en qué fundamento se apoya.
+import { AuroraCouncilCard } from "@/components/governance/aurora-council";
 
 // Ámbitos relevantes para el Área Política (mismo criterio que en el resto del front).
 const POLITICAL_SCOPES = ["global", "community", "page", "group", "account"];
@@ -222,6 +226,10 @@ export default function PoliticsPage() {
                         <div className="space-y-6">
                             {/* Ontocracia · Decisiones (en vivo) — teaser + deep-link a /decisiones */}
                             <OntocraciaDecisionesCard />
+
+                            {/* Consejo de Aurora (Adenda 67 · P4-4): delibera sobre cualquier
+                                propuesta desde los cinco fundamentos StarSeed antes de votar. */}
+                            <AuroraCouncilCard />
 
                             {/* Feed real y avanzado: opciones dinámicas, enmiendas, voto líquido,
                                 registro verificable, cuenta regresiva y contexto de Aurora. */}

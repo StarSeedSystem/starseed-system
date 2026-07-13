@@ -55,6 +55,7 @@ import {
     Library,
     FolderTree,
     FileText,
+    Film,
     BrainCircuit,
     Cpu,
     Link2,
@@ -128,9 +129,115 @@ function BlockRender({ block, accent, reduced }: { block: PostBlock; accent?: st
         case "referencia":
         case "entidad":
             return <RefBlock block={block} />;
+        // ── Adenda 67 · P4 (aditivos) ──
+        case "penpot":
+            return <PenpotBlock block={block} />;
+        case "video":
+            return <VideoBlock block={block} />;
         default:
             return null;
     }
+}
+
+// ── Diseño Penpot (P4-2) ─────────────────────────────────────────────────────
+//
+// HONESTIDAD RADICAL: la instancia oficial de Penpot (design.penpot.app) manda
+// `X-Frame-Options: SAMEORIGIN` — VERIFICADO con `curl -I`. Incrustarla en un
+// iframe desde starseed-os.vercel.app produciría un recuadro EN BLANCO. Por eso:
+//   · por defecto → TARJETA con enlace («Abrir en Penpot»), que sí funciona;
+//   · el iframe SOLO se ofrece si el autor marcó el bloque como incrustable
+//     (`system === "embed"`, que el editor solo deja activar para instancias
+//     propias), y aun así avisamos de que puede quedarse en blanco.
+// Nunca fingimos una incrustación que el navegador va a bloquear.
+
+function PenpotBlock({ block }: { block: PostBlock }) {
+    const url = block.url?.trim();
+    const [embedded, setEmbedded] = useState(false);
+    if (!url) return null;
+
+    const official = /(^|\/\/)(design\.)?penpot\.app/i.test(url);
+    const canEmbed = block.system === "embed" && !official;
+    const title = block.text?.trim() || "Diseño de Penpot";
+
+    return (
+        <div className="overflow-hidden rounded-xl border border-violet-400/25 bg-violet-500/[0.05]">
+            <div className="flex items-center gap-2 border-b border-violet-400/15 px-3 py-2">
+                <PencilRuler className="h-4 w-4 shrink-0 text-violet-300" />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-white/85">{title}</span>
+                <span className="hidden shrink-0 text-[9px] uppercase tracking-wider text-white/30 sm:inline">
+                    Penpot · open source
+                </span>
+            </div>
+
+            {canEmbed && embedded ? (
+                <iframe
+                    title={title}
+                    src={url}
+                    sandbox="allow-scripts allow-same-origin allow-popups"
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    className="h-96 w-full bg-black/20"
+                />
+            ) : (
+                <div className="space-y-2 p-3">
+                    <p className="truncate text-xs text-muted-foreground">{url}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-violet-400/40 bg-violet-500/15 px-2.5 py-1.5 text-xs text-violet-100 transition-colors hover:bg-violet-500/25"
+                        >
+                            <ExternalLink className="h-3.5 w-3.5" /> Abrir en Penpot
+                        </a>
+                        {canEmbed && (
+                            <button
+                                type="button"
+                                onClick={() => setEmbedded(true)}
+                                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.04] px-2.5 py-1.5 text-xs text-white/70 transition-colors hover:bg-white/[0.08]"
+                            >
+                                <Play className="h-3.5 w-3.5" /> Incrustar aquí
+                            </button>
+                        )}
+                    </div>
+                    {official && (
+                        <p className="text-[10px] leading-relaxed text-white/35">
+                            La instancia oficial de Penpot no permite incrustarse en otras webs
+                            (<code className="text-white/50">X-Frame-Options: SAMEORIGIN</code>), así que se abre en una
+                            pestaña nueva. En una instancia propia que lo permita, este bloque sí puede incrustarse.
+                        </p>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Vídeo (P4-3) ─────────────────────────────────────────────────────────────
+// Reproduce el vídeo REAL ya exportado (por ejemplo, editado en OpenCut) desde
+// su URL en la Biblioteca del OS. Carga bajo demanda (`preload="none"`) para no
+// pesar en el feed.
+
+function VideoBlock({ block }: { block: PostBlock }) {
+    const url = block.url?.trim();
+    if (!url) return null;
+    return (
+        <figure className="overflow-hidden rounded-xl border border-border/50 bg-black/40">
+            <video
+                src={url}
+                controls
+                preload="none"
+                playsInline
+                className="max-h-96 w-full bg-black"
+            />
+            {(block.text?.trim() || block.name?.trim()) && (
+                <figcaption className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground">
+                    <Film className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                    <span className="min-w-0 truncate">{block.text?.trim() || block.name?.trim()}</span>
+                </figcaption>
+            )}
+        </figure>
+    );
 }
 
 // ── Portada ──────────────────────────────────────────────────────────────────

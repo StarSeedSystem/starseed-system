@@ -1,21 +1,57 @@
 "use client";
 
 /**
- * StarSeed OS — Motores de VOZ NEURAL por ENDPOINT (Bark · GPT-SoVITS · OmniVoice).
+ * StarSeed OS — Motores de VOZ NEURAL por ENDPOINT.
+ * (VoxCPM · Voicebox · Bark · GPT-SoVITS · OmniVoice)
  * ============================================================================
- * Los tres son SERVIDORES Python (corren en una neurona propia/CasaOS o en un
- * host remoto), NUNCA en el navegador. Este módulo es el cliente HTTP GENÉRICO
- * y TOLERANTE que los tres comparten: una llamada POST JSON que devuelve audio,
- * con detección de disponibilidad (ping con caché de 60 s) y reproducción por
- * <audio> (mismo patrón que kokoro.ts). SSR-safe, defensivo, NUNCA lanza.
+ * Los cinco son SERVIDORES (Python/FastAPI) que corren en una neurona propia,
+ * en CasaOS, en el propio ordenador del usuario o en un host remoto — NUNCA en
+ * el navegador. Este módulo es el cliente HTTP GENÉRICO y TOLERANTE que todos
+ * comparten: POST JSON que devuelve audio, detección de disponibilidad (ping con
+ * caché de 60 s) y reproducción por <audio> (mismo patrón que kokoro.ts).
+ * SSR-safe, defensivo, NUNCA lanza.
  *
  * ── CONTRATO HTTP ESPERADO (tolerante: probamos las formas comunes) ─────────
  *
  * PETICIÓN — POST {endpoint}{ruta} con JSON. Si el endpoint configurado ya
  * incluye una ruta (p.ej. http://neurona:9880/tts), se usa TAL CUAL; si es solo
  * origen (http://neurona:9880), se prueban las rutas típicas de cada motor
- * dentro de un presupuesto TOTAL de 20 s:
+ * dentro del presupuesto de tiempo del motor (ENGINE_TIMEOUT_MS):
  *
+ *   · voxcpm (PRINCIPAL) → /v1/audio/speech · /tts · /generate · /api/tts · /synthesize
+ *       VoxCPM2 (OpenBMB, Apache-2.0) se sirve de tres formas y las cubrimos todas:
+ *         a) **vLLM-Omni** → API OpenAI-compatible `POST /v1/audio/speech`
+ *            body { model, input, voice, response_format:"wav", speed } → audio binario.
+ *            (Verificado en el README oficial de VoxCPM con `curl`.)
+ *         b) **Nano-vLLM-VoxCPM** (deployment/) → `POST /generate`
+ *            body { target_text, prompt_wav_base64|prompt_latents_base64, prompt_text,
+ *                   ref_audio_wav_base64 } → MP3 en streaming (audio/mpeg).
+ *         c) servidores comunitarios / Gradio (`python app.py --port 8808`) →
+ *            /tts · /api/tts · /run/predict · /gradio_api/call/{fn} (2 pasos).
+ *       Enviamos TODOS los alias a la vez (los servidores ignoran lo que no
+ *       conocen): { text, input, target_text, model, voice, language, speed,
+ *                   cfg_value, inference_timesteps, reference_wav_path,
+ *                   prompt_wav_path, prompt_text }.
+ *       DISEÑO DE VOZ: VoxCPM no tiene campo "emoción" — la voz se describe EN
+ *       LENGUAJE NATURAL entre paréntesis AL INICIO DEL TEXTO:
+ *         "(Voz femenina joven, cálida y serena)Hola, soy Aurora."
+ *       Lo hace `decorateTextForVoxCPM()` a partir del preset/emoción activos.
+ *       CLONACIÓN: `refAudio` (+`refText` para clonación "definitiva").
+ *   · voicebox → /generate/stream (ÚNICA ruta que devuelve audio al navegador)
+ *       jamiepine/voicebox (MIT) es una APP DE ESCRITORIO (Tauri) con backend
+ *       FastAPI en 127.0.0.1:17493. Su `POST /generate` y `POST /speak` son
+ *       ASÍNCRONOS (devuelven una fila `Generation` y hay que sondear SSE; además
+ *       /speak suena en los altavoces DEL PC, no en el navegador). La ruta útil
+ *       para Aurora es `POST /generate/stream` → **audio/wav en streaming**.
+ *       body { profile_id (OBLIGATORIO), text, language (2 letras del enum),
+ *              engine, model_size, instruct, seed, normalize, max_chunk_chars,
+ *              crossfade_ms }.
+ *       ⚠️ DOS REQUISITOS REALES (no se pueden fingir):
+ *         1) `profile_id` — un perfil de voz creado en la app (GET /profiles).
+ *         2) CORS — su allowlist por defecto solo trae localhost/tauri. Para que
+ *            el OS pueda llamarlo desde el navegador hay que arrancar Voicebox con
+ *            `VOICEBOX_CORS_ORIGINS=https://starseed-os.vercel.app`.
+ *       Sin esas dos cosas el motor DECLINA y la cadena sigue (Aurora nunca calla).
  *   · bark        → /generate · /tts · /api/tts
  *       body: { text, prompt, voice, speaker, voice_preset, history_prompt,
  *               language, speed } — cubre los servidores HTTP comunitarios de
@@ -38,9 +74,12 @@
  *     wav | b64 } (acepta data-URLs "data:audio/...;base64,...");
  *   · JSON con URL del archivo: { audio_url | url | file | path } (se resuelve
  *     relativa al endpoint y se descarga);
- *   · estilo Gradio: { data: [ { name | url | data } , ... ] }.
+ *   · estilo Gradio: { data: [ { name | url | data } , ... ] }, tanto en el
+ *     legado `/run/predict` como en el 2-pasos moderno `/gradio_api/call/{fn}`
+ *     (POST → {event_id} → GET SSE → payload final).
  *
- * TIMEOUT: 20 s TOTALES por locución (AbortController compartido entre rutas).
+ * TIMEOUT: por motor (ENGINE_TIMEOUT_MS) — 45 s para VoxCPM/Voicebox (modelos
+ * grandes que además pueden estar cargándose), 20 s para el resto.
  * PING: GET {endpoint} (y /health · /docs) con 5 s; CUALQUIER respuesta HTTP
  * (aunque sea 404) = servidor vivo. Si el fetch CORS falla, se reintenta en
  * modo no-cors (respuesta opaca = alcanzable). Resultado cacheado 60 s por
@@ -56,24 +95,58 @@ import {
 } from "@/lib/aurora/tts-oss/voice-config";
 import {
   decorateTextForBark,
+  decorateTextForVoxCPM,
+  deliveryInstruction,
   engineStyleOverrides,
   passthroughParams,
   resolveVoiceParams,
+  voiceDesignPrompt,
   type ResolvedVoiceParams,
 } from "@/lib/aurora/tts-oss/voice-style";
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 
-/** Presupuesto total por locución (petición + descarga), en ms. */
+/** Presupuesto por defecto por locución (petición + descarga), en ms. */
 export const NEURAL_TTS_TIMEOUT_MS = 20_000;
+
+/**
+ * Presupuesto por MOTOR. VoxCPM (2B, difusión) y Voicebox (carga el modelo en la
+ * primera petición) necesitan más aire que un Bark ya calentito: si nos quedamos
+ * cortos, abortaríamos una locución que iba a llegar y Aurora sonaría peor de lo
+ * que puede. 45 s es el techo; el fallback sigue vivo si se agota.
+ */
+export const ENGINE_TIMEOUT_MS: Record<NeuralVoiceEngine, number> = {
+  voxcpm: 45_000,
+  voicebox: 45_000,
+  bark: 20_000,
+  "gpt-sovits": 20_000,
+  omnivoice: 20_000,
+};
+
 /** TTL de la caché de disponibilidad (ping), en ms. */
 export const NEURAL_PING_TTL_MS = 60_000;
 
 /** Rutas candidatas por motor cuando el endpoint es solo origen. */
 const ENGINE_PATHS: Record<NeuralVoiceEngine, string[]> = {
+  // OpenAI-compatible primero (vLLM-Omni: la forma OFICIAL de servir VoxCPM2 en
+  // producción), luego las rutas de los servidores comunitarios / nano-vLLM.
+  voxcpm: ["/v1/audio/speech", "/tts", "/generate", "/api/tts", "/synthesize"],
+  // Voicebox: /generate/stream es la ÚNICA que devuelve audio (las demás son
+  // asíncronas y suenan en los altavoces del PC, no en el navegador).
+  voicebox: ["/generate/stream"],
   bark: ["/generate", "/tts", "/api/tts"],
   "gpt-sovits": ["/tts", "/", "/api/tts"],
   omnivoice: ["/tts", "/generate", "/api/tts"],
+};
+
+/**
+ * Funciones de Gradio a probar (2 pasos) cuando el POST JSON directo no cuela.
+ * Solo para VoxCPM: su demo oficial (`python app.py --port 8808`) es un Gradio.
+ * Es un intento BEST-EFFORT: si el nombre de la función no coincide, declina en
+ * silencio y la cadena de fallback sigue.
+ */
+const GRADIO_FNS: Partial<Record<NeuralVoiceEngine, string[]>> = {
+  voxcpm: ["generate", "predict", "tts"],
 };
 
 /** Metadatos de presentación por motor (etiquetas para UI y herramientas). */
@@ -81,6 +154,22 @@ export const NEURAL_ENGINE_META: Record<
   NeuralVoiceEngine,
   { label: string; hint: string; voicePlaceholder: string; defaultVoice: string; repo: string }
 > = {
+  voxcpm: {
+    label: "VoxCPM (principal · realista)",
+    hint: "Tokenizer-free de OpenBMB: 30 idiomas, 48 kHz, diseña la voz con palabras y clona",
+    voicePlaceholder: "voz/preset del servidor (opcional)",
+    // Sin preset: VoxCPM define la voz por DESCRIPCIÓN (voiceDesign) o por
+    // audio de referencia (refAudio). Dejarlo vacío = voz por defecto del server.
+    defaultVoice: "",
+    repo: "https://github.com/OpenBMB/VoxCPM",
+  },
+  voicebox: {
+    label: "Voicebox (estudio local)",
+    hint: "App de escritorio con API REST: perfiles de voz clonados (necesita profile_id + CORS)",
+    voicePlaceholder: "id del perfil de voz (profile_id)",
+    defaultVoice: "",
+    repo: "https://github.com/jamiepine/voicebox",
+  },
   bark: {
     label: "Bark (generativa)",
     hint: "TTS expresivo de Suno: entona, ríe y suspira",
@@ -105,6 +194,31 @@ export const NEURAL_ENGINE_META: Record<
     repo: "https://github.com/k2-fsa/OmniVoice",
   },
 };
+
+/** Puerto por defecto del backend de Voicebox (127.0.0.1:17493). */
+export const VOICEBOX_DEFAULT_ENDPOINT = "http://127.0.0.1:17493";
+/** Modelo por defecto de VoxCPM cuando se sirve por vLLM-Omni (`--omni`). */
+export const VOXCPM_DEFAULT_MODEL = "openbmb/VoxCPM2";
+
+/**
+ * Idiomas que el backend de Voicebox ACEPTA (patrón estricto de su Pydantic: si
+ * mandamos "es-ES" responde 422). Lista literal de su `GenerationRequest`.
+ */
+const VOICEBOX_LANGS = [
+  "zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it", "he", "ar",
+  "da", "el", "fi", "hi", "ms", "nl", "no", "pl", "sv", "sw", "tr",
+] as const;
+
+/** Motores internos válidos de Voicebox (su patrón Pydantic los valida). */
+const VOICEBOX_ENGINES = [
+  "qwen", "qwen_custom_voice", "luxtts", "chatterbox", "chatterbox_turbo", "tada", "kokoro",
+] as const;
+
+/** Normaliza un idioma a las 2 letras que Voicebox acepta ("es-ES" → "es"). */
+function voiceboxLang(lang: string | undefined): string {
+  const base = (lang || "es").trim().toLowerCase().slice(0, 2);
+  return (VOICEBOX_LANGS as readonly string[]).includes(base) ? base : "en";
+}
 
 // ── Utilidades ───────────────────────────────────────────────────────────────
 
@@ -257,10 +371,64 @@ function buildBody(
   params: ResolvedVoiceParams,
 ): Record<string, unknown> {
   const lang = (s.lang || "es").trim();
+
+  // ── Voicebox: cuerpo ESTRICTO (su Pydantic valida idioma y motor con regex;
+  //    un valor fuera de patrón = 422 y ni siquiera intenta hablar). No metemos
+  //    los alias genéricos aquí: `profile_id` manda y el resto son sus campos.
+  if (engine === "voicebox") {
+    const engineName =
+      s.model && (VOICEBOX_ENGINES as readonly string[]).includes(s.model)
+        ? s.model
+        : undefined;
+    const instruct = deliveryInstruction(s.instruct);
+    const vb: Record<string, unknown> = {
+      // El perfil de voz es OBLIGATORIO en Voicebox. `profileId` es lo canónico;
+      // aceptamos también `voice` por si el usuario pegó el id ahí (mismo dato).
+      profile_id: s.profileId || s.voice || "",
+      text,
+      language: voiceboxLang(s.lang),
+      normalize: true,
+    };
+    if (engineName) vb.engine = engineName;
+    if (instruct) vb.instruct = instruct.slice(0, 500);
+    return vb;
+  }
+
   const body: Record<string, unknown> = {
     text,
     ...passthroughParams(engine, params),
   };
+
+  if (engine === "voxcpm") {
+    // VoxCPM se sirve de tres formas distintas → mandamos los alias de las tres
+    // en el MISMO JSON (cada servidor lee los suyos e ignora el resto):
+    //   · vLLM-Omni (OpenAI):   { model, input, voice, response_format, speed }
+    //   · nano-vLLM deployment: { target_text, prompt_text, ... }
+    //   · comunitarios/Gradio:  { text, language, cfg_value, inference_timesteps }
+    body.input = text; // OpenAI: el texto va en `input`
+    body.target_text = text; // nano-vLLM
+    body.model = s.model || VOXCPM_DEFAULT_MODEL;
+    body.response_format = "wav";
+    body.language = lang;
+    body.lang = lang;
+    // Voz/preset del servidor (opcional): en VoxCPM la voz se define por
+    // DESCRIPCIÓN (ya inyectada en el texto) o por audio de referencia, pero la
+    // API OpenAI exige el campo `voice` → mandamos "default" si no hay nada.
+    body.voice = s.voice || "default";
+    // Parámetros propios del modelo (valores del README oficial).
+    body.cfg_value = 2.0;
+    body.inference_timesteps = 10;
+    // CLONACIÓN: referencia aislada (reference_wav_path) y/o continuación
+    // (prompt_wav_path + prompt_text = "clonación definitiva").
+    if (s.refAudio) {
+      body.reference_wav_path = s.refAudio;
+      body.prompt_wav_path = s.refAudio;
+      body.ref_audio_path = s.refAudio; // alias tolerante
+    }
+    if (s.refText) body.prompt_text = s.refText;
+    return body;
+  }
+
   if (engine === "bark") {
     // Servidores comunitarios de Bark: preset de voz bajo varios nombres.
     // Si el usuario no fijó ninguno, usamos el preset español cálido por defecto
@@ -324,17 +492,37 @@ export async function neuralSynthesize(
     return null;
   }
 
+  // Voicebox EXIGE un perfil de voz: sin él, su backend responde 404 y no habría
+  // audio. Mejor declinar aquí con un mensaje útil que gastar el presupuesto.
+  if (engine === "voicebox" && !(s.profileId || s.voice)) {
+    try {
+      opts.onError?.(
+        "Voicebox necesita un perfil de voz (profile_id). Crea uno en la app y elígelo en Ajustes → Voz.",
+      );
+    } catch { /* */ }
+    return null;
+  }
+
   // Modulación emocional resuelta (estilo persistido + overrides del motor).
   const params = resolveVoiceParams({ engineOverrides: engineStyleOverrides(engine) });
-  // Bark: la emoción también viaja como etiqueta EN el texto (con moderación).
-  const finalText = engine === "bark" ? decorateTextForBark(clean, params.emotion) : clean;
+  // Cada motor recibe la emoción como MEJOR la entienda:
+  //   · Bark   → etiquetas [laughs]/[sighs] EN el texto (con moderación).
+  //   · VoxCPM → DISEÑO DE VOZ en lenguaje natural entre paréntesis al inicio.
+  //   · resto  → números (speed/pitch/energy) por passthrough.
+  const finalText =
+    engine === "bark"
+      ? decorateTextForBark(clean, params.emotion)
+      : engine === "voxcpm"
+        ? decorateTextForVoxCPM(clean, voiceDesignPrompt(s.voiceDesign))
+        : clean;
   const body = buildBody(engine, finalText, s, params);
 
+  const budget = ENGINE_TIMEOUT_MS[engine] ?? NEURAL_TTS_TIMEOUT_MS;
   const controller = new AbortController();
-  const deadline = Date.now() + NEURAL_TTS_TIMEOUT_MS;
+  const deadline = Date.now() + budget;
   const killer = setTimeout(() => {
     try { controller.abort(); } catch { /* */ }
-  }, NEURAL_TTS_TIMEOUT_MS);
+  }, budget);
 
   try {
     for (const url of candidateUrls(engine, endpoint)) {
@@ -370,6 +558,22 @@ export async function neuralSynthesize(
         .catch(() => null);
       if (blob) return blob;
     }
+
+    // Último intento: interfaz Gradio (la demo oficial de VoxCPM es un Gradio).
+    // Ojo: al Gradio se le pasa el texto LIMPIO y la descripción de voz POR
+    // SEPARADO (tiene un campo `control_instruction` propio), no el texto con
+    // los paréntesis inyectados.
+    if (engine === "voxcpm" && !hasExplicitPath(endpoint) && Date.now() < deadline) {
+      const viaGradio = await tryGradioVoxCPM(
+        endpoint,
+        clean,
+        voiceDesignPrompt(s.voiceDesign),
+        s,
+        controller.signal,
+      ).catch(() => null);
+      if (viaGradio) return viaGradio;
+    }
+
     try {
       opts.onError?.(
         `${NEURAL_ENGINE_META[engine].label} no devolvió audio (¿servidor apagado o ruta distinta?).`,
@@ -379,6 +583,175 @@ export async function neuralSynthesize(
   } finally {
     clearTimeout(killer);
   }
+}
+
+// ── Gradio de VoxCPM (contrato VERIFICADO contra el Space oficial) ───────────
+
+/**
+ * Argumentos POSICIONALES de la función `/generate` del Gradio oficial de VoxCPM.
+ * VERIFICADO EN VIVO (2026-07-13) contra `openbmb-voxcpm-demo.hf.space`, leyendo
+ * su `GET /gradio_api/info`:
+ *
+ *   [0] text_input             string   — el texto a hablar
+ *   [1] control_instruction    string   — DISEÑO/CONTROL de voz en lenguaje natural
+ *   [2] reference_wav_path     Audio    — audio de referencia (null = sin clonar)
+ *   [3] use_prompt_text        bool
+ *   [4] prompt_text_input      string   — transcripción de la referencia
+ *   [5] cfg_value_input        number   — 2.0 por defecto
+ *   [6] do_normalize           bool
+ *   [7] denoise                bool
+ *
+ * Devuelve un componente Audio → FileData { path, url, orig_name, mime_type }.
+ *
+ * OJO: aquí el diseño de voz NO va entre paréntesis dentro del texto (eso es el
+ * contrato de la API Python); el Gradio tiene su propio campo `control_instruction`.
+ * Por eso esta función recibe texto y diseño POR SEPARADO.
+ *
+ * La referencia de audio va en `null`: subir un fichero a un Gradio exige el flujo
+ * de upload (multipart a /gradio_api/upload) y una ruta del servidor. Con Gradio,
+ * pues, VoxCPM funciona en modo DISEÑO DE VOZ (que es su superpoder), no clonando.
+ * Para clonar, usa vLLM-Omni o Nano-vLLM (que sí aceptan rutas/base64).
+ */
+function voxcpmGradioData(
+  text: string,
+  design: string,
+  s: NeuralEngineSettings,
+): unknown[] {
+  const control = (design || deliveryInstruction(s.instruct) || "").slice(0, 300);
+  return [text, control, null, false, "", 2.0, false, false];
+}
+
+/**
+ * Extrae el audio de un FileData de Gradio. Su `url` suele ser absoluta (Spaces),
+ * pero en un Gradio local puede venir vacía y solo traer `path` — que es una RUTA
+ * DEL SERVIDOR, no una URL: hay que pedirla por `/gradio_api/file={path}`
+ * (Gradio 5) o `/file={path}` (Gradio 3/4). Nunca lanza.
+ */
+async function gradioFileToBlob(
+  item: any,
+  endpoint: string,
+  signal: AbortSignal,
+): Promise<Blob | null> {
+  if (!item || typeof item !== "object") return null;
+  const base = endpoint.replace(/\/+$/, "");
+  const candidates: string[] = [];
+  const url = typeof item.url === "string" ? item.url : "";
+  const path = typeof item.path === "string" ? item.path : "";
+  const name = typeof item.name === "string" ? item.name : "";
+  if (url) candidates.push(/^https?:\/\//i.test(url) ? url : resolveUrl(url, endpoint));
+  for (const p of [path, name]) {
+    if (!p) continue;
+    if (/^https?:\/\//i.test(p)) {
+      candidates.push(p);
+      continue;
+    }
+    candidates.push(`${base}/gradio_api/file=${encodeURI(p)}`);
+    candidates.push(`${base}/file=${encodeURI(p)}`);
+  }
+  for (const c of candidates) {
+    if (!c) continue;
+    const blob = await fetchAudioUrl(c, signal);
+    if (blob) return blob;
+  }
+  return null;
+}
+
+/**
+ * Habla por la interfaz GRADIO de VoxCPM (su demo oficial: `python app.py`).
+ * Dos protocolos, en orden:
+ *   · moderno (Gradio 5): POST /gradio_api/call/{fn} {data:[...]} → {event_id}
+ *       → GET /gradio_api/call/{fn}/{event_id} (SSE) → `data: [ FileData ]`
+ *   · legado (Gradio 3/4): POST /run/predict {data:[...], fn_index:0} → {data:[...]}
+ *
+ * VERIFICADO con `curl` contra el Space oficial: el paso 1 devuelve `event_id` tal
+ * y como esperamos, y `/gradio_api/info` confirma la función `/generate` y el orden
+ * de sus 8 parámetros. Si un servidor concreto expone otra función u otro orden,
+ * esto declina en silencio y la CADENA DE FALLBACK sigue: nunca deja a Aurora muda
+ * ni lanza.
+ */
+async function tryGradioVoxCPM(
+  endpoint: string,
+  text: string,
+  design: string,
+  s: NeuralEngineSettings,
+  signal: AbortSignal,
+): Promise<Blob | null> {
+  const fns = GRADIO_FNS.voxcpm ?? ["generate"];
+  const base = endpoint.replace(/\/+$/, "");
+  const data = voxcpmGradioData(text, design, s);
+
+  // 1) Moderno: /gradio_api/call/{fn} (dos pasos). Es el que usa VoxCPM hoy.
+  for (const fn of fns) {
+    const blob = await Promise.resolve()
+      .then(async () => {
+        const post = await fetch(`${base}/gradio_api/call/${fn}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data }),
+          signal,
+        });
+        if (!post.ok) return null;
+        const started = await post.json().catch(() => null);
+        const eventId =
+          started && typeof started === "object"
+            ? ((started as any).event_id ?? (started as any).eventId)
+            : null;
+        if (typeof eventId !== "string" || !eventId) return null;
+
+        const sse = await fetch(`${base}/gradio_api/call/${fn}/${eventId}`, {
+          method: "GET",
+          signal,
+        });
+        if (!sse.ok) return null;
+        const raw = await sse.text();
+        // El stream trae líneas "event: complete" + "data: [ ... ]".
+        // Nos quedamos con el ÚLTIMO payload JSON parseable.
+        let last: unknown = null;
+        for (const line of raw.split("\n")) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          const payload = t.slice(5).trim();
+          if (!payload || payload === "null") continue;
+          try {
+            last = JSON.parse(payload);
+          } catch {
+            /* línea parcial → siguiente */
+          }
+        }
+        if (!Array.isArray(last)) {
+          return last ? await audioFromJson(last, endpoint, signal) : null;
+        }
+        for (const item of last) {
+          const viaFile = await gradioFileToBlob(item, endpoint, signal);
+          if (viaFile) return viaFile;
+        }
+        return await audioFromJson({ data: last }, endpoint, signal);
+      })
+      .catch(() => null);
+    if (blob) return blob;
+  }
+
+  // 2) Legado: /run/predict (Gradio 3/4, una sola llamada).
+  return await Promise.resolve()
+    .then(async () => {
+      const res = await fetch(`${base}/run/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data, fn_index: 0 }),
+        signal,
+      });
+      if (!res.ok) return null;
+      const json = await res.json().catch(() => null);
+      const arr = Array.isArray((json as any)?.data) ? (json as any).data : null;
+      if (arr) {
+        for (const item of arr) {
+          const viaFile = await gradioFileToBlob(item, endpoint, signal);
+          if (viaFile) return viaFile;
+        }
+      }
+      return await audioFromJson(json, endpoint, signal);
+    })
+    .catch(() => null);
 }
 
 // ── Reproducción por <audio> (una a la vez, patrón kokoro.ts) ────────────────
@@ -570,11 +943,80 @@ export async function pingNeuralEngine(
   return state;
 }
 
-/** ¿Motor configurado (tiene endpoint), sin mirar la red? Nunca lanza. */
+/**
+ * ¿Motor configurado y USABLE sin mirar la red? Nunca lanza.
+ * "Usable" = tiene endpoint Y cumple sus requisitos duros:
+ *   · voicebox → además necesita `profileId` (su API lo exige; sin él es un 404
+ *     garantizado, así que declararlo "configurado" sería mentir).
+ */
 export function neuralEngineConfigured(engine: NeuralVoiceEngine): boolean {
   try {
-    return !!normalizeEndpoint(getEngineSettings(engine).endpoint);
+    const s = getEngineSettings(engine);
+    if (!normalizeEndpoint(s.endpoint)) return false;
+    if (engine === "voicebox" && !(s.profileId || s.voice)) return false;
+    return true;
   } catch {
     return false;
   }
+}
+
+// ── Voicebox: perfiles de voz reales del servidor ────────────────────────────
+
+/** Un perfil de voz de Voicebox (`GET /profiles`). */
+export interface VoiceboxProfile {
+  id: string;
+  name: string;
+  language?: string;
+  description?: string;
+}
+
+/**
+ * Lista los PERFILES DE VOZ de un Voicebox vivo (`GET /profiles`). Los usa el
+ * Centro de Configuración para que el usuario elija su voz clonada de una lista
+ * real en vez de pegar un uuid a mano. [] si no hay servidor, no hay CORS o la
+ * respuesta no se entiende. NUNCA lanza.
+ */
+export async function listVoiceboxProfiles(
+  endpointOverride?: string,
+): Promise<VoiceboxProfile[]> {
+  if (typeof window === "undefined") return [];
+  const endpoint = normalizeEndpoint(
+    endpointOverride ?? getEngineSettings("voicebox").endpoint ?? VOICEBOX_DEFAULT_ENDPOINT,
+  );
+  if (!endpoint) return [];
+  const base = endpoint.replace(/\/+$/, "").replace(/\/generate(\/stream)?$/, "");
+  return await Promise.resolve()
+    .then(async () => {
+      const controller = new AbortController();
+      const killer = setTimeout(() => {
+        try { controller.abort(); } catch { /* */ }
+      }, 6_000);
+      try {
+        const res = await fetch(`${base}/profiles`, { method: "GET", signal: controller.signal });
+        if (!res.ok) return [];
+        const json = await res.json().catch(() => null);
+        const arr = Array.isArray(json)
+          ? json
+          : Array.isArray((json as any)?.profiles)
+            ? (json as any).profiles
+            : [];
+        const out: VoiceboxProfile[] = [];
+        for (const p of arr) {
+          if (!p || typeof p !== "object") continue;
+          const id = typeof (p as any).id === "string" ? (p as any).id : "";
+          if (!id) continue;
+          out.push({
+            id,
+            name: typeof (p as any).name === "string" ? (p as any).name : id,
+            language: typeof (p as any).language === "string" ? (p as any).language : undefined,
+            description:
+              typeof (p as any).description === "string" ? (p as any).description : undefined,
+          });
+        }
+        return out;
+      } finally {
+        clearTimeout(killer);
+      }
+    })
+    .catch(() => []);
 }

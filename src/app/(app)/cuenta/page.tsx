@@ -67,6 +67,9 @@ import {
   type UserContextSettings,
 } from "@/ai/astraura/user-context";
 import { fetchMyProfile, updateMyProfile } from "@/lib/social/os-profiles";
+// Centro de Configuración de Aurora y Astraura (Adenda 67 · P1): siempre
+// accesible desde Ajustes, no sólo la primera vez.
+import { openAuroraSetup } from "@/lib/aurora/setup-config";
 import { cn } from "@/lib/utils";
 
 import {
@@ -895,6 +898,28 @@ function CuentaContent() {
         <div>
           <h2 className="text-base font-semibold mb-1">Aurora e inteligencia</h2>
           <p className="text-xs text-muted-foreground">Tu Exocórtex: capacidades activas, cerebros y contexto que Aurora conoce.</p>
+        </div>
+
+        {/* Centro de Configuración de Aurora y Astraura (Adenda 67 · P1).
+            Siempre accesible, no sólo la primera vez. */}
+        <div className="rounded-xl border border-[#7fb8ff]/25 bg-[#7fb8ff]/[0.06] p-4 flex flex-wrap items-center gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#7fb8ff]/15 ring-1 ring-[#7fb8ff]/40">
+            <Sparkles className="h-4 w-4 text-[#7fb8ff]" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Centro de configuración de Aurora y Astraura</p>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Personalidad, sentidos, conexiones, habilidades por cerebro y neurona, voz y memoria — todo en
+              un sitio. Ya viene con las mejores opciones gratuitas puestas.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => openAuroraSetup()}
+            className="cursor-pointer rounded-lg bg-[#7fb8ff] px-3.5 py-2 text-[12px] font-semibold text-[#0d1220] transition-opacity duration-200 hover:opacity-90"
+          >
+            Abrir centro
+          </button>
         </div>
 
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">

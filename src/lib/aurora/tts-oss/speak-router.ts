@@ -4,14 +4,27 @@
  * StarSeed OS — Enrutador de VOZ de Aurora (elige el motor activo, con fallback).
  * ============================================================================
  * Punto ÚNICO al que el engine de Aurora (`engine.ts`) delega el habla. Lee la
- * config unificada (`voice-config.ts`, clave `starseed.aurora.voice.v1`) y
- * despacha al motor correspondiente con la CADENA DE FALLBACK gratis-primero
- * (regla de oro: Aurora SIEMPRE habla):
+ * config unificada (`voice-config.ts`, clave `starseed.aurora.voice.v1`), pide la
+ * CADENA al registro de motores (`engine-registry.ts`) y la recorre hasta que
+ * alguien habla. Regla de oro: **Aurora SIEMPRE habla**.
  *
- *   motor elegido (bark / gpt-sovits / omnivoice por ENDPOINT · kokoro local)
- *     → si falla o no está configurado → Kokoro (si está listo)
- *     → si también falla → `false` ⇒ el engine usa la voz del NAVEGADOR
- *       (que a su vez elige la MEJOR RANKEADA vía browser-voices.ts).
+ * La cadena la construye `buildVoiceChain()` (ver engine-registry.ts para el
+ * orden completo y su porqué). En resumen:
+ *
+ *   pin de la personalidad activa (si fija motor de voz)
+ *     → motor elegido por el usuario (si no es el navegador)
+ *     → SELECCIÓN AUTOMÁTICA: el mejor motor CONFIGURADO por realismo
+ *       (VoxCPM → Voicebox → GPT-SoVITS → Bark → OmniVoice)
+ *     → Kokoro (local, si su modelo está listo o el usuario autorizó la descarga)
+ *     → `false` ⇒ el engine usa la voz del NAVEGADOR (que a su vez elige la
+ *       MEJOR RANKEADA vía browser-voices.ts). Este último eslabón NUNCA falla.
+ *
+ * La novedad de la Adenda 67 (P2-3) es que la selección automática ya no exige
+ * que el usuario "cambie de motor": basta con que exista un endpoint. Si hay un
+ * VoxCPM vivo, Aurora habla con VoxCPM aunque su config diga "navegador". Y si
+ * ese VoxCPM se cae, la MISMA frase sale por el siguiente eslabón sin que el
+ * usuario note nada. Quien no tiene ningún servidor no paga NADA: los motores
+ * sin endpoint ni siquiera entran en la cadena (cero red, cero latencia).
  *
  * MODO SIMBIÓTICO (bark + gpt-sovits con endpoint): la voz se enruta primero a
  * GPT-SoVITS usando la referencia elegida (`engines["gpt-sovits"].refAudio`,
@@ -34,10 +47,15 @@
  */
 
 import {
+  buildVoiceChain,
+  refreshPersonalityVoicePin,
+  resolveActiveVoiceEngine,
+  type VoiceChainLink,
+} from "@/lib/aurora/tts-oss/engine-registry";
+import {
   getVoiceConfig,
   isNeuralEngine,
   type AuroraVoiceConfig,
-  type NeuralVoiceEngine,
 } from "@/lib/aurora/tts-oss/voice-config";
 
 export interface ConfiguredSpeakOptions {
@@ -58,40 +76,20 @@ type LinkOutcome =
   | "declined"; // no pudo ni empezar → probar el siguiente eslabón
 
 /**
- * Orden de motores a intentar según la config. El navegador NUNCA aparece aquí
- * (es el suelo garantizado del llamador, devolviendo false).
- */
-function buildChain(cfg: AuroraVoiceConfig): Array<NeuralVoiceEngine | "kokoro" | "kitten"> {
-  const chain: Array<NeuralVoiceEngine | "kokoro" | "kitten"> = [];
-  const engines = cfg.engines ?? {};
-  const barkReady = !!engines.bark?.endpoint;
-  const sovitsReady = !!engines["gpt-sovits"]?.endpoint;
-
-  if (isNeuralEngine(cfg.engine)) {
-    if (cfg.symbiotic && barkReady && sovitsReady && (cfg.engine === "bark" || cfg.engine === "gpt-sovits")) {
-      // SIMBIÓTICO: SoVITS primero (clona/refina con la referencia elegida),
-      // Bark como siguiente voz expresiva.
-      chain.push("gpt-sovits", "bark");
-    } else {
-      chain.push(cfg.engine);
-    }
-  } else if (cfg.engine === "kokoro" || cfg.engine === "kitten") {
-    chain.push(cfg.engine);
-  }
-  // Kokoro es SIEMPRE el penúltimo eslabón (si no estaba ya en la cadena).
-  if (!chain.includes("kokoro")) chain.push("kokoro");
-  return chain;
-}
-
-/**
  * ¿Hay un motor OSS/neural activo Y disponible para hablar YA (sin descargar
  * por sorpresa)? Úsalo para decidir rápido si merece la pena delegar.
- * Para motores por endpoint usa el ping cacheado (60 s). NUNCA lanza.
+ *
+ * Mira el motor que Aurora usaría DE VERDAD ahora mismo (`resolveActiveVoiceEngine`:
+ * pin de personalidad → elección explícita → selección automática), no solo el
+ * que dice la config: si el usuario tiene "navegador" pero hay un VoxCPM vivo,
+ * la respuesta correcta es `true`. Para motores por endpoint usa el ping
+ * cacheado (60 s). NUNCA lanza.
  */
 export async function isConfiguredOssEngineReady(): Promise<boolean> {
   try {
+    await refreshPersonalityVoicePin();
     const cfg = getVoiceConfig();
-    const { engine } = cfg;
+    const engine = resolveActiveVoiceEngine(cfg);
     if (isNeuralEngine(engine)) {
       const { pingNeuralEngine } = await import("@/lib/aurora/tts-oss/neural-tts");
       return (await pingNeuralEngine(engine)) === "ok";
@@ -119,7 +117,7 @@ export async function isConfiguredOssEngineReady(): Promise<boolean> {
  * Promise.resolve().then() — aquí además todo es defensivo. NUNCA lanza.
  */
 async function runLink(
-  link: NeuralVoiceEngine | "kokoro" | "kitten",
+  link: VoiceChainLink,
   text: string,
   cfg: AuroraVoiceConfig,
   opts: ConfiguredSpeakOptions,
@@ -184,11 +182,18 @@ async function runLink(
 }
 
 /**
- * speakWithConfiguredEngine — Si el motor activo es OSS/neural y puede hablar,
- * sintetiza y reproduce `text` recorriendo la CADENA DE FALLBACK, devolviendo
- * `true` cuando algún motor se hizo cargo del turno. Si el motor es el
- * navegador, nada está disponible, o todo falla, devuelve `false` para que el
- * engine caiga a `window.speechSynthesis` (con la voz mejor rankeada). NUNCA lanza.
+ * speakWithConfiguredEngine — Sintetiza y reproduce `text` recorriendo la CADENA
+ * de motores (registro + selección automática), devolviendo `true` cuando alguno
+ * se hizo cargo del turno. Si no hay nada disponible o todo falla, devuelve
+ * `false` para que el engine caiga a `window.speechSynthesis` (con la mejor voz
+ * neural rankeada del dispositivo). NUNCA lanza.
+ *
+ * CAMBIO DE LA ADENDA 67 (P2-3): ya NO se sale de vacío cuando el motor de la
+ * config es "browser". Ahora construye la cadena SIEMPRE: si hay un motor mejor
+ * CONFIGURADO (VoxCPM el primero), lo usa aunque el usuario no haya tocado nada.
+ * Si no hay ninguno, la cadena queda en [kokoro] y, sin modelo listo, declina al
+ * instante → voz del navegador. Coste para quien no tiene servidores: CERO
+ * (ningún fetch, ninguna espera; solo lecturas de localStorage).
  *
  * IMPORTANTE (anti-descarga sorpresa): Kokoro sólo autodescarga el modelo si el
  * usuario lo pidió (`autoDownload` en la config). Si no, y el modelo no está
@@ -207,9 +212,14 @@ export async function speakWithConfiguredEngine(
   } catch {
     return false;
   }
-  if (!cfg || cfg.engine === "browser") return false;
+  if (!cfg) return false;
 
-  const chain = buildChain(cfg);
+  // El pin de la personalidad activa se relee aquí (import dinámico cacheado):
+  // así una personalidad que fija "VoxCPM para la voz" manda desde la 1ª frase.
+  const pin = await refreshPersonalityVoicePin().catch(() => null);
+
+  const chain = buildVoiceChain(cfg, pin);
+  if (!chain.length) return false; // suelo: navegador
   for (const link of chain) {
     // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
     const outcome = await Promise.resolve()

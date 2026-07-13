@@ -41,6 +41,7 @@ import {
     type LibraryLocation,
 } from "@/components/creation/library-location-picker";
 import { NEW_BLOCK_DEFS, RichBlockEditor } from "@/components/creation/creation-blocks";
+import { SocialCrosspost } from "@/components/creation/social-crosspost";
 import {
     isRichBlock,
     newBlockId,
@@ -113,6 +114,9 @@ function blockHasContent(b: PostBlock): boolean {
         case "widget":
         case "repo":
         case "pizarra":
+        // Adenda 67 · P4: ambos bloques nuevos se validan por su URL.
+        case "penpot":
+        case "video":
             return Boolean(b.url && b.url.trim());
         case "codigo":
         case "pagina":
@@ -651,6 +655,20 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                           ? "Guardar en la Librería"
                           : "Publicar creación"}
                 </Button>
+
+                {/* (Adenda 67 · P4-8) Crossposting a redes con Postiz. Solo aparece si
+                    el usuario lo tiene configurado. Es un acto SEPARADO del botón de
+                    arriba: publicar en StarSeed NUNCA publica fuera por su cuenta. */}
+                <SocialCrosspost
+                    getText={() =>
+                        [titulo.trim(), ...blocks.filter((b) => b.type === "texto").map((b) => (b.text ?? "").trim())]
+                            .filter(Boolean)
+                            .join("\n\n")
+                    }
+                    getImageUrl={() =>
+                        blocks.find((b) => (b.type === "imagen" || b.type === "portada") && b.url?.trim())?.url?.trim()
+                    }
+                />
             </div>
         </div>
     );

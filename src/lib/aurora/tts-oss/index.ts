@@ -1,11 +1,26 @@
 "use client";
 
 /**
- * StarSeed OS — Barrel de la VOZ de Aurora OPEN-SOURCE (Kokoro TTS por CDN).
+ * StarSeed OS — Barrel de la VOZ de Aurora (multi-motor, gratis-primero).
  * ----------------------------------------------------------------------------
- * Punto único de importación para la voz alternativa (kokoro-js por CDN).
- * Importar este índice NO carga nada pesado: el modelo sólo se descarga cuando
- * el usuario llama a `loadTtsModel()` / `speakOss()`.
+ * Punto único de importación de TODO el sistema de voz. Importar este índice NO
+ * carga nada pesado: los modelos/servidores solo se tocan cuando hay que hablar.
+ *
+ * ── API PARA EL CENTRO DE CONFIGURACIÓN (Adenda 67 · P2) ────────────────────
+ * Todo lo que la pantalla de configuración necesita, desde aquí:
+ *
+ *   import {
+ *     listVoiceEngines,            // motores + ficha + estado (sync, sin red)
+ *     listVoiceEnginesWithStatus,  // idem, comprobando servidores (async)
+ *     listVoicePresets,            // tipos de voz prediseñados
+ *     listEngineVoices,            // voces reales de UN motor (async)
+ *     testVoice,                   // prueba HONESTA de un motor (async)
+ *     applyVoicePreset, setVoiceEngine, setEngineSettings,
+ *   } from "@/lib/aurora/tts-oss";
+ *
+ * Motores: `browser` (defecto, siempre disponible) · `voxcpm` (PRINCIPAL cuando
+ * tiene endpoint: el más realista) · `voicebox` · `gpt-sovits` · `bark` ·
+ * `omnivoice` · `kokoro` (local) · `kitten` (beta).
  */
 
 export {
@@ -56,6 +71,7 @@ export {
   AURORA_ORGANIC_PRESET_ID,
   NEURAL_VOICE_ENGINES,
   isNeuralEngine,
+  isVoiceEngineId,
   normalizeEmotion,
   sanitizeStyle,
   getVoiceConfig,
@@ -71,6 +87,8 @@ export {
   getEffectiveVoice,
   ensureOrganicVoiceDefault,
   applyVoicePreset,
+  getActiveVoicePreset,
+  findVoicePreset,
   subscribeVoiceConfig,
   type AuroraVoiceEngine,
   type NeuralVoiceEngine,
@@ -82,11 +100,39 @@ export {
 } from "@/lib/aurora/tts-oss/voice-config";
 
 export {
+  // REGISTRO DE MOTORES + selección automática (Adenda 67 · P2-3).
+  // Es la API que consume el Centro de Configuración de Aurora.
+  VOICE_ENGINE_REGISTRY,
+  AUTO_ENDPOINT_ORDER,
+  PRIMARY_VOICE_ENGINE,
+  VOICE_TEST_PHRASE,
+  listVoiceEngines,
+  listVoiceEnginesWithStatus,
+  listVoicePresets,
+  listEngineVoices,
+  testVoice,
+  buildVoiceChain,
+  resolveActiveVoiceEngine,
+  personalityVoiceEnginePin,
+  refreshPersonalityVoicePin,
+  type VoiceEngineMeta,
+  type VoiceEngineKind,
+  type VoiceEngineStatus,
+  type VoiceEngineAvailability,
+  type VoiceChainLink,
+  type EngineVoiceOption,
+  type VoiceTestResult,
+} from "@/lib/aurora/tts-oss/engine-registry";
+
+export {
   // Estilo emocional (8 emociones → parámetros por motor + evento vivo)
   VOICE_EMOTIONS,
   emotionSpec,
   resolveVoiceParams,
   decorateTextForBark,
+  decorateTextForVoxCPM,
+  voiceDesignPrompt,
+  deliveryInstruction,
   passthroughParams,
   installVoiceStyleListener,
   emitVoiceStyle,
@@ -106,10 +152,14 @@ export {
 } from "@/lib/aurora/tts-oss/browser-voices";
 
 export {
-  // Motores NEURALES por endpoint (Bark · GPT-SoVITS · OmniVoice)
+  // Motores NEURALES por endpoint
+  // (VoxCPM · Voicebox · Bark · GPT-SoVITS · OmniVoice)
   NEURAL_ENGINE_META,
   NEURAL_TTS_TIMEOUT_MS,
+  ENGINE_TIMEOUT_MS,
   NEURAL_PING_TTL_MS,
+  VOICEBOX_DEFAULT_ENDPOINT,
+  VOXCPM_DEFAULT_MODEL,
   normalizeEndpoint,
   neuralSynthesize,
   neuralSpeak,
@@ -117,8 +167,10 @@ export {
   isNeuralSpeaking,
   pingNeuralEngine,
   neuralEngineConfigured,
+  listVoiceboxProfiles,
   type NeuralSpeakOptions,
   type NeuralPingState,
+  type VoiceboxProfile,
 } from "@/lib/aurora/tts-oss/neural-tts";
 
 export {

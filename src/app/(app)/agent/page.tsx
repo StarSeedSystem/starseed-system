@@ -58,6 +58,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import OKFPanel from "@/components/exocortex/okf-panel";
+// Centro de Configuración de Aurora y Astraura (Adenda 67 · P1).
+import { openAuroraSetup } from "@/lib/aurora/setup-config";
 import ProviderPanel from "@/components/exocortex/provider-panel";
 import AuroraStudio from "@/components/aurora/aurora-studio";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
@@ -565,6 +567,17 @@ function AgentPageInner() {
             </Link>
           )}
           <Badge variant="outline" className="border-blue-500/50 text-blue-400 bg-blue-500/10">{agents.length} agentes</Badge>
+          {/* Centro de Configuración de Aurora y Astraura (Adenda 67 · P1). Si el
+              perfil aún no está configurado, además se abre solo al entrar aquí. */}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => openAuroraSetup()}
+            className="gap-1.5 border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer"
+          >
+            <Sliders className="h-3.5 w-3.5" /> Configurar Aurora
+          </Button>
         </div>
       </div>
 

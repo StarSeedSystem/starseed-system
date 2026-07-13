@@ -232,6 +232,54 @@ export const OSS_CONNECTORS: OssConnector[] = [
     contract: "API HTTP · endpoint configurable",
     oss: true,
   },
+
+  /* ══ Adenda 67 · P4 (jul-2026) ══════════════════════════════════════════
+   * Cuatro servidores nuevos que un cerebro/cuenta/perfil puede tener. Los
+   * cuatro son CONECTORES REALES por endpoint (API documentada y verificada),
+   * salvo OpenManus, que se declara EXPERIMENTAL porque su repo NO trae API
+   * HTTP oficial. La honestidad va en el propio `blurb`: el usuario lee la
+   * verdad en la misma tarjeta donde pega la URL.
+   */
+  {
+    id: "tencentdb_memory",
+    label: "TencentDB Agent Memory (memoria por capas)",
+    blurb:
+      "Memoria de agentes por capas (L0 conversación → L1 átomo → L2 escena → L3 persona) + memoria simbólica de corto plazo, 100% local (SQLite + sqlite-vec). Trae Gateway HTTP propio: /recall · /capture · /search/memories · /session/end. Levántalo en una neurona (Docker, :8420), autoriza el origen del OS en su CORS y enlázalo al cerebro con rol «Almacenamiento».",
+    kind: "service",
+    defaultPort: 8420,
+    contract: "/health · /recall · /capture · /search/memories · /session/end",
+    oss: true,
+  },
+  {
+    id: "typesense",
+    label: "Typesense (búsqueda)",
+    blurb:
+      "Motor de búsqueda open source, tolerante a erratas y en memoria (alternativa a Algolia/Elasticsearch). El cerebro puede usarlo para buscar en la red y en sus propios documentos. Contenedor propio en la neurona; en el OS usa SIEMPRE una clave de SOLO BÚSQUEDA, nunca la admin key. Si no está, la búsqueda del OS sigue funcionando con Supabase.",
+    kind: "service",
+    defaultPort: 8108,
+    contract: "/health · /collections · /collections/{c}/documents/search · /multi_search",
+    oss: true,
+  },
+  {
+    id: "openmanus",
+    label: "OpenManus (agente general) · EXPERIMENTAL",
+    blurb:
+      "Framework de agentes generales en Python (MIT, MetaGPT): navega, ejecuta código y encadena pasos. ⚠️ HONESTIDAD: su repo NO trae API HTTP — es CLI (main.py), flujo multi-agente (run_flow.py) y servidor MCP (run_mcp_server.py). Para que Aurora le delegue tareas hay que exponerlo tú: su MCP en modo SSE o un envoltorio que acepte POST {task}. Si no encaja, el conector devuelve un error claro y Aurora responde por su cuenta.",
+    kind: "service",
+    defaultPort: 8000,
+    contract: "POST {ruta propia} { task } — la ruta la declaras tú (extra.path)",
+    oss: true,
+  },
+  {
+    id: "databasement",
+    label: "Databasement (respaldo de bases de datos)",
+    blurb:
+      "Gestor auto-hospedado de COPIAS DE SEGURIDAD de bases de datos (MySQL, PostgreSQL, MongoDB, SQLite, Redis…) hacia S3/SFTP/local, con programación, retención GFS y restauración cruzada. ⚠️ HONESTIDAD: NO crea bases de datos nuevas — es el servidor de RESPALDO de los datos de tu cuenta/cerebro/perfil. Enlázalo con rol «Almacenamiento». Token de API por Sanctum.",
+    kind: "service",
+    defaultPort: 8080,
+    contract: "/up · /api/v1/database-servers · /api/v1/snapshots · /api/v1/jobs · /api/v1/volumes",
+    oss: true,
+  },
 ];
 
 export function ossConnectorById(id: string) {

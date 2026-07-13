@@ -13,6 +13,13 @@
  *                    (ONNX/WASM/WebGPU). MEJOR español local (`ef_dora`…).
  *                    Descarga ~80 MB la 1ª vez; luego local/offline.
  *   · "kitten"     → KittenTTS (25 MB int8, Apache-2.0, inglés). BETA (stub honesto).
+ *   · "voxcpm"     → OpenBMB/VoxCPM por ENDPOINT. **MOTOR PRINCIPAL** cuando
+ *                    tiene endpoint: TTS tokenizer-free (difusión autoregresiva),
+ *                    30 idiomas, 48 kHz, DISEÑO DE VOZ por descripción en
+ *                    lenguaje natural y clonación controlable. Apache-2.0.
+ *   · "voicebox"   → jamiepine/voicebox por ENDPOINT (app de escritorio local
+ *                    con API REST en 127.0.0.1:17493). Estudio de voz: perfiles
+ *                    clonados + 7 motores dentro (Qwen3-TTS, Kokoro…).
  *   · "bark"       → suno-ai/bark por ENDPOINT (servidor Python en una neurona
  *                    propia/CasaOS u hospedado). TTS generativo EXPRESIVO:
  *                    entona, ríe ([laughs]) y suspira ([sighs]).
@@ -21,10 +28,13 @@
  *                    Bark: puede clonar/refinar la referencia elegida.
  *   · "omnivoice"  → k2-fsa/OmniVoice por ENDPOINT. Voz neural MULTILINGÜE.
  *
- * Los tres motores por endpoint viven en `neural-tts.ts` (cliente HTTP genérico
- * y tolerante + ping con caché). La cadena de fallback "Aurora SIEMPRE habla"
- * vive en `speak-router.ts`: motor elegido → Kokoro → voz del navegador mejor
- * rankeada. La modulación emocional vive en `voice-style.ts`.
+ * Los cinco motores por endpoint viven en `neural-tts.ts` (cliente HTTP genérico
+ * y tolerante + ping con caché). El REGISTRO de motores con sus metadatos
+ * (realismo, idiomas, clonación, latencia…) y la SELECCIÓN AUTOMÁTICA del mejor
+ * disponible viven en `engine-registry.ts`. La cadena de fallback "Aurora SIEMPRE
+ * habla" vive en `speak-router.ts`: pin de personalidad → motor elegido → mejor
+ * motor disponible → Kokoro → voz del navegador mejor rankeada. La modulación
+ * emocional vive en `voice-style.ts`.
  *
  * Este módulo sólo gestiona la PREFERENCIA persistida (motor + voz + endpoints
  * + estilo emocional). No carga NADA pesado: importar este archivo es barato.
@@ -78,15 +88,28 @@ export type AuroraVoiceEngine =
   | "browser"
   | "kokoro"
   | "kitten"
+  | "voxcpm"
+  | "voicebox"
   | "bark"
   | "gpt-sovits"
   | "omnivoice";
 
 /** Motores NEURALES por endpoint (servidores Python: neurona/CasaOS u hospedados). */
-export type NeuralVoiceEngine = "bark" | "gpt-sovits" | "omnivoice";
+export type NeuralVoiceEngine =
+  | "voxcpm"
+  | "voicebox"
+  | "bark"
+  | "gpt-sovits"
+  | "omnivoice";
 
-/** Lista canónica de motores por endpoint (para iterar en UI/router). */
+/**
+ * Lista canónica de motores por endpoint (para iterar en UI/router), ORDENADA
+ * por realismo/recomendación: VoxCPM primero (motor PRINCIPAL cuando tiene
+ * endpoint), Voicebox después (estudio de voz local), y luego los históricos.
+ */
 export const NEURAL_VOICE_ENGINES: readonly NeuralVoiceEngine[] = [
+  "voxcpm",
+  "voicebox",
   "bark",
   "gpt-sovits",
   "omnivoice",
@@ -94,7 +117,13 @@ export const NEURAL_VOICE_ENGINES: readonly NeuralVoiceEngine[] = [
 
 /** ¿Es un motor por endpoint? */
 export function isNeuralEngine(e: unknown): e is NeuralVoiceEngine {
-  return e === "bark" || e === "gpt-sovits" || e === "omnivoice";
+  return (
+    e === "voxcpm" ||
+    e === "voicebox" ||
+    e === "bark" ||
+    e === "gpt-sovits" ||
+    e === "omnivoice"
+  );
 }
 
 /** Emociones soportadas por la modulación de voz (catálogo en voice-style.ts). */
@@ -149,13 +178,38 @@ export interface NeuralEngineSettings {
   /** Emoción por defecto propia del motor (si falta, la del estilo). */
   emotion?: AuroraVoiceEmotion;
   /**
-   * Solo gpt-sovits: audio de REFERENCIA para clonar (URL http(s) o ruta que el
-   * servidor entienda, p.ej. "refs/aurora.wav"). ~5 s de muestra bastan.
+   * gpt-sovits · voxcpm: audio de REFERENCIA para CLONAR (URL http(s) o ruta que
+   * el servidor entienda, p.ej. "refs/aurora.wav"). ~5 s de muestra bastan.
    * Modo simbiótico: puede ser una muestra generada por Bark.
    */
   refAudio?: string;
-  /** Solo gpt-sovits: transcripción del audio de referencia (prompt_text). */
+  /** gpt-sovits · voxcpm: transcripción del audio de referencia (prompt_text). */
   refText?: string;
+  /**
+   * Solo voxcpm: DISEÑO DE VOZ por descripción en lenguaje natural ("mujer joven,
+   * voz cálida y serena"). VoxCPM2 crea la voz SIN audio de referencia: la
+   * descripción viaja entre paréntesis al inicio del texto — `(descripción)Texto`.
+   * Si además hay `refAudio`, la descripción actúa como guía de estilo sobre la
+   * voz clonada (clonación controlable).
+   */
+  voiceDesign?: string;
+  /**
+   * Solo voicebox: id del PERFIL DE VOZ (uuid de `GET /profiles`). Es OBLIGATORIO
+   * para su `POST /generate/stream` (sin él, el servidor responde 404).
+   */
+  profileId?: string;
+  /**
+   * Nombre del MODELO en el servidor. voxcpm servido por vLLM-Omni lo exige en el
+   * cuerpo OpenAI-compatible (`/v1/audio/speech`, p.ej. "openbmb/VoxCPM2").
+   * voicebox lo usa como motor interno ("qwen" · "kokoro" · "chatterbox_turbo"…).
+   */
+  model?: string;
+  /**
+   * Instrucción de ENTREGA en lenguaje natural ("habla despacio", "susurra").
+   * La entiende voicebox (campo `instruct`, motores Qwen) y, como guía de estilo,
+   * voxcpm. Si falta, se deriva de la emoción activa (voice-style.ts).
+   */
+  instruct?: string;
 }
 
 export interface AuroraVoiceConfig {
@@ -185,6 +239,23 @@ export interface AuroraVoiceConfig {
    * eslabón del fallback. Ver speak-router.ts.
    */
   symbiotic?: boolean;
+  /**
+   * SELECCIÓN AUTOMÁTICA (por defecto TRUE — "Aurora elige sola").
+   * Con `auto` encendido, aunque el motor sea el del navegador, si hay un motor
+   * por endpoint CONFIGURADO y disponible (VoxCPM primero, luego Voicebox,
+   * GPT-SoVITS, Bark, OmniVoice) Aurora lo usa sin que el usuario cambie nada;
+   * si ninguno responde, cae a Kokoro y a la mejor voz neural del navegador.
+   * Ponerlo a `false` fija EXACTAMENTE el motor elegido (sin auto-mejora).
+   * La elección explícita de un motor (`engine !== "browser"`) SIEMPRE va primero
+   * en la cadena: `auto` solo añade eslabones detrás, nunca pisa la decisión.
+   * Ver engine-registry.ts::buildVoiceChain().
+   */
+  auto?: boolean;
+  /**
+   * Preset de voz aplicado por última vez (id de VOICE_PRESETS). Informativo:
+   * permite que el panel marque cuál está activo. El estado real es `style`.
+   */
+  presetId?: string;
 }
 
 /**
@@ -206,18 +277,38 @@ export const DEFAULT_VOICE_STYLE: AuroraVoiceStyle = {
   energy: 52,
 };
 
-/** Un preset de voz con nombre: aplica un `AuroraVoiceStyle` de un toque. */
+/**
+ * Un preset de voz con nombre: aplica un `AuroraVoiceStyle` de un toque.
+ *
+ * Además del estilo (que vale para CUALQUIER motor), cada preset puede llevar:
+ *   · `voiceDesign` → descripción en lenguaje natural para el DISEÑO DE VOZ de
+ *     VoxCPM2 (crea la voz sin audio de referencia: `(descripción)Texto`).
+ *   · `instruct`    → instrucción de ENTREGA para motores que la entienden
+ *     (Voicebox/Qwen3-TTS: "habla despacio, con calidez").
+ *   · `gender`      → preferencia de género (sesga el ranking de voces del
+ *     navegador y la voz sugerida de Kokoro). Informativo, nunca un filtro duro.
+ * Los tres son opcionales y ADITIVOS: un motor que no los soporte los ignora.
+ */
 export interface AuroraVoicePreset {
   id: string;
   label: string;
   hint: string;
   style: AuroraVoiceStyle;
+  /** Descripción de voz para VoxCPM (Voice Design). */
+  voiceDesign?: string;
+  /** Instrucción de entrega en lenguaje natural (Voicebox/Qwen · guía VoxCPM). */
+  instruct?: string;
+  /** Preferencia suave de género para el ranking de voces. */
+  gender?: "f" | "m" | "neutra";
 }
 
 /**
- * Presets de voz de un toque (el primero es el DEFAULT de fábrica). Sirven al
- * panel de Voz para ofrecer estilos bonitos sin tocar sliders. No son motores:
- * son modulaciones emocionales que valen para CUALQUIER motor.
+ * CATÁLOGO DE TIPOS DE VOZ PREDISEÑADOS (Adenda 67 · P2-4).
+ * El primero es el DEFAULT de fábrica. No son motores: son modulaciones que
+ * valen para CUALQUIER motor — y, donde el motor lo permite (VoxCPM/Voicebox),
+ * viajan además como descripción de voz / instrucción de entrega, así que el
+ * MISMO preset suena coherente en el navegador, en Kokoro y en VoxCPM.
+ * Todo sigue siendo ajustable después (velocidad · tono · energía · emoción).
  */
 export const AURORA_ORGANIC_PRESET_ID = "aurora-organica";
 export const VOICE_PRESETS: readonly AuroraVoicePreset[] = [
@@ -226,48 +317,137 @@ export const VOICE_PRESETS: readonly AuroraVoicePreset[] = [
     label: "Aurora · orgánica",
     hint: "Cálida y serena, ritmo natural (por defecto)",
     style: DEFAULT_VOICE_STYLE,
+    voiceDesign: "Voz femenina joven, cálida y serena, timbre natural y cercano, ritmo tranquilo",
+    instruct: "Habla con calidez y serenidad, a ritmo natural",
+    gender: "f",
   },
   {
     id: "aurora-dulce",
     label: "Cálida y cercana",
     hint: "Suave, dulce, acompaña",
     style: { emotion: "dulce", tone: "cálida", rate: 0.98, pitch: 1.08, energy: 50 },
+    voiceDesign: "Voz femenina suave y dulce, muy cercana, como quien acompaña en voz baja",
+    instruct: "Habla con dulzura y suavidad, muy cerca del oyente",
+    gender: "f",
   },
   {
     id: "aurora-clara",
     label: "Serena y clara",
     hint: "Calmada, nítida, informativa",
     style: { emotion: "serena", tone: "clara", rate: 1, pitch: 1, energy: 46 },
+    voiceDesign: "Voz clara y nítida, calmada y bien articulada, tono informativo",
+    instruct: "Habla con calma y claridad, articulando bien",
+    gender: "neutra",
   },
   {
     id: "aurora-vivaz",
     label: "Vivaz",
     hint: "Con chispa y energía",
     style: { emotion: "entusiasta", tone: "luminosa", rate: 1.06, pitch: 1.1, energy: 78 },
+    voiceDesign: "Voz luminosa y enérgica, con chispa y entusiasmo contagioso",
+    instruct: "Habla con energía y entusiasmo, con chispa",
+    gender: "f",
+  },
+  {
+    id: "aurora-seria",
+    label: "Seria y profesional",
+    hint: "Formal, precisa, con autoridad tranquila",
+    style: { emotion: "seria", tone: "profesional", rate: 0.98, pitch: 0.94, energy: 52 },
+    voiceDesign: "Voz adulta formal y precisa, con autoridad tranquila y sin dramatismo",
+    instruct: "Habla de forma seria, precisa y profesional",
+    gender: "neutra",
+  },
+  {
+    id: "aurora-narradora",
+    label: "Narradora",
+    hint: "Pausada y envolvente, para leer y contar",
+    style: { emotion: "serena", tone: "narrativa", rate: 0.92, pitch: 0.99, energy: 55 },
+    voiceDesign: "Voz de narradora de audiolibro, pausada y envolvente, con buena respiración",
+    instruct: "Narra con pausa, como un audiolibro, dejando respirar las frases",
+    gender: "f",
+  },
+  {
+    id: "aurora-empatica",
+    label: "Empática",
+    hint: "Comprensiva, sostiene y acompaña",
+    style: { emotion: "empatica", tone: "empática", rate: 0.94, pitch: 1.02, energy: 44 },
+    voiceDesign: "Voz comprensiva y empática, suave, que sostiene y acompaña sin invadir",
+    instruct: "Habla con empatía y calidez, despacio, acompañando",
+    gender: "f",
+  },
+  {
+    id: "aurora-misteriosa",
+    label: "Misteriosa",
+    hint: "Grave, intrigante, casi susurrada",
+    style: { emotion: "misteriosa", tone: "misteriosa", rate: 0.9, pitch: 0.88, energy: 38 },
+    voiceDesign: "Voz grave e intrigante, casi susurrada, con aire enigmático",
+    instruct: "Habla bajo y grave, con misterio, casi susurrando",
+    gender: "neutra",
+  },
+  {
+    id: "aurora-juguetona",
+    label: "Juguetona",
+    hint: "Traviesa, ligera, con sonrisa",
+    style: { emotion: "juguetona", tone: "juguetona", rate: 1.1, pitch: 1.16, energy: 74 },
+    voiceDesign: "Voz joven y traviesa, ligera, con una sonrisa permanente",
+    instruct: "Habla con picardía y ligereza, como si sonrieras",
+    gender: "f",
+  },
+  {
+    id: "aurora-alegre",
+    label: "Alegre",
+    hint: "Luminosa y positiva",
+    style: { emotion: "alegre", tone: "alegre", rate: 1.04, pitch: 1.12, energy: 72 },
+    voiceDesign: "Voz alegre y luminosa, positiva, con energía amable",
+    instruct: "Habla con alegría, luminosa y positiva",
+    gender: "f",
+  },
+  {
+    id: "aurora-grave",
+    label: "Grave y cálida",
+    hint: "Voz profunda, reposada",
+    style: { emotion: "serena", tone: "grave", rate: 0.95, pitch: 0.85, energy: 50 },
+    voiceDesign: "Voz masculina grave y cálida, profunda y reposada, timbre aterciopelado",
+    instruct: "Habla grave y reposado, con calidez",
+    gender: "m",
   },
   {
     id: "aurora-neutra",
     label: "Neutra",
     hint: "Sin modulación emocional",
     style: {},
+    gender: "neutra",
   },
 ];
 
-/** Config por defecto: navegador + estilo ORGÁNICO (cálido/sereno), sin autodescarga. */
+/**
+ * Config por defecto: navegador + estilo ORGÁNICO (cálido/sereno), sin
+ * autodescarga y con SELECCIÓN AUTOMÁTICA de motor encendida (si algún día
+ * aparece un endpoint VoxCPM configurado, Aurora lo usa sola).
+ */
 export const DEFAULT_VOICE_CONFIG: AuroraVoiceConfig = {
   engine: "browser",
   autoDownload: false,
+  auto: true,
   style: { ...DEFAULT_VOICE_STYLE },
+  presetId: AURORA_ORGANIC_PRESET_ID,
 };
 
 const VALID_ENGINES: readonly AuroraVoiceEngine[] = [
   "browser",
   "kokoro",
   "kitten",
+  "voxcpm",
+  "voicebox",
   "bark",
   "gpt-sovits",
   "omnivoice",
 ];
+
+/** ¿Es un id de motor de voz válido? (Útil para pins de personalidad.) */
+export function isVoiceEngineId(v: unknown): v is AuroraVoiceEngine {
+  return typeof v === "string" && (VALID_ENGINES as readonly string[]).includes(v);
+}
 
 function isValidEngine(v: unknown): v is AuroraVoiceEngine {
   return typeof v === "string" && (VALID_ENGINES as readonly string[]).includes(v);
@@ -339,6 +519,14 @@ function sanitizeEngineSettings(raw: unknown): NeuralEngineSettings | undefined 
   if (emotion) out.emotion = emotion;
   if (typeof r.refAudio === "string" && r.refAudio.trim()) out.refAudio = r.refAudio.trim();
   if (typeof r.refText === "string" && r.refText.trim()) out.refText = r.refText.trim();
+  if (typeof r.voiceDesign === "string" && r.voiceDesign.trim()) {
+    out.voiceDesign = r.voiceDesign.trim().slice(0, 300);
+  }
+  if (typeof r.profileId === "string" && r.profileId.trim()) out.profileId = r.profileId.trim();
+  if (typeof r.model === "string" && r.model.trim()) out.model = r.model.trim();
+  if (typeof r.instruct === "string" && r.instruct.trim()) {
+    out.instruct = r.instruct.trim().slice(0, 500); // Voicebox: max 500 chars
+  }
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -389,11 +577,29 @@ export function getVoiceConfig(): AuroraVoiceConfig {
       const browserVoiceURI =
         typeof parsed?.browserVoiceURI === "string" ? parsed.browserVoiceURI : undefined;
       const symbiotic = parsed?.symbiotic === true;
-      return { engine, voice, autoDownload, engines, style, browserVoiceURI, symbiotic };
+      // `auto` por defecto TRUE (configs viejas no lo traen: solo `false` lo apaga).
+      const auto = parsed?.auto !== false;
+      const presetId = typeof parsed?.presetId === "string" ? parsed.presetId : undefined;
+      return {
+        engine,
+        voice,
+        autoDownload,
+        engines,
+        style,
+        browserVoiceURI,
+        symbiotic,
+        auto,
+        presetId,
+      };
     }
     // Sin config unificada: honra el opt-in histórico de Kokoro si estaba ON.
     if (isOssTtsEnabled()) {
-      return { engine: "kokoro", autoDownload: false, style: { ...DEFAULT_VOICE_STYLE } };
+      return {
+        engine: "kokoro",
+        autoDownload: false,
+        auto: true,
+        style: { ...DEFAULT_VOICE_STYLE },
+      };
     }
   } catch {
     /* corrupto o inaccesible → default */
@@ -439,6 +645,11 @@ export function setVoiceConfig(patch: Partial<AuroraVoiceConfig>): void {
         ? (typeof patch.browserVoiceURI === "string" ? patch.browserVoiceURI : undefined)
         : current.browserVoiceURI,
     symbiotic: "symbiotic" in patch ? patch.symbiotic === true : current.symbiotic,
+    auto: "auto" in patch ? patch.auto !== false : current.auto !== false,
+    presetId:
+      "presetId" in patch
+        ? (typeof patch.presetId === "string" && patch.presetId ? patch.presetId : undefined)
+        : current.presetId,
   };
 
   if (ls) {
@@ -560,7 +771,9 @@ export function ensureOrganicVoiceDefault(): void {
     const seeded: AuroraVoiceConfig = {
       engine: "browser",
       autoDownload: false,
+      auto: true,
       style: { ...DEFAULT_VOICE_STYLE },
+      presetId: AURORA_ORGANIC_PRESET_ID,
     };
     ls.setItem(AURORA_VOICE_CONFIG_KEY, JSON.stringify(seeded));
     emitChange();
@@ -571,7 +784,10 @@ export function ensureOrganicVoiceDefault(): void {
 
 /**
  * Aplica un preset de voz con nombre (reemplaza el estilo, no lo fusiona: un
- * preset "Neutra" con `{}` limpia la modulación). Nunca lanza.
+ * preset "Neutra" con `{}` limpia la modulación) y recuerda cuál está activo
+ * (`presetId`) para que los motores que entienden lenguaje natural (VoxCPM ·
+ * Voicebox) puedan usar su `voiceDesign`/`instruct` sin pisar lo que el usuario
+ * haya escrito a mano en la config del motor. Nunca lanza.
  */
 export function applyVoicePreset(presetId: string): void {
   const preset = VOICE_PRESETS.find((p) => p.id === presetId);
@@ -579,7 +795,7 @@ export function applyVoicePreset(presetId: string): void {
   const ls = safeLocalStorage();
   const current = getVoiceConfig();
   const clean = sanitizeStyle(preset.style);
-  const next: AuroraVoiceConfig = { ...current, style: clean };
+  const next: AuroraVoiceConfig = { ...current, style: clean, presetId: preset.id };
   if (ls) {
     try {
       ls.setItem(AURORA_VOICE_CONFIG_KEY, JSON.stringify(next));
@@ -588,6 +804,27 @@ export function applyVoicePreset(presetId: string): void {
     }
   }
   emitChange();
+}
+
+/** Preset ACTIVO (el aplicado por última vez), o undefined. Nunca lanza. */
+export function getActiveVoicePreset(): AuroraVoicePreset | undefined {
+  try {
+    const id = getVoiceConfig().presetId;
+    if (!id) return undefined;
+    return VOICE_PRESETS.find((p) => p.id === id);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Busca un preset por id (o undefined). Nunca lanza. */
+export function findVoicePreset(id: string | undefined): AuroraVoicePreset | undefined {
+  if (!id) return undefined;
+  try {
+    return VOICE_PRESETS.find((p) => p.id === id);
+  } catch {
+    return undefined;
+  }
 }
 
 function emitChange(): void {

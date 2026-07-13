@@ -123,8 +123,12 @@ const FREE_KEY_SERVICE_IDS = [
  *
  * La clave se cifra (AES-GCM, `encryptKey`) con la passphrase por defecto — la
  * misma que usa `chat()` — y NUNCA se sincroniza con la cuenta.
+ *
+ * (Adenda 67 · P1) EXPORTADO: el Centro de Configuración de Aurora
+ * (`components/aurora/setup/*`) lo reutiliza tal cual en su pestaña «Conexiones»,
+ * para que exista UNA sola forma de guardar una clave en todo el OS.
  */
-function SourceKeyInput({ source, onSaved }: { source: CatalogSource; onSaved: () => void }) {
+export function SourceKeyInput({ source, onSaved }: { source: CatalogSource; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [account, setAccount] = useState("");

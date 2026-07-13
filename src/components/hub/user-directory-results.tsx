@@ -27,9 +27,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-    searchUsers, searchGroups, recommendations,
+    recommendations,
     type OsProfile, type SocialGroupHit, type UserRecommendation,
 } from "@/lib/social/os-profiles";
+// (Adenda 67 · P4-5) Búsqueda UNIFICADA: usa Typesense si el usuario lo tiene
+// configurado y habilitado; si no —o si falla— cae SOLA a la misma búsqueda de
+// Supabase de siempre. Misma firma que `os-profiles`, cero cambios de uso.
+import { searchUsers, searchGroups } from "@/lib/search/unified-search";
 import { createDm } from "@/lib/messages/dm";
 import { isFollowing, setFollow } from "@/lib/os-social";
 

@@ -83,6 +83,21 @@ export const SYNCED_KEYS = [
     // ── Aurora desde el arranque (2026-07-13) ─────────────────────────────────
     "starseed.aurora.fab.enabled.v1", // botón/orbe flotante de Aurora visible por defecto (ON) en todo el OS
     "starseed.aurora.intro.v1",       // onboarding de Aurora ya realizado (preguntas de preferencias)
+    // ── Centro de Configuración de Aurora y Astraura (Adenda 67 · P1) ─────────
+    "starseed.aurora.setup.v1",            // estado del centro de configuración (hecho / pospuesto)
+    "starseed.aurora.senses.v1",           // config por sentido (motor/fuente/memoria/herramientas/tono)
+    "starseed.aurora.persona-profiles.v1", // perfiles de personalidad (avatar, permisos, aprendizaje)
+    "starseed.astraura.deploy.v1",         // qué habilidades/repos se instalan en cada neurona/cerebro/perfil
+    "starseed.astraura.scope.v1",          // ámbito unificado de Astraura (cuenta/grupos/páginas/entidades)
+    // ── Conectores de integraciones (Adenda 67 · P4). Solo endpoints/preferencias:
+    //    las CLAVES de cada servicio quedan cifradas en el dispositivo, nunca viajan.
+    "starseed.integration.typesense",        // búsqueda (con caída a Supabase)
+    "starseed.integration.postiz",           // publicación en redes (siempre con confirmación explícita)
+    "starseed.integration.tencentdb-memory", // memoria de agente por gateway HTTP
+    "starseed.integration.databasement",     // servidor de copias de seguridad de cuenta/cerebro/perfil
+    "starseed.integration.openmanus",        // delegación de tareas a agentes
+    "starseed.integration.penpot",           // diseño/lienzo por instancia
+    "starseed.integration.opencut",          // edición de vídeo
     // ── Alarmas funcionales (jul-2026 · lib/alarms/alarms.ts) ─────────────────
     "starseed.alarms.v1", // alarmas del usuario (mensajes/correos/invitaciones a eventos) + snooze/descarte
     // ── Hub de Conectores por usuario (jul-2026 · connector-credentials.ts) ───

@@ -255,6 +255,96 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     docsUrl: "https://www.figma.com/developers/api#access-tokens",
     configHint: "figd_… (Personal Access Token)",
   },
+
+  /* ═════════════ Adenda 67 · P4 (jul-2026) ══════════════════════════════
+   * Cinco conectores nuevos en el Hub. Se ordenan por el principio rector del
+   * fichero: primero lo PROPIO/OSS auto-hospedado, y solo después el servicio
+   * externo con clave. Ninguno se activa solo. */
+
+  // ── Búsqueda propia (P4-5) ──
+  {
+    id: "typesense",
+    name: "Typesense (auto-hospedado)",
+    category: "search",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: true,
+    icon: "Search",
+    description:
+      "Motor de búsqueda OSS, instantáneo y tolerante a erratas (alternativa a Algolia). Si lo conectas, la búsqueda de personas y grupos del OS lo usa; si no —o si se cae— cae sola a Supabase. Nunca te quedas sin búsqueda. Usa una clave de SOLO BÚSQUEDA, jamás la admin key.",
+    repo: "https://github.com/typesense/typesense",
+    docsUrl: "https://typesense.org/docs/latest/api/search.html",
+    configHint: "http://tu-neurona:8108",
+  },
+
+  // ── Memoria de agentes (P4-6) ──
+  {
+    id: "tencentdb-memory",
+    name: "TencentDB Agent Memory",
+    category: "memory",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "available",
+    free: true,
+    recommended: true,
+    icon: "Brain",
+    description:
+      "Memoria de largo plazo POR CAPAS para tus cerebros (conversación → átomo → escena → persona) + memoria simbólica que ahorra tokens. 100% local por defecto (SQLite), sin APIs externas. Trae Gateway HTTP propio: levántalo en tu neurona y pega su URL.",
+    repo: "https://github.com/TencentCloud/TencentDB-Agent-Memory",
+    docsUrl: "https://github.com/TencentCloud/TencentDB-Agent-Memory",
+    configHint: "http://tu-neurona:8420",
+  },
+  {
+    id: "mempalace",
+    name: "MemPalace (local · CLI/MCP)",
+    category: "memory",
+    kind: "own",
+    authType: "localEndpoint",
+    status: "needs-auth",
+    free: true,
+    icon: "Library",
+    description:
+      "Memoria local-first que guarda tus conversaciones LITERALMENTE y las recupera por búsqueda semántica (palacio de la memoria: alas, habitaciones, cajones). ⚠️ HONESTIDAD: no expone API HTTP — su MCP habla por stdio, así que el navegador no puede sincronizar con él. Declara aquí un puente HTTP propio si lo montas; si no, úsalo desde tu agente local.",
+    repo: "https://github.com/mempalace/mempalace",
+    docsUrl: "https://mempalaceofficial.com/guide/getting-started.html",
+    configHint: "vacío = solo local (CLI/MCP) · o la URL de tu puente HTTP",
+  },
+
+  // ── Agentes complejos (P4-1) ──
+  {
+    id: "openmanus",
+    name: "OpenManus (agente general)",
+    category: "custom",
+    kind: "oss",
+    authType: "localEndpoint",
+    status: "needs-auth",
+    free: true,
+    icon: "Bot",
+    description:
+      "Agente general OSS (MIT) al que Aurora puede DELEGAR tareas complejas de varios pasos. ⚠️ No trae API HTTP oficial (es CLI + servidor MCP): tienes que exponerlo tú en tu neurona y declarar la ruta. Sin eso, Aurora no delega y te lo dice — no finge haberlo hecho.",
+    repo: "https://github.com/FoundationAgents/OpenManus",
+    docsUrl: "https://github.com/FoundationAgents/OpenManus",
+    configHint: "http://tu-neurona:8000 (+ ruta en Ajustes → Integraciones)",
+  },
+
+  // ── Redes sociales (P4-8) ──
+  {
+    id: "postiz",
+    name: "Postiz (redes sociales)",
+    category: "social",
+    kind: "oss",
+    authType: "apiKey",
+    status: "needs-auth",
+    free: true,
+    icon: "Megaphone",
+    description:
+      "Publica y programa en ~32 redes (X, LinkedIn, Instagram, Mastodon, Bluesky, Telegram, Discord…). OSS y auto-hospedable, o su nube. Añade al Lienzo la acción «Publicar también en redes». ⚠️ Irreversible y NUNCA automático: solo sale lo que confirmes a mano, con canales y texto a la vista.",
+    repo: "https://github.com/gitroomhq/postiz-app",
+    docsUrl: "https://docs.postiz.com/public-api",
+    configHint: "Clave de Ajustes → Desarrolladores → Public API",
+  },
 ];
 
 /** Lookup rápido por id (para no recorrer el array en cada acceso). */

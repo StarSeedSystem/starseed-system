@@ -423,6 +423,174 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
       { id: "search", label: "Buscar en la web", description: "Realiza una búsqueda web y devuelve resultados (requiere format JSON activo)." },
     ],
   },
+
+  /* ════════════════════════════════════════════════════════════════
+   * ADENDA 67 · P4 — Integraciones nuevas (jul-2026)
+   * Cada una declara HONESTAMENTE lo que es:
+   *   · Typesense / Postiz / TencentDB Memory / Databasement → CONECTOR REAL
+   *     por endpoint (API documentada y verificada; se llaman de verdad).
+   *   · OpenManus → CONECTOR EXPERIMENTAL: su repo NO trae API HTTP oficial
+   *     (es CLI + servidor MCP); requiere que el usuario lo exponga.
+   *   · Penpot / OpenCut → INSTANCIA WEB (URL): no tienen API que el OS pueda
+   *     usar; el conector solo comprueba que responden y construye enlaces.
+   * SOP: architecture/astraura-inteligencia.md · tasks.md Adenda 67 P4.
+   * ════════════════════════════════════════════════════════════════ */
+
+  // ── Búsqueda (P4-5) ───────────────────────────────────────────
+  {
+    id: "typesense",
+    ossId: "typesense",
+    label: "Typesense",
+    category: "backend",
+    capabilities: [
+      "Búsqueda instantánea tolerante a erratas",
+      "Indexa personas, grupos y publicaciones de la red",
+      "Alternativa OSS a Algolia/Elasticsearch",
+    ],
+    defaultEndpoint: "http://localhost:8108",
+    needsKey: true,
+    docsUrl: "https://typesense.org/docs/latest/api/search.html",
+    // Typesense Cloud tiene plan de prueba, pero lo soberano es el contenedor
+    // propio: `docker run -p 8108:8108 typesense/typesense` en la neurona/CasaOS.
+    freeHostingHint:
+      "Self-host GRATIS con Docker en tu neurona o CasaOS (imagen typesense/typesense, puerto 8108, --api-key propio). Usa una clave de SOLO BÚSQUEDA (search-only) en el OS, nunca la admin key. Si no lo configuras, la búsqueda del OS sigue funcionando con Supabase.",
+    actions: [
+      { id: "search", label: "Buscar", description: "Busca en una colección de Typesense (q + query_by)." },
+      { id: "collections", label: "Colecciones", description: "Lista las colecciones y cuántos documentos tienen." },
+    ],
+  },
+
+  // ── Redes sociales (P4-8) ─────────────────────────────────────
+  {
+    id: "postiz",
+    ossId: "postiz",
+    label: "Postiz",
+    category: "automation",
+    capabilities: [
+      "Publicar y programar en ~32 redes sociales",
+      "Listar los canales conectados",
+      "Crossposting desde el Lienzo Universal (con confirmación explícita)",
+    ],
+    // La nube oficial funciona con la misma API pública que el self-host.
+    defaultEndpoint: "https://api.postiz.com",
+    needsKey: true,
+    docsUrl: "https://docs.postiz.com/public-api",
+    freeHostingHint:
+      "Self-host GRATIS con Docker (ghcr.io/gitroomhq/postiz-app) en tu neurona/CasaOS: entonces el endpoint es tu propio backend + /public/v1. La nube (api.postiz.com) también sirve, con la misma clave (Ajustes → Desarrolladores → Public API). ⚠️ Publicar en redes externas es IRREVERSIBLE: el OS nunca lo hace solo, siempre con tu confirmación explícita.",
+    actions: [
+      { id: "integrations", label: "Canales conectados", description: "Lista las redes conectadas en tu Postiz." },
+      { id: "publish", label: "Publicar en redes", description: "Publica o programa un texto en los canales que elijas. Requiere confirmación explícita del usuario." },
+    ],
+  },
+
+  // ── Memoria de agentes (P4-6) ─────────────────────────────────
+  {
+    id: "tencentdb-memory",
+    ossId: "tencentdb-agent-memory",
+    label: "TencentDB Agent Memory",
+    category: "backend",
+    capabilities: [
+      "Memoria de largo plazo por capas (L0→L3: conversación → átomo → escena → persona)",
+      "Memoria simbólica de corto plazo (lienzo Mermaid, ahorra tokens)",
+      "100% local por defecto (SQLite + sqlite-vec), sin APIs externas",
+    ],
+    defaultEndpoint: "http://localhost:8420",
+    needsKey: false, // el gateway acepta clave, pero por defecto va sin ella
+    docsUrl: "https://github.com/TencentCloud/TencentDB-Agent-Memory",
+    freeHostingHint:
+      "Levanta su Gateway HTTP en tu neurona (imagen Docker oficial, puerto 8420). Autoriza el origen del OS en su allow-list de CORS y, si lo expones fuera de localhost, define TDAI_GATEWAY_API_KEY (su propio código avisa si lo dejas abierto).",
+    actions: [
+      { id: "recall", label: "Recordar", description: "Recupera memoria relevante para el turno actual (POST /recall)." },
+      { id: "capture", label: "Capturar", description: "Guarda la conversación en la memoria por capas (POST /capture)." },
+      { id: "search-memories", label: "Buscar en la memoria", description: "Busca en la memoria de largo plazo (POST /search/memories)." },
+      { id: "session-end", label: "Cerrar sesión", description: "Cierra la sesión y dispara la destilación por capas (POST /session/end)." },
+    ],
+  },
+
+  // ── Respaldo de bases de datos (P4-7) ─────────────────────────
+  {
+    id: "databasement",
+    ossId: "databasement",
+    label: "Databasement (respaldo de BD)",
+    category: "backend",
+    capabilities: [
+      "Copias de seguridad programadas de MySQL/PostgreSQL/MongoDB/SQLite/Redis…",
+      "Destinos S3, SFTP, FTP o disco local; túnel SSH y agentes remotos",
+      "Restauración cruzada entre servidores",
+    ],
+    defaultEndpoint: "http://localhost:8080",
+    needsKey: true,
+    docsUrl: "https://david-crty.github.io/databasement/",
+    freeHostingHint:
+      "Self-host con Docker (davidcrty/databasement) o Helm en tu neurona. Token de API por Sanctum. HONESTIDAD: NO crea bases de datos nuevas — es un gestor de COPIAS DE SEGURIDAD; en StarSeed encaja como el servidor de RESPALDO de los datos de tu cuenta/cerebro/perfil.",
+    actions: [
+      { id: "servers", label: "Servidores de BD", description: "Lista los servidores de base de datos registrados." },
+      { id: "snapshots", label: "Instantáneas", description: "Lista las copias ya realizadas." },
+      { id: "backup-now", label: "Respaldar ahora", description: "Lanza una copia de seguridad de un servidor. Acción con efectos: solo con confirmación del usuario." },
+    ],
+  },
+
+  // ── Agentes complejos (P4-1) ──────────────────────────────────
+  {
+    id: "openmanus",
+    ossId: "openmanus",
+    label: "OpenManus (agente general)",
+    category: "app-platform",
+    capabilities: [
+      "Delegar tareas complejas de varios pasos a un agente Python",
+      "Navegación, ejecución de código y análisis de datos",
+      "Multi-agente (run_flow) y servidor MCP (run_mcp_server.py)",
+    ],
+    defaultEndpoint: "http://localhost:8000",
+    needsKey: false,
+    docsUrl: "https://github.com/FoundationAgents/OpenManus",
+    // Honestidad dura: OpenManus NO trae servidor HTTP en su repo.
+    freeHostingHint:
+      "⚠️ HONESTIDAD: OpenManus NO expone una API HTTP oficial — es una CLI (`python main.py`), un flujo multi-agente (`run_flow.py`) y un servidor MCP (`run_mcp_server.py`). Para que Aurora pueda delegarle tareas hace falta que TÚ lo expongas por HTTP en tu neurona: su servidor MCP en modo SSE, o un envoltorio mínimo que acepte `POST {ruta} {task}`. Indica la ruta exacta en «extra.path». Conector EXPERIMENTAL: si tu envoltorio no encaja, devuelve un error claro y Aurora sigue respondiendo por su cuenta.",
+    actions: [
+      { id: "run-task", label: "Delegar tarea", description: "Envía una tarea en lenguaje natural al agente OpenManus (endpoint propio)." },
+    ],
+  },
+
+  // ── Instancias web sin API (P4-2 y P4-3) ──────────────────────
+  {
+    id: "penpot",
+    ossId: "penpot",
+    label: "Penpot (diseño)",
+    category: "app-platform",
+    capabilities: [
+      "Lienzo de diseño, pizarras y prototipos (open source, MPL-2.0)",
+      "Enlaces de vista compartibles que se pueden publicar en la red",
+      "Instancia oficial (design.penpot.app) o auto-hospedada",
+    ],
+    defaultEndpoint: "https://design.penpot.app",
+    needsKey: false,
+    docsUrl: "https://help.penpot.app/user-guide/view-mode/",
+    freeHostingHint:
+      "La instancia oficial design.penpot.app es gratuita, o auto-hospédalo con Docker Compose. ⚠️ HONESTIDAD: penpot.app envía «X-Frame-Options: SAMEORIGIN» (verificado con curl), así que NO se puede INCRUSTAR en el OS: el bloque de publicación «Diseño Penpot» muestra una tarjeta con enlace. En TU propia instancia sí puedes permitir la incrustación (y entonces el bloque la ofrece).",
+    actions: [
+      { id: "ping", label: "Comprobar instancia", description: "Comprueba que tu instancia de Penpot responde. No hay más API que el OS use." },
+    ],
+  },
+  {
+    id: "opencut",
+    ossId: "opencut",
+    label: "OpenCut (vídeo)",
+    category: "app-platform",
+    capabilities: [
+      "Editor de vídeo web open source (MIT), alternativa a CapCut",
+      "Corta y monta en el navegador; los ficheros no salen de tu equipo",
+      "Instancia pública (opencut.app) o auto-hospedada",
+    ],
+    defaultEndpoint: "https://opencut.app",
+    needsKey: false,
+    docsUrl: "https://github.com/opencut-app/opencut",
+    freeHostingHint:
+      "opencut.app está en vivo (versión «classic») y es gratis, o auto-hospédalo desde el monorepo. ⚠️ HONESTIDAD: OpenCut NO tiene API hoy — su «Editor API», el modo headless y su servidor MCP están anunciados como FUTUROS en su propio README. El OS abre el editor y publica el vídeo YA exportado (bloque «Vídeo»); no puede editarlo por ti.",
+    actions: [
+      { id: "ping", label: "Comprobar instancia", description: "Comprueba que la instancia del editor responde. No hay más API que el OS use." },
+    ],
+  },
 ];
 
 // ── Helpers de búsqueda ──────────────────────────────────────────
