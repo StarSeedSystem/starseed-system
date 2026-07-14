@@ -44,13 +44,16 @@ import {
     patchLayer,
     removeLayer,
     reorderLayers,
+    replaceAudiomorphicVisual,
     type BackgroundLayer,
     type BlendMode,
     type LayerKind,
 } from "@/lib/appearance/background-layers";
-// Motor NATIVO (Adenda 68 · E): los parámetros REALES del visualizador portado.
+// Motor NATIVO (Adenda 68·E; COMPLETO en la 69·K): los parámetros REALES.
 import {
     DEFAULT_PARAMS,
+    SG_MODES as ALL_SG_MODES,
+    SG_MODE_LABELS,
     resolveParams,
     type AutoPilotMode,
     type SacredGeometryMode,
@@ -58,12 +61,15 @@ import {
 } from "@/lib/audiomorphic/types";
 import {
     AUDIOMORPHIC_MIC_EVENT,
+    getMetrics,
     getMicError,
     getMicState,
     startMic,
     stopMic,
     type MicState,
 } from "@/lib/audiomorphic/audio-analyzer";
+// El MISMO panel de la app: la capa de fondo tiene el menú de ajustes COMPLETO.
+import AudiomorphicControlPanel from "@/components/dashboard/apps/audiomorphic/control-panel";
 
 const BLENDS: { id: BlendMode; label: string }[] = [
     { id: "normal", label: "Normal" },
@@ -129,12 +135,87 @@ const PILOT_MODES: { id: AutoPilotMode; label: string; hint: string }[] = [
     { id: "genesis", label: "Génesis", hint: "La energía del sonido escala la creación: Vacío → Vesica → Flor → Metatrón." },
 ];
 
-const SG_MODES: { id: SacredGeometryMode; label: string }[] = [
-    { id: "flowerOfLife", label: "Flor de la Vida" },
-    { id: "goldenSpiral", label: "Espiral Áurea" },
-    { id: "quantumWave", label: "Onda Cuántica" },
-    { id: "torus", label: "Toroide" },
-];
+/**
+ * Las **20** geometrías reales (Adenda 69·K). Antes solo se ofrecían 4 porque el
+ * port venía de la repo equivocada.
+ */
+const SG_MODES: { id: SacredGeometryMode; label: string }[] = ALL_SG_MODES.map((id) => ({
+    id,
+    label: SG_MODE_LABELS[id],
+}));
+
+/**
+ * Solo se persiste lo que DIFIERE del defecto de la app original.
+ * Guardar los ~90 parámetros enteros (con los `sgSettings` de las 20 geometrías)
+ * engordaría `user_settings.prefs` en cada cambio — justo el problema que la
+ * Adenda 68 se pasó arreglando. Con el diff, una capa típica ocupa cuatro claves.
+ */
+function diffFromDefaults(next: VisualizerParams): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    const d = DEFAULT_PARAMS as unknown as Record<string, unknown>;
+    const n = next as unknown as Record<string, unknown>;
+    for (const key of Object.keys(n)) {
+        if (key === "geometryData") continue; // dato vivo: nunca se persiste
+        const a = n[key];
+        const b = d[key];
+        if (typeof a === "object" && a !== null) {
+            if (JSON.stringify(a) !== JSON.stringify(b)) out[key] = a;
+        } else if (a !== b) {
+            out[key] = a;
+        }
+    }
+    return out;
+}
+
+/** El menú de ajustes COMPLETO (el mismo de la app) para una capa de fondo. */
+function AudiomorphicFullSettings({ visual, onReplaceVisual, onClose }: {
+    visual: Record<string, unknown>;
+    onReplaceVisual: (v: Record<string, unknown>) => void;
+    onClose: () => void;
+}) {
+    const params = resolveParams(visual as Partial<VisualizerParams>);
+    const [micState, setMicState] = useState<MicState>(getMicState());
+
+    useEffect(() => {
+        const on = (e: Event) => setMicState((e as CustomEvent<{ state: MicState }>).detail.state);
+        window.addEventListener(AUDIOMORPHIC_MIC_EVENT, on);
+        setMicState(getMicState());
+        return () => window.removeEventListener(AUDIOMORPHIC_MIC_EVENT, on);
+    }, []);
+
+    // `setParams` del panel → parche de la capa (solo el diff con los defectos).
+    const setParams: React.Dispatch<React.SetStateAction<VisualizerParams>> = (upd) => {
+        const next = typeof upd === "function"
+            ? (upd as (p: VisualizerParams) => VisualizerParams)(resolveParams(visual as Partial<VisualizerParams>))
+            : upd;
+        onReplaceVisual(diffFromDefaults(next));
+    };
+
+    const toggleAudio = async () => {
+        if (getMicState() === "live") {
+            stopMic();
+            return;
+        }
+        const ok = await startMic(params.audioSource);
+        if (!ok) toast.error(getMicError() ?? "No se pudo abrir el audio");
+    };
+
+    return (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm">
+            <div className="flex h-[92vh] w-full max-w-5xl flex-col">
+                <AudiomorphicControlPanel
+                    params={params}
+                    setParams={setParams}
+                    audioActive={micState === "live"}
+                    toggleAudio={toggleAudio}
+                    onClose={onClose}
+                    getAudioMetrics={getMetrics}
+                    context="background"
+                />
+            </div>
+        </div>
+    );
+}
 
 function Slider({ label, value, min, max, step, onChange, fmt }: {
     label: string; value: number; min: number; max: number; step: number;
@@ -155,16 +236,19 @@ function Slider({ label, value, min, max, step, onChange, fmt }: {
     );
 }
 
-function AudiomorphicControls({ layer, onPatch, onPatchVisual }: {
+function AudiomorphicControls({ layer, onPatch, onPatchVisual, onReplaceVisual }: {
     layer: BackgroundLayer;
     onPatch: (p: Partial<NonNullable<BackgroundLayer["audiomorphic"]>>) => void;
     onPatchVisual: (p: Record<string, unknown>) => void;
+    onReplaceVisual: (v: Record<string, unknown>) => void;
 }) {
     const a = layer.audiomorphic!;
     const native = a.engine !== "iframe";
     // Los parámetros REALES del motor (lo que no esté guardado = defecto original).
     const v = resolveParams(a.visual as Partial<VisualizerParams>);
     const [micState, setMicState] = useState<MicState>(getMicState());
+    /** Menú de ajustes COMPLETO (el mismo de la app) sobre esta capa. */
+    const [fullOpen, setFullOpen] = useState(false);
 
     useEffect(() => {
         const on = (e: Event) => setMicState((e as CustomEvent<{ state: MicState }>).detail.state);
@@ -188,13 +272,20 @@ function AudiomorphicControls({ layer, onPatch, onPatchVisual }: {
     };
 
     const toggleSg = (mode: SacredGeometryMode) => {
-        const cur = v.sgResonanceModes;
+        const cur = v.spiralResonanceModes;
         const next = cur.includes(mode) ? cur.filter((m) => m !== mode) : [...cur, mode];
-        onPatchVisual({ sgResonanceModes: next.length ? next : [mode] });
+        onPatchVisual({ spiralResonanceModes: next });
     };
 
     return (
         <div className="mt-2 space-y-3 rounded-xl border border-purple-400/25 bg-purple-400/[0.04] p-3">
+            {fullOpen && (
+                <AudiomorphicFullSettings
+                    visual={a.visual ?? {}}
+                    onReplaceVisual={onReplaceVisual}
+                    onClose={() => setFullOpen(false)}
+                />
+            )}
             {/* Motor */}
             <div>
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
@@ -308,32 +399,46 @@ function AudiomorphicControls({ layer, onPatch, onPatchVisual }: {
                         </p>
                     </div>
 
-                    {/* Geometría sagrada (solo en Génesis) */}
-                    {v.autoPilotMode === "genesis" && (
-                        <div>
-                            <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
-                                Geometría en resonancia
-                            </span>
-                            <div className="flex flex-wrap gap-1.5">
-                                {SG_MODES.map((m) => (
-                                    <button
-                                        key={m.id}
-                                        type="button"
-                                        onClick={() => toggleSg(m.id)}
-                                        aria-pressed={v.sgResonanceModes.includes(m.id)}
-                                        className={cn(
-                                            "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
-                                            v.sgResonanceModes.includes(m.id)
-                                                ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-100"
-                                                : "border-border/50 text-muted-foreground hover:bg-white/5",
-                                        )}
-                                    >
-                                        {m.label}
-                                    </button>
-                                ))}
-                            </div>
+                    {/* MENÚ COMPLETO (Adenda 69·K) — el MISMO panel de la app.
+                        Lo de aquí abajo son solo los atajos más usados. */}
+                    <button
+                        type="button"
+                        onClick={() => setFullOpen(true)}
+                        className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-cyan-400/50 bg-cyan-400/10 px-3 py-2 text-[11px] font-bold text-cyan-100 transition-colors hover:bg-cyan-400/20"
+                    >
+                        <SlidersHorizontal className="size-3.5" />
+                        Menú de ajustes COMPLETO (todas las opciones)
+                    </button>
+                    <p className="text-[10px] leading-relaxed text-muted-foreground/60">
+                        Abre el panel entero de Audiomorphic: aleatorizador, autorregeneración, las{" "}
+                        <b>20 geometrías sagradas</b>, perturbación de la espiral, temas, color, reactividad y
+                        presets. Todo <b>desbloqueado</b>. Abajo quedan los atajos rápidos.
+                    </p>
+
+                    {/* Geometría en resonancia (perturba la espiral) — las 20 reales */}
+                    <div>
+                        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+                            Geometría en resonancia
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                            {SG_MODES.map((m) => (
+                                <button
+                                    key={m.id}
+                                    type="button"
+                                    onClick={() => toggleSg(m.id)}
+                                    aria-pressed={v.spiralResonanceModes.includes(m.id)}
+                                    className={cn(
+                                        "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                                        v.spiralResonanceModes.includes(m.id)
+                                            ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-100"
+                                            : "border-border/50 text-muted-foreground hover:bg-white/5",
+                                    )}
+                                >
+                                    {m.label}
+                                </button>
+                            ))}
                         </div>
-                    )}
+                    </div>
 
                     {/* Parámetros REALES del motor */}
                     <div className="grid gap-2.5 sm:grid-cols-2">
@@ -625,6 +730,7 @@ export function BackgroundLayersPanel() {
                                             layer={layer}
                                             onPatch={(p) => setLayers(patchAudiomorphic(layers, layer.id, p))}
                                             onPatchVisual={(p) => setLayers(patchAudiomorphicVisual(layers, layer.id, p))}
+                                            onReplaceVisual={(v) => setLayers(replaceAudiomorphicVisual(layers, layer.id, v))}
                                         />
                                     )}
                                 </div>

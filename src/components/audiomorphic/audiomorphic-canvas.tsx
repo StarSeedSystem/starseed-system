@@ -1,44 +1,40 @@
 "use client";
 
 /**
- * AudiomorphicCanvas — el visualizador NATIVO del OS (Adenda 68 · E)
+ * AudiomorphicCanvas — el visualizador NATIVO del OS (Adenda 69 · K)
  * ============================================================================
  * UN solo componente para las DOS superficies:
  *
- *   • APP  (`/audiomorphic`)      → `transparent={false}` (fondo negro, como la
- *                                    app original).
- *   • FONDO (capa de `background`) → `transparent`         → **alfa REAL**: el
- *                                    espiral se compone de verdad sobre las
- *                                    capas de abajo. Sin iframe, sin
- *                                    `mix-blend-mode: screen`, sin trucos.
+ *   • APP  (`/audiomorphic`)      → `withBackground` → pinta también el FONDO
+ *                                    propio del visualizador (6 modos + viñeta),
+ *                                    igual que la app original.
+ *   • FONDO (capa de `background`) → sin fondo propio → **alfa REAL**: el espiral
+ *                                    se compone de verdad sobre las capas del OS.
+ *                                    Sin iframe, sin `mix-blend-mode: screen`.
  *
  * ── RENDIMIENTO (reglas del OS) ─────────────────────────────────────────────
- *  · Pestaña oculta (`document.hidden`) → el bucle SE PARA (0 % CPU). Es un
- *    canvas 2D con 2.000 iteraciones por fotograma: dejarlo corriendo detrás
- *    sería quemar batería para nadie.
- *  · `prefers-reduced-motion` → NO se anima: se pinta **un fotograma estático**
- *    y se para. (El usuario puede forzar la animación con `forceMotion`.)
- *  · Modo "eco" (`device-tier`) → menos detalle (iteraciones), DPR 1 y tope de
- *    ~30 fps. Se degrada, no se apaga.
- *  · React NO re-renderiza por fotograma: el piloto automático y el renderer
- *    son objetos mutables leídos por el bucle (`requestAnimationFrame`).
- *
- * ⚠️ `alpha` del contexto 2D solo puede fijarse al CREAR el contexto: por eso
- * el <canvas> se remonta (`key`) si cambia `transparent`.
+ *  · Pestaña oculta (`document.hidden`) → el bucle SE PARA (0 % CPU).
+ *  · `prefers-reduced-motion` → un fotograma estático y fuera (salvo `forceMotion`).
+ *  · Modo "eco" (`device-tier`) → menos iteraciones, DPR 1 y tope de ~30 fps.
+ *  · React NO re-renderiza por fotograma: piloto y renderer son objetos mutables
+ *    que el bucle consulta.
  */
 
 import React, { useEffect, useRef, useState } from "react";
 import { AudiomorphicRenderer } from "@/lib/audiomorphic/renderer";
+import { AudiomorphicBackground } from "@/lib/audiomorphic/background-modes";
 import { AudiomorphicAutopilot } from "@/lib/audiomorphic/autopilot";
 import { acquireMic, getMetrics } from "@/lib/audiomorphic/audio-analyzer";
-import { resolveParams, type GeometryInfo, type VisualizerParams } from "@/lib/audiomorphic/types";
+import { resolveParams, SILENT_METRICS, type GeometryInfo, type VisualizerParams } from "@/lib/audiomorphic/types";
 import { PERF_CHANGED_EVENT, resolveApplied } from "@/lib/perf/device-tier";
 
 export interface AudiomorphicCanvasProps {
     /** Parámetros del visualizador (parciales: el resto cae a los del original). */
     params?: Partial<VisualizerParams> | null;
-    /** `true` ⇒ canvas con transparencia REAL (capa de fondo). */
+    /** `true` ⇒ capa de fondo del OS (sin fondo propio, alfa real). */
     transparent?: boolean;
+    /** `true` ⇒ pinta el fondo propio del visualizador (bgMode + viñeta). */
+    withBackground?: boolean;
     className?: string;
     /** Congela el bucle sin desmontar (p. ej. capa oculta). */
     paused?: boolean;
@@ -60,12 +56,14 @@ function prefersReducedMotion(): boolean {
 export function AudiomorphicCanvas({
     params,
     transparent = false,
+    withBackground = false,
     className,
     paused = false,
     forceMotion = false,
     onGeometry,
 }: AudiomorphicCanvasProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const bgCanvasRef = useRef<HTMLCanvasElement>(null);
     const hostRef = useRef<HTMLDivElement>(null);
 
     // Los parámetros viven en un ref: el bucle lee SIEMPRE lo último sin re-montar.
@@ -102,15 +100,29 @@ export function AudiomorphicCanvas({
             },
             paramsRef.current.baseHue,
         );
+
+        const bgCanvas = bgCanvasRef.current;
+        const background = withBackground && bgCanvas ? new AudiomorphicBackground(bgCanvas) : null;
+
         const pilot = new AudiomorphicAutopilot(paramsRef.current);
         const releaseMic = acquireMic();
 
+        let vw = host.clientWidth;
+        let vh = host.clientHeight;
+
+        const resize = (w: number, h: number) => {
+            vw = w;
+            vh = h;
+            renderer.resize(w, h);
+            background?.resize(w, h);
+        };
+
         const ro = new ResizeObserver((entries) => {
             const box = entries[0]?.contentRect;
-            if (box) renderer.resize(box.width, box.height);
+            if (box) resize(box.width, box.height);
         });
         ro.observe(host);
-        renderer.resize(host.clientWidth, host.clientHeight);
+        resize(vw, vh);
 
         // Movimiento reducido: un fotograma estático y fuera. Sin bucle, sin CPU.
         const still = prefersReducedMotion() && !forceMotion;
@@ -131,9 +143,10 @@ export function AudiomorphicCanvas({
             const p = paramsRef.current;
             const metrics = getMetrics(p.sensitivity, p.freqRange);
 
-            if (p.autoPilot) pilot.step(p, metrics);
+            if (p.autoPilot) pilot.step(p, metrics, { width: vw, height: vh });
             const live = pilot.apply(p);
 
+            background?.render(live, metrics);
             renderer.render(live, metrics);
 
             // El HUD se refresca ~5 veces por segundo, no 60: React no debe
@@ -146,14 +159,12 @@ export function AudiomorphicCanvas({
         };
 
         if (still) {
-            // Un único fotograma (sin piloto): la espiral queda quieta.
-            renderer.render(paramsRef.current, { volume: 0, frequency: 0 });
+            background?.render(paramsRef.current, SILENT_METRICS);
+            renderer.render(paramsRef.current, SILENT_METRICS);
         } else {
             raf = requestAnimationFrame(frame);
         }
 
-        // Al volver a la pestaña, el canvas conserva su último fotograma: nada que
-        // repintar. Solo hace falta reanudar el reloj de fps.
         const onVisibility = () => { lastFrame = 0; };
         document.addEventListener("visibilitychange", onVisibility);
 
@@ -163,17 +174,22 @@ export function AudiomorphicCanvas({
             document.removeEventListener("visibilitychange", onVisibility);
             releaseMic();
         };
-        // `transparent` y `perf` recrean el contexto (alpha/DPR se fijan al crearlo).
-    }, [transparent, perf, forceMotion]);
+        // `transparent`/`perf`/`withBackground` recrean el contexto (alpha y DPR se fijan al crearlo).
+    }, [transparent, perf, forceMotion, withBackground]);
 
     return (
         <div ref={hostRef} className={className} style={{ position: "relative", width: "100%", height: "100%" }}>
+            {withBackground && (
+                <canvas
+                    key={`bg-${perf}`}
+                    ref={bgCanvasRef}
+                    className="pointer-events-none absolute inset-0 block h-full w-full"
+                />
+            )}
             <canvas
                 key={`${transparent ? "alpha" : "opaque"}-${perf}`}
                 ref={canvasRef}
-                className="block h-full w-full"
-                // Sin `background` ⇒ el canvas es transparente de verdad cuando
-                // `transparent` está activo. La APP pone su propio fondo negro fuera.
+                className="relative block h-full w-full"
             />
         </div>
     );

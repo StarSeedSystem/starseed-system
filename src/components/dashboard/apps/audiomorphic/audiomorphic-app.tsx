@@ -1,64 +1,117 @@
 "use client";
 
 /**
- * AudiomorphicApp — la app COMPLETA, NATIVA y DESBLOQUEADA (Adenda 68 · E)
+ * AudiomorphicApp — la app COMPLETA, NATIVA y DESBLOQUEADA (Adenda 69 · K)
  * ============================================================================
- * Port de `App.tsx` de la repo del usuario (StarSeedSystem/Audiomorphic-AR-app)
- * al OS. Sin iframe: el visualizador es código del OS.
+ * Port de `App.tsx` de la repo CORRECTA (github.com/alexbordongarrigos/audiomorphic-ar).
+ * Sin iframe: el visualizador es código del OS.
  *
- * ── QUÉ SE QUITÓ (y por qué NO se pierde nada) ──────────────────────────────
- *  · `IntroGuide` (tour de bienvenida). En el original se mostraba con
- *      `if (intro.seen !== "true" || !isLoggedIn) …`
- *    ⇒ a quien no "tenía sesión" le salía SIEMPRE, en cada carga. Aquí no hay
- *    tour: entras y usas.
- *  · `useStarSeedIdentity` (detección de sesión) y `useSubscription` (planes
- *    free/code/starseed/premium) + `SubscriptionModal`.
- *    **HALLAZGO HONESTO:** revisando la repo, NINGUNA función estaba realmente
- *    bloqueada por plan — `subscription.tier` solo se usaba para pintar la
- *    etiqueta de la corona y el modal. Los "planes" eran teatro de UI. Por eso
- *    "desbloquear" aquí es literalmente **no montar ese teatro**: todos los
- *    controles, presets y modos ya estaban disponibles para todo el mundo.
- *  · La sección VR/AR del panel: su motor (R3F v9 + @react-three/xr v6 +
- *    postprocessing v3) exige React 19 y el OS va con React 18 + R3F v8. NO se
- *    finge: se enlaza a la app original, que sí lo tiene.
+ * ⚠️ CORRECCIÓN de la Adenda 68·E: aquel port salió de
+ * `StarSeedSystem/Audiomorphic-AR-app` — una versión vieja y recortada. Por eso
+ * "faltaban muchas opciones del menú de ajustes". Ahora el panel es el REAL
+ * (3.500+ líneas) con TODAS sus secciones.
+ *
+ * ── QUÉ SE QUITÓ (y por qué es una GANANCIA) ────────────────────────────────
+ *  · Login (Supabase/Firebase), planes (Stripe), pantalla de suscripción,
+ *    cuenta atrás de prueba y menú de perfil.
+ *  · En la app real esos planes **bloqueaban de verdad**: Deriva, modos de
+ *    aleatorización, detección de emoción/ritmo, autorregeneración avanzada,
+ *    geometría sagrada, temas, VR/AR y guardado de presets. **Aquí está TODO
+ *    abierto.**
+ *
+ * ── QUÉ NO SE PORTA (y se dice en la UI) ────────────────────────────────────
+ *  · VR/AR/Portal AR: su motor exige React 19 (R3F v9 + @react-three/xr v6) y el
+ *    OS va con React 18. Ver la sección VR/AR del panel: lo explica y enlaza a
+ *    la app original. No hay botones muertos.
  *
  * ── QUÉ MEJORA ──────────────────────────────────────────────────────────────
- *  · El piloto automático ya no hace `setParams()` 60 veces por segundo (eso
- *    eran 60 renders de React por segundo en el original). Vive dentro del
- *    canvas y publica su estado al HUD ~5 veces por segundo.
- *  · El micrófono es el MISMO motor compartido que usa la capa de fondo: si ya
- *    lo tienes encendido en el fondo, aquí no se vuelve a pedir permiso.
+ *  · El piloto automático ya no hace `setParams()` 60 veces por segundo (eso eran
+ *    60 renders de React por segundo en el original): vive en el bucle del canvas
+ *    y publica al HUD ~5 veces por segundo.
+ *  · El micrófono es el MISMO motor compartido que usa la capa de fondo: si ya lo
+ *    tienes encendido en el fondo, aquí no se vuelve a pedir permiso.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { AudiomorphicCanvas } from "@/components/audiomorphic/audiomorphic-canvas";
 import ControlPanel from "./control-panel";
-import { DEFAULT_PARAMS, type GeometryInfo, type VisualizerParams } from "@/lib/audiomorphic/types";
 import {
+    DEFAULT_PARAMS,
+    resolveParams,
+    type GeometryInfo,
+    type VisualizerParams,
+} from "@/lib/audiomorphic/types";
+import {
+    AUDIOMORPHIC_DEVICES_EVENT,
     AUDIOMORPHIC_MIC_EVENT,
+    getInputDevices,
+    getMetrics,
     getMicError,
     getMicState,
+    getSelectedDeviceId,
+    refreshInputDevices,
+    setSelectedDeviceId,
     startMic,
     stopMic,
     type MicState,
 } from "@/lib/audiomorphic/audio-analyzer";
+
+/** Los ajustes de la app se recuerdan en el dispositivo (como en el original). */
+const PARAMS_KEY = "starseed.audiomorphic.params.v1";
+
+function loadParams(): VisualizerParams {
+    if (typeof window === "undefined") return DEFAULT_PARAMS;
+    try {
+        const raw = window.localStorage.getItem(PARAMS_KEY);
+        if (!raw) return DEFAULT_PARAMS;
+        return resolveParams(JSON.parse(raw) as Partial<VisualizerParams>);
+    } catch {
+        return DEFAULT_PARAMS;
+    }
+}
 
 export function AudiomorphicApp() {
     const [params, setParams] = useState<VisualizerParams>(DEFAULT_PARAMS);
     const [controlsVisible, setControlsVisible] = useState(true);
     const [micState, setMicState] = useState<MicState>("idle");
     const [geometry, setGeometry] = useState<GeometryInfo | undefined>(undefined);
+    const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+    const [deviceId, setDeviceId] = useState<string>("");
 
     const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const rootRef = useRef<HTMLDivElement>(null);
 
-    // Estado real del micrófono (compartido con la capa de fondo).
+    // Carga diferida (el servidor no tiene localStorage).
+    useEffect(() => { setParams(loadParams()); }, []);
+
+    // Persistencia de los ajustes.
+    useEffect(() => {
+        try {
+            const { geometryData: _drop, ...persisted } = params;
+            window.localStorage.setItem(PARAMS_KEY, JSON.stringify(persisted));
+        } catch {
+            /* cuota llena: no rompemos la app */
+        }
+    }, [params]);
+
+    // Estado real del audio (compartido con la capa de fondo).
     useEffect(() => {
         const on = (e: Event) => setMicState((e as CustomEvent<{ state: MicState }>).detail.state);
         window.addEventListener(AUDIOMORPHIC_MIC_EVENT, on);
         setMicState(getMicState());
         return () => window.removeEventListener(AUDIOMORPHIC_MIC_EVENT, on);
+    }, []);
+
+    // Dispositivos de entrada.
+    useEffect(() => {
+        const on = () => {
+            setDevices(getInputDevices());
+            setDeviceId(getSelectedDeviceId());
+        };
+        window.addEventListener(AUDIOMORPHIC_DEVICES_EVENT, on);
+        void refreshInputDevices().then(on);
+        return () => window.removeEventListener(AUDIOMORPHIC_DEVICES_EVENT, on);
     }, []);
 
     /** El permiso SIEMPRE nace de este clic. Nunca automático. */
@@ -67,22 +120,36 @@ export function AudiomorphicApp() {
             stopMic();
             return;
         }
-        const ok = await startMic();
-        if (!ok) console.warn("[audiomorphic] micrófono:", getMicError());
-    }, []);
+        const ok = await startMic(params.audioSource, deviceId || undefined);
+        if (!ok) console.warn("[audiomorphic] audio:", getMicError());
+    }, [params.audioSource, deviceId]);
 
-    // Auto-ocultar los controles con la inactividad (comportamiento original).
+    const handleDeviceChange = useCallback(
+        (id: string) => {
+            setSelectedDeviceId(id);
+            setDeviceId(id);
+            // Si ya estaba capturando, se reabre con el dispositivo nuevo.
+            if (getMicState() === "live") void startMic("microphone", id);
+        },
+        [],
+    );
+
+    // Auto-ocultar los controles con la inactividad (comportamiento original,
+    // con el retardo REAL configurable: `menuAutoCloseTime`).
     const handleUserActivity = useCallback(() => {
         setControlsVisible(true);
         if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-        hideTimeoutRef.current = setTimeout(() => setControlsVisible(false), 4000);
-    }, []);
+        hideTimeoutRef.current = setTimeout(
+            () => setControlsVisible(false),
+            Math.max(1, params.menuAutoCloseTime) * 1000,
+        );
+    }, [params.menuAutoCloseTime]);
 
     useEffect(() => {
         const el = rootRef.current;
         if (!el) return;
-        // Se escucha en el CONTENEDOR (no en window): la app puede vivir dentro
-        // de una ventana del escritorio, y no debe reaccionar a lo que pasa fuera.
+        // Se escucha en el CONTENEDOR (no en window): la app puede vivir dentro de
+        // una ventana del escritorio y no debe reaccionar a lo que pasa fuera.
         el.addEventListener("mousemove", handleUserActivity);
         el.addEventListener("touchstart", handleUserActivity);
         el.addEventListener("click", handleUserActivity);
@@ -98,8 +165,15 @@ export function AudiomorphicApp() {
     }, [handleUserActivity]);
 
     const micLive = micState === "live";
-    // El HUD del régimen lo pinta React (no el canvas) para no repintar texto a 60 fps.
+    // El HUD del régimen lo pinta React (no el canvas) para no repintar a 60 fps.
     const hud = params.showIndicators ? geometry : undefined;
+
+    const modeLabel =
+        params.autoRandomMode === "sacred" ? "RESONANCIAS SAGRADAS"
+            : params.autoRandomMode === "rhythmic" ? "RITMOS MUSICALES"
+                : params.autoPilotMode === "harmonic" ? "ARQUITECTURA ARMÓNICA"
+                    : params.autoPilotMode === "genesis" ? "GÉNESIS GEOMÉTRICO"
+                        : "AUTO-DERIVA";
 
     return (
         <div
@@ -107,10 +181,10 @@ export function AudiomorphicApp() {
             tabIndex={-1}
             className="relative flex h-full w-full overflow-hidden bg-black text-white outline-none"
         >
-            {/* Visualizador — OPACO aquí (la app tiene fondo negro, como el original).
-                La CAPA DE FONDO del OS usa el mismo motor con `transparent`. */}
+            {/* Visualizador + su FONDO propio (los 6 modos + viñeta), como el original.
+                La CAPA DE FONDO del OS usa el mismo motor SIN fondo propio ⇒ alfa real. */}
             <div className="absolute inset-0 z-0">
-                <AudiomorphicCanvas params={params} onGeometry={setGeometry} forceMotion />
+                <AudiomorphicCanvas params={params} onGeometry={setGeometry} withBackground forceMotion />
             </div>
 
             {/* Indicadores */}
@@ -127,17 +201,13 @@ export function AudiomorphicApp() {
                         }`}
                     >
                         <div className={`h-2 w-2 rounded-full ${micLive ? "bg-red-500" : "bg-gray-500"}`} />
-                        {micLive ? "MIC LIVE" : "MIC OFF"}
+                        {micLive ? (params.audioSource === "system" ? "AUDIO SISTEMA" : "MIC LIVE") : "MIC OFF"}
                     </div>
 
                     {params.autoPilot && (
                         <div className="flex items-center gap-2 rounded-full border border-indigo-500/40 bg-indigo-500/10 px-3 py-1 font-mono text-xs text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.3)] backdrop-blur-sm">
-                            <span className="mr-1 animate-spin">❖</span>
-                            {params.autoPilotMode === "harmonic"
-                                ? "ARQUITECTURA ARMÓNICA"
-                                : params.autoPilotMode === "genesis"
-                                  ? "GÉNESIS GEOMÉTRICO"
-                                  : "AUTO-DERIVA"}
+                            <span className="font-bold tracking-wider">Audiomorphic</span>
+                            {modeLabel}
                         </div>
                     )}
                 </div>
@@ -166,9 +236,9 @@ export function AudiomorphicApp() {
                 </span>
             </div>
 
-            {/* Panel de control — TODO disponible, sin bloqueos */}
+            {/* Panel de control COMPLETO — todo disponible, sin bloqueos */}
             <div
-                className={`absolute left-1/2 top-1/2 z-30 h-[85%] w-[92%] max-w-5xl -translate-x-1/2 -translate-y-1/2 transform transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+                className={`absolute left-1/2 top-1/2 z-30 flex h-[90%] w-[95%] max-w-5xl -translate-x-1/2 -translate-y-1/2 transform flex-col transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] ${
                     controlsVisible ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0"
                 }`}
                 onMouseEnter={() => {
@@ -182,6 +252,12 @@ export function AudiomorphicApp() {
                     setParams={setParams}
                     audioActive={micLive}
                     toggleAudio={toggleAudio}
+                    onClose={() => setControlsVisible(false)}
+                    getAudioMetrics={getMetrics}
+                    audioDevices={devices}
+                    selectedAudioDeviceId={deviceId}
+                    onAudioDeviceChange={handleDeviceChange}
+                    context="app"
                 />
             </div>
         </div>

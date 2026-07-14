@@ -121,7 +121,14 @@ export interface BackgroundLayer {
  *      cuentas que ya tienen la capa guardada seguirían viendo el iframe opaco:
  *      la regla del proyecto es que todo rediseño migra las configs persistidas.
  */
-export const BG_LAYERS_VERSION = 2;
+/**
+ *  3 → Audiomorphic COMPLETO (Adenda 69·K). El port anterior venía de la repo
+ *      EQUIVOCADA y llamaba `sgResonanceModes` a lo que la app real llama
+ *      `spiralResonanceModes`. Las capas ya guardadas llevan la clave vieja: si
+ *      no se traduce, el usuario **pierde su geometría** al actualizar. (Regla
+ *      del proyecto: todo rediseño migra las configs persistidas.)
+ */
+export const BG_LAYERS_VERSION = 3;
 
 export const AUDIOMORPHIC_DEFAULT_URL = "https://audiomorphic.vercel.app";
 
@@ -342,6 +349,22 @@ export function migrateBackgroundLayers(bg: LegacyBackgroundLike): MigratedBackg
         });
     }
 
+    // ── v3 · RENOMBRE DE LA GEOMETRÍA EN RESONANCIA (Adenda 69·K) ─────────
+    // `sgResonanceModes` (nombre inventado por el port de la repo equivocada) →
+    // `spiralResonanceModes` (el nombre REAL de la app). Sin esto, la capa se
+    // quedaría sin geometría al actualizar. Se traduce y se borra la clave vieja.
+    if (prevVersion < 3) {
+        layers.forEach((l) => {
+            if (l.kind !== "audiomorphic" || !l.audiomorphic) return;
+            const visual = l.audiomorphic.visual as Record<string, unknown>;
+            const legacy = visual?.sgResonanceModes;
+            if (Array.isArray(legacy)) {
+                if (visual.spiralResonanceModes === undefined) visual.spiralResonanceModes = legacy;
+                delete visual.sgResonanceModes;
+            }
+        });
+    }
+
     let type = typeof bg.type === "string" && bg.type ? bg.type : DEFAULT_BASE_ENGINE;
     let removedAudiomorphicGhost = false;
 
@@ -417,6 +440,26 @@ export function patchAudiomorphicVisual(
                     visual: { ...(l.audiomorphic.visual ?? {}), ...patch },
                 },
             }
+            : l,
+    );
+}
+
+/**
+ * SUSTITUYE por completo los parámetros visuales de la capa (Adenda 69·K).
+ *
+ * `patchAudiomorphicVisual` MEZCLA (`{...old, ...patch}`), lo cual está bien para
+ * tocar un mando suelto pero es ERRÓNEO para el menú completo: si el usuario
+ * devuelve un parámetro a su valor por defecto, el menú lo quita del diff… y la
+ * mezcla lo resucitaría desde lo guardado. Aquí se escribe el diff entero.
+ */
+export function replaceAudiomorphicVisual(
+    layers: BackgroundLayer[] | undefined,
+    id: string,
+    visual: Record<string, unknown>,
+): BackgroundLayer[] {
+    return (layers ?? []).map((l) =>
+        l.id === id && l.kind === "audiomorphic" && l.audiomorphic
+            ? { ...l, audiomorphic: { ...l.audiomorphic, visual: { ...visual } } }
             : l,
     );
 }

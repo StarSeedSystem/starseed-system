@@ -3288,3 +3288,65 @@ desbloqueada en `/audiomorphic` y **capa de fondo con transparencia REAL**. `npx
 ### Notas / aprendizajes
 - **Una tabla en la publicación realtime y con RLS activada puede seguir siendo inescribible**: `astraura_messages` tenía RLS `enable` y **solo** política de `SELECT`. Todo lo que escribía ahí (publish.ts) fallaba **sin un solo error visible** porque el código es *best-effort*. **Lección: al auditar una tabla, mirar `polcmd`, no solo `relrowsecurity`.**
 - Cuando dos superficies "no se ven", el fallo casi nunca está en la sincronización: **estaba en que no compartían almacén ni modelo**. Una escribía en `localStorage`, la otra no escribía en ninguna parte.
+
+---
+
+## 2026-07-14 — Adenda 69 · K: Audiomorphic COMPLETO (se había portado la repo equivocada)
+
+### Qué se pidió
+«La versión de Audiomorphic integrada no está completa: faltan muchas opciones del menú de
+ajustes. Intégrala por completo, desbloqueada y sin login. Y que audiomorphic.vercel.app sirva
+también la versión completa y gratuita.»
+
+### CAUSA RAÍZ (el diagnóstico del usuario se quedaba corto)
+**No faltaban "algunas opciones": se portó la REPO EQUIVOCADA.** La Adenda 68·E portó
+`StarSeedSystem/Audiomorphic-AR-app` (versión vieja y recortada). La repo real del usuario es
+**`alexbordongarrigos/audiomorphic-ar`** (privada).
+
+| | repo portada (mala) | repo REAL |
+|---|---|---|
+| Panel de control | 829 líneas | **3.589** |
+| Geometrías sagradas | 4 | **20** |
+| Modos de aleatorización | 0 | **11** |
+| Capa sagrada propia · autorregeneración · fondos · bandas de audio · VR/AR | ❌ | ✅ |
+
+**Y hay más:** el bundle EN VIVO de `audiomorphic.vercel.app` era **también el de la repo mala**
+(tiene `sgResonanceModes` y 4 geometrías; no tiene `sriYantra`, `merkaba`, `spiralResonanceModes`…).
+Los dos últimos despliegues de producción se habían subido **a mano por CLI desde la repo
+equivocada** (`gitDirty:1`), pisando el dominio oficial, que sí está conectado por git a la buena.
+
+### Qué se hizo
+- **Motor reescrito** (`src/lib/audiomorphic/`): `types.ts` (~90 parámetros reales),
+  **`geometry-drawers.ts` NUEVO** (16 dibujantes que no existían), `renderer.ts` (20 geometrías,
+  perturbación real de la espiral, resonancia automática, multiplicadores globales, desvanecido,
+  temas, `distanceZoom`/`spiralThickness`), `autopilot.ts` (8 parámetros pilotados, bandas
+  graves/medios/agudos, 11 modos de aleatorización, autorregeneración, `lockedParams`),
+  `audio-analyzer.ts` (bass/mid/treble + dispositivo + audio del **sistema**),
+  **`background-modes.ts` NUEVO** (6 fondos + viñeta).
+- **App `/audiomorphic`**: panel REAL portado entero, **`isLocked = false`**. En la app original los
+  planes **bloqueaban de verdad** (no era teatro de UI, como se creyó leyendo la repo mala).
+  Presets → `localStorage`, ilimitados y sin cuenta.
+- **Capa de fondo**: botón «Menú de ajustes COMPLETO» → **el mismo panel** (`context="background"`),
+  con transparencia real. Se persiste solo el **diff** con los defectos (no engordar `prefs`).
+- **Migración `BG_LAYERS_VERSION` 2 → 3**: `sgResonanceModes` → `spiralResonanceModes`. Sin esto,
+  quien ya tuviera la capa **perdía su geometría**.
+- **Web oficial**: quitados los bloqueos en la repo CORRECTA y **pusheado a `main`**
+  (`bbcf3b9`, autor `alexbordongarrigos@gmail.com`) ⇒ Vercel despliega la versión libre y COMPLETA.
+
+### Verificación
+- `npx tsc --noEmit` **exit 0** · `npm run build` **exit 0** (OS).
+- **Motor probado en Node con un canvas instrumentado** (90 fotogramas por caso): los 3 pilotos,
+  DJ+beat, las 20 geometrías en resonancia y la capa sagrada en modo «ambos» →
+  **90 `stroke`/90 fotogramas, 64.411 `arc`, 0 NaN**, espiral a pantalla completa. Bloqueos y modos
+  de regeneración respetados.
+- Panel COMPLETO verificado en vivo en Chrome (`/audiomorphic`, localhost).
+- Repo oficial: `vite build` **exit 0**; los ~1.300 errores de `tsc` de esa repo son **preexistentes**
+  (nunca ha typecheckeado limpia; su build no usa tsc).
+
+### Honestidad
+- **VR / AR / Portal AR NO es portable**: su motor exige **React 19** (R3F v9 + `@react-three/xr` v6);
+  el OS va con React 18 + R3F v8. La sección del panel **lo dice** y enlaza a la app original. Los
+  parámetros VR/AR se conservan para no romper presets. **No hay botones muertos.**
+- Los presets del OS son **por dispositivo** (falta meter la clave en `SYNCED_KEYS`).
+- El bucle del canvas **se para con la pestaña oculta** (regla de rendimiento): en una pestaña de
+  fondo el canvas sale vacío, y es a propósito.
