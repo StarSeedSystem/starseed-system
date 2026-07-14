@@ -48,6 +48,8 @@ import {
 export const UPDATES_CACHE_KEY = "starseed.updates.available.cache.v1";
 /** Historial de actualizaciones aplicadas (⚠️ reportar para SYNCED_KEYS). */
 export const UPDATES_HISTORY_KEY = "starseed.updates.history.v1";
+/** Preferencia de auto-actualización (⚠️ reportar para SYNCED_KEYS). */
+export const AUTOUPDATE_KEY = "starseed.library.autoupdate.v1";
 /** Evento emitido al cambiar el estado de actualizaciones/historial. */
 export const AVAILABLE_UPDATES_EVENT = "starseed:available-updates";
 
@@ -505,4 +507,98 @@ export function applyUpdate(id: string, toVersion: string, source: UpdateSourceI
 export function cachedAvailableCount(): number {
   const cached = getCachedReport();
   return cached ? cached.available.length : 0;
+}
+
+/* ═══════════════════ AUTO-ACTUALIZACIÓN (Adenda 69 · J-2) ══════════════════
+ * HONESTIDAD RADICAL — qué significa «actualizar» aquí:
+ *   Para un paquete OSS/externo, actualizar NO descarga ni ejecuta binarios: el
+ *   código vive en su repo externo y NO corre dentro del OS. «Actualizar» =
+ *   REFRESCAR el metadato/enlace/versión en el registro de tu Biblioteca
+ *   (`starseed.library.installed.v1`) y apuntarlo en el historial. Para las apps
+ *   NATIVAS del OS, la versión nueva la trae recargar/reinstalar la app (el
+ *   despliegue). La UI lo dice con todas las letras; no se finge lo contrario.
+ *
+ * El modo «Actualizaciones automáticas» aplica solas las disponibles y AVISA
+ * («X se actualizó a vN») vía el sistema de notificaciones de apps (J-1).
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/** ¿Está activada la auto-actualización? (default: OFF, opt-in explícito.) */
+export function getAutoUpdateEnabled(): boolean {
+  const raw = readJson<{ enabled?: boolean }>(AUTOUPDATE_KEY);
+  return !!raw?.enabled;
+}
+
+/** Activa/desactiva la auto-actualización. Persiste + emite. */
+export function setAutoUpdateEnabled(enabled: boolean): void {
+  writeJson(AUTOUPDATE_KEY, { enabled: !!enabled, at: Date.now() });
+  emit();
+}
+
+/**
+ * Aplica TODAS las actualizaciones disponibles del informe dado (o de la caché).
+ * Devuelve la lista de entradas aplicadas (para el historial/aviso). No lanza.
+ */
+export function applyAllUpdates(report?: UpdatesReport | null): ApplyUpdateResult & { applied: UpdateHistoryEntry[] } {
+  if (!isClient()) return { ok: false, message: "Solo disponible en el navegador.", applied: [] };
+  const rep = report ?? getCachedReport();
+  const available = rep?.available ?? [];
+  const applied: UpdateHistoryEntry[] = [];
+  for (const it of available) {
+    if (!it.latestVersion || !it.hasUpdate) continue;
+    const from = it.installedVersion;
+    const res = applyUpdate(it.id, it.latestVersion, it.bestSource ?? "starseed-catalog");
+    if (res.ok) {
+      applied.push({
+        id: it.id,
+        name: it.name,
+        from,
+        to: normalizeVersion(it.latestVersion) || it.latestVersion,
+        source: it.bestSource ?? "starseed-catalog",
+        at: Date.now(),
+      });
+    }
+  }
+  return {
+    ok: applied.length > 0,
+    message: applied.length ? `${applied.length} paquete(s) actualizado(s).` : "No había nada que actualizar.",
+    applied,
+  };
+}
+
+/**
+ * Ejecuta la auto-actualización si está activada: aplica las disponibles y avisa
+ * por cada una vía notifyFromApp (J-1) — «X se actualizó a vN». Devuelve las
+ * aplicadas. Import diferido de app-notify para no acoplar los bundles. No lanza.
+ */
+export async function runAutoUpdate(report?: UpdatesReport | null): Promise<UpdateHistoryEntry[]> {
+  if (!isClient() || !getAutoUpdateEnabled()) return [];
+  const { applied } = applyAllUpdates(report);
+  if (applied.length === 0) return applied;
+  try {
+    const { notifyFromApp } = await import("./app-notify");
+    for (const a of applied) {
+      notifyFromApp({
+        appId: a.id,
+        title: `${a.name} se actualizó a v${a.to}`,
+        body: `Actualización automática (${a.from} → ${a.to}). Se refrescó el registro del paquete en tu Biblioteca.`,
+        icon: "ArrowUpCircle",
+        level: "success",
+        dedupeKey: `autoupdate:${a.id}:${a.to}`,
+        actions: [{ label: "Ver Biblioteca", href: "/library" }],
+      });
+    }
+  } catch { /* sin aviso: la actualización igualmente se aplicó */ }
+  return applied;
+}
+
+/**
+ * Comprueba actualizaciones y, si el modo automático está activo, las aplica y
+ * avisa. Punto único que usan el <AutoUpdateWatcher/> y el panel del centro.
+ */
+export async function checkAndMaybeAutoUpdate(opts?: { force?: boolean }): Promise<{ report: UpdatesReport; applied: UpdateHistoryEntry[] }> {
+  const report = await checkForUpdates(opts);
+  const applied = await runAutoUpdate(report);
+  // Si algo se aplicó, el informe fresco (post-aplicación) es el de la caché.
+  const finalReport = applied.length ? (getCachedReport() ?? report) : report;
+  return { report: finalReport, applied };
 }

@@ -3350,3 +3350,54 @@ equivocada** (`gitDirty:1`), pisando el dominio oficial, que sí está conectado
 - Los presets del OS son **por dispositivo** (falta meter la clave en `SYNCED_KEYS`).
 - El bucle del canvas **se para con la pestaña oculta** (regla de rendimiento): en una pestaña de
   fondo el canvas sale vacío, y es a propósito.
+
+---
+
+## 2026-07-14 — Adenda 69 · J: Notificaciones/popups de apps + auto-actualización de la Librería
+
+**Sesión por:** Claude (subagente Cowork, Opus 4.8) bajo dirección de Alex Bordón Garrigós.
+**Resumen ejecutivo:** Las apps instaladas ya pueden emitir **notificaciones** (al centro del OS,
+persistidas, con la app como origen) y **ventanas emergentes** (toasts + popups apilables); y las
+**actualizaciones de la Librería** pueden **aplicarse solas** (modo automático) avisando por cada una.
+
+### Hecho (J-1 · notificaciones y popups)
+- **`src/lib/notifications/app-notify.ts`** — `notifyFromApp({appId,title,body,icon?,actions?,level})`:
+  entra al Centro de Notificaciones (persistido, origen = app) + toast sonner si hay permiso de popup.
+  Bus `starseed:app-notify` + `postMessage` de iframes **validado por frame/origen** (`data-app-id` de
+  confianza). **Dedupe** + **permisos por-app** (`starseed.apps.notify-prefs.v1`, default ON).
+- **`src/components/notifications/app-notify-bridge.tsx`** (layout raíz, sin UI) — PERSISTE en el centro
+  vía `useNotifications` y traduce los `postMessage` de apps embebidas a `notifyFromApp`/`openAppPopup`.
+- **`src/lib/notifications/app-popups.ts` + `app-popup-host.tsx`** — `openAppPopup({appId,title,text|html|route,size})`:
+  overlay portátil **apilable · movible · cerrable (×/Esc) · no intrusivo**. `route`=iframe mismo origen;
+  `html`=iframe **sandbox aislado**; `text`=párrafo. **No toca `desktop-store.ts`** (otro agente).
+- **`src/components/settings/notifications/app-notifications-panel.tsx`** — Ajustes → Notificaciones
+  (montado en /cuenta): interruptores «Avisos»/«Popups» por app instalada + «Probar».
+- **`src/context/notifications-context.tsx`** — `AppNotification` gana `appId?`/`appName?` (origen).
+
+### Hecho (J-2 · auto-actualización)
+- **`available-updates.ts`** ampliado: `getAutoUpdateEnabled`/`setAutoUpdateEnabled`
+  (`starseed.library.autoupdate.v1`, default OFF), `applyAllUpdates`, `runAutoUpdate` (aplica + avisa por J-1),
+  `checkAndMaybeAutoUpdate`. Deduce el repo de cada paquete de `payload.externalUrl`/`url` ⇒ cubre los repos
+  nuevos de Adendas 66-69 sin cambios. **`<AutoUpdateWatcher/>`** global: comprueba/aplica al arrancar + cada
+  6 h + al cambiar la Biblioteca. UI (`available-updates.tsx`): **«Actualizar todo»** + **toggle de auto** +
+  **texto honesto**.
+
+### Honestidad (qué significa «actualizar»)
+- Para paquetes OSS/externos, «actualizar» **NO descarga ni ejecuta binarios**: el código vive en su repo
+  externo y no corre dentro del OS. «Actualizar» = **refrescar registro/enlace/versión** en la Biblioteca
+  (`starseed.library.installed.v1`) + historial. Para apps nativas del OS, la versión nueva la trae
+  recargar/reinstalar (el despliegue). **La UI lo dice con todas las letras.**
+
+### Verificación
+- `npx tsc --noEmit` **exit 0** · `npm run build` **exit 0** (93/93 páginas).
+- **EN VIVO** (build de producción local `next start` :3111, Chrome): notificación de app disparada por
+  evento → **persistida en el centro** (`starseed.notifications.v1` 4→5, con `appId`/`appName`); popup de app
+  **pintado y cerrado**; panel de actualizaciones con **toggle auto + «Actualizar todo» + honestidad**.
+  Datos de prueba borrados (origen localhost, aparte de producción).
+
+### Pendiente / Próximos pasos
+- **Añadir a `SYNCED_KEYS`** (settings-sync.ts, NO tocado por encargo): `starseed.apps.notify-prefs.v1` y
+  `starseed.library.autoupdate.v1` (ambas ámbito cuenta). `starseed.updates.history.v1` ya está.
+- El centro local no sincroniza (device-local); para que los avisos de apps viajen habría que replicarlos a
+  la tabla `notifications` de Supabase (falta RLS de INSERT).
+- Categoría del centro para apps = `system` (no hay categoría «app»); el `iconName` sí se guarda.

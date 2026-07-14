@@ -31,11 +31,15 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   checkForUpdates,
   getCachedReport,
   applyUpdate,
+  applyAllUpdates,
   getUpdateHistory,
+  getAutoUpdateEnabled,
+  setAutoUpdateEnabled,
   AVAILABLE_UPDATES_EVENT,
   type UpdatesReport,
   type PackageUpdate,
@@ -69,6 +73,8 @@ export function AvailableUpdates() {
   const [showHistory, setShowHistory] = React.useState(false);
   const [history, setHistory] = React.useState<UpdateHistoryEntry[]>([]);
   const [busy, setBusy] = React.useState<Record<string, boolean>>({});
+  const [auto, setAuto] = React.useState(false);
+  const [bulkBusy, setBulkBusy] = React.useState(false);
 
   const refreshHistory = React.useCallback(() => {
     try {
@@ -95,11 +101,13 @@ export function AvailableUpdates() {
     const cached = getCachedReport();
     if (cached) setReport(cached);
     refreshHistory();
+    try { setAuto(getAutoUpdateEnabled()); } catch { /* noop */ }
     void run(false);
     const onEvt = () => {
       const c = getCachedReport();
       if (c) setReport(c);
       refreshHistory();
+      try { setAuto(getAutoUpdateEnabled()); } catch { /* noop */ }
     };
     window.addEventListener(AVAILABLE_UPDATES_EVENT, onEvt);
     window.addEventListener(LIBRARY_EVENT, onEvt);
@@ -110,6 +118,35 @@ export function AvailableUpdates() {
   }, [run, refreshHistory]);
 
   const available = report?.available ?? [];
+
+  const onToggleAuto = React.useCallback((next: boolean) => {
+    setAuto(next);
+    try { setAutoUpdateEnabled(next); } catch { /* noop */ }
+    if (next) {
+      toast.success("Actualizaciones automáticas activadas.", {
+        description: "Se aplicarán solas y te avisaré. Refrescan el registro del paquete; el código OSS vive en su repo externo.",
+      });
+    } else {
+      toast.message("Actualizaciones automáticas desactivadas.");
+    }
+  }, []);
+
+  const onUpdateAll = React.useCallback(() => {
+    if (available.length === 0) return;
+    setBulkBusy(true);
+    const res = applyAllUpdates(report);
+    setBulkBusy(false);
+    if (res.applied.length > 0) {
+      toast.success(`${res.applied.length} paquete(s) actualizado(s).`, {
+        description: "Se refrescó su registro/enlace en tu Biblioteca.",
+      });
+      const c = getCachedReport();
+      if (c) setReport(c);
+      refreshHistory();
+    } else {
+      toast.message(res.message);
+    }
+  }, [available.length, report, refreshHistory]);
 
   const onUpdate = React.useCallback((it: PackageUpdate) => {
     if (!it.latestVersion) return;
@@ -148,7 +185,18 @@ export function AvailableUpdates() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {available.length > 0 && (
+            <Button
+              onClick={onUpdateAll}
+              size="sm"
+              disabled={bulkBusy}
+              className="h-8 rounded-xl text-xs gap-1.5 bg-emerald-500/15 border border-emerald-500/25 text-emerald-200 hover:bg-emerald-500/25"
+            >
+              {bulkBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpCircle className="w-3.5 h-3.5" />}
+              Actualizar todo ({available.length})
+            </Button>
+          )}
           <Button
             onClick={() => void run(true)}
             variant="outline"
@@ -160,6 +208,21 @@ export function AvailableUpdates() {
             Buscar actualizaciones
           </Button>
         </div>
+      </div>
+
+      {/* Modo automático + honestidad de qué significa «actualizar». */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/5 bg-white/[0.02] px-3 py-2.5 relative">
+        <div className="flex items-center gap-2 min-w-0">
+          <RefreshCw className="w-3.5 h-3.5 text-[#3aa0ff] shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[12px] font-medium text-white/85 leading-tight">Actualizaciones automáticas</p>
+            <p className="text-[10px] text-white/40 leading-snug">
+              Aplica solas las nuevas versiones y te avisa. «Actualizar» refresca el registro/enlace/versión del
+              paquete en tu Biblioteca; el código OSS vive en su repo externo y no se ejecuta dentro del OS.
+            </p>
+          </div>
+        </div>
+        <Switch checked={auto} onCheckedChange={onToggleAuto} aria-label="Actualizaciones automáticas" />
       </div>
 
       {/* Aviso de límite de GitHub (honesto) */}

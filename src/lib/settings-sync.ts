@@ -96,6 +96,10 @@ export const SYNCED_KEYS = [
     //    (`sanitizeForCloud`) y se RESTAURA desde el dispositivo al aplicar
     //    (`mergeLocalSecrets`). ⚠️ Antes de la Adenda 68 esto NO era cierto: el
     //    objeto entero (con `apiKey` en claro) se subía a `user_settings.prefs`.
+    // ── Audiomorphic (Adenda 69 · K): los presets del visualizador viajan con la
+    //    cuenta (antes eran por dispositivo). Solo se guarda el diff con los
+    //    valores por defecto, así que no engorda `prefs`.
+    "starseed.audiomorphic.presets.v1",
     "starseed.integration.typesense",        // búsqueda (con caída a Supabase)
     "starseed.integration.postiz",           // publicación en redes (siempre con confirmación explícita)
     "starseed.integration.tencentdb-memory", // memoria de agente por gateway HTTP
@@ -103,6 +107,11 @@ export const SYNCED_KEYS = [
     "starseed.integration.openmanus",        // delegación de tareas a agentes
     "starseed.integration.penpot",           // diseño/lienzo por instancia
     "starseed.integration.opencut",          // edición de vídeo
+    // ── Apps: notificaciones + auto-actualización (Adenda 69 J) ───────────────
+    "starseed.apps.notify-prefs.v1",   // permiso de avisos/popups por app instalada (default ON)
+    "starseed.library.autoupdate.v1",  // aplicar solas las actualizaciones de la Librería (opt-in)
+    // ── Audiomorphic completo (Adenda 69 K): presets por cuenta ───────────────
+    "starseed.audiomorphic.presets.v1", // presets guardados del visualizador Audiomorphic
     "starseed.integration.searxng",          // búsqueda web soberana de Aurora
     // ── Adenda 68 · A · SYNC TOTAL de Aurora/Astraura ────────────────────────
     //    Todo lo de Aurora/Astraura es de ÁMBITO CUENTA (decisión del usuario):

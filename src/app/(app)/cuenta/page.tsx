@@ -44,6 +44,7 @@ import { AccountSyncPanel } from "@/components/settings/account/account-sync-pan
 import { RealtimeSyncPanel } from "@/components/settings/account/realtime-sync-panel";
 import { ProfilesSyncPanel } from "@/components/profiles/profiles-sync-panel";
 import { EntityRolesPanel } from "@/components/settings/account/entity-roles-panel";
+import { AppNotificationsPanel } from "@/components/settings/notifications/app-notifications-panel";
 // Sentidos de Aurora (Adenda 63 · P-3): los paneles ya existían pero NO estaban
 // montados en ninguna página. Viven aquí, dentro de «Aurora e inteligencia»
 // (§7), cada uno con su propia ancla (#aurora-voz / #aurora-sentidos) para que
@@ -891,6 +892,8 @@ function CuentaContent() {
             description={`${remindersInfo.alarms} alarma${remindersInfo.alarms === 1 ? "" : "s"} activa${remindersInfo.alarms === 1 ? "" : "s"}`}
           />
         </div>
+        {/* Control por-app de notificaciones y popups (Adenda 69 · J-1). */}
+        <AppNotificationsPanel />
       </section>
 
       {/* ═══════════════════════ 7) AURORA E INTELIGENCIA ═══════════════════════ */}

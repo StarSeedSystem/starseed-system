@@ -53,6 +53,10 @@ export interface AppNotification {
   };
   /** Icono opcional (nombre de Lucide) */
   iconName?: string;
+  /** Origen: id de la app que la emitió (Adenda 69 · J-1). Vacío = sistema. */
+  appId?: string;
+  /** Nombre legible de la app de origen (para pintar «desde X»). */
+  appName?: string;
 }
 
 interface NotificationsState {

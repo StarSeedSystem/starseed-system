@@ -68,6 +68,15 @@ import { AlarmsEngine } from "@/components/alarms/alarms-engine";
 // matrix-rain/estrellas/gradiente-aurora/weather-live. Sin efecto salvo que
 // un ThemePack del catálogo los active (data-ss-background en <html>).
 import { ThemeBackgroundHost } from "@/components/backgrounds/theme-live-background";
+// Notificaciones y ventanas emergentes de las apps instaladas (Adenda 69 · J-1):
+// el bridge PERSISTE las notificaciones de apps en el centro y valida los
+// postMessage de iframes; el host pinta los popups apilables. Sin UI hasta que
+// una app notifica/abre un popup.
+import { AppNotifyBridge } from "@/components/notifications/app-notify-bridge";
+import { AppPopupHost } from "@/components/notifications/app-popup-host";
+// Auto-actualización de la Biblioteca (Adenda 69 · J-2): si está activada, aplica
+// solas las actualizaciones de los paquetes instalados y avisa. Sin UI.
+import { AutoUpdateWatcher } from "@/components/notifications/auto-update-watcher";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -202,6 +211,11 @@ export default function RootLayout({
                         <AudiomorphicConfigHost />
                         {/* Receptor de solicitudes de archivo entre neuronas de la cuenta (defensivo, sin UI hasta que llega una). */}
                         <FileRequestListener />
+                        {/* Notificaciones/popups de apps (J-1): persiste avisos de apps en el centro + valida iframes; pinta popups apilables. */}
+                        <AppNotifyBridge />
+                        <AppPopupHost />
+                        {/* Auto-actualización de la Biblioteca (J-2): aplica solas las actualizaciones si el usuario lo activó. */}
+                        <AutoUpdateWatcher />
                         {/* Fragua de Widgets universal (escucha 'starseed:open-forge' fuera del dashboard). */}
                         <GlobalForgeHost />
                         <SplineWatermarkCover />
