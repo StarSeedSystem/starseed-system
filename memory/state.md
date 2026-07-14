@@ -3254,3 +3254,37 @@ desbloqueada en `/audiomorphic` y **capa de fondo con transparencia REAL**. `npx
 - El **PDF real** solo se pinta en la tarjeta grande (`viewMode: "preview"`): un `<iframe>` por icono pequeño sería un abuso. En tile pequeño se ve la hoja rica con su sello.
 - Las miniaturas de **código/texto** solo se pueden leer si el origen deja hacer `fetch` (mismo origen o CORS abierto). Si no, placa con líneas fantasma — bonita, pero no es el contenido.
 - Arrastrar y soltar un icono **dentro de una ventana de folder** sigue haciéndose por «Mover a» / Cortar+Pegar (no hay DnD entre lienzo y ventana).
+
+---
+
+## 2026-07-14 — Adenda 69 · I-1: los chats de Aurora y los de Astraura AI son UNA SOLA conversación
+
+**Sesión por:** Claude (agente)
+**Resumen ejecutivo:** Aurora y la sección de chats de Astraura AI (`/agent`) eran **dos mundos sin ningún punto de contacto**: Aurora guardaba su historial **solo en `localStorage`** (agrupado por día) y `/agent` **no guardaba nada** (chat en memoria, se perdía al recargar). Ahora ambos leen y escriben **el mismo modelo de conversación en Supabase**, en tiempo real y entre dispositivos. Commit `a7ecc17`, **EN VIVO**.
+
+### Hecho
+- **Mapa real de los dos sistemas** (diagnosticado contra la BD viva y el navegador del usuario, no leyendo código):
+  - Aurora (orbe · mini-reproductor · Exocórtex) → `starseed.aurora.chatlog.v1` en `localStorage`, lista plana por día, tope 500; viajaba dentro del blob `user_settings.prefs`.
+  - Astraura AI (`/agent`) → `useState<ChatTurn[]>` **en memoria**: cero persistencia. Y su barra lateral de chats era **falsa** (folders *hardcodeados* que no abrían nada).
+  - **CAUSA OCULTA:** `astraura_messages` ya existía y ya estaba en `supabase_realtime`, pero su RLS tenía **una sola política, de SELECT** ⇒ **ninguna escritura era posible** (0 filas), y `publish.ts` llevaba meses insertando ahí **fallando en silencio**.
+- **Modelo unificado en la nube:** `aurora_conversations` (nueva) + `astraura_messages` (reutilizada, ampliada con `meta`/`attachments`/`client_id`/`updated_at`). Migración `20260714100000_unified_ai_conversations.sql` **aplicada y verificada en producción** (RLS probada como `authenticated`; escritura ajena bloqueada `42501`; 0 residuo).
+- **Núcleo `src/lib/aurora/conversations.ts`** — única puerta al modelo: optimista (caché local) + nube + **dos caminos de tiempo real** (`live-signal` topic nuevo `aurora:chats` + `postgres_changes`), **dedupe por `client_id` determinista**, migración idempotente del registro legado (**228 mensajes → 5 conversaciones, ni uno perdido**).
+- **Cableado:** el *recorder* de `aurora:conversation` (punto ÚNICO por el que pasan todos los mensajes de Aurora) replica a la nube ⇒ orbe, mini-reproductor y Exocórtex cubiertos **sin tocar el motor**. `/agent` lee/escribe la misma conversación activa y **ya persiste**. Barra lateral de `/agent` = lista **real**. Exocórtex → Registro gana el bloque «Conversaciones de tu cuenta».
+- **Verificado EN VIVO** (dos pestañas = dos clientes realtime, sesión real): mensaje escrito al orbe → aparece en `/agent` **sin recargar**; escrito en `/agent` → aparece en el Exocórtex **sin recargar**; los 4 mensajes cayeron en el **mismo `chat_id`**; sobrevive a recargar. Datos de prueba **borrados** (228 mensajes / 5 conversaciones, 0 residuo).
+- `npx tsc --noEmit` **exit 0** · `npm run build` **exit 0** (93/93 páginas).
+
+### Decisiones tomadas
+- **Reutilizar `astraura_messages`** en vez de crear una tabla de mensajes nueva: ya tenía la forma correcta, ya estaba en la publicación realtime y ya era el destino de `publish.ts` (que por fin funciona).
+- **Los chats NO viven en `user_settings.prefs`**: crecen sin límite y esa columna ya provocó el *lost update* de la Adenda 69/F. Tabla propia, siempre. (Regla nueva del proyecto, respetada.)
+- **`client_id` determinista** (`rol:ts:hash`) en vez de un uuid aleatorio: hace la migración y cualquier reintento **idempotentes de verdad**, incluso desde varios dispositivos a la vez. El índice único **no** es parcial, para que PostgREST pueda inferirlo en `ON CONFLICT DO NOTHING`.
+- **Conversación activa por dispositivo** (la lista y los mensajes sí son de la cuenta): dos dispositivos pueden estar en hilos distintos, como en cualquier cliente de chat.
+- **Enganchar en el `recorder`, no en el motor**: un solo punto cubre las tres superficies de Aurora sin arriesgar el engine.
+
+### Pendiente / Próximos pasos
+- **Sacar `starseed.aurora.chatlog.v1` de `SYNCED_KEYS`** (`settings-sync.ts`, fuera del encargo de esta ola): ya no hace falta que viaje dentro de `prefs` y es justo el tipo de clave que engorda esa columna.
+- **Multichat** (`AuroraMultichatPanel` / `starseed.aurora.chats.v1`) **sigue aparte**: sus chats llevan `apiKey` en claro y por eso no sincronizan (Adenda 68 §A-3). Unificarlo exige separar antes el secreto de la config del chat.
+- Los mensajes viejos del `chat-tree` (ramificaciones/contextos) siguen siendo un índice **local** de timestamps: se ven, pero la ramificación no ha subido a la nube todavía.
+
+### Notas / aprendizajes
+- **Una tabla en la publicación realtime y con RLS activada puede seguir siendo inescribible**: `astraura_messages` tenía RLS `enable` y **solo** política de `SELECT`. Todo lo que escribía ahí (publish.ts) fallaba **sin un solo error visible** porque el código es *best-effort*. **Lección: al auditar una tabla, mirar `polcmd`, no solo `relrowsecurity`.**
+- Cuando dos superficies "no se ven", el fallo casi nunca está en la sincronización: **estaba en que no compartían almacén ni modelo**. Una escribía en `localStorage`, la otra no escribía en ninguna parte.
