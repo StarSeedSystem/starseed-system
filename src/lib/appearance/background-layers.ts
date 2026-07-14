@@ -20,30 +20,27 @@
  * • Una config antigua (sin `layers`) sigue funcionando: pila vacía = un solo
  *   fondo, exactamente como antes.
  *
- * ── AUDIOMORPHIC: LA VERDAD VERIFICADA (2026-07-13) ─────────────────────────
- * Se descargó y leyó el bundle de https://audiomorphic.vercel.app.
+ * ── AUDIOMORPHIC: DE IFRAME A MOTOR NATIVO (Adenda 68 · E · 2026-07-13) ─────
+ * Ahora tenemos la REPO fuente (github.com/StarSeedSystem/Audiomorphic-AR-app,
+ * del propio usuario) y el visualizador está **PORTADO AL OS como código
+ * nativo** (`src/lib/audiomorphic/`). Eso mata de raíz los tres problemas que
+ * tenía el iframe (todos verificados leyendo su bundle):
  *
- *  1. La app NO acepta `?bg`, `?autostart`, `?full`, `?mic`, `?cam`, `?preset`
- *     ni `?starseed_os` — esos parámetros aparecen CERO veces en su código. El
- *     "modo fondo" que el OS creía usar NUNCA existió: el iframe cargaba la app
- *     ENTERA, con su UI y su tour de bienvenida.
- *  2. Lo ÚNICO que la app lee de la URL es `source` / `from` (si contienen
- *     "starseed"), `starseed=1` o `#starseed`. Con eso se da por VINCULADA a
- *     una cuenta StarSeed (`isLoggedIn = true`, insignia "StarSeed",
- *     `viaStarSeed: true`).
- *  3. Su tour se muestra si `intro.seen !== "true"` **O NO hay sesión**. Sin el
- *     parámetro correcto no hay sesión ⇒ el tour salía SIEMPRE, en cada carga.
- *     Y como el iframe iba con `pointer-events: none`, no se podía cerrar.
- *  4. Su `<body>` es `background-color: #050505` (OPACO). NO hay transparencia
- *     posible por `allowtransparency`. Por eso las capas Audiomorphic usan
- *     `mix-blend-mode: screen` por defecto: el negro desaparece y solo quedan
- *     el espiral y sus brillos sobre la capa de abajo.
- *  5. La app NO tiene API `postMessage` ⇒ el OS no puede pilotarla desde fuera.
- *     Sus parámetros visuales (k, psi, hue…) viven en SU localStorage. Lo que
- *     el OS SÍ puede hacer, y hace: opacidad, mezcla, escala y filtros CSS
- *     (tono/saturación/brillo/contraste) sobre el iframe, y —con la capa en
- *     modo interactivo— dejar que el usuario use los controles de la propia app
- *     (Deriva · Armónico · Génesis · Iniciar Micrófono · Pantalla completa).
+ *  1. NO aceptaba NINGÚN parámetro por URL (`bg`, `autostart`, `preset`, `mic`…
+ *     aparecían CERO veces en su código) ⇒ el OS no podía configurar nada.
+ *     → AHORA: el motor es nuestro; TODOS sus parámetros son configurables.
+ *  2. Su `<body>` es `#050505` OPACO y su canvas 2D se creaba con
+ *     `alpha: false` + una estela que PINTA NEGRO cada fotograma ⇒ transparencia
+ *     imposible; se parcheaba con `mix-blend-mode: screen` (que no compone: solo
+ *     esconde el negro).
+ *     → AHORA: canvas con `alpha: true` y estela por `destination-out` (borra
+ *     alfa en vez de pintar negro) ⇒ **TRANSPARENCIA REAL**. Ver `renderer.ts`.
+ *  3. Su tour salía en cada navegador y no se podía cerrar desde fuera
+ *     (localStorage particionado por sitio de nivel superior).
+ *     → AHORA: no hay tour, ni login, ni planes. El motor es parte del OS.
+ *
+ * `engine: "iframe"` se conserva como RESPALDO (la app externa sigue en línea y
+ * es la única que tiene el modo VR/AR — ver nota en `AudiomorphicLayerConfig`).
  */
 
 /* ── Tipos ─────────────────────────────────────────────────────────────── */
@@ -54,30 +51,53 @@ export type BlendMode =
     | "normal" | "screen" | "lighten" | "overlay" | "soft-light"
     | "multiply" | "color-dodge" | "difference" | "hard-light" | "luminosity";
 
-/** Ajustes propios de una capa Audiomorphic (todo lo que SÍ podemos controlar). */
+/**
+ * Motor de la capa Audiomorphic.
+ *  · `nativo` (defecto) — el visualizador PORTADO, corriendo dentro del OS con
+ *    transparencia real y todos sus parámetros configurables. Sin iframe.
+ *  · `iframe`  — RESPALDO: la app externa (audiomorphic.vercel.app). Se conserva
+ *    porque es la única que tiene el modo **VR/AR** (que no se ha portado: su
+ *    stack exige React 19 + R3F v9 y el OS va con React 18 + R3F v8).
+ */
+export type AudiomorphicEngine = "nativo" | "iframe";
+
+/** Ajustes propios de una capa Audiomorphic. */
 export interface AudiomorphicLayerConfig {
-    /** URL del visualizador (self-host permitido). */
-    url: string;
+    /** Motor: nativo (defecto) o iframe de respaldo. */
+    engine: AudiomorphicEngine;
+
+    /* ── MOTOR NATIVO ─────────────────────────────────────────────────────── */
     /**
-     * Micrófono ACTIVADO por el usuario. La app externa exige un clic SUYO en
-     * su botón "Iniciar Micrófono" para pedir el permiso — el OS nunca lo pide
-     * ni lo dispara solo. Marca de intención + insignia en la UI.
+     * Micrófono. El permiso se pide SIEMPRE con un gesto del usuario (un botón),
+     * NUNCA al cargar. Sin micrófono el espiral sigue vivo (piloto automático):
+     * el audio solo añade reactividad.
      */
     mic: boolean;
     /**
-     * MODO INTERACCIÓN (temporal): la capa sube al frente y recibe clics, para
-     * que el usuario use los controles de la propia app (Iniciar Micrófono,
-     * Deriva/Armónico/Génesis…). Al salir, el iframe NO se remonta ⇒ el audio y
-     * la escena siguen vivos cuando vuelve al fondo.
+     * Parámetros REALES del motor (los del `types.ts` de la app original):
+     * modo del piloto (deriva/armónico/génesis), sensibilidad, color, velocidad,
+     * detalle, estela, geometría sagrada… Parcial: lo que no esté cae al defecto
+     * exacto de la app original.
      */
-    interactive: boolean;
-    /** Escala del iframe (1–2): acerca el espiral. */
+    visual: Record<string, unknown>;
+
+    /* ── COMUNES (CSS sobre la capa, valen para los dos motores) ──────────── */
+    /** Escala (1–2): acerca el espiral. */
     scale: number;
-    /** Filtros CSS reales sobre el iframe. */
     hue: number;        // -180..180 (deg)
     saturate: number;   // 0..2
     brightness: number; // 0.2..2
     contrast: number;   // 0.2..2
+
+    /* ── RESPALDO POR IFRAME ─────────────────────────────────────────────── */
+    /** URL del visualizador externo (self-host permitido). */
+    url: string;
+    /**
+     * MODO INTERACCIÓN (solo iframe): la capa sube al frente y recibe clics para
+     * usar los controles de la app externa. En el motor NATIVO no hace falta:
+     * todo se configura desde el panel de fondos del OS.
+     */
+    interactive: boolean;
 }
 
 export interface BackgroundLayer {
@@ -94,8 +114,14 @@ export interface BackgroundLayer {
     audiomorphic?: AudiomorphicLayerConfig;
 }
 
-/** Versión del modelo de capas — dispara la migración de configs persistidas. */
-export const BG_LAYERS_VERSION = 1;
+/**
+ * Versión del modelo de capas — dispara la migración de configs persistidas.
+ *  1 → Audiomorphic deja de ser `background.type` y pasa a ser CAPA (Adenda 68·D).
+ *  2 → Audiomorphic pasa de IFRAME a MOTOR NATIVO (Adenda 68·E). Sin esto, las
+ *      cuentas que ya tienen la capa guardada seguirían viendo el iframe opaco:
+ *      la regla del proyecto es que todo rediseño migra las configs persistidas.
+ */
+export const BG_LAYERS_VERSION = 2;
 
 export const AUDIOMORPHIC_DEFAULT_URL = "https://audiomorphic.vercel.app";
 
@@ -144,14 +170,16 @@ function uid(): string {
 
 export function defaultAudiomorphicConfig(): AudiomorphicLayerConfig {
     return {
-        url: AUDIOMORPHIC_DEFAULT_URL,
+        engine: "nativo",    // el motor portado: transparencia real y configurable
         mic: false,          // NUNCA por defecto: el permiso se pide con un gesto del usuario
-        interactive: false,  // no roba clics a la UI del OS
+        visual: {},          // {} = los valores EXACTOS de la app original
         scale: 1,
         hue: 0,
         saturate: 1,
         brightness: 1,
         contrast: 1,
+        url: AUDIOMORPHIC_DEFAULT_URL,
+        interactive: false,  // (solo iframe) no roba clics a la UI del OS
     };
 }
 
@@ -162,23 +190,15 @@ export function createLayer(kind: LayerKind): BackgroundLayer {
             return {
                 ...common,
                 name: "Audiomorphic",
-                // screen: el #050505 opaco de la app se vuelve invisible y solo
-                // queda el espiral sobre la capa de abajo. Es LA razón de que
-                // funcione como "capa transparente" sin tocar la app externa.
-                blend: "screen",
-                opacity: 0.9,
-                audiomorphic: {
-                    ...defaultAudiomorphicConfig(),
-                    // PRIMER USO: la capa nace en MODO INTERACCIÓN, al frente.
-                    // Motivo real (verificado): la app externa muestra su tour de
-                    // bienvenida la primera vez en cada navegador, y su
-                    // localStorage está PARTICIONADO por sitio de nivel superior
-                    // ⇒ el OS no puede cerrarlo por él. Con la capa interactiva el
-                    // usuario pulsa «Saltar» (y «Iniciar Micrófono» si quiere) y
-                    // sale con «Listo»: a partir de ahí el fondo queda limpio.
-                    // Nunca persiste: el arranque siempre fuerza interactive=false.
-                    interactive: true,
-                },
+                // `normal`: con el motor NATIVO el canvas tiene alfa REAL, así que
+                // el espiral ya se compone solo sobre la capa de abajo. Ya no hace
+                // falta el truco de `screen` (que existía únicamente para esconder
+                // el negro opaco del iframe). `screen` sigue disponible en el
+                // selector si se quiere el brillo aditivo, pero como ELECCIÓN
+                // estética, no como parche.
+                blend: "normal",
+                opacity: 1,
+                audiomorphic: defaultAudiomorphicConfig(),
             };
         case "gradiente":
             return { ...common, name: "Degradado", blend: "normal", opacity: 0.6, value: "linear-gradient(135deg, #7C3AED 0%, #22D3EE 100%)" };
@@ -200,7 +220,7 @@ export interface LayerCatalogEntry {
 }
 
 export const LAYER_CATALOG: LayerCatalogEntry[] = [
-    { kind: "audiomorphic", label: "Audiomorphic", hint: "Espiral de geometría sonora. Se mezcla en 'screen' → solo se ve el espiral." },
+    { kind: "audiomorphic", label: "Audiomorphic", hint: "Espiral de geometría sonora — motor NATIVO, con transparencia real y micrófono. Todos sus parámetros son configurables aquí." },
     { kind: "gradiente", label: "Degradado", hint: "Degradado CSS con opacidad y mezcla." },
     { kind: "color", label: "Color", hint: "Tinte sólido — útil para teñir el fondo de abajo." },
     { kind: "imagen", label: "Imagen", hint: "Imagen por URL, a pantalla completa." },
@@ -224,17 +244,21 @@ function normalizeAudiomorphic(raw: unknown): AudiomorphicLayerConfig {
     const d = defaultAudiomorphicConfig();
     const a = (raw ?? {}) as Partial<AudiomorphicLayerConfig>;
     return {
-        url: typeof a.url === "string" && a.url.trim() ? a.url.trim() : d.url,
+        // Sin `engine` (config anterior a la Adenda 68·E) ⇒ NATIVO. Es la
+        // migración de facto: nadie se queda con el iframe opaco por inercia.
+        engine: a.engine === "iframe" ? "iframe" : "nativo",
         mic: a.mic === true,
-        // OJO: `interactive` es un estado TEMPORAL (el usuario entra a tocar la
-        // app y sale). No se fuerza desde `mic`: una capa de fondo interactiva
-        // de forma permanente robaría clics a la UI del OS.
-        interactive: a.interactive === true,
+        visual: a.visual && typeof a.visual === "object" ? { ...a.visual } : {},
         scale: clamp(a.scale, 1, 2, d.scale),
         hue: clamp(a.hue, -180, 180, d.hue),
         saturate: clamp(a.saturate, 0, 2, d.saturate),
         brightness: clamp(a.brightness, 0.2, 2, d.brightness),
         contrast: clamp(a.contrast, 0.2, 2, d.contrast),
+        url: typeof a.url === "string" && a.url.trim() ? a.url.trim() : d.url,
+        // OJO: `interactive` es un estado TEMPORAL del respaldo por iframe (el
+        // usuario entra a tocar la app externa y sale). Una capa de fondo
+        // interactiva de forma permanente robaría clics a la UI del OS.
+        interactive: a.interactive === true,
     };
 }
 
@@ -295,12 +319,29 @@ export interface MigratedBackground {
  */
 export function migrateBackgroundLayers(bg: LegacyBackgroundLike): MigratedBackground {
     const layers = normalizeLayers(bg.layers);
+    const prevVersion = typeof bg.layersVersion === "number" ? bg.layersVersion : 0;
+
     // EL ARRANQUE NUNCA ES INTERACTIVO. `interactive` es un estado de sesión (el
-    // usuario entra a tocar la app y sale). Si se colara persistido, el OS
-    // abriría el visualizador a pantalla completa al cargar — otro fantasma.
+    // usuario entra a tocar la app externa y sale). Si se colara persistido, el
+    // OS abriría el visualizador a pantalla completa al cargar — otro fantasma.
     layers.forEach((l) => {
         if (l.kind === "audiomorphic" && l.audiomorphic) l.audiomorphic.interactive = false;
     });
+
+    // ── v2 · IFRAME → MOTOR NATIVO ────────────────────────────────────────
+    // `normalizeAudiomorphic` ya pone `engine: "nativo"` a toda capa guardada
+    // sin ese campo (las de la Adenda 68·D). Aquí solo queda deshacer el PARCHE
+    // que existía por culpa del iframe: `mix-blend-mode: screen` se usaba para
+    // esconder su `<body>` negro opaco. Con alfa REAL ya no hace falta, y con
+    // `normal` los colores del espiral son los verdaderos.
+    // Se hace SOLO al cruzar la versión: si el usuario elige `screen` a partir
+    // de ahora (por gusto: da brillo aditivo), se respeta para siempre.
+    if (prevVersion < 2) {
+        layers.forEach((l) => {
+            if (l.kind === "audiomorphic" && l.blend === "screen") l.blend = "normal";
+        });
+    }
+
     let type = typeof bg.type === "string" && bg.type ? bg.type : DEFAULT_BASE_ENGINE;
     let removedAudiomorphicGhost = false;
 
@@ -353,6 +394,29 @@ export function patchAudiomorphic(
     return (layers ?? []).map((l) =>
         l.id === id && l.kind === "audiomorphic"
             ? { ...l, audiomorphic: normalizeAudiomorphic({ ...(l.audiomorphic ?? {}), ...patch }) }
+            : l,
+    );
+}
+
+/**
+ * Parchea los parámetros VISUALES del motor nativo (modo del piloto, color,
+ * sensibilidad, velocidad, detalle…). Se guardan como parche: lo que no esté
+ * cae al defecto EXACTO de la app original.
+ */
+export function patchAudiomorphicVisual(
+    layers: BackgroundLayer[] | undefined,
+    id: string,
+    patch: Record<string, unknown>,
+): BackgroundLayer[] {
+    return (layers ?? []).map((l) =>
+        l.id === id && l.kind === "audiomorphic" && l.audiomorphic
+            ? {
+                ...l,
+                audiomorphic: {
+                    ...l.audiomorphic,
+                    visual: { ...(l.audiomorphic.visual ?? {}), ...patch },
+                },
+            }
             : l,
     );
 }

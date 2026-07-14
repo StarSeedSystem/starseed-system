@@ -3126,3 +3126,57 @@ Clic real sobre «Secciones» (antes inalcanzable): selecciona, **auto-scroll a 
   exacto** — las media queries responden al ancho del iframe, así que el layout es el real.
 - El shell del Mac tiene **`NODE_ENV=production` exportado**, lo que **rompe el CSS de `next dev`**
   (`globals.css` → "Module parse failed: Unexpected character '@'"). Para levantar dev: `NODE_ENV=development npx next dev`.
+
+---
+
+## 2026-07-13 — Adenda 68 · E: Audiomorphic PORTADO al OS (app nativa + motor de fondo con transparencia real)
+**Sesión por:** Claude (agente)
+**Resumen ejecutivo:** Con la repo fuente en la mano (`StarSeedSystem/Audiomorphic-AR-app`, del propio usuario),
+Audiomorphic deja de ser un `<iframe>` a un sitio externo y pasa a ser **código del OS**: motor portado, app nativa
+desbloqueada en `/audiomorphic` y **capa de fondo con transparencia REAL**. `npx tsc --noEmit` **exit 0**.
+
+### Lo que había que entender antes de tocar nada (leído el código, no supuesto)
+- El visualizador **no es WebGL: es un `<canvas>` 2D**. La espiral es `Zn+1 = Zn·(k·e^{iψ}) + Z0`, y `k`/`ψ` los
+  produce un motor matemático ("Tratado de Unificación Armónica") que convierte una topología (V, E) en la forma.
+- **LA CAUSA REAL DE LA OPACIDAD ESTABA EN EL MOTOR, NO EN EL `<body>`**: `getContext('2d', { alpha: false })`
+  **y** una estela que **pinta un rectángulo NEGRO** cada fotograma (`fillStyle = rgba(0,0,0,trail)`; con
+  `trail: 1.0`, el defecto, es negro opaco). Por eso *ningún* parámetro de URL habría podido hacerlo transparente,
+  y por eso hubo que recurrir en su día a `mix-blend-mode: screen` (que no compone: solo esconde el negro).
+- **NO HABÍA CANDADOS QUE ROMPER.** Los 4 "planes" (`free/code/starseed/premium`) son **teatro de UI**: fuera del
+  modal de suscripción, `subscription.tier` **no se usa en ninguna parte** (ni en el panel de control, ni en el
+  visualizador, ni en el VR). El único bloqueo real era el **tour**, que salía SIEMPRE a quien no "tuviera sesión"
+  (`if (intro.seen !== 'true' || !isLoggedIn)`). "Desbloquear" = **no montar ese teatro**.
+
+### Hecho
+- **Motor** → `src/lib/audiomorphic/` (`types` · `harmonic-math` · `renderer` · `autopilot` · `audio-analyzer`),
+  sin React ni DOM ⇒ **la app y el fondo comparten exactamente el mismo motor**.
+- **TRANSPARENCIA REAL**, resuelta en el motor: `alpha: true` + la estela pasa a **BORRAR alfa**
+  (`globalCompositeOperation = 'destination-out'`) en vez de pintar negro. Misma semántica de `trail`, pero lo que
+  queda es **alfa 0** ⇒ el espiral se compone de verdad sobre las capas de abajo. `screen` ya no hace falta.
+- **App nativa** `/audiomorphic` (+ **ventana real del escritorio**: nuevo mapa `NATIVE_APP_VIEWS` en
+  `desktop-window-content.tsx` — antes una app con `route` solo pintaba una tarjeta «Abrir módulo», y si conservaba
+  `href` **el iframe externo le ganaba**).
+- **Capa de fondo nativa** (`engine: "nativo" | "iframe"`), con **todos** los parámetros que la repo expone de
+  verdad (piloto, geometría en resonancia, sensibilidad, color, velocidad, viscosidad, estela, detalle, zoom).
+  **`BG_LAYERS_VERSION` 1 → 2** con migración: las capas ya guardadas pasan a nativo (si no, las cuentas que ya la
+  tenían seguirían con el iframe opaco).
+- **Micrófono** singleton con refcount (una sola captura para app + fondo) y **permiso siempre por gesto**.
+- **Rendimiento**: pestaña oculta ⇒ bucle parado; `prefers-reduced-motion` ⇒ fotograma estático; eco ⇒ menos
+  iteraciones + DPR 1 + ~30 fps. Y el piloto ya no dispara 60 `setParams()`/s (60 renders de React/s en el original).
+- **Librería**: `oss-library.ts` + `packages.ts` apuntando a la repo del usuario.
+
+### Pendiente / honestidad
+- **El modo VR/AR NO está portado**: `VisualizerVR.tsx` usa **@react-three/xr v6 + postprocessing v3 + drei v10**,
+  que exigen **React 19 + R3F v9**; el OS va con **React 18 + R3F v8**. Portarlo implica **subir React en todo el
+  OS**. No se finge: hay una tarjeta que lo explica y enlaza a la app original y al APK/DMG. Por eso el respaldo
+  `engine: "iframe"` y el `href` del catálogo **se conservan**, y `vrCapable` de Audiomorphic pasa a `false`.
+- El micrófono **exige un clic tras cada recarga** (deliberado: jamás se pide solo).
+
+### Aprendizajes
+- **Antes de "no se puede", léete el motor.** Se dio por hecho que el iframe era opaco por su `<body>`; el `<body>`
+  era lo de menos — **el canvas se creaba sin alfa y se pintaba de negro cada fotograma**. Con el fuente delante, la
+  transparencia real costó **dos líneas** (`alpha: true` + `destination-out`).
+- **Un "muro de pago" puede ser solo decorado.** Auditar los usos reales (`grep` de `tier`/`plan`) antes de diseñar
+  un plan para "desbloquear" algo: aquí no bloqueaba nada, y el trabajo real era **no portar** el teatro.
+- **Portar > incrustar.** El iframe no aceptaba parámetros, no se podía pilotar, no podía ser transparente y metía
+  un tour incerrable. Con el código dentro, los cuatro problemas dejan de existir a la vez.

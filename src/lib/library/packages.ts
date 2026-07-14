@@ -1221,6 +1221,16 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
     payload: { skillId: "video-editing", externalUrl: "https://github.com/opencut-app/opencut", note: "Editor de vídeo web (MIT). Sin API hoy (Editor API/headless/MCP anunciados como futuros). Bloque «Vídeo» en el Lienzo." },
   },
 
+  /* ── Adenda 68 · E · Audiomorphic: PORTADO al OS (app + fondo) ── */
+  {
+    id: "app-audiomorphic", kind: "app", name: "Audiomorphic (visualizador)",
+    description:
+      "★ YA FUNCIONA, sin instalar nada: es NATIVO del OS. El visualizador de consciencia de StarSeed — el sonido del micrófono se convierte en geometría viva: una espiral fractal gobernada por el «Tratado de Unificación Armónica», con tres pilotos (Deriva · Armónico · Génesis) y geometría sagrada en resonancia (Flor de la Vida · Espiral Áurea · Onda Cuántica · Toroide). PORTADO desde la repo del propio ecosistema (StarSeedSystem/Audiomorphic-AR-app) a código del OS: se abre COMPLETO y DESBLOQUEADO en /audiomorphic (sin tour de bienvenida, sin login, sin planes — auditado: ninguna función estaba realmente bloqueada, los «tiers» eran solo UI) y también como CAPA DE FONDO del sistema con TRANSPARENCIA REAL, configurable entera desde Ajustes → Apariencia → Fondo. El micrófono se concede con un clic; sin él, el espiral sigue vivo con el piloto automático. HONESTIDAD: el modo VR/AR NO está portado (su motor 3D exige React 19 + R3F v9; el OS va con React 18 + R3F v8) — para eso se abre la app original o el APK/DMG de sus releases.",
+    icon: "AudioWaveform", tags: ["app", "visualizador", "audio", "fondo", "geometria-sagrada", "nativo", "starseed"], version: "1.1.0",
+    author: "Audiomorphic · StarSeedSystem", sourceRepoId: "starseed-core", free: true, featured: true,
+    payload: { route: "/audiomorphic", externalUrl: "https://github.com/StarSeedSystem/Audiomorphic-AR-app", note: "PORTADO: motor en src/lib/audiomorphic/. App en /audiomorphic + capa de fondo con alfa real. VR/AR solo en la app original." },
+  },
+
   /* ── P4-4 · llm-council → Consejo de Aurora (¡YA FUNCIONA!) ── */
   {
     id: "iatool-llm-council", kind: "function", name: "Consejo de Aurora (llm-council)",

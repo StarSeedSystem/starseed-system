@@ -40,7 +40,9 @@ const ACCENT_BY_OS_THEME: Partial<Record<string, string>> = {
     audiomorphic: '#A855F7', // violeta místico
     omnifrecuencias: '#22D3EE', // cian holográfico
 };
-const AUDIOMORPHIC_URL = 'https://audiomorphic.vercel.app';
+// Adenda 68 · E: Audiomorphic es NATIVO del OS. "Abrir la app" ya no manda a un
+// sitio externo: abre la ruta portada `/audiomorphic` (desbloqueada, sin tour).
+const AUDIOMORPHIC_ROUTE = '/audiomorphic';
 
 const FOCUS_RING =
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-background';
@@ -75,9 +77,9 @@ export function AudiomorphicBgWidget() {
         updateConfig({ background: { layers: patchLayer(layers, layer.id, { opacity: v }) } } as any);
     };
 
-    const openTab = () => {
+    const openApp = () => {
         if (typeof window !== 'undefined') {
-            window.open(AUDIOMORPHIC_URL, '_blank', 'noopener,noreferrer');
+            window.location.assign(AUDIOMORPHIC_ROUTE);
         }
     };
 
@@ -136,7 +138,7 @@ export function AudiomorphicBgWidget() {
                                     {isActive && <Check className="size-3.5 text-purple-300" />}
                                 </span>
                                 <span className="block truncate text-[10px] text-muted-foreground/60">
-                                    {isActive ? 'Capa sobre tu fondo (mezcla screen)' : 'Añádelo como capa del fondo'}
+                                    {isActive ? 'Capa nativa · transparencia real' : 'Añádelo como capa del fondo'}
                                 </span>
                             </span>
                         </div>
@@ -226,20 +228,20 @@ export function AudiomorphicBgWidget() {
                             </button>
                             <button
                                 type="button"
-                                onClick={openTab}
-                                aria-label="Abrir Audiomorphic en una pestaña nueva"
-                                title="Abrir en pestaña"
+                                onClick={openApp}
+                                aria-label="Abrir la app Audiomorphic dentro del OS"
+                                title="Abrir la app"
                                 className={cn(
                                     'flex w-full items-center justify-center gap-1.5 rounded-xl border border-border/40 bg-white/[0.03] px-2 py-2 text-[11px] font-bold text-muted-foreground/80 transition-colors hover:border-purple-400/30 hover:text-foreground cursor-pointer',
                                     FOCUS_RING,
                                 )}
                             >
                                 <ExternalLink className="size-3.5" />
-                                Abrir en pestaña
+                                Abrir la app
                             </button>
                             {!micro && (
                                 <p className="text-center text-[10px] font-semibold text-muted-foreground/60">
-                                    Gratis y completo dentro de StarSeed OS.
+                                    Nativo en StarSeed OS: sin tour, sin login, sin planes.
                                 </p>
                             )}
                         </div>

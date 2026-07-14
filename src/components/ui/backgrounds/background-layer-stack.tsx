@@ -1,28 +1,36 @@
 "use client";
 
 /*
- * BackgroundLayerStack — la PILA de capas de fondo del OS (Adenda 68 · D)
+ * BackgroundLayerStack — la PILA de capas de fondo del OS (Adenda 68 · D + E)
  * ----------------------------------------------------------------------------
  * Pinta `config.background.layers` ENCIMA del fondo base (el motor del OS:
  * Spline / WebGL / Living / Materia…, que sigue leyendo `background.type`).
  *
  * Z-INDEX — medido EN VIVO en producción, no supuesto:
  *   -50  canvas WebGL
- *   -40  Spline · Living · (antes) Audiomorphic
+ *   -40  Spline · Living
  *   -20  PerfStaticBackdrop  ← ¡OPACO y con opacity ~0.85 animada!
  *   -10  Liquid psychedelic (opaco cuando está activo)
  * Por eso las capas van en **-9 … -2**: por encima de TODO lo que pinta fondo
  * (si fueran a -30 quedarían lavadas bajo el backdrop translúcido — que es
  * justo el efecto de "capa intermedia apagada" que reportó el usuario) y por
  * debajo de todo el contenido en flujo (que pinta siempre sobre z-index
- * negativos). Sin eventos de puntero, salvo el modo interacción.
+ * negativos). Sin eventos de puntero, salvo el modo interacción del iframe.
  *
- * Audiomorphic: mezcla `screen` por defecto. Su <body> es #050505 OPACO (no hay
- * transparencia posible en el iframe), pero con `screen` el negro desaparece y
- * solo quedan el espiral y sus brillos sobre la capa de abajo. Verificado.
+ * ── AUDIOMORPHIC: AHORA ES NATIVO (Adenda 68 · E) ───────────────────────────
+ * `engine: "nativo"` (el defecto) monta el visualizador PORTADO
+ * (`AudiomorphicCanvas`), un canvas 2D con **alfa REAL** ⇒ el espiral se compone
+ * de verdad sobre las capas de abajo. Ya no hay iframe, ni `mix-blend-mode:
+ * screen` obligatorio, ni tour, ni login, ni "modo interacción" para poder tocar
+ * los controles: TODO se configura desde el panel de fondos del OS.
+ *
+ * `engine: "iframe"` se mantiene como RESPALDO (app externa; único sitio con
+ * VR/AR). Con él vuelven sus limitaciones conocidas: body opaco ⇒ conviene
+ * `screen`, y sus controles solo se tocan en "modo interacción".
  */
 
 import React, { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { Check, Mic, Sparkles } from "lucide-react";
 import { useAppearance } from "@/context/appearance-context";
 import {
@@ -32,6 +40,13 @@ import {
     patchAudiomorphic,
     type BackgroundLayer,
 } from "@/lib/appearance/background-layers";
+import type { VisualizerParams } from "@/lib/audiomorphic/types";
+
+// El motor nativo se carga en diferido: una capa apagada no cuesta NADA.
+const AudiomorphicCanvas = dynamic(
+    () => import("@/components/audiomorphic/audiomorphic-canvas").then((m) => m.AudiomorphicCanvas),
+    { ssr: false, loading: () => null },
+);
 
 const IFRAME_ALLOW =
     "microphone; camera; autoplay; fullscreen; gyroscope; accelerometer; magnetometer; xr-spatial-tracking";
@@ -69,7 +84,30 @@ function LayerBody({ layer }: { layer: BackgroundLayer }) {
     }
 }
 
-function AudiomorphicLayerView({ layer, onExitInteractive }: {
+/** MOTOR NATIVO — transparencia real, cero iframe. */
+function AudiomorphicNativeLayer({ layer }: { layer: BackgroundLayer }) {
+    const a = layer.audiomorphic!;
+    return (
+        <div
+            className="absolute inset-0"
+            style={{
+                transform: a.scale !== 1 ? `scale(${a.scale})` : undefined,
+                transformOrigin: "center",
+                filter: audiomorphicFilter(a),
+            }}
+        >
+            <AudiomorphicCanvas
+                transparent
+                params={a.visual as Partial<VisualizerParams>}
+                // El fondo NUNCA pinta el HUD de texto del régimen.
+                // (`showIndicators` va a false en el defecto del motor.)
+            />
+        </div>
+    );
+}
+
+/** RESPALDO — la app externa por iframe (con sus limitaciones conocidas). */
+function AudiomorphicIframeLayer({ layer, onExitInteractive }: {
     layer: BackgroundLayer;
     onExitInteractive: () => void;
 }) {
@@ -102,11 +140,9 @@ function AudiomorphicLayerView({ layer, onExitInteractive }: {
                 <div className="pointer-events-auto absolute inset-x-0 top-0 z-10 flex items-center gap-2 border-b border-white/10 bg-black/70 px-3 py-2 backdrop-blur">
                     <Sparkles className="size-4 shrink-0 text-purple-300" />
                     <p className="min-w-0 flex-1 text-[11px] leading-tight text-white/80">
-                        <b className="text-white">Modo interacción.</b>{" "}
-                        Cierra su bienvenida («Saltar») y usa sus controles (Deriva · Armónico · Génesis).
-                        {a.mic
-                            ? " Pulsa «Iniciar Micrófono» para dar permiso: el OS nunca lo pide por ti. Al salir, el sonido sigue activo."
-                            : ""}{" "}
+                        <b className="text-white">Modo interacción</b> (respaldo por iframe).{" "}
+                        Cierra su bienvenida («Saltar») y usa sus controles.
+                        {a.mic ? " Pulsa «Iniciar Micrófono» dentro del visualizador." : ""}{" "}
                         Pulsa <b className="text-white">Listo</b> para enviarlo al fondo.
                     </p>
                     <button
@@ -140,27 +176,31 @@ export function BackgroundLayerStack() {
         <>
             {layers.map((layer, i) => {
                 if (!layer.visible) return null;
-                const interactive = layer.kind === "audiomorphic" && layer.audiomorphic?.interactive === true;
+                const am = layer.kind === "audiomorphic" ? layer.audiomorphic : undefined;
+                // El modo interacción SOLO existe en el respaldo por iframe.
+                const interactive = am?.engine === "iframe" && am.interactive === true;
                 return (
                     <div
                         key={layer.id}
                         aria-hidden={!interactive}
                         className="fixed inset-0 h-full w-full overflow-hidden transition-opacity duration-700"
                         style={{
-                            // En modo interacción la capa sube al frente (sobre la UI)
-                            // para que el usuario pueda pulsar dentro de la app.
                             zIndex: interactive ? 60 : BASE_Z + i,
                             opacity: interactive ? 1 : layer.opacity,
                             mixBlendMode: interactive ? "normal" : (layer.blend as React.CSSProperties["mixBlendMode"]),
                             pointerEvents: interactive ? "auto" : "none",
                         }}
                     >
-                        {layer.kind === "audiomorphic" && layer.audiomorphic ? (
-                            <AudiomorphicLayerView layer={layer} onExitInteractive={() => exitInteractive(layer.id)} />
+                        {am ? (
+                            am.engine === "iframe" ? (
+                                <AudiomorphicIframeLayer layer={layer} onExitInteractive={() => exitInteractive(layer.id)} />
+                            ) : (
+                                <AudiomorphicNativeLayer layer={layer} />
+                            )
                         ) : (
                             <LayerBody layer={layer} />
                         )}
-                        {layer.kind === "audiomorphic" && layer.audiomorphic?.mic && !interactive && (
+                        {am?.mic && !interactive && (
                             <span className="sr-only">
                                 <Mic aria-hidden /> Micrófono activado en el visualizador
                             </span>

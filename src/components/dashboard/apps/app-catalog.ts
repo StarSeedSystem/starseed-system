@@ -52,22 +52,25 @@ export const APP_CATALOG: StarseedApp[] = [
     },
     {
         id: "audiomorphic",
-        name: "Audiomorphic VR",
+        name: "Audiomorphic",
         short: "Audiomorphic",
-        description: "Visualizador de consciencia: audio → geometría sagrada. Gratis dentro del OS.",
+        description: "Visualizador de consciencia: audio → geometría sagrada. NATIVO del OS, completo y sin bloqueos.",
         icon: AudioWaveform,
         iconUrl: "/app-icons/audiomorphic.png",
         accent: "#A855F7",
         category: "starseed",
-        status: "live",
-        vrCapable: true,
+        // Adenda 68 · E: PORTADO al OS (antes era un iframe a audiomorphic.vercel.app,
+        // con tour de bienvenida y "planes"). Ahora es un módulo nativo más.
+        status: "native",
+        // El modo VR/AR sigue viviendo SOLO en la app original (su motor 3D exige
+        // React 19 + R3F v9; el OS va con React 18 + R3F v8) → `href` lo conserva.
+        vrCapable: false,
         open: {
-            primary: "window",
-            allowed: ["window", "tab", "popup", "embed"],
-            // ?starseed_os=1&full=1 → señal para desbloquear la VERSIÓN COMPLETA al
-            // usarse incrustado dentro del OS con sesión (la app lo detecta).
-            href: "https://audiomorphic.vercel.app/?starseed_os=1&full=1",
-            embeddable: true, // ya se embebe como fondo del OS → framing permitido
+            primary: "route",
+            allowed: ["route", "window", "tab"],
+            route: "/audiomorphic",
+            href: "https://audiomorphic.vercel.app",
+            embeddable: true,
         },
     },
     {

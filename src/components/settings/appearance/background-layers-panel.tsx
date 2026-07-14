@@ -11,24 +11,26 @@
  * Ámbito: cuenta · perfil activo · página/programa actual (overrides reales,
  * resueltos en el AppearanceProvider — página > perfil > cuenta).
  *
- * Honestidad sobre Audiomorphic (verificado leyendo su bundle y en vivo):
- *  • La app NO acepta parámetros visuales por URL (preset/colores/velocidad/
- *    sensibilidad NO existen como querystring). Lo único que entiende es
- *    `source=starseed…` (vinculación con la cuenta StarSeed).
- *  • Su <body> es opaco (#050505) ⇒ NO hay transparencia de iframe posible.
- *    Se usa `mix-blend-mode: screen`, que hace desaparecer el negro y deja
- *    únicamente el espiral sobre la capa de abajo.
- *  • Sus propios controles (Deriva/Armónico/Génesis, Iniciar Micrófono) se usan
- *    con el "modo interacción". El micrófono lo concede el usuario ahí dentro.
- *  • Lo que el OS SÍ controla de verdad: opacidad, mezcla, escala y filtros CSS
- *    (tono, saturación, brillo, contraste).
+ * AUDIOMORPHIC — AHORA ES NATIVO (Adenda 68 · E)
+ *  • El visualizador está PORTADO al OS desde la repo del usuario
+ *    (StarSeedSystem/Audiomorphic-AR-app) ⇒ ya no es un iframe.
+ *  • Transparencia REAL (canvas con alfa): el espiral se compone de verdad
+ *    sobre las capas de abajo. Ya no hace falta `mix-blend-mode: screen`.
+ *  • TODOS sus parámetros son configurables desde aquí: piloto (Deriva ·
+ *    Armónico · Génesis), geometría en resonancia, sensibilidad del micro,
+ *    color, velocidad, viscosidad, estela, detalle, zoom…
+ *  • El micrófono se concede con un CLIC (nunca al cargar). Sin micrófono el
+ *    espiral sigue vivo: el piloto lo anima igual.
+ *  • `engine: "iframe"` sigue disponible como RESPALDO (la app externa es el
+ *    único sitio con VR/AR). Con él vuelven sus límites: body opaco (conviene
+ *    "screen") y parámetros no configurables desde el OS.
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
-    AudioWaveform, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers,
-    Mic, Plus, Sparkles, SlidersHorizontal, Trash2, Video, Paintbrush, Globe, User, FileCode,
+    AudioWaveform, Cpu, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers,
+    Mic, Plus, RotateCcw, Sparkles, SlidersHorizontal, Trash2, Video, Paintbrush, Globe, User, FileCode,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppearance, type BackgroundScopeMode } from "@/context/appearance-context";
@@ -38,6 +40,7 @@ import {
     audiomorphicFilter,
     normalizeLayers,
     patchAudiomorphic,
+    patchAudiomorphicVisual,
     patchLayer,
     removeLayer,
     reorderLayers,
@@ -45,6 +48,22 @@ import {
     type BlendMode,
     type LayerKind,
 } from "@/lib/appearance/background-layers";
+// Motor NATIVO (Adenda 68 · E): los parámetros REALES del visualizador portado.
+import {
+    DEFAULT_PARAMS,
+    resolveParams,
+    type AutoPilotMode,
+    type SacredGeometryMode,
+    type VisualizerParams,
+} from "@/lib/audiomorphic/types";
+import {
+    AUDIOMORPHIC_MIC_EVENT,
+    getMicError,
+    getMicState,
+    startMic,
+    stopMic,
+    type MicState,
+} from "@/lib/audiomorphic/audio-analyzer";
 
 const BLENDS: { id: BlendMode; label: string }[] = [
     { id: "normal", label: "Normal" },
@@ -103,15 +122,25 @@ function LayerThumb({ layer }: { layer: BackgroundLayer }) {
 }
 
 /* ── Ajustes específicos de una capa Audiomorphic ──────────────────────── */
-function AudiomorphicControls({ layer, onPatch }: {
-    layer: BackgroundLayer;
-    onPatch: (p: Partial<NonNullable<BackgroundLayer["audiomorphic"]>>) => void;
+
+const PILOT_MODES: { id: AutoPilotMode; label: string; hint: string }[] = [
+    { id: "drift", label: "Deriva", hint: "La espiral deriva sola; los golpes de sonido cambian su ángulo." },
+    { id: "harmonic", label: "Armónico", hint: "La nota dominante elige el polígono (tritono, triángulo, hexágono…)." },
+    { id: "genesis", label: "Génesis", hint: "La energía del sonido escala la creación: Vacío → Vesica → Flor → Metatrón." },
+];
+
+const SG_MODES: { id: SacredGeometryMode; label: string }[] = [
+    { id: "flowerOfLife", label: "Flor de la Vida" },
+    { id: "goldenSpiral", label: "Espiral Áurea" },
+    { id: "quantumWave", label: "Onda Cuántica" },
+    { id: "torus", label: "Toroide" },
+];
+
+function Slider({ label, value, min, max, step, onChange, fmt }: {
+    label: string; value: number; min: number; max: number; step: number;
+    onChange: (v: number) => void; fmt: (v: number) => string;
 }) {
-    const a = layer.audiomorphic!;
-    const Row = ({ label, value, min, max, step, onChange, fmt }: {
-        label: string; value: number; min: number; max: number; step: number;
-        onChange: (v: number) => void; fmt: (v: number) => string;
-    }) => (
+    return (
         <label className="block">
             <span className="mb-1 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
                 {label} <span className="tabular-nums text-purple-300">{fmt(value)}</span>
@@ -124,65 +153,270 @@ function AudiomorphicControls({ layer, onPatch }: {
             />
         </label>
     );
+}
+
+function AudiomorphicControls({ layer, onPatch, onPatchVisual }: {
+    layer: BackgroundLayer;
+    onPatch: (p: Partial<NonNullable<BackgroundLayer["audiomorphic"]>>) => void;
+    onPatchVisual: (p: Record<string, unknown>) => void;
+}) {
+    const a = layer.audiomorphic!;
+    const native = a.engine !== "iframe";
+    // Los parámetros REALES del motor (lo que no esté guardado = defecto original).
+    const v = resolveParams(a.visual as Partial<VisualizerParams>);
+    const [micState, setMicState] = useState<MicState>(getMicState());
+
+    useEffect(() => {
+        const on = (e: Event) => setMicState((e as CustomEvent<{ state: MicState }>).detail.state);
+        window.addEventListener(AUDIOMORPHIC_MIC_EVENT, on);
+        setMicState(getMicState());
+        return () => window.removeEventListener(AUDIOMORPHIC_MIC_EVENT, on);
+    }, []);
+
+    /** El permiso SIEMPRE nace de este clic. Nunca se pide al cargar. */
+    const toggleMic = async () => {
+        if (micState === "live") {
+            stopMic();
+            onPatch({ mic: false });
+            toast.message("Micrófono apagado");
+            return;
+        }
+        const ok = await startMic(); // ← gesto del usuario
+        onPatch({ mic: ok });
+        if (ok) toast.success("Micrófono activo: el espiral reacciona al sonido");
+        else toast.error(getMicError() ?? "No se pudo abrir el micrófono");
+    };
+
+    const toggleSg = (mode: SacredGeometryMode) => {
+        const cur = v.sgResonanceModes;
+        const next = cur.includes(mode) ? cur.filter((m) => m !== mode) : [...cur, mode];
+        onPatchVisual({ sgResonanceModes: next.length ? next : [mode] });
+    };
 
     return (
         <div className="mt-2 space-y-3 rounded-xl border border-purple-400/25 bg-purple-400/[0.04] p-3">
-            {/* Micrófono + modo interacción (el ÚNICO camino real al audio) */}
-            <div className="flex flex-wrap items-center gap-2">
-                <button
-                    type="button"
-                    onClick={() => {
-                        const on = !a.mic;
-                        onPatch({ mic: on, interactive: on ? true : a.interactive });
-                        toast[on ? "success" : "message"](
-                            on
-                                ? "Modo interacción activo: pulsa «Iniciar Micrófono» dentro del visualizador"
-                                : "Micrófono desactivado",
-                        );
-                    }}
-                    aria-pressed={a.mic}
-                    className={cn(
-                        "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-colors",
-                        a.mic
-                            ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-100"
-                            : "border-border/50 text-muted-foreground hover:bg-white/5",
-                    )}
-                >
-                    <Mic className="size-3.5" /> {a.mic ? "Micrófono activado" : "Activar micrófono"}
-                </button>
-                <button
-                    type="button"
-                    onClick={() => onPatch({ interactive: true })}
-                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-purple-400/50 bg-purple-400/15 px-3 py-1 text-[11px] font-bold text-purple-100 transition-colors hover:bg-purple-400/25"
-                >
-                    <SlidersHorizontal className="size-3.5" /> Interactuar con el visualizador
-                </button>
-            </div>
-            <p className="text-[10px] leading-relaxed text-muted-foreground/60">
-                El permiso de micrófono lo concedes <b>tú</b>, dentro del visualizador (botón «Iniciar Micrófono»):
-                el OS nunca lo pide solo. Al salir del modo interacción el sonido y la escena siguen vivos, porque el
-                iframe no se recarga. Los presets del espiral (Deriva · Armónico · Génesis) también se eligen ahí:
-                la app <b>no</b> los acepta por URL.
-            </p>
-
-            <Row label="Escala" value={a.scale} min={1} max={2} step={0.05} onChange={(v) => onPatch({ scale: v })} fmt={(v) => `${v.toFixed(2)}×`} />
-            <Row label="Tono" value={a.hue} min={-180} max={180} step={1} onChange={(v) => onPatch({ hue: v })} fmt={(v) => `${v}°`} />
-            <Row label="Saturación" value={a.saturate} min={0} max={2} step={0.05} onChange={(v) => onPatch({ saturate: v })} fmt={(v) => `${Math.round(v * 100)}%`} />
-            <Row label="Brillo" value={a.brightness} min={0.2} max={2} step={0.05} onChange={(v) => onPatch({ brightness: v })} fmt={(v) => `${Math.round(v * 100)}%`} />
-            <Row label="Contraste" value={a.contrast} min={0.2} max={2} step={0.05} onChange={(v) => onPatch({ contrast: v })} fmt={(v) => `${Math.round(v * 100)}%`} />
-
-            <label className="block">
+            {/* Motor */}
+            <div>
                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
-                    URL del visualizador
+                    Motor
                 </span>
-                <input
-                    type="url"
-                    value={a.url}
-                    onChange={(e) => onPatch({ url: e.target.value })}
-                    placeholder="https://audiomorphic.vercel.app"
-                    className="w-full rounded-lg border border-border/50 bg-black/20 px-2 py-1.5 text-xs outline-none focus:border-purple-400/60"
-                />
-            </label>
+                <div className="flex flex-wrap gap-1.5">
+                    {([
+                        { id: "nativo", label: "Nativo", icon: Cpu },
+                        { id: "iframe", label: "App externa (respaldo)", icon: Globe },
+                    ] as const).map((e) => (
+                        <button
+                            key={e.id}
+                            type="button"
+                            onClick={() => onPatch({ engine: e.id })}
+                            aria-pressed={a.engine === e.id}
+                            className={cn(
+                                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-colors",
+                                a.engine === e.id
+                                    ? "border-purple-400/60 bg-purple-400/15 text-purple-100"
+                                    : "border-border/50 text-muted-foreground hover:bg-white/5",
+                            )}
+                        >
+                            <e.icon className="size-3.5" /> {e.label}
+                        </button>
+                    ))}
+                </div>
+                <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground/60">
+                    {native ? (
+                        <>
+                            <b className="text-emerald-300">Nativo</b>: el visualizador corre <b>dentro del OS</b> con
+                            <b> transparencia real</b> (canvas con alfa) — se compone de verdad sobre las capas de abajo, sin
+                            trucos de mezcla. Todos sus parámetros son configurables aquí.
+                        </>
+                    ) : (
+                        <>
+                            <b>App externa</b> (respaldo por iframe): su <code>body</code> es negro opaco ⇒ conviene la mezcla
+                            «Screen». Sus controles solo se tocan en «modo interacción», y sus parámetros <b>no</b> se pueden
+                            configurar desde aquí. Es el <b>único</b> sitio con <b>VR/AR</b>.
+                        </>
+                    )}
+                </p>
+            </div>
+
+            {native ? (
+                <>
+                    {/* Micrófono — el permiso nace SIEMPRE de este clic */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={toggleMic}
+                            aria-pressed={micState === "live"}
+                            className={cn(
+                                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-colors",
+                                micState === "live"
+                                    ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-100"
+                                    : "border-border/50 text-muted-foreground hover:bg-white/5",
+                            )}
+                        >
+                            <Mic className="size-3.5" />
+                            {micState === "live" ? "Micrófono activo" : micState === "requesting" ? "Pidiendo permiso…" : "Activar micrófono"}
+                        </button>
+                        {micState === "denied" && (
+                            <span className="text-[10px] font-semibold text-rose-300">
+                                Permiso denegado — actívalo en el candado del navegador.
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-[10px] leading-relaxed text-muted-foreground/60">
+                        El permiso lo pides <b>tú</b>, con este botón: el OS <b>nunca</b> lo solicita al cargar (y tras recargar
+                        hay que volver a pulsarlo — es deliberado). <b>Sin micrófono el espiral sigue vivo</b>: el piloto
+                        automático lo anima igual; el sonido solo añade reactividad.
+                    </p>
+
+                    {/* Piloto automático */}
+                    <div>
+                        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+                            Piloto automático
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                            {PILOT_MODES.map((m) => (
+                                <button
+                                    key={m.id}
+                                    type="button"
+                                    title={m.hint}
+                                    onClick={() => onPatchVisual({ autoPilot: true, autoPilotMode: m.id })}
+                                    aria-pressed={v.autoPilot && v.autoPilotMode === m.id}
+                                    className={cn(
+                                        "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-colors",
+                                        v.autoPilot && v.autoPilotMode === m.id
+                                            ? "border-purple-400/60 bg-purple-400/15 text-purple-100"
+                                            : "border-border/50 text-muted-foreground hover:bg-white/5",
+                                    )}
+                                >
+                                    {m.label}
+                                </button>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={() => onPatchVisual({ autoPilot: !v.autoPilot })}
+                                aria-pressed={!v.autoPilot}
+                                className={cn(
+                                    "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-colors",
+                                    !v.autoPilot ? "border-amber-400/60 bg-amber-400/15 text-amber-100" : "border-border/50 text-muted-foreground hover:bg-white/5",
+                                )}
+                            >
+                                {v.autoPilot ? "Congelar" : "Congelado"}
+                            </button>
+                        </div>
+                        <p className="mt-1 text-[10px] text-muted-foreground/55">
+                            {PILOT_MODES.find((m) => m.id === v.autoPilotMode)?.hint}
+                        </p>
+                    </div>
+
+                    {/* Geometría sagrada (solo en Génesis) */}
+                    {v.autoPilotMode === "genesis" && (
+                        <div>
+                            <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+                                Geometría en resonancia
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                                {SG_MODES.map((m) => (
+                                    <button
+                                        key={m.id}
+                                        type="button"
+                                        onClick={() => toggleSg(m.id)}
+                                        aria-pressed={v.sgResonanceModes.includes(m.id)}
+                                        className={cn(
+                                            "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                                            v.sgResonanceModes.includes(m.id)
+                                                ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-100"
+                                                : "border-border/50 text-muted-foreground hover:bg-white/5",
+                                        )}
+                                    >
+                                        {m.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Parámetros REALES del motor */}
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                        <Slider label="Sensibilidad del micro" value={v.sensitivity} min={0.5} max={15} step={0.1}
+                            onChange={(n) => onPatchVisual({ sensitivity: n })} fmt={(n) => n.toFixed(1)} />
+                        <Slider label="Velocidad" value={v.autoSpeed} min={0.1} max={3} step={0.05}
+                            onChange={(n) => onPatchVisual({ autoSpeed: n })} fmt={(n) => `${n.toFixed(2)}×`} />
+                        <Slider label="Viscosidad" value={v.autoViscosity} min={0} max={0.995} step={0.005}
+                            onChange={(n) => onPatchVisual({ autoViscosity: n })} fmt={(n) => (n > 0.9 ? "miel" : n > 0.6 ? "aceite" : "agua")} />
+                        <Slider label="Color base" value={v.baseHue} min={0} max={360} step={1}
+                            onChange={(n) => onPatchVisual({ baseHue: n })} fmt={(n) => `${Math.round(n)}°`} />
+                        <Slider label="Rango de color" value={v.hueRange} min={0} max={360} step={1}
+                            onChange={(n) => onPatchVisual({ hueRange: n })} fmt={(n) => `${Math.round(n)}°`} />
+                        <Slider label="Saturación" value={v.saturation} min={0} max={100} step={1}
+                            onChange={(n) => onPatchVisual({ saturation: n })} fmt={(n) => `${Math.round(n)}%`} />
+                        <Slider label="Intensidad (brillo)" value={v.brightness} min={0} max={100} step={1}
+                            onChange={(n) => onPatchVisual({ brightness: n })} fmt={(n) => `${Math.round(n)}%`} />
+                        <Slider label="Ciclo de color" value={v.hueSpeed} min={0} max={2} step={0.05}
+                            onChange={(n) => onPatchVisual({ hueSpeed: n })} fmt={(n) => n.toFixed(2)} />
+                        <Slider label="Estela" value={v.trail} min={0.02} max={1} step={0.01}
+                            onChange={(n) => onPatchVisual({ trail: n })} fmt={(n) => (n >= 1 ? "sin estela" : `${Math.round((1 - n) * 100)}%`)} />
+                        <Slider label="Detalle (iteraciones)" value={v.iter} min={200} max={4000} step={50}
+                            onChange={(n) => onPatchVisual({ iter: n })} fmt={(n) => String(Math.round(n))} />
+                        <Slider label="Profundidad (zoom)" value={v.zoom} min={0.0002} max={0.006} step={0.0001}
+                            onChange={(n) => onPatchVisual({ zoom: n })} fmt={(n) => n.toFixed(4)} />
+                        <Slider label="Color armónico" value={v.harmonicSensitivity} min={0} max={15} step={0.1}
+                            onChange={(n) => onPatchVisual({ harmonicSensitivity: n })} fmt={(n) => n.toFixed(1)} />
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() => { onPatchVisual({ ...DEFAULT_PARAMS, showIndicators: false, geometryData: undefined }); toast.success("Parámetros restaurados"); }}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border/50 px-3 py-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-white/5"
+                    >
+                        <RotateCcw className="size-3.5" /> Restaurar valores originales
+                    </button>
+                </>
+            ) : (
+                <>
+                    {/* Respaldo por iframe: lo de siempre */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => { onPatch({ mic: !a.mic, interactive: !a.mic ? true : a.interactive }); }}
+                            aria-pressed={a.mic}
+                            className={cn(
+                                "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold transition-colors",
+                                a.mic ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-100" : "border-border/50 text-muted-foreground hover:bg-white/5",
+                            )}
+                        >
+                            <Mic className="size-3.5" /> {a.mic ? "Micrófono activado" : "Activar micrófono"}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onPatch({ interactive: true })}
+                            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-purple-400/50 bg-purple-400/15 px-3 py-1 text-[11px] font-bold text-purple-100 transition-colors hover:bg-purple-400/25"
+                        >
+                            <SlidersHorizontal className="size-3.5" /> Interactuar con el visualizador
+                        </button>
+                    </div>
+                    <label className="block">
+                        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+                            URL del visualizador
+                        </span>
+                        <input
+                            type="url"
+                            value={a.url}
+                            onChange={(e) => onPatch({ url: e.target.value })}
+                            placeholder="https://audiomorphic.vercel.app"
+                            className="w-full rounded-lg border border-border/50 bg-black/20 px-2 py-1.5 text-xs outline-none focus:border-purple-400/60"
+                        />
+                    </label>
+                </>
+            )}
+
+            {/* Filtros CSS de la capa (valen para los dos motores) */}
+            <div className="grid gap-2.5 border-t border-border/30 pt-2.5 sm:grid-cols-2">
+                <Slider label="Escala" value={a.scale} min={1} max={2} step={0.05} onChange={(n) => onPatch({ scale: n })} fmt={(n) => `${n.toFixed(2)}×`} />
+                <Slider label="Tono (filtro)" value={a.hue} min={-180} max={180} step={1} onChange={(n) => onPatch({ hue: n })} fmt={(n) => `${n}°`} />
+                <Slider label="Saturación (filtro)" value={a.saturate} min={0} max={2} step={0.05} onChange={(n) => onPatch({ saturate: n })} fmt={(n) => `${Math.round(n * 100)}%`} />
+                <Slider label="Brillo (filtro)" value={a.brightness} min={0.2} max={2} step={0.05} onChange={(n) => onPatch({ brightness: n })} fmt={(n) => `${Math.round(n * 100)}%`} />
+                <Slider label="Contraste (filtro)" value={a.contrast} min={0.2} max={2} step={0.05} onChange={(n) => onPatch({ contrast: n })} fmt={(n) => `${Math.round(n * 100)}%`} />
+            </div>
         </div>
     );
 }
@@ -390,6 +624,7 @@ export function BackgroundLayersPanel() {
                                         <AudiomorphicControls
                                             layer={layer}
                                             onPatch={(p) => setLayers(patchAudiomorphic(layers, layer.id, p))}
+                                            onPatchVisual={(p) => setLayers(patchAudiomorphicVisual(layers, layer.id, p))}
                                         />
                                     )}
                                 </div>

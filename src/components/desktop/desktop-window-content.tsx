@@ -175,16 +175,42 @@ function OpenTabButton({ href, accent, label = "Abrir en pestaña nueva" }: { hr
     );
 }
 
-// ── APP: iframe defensivo (mismo patrón que app-launch.tsx) ──────
+// ── Apps NATIVAS del OS: se montan DE VERDAD dentro de la ventana ──
+// Antes, una app con `open.primary: "route"` solo pintaba una tarjeta con el
+// botón «Abrir módulo» (te sacaba del escritorio). Las apps portadas al OS son
+// componentes React: pueden vivir dentro de la ventana como cualquier widget.
+// Mapa extensible: id del catálogo → componente (carga diferida).
+const NATIVE_APP_VIEWS: Record<string, React.ComponentType> = {
+    audiomorphic: dynamic(
+        () => import("@/components/dashboard/apps/audiomorphic/audiomorphic-app").then((m) => m.AudiomorphicApp),
+        {
+            ssr: false,
+            loading: () => (
+                <div className="absolute inset-0 grid place-items-center bg-black text-[11px] text-white/60">
+                    Cargando visualizador…
+                </div>
+            ),
+        },
+    ),
+};
+
+// ── APP: nativa (montada) · externa (iframe defensivo) · ruta · enlace ──
 function AppContent({ appId, fallbackName }: { appId: string; fallbackName?: string }): React.ReactElement {
     const router = useRouter();
     const app = getApp(appId);
     const [loaded, setLoaded] = useState(false);
     const [stuck, setStuck] = useState(false);
 
+    const NativeView = NATIVE_APP_VIEWS[appId];
+    const isNative = Boolean(app) && app!.status === "native" && Boolean(NativeView);
+
     const href = app?.open.href;
     const soon = app?.status === "soon";
-    const showEmbed = Boolean(app) && !soon && Boolean(href) && app!.open.embeddable !== false;
+    // OJO: una app NATIVA puede conservar `href` (p. ej. Audiomorphic mantiene el
+    // enlace a la app original por su modo VR/AR). Sin este `!isNative`, el iframe
+    // externo ganaría al componente nativo y volveríamos justo al problema que
+    // este port venía a resolver.
+    const showEmbed = Boolean(app) && !isNative && !soon && Boolean(href) && app!.open.embeddable !== false;
 
     useEffect(() => {
         if (!showEmbed) return;
@@ -211,6 +237,15 @@ function AppContent({ appId, fallbackName }: { appId: string; fallbackName?: str
                 text={`${app.description} — Módulo nativo en construcción.`}
                 accent={app.accent}
             />
+        );
+    }
+
+    // App PORTADA al OS → se monta aquí mismo, en la ventana. Nada de iframes.
+    if (isNative && NativeView) {
+        return (
+            <div className="absolute inset-0 overflow-hidden">
+                <NativeView />
+            </div>
         );
     }
 
