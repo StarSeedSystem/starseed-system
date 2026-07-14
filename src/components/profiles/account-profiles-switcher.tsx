@@ -51,6 +51,7 @@ import {
     Trash2,
     ImagePlus,
     ImageOff,
+    Crop,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -64,6 +65,8 @@ import {
     type ProfileKind,
 } from "@/lib/profiles/profiles";
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
+import { uploadFile } from "@/lib/files/os-files";
+import { ImageCropperDialog } from "@/components/ui/image-cropper-dialog";
 import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAccount } from "@/context/account-context";
@@ -399,6 +402,24 @@ function ProfileEditorDialog({
     onSave: () => void;
     onMakeDefault?: () => void;
 }) {
+    const [cropper, setCropper] = useState<{ open: boolean; type: "avatar" | "cover"; url: string } | null>(null);
+
+    const handleCropComplete = async (blob: Blob) => {
+        if (!cropper) return;
+        const file = new File([blob], `cropped-${cropper.type}-${Date.now()}.jpg`, { type: "image/jpeg" });
+        const res = await uploadFile(file, { folder: `perfil/${cropper.type}`, isPublic: true });
+        if (res.ok && res.file?.url) {
+            if (cropper.type === "avatar") {
+                onChange({ ...editor, avatarUrl: res.file.url });
+            } else {
+                onChange({ ...editor, coverUrl: res.file.url });
+            }
+        } else {
+            toast.error(res.error || "Error al subir la imagen recortada.");
+        }
+        setCropper(null);
+    };
+
     return (
         <Dialog open={editor.open} onOpenChange={(o) => !o && onClose()}>
             <DialogContent className="max-w-md border-white/10 bg-black/90 backdrop-blur-2xl">
@@ -497,7 +518,7 @@ function ProfileEditorDialog({
                                     <AttachFilePickerButton
                                         onPick={(attachments) => {
                                             const picked = attachments[0];
-                                            if (picked?.url) onChange({ ...editor, avatarUrl: picked.url });
+                                            if (picked?.url) setCropper({ open: true, type: "avatar", url: picked.url });
                                         }}
                                         accept="image/*"
                                         folder="perfil/avatar"
@@ -507,6 +528,17 @@ function ProfileEditorDialog({
                                     >
                                         <ImagePlus className="h-3 w-3" /> Subir…
                                     </AttachFilePickerButton>
+                                    {editor.avatarUrl && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full gap-1.5 h-7 text-[11px] border-white/15 bg-white/[0.03] cursor-pointer"
+                                            onClick={() => setCropper({ open: true, type: "avatar", url: editor.avatarUrl })}
+                                        >
+                                            <Crop className="size-3" /> Recortar
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -536,7 +568,7 @@ function ProfileEditorDialog({
                                 <AttachFilePickerButton
                                     onPick={(attachments) => {
                                         const picked = attachments[0];
-                                        if (picked?.url) onChange({ ...editor, coverUrl: picked.url });
+                                        if (picked?.url) setCropper({ open: true, type: "cover", url: picked.url });
                                     }}
                                     accept="image/*"
                                     folder="perfil/cover"
@@ -546,6 +578,17 @@ function ProfileEditorDialog({
                                 >
                                     <ImagePlus className="h-3 w-3" /> Subir…
                                 </AttachFilePickerButton>
+                                {editor.coverUrl && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full gap-1.5 h-7 text-[11px] border-white/15 bg-white/[0.03] cursor-pointer"
+                                        onClick={() => setCropper({ open: true, type: "cover", url: editor.coverUrl })}
+                                    >
+                                        <Crop className="size-3" /> Recortar
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -570,6 +613,15 @@ function ProfileEditorDialog({
                     </Button>
                 </DialogFooter>
             </DialogContent>
+            {cropper && (
+                <ImageCropperDialog
+                    open={cropper.open}
+                    onOpenChange={(open) => !open && setCropper(null)}
+                    imageSrc={cropper.url}
+                    mode={cropper.type}
+                    onCropComplete={handleCropComplete}
+                />
+            )}
         </Dialog>
     );
 }
