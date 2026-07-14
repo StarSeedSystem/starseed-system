@@ -136,7 +136,19 @@ function writeEntries(entries: AuroraChatLogEntry[]): void {
   }
 }
 
-/** Añade un mensaje al registro (con dedupe defensivo) y notifica el cambio. */
+/**
+ * Añade un mensaje al registro (con dedupe defensivo) y notifica el cambio.
+ *
+ * (Adenda 69 · I-1) Además de la caché local, el mensaje se replica a la
+ * CONVERSACIÓN UNIFICADA en la nube (`aurora_conversations` +
+ * `astraura_messages`) — la MISMA que lee y escribe la sección de chats de
+ * Astraura AI (`/agent`). Es el punto único por el que pasan TODOS los mensajes
+ * de Aurora (orbe, mini-reproductor y Exocórtex emiten `aurora:conversation`),
+ * así que basta con engancharse aquí para que las dos superficies compartan un
+ * solo historial. Import DIFERIDO: `conversations.ts` importa este módulo para
+ * migrar el registro legado (evita el ciclo). Best-effort: si falla la nube, el
+ * registro local queda intacto y no se pierde nada.
+ */
 export function appendAuroraChatEntry(entry: AuroraChatLogEntry): void {
   if (typeof window === "undefined") return;
   if (!isEntry(entry) || !entry.text.trim()) return;
@@ -155,6 +167,29 @@ export function appendAuroraChatEntry(entry: AuroraChatLogEntry): void {
   entries.push({ role: entry.role, text: entry.text, ts: entry.ts, ...(entry.meta ? { meta: entry.meta } : {}) });
   writeEntries(entries);
   emitChange();
+  mirrorToCloud(entry);
+}
+
+/** Réplica del mensaje en la conversación unificada (nube). Nunca lanza. */
+function mirrorToCloud(entry: AuroraChatLogEntry): void {
+  try {
+    void import("@/lib/aurora/conversations")
+      .then(({ appendMessage }) =>
+        appendMessage({
+          role: entry.role, // "aurora" → "assistant" (normalizeRole)
+          text: entry.text,
+          ts: entry.ts,
+          meta: entry.meta ?? null,
+          kind: "aurora",
+          surface: "orb",
+        }),
+      )
+      .catch(() => {
+        /* offline / sin sesión: la caché local ya lo tiene */
+      });
+  } catch {
+    /* defensivo */
+  }
 }
 
 /** Borra todo el registro local y notifica el cambio. */
@@ -297,6 +332,17 @@ export function ensureAuroraChatLogRecorder(): void {
   const w = window as unknown as Record<string, unknown>;
   if (w[RECORDER_FLAG]) return;
   w[RECORDER_FLAG] = true;
+  // (Adenda 69 · I-1) Arranca el motor de la conversación unificada: pull de la
+  // nube, migración del registro legado y suscripción en tiempo real. Idempotente.
+  try {
+    void import("@/lib/aurora/conversations")
+      .then(({ startAiChatSync }) => startAiChatSync())
+      .catch(() => {
+        /* defensivo */
+      });
+  } catch {
+    /* defensivo */
+  }
   try {
     window.addEventListener(AURORA_CONVERSATION_EVENT, (e: Event) => {
       try {

@@ -81,6 +81,15 @@ import { ChatConnectionsPanel } from "@/components/messaging/chat-connections-pa
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 import { LibrarySourcesPanel } from "@/components/library/library-sources-panel";
 
+// Conversación unificada Aurora ↔ Astraura AI (Adenda 69 · I-1).
+import {
+  useAiConversations,
+  useAiMessages,
+  appendMessage as appendUnifiedMessage,
+  ensureActiveConversation,
+  titleFromText,
+} from "@/lib/aurora/conversations";
+
 import { chat, chatSmart } from "@/ai/client/chat";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS, type ProviderId } from "@/ai/providers";
@@ -340,9 +349,16 @@ function AgentPageInner() {
   const tabParam = params?.get('tab');
   const initialTab = normalizeTab(tabParam) ?? 'chat';
 
-  const [messages, setMessages] = useState<ChatTurn[]>([
-    { role: 'agent', content: 'Sistemas neurales activos. Elige un proveedor de IA en Ajustes → IA & Modelos para empezar a conversar de verdad.', timestamp: 'Ahora' }
-  ]);
+  // ── CONVERSACIÓN UNIFICADA (Adenda 69 · I-1) ───────────────────────────────
+  // Antes este chat era `useState<ChatTurn[]>` EN MEMORIA: no persistía nada (al
+  // recargar se perdía) y no veía ni una palabra de lo hablado con Aurora. Ahora
+  // lee y escribe la MISMA conversación en la nube que el orbe, el
+  // mini-reproductor y el Exocórtex (`aurora_conversations` + `astraura_messages`),
+  // en tiempo real y entre dispositivos.
+  const conv = useAiConversations();
+  const cloudMessages = useAiMessages(conv.activeId);
+  /** Respuesta que se está transmitiendo ahora mismo (aún no persistida). */
+  const [streamText, setStreamText] = useState("");
   const [inputValue, setInputValue] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -432,15 +448,39 @@ function AgentPageInner() {
     if (!text || streaming) return;
 
     setInputValue("");
-    const now = new Date().toLocaleTimeString();
-    setMessages(prev => [...prev, { role: 'user', content: text, timestamp: now }]);
+
+    // 1) La conversación de destino: la ACTIVA (la misma que usa Aurora desde el
+    //    orbe). Si no hay ninguna, se crea y queda activa para ambas superficies.
+    let convId = conv.activeId;
+    if (!convId) {
+      const created = await ensureActiveConversation({
+        title: titleFromText(text),
+        kind: 'astraura',
+        surface: 'agent',
+      });
+      convId = created.id;
+      conv.setActive(created.id);
+    }
+
+    // 2) El mensaje del usuario se persiste YA (nube + caché): aparece al
+    //    instante aquí y, en tiempo real, en el Exocórtex de Aurora.
+    await appendUnifiedMessage({
+      role: 'user',
+      text,
+      convId,
+      kind: 'astraura',
+      surface: 'agent',
+    });
 
     if (!activeProviderConfig) {
-      setMessages(prev => [...prev, {
-        role: 'agent',
-        timestamp: now,
-        content: 'Aún no tienes un proveedor de IA configurado. Ve a Ajustes → IA & Modelos y añade Ollama (local) u otro proveedor con tu propia clave.',
-      }]);
+      await appendUnifiedMessage({
+        role: 'assistant',
+        text: 'Aún no tienes un proveedor de IA configurado. Ve a Ajustes → IA & Modelos y añade Ollama (local) u otro proveedor con tu propia clave.',
+        convId,
+        kind: 'astraura',
+        surface: 'agent',
+        meta: { local: true, provider: 'Astraura (respuesta local)' },
+      });
       return;
     }
 
@@ -479,21 +519,24 @@ function AgentPageInner() {
       console.warn('[Agent] No se pudo construir contexto completo:', e);
     }
 
+    // 3) Historial: el REAL de la conversación unificada (incluye lo que se haya
+    //    hablado con Aurora por voz en este mismo hilo — ya no son dos mundos).
     const history: ChatMessage[] = [
       { role: 'system', content: systemPieces.join('\n\n---\n\n') },
-      ...messages.filter(m => !m.pending).map<ChatMessage>(m => ({
-        role: m.role === 'agent' ? 'assistant' : 'user',
-        content: m.content,
-      })),
+      ...cloudMessages
+        .filter(m => m.role !== 'system' && m.text.trim() && m.text !== text)
+        .map<ChatMessage>(m => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.text,
+        })),
       { role: 'user', content: text },
     ];
 
-    // Placeholder turn that we'll fill via streaming.
-    const placeholderIdx = -1;
-    setMessages(prev => [...prev, { role: 'agent', content: '', timestamp: now, pending: true }]);
-
     abortRef.current = new AbortController();
     setStreaming(true);
+    setStreamText("");
+    let acc = "";
+    const startedAt = Date.now();
     try {
       await chatSmart({
         messages: history,
@@ -501,42 +544,95 @@ function AgentPageInner() {
         passphrase,
         signal: abortRef.current.signal,
         onChunk: (delta) => {
-          setMessages(prev => {
-            const next = [...prev];
-            const last = next[next.length - 1];
-            if (last && last.role === 'agent' && last.pending) {
-              next[next.length - 1] = { ...last, content: last.content + delta };
-            }
-            return next;
-          });
+          acc += delta;
+          setStreamText(acc);
         },
       });
-      setMessages(prev => prev.map(m => (m.pending ? { ...m, pending: false } : m)));
+      // 4) La respuesta completa se persiste en la conversación unificada.
+      if (acc.trim()) {
+        await appendUnifiedMessage({
+          role: 'assistant',
+          text: acc,
+          convId,
+          kind: 'astraura',
+          surface: 'agent',
+          source: activeProviderConfig.label,
+          meta: {
+            provider: activeProviderConfig.label,
+            model: activeProviderConfig.defaultModel,
+            ms: Date.now() - startedAt,
+          },
+        });
+      }
     } catch (err) {
       const msg = (err as Error).message;
-      setMessages(prev => {
-        const next = prev.filter(m => !m.pending);
-        next.push({ role: 'agent', content: `⚠ ${msg}`, timestamp: now });
-        return next;
-      });
+      // Lo ya transmitido antes del corte NO se tira: es parte honesta del hilo.
+      if (acc.trim()) {
+        await appendUnifiedMessage({
+          role: 'assistant',
+          text: `${acc}\n\n⚠ ${msg}`,
+          convId,
+          kind: 'astraura',
+          surface: 'agent',
+          source: activeProviderConfig.label,
+          meta: { provider: activeProviderConfig.label, model: activeProviderConfig.defaultModel },
+        });
+      } else {
+        await appendUnifiedMessage({
+          role: 'assistant',
+          text: `⚠ ${msg}`,
+          convId,
+          kind: 'astraura',
+          surface: 'agent',
+          meta: { local: true, provider: 'Astraura (error)' },
+        });
+      }
       toast.error(`Error: ${msg}`);
     } finally {
       setStreaming(false);
+      setStreamText("");
       abortRef.current = null;
     }
   }
 
   function handleStop() {
     abortRef.current?.abort();
-    setStreaming(false);
-    setMessages(prev => prev.map(m => (m.pending ? { ...m, pending: false, content: m.content + ' (cancelado)' } : m)));
+    // El texto ya transmitido se conserva: `handleSend` lo persiste en su
+    // `catch`/`finally` (abortar lanza AbortError, que entra por el catch).
   }
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, activeTab]);
+  }, [cloudMessages, streamText, activeTab]);
+
+  // Lo que se pinta: los mensajes REALES de la conversación unificada + la
+  // burbuja en vivo de la respuesta que se está transmitiendo. Si el hilo está
+  // vacío, un saludo honesto (no se persiste: es UI, no historial).
+  const messages: ChatTurn[] = useMemo(() => {
+    const base: ChatTurn[] = cloudMessages
+      .filter(m => m.role !== 'system')
+      .map(m => ({
+        role: m.role === 'assistant' ? 'agent' : 'user',
+        content: m.text,
+        timestamp: (() => {
+          try { return new Date(m.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
+          catch { return ''; }
+        })(),
+      }));
+    if (base.length === 0 && !streaming) {
+      base.push({
+        role: 'agent',
+        content: 'Sistemas neurales activos. Escribe aquí o háblale a Aurora desde el orbe: es la **misma conversación**. Elige un proveedor de IA en Ajustes → IA & Modelos para conversar de verdad.',
+        timestamp: 'Ahora',
+      });
+    }
+    if (streaming) {
+      base.push({ role: 'agent', content: streamText, timestamp: '', pending: true });
+    }
+    return base;
+  }, [cloudMessages, streaming, streamText]);
 
   return (
     <div className="flex flex-col h-[calc(100dvh-5rem)] gap-4 p-3 sm:p-4 md:p-6 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
@@ -694,6 +790,35 @@ function AgentPageInner() {
           {/* Chat Interface */}
           <div className="flex-1 flex flex-col rounded-xl border bg-background/50 overflow-hidden shadow-sm relative min-w-0 w-full max-w-full box-border">
             <div className="absolute top-3 right-3 left-3 sm:left-auto z-10 flex flex-wrap justify-end gap-2 max-w-[calc(100%-1.5rem)]">
+              {/* Selector de CONVERSACIÓN — el mismo hilo que el orbe de Aurora
+                  (Adenda 69 · I-1). En pantallas pequeñas sustituye a la barra
+                  lateral, que está oculta bajo `lg`. */}
+              {conv.conversations.length > 0 && (
+                <Select
+                  value={conv.activeId ?? undefined}
+                  onValueChange={(v) => conv.setActive(v)}
+                >
+                  <SelectTrigger className="w-[190px] max-w-[44vw] bg-card/60 backdrop-blur border-border/50 lg:hidden">
+                    <SelectValue placeholder="Conversación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {conv.conversations.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.kind === 'astraura' || c.surface === 'agent' ? '🤖 ' : '🔵 '}{c.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0 bg-card/60 backdrop-blur border-border/50 cursor-pointer lg:hidden"
+                title="Nueva conversación"
+                onClick={() => void conv.create({ kind: 'astraura', surface: 'agent' })}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
               {configs.filter(c => c.enabled).length > 0 && (
                 <Select
                   value={activeProviderId ?? configs[0]?.id}

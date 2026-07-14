@@ -148,6 +148,22 @@ export const FEED_GLOBAL_TOPIC = "feed:global";
 export const AURORA_CONFIG_TOPIC = "aurora:config";
 
 /**
+ * Topic de CONVERSACIONES de IA (Adenda 69 · I-1) — Aurora ↔ Astraura AI.
+ *
+ * Viaja solo por el canal de CUENTA (`acct:<uid>`): una conversación con la IA
+ * personal es privada de la cuenta y NUNCA se difunde por canales de entidad.
+ *
+ * Lo emite `src/lib/aurora/conversations.ts` tras escribir con éxito en la nube
+ * (conversación nueva, renombrada, borrada, o mensaje nuevo). Es el camino
+ * RÁPIDO (broadcast, ~inmediato); el camino REDUNDANTE es `postgres_changes`
+ * sobre `aurora_conversations` / `astraura_messages` (ambas en la publicación
+ * `supabase_realtime`). `shouldProcessChange()` deduplica entre los dos.
+ *
+ * `data`: `{ convId?: string; kind: "message" | "conversation" }`.
+ */
+export const AI_CHATS_TOPIC = "aurora:chats";
+
+/**
  * Entidad "virtual" del feed global → canal compartido `ent:feed:global`.
  * Sin ella, el topic global solo viajaría por el canal de CUENTA y un feed
  * genérico nunca vería en vivo las publicaciones de OTRAS cuentas.

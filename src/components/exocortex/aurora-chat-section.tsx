@@ -81,6 +81,13 @@ import {
   type AuroraChatLogEntry,
 } from "@/lib/aurora/aurora-chat-log";
 import { useChatTree } from "@/lib/aurora/chat-tree";
+// Conversación UNIFICADA Aurora ↔ Astraura AI (Adenda 69 · I-1).
+import {
+  useAiConversations,
+  loadMessages as loadCloudMessages,
+  setActiveConversationId,
+  type AiConversation,
+} from "@/lib/aurora/conversations";
 
 // ── Tipos locales ────────────────────────────────────────────────────────────
 type Tab = "folder" | "chat" | "chats" | "voz" | "control" | "personalidad" | "registro";
@@ -394,6 +401,82 @@ function dayLabel(day: string): string {
   }
 }
 
+// ── Conversaciones de la CUENTA (nube) — Aurora ↔ Astraura AI ────────────────
+/**
+ * (Adenda 69 · I-1) La MISMA lista que se ve en la sección de chats de Astraura
+ * AI (`/agent`). Vive en `aurora_conversations` (Supabase), llega en tiempo real
+ * y sobrevive a recargas y cambios de dispositivo. Abrir una la carga en la
+ * vista de chat y la deja activa: lo siguiente que hables cae en ese hilo.
+ */
+function CloudConversations({ onOpen }: { onOpen: (c: AiConversation) => void }) {
+  const { conversations, activeId, create, remove } = useAiConversations();
+
+  return (
+    <div className="relative z-[1] space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="axc-label flex items-center gap-1.5">
+          <Layers className="h-3 w-3 text-[#39FF14]" />
+          Conversaciones de tu cuenta · {conversations.length}
+        </div>
+        <button
+          onClick={() => void create({ kind: "aurora", surface: "exocortex" })}
+          className="axc-btn lime"
+          title="Empezar una conversación nueva (aparecerá también en Astraura AI)"
+        >
+          <Plus className="h-3.5 w-3.5" /> Nueva
+        </button>
+      </div>
+
+      {conversations.length === 0 ? (
+        <div className="axc-card flex items-center gap-2 px-3.5 py-3 text-[10px] leading-relaxed text-white/40">
+          <Layers className="h-4 w-4 shrink-0 text-white/25" />
+          Todavía no hay conversaciones en la nube. En cuanto hables con Aurora —o escribas
+          en Astraura AI— aparecerán aquí, en las dos superficies a la vez.
+        </div>
+      ) : (
+        <div className="axc-scroll max-h-56 space-y-1.5 overflow-y-auto pr-1">
+          {conversations.map((c) => {
+            const fromAgent = c.kind === "astraura" || c.surface === "agent";
+            return (
+              <div
+                key={c.id}
+                className={cn(
+                  "axc-card group flex items-center gap-2 px-3 py-2",
+                  c.id === activeId && "ring-1 ring-[#39FF14]/40",
+                )}
+              >
+                <button
+                  onClick={() => void onOpen(c)}
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+                  title={`Abrir «${c.title}» en el chat`}
+                >
+                  <MessageSquare
+                    className={cn("h-3.5 w-3.5 shrink-0", fromAgent ? "text-[#FFBF00]" : "text-[#7fb8ff]")}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-xs text-white/85">{c.title}</span>
+                  <span className="shrink-0 text-[9px] uppercase tracking-wide text-white/30">
+                    {fromAgent ? "Astraura" : "Aurora"}
+                  </span>
+                  <span className="shrink-0 font-mono text-[9px] text-white/30">
+                    {fmtTime(c.updatedAt)}
+                  </span>
+                </button>
+                <button
+                  onClick={() => void remove(c.id)}
+                  className="hidden cursor-pointer text-white/35 transition-colors duration-150 hover:text-[#DC143C] group-hover:block"
+                  title="Eliminar esta conversación (de la cuenta)"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Sección ──────────────────────────────────────────────────────────────────
 export function AuroraChatSection({ className }: { className?: string }) {
   // Motor por CONTEXTO (la cortina Zenith vive dentro de AuroraProvider) —
@@ -555,6 +638,28 @@ export function AuroraChatSection({ className }: { className?: string }) {
   }, []);
 
   const exitLoadedSession = useCallback(() => setLoadedSession(null), []);
+
+  // (Adenda 69 · I-1) Abrir una conversación de la NUBE — puede venir del orbe,
+  // del mini-reproductor o de la sección de chats de Astraura AI (`/agent`): son
+  // el mismo modelo. La cargamos en la vista de chat y la dejamos ACTIVA, así
+  // que el siguiente mensaje (por voz o por texto, aquí o en `/agent`) continúa
+  // ESE hilo. Reutiliza `loadedSession`, que ya sabe pintar un contexto pasado.
+  const openCloudConversation = useCallback(async (conv: AiConversation) => {
+    setSessionStartTs(0);
+    setActiveConversationId(conv.id);
+    const msgs = await loadCloudMessages(conv.id);
+    setLoadedSession({
+      day: auroraChatDayOf(conv.createdAt),
+      entries: msgs.map((m) => ({
+        role: m.role === "assistant" ? ("aurora" as const) : ("user" as const),
+        text: m.text,
+        ts: m.ts,
+        ...(m.meta ? { meta: m.meta } : {}),
+      })),
+      label: conv.title,
+    });
+    setTab("chat");
+  }, []);
 
   // Abrir un CONTEXTO del árbol: reconstruye su conversación cruzando los
   // timestamps asociados (índice paralelo) con las entradas del registro. Lo fija
@@ -1177,9 +1282,17 @@ export function AuroraChatSection({ className }: { className?: string }) {
           </div>
 
           <p className="relative z-[1] text-[10px] leading-relaxed text-white/35">
-            Cada mensaje con Aurora (voz o texto) se guarda solo en este dispositivo
-            (localStorage, últimos 500), agrupado en sesiones por día.
+            Cada mensaje con Aurora (voz o texto) se guarda en tu cuenta y se sincroniza
+            con la sección de chats de <strong className="font-medium text-white/55">Astraura AI</strong>:
+            es <strong className="font-medium text-white/55">la misma conversación</strong>. Aquí abajo,
+            además, la copia local de este dispositivo (últimos 500, por día).
           </p>
+
+          {/* ── Conversaciones de la CUENTA (nube) — Aurora ↔ Astraura AI ────
+              (Adenda 69 · I-1) Aquí aparecen TODAS: las habladas con el orbe y
+              las escritas en `/agent`. Abrir una la carga en la vista de chat y
+              la deja ACTIVA, así que lo siguiente que digas cae en ese hilo. */}
+          <CloudConversations onOpen={openCloudConversation} />
 
           {chatLog.sessions.length === 0 ? (
             <div className="axc-card relative z-[1] flex flex-col items-center gap-1.5 px-4 py-8 text-center">
