@@ -3180,3 +3180,39 @@ desbloqueada en `/audiomorphic` y **capa de fondo con transparencia REAL**. `npx
   un plan para "desbloquear" algo: aquí no bloqueaba nada, y el trabajo real era **no portar** el teatro.
 - **Portar > incrustar.** El iframe no aceptaba parámetros, no se podía pilotar, no podía ser transparente y metía
   un tour incerrable. Con el código dentro, los cuatro problemas dejan de existir a la vez.
+
+---
+
+## 2026-07-13 — Adenda 69 · La causa raíz REAL de los bugs F (sync de Aurora) y G (sesión al recargar)
+**Sesión por:** Claude (Cowork, diagnóstico EN VIVO contra producción)
+**Resumen ejecutivo:** Los fixes de las Adendas 63 y 68 estaban **bien escritos y desplegados**, y aun así los dos bugs seguían. Porque el fallo **nunca estuvo en el motor de sync ni en el cliente de auth**: estaba **debajo**, en cómo TODO el OS escribe la columna `user_settings.prefs`. La config de Aurora **sí subía**… y **se borraba segundos después**. Commit `ccb9180`, EN VIVO.
+
+### Causa raíz OBSERVADA (no teorizada)
+1. **Lost update.** `user_settings.prefs` es **UNA columna jsonb** compartida por **~12 módulos**, y **todos** escribían *leer → mutar → `upsert` de la COLUMNA ENTERA*. Al cargar la página arrancan a la vez ⇒ el último borra lo de los demás. **Medido en vivo: la fila pasó de 16 claves a 4 en segundos**, llevándose `__meta` y todas las claves de Aurora que realtime-sync acababa de subir. El peor infractor: `settings-sync.ts:350` (`pushPreferences()` ni leía antes ⇒ «Sincronizar ahora» **aniquilaba** la fila).
+2. **La fila pesaba 2,8 MB ⇒ las escrituras EXPIRABAN.** `SYNCED_PREFIXES` incluía `"starseed.brain."` y se tragaba `…memory-mirror.v1` (espejo/caché de `brain_memory_files`: **1,75 MB en un cerebro**) y `…offline-queue.v1`. Cada latido reenviaba 2,8 MB ⇒ `pg_stat_activity` mostraba `INSERT` concurrentes bloqueándose y peticiones muriendo con **`57014: statement timeout` tras 40 s**, en **silencio** (motor best-effort, `catch {}`).
+3. **El motor podía quedar MUERTO toda la sesión.** `startRealtimeSync()` hacía `return` por *no-session* **antes** de registrar `onAuthStateChange`; `RealtimeSyncProvider` comprobaba la sesión **una vez** con `auth.getUser()` (**red**). Si la sesión no había hidratado aún, **nadie reintentaba jamás**.
+4. **BUG G no era un cierre de sesión.** La cookie sobrevive intacta a la recarga y el middleware nunca redirige a `/login` (verificado). Lo que el usuario veía como *«se reinicia»* era **la consecuencia de (1)**: el OS restaura su estado desde `prefs` al arrancar, y esa fila **estaba siendo vaciada** una y otra vez. El *«a veces tarda»* era (2)+(3).
+
+### Hecho
+- **`merge_user_prefs(jsonb)`** — RPC de mezcla **ATÓMICA** en el servidor (superficial en 1er nivel + **profunda** de `__meta`; `null` borra). Nadie manda ya la columna entera. Migración `20260714020000_*` **aplicada en producción**.
+- **Trigger de blindaje** en `user_settings`: toda escritura de `prefs` **MEZCLA** en vez de reemplazar ⇒ el patrón antiguo deja de ser destructivo **aunque el módulo no se migre** (protege `desktop-store.ts`, intocable esta ola). Escotilla: `set local starseed.prefs_replace = 'on'`. Migración `20260714021000_*` **aplicada**.
+- **`src/lib/sync/user-prefs.ts`**: única puerta de escritura (`mergeUserPrefs`). **9 módulos migrados**.
+- **`memory-mirror`/`offline-queue` dejan de sincronizar** (`NEVER_SYNCED_PATTERNS`) + **purga en BD**: **2,8 MB → 22 kB** (×130). Contención: 0.
+- **`getUserId()` usa `getSession()`** (cookie, instantáneo) antes que `getUser()` (red).
+- **`onAuthStateChange` se registra SIEMPRE y ANTES** del early-return (`ensureAuthSubscription()`/`connectForUser()`); el provider reintenta al hidratar.
+
+### Verificación EN VIVO (producción, cuenta real)
+- Cambiar la personalidad ⇒ la app llama a la RPC atómica con **2 claves / 13,8 KB** (antes 2,8 MB), **0 espejos**; local == nube; `agents`/`dashboards`/`capabilities`/`__meta` **intactas**.
+- **Dispositivo B → dispositivo A sin recargar**: escrita la personalidad en la nube desde fuera del navegador, el dispositivo A **la aplicó solo**, con LWW correcto.
+- La cuenta tiene ya **6 claves de Aurora/Astraura** en `prefs`. **Antes había CERO en las 4 cuentas de la BD.**
+- **BUG G**: 3 recargas seguidas ⇒ nunca apareció el login, cookie intacta, **perfil activo y personalidad conservados**.
+- `npx tsc --noEmit` → **0** · `npm run build` → **exit 0**.
+
+### Decisiones tomadas
+- **La columna `prefs` se blinda en la BASE DE DATOS, no solo en el cliente.** Confiar en que 12 módulos (y los futuros) usen la puerta correcta es exactamente el fallo que nos trajo aquí. El trigger hace el bug **imposible**, no solo improbable.
+- **Los espejos de memoria y las colas offline NO son ajustes**: son caché y estado de dispositivo. Vuelven a ser locales.
+
+### Pendiente / Próximos pasos
+- `src/components/desktop/desktop-store.ts:1330` sigue con el `upsert` antiguo (estaba en la lista de *no tocar*). El trigger lo neutraliza, pero migrarlo a `mergeUserPrefs()` es 1 línea.
+- `src/ai/astraura/sync-providers.ts:251` escribe al Supabase **propio del usuario** (otra BD, sin RPC ni trigger): se dejó a propósito (allí `prefs` es un espejo completo).
+- Las pestañas de **desarrollo local** del usuario (`localhost:3057/3099/3111`) corren código viejo contra la MISMA base y vuelven a inflar `prefs` con espejos. Al recargarlas con el código nuevo dejarán de hacerlo.
