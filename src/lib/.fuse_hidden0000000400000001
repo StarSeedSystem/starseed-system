@@ -24,7 +24,6 @@
 
 import { useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 
 // ── Claves de localStorage del dashboard (NO se modifica su lógica) ──
 const LS_DASHBOARDS = "starseed_dashboards";

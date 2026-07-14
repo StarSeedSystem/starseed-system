@@ -31,7 +31,6 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
-import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 
 /* ------------------------------------------------------------------ */
 /* Tipos del contrato                                                */
@@ -318,8 +317,6 @@ async function updateSignalQueue(
 ): Promise<boolean> {
   try {
     const supabase = createClient();
-    // Lectura SOLO de nuestra cola (no de la columna entera para reescribirla:
-    // ese patrón borraba las claves de los demás módulos — Adenda 69 · A).
     let prefs: Record<string, unknown> = {};
     try {
       const { data } = await supabase
@@ -328,10 +325,10 @@ async function updateSignalQueue(
         .eq("user_id", userId)
         .maybeSingle();
       if (data?.prefs && typeof data.prefs === "object") {
-        prefs = data.prefs as Record<string, unknown>;
+        prefs = { ...(data.prefs as Record<string, unknown>) };
       }
     } catch {
-      /* partimos de cola vacía si no se pudo leer */
+      /* mezclamos sobre objeto vacío si no se pudo leer */
     }
 
     const current = parseSignalQueue(prefs[PREFS_SIGNALS_KEY]);
@@ -340,10 +337,15 @@ async function updateSignalQueue(
     const now = Date.now();
     next = next.filter((s) => now - s.at <= SIGNAL_TTL_MS);
     if (next.length > MAX_SIGNALS) next = next.slice(next.length - MAX_SIGNALS);
+    prefs[PREFS_SIGNALS_KEY] = next;
 
-    // Escritura NO destructiva: solo nuestra clave, fusionada atómicamente.
-    const res = await mergeUserPrefs({ [PREFS_SIGNALS_KEY]: next }, { userId });
-    return res.ok;
+    await supabase
+      .from("user_settings")
+      .upsert(
+        { user_id: userId, prefs, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" },
+      );
+    return true;
   } catch {
     return false;
   }

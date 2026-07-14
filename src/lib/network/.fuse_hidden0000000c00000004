@@ -28,7 +28,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 
 /* ------------------------------------------------------------------ */
 /* Claves de localStorage                                             */
@@ -263,12 +262,27 @@ async function fetchRemoteDevices(userId: string): Promise<DeviceInfo[]> {
  */
 async function pushDevices(userId: string, devices: DeviceInfo[]): Promise<void> {
   try {
-    // Adenda 69 · A — antes: leer `prefs` + `upsert` de la COLUMNA ENTERA. Y
-    // esto corre en un HEARTBEAT periódico, así que era de los que más borraba:
-    // cada latido reescribía toda la columna con la foto que había leído,
-    // aniquilando lo que otros módulos (p. ej. la config de Aurora) hubieran
-    // guardado entretanto. Ahora se manda SOLO nuestra clave, fusión atómica.
-    await mergeUserPrefs({ [PREFS_DEVICES_KEY]: devices }, { userId });
+    const supabase = createClient();
+    let prefs: Record<string, unknown> = {};
+    try {
+      const { data } = await supabase
+        .from("user_settings")
+        .select("prefs")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (data?.prefs && typeof data.prefs === "object") {
+        prefs = { ...(data.prefs as Record<string, unknown>) };
+      }
+    } catch {
+      /* mezclamos sobre objeto vacío si no se pudo leer */
+    }
+    prefs[PREFS_DEVICES_KEY] = devices;
+    await supabase
+      .from("user_settings")
+      .upsert(
+        { user_id: userId, prefs, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" },
+      );
   } catch {
     /* best-effort: nunca rompemos */
   }
@@ -407,9 +421,6 @@ export function setAutoDetectPref(on: boolean): void {
     if (!userId) return;
     try {
       const supabase = createClient();
-      // Leemos SOLO para conservar el resto del sub-objeto `network` (que es
-      // nuestro). La columna entera ya NO se reescribe: se manda solo la clave
-      // `network` y Postgres la funde de forma atómica (Adenda 69 · A).
       let prefs: Record<string, unknown> = {};
       try {
         const { data } = await supabase
@@ -418,14 +429,20 @@ export function setAutoDetectPref(on: boolean): void {
           .eq("user_id", userId)
           .maybeSingle();
         if (data?.prefs && typeof data.prefs === "object") {
-          prefs = data.prefs as Record<string, unknown>;
+          prefs = { ...(data.prefs as Record<string, unknown>) };
         }
       } catch {
         /* noop */
       }
       const net = (prefs.network && typeof prefs.network === "object" ? { ...(prefs.network as Record<string, unknown>) } : {});
       net.autoDetect = on;
-      await mergeUserPrefs({ network: net }, { userId });
+      prefs.network = net;
+      await supabase
+        .from("user_settings")
+        .upsert(
+          { user_id: userId, prefs, updated_at: new Date().toISOString() },
+          { onConflict: "user_id" },
+        );
     } catch {
       /* best-effort */
     }

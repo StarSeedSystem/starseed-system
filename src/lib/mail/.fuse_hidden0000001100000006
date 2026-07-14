@@ -45,7 +45,6 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
-import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 import {
     sendMessage,
     listMessages,
@@ -528,11 +527,14 @@ export async function setLinkedExternalEmail(email: string): Promise<boolean> {
     const uid = await getCurrentUserId();
     if (!uid) return false;
     try {
-        // Adenda 69 · A — antes: leer `prefs` + `upsert` de la COLUMNA ENTERA
-        // (lost update: borraba lo que otros módulos hubieran escrito tras la
-        // lectura). Ahora solo se manda nuestra clave, fusión atómica.
-        const res = await mergeUserPrefs({ externalEmail: email.trim() }, { userId: uid });
-        return res.ok;
+        const supabase = createClient();
+        const { data } = await supabase.from("user_settings").select("prefs").eq("user_id", uid).maybeSingle();
+        const prefs = data?.prefs && typeof data.prefs === "object" ? (data.prefs as Record<string, unknown>) : {};
+        const next = { ...prefs, externalEmail: email.trim() };
+        const { error } = await supabase
+            .from("user_settings")
+            .upsert({ user_id: uid, prefs: next, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+        return !error;
     } catch {
         return false;
     }

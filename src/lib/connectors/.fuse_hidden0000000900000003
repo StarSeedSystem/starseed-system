@@ -25,7 +25,6 @@
 
 import { useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 import {
   BUILTIN_CONNECTORS,
   CONNECTORS_BY_ID,
@@ -404,11 +403,34 @@ async function pullAndMerge(userId: string): Promise<void> {
 /** Sube el mapa local a `prefs.connectors` (merge no destructivo de prefs). */
 async function pushSnapshot(userId: string): Promise<void> {
   try {
-    // Adenda 69 · A — antes: leer `prefs` + `upsert` de la COLUMNA ENTERA, que
-    // borraba las claves escritas por los otros ~11 módulos que comparten esta
-    // columna jsonb (lost update). Ahora se manda SOLO nuestra clave y Postgres
-    // la funde de forma atómica. Ver src/lib/sync/user-prefs.ts.
-    await mergeUserPrefs({ connectors: getConfigMap() }, { userId });
+    const supabase = createClient();
+    const connectors = getConfigMap();
+
+    // 1) Lee prefs actual para NO pisar otras claves (library, installed…).
+    let prefs: Record<string, unknown> = {};
+    try {
+      const { data } = await supabase
+        .from("user_settings")
+        .select("prefs")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (data?.prefs && typeof data.prefs === "object") {
+        prefs = { ...(data.prefs as Record<string, unknown>) };
+      }
+    } catch {
+      /* si no se pudo leer, mezclamos sobre objeto vacío */
+    }
+
+    // 2) Mezcla solo NUESTRA clave.
+    prefs.connectors = connectors;
+
+    // 3) Upsert por user_id (misma forma que library-sync / settings-sync).
+    await supabase
+      .from("user_settings")
+      .upsert(
+        { user_id: userId, prefs, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" },
+      );
   } catch {
     /* nunca rompemos: localStorage sigue siendo la verdad */
   }

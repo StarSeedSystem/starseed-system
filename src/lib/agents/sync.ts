@@ -32,6 +32,7 @@
 
 import { useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 import { getAgentsSnapshot, mergeAgentsFromAccount } from "./store";
 
 const LIBRARY_EVENT = "starseed:library";
@@ -72,36 +73,30 @@ async function pullAndMerge(userId: string): Promise<void> {
   }
 }
 
-/** Sube el snapshot de agentes a la cuenta (merge no destructivo de prefs). */
+/**
+ * Sube el snapshot de agentes a la cuenta.
+ *
+ * Adenda 69 · A — antes esto LEÍA `prefs`, le añadía sus 3 claves y hacía
+ * `upsert` de la COLUMNA ENTERA. Como los otros ~11 módulos que comparten
+ * `user_settings.prefs` hacen lo mismo a la vez al cargar la página, el último
+ * en escribir borraba todo lo que los demás hubieran guardado tras su lectura
+ * (lost update). Medido en producción: este mismo push dejó la fila en 4 claves
+ * (`agents`, `dashboards`, `agentsPublic`, `agentBindings`) y se llevó por
+ * delante las de Aurora/Astraura que realtime-sync acababa de subir.
+ *
+ * Ahora se manda SOLO el parche y Postgres lo funde de forma atómica.
+ */
 async function pushSnapshot(userId: string): Promise<void> {
   try {
-    const supabase = createClient();
     const snap = getAgentsSnapshot();
-
-    let prefs: Record<string, unknown> = {};
-    try {
-      const { data } = await supabase
-        .from("user_settings")
-        .select("prefs")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (data?.prefs && typeof data.prefs === "object") {
-        prefs = { ...(data.prefs as Record<string, unknown>) };
-      }
-    } catch {
-      /* mezclamos sobre objeto vacío */
-    }
-
-    prefs.agents = snap.agents;
-    prefs.agentBindings = snap.bindings;
-    prefs.agentsPublic = snap.publicAgents;
-
-    await supabase
-      .from("user_settings")
-      .upsert(
-        { user_id: userId, prefs, updated_at: new Date().toISOString() },
-        { onConflict: "user_id" },
-      );
+    await mergeUserPrefs(
+      {
+        agents: snap.agents,
+        agentBindings: snap.bindings,
+        agentsPublic: snap.publicAgents,
+      },
+      { userId },
+    );
   } catch {
     /* nunca rompemos: localStorage sigue siendo la verdad */
   }

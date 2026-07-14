@@ -31,7 +31,6 @@
 
 import { useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 import {
     getSaved,
     getInstalled,
@@ -199,38 +198,47 @@ function readLocalCaps(): string[] {
 async function pushSnapshot(userId: string): Promise<void> {
     try {
         const supabase = createClient();
-
-        // 1) Solo NUESTRAS claves: nunca volvemos a mandar la columna entera.
-        //
-        // Adenda 69 · A — antes esto leía `prefs`, le añadía sus claves y hacía
-        // `upsert` de la COLUMNA COMPLETA. `user_settings.prefs` es UNA columna
-        // jsonb compartida por ~12 módulos que arrancan a la vez al cargar la
-        // página: el último en escribir borraba lo que los demás hubieran
-        // guardado tras su lectura. Medido en producción: este push dejó la fila
-        // en 6 claves y se llevó por delante `__meta` y TODAS las de
-        // Aurora/Astraura que realtime-sync acababa de subir bien — por eso la
-        // personalidad "solo se guardaba en el dispositivo donde se configura".
-        // Ahora se manda SOLO el parche y Postgres lo funde atómicamente.
+        const library = getSaved();
         const installed = getInstalled();
-        const patch: Record<string, unknown> = {
-            library: getSaved(),
-            installed,
-        };
 
-        // Store "Cydia" (paquetes/skills) + Capacidades de Aurora → cuenta, para
-        // que las skills instaladas y el COMPORTAMIENTO de Aurora sigan a la
-        // misma identidad en OS · Nexus · Café. recompute escribe además el
-        // espejo local `starseed.capabilities.v1`.
+        // 1) Lee prefs actual para NO pisar otras claves (settings, dashboards…).
+        let prefs: Record<string, unknown> = {};
         try {
-            patch.cydiaInstalled = getInstalledMap();
-            patch.cydiaFunctions = getInstalledFunctionIds();
-            patch.capabilities = recomputeCapabilityMirror();
+            const { data } = await supabase
+                .from("user_settings")
+                .select("prefs")
+                .eq("user_id", userId)
+                .maybeSingle();
+            if (data?.prefs && typeof data.prefs === "object") {
+                prefs = { ...(data.prefs as Record<string, unknown>) };
+            }
+        } catch {
+            /* si no se pudo leer, mezclamos sobre objeto vacío */
+        }
+
+        // 2) Mezcla solo nuestras claves.
+        prefs.library = library;
+        prefs.installed = installed;
+
+        // 2b) Store "Cydia" (paquetes/skills) + Capacidades de Aurora → cuenta,
+        //     para que las skills instaladas y el COMPORTAMIENTO de Aurora sigan
+        //     a la misma identidad en OS · Nexus · Café. recompute escribe además
+        //     el espejo local `starseed.capabilities.v1`.
+        try {
+            prefs.cydiaInstalled = getInstalledMap();
+            prefs.cydiaFunctions = getInstalledFunctionIds();
+            prefs.capabilities = recomputeCapabilityMirror();
         } catch {
             /* defensivo: nunca rompemos la subida por esto */
         }
 
-        // 2) Mezcla atómica (ver src/lib/sync/user-prefs.ts).
-        await mergeUserPrefs(patch, { userId });
+        // 3) Upsert por user_id (misma forma que settings-sync).
+        await supabase
+            .from("user_settings")
+            .upsert(
+                { user_id: userId, prefs, updated_at: new Date().toISOString() },
+                { onConflict: "user_id" },
+            );
 
         // 4) Opcional/defensivo: reflejar installed en cafe_accounts.apps
         //    SOLO si ya existe fila del usuario (no la creamos aquí).

@@ -29,6 +29,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 
 /** Claves de preferencia que viajan con la cuenta. Aditivo: ampliar sin migración. */
 export const SYNCED_KEYS = [
@@ -213,10 +214,48 @@ export const NEVER_SYNCED_PREFIXES = [
     "starseed.connectors.cred", // cualquier variante de credenciales
 ] as const;
 
-/** ¿Esta clave está PROHIBIDA en la nube? (secreto o estado del dispositivo). */
+/**
+ * Claves que NUNCA viajan y que solo se pueden describir por PATRÓN (llevan un
+ * id variable en medio). Adenda 69 · D.
+ *
+ * ⚠️ CAUSA RAÍZ MEDIDA EN PRODUCCIÓN — por qué esto importa tanto:
+ *
+ * `SYNCED_PREFIXES` incluye `"starseed.brain."` con la intención de sincronizar
+ * la CONFIGURACIÓN de cada cerebro (`.moa`, `.channels`, `.memoryRoots`,
+ * `.library`…). Pero el prefijo, tal cual, se tragaba también DOS cosas que no
+ * son configuración:
+ *
+ *   · `starseed.brain.<id>.memory-mirror.v1` → un ESPEJO local (caché) de la
+ *     tabla `brain_memory_files`, que YA es la fuente de verdad. Medido en la
+ *     cuenta del usuario: 1,75 MB en un solo cerebro, 715 KB en otro.
+ *   · `starseed.brain.<id>.offline-queue.v1` → una COLA de trabajo pendiente de
+ *     ESTE dispositivo. Sincronizarla entre dispositivos no tiene sentido (y es
+ *     activamente dañino: dos neuronas ejecutarían la misma cola).
+ *
+ * Resultado: la columna `user_settings.prefs` de la cuenta llegó a **2,8 MB**,
+ * de los cuales ~2,5 MB eran espejos de memoria duplicados. Y como TODOS los
+ * módulos reescribían la columna ENTERA en cada escritura (ver Adenda 69 · A),
+ * cada latido de cerebro reenviaba 2,8 MB. Con varias pestañas/dispositivos
+ * abiertos, la fila se convirtió en un punto de contención permanente: se
+ * observaron `INSERT INTO user_settings` concurrentes bloqueándose entre sí y
+ * peticiones muriendo con `57014: canceling statement due to statement timeout`
+ * tras 40 s. Por eso la configuración de Aurora NO llegaba a la cuenta: su
+ * escritura simplemente EXPIRABA, en silencio (todo el motor es best-effort y
+ * se traga los errores). El bug se veía como "solo se guarda en el dispositivo
+ * donde se configura".
+ *
+ * Estas dos claves vuelven a ser lo que siempre debieron ser: LOCALES.
+ */
+export const NEVER_SYNCED_PATTERNS: readonly RegExp[] = [
+    /^starseed\.brain\.[^.]+\.memory-mirror\.v1$/, // caché del espejo de memoria (fuente: brain_memory_files)
+    /^starseed\.brain\.[^.]+\.offline-queue\.v1$/, // cola de trabajo de ESTE dispositivo
+];
+
+/** ¿Esta clave está PROHIBIDA en la nube? (secreto, caché pesada o estado del dispositivo). */
 export function isNeverSyncedKey(key: string): boolean {
     if ((NEVER_SYNCED_KEYS as readonly string[]).includes(key)) return true;
-    return NEVER_SYNCED_PREFIXES.some((prefix) => key.startsWith(prefix));
+    if (NEVER_SYNCED_PREFIXES.some((prefix) => key.startsWith(prefix))) return true;
+    return NEVER_SYNCED_PATTERNS.some((re) => re.test(key));
 }
 
 /** ¿Es la config de una integración? (global o por cerebro). */
@@ -316,9 +355,26 @@ export interface SyncResult {
     updatedAt?: string;
 }
 
+/**
+ * Id del usuario. Adenda 69 · C — CAMINO RÁPIDO Y FIABLE.
+ *
+ * Antes llamaba SOLO a `auth.getUser()`, que es una petición de RED a
+ * /auth/v1/user. Esta función alimenta a `hasStarseedSession()`, que es
+ * justamente lo que decide si arranca el motor de sincronización
+ * (RealtimeSyncProvider). Con la red lenta o en el primer instante de la carga,
+ * la llamada tardaba o fallaba y el OS concluía "no hay sesión" AUNQUE la
+ * sesión estuviera intacta en la cookie: sync muerto y sensación de "se ha
+ * cerrado la sesión / tarda en restaurarse" al recargar.
+ *
+ * `getSession()` lee la sesión de la cookie: instantánea y sin red. Primero esa;
+ * `getUser()` queda de respaldo.
+ */
 async function getUserId(): Promise<string | null> {
     try {
         const supabase = createClient();
+        const { data: sessionData } = await supabase.auth.getSession();
+        const fromSession = sessionData?.session?.user?.id ?? null;
+        if (fromSession) return fromSession;
         const { data } = await supabase.auth.getUser();
         return data?.user?.id ?? null;
     } catch {
@@ -347,7 +403,7 @@ export async function hasStarseedSession(): Promise<boolean> {
     return (await getUserId()) != null;
 }
 
-/** Sube las preferencias locales a la cuenta (upsert de la fila propia). */
+/** Sube las preferencias locales a la cuenta (mezcla NO destructiva de la fila propia). */
 export async function pushPreferences(): Promise<SyncResult> {
     const userId = await getUserId();
     if (!userId) return { ok: false, reason: "no-session", message: "Inicia sesión con tu cuenta StarSeed para sincronizar." };
@@ -356,18 +412,22 @@ export async function pushPreferences(): Promise<SyncResult> {
     if (Object.keys(prefs).length === 0) return { ok: false, reason: "empty", message: "No hay preferencias locales que subir todavía." };
 
     try {
-        const supabase = createClient();
-        const { error } = await supabase
-            .from("user_settings")
-            .upsert({ user_id: userId, prefs, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-        if (error) {
-            const missing = /relation .*user_settings.* does not exist/i.test(error.message);
+        // ── Adenda 69 · A — EL PEOR DE TODOS ────────────────────────────────
+        // Antes esto hacía `upsert({ prefs })` con SOLO las SYNCED_KEYS, sin
+        // leer siquiera lo que ya había. Es decir: el botón "Sincronizar ahora"
+        // de Ajustes → Cuenta ANIQUILABA de un golpe todas las claves heredadas
+        // de la fila (`agents`, `dashboards`, `library`, `installed`,
+        // `capabilities`, `cydia*`, `devices`, `connectors`, `ossServices`… y el
+        // propio `__meta` con las marcas LWW). Sincronizar borraba la cuenta.
+        // Ahora se manda como PARCHE y Postgres lo funde de forma atómica.
+        const res = await mergeUserPrefs(prefs, { userId });
+        if (!res.ok) {
             return {
                 ok: false,
-                reason: missing ? "no-table" : "error",
-                message: missing
+                reason: res.missingTable ? "no-table" : "error",
+                message: res.missingTable
                     ? "Falta crear la tabla user_settings en Supabase (ver SOP). Tus ajustes siguen guardados localmente."
-                    : `No se pudo subir: ${error.message}`,
+                    : `No se pudo subir: ${res.error ?? "error desconocido"}`,
             };
         }
         return { ok: true, message: "Preferencias guardadas en tu cuenta StarSeed.", updatedAt: new Date().toISOString() };

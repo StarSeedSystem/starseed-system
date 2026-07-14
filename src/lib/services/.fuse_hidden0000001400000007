@@ -26,7 +26,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 import {
   OSS_SERVICES,
   findOssService,
@@ -569,17 +568,32 @@ export async function pushOssConnections(): Promise<OssSyncResult> {
   if (!bundle.connections.length && !Object.keys(bundle.defaults).length)
     return { ok: false, reason: "empty", message: "No hay conexiones que subir todavía." };
   try {
-    // Adenda 69 · A — antes: leer `prefs` + `upsert` de la COLUMNA ENTERA, que
-    // borraba las claves de los otros ~11 módulos que comparten esta columna.
-    // Ahora se manda SOLO nuestra rama y Postgres la funde atómicamente.
-    const res = await mergeUserPrefs({ [OSS_PREFS_KEY]: bundle }, { userId });
-    if (!res.ok) {
+    const sb = createClient();
+    // Lee prefs actuales para no pisar otras ramas.
+    const { data: current } = await sb
+      .from("user_settings")
+      .select("prefs")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const prefs =
+      current?.prefs && typeof current.prefs === "object"
+        ? (current.prefs as Record<string, unknown>)
+        : {};
+    prefs[OSS_PREFS_KEY] = bundle;
+    const { error } = await sb
+      .from("user_settings")
+      .upsert(
+        { user_id: userId, prefs, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" },
+      );
+    if (error) {
+      const missing = /relation .*user_settings.* does not exist/i.test(error.message);
       return {
         ok: false,
-        reason: res.missingTable ? "no-table" : "error",
-        message: res.missingTable
+        reason: missing ? "no-table" : "error",
+        message: missing
           ? "Falta crear la tabla user_settings en Supabase (ver settings-sync). Tus servicios siguen guardados localmente."
-          : `No se pudo subir: ${res.error ?? "error desconocido"}`,
+          : `No se pudo subir: ${error.message}`,
       };
     }
     return {

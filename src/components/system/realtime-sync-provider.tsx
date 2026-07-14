@@ -23,7 +23,7 @@
  */
 
 import { useEffect } from "react";
-import { hasStarseedSession } from "@/lib/settings-sync";
+import { createClient } from "@/utils/supabase/client";
 import { isRealtimeSyncEnabled, startRealtimeSync, stopRealtimeSync } from "@/lib/sync/realtime-sync";
 
 export function RealtimeSyncProvider(): null {
@@ -31,15 +31,37 @@ export function RealtimeSyncProvider(): null {
         if (typeof window === "undefined") return;
         let cancelled = false;
 
+        // ── Adenda 69 · C — ARRANQUE SIN CARRERA ────────────────────────────
+        // Antes: `if (await hasStarseedSession())` → `startRealtimeSync()`. Una
+        // sola comprobación, UNA vez, y `hasStarseedSession()` hacía una llamada
+        // de RED (`auth.getUser()`). Si en ese instante la sesión aún no estaba
+        // hidratada o la red tosía, el motor NO arrancaba… y nadie lo volvía a
+        // intentar en toda la vida de la pestaña: sincronización muerta en
+        // silencio (una de las causas de que la personalidad de Aurora no
+        // viajara, y de la sensación de "se ha cerrado la sesión" al recargar).
+        //
+        // Ahora arrancamos SIEMPRE que el toggle esté activo: el propio motor ya
+        // se suscribe a `onAuthStateChange` antes de comprobar la sesión, así
+        // que si todavía no hay, se conecta solo en cuanto la haya. Además
+        // escuchamos aquí los cambios de sesión como red de seguridad.
         void (async () => {
             try {
-                const session = await hasStarseedSession();
                 if (cancelled) return;
-                if (session && isRealtimeSyncEnabled()) {
-                    await startRealtimeSync();
-                }
+                if (isRealtimeSyncEnabled()) await startRealtimeSync();
             } catch { /* defensivo: nunca romper el arranque de la app */ }
         })();
+
+        // Red de seguridad: si la sesión aparece después (hidratación tardía,
+        // login sin recargar, refresco de token), reintenta el arranque.
+        let authSub: { unsubscribe: () => void } | null = null;
+        try {
+            const supabase = createClient();
+            const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+                if (cancelled || !session) return;
+                if (isRealtimeSyncEnabled()) void startRealtimeSync();
+            });
+            authSub = data.subscription;
+        } catch { /* noop */ }
 
         // Último latido best-effort al ocultar/cerrar (heartbeat regular ya
         // vive en ensureThisNeuron(); esto solo adelanta el próximo tick).
@@ -59,6 +81,7 @@ export function RealtimeSyncProvider(): null {
             cancelled = true;
             document.removeEventListener("visibilitychange", onHide);
             window.removeEventListener("pagehide", onHide);
+            try { authSub?.unsubscribe(); } catch { /* noop */ }
             // No se detiene el motor al desmontar: este provider vive en el
             // RootLayout durante toda la sesión de la pestaña. stopRealtimeSync()
             // queda para el toggle explícito del usuario (Ajustes/Centro de Control).

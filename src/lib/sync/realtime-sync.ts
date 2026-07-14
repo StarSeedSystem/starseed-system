@@ -71,6 +71,10 @@ import {
 // ámbito cuenta (como todas las de Aurora/Astraura, ver Adenda 68 · A).
 import { shouldSyncKey } from "@/lib/sync/sync-profiles-config";
 import { activeProfileId } from "@/lib/profiles/profiles";
+// Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
+// el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
+// columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
+import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 
 // ── Configuración ────────────────────────────────────────────────────────────
 /** Toggle persistido (ON por defecto con sesión). */
@@ -262,6 +266,28 @@ function readLocal(key: string): unknown {
     }
 }
 
+/**
+ * Lee `user_settings.prefs` de la cuenta. SOLO para COMPARAR (marcas LWW) o
+ * para aplicar cambios remotos — nunca para reescribir la columna entera:
+ * las escrituras van siempre por `mergeUserPrefs()` (Adenda 69). Nunca lanza:
+ * sin red devuelve `{}` y seguimos local-first.
+ */
+async function readCloudPrefs(userId: string): Promise<Record<string, unknown>> {
+    try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+            .from("user_settings")
+            .select("prefs")
+            .eq("user_id", userId)
+            .maybeSingle();
+        if (error) return {};
+        if (data?.prefs && typeof data.prefs === "object") {
+            return data.prefs as Record<string, unknown>;
+        }
+    } catch { /* sin red: local-first */ }
+    return {};
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * LWW (last-write-wins) POR CLAVE — Adenda 68 · A
  * ═══════════════════════════════════════════════════════════════════════════
@@ -372,9 +398,25 @@ function collectAllSyncedLocal(): Record<string, unknown> {
     return bundle;
 }
 
+/**
+ * Id del usuario. Adenda 69 · C — CAMINO RÁPIDO Y FIABLE:
+ *
+ * Antes esto llamaba SOLO a `auth.getUser()`, que es una petición de RED a
+ * /auth/v1/user. En el arranque de la página (o con la red floja) esa llamada
+ * tarda o falla, y el motor concluía "no hay sesión" AUNQUE la sesión estuviera
+ * perfectamente guardada en la cookie. De ahí el "a veces tarda en restaurarse"
+ * y el "parece que se ha cerrado la sesión" al recargar.
+ *
+ * `getSession()` lee la sesión de la cookie/almacenamiento local: es INSTANTÁNEA
+ * y no depende de la red. La usamos primero; `getUser()` queda como respaldo
+ * (p. ej. sesión presente pero aún sin hidratar en memoria).
+ */
 async function getUserId(): Promise<string | null> {
     try {
         const supabase = createClient();
+        const { data: sessionData } = await supabase.auth.getSession();
+        const fromSession = sessionData?.session?.user?.id ?? null;
+        if (fromSession) return fromSession;
         const { data } = await supabase.auth.getUser();
         return data?.user?.id ?? null;
     } catch {
@@ -461,19 +503,9 @@ function wasJustAppliedRemote(key: string): boolean {
 async function pushChanges(userId: string, keys: string[]): Promise<void> {
     if (keys.length === 0) return;
     try {
-        const supabase = createClient();
-        // Lee prefs actual para NO pisar otras claves (dashboards, library, desktops…).
-        let prefs: Record<string, unknown> = {};
-        try {
-            const { data } = await supabase
-                .from("user_settings")
-                .select("prefs")
-                .eq("user_id", userId)
-                .maybeSingle();
-            if (data?.prefs && typeof data.prefs === "object") {
-                prefs = { ...(data.prefs as Record<string, unknown>) };
-            }
-        } catch { /* mezclamos sobre objeto vacío si no se pudo leer */ }
+        // Lee prefs SOLO para comparar marcas LWW (no para reescribir la columna:
+        // eso es justo lo que causaba el borrado — ver Adenda 69 y user-prefs.ts).
+        const prefs = await readCloudPrefs(userId);
 
         const cloudMeta = cloudMetaOf(prefs);
         const localMeta = readLocalMeta();
@@ -500,22 +532,24 @@ async function pushChanges(userId: string, keys: string[]): Promise<void> {
             if ((cloudMeta[key] ?? 0) > ts) continue;
 
             const safe = sanitizeForCloud(key, v); // ← el secreto (apiKey…) NO sube
-            prefs[key] = safe;
             changes[key] = safe;
             changeMeta[key] = ts;
             if (isAuroraKey(key)) touchedAurora = true;
         }
         if (Object.keys(changes).length === 0) return;
 
-        prefs[CLOUD_META_FIELD] = { ...cloudMeta, ...changeMeta };
-
-        const { error } = await supabase
-            .from("user_settings")
-            .upsert(
-                { user_id: userId, prefs, updated_at: new Date().toISOString() },
-                { onConflict: "user_id" },
-            );
-        if (error) return;
+        // ── ESCRITURA NO DESTRUCTIVA (Adenda 69 · A) ────────────────────────
+        // Antes se subía la columna `prefs` ENTERA (leída arriba). Como otros
+        // ~11 módulos hacen lo mismo a la vez al arrancar la página, el último
+        // en escribir borraba lo de todos los demás: las claves de Aurora subían
+        // bien y se ANIQUILABAN segundos después (medido en producción: la fila
+        // pasó de 16 claves a 4). Ahora se manda SOLO el parche y Postgres lo
+        // funde de forma atómica sobre la fila bloqueada.
+        const res = await mergeUserPrefs(
+            { ...changes, [CLOUD_META_FIELD]: changeMeta },
+            { userId },
+        );
+        if (!res.ok) return;
 
         // Sella localmente lo que acabamos de subir (para futuras comparaciones).
         touchLocalMetaMany(changeMeta);
@@ -831,16 +865,56 @@ export async function startRealtimeSync(): Promise<void> {
         window.addEventListener("storage", onStorageEvent);
     }
 
+    // ── Suscripción a AUTH: se registra SIEMPRE y ANTES de mirar si hay sesión ──
+    // Adenda 69 · C. Antes esto vivía al FINAL de la función, DESPUÉS del
+    // `return` de "no-session". Consecuencia: si al arrancar la pestaña la sesión
+    // todavía no estaba hidratada (cookie sin leer, red lenta, `getUser()` con
+    // hipo), el motor se declaraba "sin sesión", se iba… y NUNCA se enteraba de
+    // que la sesión aparecía un instante después, porque jamás llegaba a
+    // suscribirse a `onAuthStateChange`. La sincronización quedaba MUERTA para
+    // toda la vida de la pestaña, sin un solo error en consola. Ahora la
+    // suscripción se registra siempre: en cuanto la sesión hidrata, el motor
+    // arranca solo.
+    ensureAuthSubscription();
+
     setStatus({ state: "connecting" });
     const userId = await getUserId();
     if (!userId) {
         setStatus({ state: "no-session" });
-        return;
+        return; // el listener de auth de arriba lo reintentará al hidratar la sesión
     }
+    await connectForUser(userId);
+}
+
+/** Se suscribe (una sola vez) a los cambios de sesión: login, logout, cambio de cuenta y refresco. */
+function ensureAuthSubscription(): void {
+    if (authSub) return;
+    try {
+        const supabase = createClient();
+        const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+            const uid = session?.user?.id ?? null;
+            if (uid) {
+                // Sesión disponible: conecta si aún no lo estábamos, o si cambió la cuenta.
+                if (uid !== currentUserId || !(postgresChannel || broadcastChannel)) {
+                    void connectForUser(uid);
+                }
+            } else {
+                teardownChannels();
+                currentUserId = null;
+                setStatus({ state: "no-session" });
+            }
+        });
+        authSub = data.subscription;
+    } catch { /* noop */ }
+}
+
+/** Conecta los canales de una cuenta y baja su configuración. Idempotente. */
+async function connectForUser(userId: string): Promise<void> {
     if (currentUserId === userId && (postgresChannel || broadcastChannel)) {
         setStatus({ state: "connected" });
         return; // ya conectado a este usuario
     }
+    if (currentUserId !== userId) teardownChannels();
     currentUserId = userId;
     subscribePostgresChanges(userId);
     getOrCreateBroadcastChannel(userId);
@@ -849,28 +923,6 @@ export async function startRealtimeSync(): Promise<void> {
     // cambios que ocurrían mientras estaba abierto — la config ya guardada en la
     // cuenta no bajaba NUNCA. Se hace en segundo plano: no bloquea el arranque.
     void pullAndApplyNow();
-
-    // Reacciona a cambios de sesión (login/logout/cambio de cuenta) sin recargar la página.
-    if (!authSub) {
-        try {
-            const supabase = createClient();
-            const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-                const uid = session?.user?.id ?? null;
-                if (uid && uid !== currentUserId) {
-                    currentUserId = uid;
-                    teardownChannels();
-                    subscribePostgresChanges(uid);
-                    getOrCreateBroadcastChannel(uid);
-                    void pullAndApplyNow(); // la cuenta nueva trae SU Aurora
-                } else if (!uid) {
-                    teardownChannels();
-                    currentUserId = null;
-                    setStatus({ state: "no-session" });
-                }
-            });
-            authSub = data.subscription;
-        } catch { /* noop */ }
-    }
 }
 
 function teardownChannels(): void {
@@ -929,21 +981,7 @@ export async function pullAndApplyNow(): Promise<{ applied: number; pushedBack: 
     const userId = await getUserId();
     if (!userId) return result;
 
-    let prefs: Record<string, unknown> = {};
-    try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-            .from("user_settings")
-            .select("prefs")
-            .eq("user_id", userId)
-            .maybeSingle();
-        if (error) return result;
-        if (data?.prefs && typeof data.prefs === "object") {
-            prefs = data.prefs as Record<string, unknown>;
-        }
-    } catch {
-        return result; // sin red: local-first, seguimos con lo que hay
-    }
+    const prefs = await readCloudPrefs(userId);
 
     const remoteMeta = cloudMetaOf(prefs);
     const localMeta = readLocalMeta();
