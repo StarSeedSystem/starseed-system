@@ -78,6 +78,12 @@ export interface DesktopIcon {
     appearance?: DesktopWidgetAppearance;
     /** Widgets con preview: huella en celdas 1x1..4x4 (v1.2, opcional). */
     widgetSpan?: DesktopWidgetSpan;
+    /**
+     * PÁGINA del escritorio en la que vive el icono (v1.4 · Adenda 69 · H-3).
+     * 0-based. AUSENTE = página 0 ⇒ un escritorio guardado ANTES de las páginas
+     * carga entero como una sola pantalla, sin migración ni pérdida.
+     */
+    page?: number;
 }
 
 export type DesktopWindowContentType = "app" | "file" | "widget" | "browser" | "folder";
@@ -186,6 +192,44 @@ export interface Desktop {
     view?: DesktopView;
     /** Mosaico activo (pantalla dividida). Ausente → ventanas libres (v1.3). */
     tiling?: DesktopTiling;
+    /**
+     * PÁGINAS del escritorio (v1.4 · Adenda 69 · H-3), estilo pantalla de inicio
+     * de iOS/Android: varias pantallas de iconos, deslizables lateralmente.
+     * Ausente → 1 página (retrocompatible: un escritorio guardado antes de esto
+     * carga tal cual, con todos sus iconos en la única página que existe).
+     * Las VENTANAS **no** se paginan: viven en su propia capa (ver §H-3).
+     */
+    pageCount?: number;
+    /** Página visible (0-based). Ausente → 0. */
+    activePage?: number;
+}
+
+/** Máximo de páginas por escritorio (defensivo). */
+export const MAX_DESKTOP_PAGES = 12;
+
+/** Página efectiva de un icono (retrocompatible: sin `page` ⇒ 0). */
+export function iconPage(icon: DesktopIcon): number {
+    return typeof icon.page === "number" && Number.isFinite(icon.page) && icon.page > 0
+        ? Math.floor(icon.page)
+        : 0;
+}
+
+/** Nº de páginas efectivo (retrocompatible: sin `pageCount` ⇒ 1). */
+export function desktopPageCount(d: Desktop): number {
+    const raw = typeof d.pageCount === "number" && Number.isFinite(d.pageCount) ? Math.floor(d.pageCount) : 1;
+    return Math.min(MAX_DESKTOP_PAGES, Math.max(1, raw));
+}
+
+/** Página visible efectiva (clamp al rango real). */
+export function desktopActivePage(d: Desktop): number {
+    const n = desktopPageCount(d);
+    const raw = typeof d.activePage === "number" && Number.isFinite(d.activePage) ? Math.floor(d.activePage) : 0;
+    return Math.min(n - 1, Math.max(0, raw));
+}
+
+/** Iconos raíz de UNA página del escritorio. */
+export function iconsOfPage(d: Desktop, page: number): DesktopIcon[] {
+    return d.icons.filter((i) => iconPage(i) === page);
 }
 
 export interface DesktopsState {
@@ -275,6 +319,12 @@ function normalizeIcon(raw: unknown, depth = 0): DesktopIcon | null {
         createdAt: typeof r.createdAt === "number" && Number.isFinite(r.createdAt) ? r.createdAt : undefined,
         appearance: normalizeWidgetAppearance(r.appearance),
         widgetSpan: normalizeWidgetSpan(r.widgetSpan),
+        // H-3: sin `page` ⇒ página 0 (los escritorios ya guardados cargan enteros
+        // en su única pantalla). Se clampa arriba en normalizeDesktop contra el
+        // pageCount real, para que un dato corrupto no esconda iconos.
+        page: typeof r.page === "number" && Number.isFinite(r.page) && r.page > 0
+            ? Math.min(MAX_DESKTOP_PAGES - 1, Math.floor(r.page))
+            : undefined,
     };
     // Folders: ramificación jerárquica. Admite folders anidados (v1.1) pero
     // conserva intactos los datos antiguos (que solo tenían hijos no-folder).
@@ -399,18 +449,32 @@ function normalizeDesktop(raw: unknown): Desktop | null {
     const windows = Array.isArray(r.windows)
         ? r.windows.map((w) => normalizeWindow(w)).filter((w): w is DesktopWindow => w !== null)
         : [];
+    const icons = Array.isArray(r.icons)
+        ? r.icons.map((i) => normalizeIcon(i)).filter((i): i is DesktopIcon => i !== null)
+        : [];
+    // ── Páginas (H-3) ────────────────────────────────────────────────
+    // El nº de páginas NUNCA puede dejar iconos huérfanos: si un dato viejo o
+    // corrupto tiene un icono en la página 3 pero pageCount dice 1, se amplía
+    // el pageCount (jamás se esconde un icono del usuario).
+    const maxIconPage = icons.reduce((m, i) => Math.max(m, iconPage(i)), 0);
+    const rawCount = typeof r.pageCount === "number" && Number.isFinite(r.pageCount) ? Math.floor(r.pageCount) : 1;
+    const pageCount = Math.min(MAX_DESKTOP_PAGES, Math.max(1, rawCount, maxIconPage + 1));
+    const rawActive = typeof r.activePage === "number" && Number.isFinite(r.activePage) ? Math.floor(r.activePage) : 0;
+    const activePage = Math.min(pageCount - 1, Math.max(0, rawActive));
     return {
         id: str(r.id, newId("desk")),
         name: str(r.name, "Escritorio"),
         wallpaper: wp && (wp.type === "custom" || wp.type === "inherit")
             ? { type: wp.type, value: typeof wp.value === "string" ? wp.value : undefined }
             : undefined,
-        icons: Array.isArray(r.icons)
-            ? r.icons.map((i) => normalizeIcon(i)).filter((i): i is DesktopIcon => i !== null)
-            : [],
+        icons,
         windows,
         view: normalizeView(r.view),
         tiling: normalizeTiling(r.tiling, windows),
+        // Solo se persisten si NO son los valores por defecto ⇒ un escritorio de
+        // una sola página se guarda exactamente igual que antes (sin campos nuevos).
+        pageCount: pageCount > 1 ? pageCount : undefined,
+        activePage: activePage > 0 ? activePage : undefined,
     };
 }
 
@@ -491,9 +555,16 @@ function mutateDesktop(desktopId: string, fn: (d: Desktop) => Desktop): void {
 // ── Posicionamiento: hueco libre en rejilla virtual (fracciones) ──
 const GRID = { x0: 0.015, y0: 0.03, dx: 0.121, dy: 0.19, cols: 8, rows: 5 };
 
-export function findFreeSpot(desktop: Desktop): { x: number; y: number } {
+/**
+ * Hueco libre de UNA página (H-3): dos iconos de páginas distintas pueden
+ * ocupar la misma casilla — no se ven a la vez. Sin `page` se usa la página
+ * activa del escritorio (0 en los escritorios de siempre).
+ */
+export function findFreeSpot(desktop: Desktop, page?: number): { x: number; y: number } {
+    const p = page ?? desktopActivePage(desktop);
+    const peers = iconsOfPage(desktop, p);
     const taken = (fx: number, fy: number) =>
-        desktop.icons.some((i) => Math.abs(i.x - fx) < 0.06 && Math.abs(i.y - fy) < 0.095);
+        peers.some((i) => Math.abs(i.x - fx) < 0.06 && Math.abs(i.y - fy) < 0.095);
     for (let r = 0; r < GRID.rows; r++) {
         for (let c = 0; c < GRID.cols; c++) {
             const fx = GRID.x0 + c * GRID.dx;
@@ -501,7 +572,7 @@ export function findFreeSpot(desktop: Desktop): { x: number; y: number } {
             if (!taken(fx, fy)) return { x: fx, y: fy };
         }
     }
-    const n = desktop.icons.length;
+    const n = peers.length;
     return {
         x: Math.min(0.9, GRID.x0 + (n % GRID.cols) * GRID.dx * 0.5),
         y: Math.min(0.85, GRID.y0 + (Math.floor(n / GRID.cols) % GRID.rows) * GRID.dy * 0.5 + 0.04),
@@ -678,10 +749,12 @@ export interface NewIconInput {
     viewMode?: DesktopIconViewMode;
     x?: number;
     y?: number;
+    /** Página destino (H-3). Ausente → la página ACTIVA del escritorio. */
+    page?: number;
 }
 
 /** Construye un DesktopIcon a partir de un input (posición ya resuelta). */
-function buildIcon(input: NewIconInput, id: string, spot: { x: number; y: number }): DesktopIcon {
+function buildIcon(input: NewIconInput, id: string, spot: { x: number; y: number }, page: number): DesktopIcon {
     return {
         id,
         kind: input.kind,
@@ -698,6 +771,7 @@ function buildIcon(input: NewIconInput, id: string, spot: { x: number; y: number
         y: spot.y,
         size: input.size ?? "md",
         viewMode: input.viewMode ?? "icon",
+        ...(page > 0 ? { page } : {}),
         ...(input.kind === "folder" ? { children: [] } : {}),
     };
 }
@@ -709,12 +783,18 @@ function buildIcon(input: NewIconInput, id: string, spot: { x: number; y: number
 export function addIcon(desktopId: string, input: NewIconInput, folderId?: string): string {
     const id = newId("icon");
     mutateDesktop(desktopId, (d) => {
+        // Los iconos nuevos nacen en la página que el usuario está VIENDO (H-3).
+        const page = Math.min(
+            desktopPageCount(d) - 1,
+            Math.max(0, input.page ?? desktopActivePage(d)),
+        );
         const spot = input.x !== undefined && input.y !== undefined
             ? { x: input.x, y: input.y }
-            : findFreeSpot(d);
-        const icon = buildIcon(input, id, spot);
+            : findFreeSpot(d, page);
+        const icon = buildIcon(input, id, spot, page);
         if (folderId && findIconInTree(d.icons, folderId)?.kind === "folder") {
-            return { ...d, icons: insertIntoFolder(d.icons, folderId, icon) };
+            // Dentro de un folder la página no aplica (el folder ya vive en una).
+            return { ...d, icons: insertIntoFolder(d.icons, folderId, { ...icon, page: undefined }) };
         }
         return { ...d, icons: [...d.icons, icon] };
     });
@@ -800,11 +880,15 @@ export function moveIconToFolder(desktopId: string, iconId: string, folderId: st
         if (node.kind === "folder" && folderId && isDescendant(d.icons, iconId, folderId)) return d;
         const stripped = removeFromTree(d.icons, iconId);
         if (folderId) {
-            return { ...d, icons: insertIntoFolder(stripped, folderId, node) };
+            return { ...d, icons: insertIntoFolder(stripped, folderId, { ...node, page: undefined }) };
         }
-        // Al raíz (folderId === null): recolócalo en un hueco libre.
-        const spot = findFreeSpot({ ...d, icons: stripped });
-        return { ...d, icons: [...stripped, { ...node, x: spot.x, y: spot.y }] };
+        // Al raíz (folderId === null): sale a la página VISIBLE, en un hueco libre.
+        const page = desktopActivePage(d);
+        const spot = findFreeSpot({ ...d, icons: stripped }, page);
+        return {
+            ...d,
+            icons: [...stripped, { ...node, x: spot.x, y: spot.y, page: page > 0 ? page : undefined }],
+        };
     });
 }
 
@@ -820,11 +904,134 @@ export function duplicateIcon(desktopId: string, iconId: string): string | null 
         children: node.children?.map(cloneTree),
     });
     mutateDesktop(desktopId, (d) => {
-        const spot = findFreeSpot(d);
-        const clone = { ...cloneTree(src), x: spot.x, y: spot.y, name: `${src.name} (copia)` };
+        // La copia nace en la página que se está viendo (no en la del original,
+        // que puede estar en otra pantalla y "desaparecer" a ojos del usuario).
+        const page = desktopActivePage(d);
+        const spot = findFreeSpot(d, page);
+        const clone: DesktopIcon = {
+            ...cloneTree(src),
+            x: spot.x,
+            y: spot.y,
+            name: `${src.name} (copia)`,
+            page: page > 0 ? page : undefined,
+        };
         return { ...d, icons: [...d.icons, clone] };
     });
     return newIconId;
+}
+
+/** Re-identifica un nodo y toda su descendencia (identidad nueva, misma referencia). */
+export function reidentifyIcon(node: DesktopIcon): DesktopIcon {
+    return {
+        ...node,
+        id: newId("icon"),
+        createdAt: Date.now(),
+        children: node.children?.map(reidentifyIcon),
+    };
+}
+
+/**
+ * Inserta un NODO ya construido en el escritorio (motor de PEGAR del
+ * portapapeles, H-2). Siempre re-identifica: el Lienzo Universal dice que se
+ * REFERENCIA la entidad (refId/url intactos), nunca se duplica la entidad —
+ * pero la identidad del icono sí es nueva. Devuelve el id del icono pegado.
+ */
+export function insertIconNode(
+    desktopId: string,
+    node: DesktopIcon,
+    folderId?: string | null,
+    spot?: { x: number; y: number },
+): string {
+    const fresh = reidentifyIcon(node);
+    mutateDesktop(desktopId, (d) => {
+        if (folderId && findIconInTree(d.icons, folderId)?.kind === "folder") {
+            return { ...d, icons: insertIntoFolder(d.icons, folderId, { ...fresh, page: undefined }) };
+        }
+        const page = desktopActivePage(d);
+        const at = spot ?? findFreeSpot(d, page);
+        return {
+            ...d,
+            icons: [...d.icons, {
+                ...fresh,
+                x: Math.min(0.98, Math.max(0, at.x)),
+                y: Math.min(0.98, Math.max(0, at.y)),
+                page: page > 0 ? page : undefined,
+            }],
+        };
+    });
+    return fresh.id;
+}
+
+// ── Acciones: PÁGINAS del escritorio (H-3) ───────────────────────
+/** Cambia la página visible (clamp defensivo). */
+export function setDesktopPage(desktopId: string, page: number): void {
+    mutateDesktop(desktopId, (d) => {
+        const n = desktopPageCount(d);
+        const p = Math.min(n - 1, Math.max(0, Math.floor(page)));
+        if (p === desktopActivePage(d)) return d;
+        return { ...d, activePage: p > 0 ? p : undefined };
+    });
+}
+
+/** Añade una página al final y salta a ella. Devuelve su índice (o el actual). */
+export function addDesktopPage(desktopId: string): number {
+    let result = 0;
+    mutateDesktop(desktopId, (d) => {
+        const n = desktopPageCount(d);
+        if (n >= MAX_DESKTOP_PAGES) { result = desktopActivePage(d); return d; }
+        result = n;
+        return { ...d, pageCount: n + 1, activePage: n };
+    });
+    return result;
+}
+
+/**
+ * Elimina una página. Sus iconos NO se borran: se recolocan en la página
+ * anterior (nunca se pierde nada del usuario). No se puede quedar sin páginas.
+ */
+export function removeDesktopPage(desktopId: string, page: number): void {
+    mutateDesktop(desktopId, (d) => {
+        const n = desktopPageCount(d);
+        if (n <= 1) return d;
+        const p = Math.min(n - 1, Math.max(0, Math.floor(page)));
+        const target = Math.max(0, p - 1);
+        // Reasigna: la página borrada cae a `target`; las de la derecha bajan una.
+        const relocated = d.icons.map((i) => {
+            const ip = iconPage(i);
+            const np = ip === p ? target : ip > p ? ip - 1 : ip;
+            return { ...i, page: np > 0 ? np : undefined };
+        });
+        // Recoloca en rejilla los que ATERRIZAN en la página destino, para que no
+        // queden apilados encima de los que ya estaban ahí.
+        const landing = relocated.filter((i) => iconPage(i) === target);
+        const laidOut = layoutInGrid(landing);
+        const byId = new Map(laidOut.map((i) => [i.id, i]));
+        const count = n - 1;
+        const active = Math.min(count - 1, Math.max(0, target));
+        return {
+            ...d,
+            icons: relocated.map((i) => byId.get(i.id) ?? i),
+            pageCount: count > 1 ? count : undefined,
+            activePage: active > 0 ? active : undefined,
+        };
+    });
+}
+
+/** Mueve un icono raíz a otra página (y le busca hueco allí). */
+export function moveIconToPage(desktopId: string, iconId: string, page: number): void {
+    mutateDesktop(desktopId, (d) => {
+        const n = desktopPageCount(d);
+        const p = Math.min(n - 1, Math.max(0, Math.floor(page)));
+        const node = d.icons.find((i) => i.id === iconId);
+        if (!node || iconPage(node) === p) return d;
+        const spot = findFreeSpot(d, p);
+        return {
+            ...d,
+            icons: d.icons.map((i) =>
+                i.id === iconId ? { ...i, page: p > 0 ? p : undefined, x: spot.x, y: spot.y } : i,
+            ),
+        };
+    });
 }
 
 // ── Organización de iconos (opciones tipo computadora) ───────────
@@ -861,23 +1068,35 @@ function layoutInGrid(icons: DesktopIcon[]): DesktopIcon[] {
  * Ordena los iconos raíz por el criterio dado y los recoloca en rejilla.
  * Guarda el criterio en la vista del escritorio (persistente).
  */
+/**
+ * Ordena/recoloca PÁGINA A PÁGINA (H-3): cada pantalla tiene su propia rejilla,
+ * así que ordenar no puede mezclar iconos de páginas distintas ni apilarlos.
+ * En un escritorio de una sola página el resultado es idéntico al de siempre.
+ */
+function relayoutByPage(d: Desktop, order: (a: DesktopIcon, b: DesktopIcon) => number): DesktopIcon[] {
+    const pages = desktopPageCount(d);
+    const out: DesktopIcon[] = [];
+    for (let p = 0; p < pages; p++) {
+        const sorted = iconsOfPage(d, p).sort(order);
+        out.push(...layoutInGrid(sorted));
+    }
+    return out;
+}
+
 export function sortIcons(desktopId: string, mode: DesktopSortMode): void {
-    mutateDesktop(desktopId, (d) => {
-        const sorted = [...d.icons].sort(iconComparator(mode));
-        return {
-            ...d,
-            icons: layoutInGrid(sorted),
-            view: { ...(d.view ?? {}), sortMode: mode },
-        };
-    });
+    mutateDesktop(desktopId, (d) => ({
+        ...d,
+        icons: relayoutByPage(d, iconComparator(mode)),
+        view: { ...(d.view ?? {}), sortMode: mode },
+    }));
 }
 
 /** Auto-organiza los iconos raíz en rejilla conservando su orden espacial. */
 export function autoArrangeIcons(desktopId: string): void {
-    mutateDesktop(desktopId, (d) => {
-        const ordered = [...d.icons].sort((a, b) => a.y - b.y || a.x - b.x);
-        return { ...d, icons: layoutInGrid(ordered) };
-    });
+    mutateDesktop(desktopId, (d) => ({
+        ...d,
+        icons: relayoutByPage(d, (a, b) => a.y - b.y || a.x - b.x),
+    }));
 }
 
 /** Crea una nota rápida como icono-archivo con texto embebido. */

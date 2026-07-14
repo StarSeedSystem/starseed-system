@@ -301,17 +301,19 @@ function InfoBody({ icon, resourceRef }: { icon: DesktopIcon; resourceRef: Resou
 
 // ── Shell ────────────────────────────────────────────────────────
 export function DesktopQuickLook({
-    desktopId, icon, initialTab = "preview", onClose, onOpen,
+    desktopId, icon, initialTab = "preview", initialShare = false, onClose, onOpen,
 }: {
     desktopId: string;
     icon: DesktopIcon;
     initialTab?: QuickLookTab;
+    /** Abre directamente el diálogo «Compartir en…» (menú contextual → Compartir). */
+    initialShare?: boolean;
     onClose: () => void;
     onOpen: (icon: DesktopIcon) => void;
 }): React.ReactElement {
     const reduced = useReducedMotion();
     const [tab, setTab] = useState<QuickLookTab>(initialTab);
-    const [shareOpen, setShareOpen] = useState(false);
+    const [shareOpen, setShareOpen] = useState(initialShare);
     const [accessOpen, setAccessOpen] = useState(false);
     void desktopId;
 

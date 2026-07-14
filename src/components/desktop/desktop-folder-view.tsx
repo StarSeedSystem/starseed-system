@@ -138,7 +138,6 @@ function FolderEntry({
 }): React.ReactElement {
     const [renaming, setRenaming] = useState(false);
     const { label } = desktopIconVisual(child);
-    const lastTap = React.useRef(0);
 
     const commit = (name: string) => {
         const clean = name.trim();
@@ -169,12 +168,8 @@ function FolderEntry({
                 tabIndex={0}
                 onDoubleClick={onOpen}
                 onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }}
-                onPointerUp={(e) => {
-                    if (e.pointerType !== "touch") return;
-                    const now = Date.now();
-                    if (now - lastTap.current < 350) onOpen();
-                    lastTap.current = now;
-                }}
+                // Táctil: UN toque abre (igual que en el escritorio, H-1).
+                onPointerUp={(e) => { if (e.pointerType === "touch") onOpen(); }}
                 className="group flex cursor-pointer items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 transition-colors hover:border-white/10 hover:bg-white/[0.05]"
             >
                 <ItemGlyph icon={child} size={34} />
@@ -204,12 +199,8 @@ function FolderEntry({
             tabIndex={0}
             onDoubleClick={onOpen}
             onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }}
-            onPointerUp={(e) => {
-                if (e.pointerType !== "touch") return;
-                const now = Date.now();
-                if (now - lastTap.current < 350) onOpen();
-                lastTap.current = now;
-            }}
+            // Táctil: UN toque abre (igual que en el escritorio, H-1).
+            onPointerUp={(e) => { if (e.pointerType === "touch") onOpen(); }}
             className="group relative flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl border border-transparent p-2 transition-colors hover:border-white/10 hover:bg-white/[0.05]"
             title={`Abrir ${child.name}`}
         >

@@ -3216,3 +3216,41 @@ desbloqueada en `/audiomorphic` y **capa de fondo con transparencia REAL**. `npx
 - `src/components/desktop/desktop-store.ts:1330` sigue con el `upsert` antiguo (estaba en la lista de *no tocar*). El trigger lo neutraliza, pero migrarlo a `mergeUserPrefs()` es 1 línea.
 - `src/ai/astraura/sync-providers.ts:251` escribe al Supabase **propio del usuario** (otra BD, sin RPC ni trigger): se dejó a propósito (allí `prefs` es un espejo completo).
 - Las pestañas de **desarrollo local** del usuario (`localhost:3057/3099/3111`) corren código viejo contra la MISMA base y vuelven a inflar `prefs` con espejos. Al recargarlas con el código nuevo dejarán de hacerlo.
+
+---
+
+## 2026-07-13 — Adenda 69 · H · Escritorio: por fin se puede PULSAR (H-1..H-4)
+**Sesión por:** Claude (agente de escritorio)
+**Resumen ejecutivo:** «Al pulsar una app no se abre» tenía **dos causas independientes y sumadas**, y ninguna estaba donde se buscaba (ni en `openWindow`, ni en el store, ni en `NATIVE_APP_VIEWS`): (1) un **div invisible a pantalla completa se comía TODOS los clics** de los iconos, y (2) cuando el clic sí llegaba, el icono **navegaba fuera del escritorio** en vez de abrir una ventana.
+
+### 🔎 CAUSA RAÍZ (diagnosticada EN VIVO contra producción, no leyendo código)
+
+- **CAUSA 1 · La capa de VENTANAS se comía el clic. `desktop-canvas.tsx:865`.**
+  ```jsx
+  <div className={cn("absolute inset-0 z-[15] …", cleanView && "pointer-events-none …")}>
+  ```
+  Esa capa es `absolute inset-0` (cubre el lienzo ENTERO) y vive en **z-[15]**, por encima de la capa de iconos (**z-[5]**). Solo recibía `pointer-events-none` en *modo limpio*. Fuera de ese modo —es decir, **siempre**— era un **cristal invisible sobre todo el escritorio**: los iconos no recibían **ningún** evento (ni clic, ni doble clic, ni menú contextual, ni arrastre), **hubiera o no ventanas abiertas**.
+  **Evidencia en vivo** (`starseed-os.vercel.app/escritorios`, sesión del usuario): `document.elementsFromPoint(77, 88)` sobre el icono de Audiomorphic devolvía como elemento **superior** `DIV z=15 pe=auto class="absolute inset-0 z-[15] transition-all duration-300"` — **no el icono**. Poniéndole `pointerEvents="none"` a mano, el icono pasaba a ser alcanzable **al instante**. Es **exactamente el mismo patrón** que el bug B-1 de la Adenda 68 (la barra superior en z-40 comiéndose los botones de la ventana): una capa que se pinta encima y no renuncia a los eventos.
+- **CAUSA 2 · El icono te SACABA del escritorio. `desktop-open.ts:40-43`.**
+  ```ts
+  if (open.primary === "route" && open.route) { router.push(open.route); return; }
+  ```
+  **Casi todas** las apps nativas del catálogo son `primary: "route"` (Mensajes, Red, Biblioteca, Agente, Cámara, Galería, Clima, Inmersivo, Audiomorphic, Omnifrecuencias, Nexus). Con la Causa 1 arreglada a mano, el doble clic **navegaba a `/audiomorphic`** en lugar de abrir una ventana (verificado en vivo: la URL pasó de `/escritorios` a `/audiomorphic`, `windows: []`). Un escritorio cuyos iconos te echan del escritorio no es un escritorio.
+  *(El `NATIVE_APP_VIEWS` que añadió el agente anterior estaba bien, pero era **inalcanzable**: ninguna app con `route` llegaba nunca a abrir ventana.)*
+
+### Hecho
+- **H-1 · Se abre.** Capa de ventanas → `pointer-events-none`, con `pointer-events-auto` explícito en sus hijos reales (ventanas, chips de móvil; los divisores del mosaico ya lo hacían). `desktop-open.ts` **nunca navega**: toda app abre **ventana**, y `NATIVE_APP_VIEWS` se amplía de 1 a **11 módulos reales** (audiomorphic · omnifrecuencias · camara · galeria · clima · immersive · messages · library · agent · network · nexus), montados dentro de la ventana con su `Suspense` + `DesktopErrorBoundary`. **Táctil: UN toque abre** (antes hacía falta doble tap y nadie lo descubría); ratón: doble clic de siempre. Mismo criterio dentro de los folders.
+- **H-2 · Menú contextual completo + portapapeles REAL.** Clic derecho / mantener pulsado (~520 ms) → Abrir · Vista previa · **Compartir…** · **Editar** · **Copiar (⌘C)** · **Cortar (⌘X)** · **Pegar (⌘V)** · Duplicar · Renombrar · Información · Vista previa viva · Tamaño · **Mover a** (folder · raíz · **otra pantalla**) · Eliminar. Nuevo `desktop-clipboard.ts`: copiar/cortar/pegar iconos y ramas enteras **entre folders, páginas y escritorios**; **cortar NO borra hasta pegar** (el original se pinta atenuado; si nunca pegas, no has perdido nada) y el original se retira **después** de insertar la copia. Pegar en el fondo respeta **el punto exacto del clic**. «Editar» abre el editor que toca: texto/código/markdown → **editor real** en la ventana (carga el remoto por fetch y guarda; se etiqueta «copia editable» y no finge escribir en el origen), pizarra → `/pizarra`, publicación → `/crear`, imagen/vídeo → su visor.
+- **H-3 · Páginas deslizables** (`pageCount` / `activePage` en `Desktop`, `page` en `DesktopIcon`; **todo opcional**). Swipe táctil · **rueda horizontal** · barrido con ratón (|dx|>110 y |dx|>3·|dy| — un marco de selección de <37 px de alto no selecciona nada, así que no le roba nada al marquee) · puntos + botón «+» · ←/→ · arrastrar un icono al borde y **sostener 650 ms** lo pasa a la página contigua. Al agotar páginas, salta al escritorio contiguo (como iOS). **Las VENTANAS no se paginan**: viven en su propia capa (una app abierta no desaparece por barrer el fondo).
+- **H-4 · Miniaturas reales** (`desktop-thumbs.tsx`): imagen (thumb) · **vídeo (primer fotograma real**, `<video preload=metadata #t=0.5>`) · **audio (portada, o ONDA determinista del archivo)** · **PDF (primera página real** con el visor nativo, solo en tarjeta grande; si no, hoja rica) · **código/texto/markdown (FRAGMENTO REAL** del archivo, con caché de una petición por URL). Sello de tipo (PNG/JS/TXT/MP3/PDF/MP4). **Nunca una caja gris**: si algo falla (CORS, 404, URL firmada caducada) cae a una placa con el degradado del acento del tipo.
+
+### Decisiones tomadas
+- **Regla de oro nueva** (documentada en el propio `desktop-canvas.tsx`): *una capa a pantalla completa NUNCA recibe eventos; solo sus hijos reales.* Es la tercera vez que este patrón muerde (barra superior → botones de ventana; capa de ventanas → iconos; envoltura de página → fondo).
+- **Retrocompatibilidad de H-3 sin migración**: sin `pageCount` ⇒ 1 página, y un icono sin `page` ⇒ página 0. Verificado contra el documento REAL del usuario (`starseed.desktops.v1` no tenía ni un campo nuevo). Además, `normalizeDesktop` **amplía** `pageCount` si encuentra un icono en una página superior: **jamás se esconde un icono**.
+- El editor de texto guarda en `icon.text` (soberano, del usuario) y **lo dice**: no simula escribir en el archivo remoto de la Biblioteca.
+
+### Pendiente / Próximos pasos
+- La **rejilla del mosaico** y el **swipe de páginas** conviven, pero no se ha probado el swipe con un mosaico activo en pantalla pequeña.
+- El **PDF real** solo se pinta en la tarjeta grande (`viewMode: "preview"`): un `<iframe>` por icono pequeño sería un abuso. En tile pequeño se ve la hoja rica con su sello.
+- Las miniaturas de **código/texto** solo se pueden leer si el origen deja hacer `fetch` (mismo origen o CORS abierto). Si no, placa con líneas fantasma — bonita, pero no es el contenido.
+- Arrastrar y soltar un icono **dentro de una ventana de folder** sigue haciéndose por «Mover a» / Cortar+Pegar (no hay DnD entre lienzo y ventana).

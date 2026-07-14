@@ -21,6 +21,7 @@ import type { DesktopIcon, DesktopIconSize } from "./desktop-store";
 import { getApp } from "@/components/dashboard/apps/app-catalog";
 import { DesktopWidgetHost, widgetAccent } from "./desktop-widget-host";
 import { DesktopWidgetConfigPanel } from "./desktop-widget-config-panel";
+import { FileThumb, hasRichThumb } from "./desktop-thumbs";
 
 // ── Métricas compartidas (rejilla magnética + tiles) ─────────────
 export const ICON_TILE_PX: Record<DesktopIconSize, number> = { sm: 48, md: 64, lg: 84 };
@@ -201,11 +202,12 @@ export function DesktopIconTile({
         );
     }
 
-    // ── Preview de imagen (archivos visuales) ──
-    if (
-        !compact && icon.kind === "file" && icon.viewMode === "preview" && icon.url && !imgFailed &&
-        (icon.fileKind === "image" || icon.fileKind === "gif")
-    ) {
+    // ── Vista previa RICA de un archivo (H-4) ──
+    // Antes solo las imágenes tenían tarjeta; el resto caía al icono genérico.
+    // Ahora la tarjeta grande muestra la miniatura REAL de CUALQUIER tipo:
+    // vídeo (primer fotograma), pdf (primera página), audio (onda/portada),
+    // código/texto/markdown (fragmento renderizado).
+    if (!compact && icon.kind === "file" && icon.viewMode === "preview" && hasRichThumb(icon)) {
         const dims = PREVIEW_PX[icon.size];
         return (
             <div className="flex flex-col items-center" style={{ width: dims.w }}>
@@ -216,14 +218,7 @@ export function DesktopIconTile({
                         selected ? "border-sky-300/70 ring-2 ring-sky-300/50" : "border-white/12 hover:border-white/25",
                     )}
                 >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                        src={icon.url}
-                        alt={icon.name}
-                        draggable={false}
-                        onError={() => setImgFailed(true)}
-                        className="h-full w-full object-cover"
-                    />
+                    <FileThumb icon={icon} rich />
                 </div>
                 <IconLabel icon={icon} selected={selected} renaming={renaming} onRenameCommit={onRenameCommit} onRenameCancel={onRenameCancel} />
             </div>
@@ -231,7 +226,10 @@ export function DesktopIconTile({
     }
 
     // ── Tile clásico: placa squircle de cristal ──
+    // Los ARCHIVOS con miniatura real la enseñan aquí también (H-4): la placa
+    // deja de ser un icono genérico y pasa a ser una ventana a su contenido.
     const showImg = Boolean(iconUrl) && !imgFailed;
+    const useFileThumb = icon.kind === "file" && !showImg && hasRichThumb(icon);
     return (
         <div className="flex flex-col items-center" style={{ width: labelW }}>
             <div
@@ -252,7 +250,9 @@ export function DesktopIconTile({
                     }}
                 />
                 <span aria-hidden className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent" />
-                {showImg ? (
+                {useFileThumb ? (
+                    <FileThumb icon={icon} showBadge={!compact} className="absolute inset-0" />
+                ) : showImg ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                         src={iconUrl}

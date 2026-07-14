@@ -28,11 +28,15 @@ import {
     setWindowMinimized, closeWindow, focusWindow, toggleWindowMaximized,
     toggleWindowFullscreen, tileWindows, clearTiling, tiledRects,
     DEFAULT_DESKTOP_VIEW, DESKTOP_TOP_INSET,
+    // Páginas del escritorio (H-3)
+    MAX_DESKTOP_PAGES, desktopPageCount, desktopActivePage, iconsOfPage,
+    setDesktopPage, addDesktopPage, moveIconToPage,
 } from "./desktop-store";
+import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./desktop-clipboard";
 import { DesktopTileDividers } from "./desktop-tiles";
 import { DesktopQuickLook, type QuickLookTab } from "./desktop-quick-look";
 import { DesktopIconTile, ICON_CELL } from "./desktop-icon";
-import { useOpenDesktopIcon } from "./desktop-open";
+import { useOpenDesktopIcon, useEditDesktopIcon } from "./desktop-open";
 import { DesktopWindowFrame } from "./desktop-window";
 import { DesktopWindowContent, resolveWindowChrome } from "./desktop-window-content";
 import { DesktopAddPanel, type AddPanelTab } from "./desktop-add-panel";
@@ -107,9 +111,14 @@ function DesktopClock(): React.ReactElement {
 }
 
 // ── Icono posicionado y arrastrable (pointer events) ─────────────
+/** Banda (px) junto a los bordes que, al arrastrar un icono, cambia de página. */
+const EDGE_BAND_PX = 56;
+/** Tiempo que hay que sostener el icono en el borde para saltar de página. */
+const EDGE_DWELL_MS = 650;
+
 function PositionedIcon({
-    desktopId, icon, areaRef, snap, selected, renaming, sizeOverride,
-    onSelect, onOpen, onContext, onRenameCommit, onRenameCancel,
+    desktopId, icon, areaRef, snap, selected, renaming, sizeOverride, cut,
+    onSelect, onOpen, onContext, onRenameCommit, onRenameCancel, onEdgeDwell,
 }: {
     desktopId: string;
     icon: DesktopIcon;
@@ -119,25 +128,42 @@ function PositionedIcon({
     renaming: boolean;
     /** Tamaño efectivo del escritorio (sobrescribe icon.size en el render). */
     sizeOverride?: DesktopIconSize;
+    /** Marcado para CORTAR (se pinta atenuado hasta que se pega). */
+    cut?: boolean;
     onSelect: (id: string, additive: boolean) => void;
     onOpen: (icon: DesktopIcon) => void;
     onContext: (x: number, y: number, icon: DesktopIcon) => void;
     onRenameCommit: (name: string) => void;
     onRenameCancel: () => void;
+    /**
+     * Arrastrar hasta el borde y SOSTENER cambia de página (H-3, como iOS).
+     * Devuelve `true` si el salto se produjo (el icono ya vive en la otra página).
+     */
+    onEdgeDwell?: (iconId: string, dir: -1 | 1) => boolean;
 }): React.ReactElement {
     const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
+    const [edge, setEdge] = useState<-1 | 1 | null>(null);
     const gesture = useRef<{
         startX: number; startY: number; origX: number; origY: number;
         rect: DOMRect; dragging: boolean; pointerId: number;
     } | null>(null);
-    const lastTapRef = useRef(0);
     const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const edgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const edgeDirRef = useRef<-1 | 1 | null>(null);
 
     const clearPress = () => {
         if (pressTimer.current) {
             clearTimeout(pressTimer.current);
             pressTimer.current = null;
         }
+    };
+    const clearEdge = () => {
+        if (edgeTimer.current) {
+            clearTimeout(edgeTimer.current);
+            edgeTimer.current = null;
+        }
+        edgeDirRef.current = null;
+        setEdge(null);
     };
 
     const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -165,6 +191,8 @@ function PositionedIcon({
             pressTimer.current = setTimeout(() => {
                 if (gesture.current && !gesture.current.dragging) {
                     onContext(clientX, clientY, icon);
+                    // Consumimos el gesto: al soltar NO se abre (era una pulsación larga).
+                    gesture.current = null;
                 }
             }, 520);
         }
@@ -181,12 +209,35 @@ function PositionedIcon({
         const nx = Math.min(Math.max(g.origX + dx, 0), g.rect.width - 60);
         const ny = Math.min(Math.max(g.origY + dy, 0), g.rect.height - 60);
         setDragPos({ x: nx, y: ny });
+
+        // ── Borde vivo (H-3): sostener en el borde salta de página ──
+        if (!onEdgeDwell) return;
+        const localX = e.clientX - g.rect.left;
+        const dir: -1 | 1 | null =
+            localX < EDGE_BAND_PX ? -1
+                : localX > g.rect.width - EDGE_BAND_PX ? 1
+                    : null;
+        if (dir === edgeDirRef.current) return;
+        clearEdge();
+        if (dir === null) return;
+        edgeDirRef.current = dir;
+        setEdge(dir);
+        edgeTimer.current = setTimeout(() => {
+            const jumped = onEdgeDwell(icon.id, dir);
+            if (jumped) {
+                // El icono ya está en la otra página: el arrastre termina aquí.
+                gesture.current = null;
+                setDragPos(null);
+            }
+            clearEdge();
+        }, EDGE_DWELL_MS);
     };
 
     const finishGesture = (e: React.PointerEvent<HTMLDivElement>) => {
         const g = gesture.current;
         clearPress();
-        if (!g || g.pointerId !== e.pointerId) return;
+        clearEdge();
+        if (!g || g.pointerId !== e.pointerId) { setDragPos(null); return; }
         gesture.current = null;
         if (g.dragging && dragPos) {
             let { x, y } = dragPos;
@@ -201,16 +252,10 @@ function PositionedIcon({
             return;
         }
         setDragPos(null);
-        // Doble tap táctil → abrir
-        if (e.pointerType === "touch") {
-            const now = Date.now();
-            if (now - lastTapRef.current < 350) {
-                lastTapRef.current = 0;
-                onOpen(icon);
-            } else {
-                lastTapRef.current = now;
-            }
-        }
+        // TÁCTIL: UN toque abre (convención de iOS/Android; el escritorio con
+        // ratón conserva el doble clic de toda la vida). Antes hacía falta un
+        // doble tap y casi nadie lo descubría.
+        if (e.pointerType === "touch") onOpen(icon);
     };
 
     const dragging = dragPos !== null;
@@ -237,8 +282,12 @@ function PositionedIcon({
                     : { left: `${icon.x * 100}%`, top: `${icon.y * 100}%` }
             }
             className={cn(
-                "absolute touch-none cursor-pointer outline-none",
+                // `pointer-events-auto`: la capa de página es pointer-events-none
+                // (para no robarle el fondo al lienzo); el icono los reactiva.
+                "pointer-events-auto absolute touch-none cursor-pointer outline-none",
                 dragging ? "z-30 scale-[1.04] opacity-90 transition-none" : "z-10 transition-[left,top] duration-200 ease-out",
+                cut && "opacity-45",
+                edge && "ring-2 ring-cyan-300/60 rounded-2xl",
             )}
         >
             <DesktopIconTile
@@ -249,6 +298,52 @@ function PositionedIcon({
                 onRenameCancel={onRenameCancel}
                 desktopId={desktopId}
             />
+        </div>
+    );
+}
+
+// ── Indicador de páginas (puntos, estilo iOS/Android) ─────────────
+function PageDots({
+    count, active, accent, onSelect, onAdd,
+}: {
+    count: number;
+    active: number;
+    accent: string;
+    onSelect: (p: number) => void;
+    onAdd: () => void;
+}): React.ReactElement {
+    return (
+        <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/12 bg-black/45 px-2.5 py-1.5 backdrop-blur-xl">
+            {Array.from({ length: count }, (_, p) => (
+                <button
+                    key={p}
+                    type="button"
+                    onClick={() => onSelect(p)}
+                    title={`Pantalla ${p + 1}`}
+                    aria-label={`Ir a la pantalla ${p + 1}`}
+                    aria-current={p === active}
+                    className="grid size-4 place-items-center cursor-pointer"
+                >
+                    <span
+                        className={cn(
+                            "block rounded-full transition-all duration-200",
+                            p === active ? "size-2" : "size-1.5 bg-white/35 hover:bg-white/60",
+                        )}
+                        style={p === active ? { background: accent, boxShadow: `0 0 8px ${accent}` } : undefined}
+                    />
+                </button>
+            ))}
+            {count < MAX_DESKTOP_PAGES && (
+                <button
+                    type="button"
+                    onClick={onAdd}
+                    title="Nueva pantalla"
+                    aria-label="Añadir una pantalla al escritorio"
+                    className="ml-0.5 grid size-4 place-items-center rounded-full text-white/45 transition-colors hover:bg-white/10 hover:text-white cursor-pointer"
+                >
+                    <Plus className="size-3" />
+                </button>
+            )}
         </div>
     );
 }
@@ -282,7 +377,13 @@ function SelectionBox({ box }: { box: { x: number; y: number; w: number; h: numb
 }
 
 // ── Estado del menú contextual (icono o lienzo) ──────────────────
-interface CtxMenuState { x: number; y: number; icon: DesktopIcon | null; }
+interface CtxMenuState {
+    x: number;
+    y: number;
+    icon: DesktopIcon | null;
+    /** Punto del lienzo (fracción 0..1) donde se pulsó → destino de «Pegar». */
+    spot?: { x: number; y: number };
+}
 
 // ── Menú gestor de escritorios (barra superior) ──────────────────
 function DesktopManagerMenu({
@@ -481,8 +582,8 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
     const [addFolderTarget, setAddFolderTarget] = useState<string | null>(null);
     const [exposeOpen, setExposeOpen] = useState(false);
     const [snapZone, setSnapZone] = useState<SnapZone | null>(null);
-    // Vista previa / Información de un icono (B-2, tipo Quick Look de macOS).
-    const [quickLook, setQuickLook] = useState<{ icon: DesktopIcon; tab: QuickLookTab } | null>(null);
+    // Vista previa / Información / Compartir de un icono (B-2, Quick Look de macOS).
+    const [quickLook, setQuickLook] = useState<{ icon: DesktopIcon; tab: QuickLookTab; share?: boolean } | null>(null);
     // Viewport en vivo: el MOSAICO (B-3) calcula sus rects en píxeles a partir
     // de él, así que hay que re-renderizar al redimensionar la ventana.
     const [viewport, setViewport] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -522,6 +623,14 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
     );
 
     const openIcon = useOpenDesktopIcon(desktop?.id);
+    const editIcon = useEditDesktopIcon(desktop?.id);
+    const clipboard = useDesktopClipboard();
+
+    // ── Páginas del escritorio (H-3) ──
+    // Retrocompatible por construcción: sin `pageCount` ⇒ 1 página, y todos los
+    // iconos (que no tienen `page`) viven en la 0 ⇒ se ve exactamente lo de antes.
+    const pageCount = desktop ? desktopPageCount(desktop) : 1;
+    const page = desktop ? desktopActivePage(desktop) : 0;
 
     // Preferencias de vista/diseño efectivas del escritorio activo.
     const view = useMemo(() => ({ ...DEFAULT_DESKTOP_VIEW, ...(desktop?.view ?? {}) }), [desktop?.view]);
@@ -533,12 +642,48 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
         setAddOpen(true);
     }, []);
 
-    // Menú contextual del LIENZO (clic derecho sobre el fondo).
+    /** Cambia de página; si ya no hay más, salta al escritorio contiguo. */
+    const goToPage = useCallback((dir: -1 | 1) => {
+        if (!desktop) return;
+        const n = desktopPageCount(desktop);
+        const cur = desktopActivePage(desktop);
+        const next = cur + dir;
+        if (next >= 0 && next < n) {
+            setDesktopPage(desktop.id, next);
+            return;
+        }
+        // Bordes: continúa al escritorio anterior/siguiente (si existe).
+        const idx = state.desktops.findIndex((d) => d.id === desktop.id);
+        const target = state.desktops[idx + dir];
+        if (target) setActiveDesktop(target.id);
+    }, [desktop, state.desktops]);
+
+    /** Arrastrar un icono al borde y sostener → salta de página (H-3). */
+    const onIconEdgeDwell = useCallback((iconId: string, dir: -1 | 1): boolean => {
+        if (!desktop) return false;
+        const n = desktopPageCount(desktop);
+        const cur = desktopActivePage(desktop);
+        const next = cur + dir;
+        if (next < 0 || next >= n) return false;
+        moveIconToPage(desktop.id, iconId, next);
+        setDesktopPage(desktop.id, next);
+        return true;
+    }, [desktop]);
+
+    // Menú contextual del LIENZO (clic derecho sobre el fondo). Guarda el PUNTO
+    // exacto (en fracciones del lienzo) para que «Pegar» deje el icono ahí.
     const onBackgroundContext = useCallback((e: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
         if (e.target !== e.currentTarget) return;
         e.preventDefault();
         setSelection(new Set());
-        setCtxMenu({ x: e.clientX, y: e.clientY, icon: null });
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const spot = rect.width > 0 && rect.height > 0
+            ? {
+                x: Math.min(0.94, Math.max(0, (e.clientX - rect.left) / rect.width)),
+                y: Math.min(0.9, Math.max(0, (e.clientY - rect.top) / rect.height)),
+            }
+            : undefined;
+        setCtxMenu({ x: e.clientX, y: e.clientY, icon: null, spot });
     }, []);
 
     // Teclado: Supr elimina selección · Escape cierra paneles/Exposé ·
@@ -571,6 +716,34 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                     setQuickLook({ icon, tab: "preview" });
                     return;
                 }
+            }
+            // ── Portapapeles del escritorio (H-2): ⌘C · ⌘X · ⌘V ──
+            if (meta && !e.altKey && (e.key === "c" || e.key === "C") && selection.size === 1) {
+                const only = [...selection][0];
+                if (desktop.icons.some((i) => i.id === only)) {
+                    e.preventDefault();
+                    copyIcon(desktop.id, only);
+                    return;
+                }
+            }
+            if (meta && !e.altKey && (e.key === "x" || e.key === "X") && selection.size === 1) {
+                const only = [...selection][0];
+                if (desktop.icons.some((i) => i.id === only)) {
+                    e.preventDefault();
+                    cutIcon(desktop.id, only);
+                    return;
+                }
+            }
+            if (meta && !e.altKey && (e.key === "v" || e.key === "V")) {
+                e.preventDefault();
+                pasteClipboard(desktop.id, null);
+                return;
+            }
+            // Páginas del escritorio (H-3): ←/→ sin modificadores.
+            if (!meta && !e.altKey && (e.key === "ArrowRight" || e.key === "ArrowLeft") && selection.size === 0) {
+                e.preventDefault();
+                goToPage(e.key === "ArrowRight" ? 1 : -1);
+                return;
             }
             // Ctrl/Cmd+Alt+T → organizar en mosaico · Ctrl/Cmd+Alt+F → libre.
             if (meta && e.altKey && (e.key === "t" || e.key === "T")) {
@@ -628,7 +801,7 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [desktop, selection, exposeOpen, quickLook, state.desktops]);
+    }, [desktop, selection, exposeOpen, quickLook, state.desktops, goToPage]);
 
     const selectIcon = useCallback((id: string, additive: boolean) => {
         setCtxMenu(null);
@@ -682,22 +855,49 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
         setSelection(inBox);
     };
 
+    /**
+     * Fin del gesto de fondo. Deslizar LATERALMENTE cambia de PÁGINA (H-3) y,
+     * al agotarse las páginas, salta al escritorio contiguo (como iOS).
+     *
+     * Criterio con RATÓN (documentado a propósito): el arrastre sobre el fondo
+     * sigue siendo el MARCO DE SELECCIÓN de siempre, salvo que sea claramente un
+     * barrido horizontal (|dx| > 110 px y |dx| > 3·|dy|). Un marco de selección
+     * de menos de ~37 px de alto no selecciona nada útil (una celda de iconos
+     * mide 124 px), así que el gesto no le roba nada al marquee.
+     */
     const onBackgroundPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
         const m = marqueeRef.current;
         marqueeRef.current = null;
         setMarquee(null);
         const s = swipeRef.current;
         swipeRef.current = null;
-        // Si hubo marquee real, no interpretes swipe.
-        if (m?.moved) return;
-        if (!s || !desktop || state.desktops.length < 2) return;
+        if (!s || !desktop) return;
         const dx = e.clientX - s.x;
         const dy = e.clientY - s.y;
-        if (Math.abs(dx) < 72 || Math.abs(dy) > 60) return;
-        const idx = state.desktops.findIndex((d) => d.id === desktop.id);
-        const next = dx < 0 ? idx + 1 : idx - 1;
-        const target = state.desktops[next];
-        if (target) setActiveDesktop(target.id);
+        const horizontal = Math.abs(dx) > 3 * Math.abs(dy);
+
+        if (e.pointerType === "touch") {
+            if (Math.abs(dx) < 72 || Math.abs(dy) > 60) return;
+            goToPage(dx < 0 ? 1 : -1);
+            return;
+        }
+        // Ratón: barrido horizontal inequívoco → página; si no, era un marquee.
+        if (m?.moved && !(horizontal && Math.abs(dx) > 110)) return;
+        if (!horizontal || Math.abs(dx) < 110) return;
+        setSelection(new Set());
+        goToPage(dx < 0 ? 1 : -1);
+    };
+
+    // Rueda HORIZONTAL (trackpad de dos dedos / rueda lateral) → cambia de página.
+    const wheelLockRef = useRef(0);
+    const onBackgroundWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+        if (!desktop) return;
+        const { deltaX, deltaY } = e;
+        if (Math.abs(deltaX) < 24 || Math.abs(deltaX) < Math.abs(deltaY)) return;
+        const now = Date.now();
+        if (now - wheelLockRef.current < 420) return; // una página por gesto
+        wheelLockRef.current = now;
+        goToPage(deltaX > 0 ? 1 : -1);
     };
 
     // ── Shell de carga (SSR / primer frame) ──
@@ -725,8 +925,13 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
     const visibleWindows = allVisible.filter((w) => !w.fullscreen);
     const minimizedWindows = desktop.windows.filter((w) => w.minimized);
     const topZ = allVisible.reduce((m, w) => Math.max(m, w.z), 0);
-    const sortedIcons = [...desktop.icons].sort((a, b) => a.y - b.y || a.x - b.x);
+    // Solo los iconos de la PÁGINA visible (H-3). En un escritorio de una sola
+    // página esto es, literalmente, todos los iconos: cero cambio de conducta.
+    const pageIcons = iconsOfPage(desktop, page);
+    const sortedIcons = [...pageIcons].sort((a, b) => a.y - b.y || a.x - b.x);
     const desktopIndex = state.desktops.findIndex((d) => d.id === desktop.id);
+    /** Icono marcado para CORTAR (se pinta atenuado hasta pegarlo). */
+    const cutId = clipboard?.mode === "cut" ? clipboard.node.id : null;
 
     // ── Mosaico (B-3): rects derivados del layout + viewport ──
     const tiling = desktop.tiling ?? null;
@@ -788,19 +993,28 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                         onPointerDown={onBackgroundPointerDown}
                         onPointerUp={onBackgroundPointerUp}
                         onContextMenu={onBackgroundContext}
+                        onWheel={onBackgroundWheel}
                         className="absolute inset-x-2 bottom-24 top-12 overflow-y-auto"
                     >
-                        <div className="grid grid-cols-4 gap-y-3 pt-2 min-[420px]:grid-cols-5 min-[540px]:grid-cols-6">
+                        {/* pointer-events-none en la rejilla: así el SWIPE de páginas
+                            (H-3) funciona también deslizando SOBRE la zona de iconos,
+                            no solo por debajo. Los iconos los reactivan. */}
+                        <motion.div
+                            key={`page-${desktop.id}-${page}`}
+                            initial={reduced ? { opacity: 0 } : { opacity: 0, x: 28 }}
+                            animate={reduced ? { opacity: 1 } : { opacity: 1, x: 0 }}
+                            transition={{ duration: 0.22, ease: "easeOut" }}
+                            className="pointer-events-none grid grid-cols-4 gap-y-3 pt-2 min-[420px]:grid-cols-5 min-[540px]:grid-cols-6"
+                        >
                             {sortedIcons.map((icon) => (
                                 <div
                                     key={icon.id}
                                     role="button"
                                     tabIndex={0}
-                                    className="flex cursor-pointer justify-center outline-none"
-                                    onPointerUp={(e) => {
-                                        if (e.pointerType !== "touch") return;
-                                        selectIcon(icon.id, false);
-                                    }}
+                                    className={cn(
+                                        "pointer-events-auto flex cursor-pointer justify-center outline-none",
+                                        cutId === icon.id && "opacity-45",
+                                    )}
                                     onClick={() => selectIcon(icon.id, false)}
                                     onDoubleClick={() => openIcon(icon)}
                                     onKeyDown={(e) => { if (e.key === "Enter") openIcon(icon); }}
@@ -810,10 +1024,15 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                                         setCtxMenu({ x: e.clientX, y: e.clientY, icon });
                                     }}
                                 >
-                                    <MobileTapIcon icon={icon} selected={selection.has(icon.id)} onOpen={() => openIcon(icon)} />
+                                    <MobileTapIcon
+                                        icon={icon}
+                                        selected={selection.has(icon.id)}
+                                        onOpen={() => openIcon(icon)}
+                                        onContext={(x, y) => { selectIcon(icon.id, false); setCtxMenu({ x, y, icon }); }}
+                                    />
                                 </div>
                             ))}
-                        </div>
+                        </motion.div>
                     </div>
                 ) : (
                     /* Escritorio: posiciones libres + rejilla magnética opcional */
@@ -823,29 +1042,47 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                         onPointerMove={onBackgroundPointerMove}
                         onPointerUp={onBackgroundPointerUp}
                         onContextMenu={onBackgroundContext}
+                        onWheel={onBackgroundWheel}
                         className="absolute inset-x-3 bottom-24 top-12"
                     >
                         {view.showGrid && <DesktopGrid accent={themeAccent} />}
-                        {desktop.icons.map((icon) => (
-                            <PositionedIcon
-                                key={icon.id}
-                                desktopId={desktop.id}
-                                icon={icon}
-                                areaRef={iconAreaRef}
-                                snap={state.snap}
-                                sizeOverride={view.iconSize}
-                                selected={selection.has(icon.id)}
-                                renaming={renamingId === icon.id}
-                                onSelect={selectIcon}
-                                onOpen={openIcon}
-                                onContext={(x, y, i) => { selectIcon(i.id, false); setCtxMenu({ x, y, icon: i }); }}
-                                onRenameCommit={(name) => {
-                                    if (name.trim()) updateIcon(desktop.id, icon.id, { name: name.trim() });
-                                    setRenamingId(null);
-                                }}
-                                onRenameCancel={() => setRenamingId(null)}
-                            />
-                        ))}
+                        {/* La envoltura de página NO recibe eventos: si los recibiera,
+                            se comería el clic derecho del FONDO, el marco de selección
+                            y el swipe (el lienzo comprueba `e.target === e.currentTarget`).
+                            Los iconos, que sí son interactivos, los reactivan. */}
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={`page-${desktop.id}-${page}`}
+                                initial={reduced ? { opacity: 0 } : { opacity: 0, x: 34 }}
+                                animate={reduced ? { opacity: 1 } : { opacity: 1, x: 0 }}
+                                exit={reduced ? { opacity: 0 } : { opacity: 0, x: -34 }}
+                                transition={{ duration: 0.2, ease: "easeOut" }}
+                                className="pointer-events-none absolute inset-0"
+                            >
+                                {pageIcons.map((icon) => (
+                                    <PositionedIcon
+                                        key={icon.id}
+                                        desktopId={desktop.id}
+                                        icon={icon}
+                                        areaRef={iconAreaRef}
+                                        snap={state.snap}
+                                        sizeOverride={view.iconSize}
+                                        selected={selection.has(icon.id)}
+                                        renaming={renamingId === icon.id}
+                                        cut={cutId === icon.id}
+                                        onSelect={selectIcon}
+                                        onOpen={openIcon}
+                                        onContext={(x, y, i) => { selectIcon(i.id, false); setCtxMenu({ x, y, icon: i }); }}
+                                        onEdgeDwell={pageCount > 1 ? onIconEdgeDwell : undefined}
+                                        onRenameCommit={(name) => {
+                                            if (name.trim()) updateIcon(desktop.id, icon.id, { name: name.trim() });
+                                            setRenamingId(null);
+                                        }}
+                                        onRenameCancel={() => setRenamingId(null)}
+                                    />
+                                ))}
+                            </motion.div>
+                        </AnimatePresence>
                         {marquee && <SelectionBox box={marquee} />}
                     </div>
                 )}
@@ -861,11 +1098,38 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                 )}
             </motion.div>
 
-            {/* ── Capa de ventanas ── */}
+            {/* ── Indicador de PÁGINAS (H-3) ──
+                Vive por encima de los iconos y por DEBAJO de las ventanas: las
+                ventanas NO se deslizan con las páginas (son una capa aparte, y
+                así una app abierta no desaparece por barrer el fondo). */}
+            {(pageCount > 1 || desktop.icons.length > 0) && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-[76px] z-[14] flex justify-center">
+                    <PageDots
+                        count={pageCount}
+                        active={page}
+                        accent={themeAccent}
+                        onSelect={(p) => setDesktopPage(desktop.id, p)}
+                        onAdd={() => addDesktopPage(desktop.id)}
+                    />
+                </div>
+            )}
+
+            {/* ── Capa de ventanas ──
+                ⚠️ CAUSA RAÍZ del bug H-1 (Adenda 69), documentada para que no vuelva:
+                esta capa es `absolute inset-0` (cubre el lienzo ENTERO) y vive en
+                z-[15], POR ENCIMA de la capa de iconos (z-[5]). Sin
+                `pointer-events-none`, este div invisible se comía TODOS los clics
+                de los iconos: pulsar una app no hacía absolutamente nada — ni
+                seleccionar, ni abrir, ni menú contextual — hubiera o no ventanas
+                abiertas. Medido en producción: `document.elementsFromPoint(icono)`
+                devolvía ESTE div como elemento superior, no el icono.
+                REGLA: la capa NUNCA recibe eventos; solo los reciben sus hijos
+                reales (ventanas, chips, divisores del mosaico), que se marcan
+                explícitamente con `pointer-events-auto`. */}
             <div
                 className={cn(
-                    "absolute inset-0 z-[15] transition-all duration-300",
-                    cleanView && "pointer-events-none scale-[0.98] opacity-0",
+                    "pointer-events-none absolute inset-0 z-[15] transition-all duration-300",
+                    cleanView && "scale-[0.98] opacity-0",
                 )}
             >
                 <AnimatePresence>
@@ -873,7 +1137,7 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                         const chrome = resolveWindowChrome(win.contentRef);
                         const hiddenOnMobile = isMobile && win.z !== topZ;
                         return (
-                            <div key={win.id} className={cn(hiddenOnMobile && "hidden")}>
+                            <div key={win.id} className={cn("pointer-events-auto", hiddenOnMobile && "hidden")}>
                                 <DesktopWindowFrame
                                     desktopId={desktop.id}
                                     win={win}
@@ -909,7 +1173,7 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
 
                 {/* Swap de ventanas en móvil */}
                 {isMobile && visibleWindows.length > 1 && (
-                    <div className="absolute inset-x-0 bottom-24 z-[45] flex justify-center">
+                    <div className="pointer-events-auto absolute inset-x-0 bottom-24 z-[45] flex justify-center">
                         <div className="flex max-w-[92%] gap-1 overflow-x-auto rounded-full border border-white/12 bg-black/55 p-1 backdrop-blur-xl">
                             {[...visibleWindows].sort((a, b) => a.z - b.z).map((w) => {
                                 const c = resolveWindowChrome(w.contentRef);
@@ -1211,8 +1475,9 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                             canvasRef={canvasRef}
                             onClose={() => setCtxMenu(null)}
                             onOpen={openIcon}
+                            onEdit={editIcon}
                             onRename={(id) => setRenamingId(id)}
-                            onQuickLook={(icon, tab) => setQuickLook({ icon, tab })}
+                            onQuickLook={(icon, tab, share) => setQuickLook({ icon, tab, share })}
                         />
                     ) : (
                         <CanvasContextMenu
@@ -1221,6 +1486,8 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                             desktop={desktop}
                             canvasRef={canvasRef}
                             snap={state.snap}
+                            activePage={page}
+                            pasteSpot={ctxMenu.spot}
                             onClose={() => setCtxMenu(null)}
                             onAddApps={() => openAdd("apps")}
                             onAddWidgets={() => openAdd("widgets")}
@@ -1240,6 +1507,7 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                     desktopId={desktop.id}
                     icon={quickLook.icon}
                     initialTab={quickLook.tab}
+                    initialShare={quickLook.share}
                     onClose={() => setQuickLook(null)}
                     onOpen={(icon) => { setQuickLook(null); openIcon(icon); }}
                 />
@@ -1316,24 +1584,50 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
     );
 }
 
-// ── Icono móvil (tap simple selecciona, doble tap abre) ──────────
-function MobileTapIcon({ icon, selected, onOpen }: {
+// ── Icono móvil (UN toque abre · mantener pulsado = menú) ────────
+// H-1/H-2: antes hacía falta un DOBLE TAP para abrir (nadie lo descubría) y no
+// había menú contextual táctil. Ahora es la convención de iOS/Android.
+function MobileTapIcon({ icon, selected, onOpen, onContext }: {
     icon: DesktopIcon;
     selected: boolean;
     onOpen: () => void;
+    onContext?: (x: number, y: number) => void;
 }): React.ReactElement {
-    const lastTapRef = useRef(0);
+    const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const longPressed = useRef(false);
+    const start = useRef<{ x: number; y: number } | null>(null);
+
+    const clear = () => {
+        if (pressTimer.current) {
+            clearTimeout(pressTimer.current);
+            pressTimer.current = null;
+        }
+    };
+
     return (
         <div
-            onPointerUp={(e) => {
+            onPointerDown={(e) => {
                 if (e.pointerType !== "touch") return;
-                const now = Date.now();
-                if (now - lastTapRef.current < 350) {
-                    lastTapRef.current = 0;
-                    onOpen();
-                } else {
-                    lastTapRef.current = now;
-                }
+                longPressed.current = false;
+                start.current = { x: e.clientX, y: e.clientY };
+                const { clientX, clientY } = e;
+                clear();
+                pressTimer.current = setTimeout(() => {
+                    longPressed.current = true;
+                    onContext?.(clientX, clientY);
+                }, 520);
+            }}
+            onPointerMove={(e) => {
+                const s = start.current;
+                if (!s) return;
+                if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) clear();
+            }}
+            onPointerCancel={clear}
+            onPointerUp={(e) => {
+                clear();
+                if (e.pointerType !== "touch") return;
+                if (longPressed.current) { longPressed.current = false; return; }
+                onOpen();
             }}
         >
             <DesktopIconTile icon={icon} selected={selected} compact />

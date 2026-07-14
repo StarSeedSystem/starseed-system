@@ -18,14 +18,20 @@ import {
     FolderPlus, StickyNote, Link2, LayoutGrid, ArrowUpDown, List, Grid3x3,
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
     Trash2, Magnet, FolderInput, Sparkles, Check, PictureInPicture2,
-    Eye, Info, Grid2x2, Columns2, Rows2, Frame, Home, type LucideIcon,
+    Eye, Info, Grid2x2, Columns2, Rows2, Frame, Home, Share2, PenLine,
+    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize, TileMode } from "./desktop-store";
 import {
     addIcon, createNoteIcon, sortIcons, autoArrangeIcons, setSnap, updateIcon,
     duplicateIcon, removeIcon, moveIconToFolder, setDesktopView, DEFAULT_DESKTOP_VIEW,
+    moveIconToPage, desktopPageCount, iconPage, addDesktopPage, removeDesktopPage,
+    MAX_DESKTOP_PAGES,
 } from "./desktop-store";
+import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./desktop-clipboard";
+import { canEditIcon } from "./desktop-open";
+import { hasRichThumb } from "./desktop-thumbs";
 import type { QuickLookTab } from "./desktop-quick-look";
 
 const MENU_W = 210;
@@ -132,7 +138,7 @@ function MenuShell({
 export function CanvasContextMenu({
     x, y, desktop, canvasRef, snap, onClose,
     onAddApps, onAddWidgets, onChangeBackground, onOpenSettings, onOpenExpose,
-    onTile, onUntile,
+    onTile, onUntile, pasteSpot, activePage = 0,
 }: {
     x: number;
     y: number;
@@ -150,8 +156,14 @@ export function CanvasContextMenu({
     onTile?: (mode: TileMode) => void;
     /** Deshace el mosaico. Omitido (no hay mosaico activo) → oculta. */
     onUntile?: () => void;
+    /** Punto exacto (fracción 0..1 del lienzo) donde pegar (H-2). */
+    pasteSpot?: { x: number; y: number };
+    /** Página visible (para etiquetar «Eliminar esta pantalla»). */
+    activePage?: number;
 }): React.ReactElement {
     const view = desktop.view ?? {};
+    const clip = useDesktopClipboard();
+    const pages = desktopPageCount(desktop);
     const run = (fn: () => void) => { fn(); onClose(); };
     const askAurora = () => {
         try {
@@ -163,10 +175,39 @@ export function CanvasContextMenu({
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
             <MenuLabel>Nuevo</MenuLabel>
-            <MenuItem icon={FolderPlus} label="Folder" onClick={() => run(() => addIcon(desktop.id, { kind: "folder", name: "Nuevo folder", accent: "#FFBF00" }))} />
+            <MenuItem icon={FolderPlus} label="Folder" onClick={() => run(() => addIcon(desktop.id, { kind: "folder", name: "Nuevo folder", accent: "#FFBF00", ...(pasteSpot ?? {}) }))} />
             <MenuItem icon={StickyNote} label="Nota" onClick={() => run(() => createNoteIcon(desktop.id, "Nota"))} />
             <MenuItem icon={LayoutGrid} label="Añadir apps…" onClick={() => run(onAddApps)} />
             <MenuItem icon={MonitorPlay} label="Añadir widgets…" onClick={() => run(onAddWidgets)} />
+
+            {/* Portapapeles del escritorio (H-2): pegar EN EL PUNTO del clic */}
+            {clip && (
+                <>
+                    <MenuDivider />
+                    <MenuItem
+                        icon={ClipboardPaste}
+                        label={clip.mode === "cut" ? `Pegar «${clip.node.name}» (mover)` : `Pegar «${clip.node.name}»`}
+                        shortcut="⌘V"
+                        onClick={() => run(() => { pasteClipboard(desktop.id, null, pasteSpot); })}
+                    />
+                </>
+            )}
+
+            {/* Páginas del escritorio (H-3) */}
+            <MenuDivider />
+            <MenuLabel>Pantallas</MenuLabel>
+            <MenuItem
+                icon={Plus}
+                label="Nueva pantalla"
+                onClick={() => run(() => { if (pages < MAX_DESKTOP_PAGES) addDesktopPage(desktop.id); })}
+            />
+            {pages > 1 && (
+                <MenuItem
+                    icon={Trash2}
+                    label={`Eliminar pantalla ${activePage + 1}`}
+                    onClick={() => run(() => removeDesktopPage(desktop.id, activePage))}
+                />
+            )}
 
             <MenuDivider />
             <MenuItem icon={Sparkles} label="Pídeselo a Aurora" onClick={() => run(askAurora)} />
@@ -208,8 +249,11 @@ export function CanvasContextMenu({
 }
 
 // ── Menú de un ICONO ─────────────────────────────────────────────
+// Adenda 69 · H-2: menú COMPLETO — Abrir · Vista previa · Compartir · Editar ·
+// Renombrar · Duplicar · Copiar · Cortar · Pegar (dentro de un folder) · Mover
+// (a folder, a la raíz y A OTRA PÁGINA) · Información · Tamaño · Eliminar.
 export function IconContextMenu({
-    x, y, desktop, icon, canvasRef, onClose, onOpen, onRename, onQuickLook,
+    x, y, desktop, icon, canvasRef, onClose, onOpen, onRename, onQuickLook, onEdit,
 }: {
     x: number;
     y: number;
@@ -220,26 +264,54 @@ export function IconContextMenu({
     onOpen: (icon: DesktopIcon) => void;
     onRename: (id: string) => void;
     /** Abre el Quick Look (vista previa · información · compartir · permisos). */
-    onQuickLook?: (icon: DesktopIcon, tab: QuickLookTab) => void;
+    onQuickLook?: (icon: DesktopIcon, tab: QuickLookTab, share?: boolean) => void;
+    /** Abre el EDITOR adecuado al tipo. Devuelve false si no hay editor propio. */
+    onEdit?: (icon: DesktopIcon) => boolean;
 }): React.ReactElement {
+    const clip = useDesktopClipboard();
     const run = (fn: () => void) => { fn(); onClose(); };
-    const canLivePreview = icon.kind === "widget" || (icon.kind === "file" && (icon.fileKind === "image" || icon.fileKind === "gif"));
+    const canLivePreview =
+        icon.kind === "widget" || (icon.kind === "file" && hasRichThumb(icon));
     // Folders raíz destino (no la propia si es folder).
     const folders = desktop.icons.filter((i) => i.kind === "folder" && i.id !== icon.id);
     // ¿Está dentro de un folder? Entonces puede volver a la raíz del escritorio.
     const inFolder = !desktop.icons.some((i) => i.id === icon.id);
+    const pages = desktopPageCount(desktop);
+    const myPage = iconPage(icon);
+    const editable = canEditIcon(icon);
+    // Pegar DENTRO de este folder (destino natural del portapapeles).
+    const canPasteHere = Boolean(clip) && icon.kind === "folder";
 
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
             <MenuItem icon={ExternalLink} label="Abrir" onClick={() => run(() => onOpen(icon))} />
             {onQuickLook && (
-                <>
-                    <MenuItem icon={Eye} label="Vista previa" shortcut="Espacio" onClick={() => run(() => onQuickLook(icon, "preview"))} />
-                    <MenuItem icon={Info} label="Información" onClick={() => run(() => onQuickLook(icon, "info"))} />
-                </>
+                <MenuItem icon={Eye} label="Vista previa" shortcut="Espacio" onClick={() => run(() => onQuickLook(icon, "preview"))} />
             )}
+            {onQuickLook && (
+                <MenuItem icon={Share2} label="Compartir…" onClick={() => run(() => onQuickLook(icon, "preview", true))} />
+            )}
+            {editable && onEdit && (
+                <MenuItem icon={PenLine} label="Editar" onClick={() => run(() => { onEdit(icon) || onRename(icon.id); })} />
+            )}
+
+            <MenuDivider />
+            {/* Portapapeles del escritorio (real: entre folders, páginas y escritorios) */}
+            <MenuItem icon={Copy} label="Copiar" shortcut="⌘C" onClick={() => run(() => copyIcon(desktop.id, icon.id))} />
+            <MenuItem icon={Scissors} label="Cortar" shortcut="⌘X" onClick={() => run(() => cutIcon(desktop.id, icon.id))} />
+            {canPasteHere && (
+                <MenuItem
+                    icon={ClipboardPaste}
+                    label={`Pegar en «${icon.name}»`}
+                    shortcut="⌘V"
+                    onClick={() => run(() => { pasteClipboard(desktop.id, icon.id); })}
+                />
+            )}
+            <MenuItem icon={CopyPlus} label="Duplicar" onClick={() => run(() => duplicateIcon(desktop.id, icon.id))} />
             <MenuItem icon={Pencil} label="Renombrar" onClick={() => run(() => onRename(icon.id))} />
-            <MenuItem icon={Copy} label="Duplicar" onClick={() => run(() => duplicateIcon(desktop.id, icon.id))} />
+            {onQuickLook && (
+                <MenuItem icon={Info} label="Información" onClick={() => run(() => onQuickLook(icon, "info"))} />
+            )}
             {canLivePreview && (
                 <MenuItem
                     icon={MonitorPlay}
@@ -266,7 +338,7 @@ export function IconContextMenu({
                 ))}
             </div>
 
-            {(folders.length > 0 || inFolder) && (
+            {(folders.length > 0 || inFolder || (pages > 1 && !inFolder)) && (
                 <SubMenu icon={FolderInput} label="Mover a">
                     {inFolder && (
                         <MenuItem
@@ -278,6 +350,21 @@ export function IconContextMenu({
                     {folders.map((f) => (
                         <MenuItem key={f.id} icon={FolderPlus} label={f.name} onClick={() => run(() => moveIconToFolder(desktop.id, icon.id, f.id))} />
                     ))}
+                    {/* Páginas del escritorio (H-3) */}
+                    {!inFolder && pages > 1 && (
+                        <>
+                            <MenuLabel>Página</MenuLabel>
+                            {Array.from({ length: pages }, (_, p) => (
+                                <MenuItem
+                                    key={`p-${p}`}
+                                    icon={Layers}
+                                    label={`Pantalla ${p + 1}`}
+                                    active={p === myPage}
+                                    onClick={() => run(() => moveIconToPage(desktop.id, icon.id, p))}
+                                />
+                            ))}
+                        </>
+                    )}
                 </SubMenu>
             )}
 

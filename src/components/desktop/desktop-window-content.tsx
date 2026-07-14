@@ -18,7 +18,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
     ExternalLink, Loader2, Hammer, Globe, RotateCw, ArrowRight,
-    LayoutGrid, FileQuestion, StickyNote, FolderOpen, type LucideIcon,
+    LayoutGrid, FileQuestion, StickyNote, FolderOpen, FileCode2, type LucideIcon,
 } from "lucide-react";
 import { getApp } from "@/components/dashboard/apps/app-catalog";
 import type { ContentKind, ContentResource } from "@/components/dashboard/apps/content/content-types";
@@ -127,6 +127,10 @@ export function DesktopWindowContent({
             if (ref.meta?.kind === "note" && ref.meta?.noteId) {
                 return <NoteContent desktopId={desktopId} noteId={ref.meta.noteId} />;
             }
+            // "Editar" (H-2) → editor de texto/código REAL, no un visor.
+            if (ref.meta?.mode === "edit" && ref.meta?.iconId) {
+                return <TextEditorContent desktopId={desktopId} iconId={ref.meta.iconId} url={ref.ref} />;
+            }
             return <FileContent refData={ref} winId={win.id} />;
         case "browser":
             return <BrowserContent initialUrl={ref.ref} />;
@@ -176,22 +180,56 @@ function OpenTabButton({ href, accent, label = "Abrir en pestaña nueva" }: { hr
 }
 
 // ── Apps NATIVAS del OS: se montan DE VERDAD dentro de la ventana ──
-// Antes, una app con `open.primary: "route"` solo pintaba una tarjeta con el
-// botón «Abrir módulo» (te sacaba del escritorio). Las apps portadas al OS son
-// componentes React: pueden vivir dentro de la ventana como cualquier widget.
-// Mapa extensible: id del catálogo → componente (carga diferida).
+// Adenda 69 · H-1. Antes, una app con `open.primary: "route"` (que son CASI
+// TODAS las nativas del OS) ni siquiera llegaba aquí: el icono hacía
+// `router.push(route)` y te sacaba del escritorio. Y si llegaba, la ventana
+// solo pintaba una tarjeta con un botón «Abrir módulo» — que también te sacaba.
+//
+// Las apps del OS son componentes React: pueden vivir DENTRO de la ventana,
+// como cualquier widget. Este mapa (extensible) es el registro id → módulo real.
+// Regla: si una app está aquí, su ventana muestra la APP DE VERDAD; el `href`
+// externo queda como atajo en la barra de título, nunca como sustituto.
+function lazyApp(load: () => Promise<{ default: React.ComponentType }>, label: string): React.ComponentType {
+    return dynamic(load, {
+        ssr: false,
+        loading: () => (
+            <div className="absolute inset-0 grid place-items-center text-[11px] text-muted-foreground animate-pulse">
+                Cargando {label}…
+            </div>
+        ),
+    });
+}
+
 const NATIVE_APP_VIEWS: Record<string, React.ComponentType> = {
-    audiomorphic: dynamic(
-        () => import("@/components/dashboard/apps/audiomorphic/audiomorphic-app").then((m) => m.AudiomorphicApp),
-        {
-            ssr: false,
-            loading: () => (
-                <div className="absolute inset-0 grid place-items-center bg-black text-[11px] text-white/60">
-                    Cargando visualizador…
-                </div>
-            ),
-        },
+    audiomorphic: lazyApp(
+        () => import("@/components/dashboard/apps/audiomorphic/audiomorphic-app").then((m) => ({ default: m.AudiomorphicApp })),
+        "visualizador",
     ),
+    omnifrecuencias: lazyApp(
+        () => import("@/components/dashboard/apps/omnifrecuencias/omnifrecuencias-app").then((m) => ({ default: m.OmnifrecuenciasApp })),
+        "frecuencias",
+    ),
+    camara: lazyApp(
+        () => import("@/components/camera/camera-app").then((m) => ({ default: m.CameraApp })),
+        "cámara",
+    ),
+    galeria: lazyApp(
+        () => import("@/components/gallery/gallery-app").then((m) => ({ default: m.GalleryApp })),
+        "galería",
+    ),
+    clima: lazyApp(
+        () => import("@/modules/weather/views/atmosphere-view"),
+        "atmósfera",
+    ),
+    immersive: lazyApp(
+        () => import("@/components/dashboard/apps/immersive/immersive-space").then((m) => ({ default: m.ImmersiveSpace })),
+        "espacio inmersivo",
+    ),
+    messages: lazyApp(() => import("@/app/(main)/messages/page"), "mensajes"),
+    library: lazyApp(() => import("@/app/(app)/library/page"), "biblioteca"),
+    agent: lazyApp(() => import("@/app/(app)/agent/page"), "agentes"),
+    network: lazyApp(() => import("@/app/(app)/network/page"), "red"),
+    nexus: lazyApp(() => import("@/app/(app)/nexus/page"), "nexus"),
 };
 
 // ── APP: nativa (montada) · externa (iframe defensivo) · ruta · enlace ──
@@ -202,7 +240,9 @@ function AppContent({ appId, fallbackName }: { appId: string; fallbackName?: str
     const [stuck, setStuck] = useState(false);
 
     const NativeView = NATIVE_APP_VIEWS[appId];
-    const isNative = Boolean(app) && app!.status === "native" && Boolean(NativeView);
+    // Basta con estar en el registro: `status` ya no decide (nexus es "live" y
+    // también es un módulo real del OS). Solo "soon" se queda fuera.
+    const isNative = Boolean(app) && app!.status !== "soon" && Boolean(NativeView);
 
     const href = app?.open.href;
     const soon = app?.status === "soon";
@@ -241,10 +281,43 @@ function AppContent({ appId, fallbackName }: { appId: string; fallbackName?: str
     }
 
     // App PORTADA al OS → se monta aquí mismo, en la ventana. Nada de iframes.
+    // `Suspense`: varias de estas páginas usan useSearchParams() y exigen un
+    // boundary propio cuando se montan fuera de su ruta.
     if (isNative && NativeView) {
         return (
-            <div className="absolute inset-0 overflow-hidden">
-                <NativeView />
+            <div className="absolute inset-0 overflow-auto">
+                <DesktopErrorBoundary
+                    fallback={
+                        <CenterBody
+                            icon={app.icon}
+                            title={app.name}
+                            text="El módulo no pudo montarse dentro de la ventana."
+                            accent={app.accent}
+                            action={
+                                app.open.route ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => router.push(app.open.route!)}
+                                        className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold text-white shadow-lg cursor-pointer transition-transform hover:-translate-y-px"
+                                        style={{ background: app.accent }}
+                                    >
+                                        <ArrowRight className="size-3.5" /> Abrir a pantalla completa
+                                    </button>
+                                ) : undefined
+                            }
+                        />
+                    }
+                >
+                    <React.Suspense
+                        fallback={
+                            <div className="absolute inset-0 grid place-items-center text-[11px] text-muted-foreground animate-pulse">
+                                Cargando {app.name}…
+                            </div>
+                        }
+                    >
+                        <NativeView />
+                    </React.Suspense>
+                </DesktopErrorBoundary>
             </div>
         );
     }
@@ -356,6 +429,104 @@ function NoteContent({ desktopId, noteId }: { desktopId: string; noteId: string 
                 placeholder="Escribe tu nota… se guarda sola."
                 spellCheck={false}
                 className="min-h-0 flex-1 resize-none bg-transparent p-4 text-[13px] leading-relaxed text-foreground/90 outline-none placeholder:text-muted-foreground/50"
+            />
+        </div>
+    );
+}
+
+// ── FILE · EDITAR: editor de texto/código real (H-2) ─────────────
+// Honesto sobre dónde guarda: el contenido editado se persiste en el ICONO del
+// escritorio (`icon.text`), que es soberano y del usuario. Un archivo remoto de
+// la Biblioteca se CARGA aquí (fetch) y, al guardar, queda una copia editable
+// en tu escritorio — nunca se finge escribir en el origen remoto (no podemos).
+function TextEditorContent({ desktopId, iconId, url }: {
+    desktopId: string; iconId: string; url?: string;
+}): React.ReactElement {
+    const state = useDesktopsState();
+    const desktop = state.desktops.find((d) => d.id === desktopId);
+    const icon = desktop ? findIconInTree(desktop.icons, iconId) : null;
+
+    const [draft, setDraft] = useState<string>(icon?.text ?? "");
+    const [status, setStatus] = useState<"idle" | "loading" | "saving" | "saved" | "remote-error">(
+        icon?.text !== undefined ? "saved" : url ? "loading" : "saved",
+    );
+    const [detached, setDetached] = useState(false);
+    const loadedRef = useRef(icon?.text !== undefined);
+    const skipRef = useRef(true);
+
+    // Carga diferida del contenido remoto (solo si el icono no lo trae ya).
+    useEffect(() => {
+        if (loadedRef.current || !url) return;
+        let alive = true;
+        (async () => {
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(String(res.status));
+                const text = await res.text();
+                if (!alive) return;
+                loadedRef.current = true;
+                skipRef.current = true;
+                setDraft(text);
+                setStatus("saved");
+            } catch {
+                if (alive) setStatus("remote-error");
+            }
+        })();
+        return () => { alive = false; };
+    }, [url]);
+
+    // Autoguardado con debounce (mismo patrón que la nota rápida).
+    useEffect(() => {
+        if (skipRef.current) { skipRef.current = false; return; }
+        if (!loadedRef.current) return;
+        setStatus("saving");
+        const t = setTimeout(() => {
+            updateIcon(desktopId, iconId, { text: draft });
+            setDetached(Boolean(url));
+            setStatus("saved");
+        }, 500);
+        return () => clearTimeout(t);
+    }, [draft, desktopId, iconId, url]);
+
+    if (!icon) {
+        return <CenterBody icon={FileQuestion} title="Archivo no encontrado" text="Este icono ya no existe en el escritorio." accent="#38BDF8" />;
+    }
+    if (status === "remote-error") {
+        return (
+            <CenterBody
+                icon={FileQuestion}
+                title={icon.name}
+                text="No se pudo cargar el contenido de este archivo para editarlo (el origen no permite leerlo desde aquí). Puedes abrirlo en su visor."
+                accent="#38BDF8"
+                action={url ? <OpenTabButton href={url} accent="#38BDF8" label="Abrir el original" /> : undefined}
+            />
+        );
+    }
+
+    return (
+        <div className="flex h-full w-full flex-col">
+            <div className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-white/[0.03] px-3 py-1.5">
+                <FileCode2 className="size-3.5 text-emerald-300" />
+                <span className="min-w-0 truncate text-[11px] font-bold text-emerald-100/90">{icon.name}</span>
+                {detached && (
+                    <span className="shrink-0 rounded-full border border-white/12 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-200/90">
+                        Copia editable
+                    </span>
+                )}
+                <span className={cn(
+                    "ml-auto shrink-0 text-[10px] font-semibold transition-colors",
+                    status === "saved" ? "text-emerald-300/80" : "text-muted-foreground/70",
+                )}>
+                    {status === "loading" ? "Cargando…" : status === "saving" ? "Guardando…" : "Guardado"}
+                </span>
+            </div>
+            <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onPointerDown={(e) => e.stopPropagation()}
+                spellCheck={false}
+                placeholder={status === "loading" ? "" : "Escribe… se guarda solo en tu escritorio."}
+                className="min-h-0 flex-1 resize-none bg-transparent p-4 font-mono text-[12px] leading-relaxed text-foreground/90 outline-none placeholder:text-muted-foreground/50"
             />
         </div>
     );
