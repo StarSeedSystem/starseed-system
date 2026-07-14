@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Sliders, Shapes, Box, Bot, Blend } from "lucide-react";
+import { ArrowLeft, Sliders, Shapes, Box, Bot, Blend, Layers } from "lucide-react";
 import { ELEMENT_FAMILIES } from "./element-catalog";
 import type { ElementFamily, ElementOverride, ThemeDraftMeta } from "./types";
 import { makeId } from "./types";
@@ -28,8 +28,14 @@ import { SaveSharePanel } from "./SaveSharePanel";
 // Mezclador de Diseños (theme-mixer.ts): fusión por slots — aditivo, entrada
 // nueva dentro del Estudio sin tocar el resto de sus herramientas.
 import { ThemeMixerPanel } from "@/components/design/theme-mixer-panel";
+// Fondo + CAPAS de fondo (Adenda 68 · D). `BackgroundSettings` existía pero
+// estaba HUÉRFANO: ninguna ruta lo montaba, así que "Ajustes → Apariencia →
+// Fondo" no existía de verdad en el OS (el fondo solo se podía cambiar desde
+// widgets y desde la pestaña Hogar de Trinity — que es justo por donde se
+// coló Audiomorphic). Aquí queda por fin accesible: /estudio → "Fondo".
+import { BackgroundSettings } from "@/components/settings/appearance/background-settings";
 
-type ToolTab = "props" | "2d" | "3d" | "aurora" | "mezclador";
+type ToolTab = "props" | "2d" | "3d" | "aurora" | "mezclador" | "fondo";
 
 export function DesignStudio() {
     const router = useRouter();
@@ -73,6 +79,7 @@ export function DesignStudio() {
         { id: "3d" as const, label: "Material 3D", icon: Box },
         { id: "aurora" as const, label: "Aurora", icon: Bot },
         { id: "mezclador" as const, label: "Mezclador", icon: Blend },
+        { id: "fondo" as const, label: "Fondo", icon: Layers },
     ]), []);
 
     return (
@@ -151,6 +158,9 @@ export function DesignStudio() {
                             </TabsContent>
                             <TabsContent value="aurora" className="pt-3">
                                 <AuroraDesignerPanel family={family} value={current} onChange={updateCurrent} />
+                            </TabsContent>
+                            <TabsContent value="fondo" className="pt-3">
+                                <BackgroundSettings />
                             </TabsContent>
                             <TabsContent value="mezclador" className="pt-3">
                                 <ThemeMixerPanel compact />

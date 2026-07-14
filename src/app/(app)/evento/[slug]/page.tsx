@@ -8,7 +8,10 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Carril de pestañas: `SectionTabs` (menú unificado del OS). De Radix solo quedan
+// la raíz controlada (`Tabs`) y los paneles (`TabsContent`).
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ShareButton } from "@/components/social/SocialActions";
 import { GovernanceToolkit } from "@/components/social/toolkits";
@@ -41,9 +44,21 @@ import {
     Lock,
     Pencil,
     Network,
+    Wrench,
+    Library,
+    Layers,
 } from "lucide-react";
 
 const GOLD = "#E9C46A";
+
+/** Secciones del evento (carril unificado `SectionTabs`). */
+const EVENT_TABS: SectionTabItem[] = [
+    { value: "herramientas", label: "Herramientas", icon: Wrench },
+    { value: "agenda", label: "Agenda", icon: CalendarDays },
+    { value: "conexiones", label: "Conexiones", icon: Network },
+    { value: "biblioteca", label: "Biblioteca", icon: Library },
+    { value: "colecciones", label: "Colecciones", icon: Layers },
+];
 
 function onImgError(e: React.SyntheticEvent<HTMLImageElement, Event>) {
     e.currentTarget.style.display = "none";
@@ -156,10 +171,12 @@ export default function EventoPage() {
     const { data: organizer } = useOsEntity(event?.organizerSlug ?? "", "page");
     const { isOwner } = useEntityOwner("event", event?.slug ?? "");
     const [editOpen, setEditOpen] = useState(false);
+    // `Tabs` controlado: lo exige el carril externo (`SectionTabs`).
+    const [activeTab, setActiveTab] = useState("herramientas");
 
     if (loading) {
         return (
-            <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+            <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-6">
                 <Skeleton className="aspect-video w-full rounded-2xl" />
                 <Skeleton className="h-40 w-full rounded-2xl" />
             </div>
@@ -173,7 +190,7 @@ export default function EventoPage() {
     const online = /línea|linea|multiverso|online/i.test(event.location);
 
     return (
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+        <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-6">
             {isOwner && !usingFallback && (
                 <EntityEditorDialog
                     open={editOpen}
@@ -348,15 +365,17 @@ export default function EventoPage() {
                 </aside>
             </div>
 
-            {/* ── Pestañas del evento ── */}
-            <Tabs defaultValue="herramientas">
-                <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto">
-                    <TabsTrigger value="herramientas">Herramientas</TabsTrigger>
-                    <TabsTrigger value="agenda">Agenda</TabsTrigger>
-                    <TabsTrigger value="conexiones">Conexiones</TabsTrigger>
-                    <TabsTrigger value="biblioteca">Biblioteca</TabsTrigger>
-                    <TabsTrigger value="colecciones">Colecciones</TabsTrigger>
-                </TabsList>
+            {/* ── Pestañas del evento ──
+                Carril unificado del OS (`SectionTabs`) y `Tabs` CONTROLADO (antes era
+                `defaultValue`, que no permite un carril externo). Scroll-x real en
+                móvil: las 5 pestañas son alcanzables a cualquier ancho. (Adenda 68 §C) */}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <SectionTabs
+                    items={EVENT_TABS}
+                    value={activeTab}
+                    onValueChange={setActiveTab}
+                    ariaLabel={`Secciones de ${event.title}`}
+                />
 
                 {/* ── Herramientas (GovernanceToolkit original) ── */}
                 <TabsContent value="herramientas" className="mt-6">

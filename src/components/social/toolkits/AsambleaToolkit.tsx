@@ -21,7 +21,10 @@ import {
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Carril de pestañas: `SectionTabs` (menú unificado del OS) — scroll-x real en
+// móvil. De Radix quedan la raíz controlada y los paneles. (Adenda 68 §C)
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { getAssembly, type AssemblyData } from "@/data/sample-governance";
@@ -38,6 +41,14 @@ import {
   CheckCircle2,
   Landmark,
 } from "lucide-react";
+
+const TABS: SectionTabItem[] = [
+  { value: "agenda", label: "Orden del día", icon: Clock },
+  { value: "mociones", label: "Mociones", icon: Gavel },
+  { value: "actas", label: "Actas", icon: ScrollText },
+  { value: "red", label: "Red", icon: Network },
+  { value: "decisiones", label: "Decisiones", icon: Landmark },
+];
 
 function humanizeSlug(slug: string): string {
   return slug
@@ -57,6 +68,8 @@ export function AsambleaToolkit({
 }) {
   const data = getAssembly(slug);
   const ac = accent ?? "#FFBF00";
+  // `Tabs` controlado: lo exige el carril externo (`SectionTabs`).
+  const [tab, setTab] = useState("agenda");
 
   // Acciones por defecto de la entidad (Adenda 63 §8).
   const quickActions = (
@@ -88,29 +101,14 @@ export function AsambleaToolkit({
   return (
     <div className="flex flex-col gap-6">
       {quickActions}
-      <Tabs defaultValue="agenda">
-        <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto">
-          <TabsTrigger value="agenda" className="cursor-pointer flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            Orden del día
-          </TabsTrigger>
-          <TabsTrigger value="mociones" className="cursor-pointer flex items-center gap-1.5">
-            <Gavel className="w-3.5 h-3.5" />
-            Mociones
-          </TabsTrigger>
-          <TabsTrigger value="actas" className="cursor-pointer flex items-center gap-1.5">
-            <ScrollText className="w-3.5 h-3.5" />
-            Actas
-          </TabsTrigger>
-          <TabsTrigger value="red" className="cursor-pointer flex items-center gap-1.5">
-            <Network className="w-3.5 h-3.5" />
-            Red
-          </TabsTrigger>
-          <TabsTrigger value="decisiones" className="cursor-pointer flex items-center gap-1.5">
-            <Landmark className="w-3.5 h-3.5" />
-            Decisiones
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={tab} onValueChange={setTab}>
+        <SectionTabs
+          items={TABS}
+          value={tab}
+          onValueChange={setTab}
+          size="sm"
+          ariaLabel="Herramientas de la asamblea"
+        />
 
         {/* ── TAB: AGENDA ─────────────────────────────────────────────────── */}
         <TabsContent value="agenda" className="mt-4 space-y-4">

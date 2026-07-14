@@ -31,12 +31,43 @@ export const SYNC_PROFILES_CONFIG_EVENT = "starseed:sync-profiles-config";
 export type DeviceKindSync = "web" | "pwa" | "standalone" | "mobile";
 
 /** Secciones de ámbito perfil conocidas (extensible; usado por los overrides por dispositivo). */
-export const PROFILE_SCOPE_SECTIONS = ["desktops", "library-brains"] as const;
+export const PROFILE_SCOPE_SECTIONS = ["desktops", "library-brains", "aurora"] as const;
 export type ProfileScopeSection = (typeof PROFILE_SCOPE_SECTIONS)[number];
 
 /** Claves de `user_settings.prefs` que son de ÁMBITO PERFIL (se gatean con esta config
  *  antes de que realtime-sync.ts las empuje/aplique). Aditivo: ampliar sin migración. */
 export const PROFILE_SCOPED_KEYS = ["starseed.desktops.v1"] as const;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * AURORA / ASTRAURA — ÁMBITO CUENTA (decisión de la Adenda 68 · A)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * TODO lo de Aurora/Astraura (personalidades, perfiles de personalidad, sentidos,
+ * voz, visión, permisos, reparto de Astraura, ámbito, conectores…) es de ÁMBITO
+ * CUENTA, no de perfil: es la MISMA Aurora en cualquier neurona, dispositivo o
+ * perfil de la cuenta. Es lo que pidió el usuario y es coherente con el modelo
+ * de Exocórtex (CLAUDE.md §3 · Ciberdelia): la IA personal pertenece a la
+ * PERSONA (la Cuenta), no a una de sus facetas públicas (los Perfiles).
+ *
+ * Por eso NO están en PROFILE_SCOPED_KEYS: no se gatean por perfil activo y
+ * viajan siempre. Lo que sí se permite es un ÚNICO override deliberado: apagar
+ * la sección `aurora` para un TIPO de dispositivo concreto (p. ej. que un móvil
+ * compartido no reciba las personalidades). Sin override → sincroniza todo, que
+ * es el comportamiento por defecto y el que espera el usuario.
+ *
+ * Lo que NUNCA viaja son los SECRETOS (claves API, credenciales): eso no es
+ * "ámbito", es la regla de Identidad Soberana — ver settings-sync.ts
+ * (NEVER_SYNCED_KEYS + sanitizeForCloud).
+ */
+
+/** ¿Es una clave de configuración de Aurora/Astraura (ámbito cuenta)? */
+export function isAuroraScopedKey(key: string): boolean {
+    return (
+        key.startsWith("starseed.aurora.") ||
+        key.startsWith("starseed.astraura.") ||
+        key === "starseed.capabilities.v1" ||
+        key.startsWith("starseed.integration.")
+    );
+}
 
 export interface DeviceOverride {
     enabled: boolean;
@@ -187,6 +218,11 @@ export function isSectionEnabledOnThisDevice(section: ProfileScopeSection, confi
  * (el resto de SYNCED_KEYS no se ve afectado por esta config en absoluto).
  */
 export function shouldSyncKey(key: string, activeProfileId: string | null): boolean {
+    // Aurora/Astraura: ÁMBITO CUENTA. Sincroniza siempre, salvo que el usuario
+    // haya apagado a propósito la sección 'aurora' para ESTE tipo de dispositivo.
+    if (isAuroraScopedKey(key)) {
+        return isSectionEnabledOnThisDevice("aurora", readSyncProfilesConfigLocal());
+    }
     if (!isProfileScopedKey(key)) return true;
     const cfg = readSyncProfilesConfigLocal();
     if (!shouldSyncProfileScope(activeProfileId, cfg)) return false;

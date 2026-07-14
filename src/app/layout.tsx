@@ -13,7 +13,7 @@ import { SplineWatermarkCover } from "@/components/ui/SplineWatermarkCover";
 import { LiquidPsychedelicBackground } from "@/components/ui/backgrounds/liquid-psychedelic-background";
 import { MateriaVivaBackgroundHost } from "@/components/backgrounds/materia-viva-background";
 import { LivingBackground } from "@/components/ui/backgrounds/living-background";
-import { AudiomorphicBackground } from "@/components/ui/backgrounds/audiomorphic-background";
+import { BackgroundLayerStack } from "@/components/ui/backgrounds/background-layer-stack";
 import { CrystalFilters } from "@/components/ui/effects/CrystalFilters";
 import { GlobalEnvironment } from "@/components/ui/global-environment";
 import { PerimeterProvider } from "@/context/perimeter-context";
@@ -173,7 +173,12 @@ export default function RootLayout({
                           <LiquidPsychedelicBackground />
                           <MateriaVivaBackgroundHost />
                           <LivingBackground />
-                          <AudiomorphicBackground />
+                          {/* Capas de fondo (Adenda 68 · D): pila ordenada por
+                              encima del fondo base — color/degradado/imagen/
+                              vídeo/Audiomorphic, con opacidad y mezcla propias.
+                              Vacía por defecto ⇒ el OS arranca con UN solo fondo
+                              y Audiomorphic NO se monta. */}
+                          <BackgroundLayerStack />
                         </PerfHeavyOnly>
                         <CrystalFilters />
                         <GlobalEnvironment />

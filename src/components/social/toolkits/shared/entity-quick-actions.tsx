@@ -10,6 +10,8 @@
 //   · Miembros      → diálogo con el roster (si la entidad declara recuento).
 //   · Compartir     → diálogo UNIVERSAL de permisos (ShareAccessDialog sobre la
 //                     biblioteca de la entidad) + copiar enlace de la entidad.
+//   · Compartir en… → diálogo UNIVERSAL de destinos (ShareToDialog): mensaje ·
+//                     entidad · cerebro · Biblioteca · enlace. (Adenda 68 §C-3)
 //   · Ajustes       → editor real de la entidad (EntityEditorDialog), solo si
 //                     la sesión es dueña de una entidad REAL (os_pages/os_groups).
 //
@@ -32,6 +34,8 @@ import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
 import { libraryRef, type LibraryEntityKind } from "@/lib/library/entity-library";
 import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
+import { ShareToDialog } from "@/components/sharing/share-to-dialog";
+import type { ShareResourceRef } from "@/lib/sharing/share-targets";
 import {
     EntityEditorDialog,
     type EditableEntity,
@@ -45,6 +49,7 @@ import {
     BookMarked,
     Users,
     Share2,
+    Send,
     Settings2,
     ArrowUpRight,
     type LucideIcon,
@@ -64,8 +69,10 @@ function ActionPill({
     onClick?: () => void;
     href?: string;
 }) {
+    // `min-h-[2.75rem]` en móvil = área táctil ≥44 px (WCAG 2.5.5); se compacta
+    // desde `sm`, donde ya hay ratón. (Adenda 68 §C)
     const cls =
-        "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur transition-colors duration-200 hover:border-white/25 hover:text-foreground";
+        "inline-flex min-h-[2.75rem] shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur transition-colors duration-200 hover:border-white/25 hover:text-foreground sm:min-h-0";
     const inner = (
         <>
             <Icon className="h-3.5 w-3.5" style={accent ? { color: accent } : undefined} />
@@ -120,6 +127,16 @@ export function EntityQuickActions({
     const href = entityHref ?? (entityKind === "page" ? `/pagina/${slug}` : `/grupo/${slug}`);
 
     const [openDialog, setOpenDialog] = useState<null | "agenda" | "biblioteca" | "miembros" | "compartir" | "ajustes">(null);
+    // "Compartir en…" — diálogo universal del OS (ShareToDialog). La entidad es un
+    // recurso `entidad`, cuyo enlace profundo es su propia ruta pública.
+    const [shareToOpen, setShareToOpen] = useState(false);
+    const shareResource: ShareResourceRef = {
+        kind: "entidad",
+        id: slug,
+        name: displayName,
+        route: href,
+        note: `${displayName} en StarSeed`,
+    };
 
     // Entidad real (para Ajustes): solo cuando existe en os_pages/os_groups y
     // la sesión es dueña. Cast al shape común: los overloads de useOsEntity
@@ -145,7 +162,11 @@ export function EntityQuickActions({
 
     return (
         <>
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 mb-4 px-1 pb-1 sm:flex-wrap sm:overflow-visible">
+            {/* Carril de acciones: scroll-x real en móvil, fila que envuelve desde `sm`.
+                `min-w-0` obligatorio (hijo de flex/grid) y SIN `-mx-1`: el margen
+                negativo hacía el carril 4 px más ancho que su contenedor → desborde.
+                (Adenda 68 §C) */}
+            <div className="mb-4 flex min-w-0 items-center gap-2 overflow-x-auto scrollbar-hide pb-1 sm:flex-wrap sm:overflow-visible">
                 <ActionPill
                     icon={PenSquare}
                     label="Publicar aquí"
@@ -156,6 +177,11 @@ export function EntityQuickActions({
                 <ActionPill icon={BookMarked} label="Biblioteca" accent={accent} onClick={() => setOpenDialog("biblioteca")} />
                 <ActionPill icon={Users} label="Miembros" accent={accent} onClick={() => setOpenDialog("miembros")} />
                 <ActionPill icon={Share2} label="Compartir" accent={accent} onClick={() => setOpenDialog("compartir")} />
+                {/* "Compartir en…" (Adenda 68 §C-3): el MISMO diálogo universal del
+                    resto del OS (mensaje · entidad · cerebro · Biblioteca · enlace),
+                    ahora también para entidades. Complementa a "Compartir" (que solo
+                    copia/difunde el enlace) con destinos REALES dentro de la red. */}
+                <ActionPill icon={Send} label="Compartir en…" accent={accent} onClick={() => setShareToOpen(true)} />
                 {canEdit && (
                     <ActionPill icon={Settings2} label="Ajustes" accent={accent} onClick={() => setOpenDialog("ajustes")} />
                 )}
@@ -237,6 +263,14 @@ export function EntityQuickActions({
                     description="Permisos del espacio de esta entidad y enlace público para invitar."
                 />
             )}
+
+            {/* ── "Compartir en…" — diálogo universal de destinos del OS (Adenda 68 §C-3):
+                   mensaje · entidad · cerebro (como fuente) · Biblioteca · enlace. ── */}
+            <ShareToDialog
+                open={shareToOpen}
+                onOpenChange={setShareToOpen}
+                resource={shareResource}
+            />
 
             {/* ── Ajustes (editor real de la entidad; solo dueño/a) ── */}
             {canEdit && editable && (

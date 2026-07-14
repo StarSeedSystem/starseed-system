@@ -20,7 +20,9 @@ import {
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Carril de pestañas: `SectionTabs` (menú unificado del OS). (Adenda 68 §C)
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { getEventExtras, type EventExtras } from "@/data/sample-governance";
 import {
@@ -36,6 +38,13 @@ import {
   ArrowUpRight,
   Ticket,
 } from "lucide-react";
+
+const TABS: SectionTabItem[] = [
+  { value: "programa", label: "Programa", icon: CalendarClock },
+  { value: "asistentes", label: "Asistentes", icon: Users },
+  { value: "ubicacion", label: "Ubicación", icon: MapPin },
+  { value: "red", label: "Red", icon: Network },
+];
 
 const fallback: EventExtras = {
   agenda: [],
@@ -56,6 +65,8 @@ export function EventoToolkit({
 }) {
   const data = getEventExtras(slug) ?? fallback;
   const ac = accent ?? GOLD;
+  // `Tabs` controlado: lo exige el carril externo (`SectionTabs`).
+  const [tab, setTab] = useState("programa");
 
   const ocupacion =
     data.rsvp.capacity > 0
@@ -78,37 +89,14 @@ export function EventoToolkit({
         memberCount={data.rsvp.going}
         membersLabel="asistentes"
       />
-      <Tabs defaultValue="programa">
-        <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto">
-          <TabsTrigger
-            value="programa"
-            className="cursor-pointer flex items-center gap-1.5"
-          >
-            <CalendarClock className="w-3.5 h-3.5" />
-            Programa
-          </TabsTrigger>
-          <TabsTrigger
-            value="asistentes"
-            className="cursor-pointer flex items-center gap-1.5"
-          >
-            <Users className="w-3.5 h-3.5" />
-            Asistentes
-          </TabsTrigger>
-          <TabsTrigger
-            value="ubicacion"
-            className="cursor-pointer flex items-center gap-1.5"
-          >
-            <MapPin className="w-3.5 h-3.5" />
-            Ubicación
-          </TabsTrigger>
-          <TabsTrigger
-            value="red"
-            className="cursor-pointer flex items-center gap-1.5"
-          >
-            <Network className="w-3.5 h-3.5" />
-            Red
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={tab} onValueChange={setTab}>
+        <SectionTabs
+          items={TABS}
+          value={tab}
+          onValueChange={setTab}
+          size="sm"
+          ariaLabel="Herramientas del evento"
+        />
 
         {/* ── PROGRAMA ── */}
         <TabsContent value="programa" className="mt-6 space-y-6">

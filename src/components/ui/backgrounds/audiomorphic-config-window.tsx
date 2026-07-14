@@ -14,85 +14,66 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-    AudioWaveform, Power, X, ExternalLink, Mic, Camera, Sparkles, Wand2, Zap,
+    AudioWaveform, Power, X, ExternalLink, Mic, Sparkles, Zap,
 } from "lucide-react";
 import { OSWindow } from "@/components/dashboard/apps/os-window";
 import { useAppearance } from "@/context/appearance-context";
 import { cn } from "@/lib/utils";
+import {
+    audiomorphicLayer,
+    buildAudiomorphicUrl,
+    normalizeLayers,
+    patchAudiomorphic,
+    patchLayer,
+    setAudiomorphicEnabled,
+    type BlendMode,
+} from "@/lib/appearance/background-layers";
 
 const IFRAME_ALLOW =
     "microphone; camera; autoplay; fullscreen; gyroscope; accelerometer; magnetometer; xr-spatial-tracking";
 
-const PRESETS: { id: string; label: string }[] = [
-    { id: "nebula", label: "Nebulosa" },
-    { id: "genesis", label: "Génesis" },
-    { id: "solaris", label: "Solaris" },
-    { id: "aqua", label: "Aqua" },
-    { id: "void", label: "Vacío" },
+// Modos de mezcla útiles para superponer el espiral sobre otro fondo. "screen"
+// es el que hace desaparecer el #050505 opaco de la app (verificado en vivo).
+const BLENDS: { id: BlendMode; label: string }[] = [
+    { id: "screen", label: "Screen (quita el negro)" },
+    { id: "lighten", label: "Aclarar" },
+    { id: "normal", label: "Normal (opaco)" },
+    { id: "overlay", label: "Superponer" },
+    { id: "color-dodge", label: "Sobreexponer" },
 ];
-
-interface AudioCfg { url?: string; overlay?: number; mode?: "auto" | "manual"; mic?: boolean; camera?: boolean; preset?: string }
-
-/** URL interactiva de vista previa (la app muestra su UI y pide permisos). */
-function buildPreviewUrl(cfg: AudioCfg): string {
-    const base = cfg.url || "https://audiomorphic.vercel.app";
-    try {
-        const u = new URL(base);
-        u.searchParams.set("starseed_os", "1");
-        u.searchParams.set("full", "1");
-        u.searchParams.set("autostart", "1");
-        if (cfg.mic || cfg.mode === "auto") u.searchParams.set("mic", "1");
-        if (cfg.camera) u.searchParams.set("cam", "1");
-        if (cfg.preset) u.searchParams.set("preset", cfg.preset);
-        return u.toString();
-    } catch { return `${base}?starseed_os=1&full=1&autostart=1`; }
-}
-
-function Toggle({ on, onClick, icon: Icon, label, hint }: {
-    on: boolean; onClick: () => void; icon: typeof Mic; label: string; hint?: string;
-}) {
-    return (
-        <button type="button" onClick={onClick} aria-pressed={on}
-            className={cn("w-full flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors cursor-pointer",
-                on ? "border-purple-400/50 bg-purple-400/10" : "border-border/50 bg-white/[0.02] hover:bg-white/[0.04]")}>
-            <span className={cn("grid place-items-center size-8 rounded-lg shrink-0", on ? "bg-purple-400/20 text-purple-200" : "bg-white/5 text-muted-foreground")}>
-                <Icon className="size-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-                <span className="block text-xs font-bold">{label}</span>
-                {hint && <span className="block text-[10px] text-muted-foreground/60 truncate">{hint}</span>}
-            </span>
-            <span className={cn("h-5 w-9 rounded-full p-0.5 transition-colors shrink-0", on ? "bg-purple-400" : "bg-white/15")}>
-                <span className={cn("block size-4 rounded-full bg-white transition-transform", on && "translate-x-4")} />
-            </span>
-        </button>
-    );
-}
 
 function ConfigWindow({ onClose }: { onClose: () => void }) {
     const { config, updateConfig } = useAppearance();
-    const a = (config.background.audiomorphic ?? {}) as AudioCfg;
-    const isActive = (config.background.type as string) === "audiomorphic";
-    const overlay = a.overlay ?? 0.15;
-    const mode = a.mode ?? "manual";
-    const preset = a.preset ?? "nebula";
+    const layers = normalizeLayers(config.background.layers);
+    const layer = audiomorphicLayer(layers);
+    const isActive = !!layer;
+    const a = layer?.audiomorphic;
 
-    const patch = (p: Partial<AudioCfg>) => updateConfig({ background: { audiomorphic: p } } as any);
-    const setMode = (m: "auto" | "manual") => patch({ mode: m, mic: m === "auto" });
-    const activate = () => updateConfig({ background: { type: "audiomorphic", audiomorphic: a } } as any);
-    const deactivate = () => updateConfig({ background: { type: "none" } } as any);
+    const opacity = layer?.opacity ?? 0.9;
+    const blend = layer?.blend ?? "screen";
 
-    const previewUrl = buildPreviewUrl(a);
+    const patchLayerCfg = (p: Parameters<typeof patchLayer>[2]) =>
+        layer && updateConfig({ background: { layers: patchLayer(layers, layer.id, p) } } as any);
+    const patchAudio = (p: Parameters<typeof patchAudiomorphic>[2]) =>
+        layer && updateConfig({ background: { layers: patchAudiomorphic(layers, layer.id, p) } } as any);
+
+    const activate = () => updateConfig({ background: { layers: setAudiomorphicEnabled(layers, true) } } as any);
+    const deactivate = () => updateConfig({ background: { layers: setAudiomorphicEnabled(layers, false) } } as any);
+
+    // Vista previa: la app COMPLETA e interactiva (aquí es donde el usuario
+    // concede el micrófono con su propio botón "Iniciar Micrófono" y cierra su
+    // tour). `source=starseed-os` es el ÚNICO parámetro que la app entiende.
+    const previewUrl = buildAudiomorphicUrl(a);
 
     return (
         <OSWindow
-            title="Audiomorphic · Fondo del sistema"
-            subtitle="Configura y aplica como fondo"
+            title="Audiomorphic · Capa de fondo"
+            subtitle="Visualizador completo + ajustes de la capa"
             icon={AudioWaveform}
             accent="#A855F7"
             onClose={onClose}
             actions={
-                <a href="https://audiomorphic.vercel.app/?starseed_os=1&full=1" target="_blank" rel="noopener noreferrer"
+                <a href={previewUrl} target="_blank" rel="noopener noreferrer"
                     title="Abrir en pestaña" aria-label="Abrir en pestaña"
                     className="grid place-items-center size-8 rounded-full text-muted-foreground/70 hover:text-foreground hover:bg-white/10 transition-colors cursor-pointer">
                     <ExternalLink className="size-4" />
@@ -103,16 +84,16 @@ function ConfigWindow({ onClose }: { onClose: () => void }) {
                     {!isActive ? (
                         <button type="button" onClick={activate}
                             className="inline-flex items-center gap-1.5 rounded-full border border-purple-400/50 bg-purple-400/15 px-3 py-1 text-[11px] font-bold text-purple-100 hover:bg-purple-400/25 transition-colors cursor-pointer">
-                            <Power className="size-3.5" /> Activar como fondo del sistema
+                            <Power className="size-3.5" /> Añadir como capa de fondo
                         </button>
                     ) : (
                         <>
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-3 py-1 text-[11px] font-bold text-emerald-200">
-                                <Zap className="size-3.5" /> Fondo activo
+                                <Zap className="size-3.5" /> Capa activa
                             </span>
                             <button type="button" onClick={deactivate}
                                 className="inline-flex items-center gap-1.5 rounded-full border border-border/50 px-3 py-1 text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors cursor-pointer">
-                                <X className="size-3.5" /> Quitar fondo
+                                <X className="size-3.5" /> Quitar capa
                             </button>
                         </>
                     )}
@@ -121,74 +102,85 @@ function ConfigWindow({ onClose }: { onClose: () => void }) {
             }
         >
             <div className="absolute inset-0 flex flex-col lg:flex-row">
-                {/* Vista previa en vivo (interactiva → concede permisos aquí) */}
+                {/* Visualizador COMPLETO e interactivo: aquí se concede el micrófono
+                    con su propio botón y se eligen sus presets (Deriva/Armónico/Génesis). */}
                 <div className="relative flex-1 min-h-[42%] bg-black">
                     <iframe
                         key={previewUrl}
                         src={previewUrl}
-                        title="Vista previa Audiomorphic"
+                        title="Audiomorphic"
                         className="absolute inset-0 w-full h-full border-0 bg-black"
                         allow={IFRAME_ALLOW}
                         sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
                         referrerPolicy="no-referrer"
                     />
                     <div className="pointer-events-none absolute top-2 left-2 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/70 backdrop-blur">
-                        Vista previa en vivo · concede aquí micrófono/cámara
+                        Visualizador completo · pulsa aquí «Iniciar Micrófono»
                     </div>
                 </div>
 
-                {/* Controles */}
+                {/* Controles REALES de la capa (lo que el OS sí puede gobernar) */}
                 <div className="w-full lg:w-[330px] shrink-0 overflow-auto custom-scrollbar p-4 space-y-4 border-t lg:border-t-0 lg:border-l border-border/40 bg-card/70">
-                    <div>
-                        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60">Modo</div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button type="button" onClick={() => setMode("auto")} aria-pressed={mode === "auto"}
-                                className={cn("flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer",
-                                    mode === "auto" ? "border-purple-400/50 bg-purple-400/10" : "border-border/50 hover:bg-white/[0.04]")}>
-                                <span className="flex items-center gap-1.5 text-xs font-bold"><Mic className="size-3.5" /> Automático</span>
-                                <span className="text-[10px] text-muted-foreground/60">Reactivo al micrófono</span>
+                    {!isActive && (
+                        <p className="rounded-xl border border-dashed border-border/50 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground/70">
+                            Audiomorphic <b>no está activo</b> como fondo. Puedes usarlo aquí sin más, o añadirlo como
+                            capa (botón de arriba) para que se superponga a tu fondo.
+                        </p>
+                    )}
+
+                    {isActive && layer && a && (
+                        <>
+                            <div>
+                                <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60">
+                                    <span>Opacidad de la capa</span>
+                                    <span className="tabular-nums text-purple-200">{Math.round(opacity * 100)}%</span>
+                                </div>
+                                <input type="range" min={0} max={1} step={0.01} value={opacity}
+                                    onChange={(e) => patchLayerCfg({ opacity: Number(e.target.value) })}
+                                    aria-label="Opacidad de la capa" className="w-full cursor-pointer accent-purple-400" />
+                            </div>
+
+                            <div>
+                                <div className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60">
+                                    <Sparkles className="size-3" /> Modo de mezcla
+                                </div>
+                                <select
+                                    value={blend}
+                                    onChange={(e) => patchLayerCfg({ blend: e.target.value as BlendMode })}
+                                    className="w-full cursor-pointer rounded-lg border border-border/50 bg-black/25 px-2 py-1.5 text-xs outline-none focus:border-purple-400/60"
+                                >
+                                    {BLENDS.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+                                </select>
+                                <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/55">
+                                    La app tiene fondo <b>opaco</b> (#050505): no admite transparencia real en el iframe.
+                                    Con <b>screen</b> ese negro desaparece y solo se ve el espiral sobre tu fondo.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => patchAudio({ mic: !a.mic, interactive: !a.mic ? true : a.interactive })}
+                                aria-pressed={a.mic}
+                                className={cn(
+                                    "w-full inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold transition-colors cursor-pointer",
+                                    a.mic
+                                        ? "border-emerald-400/50 bg-emerald-400/15 text-emerald-100"
+                                        : "border-border/50 text-muted-foreground hover:bg-white/5",
+                                )}
+                            >
+                                <Mic className="size-3.5" /> {a.mic ? "Micrófono activado" : "Activar micrófono en la capa"}
                             </button>
-                            <button type="button" onClick={() => setMode("manual")} aria-pressed={mode === "manual"}
-                                className={cn("flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer",
-                                    mode === "manual" ? "border-purple-400/50 bg-purple-400/10" : "border-border/50 hover:bg-white/[0.04]")}>
-                                <span className="flex items-center gap-1.5 text-xs font-bold"><Wand2 className="size-3.5" /> Manual</span>
-                                <span className="text-[10px] text-muted-foreground/60">Animación autónoma</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Toggle on={!!a.mic} onClick={() => patch({ mic: !a.mic })} icon={Mic} label="Micrófono" hint="Alimenta el visualizador (audio del entorno)" />
-                        <Toggle on={!!a.camera} onClick={() => patch({ camera: !a.camera })} icon={Camera} label="Cámara · AR" hint="Realidad aumentada como fondo" />
-                    </div>
-
-                    <div>
-                        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60 flex items-center gap-1"><Sparkles className="size-3" /> Preset visual</div>
-                        <div className="flex flex-wrap gap-1.5">
-                            {PRESETS.map((p) => (
-                                <button key={p.id} type="button" onClick={() => patch({ preset: p.id })} aria-pressed={preset === p.id}
-                                    className={cn("rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer",
-                                        preset === p.id ? "border-purple-400/50 bg-purple-400/15 text-purple-100" : "border-border/50 text-muted-foreground hover:bg-white/[0.04]")}>
-                                    {p.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div>
-                        <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60">
-                            <span>Opacidad del overlay</span>
-                            <span className="tabular-nums text-purple-200">{Math.round(overlay * 100)}%</span>
-                        </div>
-                        <input type="range" min={0} max={0.8} step={0.01} value={overlay}
-                            onChange={(e) => patch({ overlay: Number(e.target.value) })}
-                            aria-label="Opacidad del overlay" className="w-full cursor-pointer accent-purple-400" />
-                        <p className="mt-1 text-[10px] text-muted-foreground/55">Oscurece el fondo para legibilidad de la interfaz.</p>
-                    </div>
+                            <p className="text-[10px] leading-relaxed text-muted-foreground/55">
+                                El permiso lo concedes <b>tú</b> pulsando «Iniciar Micrófono» dentro del visualizador
+                                (aquí al lado, o en el modo interacción de la capa). El OS nunca lo pide solo.
+                            </p>
+                        </>
+                    )}
 
                     <p className="text-[10px] leading-relaxed text-muted-foreground/55 border-t border-border/30 pt-3">
-                        Versión completa, gratis dentro de StarSeed OS. Los permisos de micrófono y cámara se conceden
-                        en la vista previa y persisten para el fondo. Tus ajustes quedan vinculados a tu cuenta.
+                        Se abre con <code>?source=starseed-os</code>: el visualizador te reconoce como cuenta StarSeed
+                        (sin muro de acceso, con su insignia StarSeed) — es el <b>único</b> parámetro que su app entiende.
+                        Los presets del espiral y la sensibilidad se ajustan en sus propios controles, no por URL.
                     </p>
                 </div>
             </div>

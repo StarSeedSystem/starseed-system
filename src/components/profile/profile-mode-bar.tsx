@@ -29,7 +29,7 @@ export function ProfileModeBar({ mode, onChange }: ProfileModeBarProps) {
         <div
             role="tablist"
             aria-label="Modo de la página de perfil"
-            className="flex w-full items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1 backdrop-blur-md sm:w-auto sm:self-center"
+            className="flex w-full min-w-0 items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1 backdrop-blur-md sm:w-auto sm:self-center"
         >
             {MODES.map(({ id, label, icon: Icon, hint }) => {
                 const active = mode === id;
@@ -40,7 +40,7 @@ export function ProfileModeBar({ mode, onChange }: ProfileModeBarProps) {
                         aria-selected={active}
                         title={hint}
                         onClick={() => onChange(id)}
-                        className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 sm:flex-none sm:px-4 sm:text-sm ${
+                        className={`flex min-h-[2.75rem] min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 sm:min-h-0 sm:flex-none sm:px-4 sm:text-sm ${
                             active
                                 ? "bg-white/10 text-foreground shadow-inner ring-1 ring-white/15"
                                 : "text-muted-foreground hover:bg-white/5 hover:text-foreground"

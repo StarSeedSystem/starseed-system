@@ -34,9 +34,11 @@ import {
   setEntityOverride,
   toggleRepo,
   toggleSkill,
+  AURORA_SETUP_EVENT,
   type AstrauraScope,
   type DeployKind,
 } from "@/lib/aurora/setup-config";
+import { AURORA_CONFIG_EVENT } from "@/lib/sync/realtime-sync";
 import { SKILL_CAPABILITIES } from "@/ai/astraura/skills";
 import { DEFAULT_BRAIN_SKILLS } from "@/lib/brain-skills/default-skills";
 import { allPackages, listRepos } from "@/lib/library/packages";
@@ -118,8 +120,24 @@ export function SetupAstraura() {
     })();
     setPersonalities(listPersonalityProfiles());
     setScope(getScope());
+
+    // Adenda 68 · A — SYNC EN VIVO: el reparto de Astraura y el ámbito son de
+    // ÁMBITO CUENTA. Si se cambian en OTRA neurona (u otro dispositivo), el
+    // motor de sync ya los ha escrito aquí y despacha estos eventos: releemos
+    // para que este panel muestre la config REAL aplicada, sin recargar.
+    const onRemote = () => {
+      setScope(getScope());
+      setPersonalities(listPersonalityProfiles());
+      setTick((t) => t + 1);
+      void listNeurons().then((n) => { if (!cancel) setNeurons(n); }).catch(() => { /* noop */ });
+    };
+    window.addEventListener(AURORA_SETUP_EVENT, onRemote);
+    window.addEventListener(AURORA_CONFIG_EVENT, onRemote);
+
     return () => {
       cancel = true;
+      window.removeEventListener(AURORA_SETUP_EVENT, onRemote);
+      window.removeEventListener(AURORA_CONFIG_EVENT, onRemote);
     };
   }, []);
 

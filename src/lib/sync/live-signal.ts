@@ -132,6 +132,22 @@ export function entityFeedTopic(entityType: string, entitySlug: string): string 
 export const FEED_GLOBAL_TOPIC = "feed:global";
 
 /**
+ * Topic de CONFIGURACIÓN de Aurora/Astraura (Adenda 68 · A).
+ * Viaja solo por el canal de CUENTA (`acct:<uid>`): la config de Aurora es
+ * privada de la cuenta y NUNCA se difunde por canales de entidad.
+ *
+ * Lo emite `realtime-sync.ts` tras subir con éxito cualquier clave de Aurora
+ * (personalidades, sentidos, voz, permisos, reparto de Astraura…). El payload
+ * lleva `data.keys` con las claves que cambiaron; el patrón recomendado sigue
+ * siendo "señal + releer", porque el propio motor ya ha escrito el valor nuevo
+ * en localStorage antes de que este evento llegue a los listeners.
+ *
+ * Alternativa equivalente sin live-signal: escuchar el evento del DOM
+ * `starseed:aurora-config-updated` (AURORA_CONFIG_EVENT de realtime-sync).
+ */
+export const AURORA_CONFIG_TOPIC = "aurora:config";
+
+/**
  * Entidad "virtual" del feed global → canal compartido `ent:feed:global`.
  * Sin ella, el topic global solo viajaría por el canal de CUENTA y un feed
  * genérico nunca vería en vivo las publicaciones de OTRAS cuentas.

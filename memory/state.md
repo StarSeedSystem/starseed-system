@@ -2929,3 +2929,200 @@ O sea: el bug afectaba a **todo ancho ≥1024px** (tablet horizontal **y escrito
 - **`curl -I` antes de escribir un `<iframe>`.** Dos minutos comprobando cabeceras evitaron dos features que se habrían visto en blanco en producción y que nadie habría sabido explicar.
 - **El README miente por omisión; el código no.** La API real de TencentDB (`/recall`, `/capture`…) no está en su README: está en `src/gateway/server.ts`. Y el `docker-compose.yml` de MemPalace es el que confiesa que el MCP es **stdio**. Segunda ola consecutiva en que **leer el código fuente cambia el diseño de la integración** (la anterior fue Voicebox).
 - **La honestidad hay que codificarla, no solo documentarla.** No basta con un comentario: el prompt de `agent-delegation` **obliga** a Aurora a decir que no ha delegado si no hay endpoint, y el de `social-publish` le **prohíbe** publicar aunque el usuario insista. Si la regla no está en el prompt, no existe.
+
+---
+
+## 2026-07-13 — Adenda 68 · B · Escritorio libre y soberano (bug del difuminado + ventanas)
+**Sesión por:** agente Cowork (Claude)
+**Resumen ejecutivo:** Diagnosticada EN VIVO y arreglada de raíz la ventana que se abría «medio difuminada y en una capa inferior», y ampliado el escritorio con visor universal (Quick Look), mosaico de N ventanas con divisores arrastrables y pantalla completa.
+
+### 🕳️ CAUSA RAÍZ del difuminado (B-1) — eran DOS bugs sumados, ninguno era z-index de la ventana
+
+**1 · Geometría: la ventana nacía DEBAJO de la barra superior.**
+`desktop-store.ts:849` colocaba las ventanas nuevas en `y = Math.max(4, Math.min(20 + (idx%6)*30, …))` → la **primera ventana caía en `y = 20`**. La barra superior del escritorio (`desktop-canvas.tsx:890`) ocupa `0..44` en **`z-[40]`** con `bg-black/30 backdrop-blur-2xl`, mientras que **TODA la capa de ventanas** vive en **`z-[15]`** (`desktop-canvas.tsx:797`) — y esa capa, al ser `position:absolute` + `z-index:15`, **es un stacking context**: el `z-index: 21` de la ventana **no puede competir** con la barra. Resultado: la barra de título de la ventana quedaba **pintada debajo de una barra semiopaca y borrosa** → exactamente el aspecto «translúcido, apagado, en una capa inferior» de la captura.
+**Verificado en vivo** (`starseed-os.vercel.app/escritorios`, `elementsFromPoint` sobre el botón de cerrar): devolvía **`HEADER z=40`**, no el botón ⇒ **los controles cerrar/minimizar/maximizar ni siquiera recibían el clic**.
+
+**2 · Compositing: `filter` en el marco de la ventana.**
+`desktop-window.tsx` animaba con Framer Motion `filter: blur(8px) → blur(0px)` en el **mismo elemento** que lleva `backdrop-blur-2xl`, y las ventanas sin foco llevaban además `saturate-[0.92]` + `opacity-[0.97]` **permanentes**. Un `filter` no-`none`:
+  · convierte el elemento en **backdrop-root** → destroza su propio `backdrop-filter` (el cristal deja de funcionar), y
+  · fuerza a **todo el subárbol** (incluido el `<iframe>` de la app) a pasar por una pasada de filtro → **la ventana entera se ve borrosa**.
+Y Framer Motion **deja `filter: blur(0px)` FIJO** en el estilo inline al acabar → el daño era permanente. Medido en vivo: `filter: blur(8px)` a t=80 ms → `blur(0px)` a t=700 ms, con la ventana **completa** (chrome + iframe) renderizada borrosa durante la apertura.
+
+### Hecho
+- **B-1** · `DESKTOP_TOP_INSET` (50 px) es ahora del **store**, que **clampa la `y`** en `openWindow`, `setWindowRect`, `toggleWindowMaximized` y — clave — en **`normalizeWindow`**, así que también **repara los escritorios ya guardados** con ventanas metidas bajo la barra. Arrastre y redimensión clampan al mismo inset.
+- **B-1** · El marco **ya no lleva `filter` NUNCA** (ni animado ni estático): la animación de apertura es solo `opacity/scale/y`, y el cristal (`bg-card/90 backdrop-blur-2xl`) se movió a una **capa propia `WindowGlass`** (`-z-10`, sin eventos) → el contenido (iframes, canvas, vídeo) **jamás** es descendiente de un `backdrop-filter`. La jerarquía foco/no-foco se transmite solo con borde y sombra.
+- **B-2** · **Quick Look universal** (`desktop-quick-look.tsx`): vista previa REAL de cualquier cosa (archivo → `ContentViewer` del OS: imagen/GIF/galería/vídeo/audio/PDF/HTML/Markdown/código/texto/3D/enlace/entidad + visor de reserva; nota → su texto; widget → widget vivo; app → ficha del catálogo; folder → su contenido) + pestaña **Información** con datos reales **y el ACCESO real** (`useResourceAccess`), con **Compartir** (`ShareToDialog`) y **Permisos** (`ShareAccessDialog`) — los mismos diálogos que el resto del OS. Se abre con **Espacio** o desde el menú contextual.
+- **B-2** · Menú de icono: Abrir · **Vista previa** · **Información** · Renombrar · Duplicar · **Mover a** (folders **y raíz**) · Tamaño · Eliminar (+ Compartir/Permisos dentro del Quick Look).
+- **B-3** · **Mosaico (pantalla dividida) de CUALQUIER número de ventanas**: modelo columnas→filas con fracciones (`DesktopTiling` en el store), auto-distribución en **rejilla · columnas · filas**, y **divisores arrastrables** (`desktop-tiles.tsx`) que reparten el espacio en vivo. Controles en la barra superior + menú contextual + `⌘⌥T` / `⌘⌥F`. Se reconcilia solo al abrir/cerrar/minimizar ventanas.
+- **B-3** · **Pantalla completa** real (`fullscreen`): la ventana **sale de la capa `z-[15]`** y se pinta en su propia capa `fixed z-[75]`, **por encima de la barra superior y del dock**. Botón en la barra de título, `F11`, y `Esc` para salir.
+- **Persistencia compatible**: `fullscreen` y `tiling` son **opcionales** y se normalizan defensivamente → un escritorio guardado sin ellos carga exactamente igual (`starseed.desktops.v1` + espejo `user_settings.prefs.desktops`, sin cambio de clave ni de versión).
+
+### Decisiones tomadas
+- **La barra superior se queda ENCIMA de las ventanas** (semántica de barra de menús macOS). No se sube la capa de ventanas: se **impide por modelo** que una ventana pueda colocarse ahí. Es la única solución que no reintroduce el bug por otra vía (arrastre, snap, restore, doc heredado).
+- **Regla de oro documentada en la cabecera de `desktop-window.tsx`:** el elemento que contiene el contenido de una ventana **no puede llevar `filter` ni `backdrop-filter`**. El cristal va siempre en capa aparte.
+
+### Pendiente / Próximos pasos
+- Mosaico en **móvil**: hoy se desactiva (`isMobile`) y se conserva el swap por chips. Un mosaico táctil de 2 ventanas sería el siguiente paso natural.
+- **Arrastrar y soltar** iconos DENTRO de una ventana de folder (hoy se mueven por el menú «Mover a»).
+- El Quick Look de archivos usa la URL del icono; para `os_files` con URL firmada caducada convendría refrescarla vía `getReplicaUrl()`.
+
+### Notas / aprendizajes
+- **El z-index de un elemento no vale nada si su ancestro ya creó un stacking context.** La ventana decía `z-index: 21` y era verdad… dentro de una capa `z-[15]`. Contra la barra `z-[40]` no tenía nada que hacer. **Siempre hay que mirar el ancestro, no el elemento.**
+- **`filter: blur(0px)` no es «nada».** Es un filtro activo: crea stacking context, crea backdrop-root y **compositea todo el subárbol**. Framer Motion lo deja puesto para siempre al animar `filter`. **Animar `filter` en un contenedor de contenido (sobre todo con iframes) es una trampa.**
+- **La captura del usuario decía la verdad y el `getComputedStyle` también**: la ventana **sí** tenía `opacity: 1` y `z-index: 21`. Lo que fallaba no se veía en el elemento — se veía en `elementsFromPoint` y en la geometría. **Cuando los estilos parecen correctos, haz el hit-test.**
+
+---
+
+## 2026-07-13 — Adenda 68 · A · Sync TOTAL de Aurora/Astraura en tiempo real (+ fuga de claves cerrada)
+
+**Sesión por:** Claude (Cowork, subagente A) bajo dirección de Alex Bordón Garrigós.
+**Resumen ejecutivo:** La configuración de Aurora **subía a la cuenta pero no bajaba nunca**. Se añade el pull de arranque que faltaba, LWW por clave, y el mapeo de eventos que hacía que la UI ignorara los cambios remotos. De paso se cierra una **fuga real de claves API** hacia `user_settings.prefs`.
+
+### Hecho
+- **Pull de arranque (`pullAndApplyNow()`)** en `src/lib/sync/realtime-sync.ts`: `startRealtimeSync()` solo se suscribía a los canales y **jamás leía `user_settings.prefs`**. Ahora baja + aplica (LWW) + **reconcilia hacia arriba** al arrancar y al cambiar de sesión.
+- **LWW por clave**: `prefs.__meta[key]` en la nube ↔ `starseed.sync.meta.v1` en local (esta última **NO se sincroniza**). Ni bajando ni subiendo se pisa un cambio más nuevo. Filas legadas sin `__meta` se aplican solo si aquí no hay nada que perder.
+- **26 claves de Aurora/Astraura mapeadas a sus eventos reales** en `EVENT_BY_KEY` (antes: **cero**) + evento genérico nuevo `starseed:aurora-config-updated` (`AURORA_CONFIG_EVENT`) + topic `AURORA_CONFIG_TOPIC` (`aurora:config`) en `live-signal.ts`.
+- **13 claves nuevas en `SYNCED_KEYS`** (capacidades/skills activas, avatar, canales, wake, TTS/STT OSS, acceso web, SearXNG, modelo por función…). Debounce 1500 → **800 ms**.
+- **🔐 Fuga cerrada**: `starseed.integration.*` (y `starseed.brain.<id>.integration.*` vía el prefijo `starseed.brain.`) subían el objeto **entero con `apiKey` EN CLARO**, pese al comentario que juraba lo contrario. Nuevos `sanitizeForCloud()` (poda) + `mergeLocalSecrets()` (reinyecta la clave local al aplicar config remota) + lista **`NEVER_SYNCED_KEYS`**.
+- **UI honesta**: bloque «Aurora y Astraura» en `RealtimeSyncPanel` (/cuenta) con estado real; el botón ahora hace `syncNow()` = **pull + push** (antes solo empujaba). `setup-astraura.tsx` repinta el reparto por neurona/cerebro al llegar un cambio remoto.
+
+### Decisiones tomadas
+- **Aurora/Astraura es de ÁMBITO CUENTA, no de perfil.** Lo pidió el usuario y encaja con el Exocórtex (CLAUDE.md §3): la IA personal pertenece a la **Persona (Cuenta)**, no a una de sus facetas públicas (Perfiles). Único override: la sección `aurora` de `sync-profiles-config.ts` permite excluir un **tipo de dispositivo**.
+- **`starseed.aurora.chats.v1` NO se sincroniza a propósito**: su `AuroraChatProviderConfig` guarda `apiKey` en claro por chat. Sincronizarlo sería filtrar claves. (El `chatlog` sí viaja.)
+- **No se tocó la BD.** `REPLICA IDENTITY DEFAULT` de `user_settings` es suficiente (solo leemos `payload.new`, y `user_id` es la PK): verificado E2E.
+
+### Verificado (real, no de palabra)
+- `npx tsc --noEmit` **exit 0** · `npm run build` **exit 0**.
+- Contra la BD del OS (`nxstilnyidvkqeosofuh`, Management API): `user_settings` en `supabase_realtime` ✅ · RLS ejecutada como `authenticated`: dueño escribe/lee ✅, escritura ajena **BLOQUEADA (42501)** ✅, lectura de filas ajenas **0** ✅.
+- **E2E con dos clientes Realtime distintos (= dos dispositivos):** un cambio escrito por «B» llega a «A» **sin recargar** por **ambas vías** — `postgres_changes` ✅ y `broadcast acct:<uid>` ✅ — con la marca LWW intacta. Datos de prueba borrados (0 residuo).
+- Auditoría: **0 configs de integración con `apiKey` en la nube** → la fuga estaba abierta pero **no se había materializado**; no hace falta rotar nada por esto.
+
+### Pendiente / Próximos pasos
+- Separar el secreto del resto de la config de chat para poder sincronizar `starseed.aurora.chats.v1`.
+- Rotar las 2 claves filtradas en el historial de git (service_role + DashScope) — **sigue pendiente, es anterior y distinto de lo de arriba**.
+
+### Notas / aprendizajes
+- **«No sincroniza» casi nunca significa «no sube».** Aquí subía perfectamente (se veía en la BD: personalidades, perfiles de personalidad, voz, deploy…). Fallaba **bajar** (sin pull de arranque) y **enterarse** (sin eventos). Antes de tocar el push, **mirar la fila en la nube**.
+- **Un comentario que jura que algo es seguro no lo hace seguro.** `settings-sync.ts` afirmaba que las claves «nunca viajan» mientras subía `apiKey` en claro dentro del mismo JSON. **Leer el TIPO, no el comentario.**
+- **Un solo cliente Realtime no puede probar un broadcast**: `broadcast:{self:false}` suprime el eco, así que el test daba «NO» falso. **Dos dispositivos = dos clientes.** Casi me lleva a hacer una DDL (`REPLICA IDENTITY FULL`) que no hacía ninguna falta.
+- **Builds concurrentes de Next corrompen `.next`** (`PageNotFoundError: /_document`). Con varios agentes en el mismo repo, compilar en una copia aislada con `node_modules` enlazado.
+
+---
+
+## 2026-07-13 — Adenda 68 · D — Audiomorphic dejaba de ser un fantasma: sistema de CAPAS de fondo
+
+**Sesión por:** Claude (agente Adenda 68 · D)
+**Resumen ejecutivo:** Audiomorphic aparecía SOLO como una capa translúcida con su pantalla de bienvenida. Eran **tres causas encadenadas** (una de config persistida, una de contrato de URL inventado, una de z-index). Se arreglan de raíz y el fondo del OS pasa a ser una **pila de capas** con orden, opacidad y mezcla.
+
+### CAUSA RAÍZ (verificada, no supuesta)
+
+**1 · POR QUÉ SE ACTIVABA SOLO — config persistida + sincronizada a toda la cuenta.**
+Ningún código lo activaba automáticamente: `defaultConfig.background.type` era `"spline"`. Pero **el valor `"audiomorphic"` estaba GRABADO** en `appearance-config-v2`. Comprobado EN VIVO en producción (`starseed-os.vercel.app`, Chrome): `background.type === "audiomorphic"` y el `<iframe>` del visualizador **montado** en el dashboard.
+Lo escribía cualquiera de **tres** botones de un solo clic (`AUDIOMORPHIC_BG` widget → "Activar fondo", `MEDIA_CONTROL` → "enviar visualización al fondo", Ajustes → Apariencia → tarjeta Audiomorphic), todos con `updateConfig({background:{type:'audiomorphic'}})`. Y como **`appearance-config-v2` está en `SYNCED_KEYS` con ÁMBITO CUENTA** (no está en `PROFILE_SCOPED_KEYS`), una vez pulsado **volvía en cada recarga y en cada dispositivo**. No había versión ni migración que pudiera deshacerlo → parecía que "se abría solo".
+*Bug adyacente encontrado:* los botones "Quitar fondo" escribían `type: "none"`, que **no es un tipo válido** → dejaban al OS sin fondo.
+
+**2 · POR QUÉ SALÍA SU PANTALLA DE BIENVENIDA — el "modo fondo" NUNCA existió.**
+Se descargó y leyó el bundle de `audiomorphic.vercel.app`. Los parámetros que el OS enviaba (`?bg=1&autostart=1&full=1&mic=1&cam=1&preset=…&starseed_os=1`) **aparecen CERO veces en su código**. La app solo lee `source` / `from` (si contienen "starseed"), `starseed=1` o `#starseed`. Con `starseed_os=1` **no coincide ninguno** ⇒ la app se consideraba **sin sesión**.
+Su tour se dispara con `if (!(localStorage['audiomorphic.intro.seen.v1'] === 'true') || !isLoggedIn) mostrarIntro()`. Sin sesión ⇒ **el tour salía SIEMPRE, en cada carga**. Y el iframe iba con `pointer-events: none` ⇒ **imposible pulsar «Saltar»**. De ahí la capa de bienvenida permanente.
+**Verificado en vivo:** con `?source=starseed-os` la app escribe `audiomorphic.starseed.linked.v1 = {"id":"starseed-os","name":"Cuenta StarSeed"}` + `subscription {viaStarSeed:true}`, y tras cerrar el tour una vez **ya no vuelve a salir**. Sin el parámetro, vuelve siempre.
+
+**3 · POR QUÉ SE VEÍA "TRANSLÚCIDA Y APAGADA".**
+Medido en producción: `PerfStaticBackdrop` (`perf-gate.tsx`) vive en **`z-index: -20` con `opacity: 0.85`** (animación `ssPerfBreathe`) y gradiente **opaco**; el iframe de Audiomorphic vivía en **`-z-40`** ⇒ se veía **a través** del backdrop semiopaco. Exactamente la "capa intermedia translúcida" de la captura.
+
+### Hecho
+- **`src/lib/appearance/background-layers.ts` (NUEVO)** — modelo de capas: `BackgroundLayer {id, kind, visible, opacity, blend, value?, audiomorphic?}` (kinds: color · gradiente · imagen · video · audiomorphic), catálogo, helpers puros (add/remove/patch/reorder), `buildAudiomorphicUrl()` con los parámetros **REALES** y **`migrateBackgroundLayers()`**.
+- **MIGRACIÓN (`BG_LAYERS_VERSION` 1)** en `appearance-context.tsx`: toda config guardada con `type:"audiomorphic"` pasa a base `spline` + **capa Audiomorphic APAGADA** (conservando su URL) → el fantasma muere en **todas** las cuentas ya sincronizadas, sin perder los ajustes. `type:"none"` también se repara. Sin migración, el bug habría vuelto en cada dispositivo.
+- **`background-layer-stack.tsx` (NUEVO)** — pinta la pila. **z-index -9…-2** (POR ENCIMA del `PerfStaticBackdrop` (-20) y del psicodélico (-10), por debajo de todo el contenido en flujo): es lo que evita que una capa vuelva a verse "lavada".
+- **Audiomorphic = CAPA, ya no `background.type`.** `AudiomorphicBackground` renderiza `null` (deprecado). Los 3 botones de un clic (2 widgets + Ajustes) y la ventana de config ahora **encienden/apagan SU capa** y **nunca tocan el fondo base**.
+- **Transparencia — la verdad:** el `<body>` de la app es `background-color:#050505` **OPACO** ⇒ `allowtransparency` es imposible. Se usa **`mix-blend-mode: screen`** (por defecto): el negro desaparece y **solo se ven el espiral y sus brillos** sobre la capa de abajo. Es la alternativa honesta y funciona sin tocar la app externa.
+- **Micrófono:** la app exige un clic SUYO en «Iniciar Micrófono». Se añade **modo interacción** (la capa sube a `z-index:60` y recibe clics, con barra «Listo»); al salir **el iframe NO se remonta** ⇒ el audio y la escena siguen vivos en el fondo. El OS **nunca** pide el permiso solo.
+- **Ajustes → Apariencia → Capas de fondo** (`background-layers-panel.tsx`): miniatura · arrastrar para reordenar · opacidad · ojo (visibilidad) · mezcla · eliminar · «Añadir capa» con catálogo. Vista previa = el propio fondo del OS, en vivo.
+- **Ámbito del fondo:** `background.scopes` (`perfil:<id>` · `pagina:<ruta>`) resuelto en el provider (**página > perfil > cuenta**). Selector «Cuenta / Este perfil / Esta página» + «Quitar override». Se hizo **dentro** de `appearance-config-v2` porque esa clave es de ámbito CUENTA en `settings-sync.ts` (fuera del alcance de esta ola).
+
+### Decisiones tomadas
+- **El motor del OS (spline/webgl/living/materia) es SIEMPRE la capa base**, porque esos componentes son singletons que leen `background.type`. Para poner algo "debajo" se usa una capa con mezcla. Limitación declarada, no escondida.
+- **Nada de parámetros inventados nunca más:** la URL del iframe solo lleva `source=starseed-os` (+`starseed=1`). Los presets del espiral (Deriva/Armónico/Génesis) y la sensibilidad **no se pueden fijar por URL** — se eligen en los controles de la app (modo interacción). El OS sí controla de verdad: opacidad, mezcla, escala y filtros CSS (tono/saturación/brillo/contraste).
+
+### Pendiente / Próximos pasos
+- `?source=starseed-os` vincula la cuenta (insignia "StarSeed", `viaStarSeed:true`) pero **no otorga `plan:"starseed"`**: eso sigue exigiendo un código `SS-…` en el panel de suscripción de la propia app.
+- El tour de bienvenida de Audiomorphic aún sale **una vez** por navegador (su `intro.seen` es de su origen). Se cierra desde la ventana/modo interacción y no vuelve.
+- Las capas viven dentro de `<PerfHeavyOnly>`: en móviles "eco" no se montan (coherente con el resto de fondos pesados).
+
+### Notas / aprendizajes
+- **`.next` se corrompió** con otros agentes compilando a la vez (`PageNotFoundError: /_document` tras un "Compiled successfully"). Se compiló en **copia aislada** (`/tmp/ss-bg-build` con `node_modules` enlazado).
+- Regla que este bug confirma: **una config persistida y sincronizada por cuenta es un estado global de facto**. Cualquier rediseño que cambie su significado necesita `DEFAULTS_VERSION` + migración, o el usuario se queda con el fantasma para siempre.
+
+---
+
+## 2026-07-13 · Adenda 68 §C — Perfiles y entidades: responsive de raíz + funciones reales
+
+**Encargo:** el perfil «se ve muy mal» en pantallas pequeñas (captura del usuario: pestañas cortadas,
+tarjetas desbordadas, texto recortado por el borde). Arreglarlo de raíz, en el perfil y en las demás
+páginas/entidades, y meter más funciones reales.
+
+### CAUSA RAÍZ (medida en vivo, no supuesta): `min-width: auto`, no las pestañas
+Diagnóstico con Chrome a **390 px reales** (Chrome no baja de ~500 px de ventana → se midió con un
+**iframe same-origin de 390 px**, cuyas media queries sí responden al ancho real):
+
+| Medición (perfil @390 px) | ANTES | DESPUÉS |
+|---|---|---|
+| Ancho de la fila de pestañas | **840 px** (en viewport de 390) | 736 px de contenido en carril de 364 |
+| ¿El carril hace scroll? | **NO** (`scrollWidth == clientWidth == 840`) | **SÍ** |
+| Pestañas inalcanzables | **7 de 11** (Biblioteca, Colecciones, Enlaces, Archivos, Sobre mí, Galería, Secciones) | **0 de 11** |
+| Píxeles que el raíz recorta (`overflow-x-clip`) | **476 px** (`cw 366` / `sw 842`) | **0 px** |
+| Desbordes de contenido | columna hermana estirada a 842 px | **0** |
+| Área táctil de pestaña | 36 px | **44 px** |
+
+**El porqué:** los hijos de grid/flex nacen con **`min-width: auto`** → no encogen por debajo de su ancho
+intrínseco. El hijo `lg:col-span-2` **crecía a 840 px** para caber las pestañas ⇒ el carril `overflow-x-auto`
+**nunca tenía nada que desplazar** (ya era tan ancho como su contenido), y el `overflow-x-clip` del raíz
+**borraba la evidencia**: sin scrollbar, sin desborde de página, sin pista. Las pestañas simplemente **no
+existían**. El mismo mecanismo estiraba la **columna hermana** (la tarjeta «Discusión Abierta») a 842 px:
+**ese es el texto cortado de la captura** — no era una truncación mal puesta, era la columna entera recortada.
+**Es el patrón del dock otra vez** (contenido inalcanzable por overflow mal resuelto).
+
+### Hecho
+- **`min-w-0`** en todos los hijos de rejilla/flex del perfil, del modo Libre y de las 3 páginas de entidad.
+- **`SectionTabs` (menú unificado) en TODAS las filas de pestañas**: perfil (11), `/pagina`, `/grupo`,
+  `/evento` y **los 6 toolkits**. Los 6 toolkits pasan de `Tabs defaultValue` a **`Tabs` controlado**.
+- **`SectionTabs` endurecido** — `min-w-0` en raíz y carril (para que el bug no reaparezca en ninguna de sus
+  ~20 superficies del OS), `overscroll-x-contain`, **≥44 px en móvil** y **auto-scroll de la pestaña activa**
+  (en móvil solo caben 3 de 11: sin esto la selección quedaba invisible).
+- **Cabecera del perfil rediseñada** y **«Action Matrix» eliminada**: duplicaba Seguir/Editar (que ya están,
+  reales, en `ProfileQuickActions` justo debajo) y sus botones **Compartir y Guardar no tenían `onClick`**:
+  eran **decoración**. Fuera.
+- Quitado el `-mx-1` de los carriles de acciones (perfil + entidades): hacía el carril **4 px más ancho que
+  su contenedor** — los últimos 4 px de desborde medidos.
+- **C-3 · funciones reales:** insignias con **contadores REALES** en las pestañas (`useProfileRealCounts`;
+  **sin dato real → sin insignia**, nunca un 0 de relleno) · **«Compartir en…» (`ShareToDialog`)** en perfiles
+  **y en las 6 entidades** (destinos reales: mensaje · entidad · cerebro · Biblioteca · enlace), con los tipos
+  de recurso nuevos **`perfil`** y **`entidad`** en `share-targets.ts` · iconos Lucide en todos los carriles.
+
+### Verificado
+`npx tsc --noEmit` **exit 0** · `npm run build` **exit 0** (92/92 páginas). En vivo a **390/768/834/1440 px**:
+**0 desbordes horizontales de página**, **0 contenido atrapado**, **11/11 pestañas alcanzables**, 44 px.
+Clic real sobre «Secciones» (antes inalcanzable): selecciona, **auto-scroll a la vista** y pinta su panel.
+
+### Pendiente / honestidad
+- **Las entidades no se pudieron probar CON DATOS**: la red no tiene **ni una** página/grupo/evento real y
+  **todos** los arrays de `src/data/sample-*.ts` están **vacíos (`[]`)** ⇒ esas rutas dan **404** y los 6
+  toolkits caen a su `EmptyHint`. Verificado en su lugar: el **mismo carril** en su peor caso (el perfil,
+  11 pestañas) y la **estructura exacta** de una entidad (contenedor `max-w-5xl min-w-0` + las 7 pestañas
+  reales del toolkit de E.F.) montada en la app real con su CSS compilado → desplaza, 0 inalcanzables, 44 px.
+- El perfil **solo se ve tras iniciar sesión**; las mediciones salen del DOM real que se renderiza **detrás**
+  de la puerta de acceso (capa `position:fixed`, no altera el layout). Sin captura visual del perfil logueado.
+- **`aurora-orb_ring`** sobresale ~7 px a 390 px. Ya lo hacía antes y **es de Aurora**, no del perfil (fuera
+  de encargo). No recorta contenido.
+
+### Notas / aprendizajes
+- **La regla que hay que grabar:** en Tailwind, **todo hijo de flex/grid que contenga algo desplazable o
+  truncable necesita `min-w-0`**. Sin él, `overflow-x-auto` es **decorativo**: el contenedor crece, el
+  scroller no tiene nada que desplazar y un `overflow-clip/hidden` de más arriba **se traga el contenido en
+  silencio**. Es el mismo fallo del dock, con otra ropa.
+- **`overflow-x-clip` en un contenedor de página es un arma de doble filo**: evita el scroll horizontal (bien)
+  pero **oculta el síntoma** de un desborde (mal). Si se usa, hay que medir `scrollWidth` vs `clientWidth`
+  para saber si está recortando algo.
+- **Chrome no permite ventanas < ~500 px.** Para auditar móvil de verdad: **iframe same-origin al ancho
+  exacto** — las media queries responden al ancho del iframe, así que el layout es el real.
+- El shell del Mac tiene **`NODE_ENV=production` exportado**, lo que **rompe el CSS de `next dev`**
+  (`globals.css` → "Module parse failed: Unexpected character '@'"). Para levantar dev: `NODE_ENV=development npx next dev`.

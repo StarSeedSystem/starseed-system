@@ -15,10 +15,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useFollow } from "@/hooks/use-os-entities";
+import { ShareToDialog } from "@/components/sharing/share-to-dialog";
+import type { ShareResourceRef } from "@/lib/sharing/share-targets";
 import {
     Pencil,
     PenSquare,
     Share2,
+    Send,
     Check,
     Eye,
     EyeOff,
@@ -30,6 +33,36 @@ import {
 } from "lucide-react";
 
 const GOLD = "#E9C46A";
+
+/**
+ * "Compartir en…" — el MISMO diálogo universal del resto del OS (mensaje ·
+ * entidad · cerebro · Biblioteca · enlace). El perfil se comparte como recurso
+ * `perfil`, cuyo enlace profundo es su propia ruta (`/profile/<handle>`).
+ */
+function ShareToProfileButton({ handle, name }: { handle: string; name: string }) {
+    const [open, setOpen] = useState(false);
+    const resource: ShareResourceRef = {
+        kind: "perfil",
+        id: handle,
+        name,
+        route: `/profile/${handle}`,
+        note: `Perfil de ${name} en StarSeed`,
+    };
+    return (
+        <>
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setOpen(true)}
+                className="min-h-[2.75rem] shrink-0 cursor-pointer gap-1.5 rounded-full border-white/15 bg-white/[0.03] backdrop-blur sm:min-h-0"
+            >
+                <Send className="h-3.5 w-3.5" /> Compartir en…
+            </Button>
+            <ShareToDialog open={open} onOpenChange={setOpen} resource={resource} />
+        </>
+    );
+}
 
 /** Botón Compartir perfil: navigator.share con fallback a copiar el enlace. */
 function ShareProfileButton({ handle, name }: { handle: string; name: string }) {
@@ -58,7 +91,7 @@ function ShareProfileButton({ handle, name }: { handle: string; name: string }) 
             variant="outline"
             size="sm"
             onClick={() => void handleShare()}
-            className="shrink-0 cursor-pointer gap-1.5 rounded-full border-white/15 bg-white/[0.03] backdrop-blur"
+            className="min-h-[2.75rem] shrink-0 cursor-pointer gap-1.5 rounded-full border-white/15 bg-white/[0.03] backdrop-blur sm:min-h-0"
         >
             {copied ? (
                 <>
@@ -96,7 +129,7 @@ function FollowProfileButton({ handle }: { handle: string }) {
                 onClick={() => void handleToggle()}
                 disabled={loading}
                 aria-pressed={active}
-                className="shrink-0 cursor-pointer gap-1.5 rounded-full"
+                className="min-h-[2.75rem] shrink-0 cursor-pointer gap-1.5 rounded-full sm:min-h-0"
             >
                 {loading ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -140,13 +173,19 @@ export function ProfileQuickActions({
     const showOwnerActions = isOwner && !viewAsVisitor;
 
     return (
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1 sm:flex-wrap sm:overflow-visible">
+        // Carril con scroll-x REAL en móvil (`min-w-0` + `overflow-x-auto`), que a
+        // partir de `sm` se convierte en fila que envuelve.
+        // NOTA: aquí había un `-mx-1 px-1` (para el anillo de foco) que hacía el
+        // carril 4 px MÁS ANCHO que su contenedor → 4 px de desborde medidos en el
+        // raíz del perfil. Dentro de un scroller el anillo se recorta igual, así
+        // que el truco no aportaba nada y sí desbordaba. Fuera. (Adenda 68 §C)
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto scrollbar-hide pb-1 sm:flex-wrap sm:overflow-visible">
             {showOwnerActions ? (
                 <>
                     <Button
                         asChild
                         size="sm"
-                        className="shrink-0 cursor-pointer gap-1.5 rounded-full border border-primary/50 bg-primary/20 text-primary shadow-lg backdrop-blur hover:bg-primary/30"
+                        className="min-h-[2.75rem] shrink-0 cursor-pointer gap-1.5 rounded-full border border-primary/50 bg-primary/20 text-primary shadow-lg backdrop-blur hover:bg-primary/30 sm:min-h-0"
                     >
                         <Link href="/cuenta">
                             <Pencil className="h-3.5 w-3.5" /> Editar perfil
@@ -156,13 +195,14 @@ export function ProfileQuickActions({
                         asChild
                         size="sm"
                         variant="outline"
-                        className="shrink-0 cursor-pointer gap-1.5 rounded-full border-white/15 bg-white/[0.03] backdrop-blur"
+                        className="min-h-[2.75rem] shrink-0 cursor-pointer gap-1.5 rounded-full border-white/15 bg-white/[0.03] backdrop-blur sm:min-h-0"
                     >
                         <Link href="/crear">
                             <PenSquare className="h-3.5 w-3.5" /> Crear publicación
                         </Link>
                     </Button>
                     <ShareProfileButton handle={handle} name={name} />
+                    <ShareToProfileButton handle={handle} name={name} />
                 </>
             ) : (
                 <>
@@ -172,7 +212,7 @@ export function ProfileQuickActions({
                             asChild
                             size="sm"
                             variant="outline"
-                            className="shrink-0 cursor-pointer gap-1.5 rounded-full border-white/15 bg-white/[0.03] backdrop-blur"
+                            className="min-h-[2.75rem] shrink-0 cursor-pointer gap-1.5 rounded-full border-white/15 bg-white/[0.03] backdrop-blur sm:min-h-0"
                         >
                             <Link href={`/messages?to=${encodeURIComponent(handle)}`}>
                                 <MessageCircle className="h-3.5 w-3.5" /> Mensaje
@@ -180,10 +220,13 @@ export function ProfileQuickActions({
                         </Button>
                     )}
                     <ShareProfileButton handle={handle} name={name} />
+                    <ShareToProfileButton handle={handle} name={name} />
                 </>
             )}
 
-            {/* Toggle "Ver como visitante" — solo para el dueño real, siempre visible. */}
+            {/* Toggle "Ver como visitante" — solo para el dueño real, siempre visible.
+                `ml-auto` solo desde `sm`: en el carril móvil un margen automático
+                empujaría el botón fuera del área desplazable. */}
             {isOwner && (
                 <Button
                     type="button"
@@ -191,7 +234,7 @@ export function ProfileQuickActions({
                     variant="ghost"
                     onClick={onToggleViewAs}
                     aria-pressed={viewAsVisitor}
-                    className="ml-auto shrink-0 cursor-pointer gap-1.5 rounded-full text-muted-foreground hover:text-foreground"
+                    className="min-h-[2.75rem] shrink-0 cursor-pointer gap-1.5 rounded-full text-muted-foreground hover:text-foreground sm:ml-auto sm:min-h-0"
                 >
                     {viewAsVisitor ? (
                         <>

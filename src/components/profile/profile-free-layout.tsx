@@ -55,7 +55,10 @@ export function ProfileFreeLayout({ handle, isOwner, sections }: ProfileFreeLayo
     };
 
     return (
-        <div className="flex flex-col gap-6">
+        // `min-w-0` en el contenedor y en cada bloque: sin él, un hijo ancho
+        // (una tabla, un carril de pestañas…) estiraría la columna entera y el
+        // contenido acabaría recortado. (Adenda 68 §C)
+        <div className="flex min-w-0 flex-col gap-6">
             {isOwner && (
                 <p className="text-xs text-muted-foreground">
                     Modo Libre: reordena u oculta los bloques de tu página. Los cambios se
@@ -70,10 +73,10 @@ export function ProfileFreeLayout({ handle, isOwner, sections }: ProfileFreeLayo
                     <section
                         key={pref.id}
                         aria-label={def.title}
-                        className="rounded-3xl border border-white/10 bg-white/[0.02] shadow-sm backdrop-blur-md"
+                        className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.02] shadow-sm backdrop-blur-md"
                     >
-                        <header className="flex items-center justify-between gap-2 px-4 pt-3 sm:px-5">
-                            <h2 className="truncate text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        <header className="flex min-w-0 items-center justify-between gap-2 px-4 pt-3 sm:px-5">
+                            <h2 className="min-w-0 truncate text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                 {def.title}
                             </h2>
                             {isOwner && (

@@ -34,6 +34,10 @@ const DEVICE_LABELS: Record<DeviceKindSync, { label: string; icon: typeof Monito
 const SECTION_LABELS: Record<ProfileScopeSection, string> = {
     desktops: "Escritorios",
     "library-brains": "Cerebros de biblioteca",
+    // Aurora/Astraura es de ÁMBITO CUENTA (misma Aurora en toda la cuenta): por
+    // defecto sincroniza siempre. Este interruptor es el ÚNICO override: apagarlo
+    // deja fuera a este TIPO de dispositivo (p. ej. un móvil compartido).
+    aurora: "Aurora y Astraura (personalidades, sentidos, voz)",
 };
 
 export function ProfilesSyncPanel() {

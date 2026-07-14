@@ -1,13 +1,14 @@
 'use client';
 
 // ════════════════════════════════════════════════════════════════
-// AudiomorphicBgWidget — Control del fondo del sistema "Audiomorphic".
+// AudiomorphicBgWidget — Control de la CAPA de fondo "Audiomorphic".
 // ----------------------------------------------------------------
-// Activa/desactiva el visualizador Audiomorphic como fondo global del OS
-// (config.background.type === "audiomorphic") y ajusta el overlay de
-// legibilidad. El fondo lo monta <AudiomorphicBackground/> (iframe a
-// pantalla completa). Aquí solo orquestamos la apariencia vía
-// useAppearance().updateConfig (deep-merge).
+// Adenda 68 · D: Audiomorphic ya NO secuestra el fondo del OS. Este widget
+// enciende/apaga su CAPA (config.background.layers) y ajusta su opacidad. La
+// pinta <BackgroundLayerStack/> con mezcla "screen" (el negro opaco de la app
+// desaparece y solo se ve el espiral sobre el fondo elegido).
+// Antes escribía config.background.type = "audiomorphic": eso es lo que dejaba
+// el visualizador pegado como fondo exclusivo y sincronizado a toda la cuenta.
 //
 // Adaptabilidad (render-prop `size`): en micro se ocultan el control de
 // overlay y la nota inferior; los botones activar/quitar mantienen su
@@ -18,12 +19,18 @@
 // "Gratis y completo dentro de StarSeed OS."
 // ════════════════════════════════════════════════════════════════
 
-import React, { useRef } from 'react';
+import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { AudioWaveform, Power, X, ExternalLink, Check, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WidgetShell } from '@/components/dashboard/kit';
 import { useAppearance } from '@/context/appearance-context';
+import {
+    audiomorphicLayer,
+    normalizeLayers,
+    patchLayer,
+    setAudiomorphicEnabled,
+} from '@/lib/appearance/background-layers';
 
 // Acento por defecto (violeta Audiomorphic). Si el OS corre con un tema
 // holográfico afín, el widget adopta su acento para integrarse sin romper
@@ -46,27 +53,26 @@ export function AudiomorphicBgWidget() {
     // Acento del widget: sigue al tema del OS si es uno afín; si no, violeta.
     const ACCENT = ACCENT_BY_OS_THEME[config.themeStore?.osTheme ?? 'default'] ?? ACCENT_DEFAULT;
 
-    const bgType = config.background.type as string;
-    const isActive = bgType === 'audiomorphic';
-    const overlay = config.background.audiomorphic?.overlay ?? 0.15;
-
-    // Guardamos el tipo de fondo previo para poder restaurarlo al quitar.
-    const prevTypeRef = useRef<string>('none');
+    // Audiomorphic es una CAPA (Adenda 68 · D), ya no un `background.type`.
+    // Encenderlo/apagarlo NUNCA toca el fondo base del usuario: se limita a su
+    // propia capa, así que no puede volver a "secuestrar" el fondo del OS.
+    const layers = normalizeLayers(config.background.layers);
+    const layer = audiomorphicLayer(layers);
+    const isActive = !!layer;
+    const opacity = layer?.opacity ?? 0.9;
 
     const activate = () => {
-        if (!isActive) prevTypeRef.current = bgType || 'none';
-        updateConfig({ background: { type: 'audiomorphic' } } as any);
+        updateConfig({ background: { layers: setAudiomorphicEnabled(layers, true) } } as any);
     };
 
     const deactivate = () => {
-        const restore = prevTypeRef.current && prevTypeRef.current !== 'audiomorphic'
-            ? prevTypeRef.current
-            : 'none';
-        updateConfig({ background: { type: restore } } as any);
+        updateConfig({ background: { layers: setAudiomorphicEnabled(layers, false) } } as any);
     };
 
-    const setOverlay = (v: number) => {
-        updateConfig({ background: { audiomorphic: { overlay: v } } } as any);
+    /** Opacidad de la capa (antes era el "overlay" negro que la oscurecía). */
+    const setOpacity = (v: number) => {
+        if (!layer) return;
+        updateConfig({ background: { layers: patchLayer(layers, layer.id, { opacity: v }) } } as any);
     };
 
     const openTab = () => {
@@ -130,7 +136,7 @@ export function AudiomorphicBgWidget() {
                                     {isActive && <Check className="size-3.5 text-purple-300" />}
                                 </span>
                                 <span className="block truncate text-[10px] text-muted-foreground/60">
-                                    {isActive ? 'Visualizador a pantalla completa' : 'Actívalo como fondo del OS'}
+                                    {isActive ? 'Capa sobre tu fondo (mezcla screen)' : 'Añádelo como capa del fondo'}
                                 </span>
                             </span>
                         </div>
@@ -174,30 +180,30 @@ export function AudiomorphicBgWidget() {
                             </button>
                         </div>
 
-                        {/* Overlay */}
-                        {!micro && (
+                        {/* Opacidad de la capa */}
+                        {!micro && isActive && (
                             <div className="shrink-0 rounded-xl border border-purple-400/20 bg-white/[0.02] px-3 py-2">
                                 <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold">
-                                    <span className="text-muted-foreground/70">Opacidad del overlay</span>
+                                    <span className="text-muted-foreground/70">Opacidad de la capa</span>
                                     <span className="tabular-nums" style={{ color: ACCENT }}>
-                                        {Math.round(overlay * 100)}%
+                                        {Math.round(opacity * 100)}%
                                     </span>
                                 </div>
                                 <input
                                     type="range"
                                     min={0}
-                                    max={0.8}
+                                    max={1}
                                     step={0.01}
-                                    value={overlay}
-                                    onChange={(e) => setOverlay(Number(e.target.value))}
-                                    aria-label="Opacidad del overlay de legibilidad"
-                                    aria-valuetext={`${Math.round(overlay * 100)} por ciento`}
+                                    value={opacity}
+                                    onChange={(e) => setOpacity(Number(e.target.value))}
+                                    aria-label="Opacidad de la capa Audiomorphic"
+                                    aria-valuetext={`${Math.round(opacity * 100)} por ciento`}
                                     className={cn(
                                         'h-1 w-full cursor-pointer appearance-none rounded-full accent-purple-400 [&::-webkit-slider-thumb]:size-2.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-300',
                                         FOCUS_RING,
                                     )}
                                     style={{
-                                        background: `linear-gradient(90deg, ${ACCENT} ${(overlay / 0.8) * 100}%, rgba(255,255,255,0.15) ${(overlay / 0.8) * 100}%)`,
+                                        background: `linear-gradient(90deg, ${ACCENT} ${opacity * 100}%, rgba(255,255,255,0.15) ${opacity * 100}%)`,
                                     }}
                                 />
                             </div>

@@ -8,7 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Carril de pestañas: `SectionTabs` (menú unificado del OS). De Radix solo quedan
+// la raíz controlada (`Tabs`) y los paneles (`TabsContent`).
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import { GlassCard } from "@/components/ui/glass-card";
 import { PostCard } from "@/components/social/PostCard";
 import { ShareButton } from "@/components/social/SocialActions";
@@ -443,7 +446,7 @@ export default function PaginaPage() {
 
     if (loading) {
         return (
-            <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+            <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6">
                 <Skeleton className="aspect-[3/1] w-full rounded-2xl" />
                 <Skeleton className="h-40 w-full rounded-2xl" />
             </div>
@@ -457,7 +460,7 @@ export default function PaginaPage() {
     const effectiveCover = layout.coverUrl || page.coverUrl;
 
     return (
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+        <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6">
             {isOwner && !usingFallback && (
                 <EntityEditorDialog
                     open={editOpen}
@@ -574,16 +577,21 @@ export default function PaginaPage() {
                 </div>
             </GlassCard>
 
-            {/* ── Pestañas (orden/visibilidad personalizables desde "Personalizar") ── */}
+            {/* ── Pestañas (orden/visibilidad personalizables desde "Personalizar") ──
+                Carril unificado del OS (`SectionTabs`): scroll-x REAL + máscara de
+                fundido + snap. Antes era un `TabsList` con `overflow-x-auto` que en
+                móvil no llegaba a desplazarse (su ancestro no podía encogerse) y
+                dejaba las últimas pestañas fuera de alcance. (Adenda 68 §C) */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto">
-                    {visibleTabs.map((t) => (
-                        <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>
-                    ))}
-                </TabsList>
+                <SectionTabs
+                    items={visibleTabs.map((t) => ({ value: t.id, label: t.label }))}
+                    value={activeTab}
+                    onValueChange={setActiveTab}
+                    ariaLabel={`Secciones de ${page.name}`}
+                />
 
                 {visibleTabs.map((t) => (
-                    <TabsContent key={t.id} value={t.id} className="mt-6 animate-in fade-in-50 duration-500">
+                    <TabsContent key={t.id} value={t.id} className="mt-6 min-w-0 animate-in fade-in-50 duration-500">
                         {t.node}
                     </TabsContent>
                 ))}

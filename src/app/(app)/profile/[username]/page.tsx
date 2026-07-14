@@ -1,7 +1,10 @@
 // src/app/(app)/profile/[username]/page.tsx
 'use client';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// El carril de pestañas ya NO usa TabsList/TabsTrigger de Radix: lo pinta
+// `SectionTabs` (menú unificado del OS). `Tabs` (raíz controlada) + `TabsContent`
+// siguen gobernando qué panel se muestra.
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { comments as defaultComments } from "@/lib/data";
 import { CommentSystem } from "@/components/comment-system";
@@ -32,11 +35,28 @@ import { ProfileLinksSection } from "@/components/profile/profile-links-section"
 import { ProfileFilesSection } from "@/components/profile/profile-files-section";
 import { ProfileXRView } from "@/components/profile/profile-xr-view";
 import { useProfileDisplay, normalizeHandleKey } from "@/components/profile/profile-display-store";
+import { useProfileRealCounts } from "@/components/profile/use-profile-real-counts";
 import { useEntityLayout } from "@/lib/entity-layout";
 import { FreeSectionsBlock } from "@/components/social/free-sections-block";
 import { EntityGalleryBlock } from "@/components/social/entity-gallery-block";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
-import { Pencil, BookText } from "lucide-react";
+// Menú unificado del OS: carril con scroll-x real, máscara de fundido y snap.
+import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
+import {
+    Pencil,
+    BookText,
+    LayoutDashboard,
+    Landmark,
+    CalendarDays,
+    FileText,
+    Users,
+    Library,
+    Layers,
+    Link2,
+    FolderOpen,
+    Images,
+    LayoutList,
+} from "lucide-react";
 
 // Sin perfiles de ejemplo. Los datos del perfil/página se derivan del slug de
 // la URL (nombre legible) y, donde aplica, de la red real (cuenta soberana vía
@@ -424,6 +444,35 @@ export default function ProfilePage() {
         },
     ];
 
+    // ── Contadores REALES para las insignias de las pestañas (Adenda 68 §C-3) ──
+    // Misma fuente que los bloques del display (`useProfileRealCounts`): Supabase
+    // para publicaciones/grupos/comunidades y la Biblioteca soberana para
+    // archivos. Si no hay dato real, NO se pinta insignia (jamás un número
+    // inventado ni un 0 de relleno).
+    const counts = useProfileRealCounts({ isOwner, linksCount: config.links.length });
+    const badge = (n: number | null) => (typeof n === "number" && n > 0 ? n : undefined);
+
+    const tabItems: SectionTabItem[] = useMemo(() => [
+        { value: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        ...(hasToolkit(pageType)
+            ? [{ value: 'gobierno', label: toolkitMeta(pageType).toolkitTab, icon: Landmark }]
+            : []),
+        { value: 'agenda', label: 'Agenda', icon: CalendarDays },
+        { value: 'posts', label: 'Publicaciones', icon: FileText, badge: badge(counts.publicaciones) },
+        { value: 'connections', label: 'Conexiones', icon: Users },
+        { value: 'library', label: 'Biblioteca', icon: Library },
+        { value: 'collections', label: 'Colecciones', icon: Layers },
+        { value: 'enlaces', label: 'Enlaces', icon: Link2, badge: badge(counts.enlaces) },
+        { value: 'archivos', label: 'Archivos', icon: FolderOpen, badge: badge(counts.archivos) },
+        { value: 'sobremi', label: 'Sobre mí', icon: BookText },
+        { value: 'galeria', label: 'Galería', icon: Images, badge: badge(profileLayout.gallery.length) },
+        { value: 'secciones', label: 'Secciones', icon: LayoutList, badge: badge(profileLayout.sections.length) },
+    ], [
+        pageType,
+        counts.publicaciones, counts.enlaces, counts.archivos,
+        profileLayout.gallery.length, profileLayout.sections.length,
+    ]);
+
     if (loadingProfile) {
         return (
             <div className="flex flex-1 items-center justify-center py-16">
@@ -434,7 +483,7 @@ export default function ProfilePage() {
 
     return (
 
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 min-w-0 overflow-x-clip">
+        <div className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-4 overflow-x-clip sm:gap-6">
             {/* El header respeta la vista "como visitante" (isUser efectivo). */}
             <ProfileHeader profileData={{ ...profileData, isUser: isOwner }} />
 
@@ -472,41 +521,37 @@ export default function ProfilePage() {
                 <ProfileFreeLayout handle={pageHandle} isOwner={isOwner} sections={freeSections} />
             )}
 
-            {/* ── Modo Clásico: pestañas (comportamiento original intacto) ── */}
+            {/* ── Modo Clásico: pestañas ──
+                CARRIL DE PESTAÑAS (Adenda 68 §C — BUG RESUELTO):
+                antes la lista era `inline-flex w-max min-w-full` dentro de un
+                `overflow-x-auto`, PERO el hijo de rejilla que la contenía no
+                llevaba `min-w-0`. Con `min-width:auto` (el defecto de los hijos
+                de grid/flex) la columna CRECÍA hasta el ancho intrínseco de las
+                pestañas (840 px medidos a 390 px de viewport) en vez de dejar
+                que el carril hiciera scroll: el scroller nunca tenía nada que
+                desplazar y el `overflow-x-clip` del contenedor raíz se comía
+                7 de 11 pestañas — inalcanzables, sin scrollbar y sin pista.
+                Ahora: `SectionTabs` (carril con scroll REAL + máscara + snap)
+                sobre hijos de rejilla con `min-w-0`. */}
             {mode === 'clasico' && (
-            <div className="grid lg:grid-cols-3 gap-6">
-                <div className={activeTab === 'agenda' ? "lg:col-span-3" : "lg:col-span-2"}>
+            <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-3">
+                <div className={`min-w-0 ${activeTab === 'agenda' ? "lg:col-span-3" : "lg:col-span-2"}`}>
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
-                        {/* Carril de pestañas: el scroll vive en el WRAPPER (no en la
-                            pastilla), así el redondeo no recorta los extremos; máscara
-                            de fundido en los bordes + snap por pestaña. (Adenda 63) */}
-                        <div className="overflow-x-auto scrollbar-hide snap-x rounded-full [mask-image:linear-gradient(to_right,transparent,black_14px,black_calc(100%-14px),transparent)]">
-                            <TabsList className="inline-flex w-max min-w-full flex-nowrap justify-start gap-1 md:justify-center">
-                            <TabsTrigger value="dashboard" className="shrink-0 flex-none snap-start">Dashboard</TabsTrigger>
-                            {hasToolkit(pageType) && (
-                                <TabsTrigger value="gobierno" className="shrink-0 flex-none snap-start">{toolkitMeta(pageType).toolkitTab}</TabsTrigger>
-                            )}
-                            <TabsTrigger value="agenda" className="shrink-0 flex-none snap-start">Agenda</TabsTrigger>
-                            <TabsTrigger value="posts" className="shrink-0 flex-none snap-start">Publicaciones</TabsTrigger>
-                            <TabsTrigger value="connections" className="shrink-0 flex-none snap-start">Conexiones</TabsTrigger>
-                            <TabsTrigger value="library" className="shrink-0 flex-none snap-start">Biblioteca</TabsTrigger>
-                            <TabsTrigger value="collections" className="shrink-0 flex-none snap-start">Colecciones</TabsTrigger>
-                            <TabsTrigger value="enlaces" className="shrink-0 flex-none snap-start">Enlaces</TabsTrigger>
-                            <TabsTrigger value="archivos" className="shrink-0 flex-none snap-start">Archivos</TabsTrigger>
-                            <TabsTrigger value="sobremi" className="shrink-0 flex-none snap-start">Sobre mí</TabsTrigger>
-                            <TabsTrigger value="galeria" className="shrink-0 flex-none snap-start">Galería</TabsTrigger>
-                            <TabsTrigger value="secciones" className="shrink-0 flex-none snap-start">Secciones</TabsTrigger>
-                        </TabsList>
-                        </div>
+                        <SectionTabs
+                            items={tabItems}
+                            value={activeTab}
+                            onValueChange={setActiveTab}
+                            ariaLabel={`Secciones del perfil de ${profileData.name}`}
+                        />
 
                         <TabsContent value="dashboard" className="mt-6">
-                            <div className="grid gap-6 lg:grid-cols-2">
-                                <div className="lg:col-span-2">
+                            <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-2">
+                                <div className="min-w-0 lg:col-span-2">
                                     <ProfileWelcomeWidget pageType={pageType} />
                                 </div>
-                                <FeaturedBadgesWidget pageType={pageType} />
-                                <RecentPostsWidget pageType={pageType} />
-                                <div className="lg:col-span-2">
+                                <div className="min-w-0"><FeaturedBadgesWidget pageType={pageType} /></div>
+                                <div className="min-w-0"><RecentPostsWidget pageType={pageType} /></div>
+                                <div className="min-w-0 lg:col-span-2">
                                     <ConnectionsWidget pageType={pageType} />
                                 </div>
                             </div>
@@ -580,7 +625,7 @@ export default function ProfilePage() {
                     </Tabs>
                 </div>
                 {activeTab !== 'agenda' && (
-                    <div className="lg:col-span-1">
+                    <div className="min-w-0 lg:col-span-1">
                         <ProfileDiscussionCard />
                     </div>
                 )}

@@ -61,6 +61,21 @@ export function SectionTabs({
     const isActive = (it: SectionTabItem) =>
         it.href ? Boolean(it.active) : it.value != null && it.value === value;
 
+    // La pestaña activa SIEMPRE visible: si está fuera del carril (típico en móvil,
+    // donde solo caben 3-4 de 12), se trae a la vista. Sin esto, cambiar de pestaña
+    // desde otro sitio dejaba el carril mostrando una selección invisible.
+    React.useEffect(() => {
+        const list = listRef.current;
+        if (!list) return;
+        const active = list.querySelector<HTMLElement>('[aria-selected="true"]');
+        if (!active) return;
+        const lr = list.getBoundingClientRect();
+        const ar = active.getBoundingClientRect();
+        if (ar.left < lr.left || ar.right > lr.right) {
+            active.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+        }
+    }, [value, items.length]);
+
     // Roving tabindex: ← → Inicio/Fin mueven foco (y selección en modo controlado).
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         const NAV = ["ArrowRight", "ArrowLeft", "Home", "End"];
@@ -84,7 +99,12 @@ export function SectionTabs({
     };
 
     return (
-        <div className={cn("relative w-full", className)}>
+        // `min-w-0` es OBLIGATORIO: este componente casi siempre vive dentro de un
+        // hijo de flex/grid, cuyo `min-width: auto` por defecto haría que el
+        // contenedor CREZCA hasta el ancho intrínseco de las pestañas en vez de
+        // dejar que el carril haga scroll → las pestañas de la derecha quedan
+        // INALCANZABLES (el mismo patrón que ya rompió el dock). Ver Adenda 68 §C.
+        <div className={cn("relative w-full min-w-0", className)}>
             {/* Máscara de fundido lateral (indica que hay más pestañas al hacer scroll). */}
             <div
                 className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 rounded-l-2xl bg-gradient-to-r from-black/25 to-transparent"
@@ -100,14 +120,18 @@ export function SectionTabs({
                 role="tablist"
                 aria-label={ariaLabel}
                 onKeyDown={onKeyDown}
-                className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide snap-x scroll-px-2 rounded-2xl border border-white/10 bg-black/25 p-1.5 shadow-lg backdrop-blur-md"
+                className="flex w-full min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain scrollbar-hide snap-x scroll-px-2 rounded-2xl border border-white/10 bg-black/25 p-1.5 shadow-lg backdrop-blur-md"
             >
                 {items.map((it, i) => {
                     const active = isActive(it);
                     const Icon = it.icon;
                     const cls = cn(
                         "group/tab relative inline-flex shrink-0 snap-start cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border font-semibold outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/50",
-                        size === "sm" ? "px-3 py-1.5 text-xs" : "px-3.5 py-2 text-[13px]",
+                        // Área táctil ≥44px en móvil (WCAG 2.5.5 / HIG); en pantallas
+                        // con ratón se compacta para no malgastar altura.
+                        size === "sm"
+                            ? "min-h-[2.25rem] px-3 py-1.5 text-xs sm:min-h-0"
+                            : "min-h-[2.75rem] px-3.5 py-2 text-[13px] sm:min-h-[2.25rem]",
                         active
                             ? "border-primary/40 bg-primary/15 text-primary shadow-[0_0_12px_rgba(var(--primary-rgb),0.15)]"
                             : "border-transparent text-muted-foreground hover:bg-white/5 hover:text-foreground",

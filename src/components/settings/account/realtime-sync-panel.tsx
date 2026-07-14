@@ -15,7 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Radio, Monitor, Laptop, Smartphone, Tablet, Server, Cpu } from "lucide-react";
+import { RefreshCw, Radio, Monitor, Laptop, Smartphone, Tablet, Server, Cpu, Sparkles, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hasStarseedSession } from "@/lib/settings-sync";
 import {
@@ -23,8 +23,12 @@ import {
     onRealtimeSyncStatus,
     isRealtimeSyncEnabled,
     setRealtimeSyncEnabled,
-    pushAllSyncedNow,
+    syncNow as runSyncNow,
+    getAuroraSyncSummary,
+    AURORA_CONFIG_EVENT,
+    SYNC_APPLY_EVENT,
     type RealtimeSyncStatus,
+    type AuroraSyncSummary,
 } from "@/lib/sync/realtime-sync";
 import { checkRealtimeTables, type RealtimeTablesReport } from "@/lib/sync/live-signal";
 import { listNeurons, NEURON_EVENT, type Neuron, type NeuronKind } from "@/lib/neurons/neurons";
@@ -59,9 +63,14 @@ export function RealtimeSyncPanel() {
     const [neurons, setNeurons] = useState<Neuron[]>([]);
     const [syncingNow, setSyncingNow] = useState(false);
     const [tables, setTables] = useState<RealtimeTablesReport | null>(null);
+    const [aurora, setAurora] = useState<AuroraSyncSummary | null>(null);
 
     const refreshNeurons = useCallback(async () => {
         try { setNeurons(await listNeurons()); } catch { /* defensivo */ }
+    }, []);
+
+    const refreshAurora = useCallback(() => {
+        try { setAurora(getAuroraSyncSummary()); } catch { /* defensivo */ }
     }, []);
 
     useEffect(() => {
@@ -69,19 +78,25 @@ export function RealtimeSyncPanel() {
         hasStarseedSession().then(setSession);
         setEnabled(isRealtimeSyncEnabled());
         void refreshNeurons();
+        refreshAurora();
         // Diagnóstico informativo (NO condiciona el sync: el broadcast va aparte).
         checkRealtimeTables()
             .then((report) => { if (alive) setTables(report); })
             .catch(() => { /* desconocido: no pasa nada */ });
-        const off = onRealtimeSyncStatus(setStatus);
+        const off = onRealtimeSyncStatus((s) => { setStatus(s); refreshAurora(); });
         const onNeuronEvent = () => { void refreshNeurons(); };
         window.addEventListener(NEURON_EVENT, onNeuronEvent);
+        // La config de Aurora puede llegar de OTRO dispositivo en cualquier momento.
+        window.addEventListener(AURORA_CONFIG_EVENT, refreshAurora);
+        window.addEventListener(SYNC_APPLY_EVENT, refreshAurora);
         return () => {
             alive = false;
             off();
             window.removeEventListener(NEURON_EVENT, onNeuronEvent);
+            window.removeEventListener(AURORA_CONFIG_EVENT, refreshAurora);
+            window.removeEventListener(SYNC_APPLY_EVENT, refreshAurora);
         };
-    }, [refreshNeurons]);
+    }, [refreshNeurons, refreshAurora]);
 
     const toggle = useCallback((next: boolean) => {
         setEnabled(next);
@@ -90,9 +105,11 @@ export function RealtimeSyncPanel() {
 
     const syncNow = useCallback(async () => {
         setSyncingNow(true);
-        try { await pushAllSyncedNow(); } catch { /* noop */ }
+        // Baja de la cuenta (LWW: nunca pisa lo más nuevo) y sube lo de aquí.
+        try { await runSyncNow(); } catch { /* noop */ }
+        refreshAurora();
         setSyncingNow(false);
-    }, []);
+    }, [refreshAurora]);
 
     const connected = status.state === "connected";
     const dotClass = connected
@@ -170,6 +187,54 @@ export function RealtimeSyncPanel() {
                             <> El estado de la replicación no es consultable desde el cliente (desconocido) — no
                                 hace falta: el broadcast cubre el sync.</>
                         )}
+                    </p>
+                </div>
+
+                {/* ── Aurora y Astraura: estado REAL, sin fingir (Adenda 68 · A) ── */}
+                <div className="rounded-xl border border-white/5 bg-black/20 p-3 space-y-1.5">
+                    <p className="flex items-center gap-2 text-xs">
+                        <Sparkles className="w-3.5 h-3.5 text-primary shrink-0" />
+                        <span className="font-medium">Aurora y Astraura</span>
+                        {session === false ? (
+                            <Badge variant="outline" className="text-[9px] bg-zinc-500/10 text-zinc-400 border-zinc-500/30">
+                                Solo en este dispositivo
+                            </Badge>
+                        ) : aurora && aurora.lastSyncAt != null ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-400/30 text-[9px]">
+                                Sincronizado · {relativeTime(aurora.lastSyncAt)}
+                            </Badge>
+                        ) : (
+                            <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-300 border-amber-400/30">
+                                {connected ? "Sin cambios todavía" : "En espera"}
+                            </Badge>
+                        )}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                        {session === false ? (
+                            <>
+                                Sin sesión, la configuración de Aurora vive solo aquí. Inicia sesión y viajará con
+                                tu cuenta.
+                            </>
+                        ) : (
+                            <>
+                                Personalidades, perfiles de personalidad y permisos, sentidos, voz, visión, memoria,
+                                capacidades instaladas y el reparto de Astraura son de <strong>ámbito cuenta</strong>:
+                                se aplican al instante en {neurons.length > 0 ? `tus ${neurons.length} dispositivos` : "todos tus dispositivos"} y
+                                perfiles.{" "}
+                                {aurora && aurora.keysLocal > 0 && (
+                                    <>Ahora mismo hay <strong>{aurora.keysLocal}</strong> ajuste{aurora.keysLocal === 1 ? "" : "s"} de
+                                        Aurora en este dispositivo viajando con la cuenta.</>
+                                )}
+                            </>
+                        )}
+                    </p>
+                    <p className="flex items-start gap-1.5 text-[10px] text-muted-foreground pt-0.5">
+                        <ShieldCheck className="w-3 h-3 mt-0.5 text-emerald-300 shrink-0" />
+                        <span>
+                            Las <strong>claves y tokens</strong> de tus servicios (proveedores de IA, conectores,
+                            integraciones) <strong>nunca</strong> salen de este dispositivo: se podan antes de subir
+                            y se conservan aquí al aplicar la config de otro dispositivo.
+                        </span>
                     </p>
                 </div>
 

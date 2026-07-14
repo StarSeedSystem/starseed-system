@@ -31,7 +31,18 @@ import { saveMemoryFile } from "@/lib/cerebro/memory-files";
 
 /* ─────────────────────────── Tipos de recurso ─────────────────────────── */
 
-export type ShareResourceKind = "cerebro" | "biblioteca" | "folder" | "archivo" | "publicacion";
+// "perfil" y "entidad" (Adenda 68 §C): un perfil o una página/grupo/comunidad
+// también son recursos compartibles (a un mensaje, a una entidad, a un cerebro
+// como fuente, a la Biblioteca o como enlace). Ambos resuelven su enlace
+// profundo por `route` (ver `deepLinkFor`), así que no necesitan casos especiales.
+export type ShareResourceKind =
+    | "cerebro"
+    | "biblioteca"
+    | "folder"
+    | "archivo"
+    | "publicacion"
+    | "perfil"
+    | "entidad";
 
 /**
  * Referencia universal de un recurso compartible. `kind`/`id`/`name` son

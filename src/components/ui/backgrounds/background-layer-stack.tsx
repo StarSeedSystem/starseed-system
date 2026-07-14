@@ -1,0 +1,173 @@
+"use client";
+
+/*
+ * BackgroundLayerStack — la PILA de capas de fondo del OS (Adenda 68 · D)
+ * ----------------------------------------------------------------------------
+ * Pinta `config.background.layers` ENCIMA del fondo base (el motor del OS:
+ * Spline / WebGL / Living / Materia…, que sigue leyendo `background.type`).
+ *
+ * Z-INDEX — medido EN VIVO en producción, no supuesto:
+ *   -50  canvas WebGL
+ *   -40  Spline · Living · (antes) Audiomorphic
+ *   -20  PerfStaticBackdrop  ← ¡OPACO y con opacity ~0.85 animada!
+ *   -10  Liquid psychedelic (opaco cuando está activo)
+ * Por eso las capas van en **-9 … -2**: por encima de TODO lo que pinta fondo
+ * (si fueran a -30 quedarían lavadas bajo el backdrop translúcido — que es
+ * justo el efecto de "capa intermedia apagada" que reportó el usuario) y por
+ * debajo de todo el contenido en flujo (que pinta siempre sobre z-index
+ * negativos). Sin eventos de puntero, salvo el modo interacción.
+ *
+ * Audiomorphic: mezcla `screen` por defecto. Su <body> es #050505 OPACO (no hay
+ * transparencia posible en el iframe), pero con `screen` el negro desaparece y
+ * solo quedan el espiral y sus brillos sobre la capa de abajo. Verificado.
+ */
+
+import React, { useEffect, useState } from "react";
+import { Check, Mic, Sparkles } from "lucide-react";
+import { useAppearance } from "@/context/appearance-context";
+import {
+    audiomorphicFilter,
+    buildAudiomorphicUrl,
+    normalizeLayers,
+    patchAudiomorphic,
+    type BackgroundLayer,
+} from "@/lib/appearance/background-layers";
+
+const IFRAME_ALLOW =
+    "microphone; camera; autoplay; fullscreen; gyroscope; accelerometer; magnetometer; xr-spatial-tracking";
+
+/** Primera capa de la pila (índice 0) → z-index -9; van subiendo. */
+const BASE_Z = -9;
+
+function LayerBody({ layer }: { layer: BackgroundLayer }) {
+    switch (layer.kind) {
+        case "color":
+            return <div className="absolute inset-0" style={{ background: layer.value || "#000" }} />;
+        case "gradiente":
+            return <div className="absolute inset-0" style={{ background: layer.value || "" }} />;
+        case "imagen":
+            return layer.value ? (
+                <div
+                    className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                    style={{ backgroundImage: `url('${layer.value}')` }}
+                />
+            ) : null;
+        case "video":
+            return layer.value ? (
+                <video
+                    key={layer.value}
+                    src={layer.value}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                />
+            ) : null;
+        default:
+            return null;
+    }
+}
+
+function AudiomorphicLayerView({ layer, onExitInteractive }: {
+    layer: BackgroundLayer;
+    onExitInteractive: () => void;
+}) {
+    const a = layer.audiomorphic!;
+    const interactive = a.interactive === true;
+    // La URL NO depende de `interactive` → el iframe no se remonta al entrar/salir
+    // del modo interacción, así que el micrófono y la escena siguen vivos.
+    const src = buildAudiomorphicUrl(a);
+
+    return (
+        <>
+            <iframe
+                key={src}
+                src={src}
+                title="Audiomorphic"
+                className="absolute inset-0 h-full w-full border-0"
+                style={{
+                    transform: a.scale !== 1 ? `scale(${a.scale})` : undefined,
+                    transformOrigin: "center",
+                    filter: audiomorphicFilter(a),
+                    pointerEvents: interactive ? "auto" : "none",
+                    background: "#050505",
+                }}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                allow={IFRAME_ALLOW}
+                sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+            />
+            {interactive && (
+                <div className="pointer-events-auto absolute inset-x-0 top-0 z-10 flex items-center gap-2 border-b border-white/10 bg-black/70 px-3 py-2 backdrop-blur">
+                    <Sparkles className="size-4 shrink-0 text-purple-300" />
+                    <p className="min-w-0 flex-1 text-[11px] leading-tight text-white/80">
+                        <b className="text-white">Modo interacción.</b>{" "}
+                        Cierra su bienvenida («Saltar») y usa sus controles (Deriva · Armónico · Génesis).
+                        {a.mic
+                            ? " Pulsa «Iniciar Micrófono» para dar permiso: el OS nunca lo pide por ti. Al salir, el sonido sigue activo."
+                            : ""}{" "}
+                        Pulsa <b className="text-white">Listo</b> para enviarlo al fondo.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={onExitInteractive}
+                        className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-emerald-400/50 bg-emerald-400/15 px-3 py-1 text-[11px] font-bold text-emerald-100 transition-colors hover:bg-emerald-400/25"
+                    >
+                        <Check className="size-3.5" /> Listo
+                    </button>
+                </div>
+            )}
+        </>
+    );
+}
+
+export function BackgroundLayerStack() {
+    const { config, updateConfig } = useAppearance();
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); }, []);
+
+    const layers = normalizeLayers(config.background.layers);
+    if (!mounted || layers.length === 0) return null;
+
+    const exitInteractive = (id: string) => {
+        updateConfig({
+            background: { layers: patchAudiomorphic(config.background.layers, id, { interactive: false }) },
+        } as never);
+    };
+
+    return (
+        <>
+            {layers.map((layer, i) => {
+                if (!layer.visible) return null;
+                const interactive = layer.kind === "audiomorphic" && layer.audiomorphic?.interactive === true;
+                return (
+                    <div
+                        key={layer.id}
+                        aria-hidden={!interactive}
+                        className="fixed inset-0 h-full w-full overflow-hidden transition-opacity duration-700"
+                        style={{
+                            // En modo interacción la capa sube al frente (sobre la UI)
+                            // para que el usuario pueda pulsar dentro de la app.
+                            zIndex: interactive ? 60 : BASE_Z + i,
+                            opacity: interactive ? 1 : layer.opacity,
+                            mixBlendMode: interactive ? "normal" : (layer.blend as React.CSSProperties["mixBlendMode"]),
+                            pointerEvents: interactive ? "auto" : "none",
+                        }}
+                    >
+                        {layer.kind === "audiomorphic" && layer.audiomorphic ? (
+                            <AudiomorphicLayerView layer={layer} onExitInteractive={() => exitInteractive(layer.id)} />
+                        ) : (
+                            <LayerBody layer={layer} />
+                        )}
+                        {layer.kind === "audiomorphic" && layer.audiomorphic?.mic && !interactive && (
+                            <span className="sr-only">
+                                <Mic aria-hidden /> Micrófono activado en el visualizador
+                            </span>
+                        )}
+                    </div>
+                );
+            })}
+        </>
+    );
+}

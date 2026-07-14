@@ -21,7 +21,9 @@ import {
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Carril de pestañas: `SectionTabs` (menú unificado del OS). (Adenda 68 §C)
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
@@ -44,6 +46,15 @@ import {
   BookMarked,
 } from "lucide-react";
 
+const TABS: SectionTabItem[] = [
+  { value: "programa", label: "Programa", icon: Megaphone },
+  { value: "militancia", label: "Militancia", icon: Users },
+  { value: "candidaturas", label: "Candidaturas", icon: Vote },
+  { value: "red", label: "Red", icon: Network },
+  { value: "decisiones", label: "Decisiones", icon: Landmark },
+  { value: "biblioteca", label: "Biblioteca", icon: BookMarked },
+];
+
 // Humanise an event slug for display in LinkCards
 function humaniseSlug(slug: string): string {
   return slug
@@ -63,6 +74,8 @@ export function PartidoToolkit({
 }) {
   const data = getPartido(slug);
   const ac = accent ?? "#DC143C";
+  // `Tabs` controlado: lo exige el carril externo (`SectionTabs`).
+  const [tab, setTab] = useState("programa");
 
   // Acciones por defecto de la entidad (Adenda 63 §8) — presentes SIEMPRE,
   // haya o no datos de gobernanza del partido.
@@ -113,33 +126,15 @@ export function PartidoToolkit({
         )}
       </div>
 
-      <Tabs defaultValue="programa">
-        <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto gap-1 mb-4">
-          <TabsTrigger value="programa" className="cursor-pointer whitespace-nowrap">
-            <Megaphone className="mr-1.5 h-3.5 w-3.5" />
-            Programa
-          </TabsTrigger>
-          <TabsTrigger value="militancia" className="cursor-pointer whitespace-nowrap">
-            <Users className="mr-1.5 h-3.5 w-3.5" />
-            Militancia
-          </TabsTrigger>
-          <TabsTrigger value="candidaturas" className="cursor-pointer whitespace-nowrap">
-            <Vote className="mr-1.5 h-3.5 w-3.5" />
-            Candidaturas
-          </TabsTrigger>
-          <TabsTrigger value="red" className="cursor-pointer whitespace-nowrap">
-            <Network className="mr-1.5 h-3.5 w-3.5" />
-            Red
-          </TabsTrigger>
-          <TabsTrigger value="decisiones" className="cursor-pointer whitespace-nowrap">
-            <Landmark className="mr-1.5 h-3.5 w-3.5" />
-            Decisiones
-          </TabsTrigger>
-          <TabsTrigger value="biblioteca" className="cursor-pointer whitespace-nowrap">
-            <BookMarked className="mr-1.5 h-3.5 w-3.5" />
-            Biblioteca
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={tab} onValueChange={setTab}>
+        <SectionTabs
+          items={TABS}
+          value={tab}
+          onValueChange={setTab}
+          size="sm"
+          className="mb-4"
+          ariaLabel="Herramientas del partido"
+        />
 
         {/* ── TAB 1: PROGRAMA POLÍTICO ── */}
         <TabsContent value="programa" className="space-y-6">

@@ -54,6 +54,7 @@ import {
 import { cn } from '@/lib/utils';
 import { WidgetShell, Chip } from '@/components/dashboard/kit';
 import { useAppearance } from '@/context/appearance-context';
+import { audiomorphicLayer, normalizeLayers, setAudiomorphicEnabled } from '@/lib/appearance/background-layers';
 import { useMediaPlayer, type MediaTrack } from '@/components/dashboard/apps/media/media-engine';
 import { SAMPLE_TRACKS, RADIO_STATIONS } from '@/components/dashboard/apps/media/media-catalog';
 
@@ -98,22 +99,18 @@ export function MediaControlWidget() {
     const muted = volume <= 0;
     const VolIcon = muted ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
-    // ── Salida: fondo Audiomorphic ─────────────────────────────────
-    const bgType = config.background.type as string;
-    const bgIsAudiomorphic = bgType === 'audiomorphic';
-    // Recordamos el fondo previo para restaurarlo al apagar la visualización.
-    const prevBgRef = useRef<string>('none');
+    // ── Salida: CAPA Audiomorphic (Adenda 68 · D) ──────────────────
+    // Ya no se pisa `background.type` (eso dejaba el visualizador pegado como
+    // fondo exclusivo del OS y sincronizado a toda la cuenta): se enciende o se
+    // apaga SU capa. El fondo base del usuario no se toca nunca.
+    const bgLayers = normalizeLayers(config.background.layers);
+    const bgIsAudiomorphic = !!audiomorphicLayer(bgLayers);
 
     const toggleAudiomorphic = useCallback(() => {
-        if (bgIsAudiomorphic) {
-            const restore =
-                prevBgRef.current && prevBgRef.current !== 'audiomorphic' ? prevBgRef.current : 'none';
-            updateConfig({ background: { type: restore } } as any);
-        } else {
-            prevBgRef.current = bgType || 'none';
-            updateConfig({ background: { type: 'audiomorphic' } } as any);
-        }
-    }, [bgIsAudiomorphic, bgType, updateConfig]);
+        updateConfig({
+            background: { layers: setAudiomorphicEnabled(bgLayers, !bgIsAudiomorphic) },
+        } as any);
+    }, [bgLayers, bgIsAudiomorphic, updateConfig]);
 
     // ── Salida: dispositivo (feature-detect, honesto, SSR-safe) ────
     const [outputSupported, setOutputSupported] = useState(false);

@@ -16,16 +16,21 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
     Plus, Eye, EyeOff, ChevronDown, Pencil, Trash2, Check,
     MousePointer2, ExternalLink, X, Magnet, ImageIcon,
-    SquareStack, Settings2, LayoutGrid, Share2,
+    SquareStack, Settings2, LayoutGrid, Share2, Columns2, Rows2, Grid2x2, Frame,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
     type Desktop, type DesktopIcon, type DesktopIconSize, type DesktopTheme,
+    type DesktopWindowRect, type TileMode,
     useDesktopsState, useDesktopsBackup,
     seedIfEmpty, createDesktop, renameDesktop, deleteDesktop, setActiveDesktop,
     setWallpaper, setSnap, moveIcon, removeIcon, updateIcon,
-    setWindowMinimized, closeWindow, focusWindow, toggleWindowMaximized, DEFAULT_DESKTOP_VIEW,
+    setWindowMinimized, closeWindow, focusWindow, toggleWindowMaximized,
+    toggleWindowFullscreen, tileWindows, clearTiling, tiledRects,
+    DEFAULT_DESKTOP_VIEW, DESKTOP_TOP_INSET,
 } from "./desktop-store";
+import { DesktopTileDividers } from "./desktop-tiles";
+import { DesktopQuickLook, type QuickLookTab } from "./desktop-quick-look";
 import { DesktopIconTile, ICON_CELL } from "./desktop-icon";
 import { useOpenDesktopIcon } from "./desktop-open";
 import { DesktopWindowFrame } from "./desktop-window";
@@ -47,7 +52,9 @@ import { useProfileDesktopsSync } from "@/lib/sync/profile-desktops";
 import { useSharedDesktopSpace } from "@/lib/sync/shared-desktop-space";
 
 const TOPBAR_H = 44;
-const WINDOW_TOP_INSET = TOPBAR_H + 6;
+// Debe coincidir con DESKTOP_TOP_INSET del store (que es quien CLAMPA la
+// posición de las ventanas para que nunca queden bajo la barra superior, B-1).
+const WINDOW_TOP_INSET = DESKTOP_TOP_INSET;
 
 // ── Tinte del escritorio por tema (acento del lienzo/rejilla) ────
 const THEME_ACCENT: Record<DesktopTheme, string> = {
@@ -474,6 +481,11 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
     const [addFolderTarget, setAddFolderTarget] = useState<string | null>(null);
     const [exposeOpen, setExposeOpen] = useState(false);
     const [snapZone, setSnapZone] = useState<SnapZone | null>(null);
+    // Vista previa / Información de un icono (B-2, tipo Quick Look de macOS).
+    const [quickLook, setQuickLook] = useState<{ icon: DesktopIcon; tab: QuickLookTab } | null>(null);
+    // Viewport en vivo: el MOSAICO (B-3) calcula sus rects en píxeles a partir
+    // de él, así que hay que re-renderizar al redimensionar la ventana.
+    const [viewport, setViewport] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
     const swipeRef = useRef<{ x: number; y: number } | null>(null);
     // Marquee de selección (marco arrastrando sobre el fondo).
     const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -490,6 +502,18 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
     useEffect(() => {
         setMounted(true);
         seedIfEmpty();
+    }, []);
+
+    // Viewport en vivo (para el mosaico).
+    useEffect(() => {
+        const measure = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+        measure();
+        window.addEventListener("resize", measure);
+        window.addEventListener("orientationchange", measure);
+        return () => {
+            window.removeEventListener("resize", measure);
+            window.removeEventListener("orientationchange", measure);
+        };
     }, []);
 
     const desktop = useMemo<Desktop | null>(
@@ -526,7 +550,11 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
             const target = e.target as HTMLElement | null;
             const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
             if (e.key === "Escape") {
+                if (quickLook) { setQuickLook(null); return; }
                 if (exposeOpen) { setExposeOpen(false); return; }
+                // Esc sale de pantalla completa (convención universal).
+                const fs = desktop?.windows.find((w) => w.fullscreen);
+                if (fs && desktop) { toggleWindowFullscreen(desktop.id, fs.id); return; }
                 setCtxMenu(null);
                 setManagerOpen(false);
                 setSelection(new Set());
@@ -534,6 +562,27 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
             }
             if (typing || !desktop) return;
             const meta = e.metaKey || e.ctrlKey;
+            // Barra espaciadora → Vista previa del icono seleccionado (Quick Look).
+            if (e.key === " " && !meta && selection.size === 1 && !quickLook) {
+                const only = [...selection][0];
+                const icon = desktop.icons.find((i) => i.id === only);
+                if (icon) {
+                    e.preventDefault();
+                    setQuickLook({ icon, tab: "preview" });
+                    return;
+                }
+            }
+            // Ctrl/Cmd+Alt+T → organizar en mosaico · Ctrl/Cmd+Alt+F → libre.
+            if (meta && e.altKey && (e.key === "t" || e.key === "T")) {
+                e.preventDefault();
+                tileWindows(desktop.id, "grid");
+                return;
+            }
+            if (meta && e.altKey && (e.key === "f" || e.key === "F")) {
+                e.preventDefault();
+                clearTiling(desktop.id);
+                return;
+            }
             if ((e.key === "Delete" || e.key === "Backspace") && selection.size > 0) {
                 selection.forEach((id) => removeIcon(desktop.id, id));
                 setSelection(new Set());
@@ -573,13 +622,13 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
             }
             if (e.key === "F11" && focused) {
                 e.preventDefault();
-                toggleWindowMaximized(desktop.id, focused.id);
+                toggleWindowFullscreen(desktop.id, focused.id);
                 return;
             }
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [desktop, selection, exposeOpen, state.desktops]);
+    }, [desktop, selection, exposeOpen, quickLook, state.desktops]);
 
     const selectIcon = useCallback((id: string, additive: boolean) => {
         setCtxMenu(null);
@@ -669,11 +718,32 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
     const isCustomWallpaper = wallpaper?.type === "custom" && Boolean(wallpaper.value);
     const wallpaperIsImage = isCustomWallpaper && /^(https?:|data:|blob:|\/)/i.test(wallpaper!.value!);
 
-    const visibleWindows = desktop.windows.filter((w) => !w.minimized);
+    const allVisible = desktop.windows.filter((w) => !w.minimized);
+    // La ventana en PANTALLA COMPLETA sale de la capa del lienzo (z-[15]) y se
+    // pinta en su propia capa por ENCIMA de la barra superior y del dock (B-3).
+    const fullscreenWin = allVisible.find((w) => w.fullscreen) ?? null;
+    const visibleWindows = allVisible.filter((w) => !w.fullscreen);
     const minimizedWindows = desktop.windows.filter((w) => w.minimized);
-    const topZ = visibleWindows.reduce((m, w) => Math.max(m, w.z), 0);
+    const topZ = allVisible.reduce((m, w) => Math.max(m, w.z), 0);
     const sortedIcons = [...desktop.icons].sort((a, b) => a.y - b.y || a.x - b.x);
     const desktopIndex = state.desktops.findIndex((d) => d.id === desktop.id);
+
+    // ── Mosaico (B-3): rects derivados del layout + viewport ──
+    const tiling = desktop.tiling ?? null;
+    const tileGap = 6;
+    const tileArea: DesktopWindowRect = {
+        x: tileGap,
+        y: WINDOW_TOP_INSET + tileGap,
+        w: Math.max(0, viewport.w - tileGap * 2),
+        h: Math.max(0, viewport.h - WINDOW_TOP_INSET - tileGap * 2),
+    };
+    const tileRects =
+        tiling && viewport.w > 0 && !isMobile
+            ? tiledRects(tiling, viewport.w, viewport.h, WINDOW_TOP_INSET, tileGap)
+            : {};
+    const tilingActive = Boolean(tiling) && viewport.w > 0 && !isMobile;
+
+    const doTile = (mode: TileMode) => tileWindows(desktop.id, mode);
 
     return (
         <div
@@ -811,8 +881,9 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                                     isTop={win.z === topZ}
                                     isMobile={isMobile}
                                     topInset={WINDOW_TOP_INSET}
-                                    snapEnabled={view.windowSnap !== false}
+                                    snapEnabled={view.windowSnap !== false && !tilingActive}
                                     onSnapPreview={setSnapZone}
+                                    tiledRect={tilingActive ? (tileRects[win.id] ?? null) : null}
                                     headerExtra={chrome.href ? (
                                         <button
                                             type="button"
@@ -864,7 +935,39 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
 
                 {/* Vista previa translúcida de snap (mitades/cuartos) al arrastrar */}
                 {!isMobile && <DesktopSnapPreview zone={snapZone} topInset={WINDOW_TOP_INSET} accent={themeAccent} />}
+
+                {/* Divisores arrastrables del MOSAICO (pantalla dividida, N ventanas) */}
+                {tilingActive && tiling && (
+                    <DesktopTileDividers
+                        desktopId={desktop.id}
+                        tiling={tiling}
+                        area={tileArea}
+                        accent={themeAccent}
+                    />
+                )}
             </div>
+
+            {/* ── Capa de PANTALLA COMPLETA (por encima de la barra y del dock) ── */}
+            <AnimatePresence>
+                {fullscreenWin && (
+                    <div key={`fs-${fullscreenWin.id}`} className="fixed inset-0 z-[75]">
+                        <DesktopWindowFrame
+                            desktopId={desktop.id}
+                            win={fullscreenWin}
+                            chrome={resolveWindowChrome(fullscreenWin.contentRef)}
+                            isTop
+                            isMobile={isMobile}
+                            topInset={0}
+                        >
+                            <DesktopWindowContent
+                                desktopId={desktop.id}
+                                win={fullscreenWin}
+                                onRequestAddInto={(folderId) => openAdd("apps", folderId)}
+                            />
+                        </DesktopWindowFrame>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* ── Exposé: vista de conjunto de ventanas ── */}
             <DesktopExpose
@@ -1004,6 +1107,46 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                     <span className="max-sm:hidden">Añadir</span>
                 </button>
 
+                {/* Mosaico / pantalla dividida (B-3) — cualquier nº de ventanas */}
+                {!isMobile && visibleWindows.length > 1 && (
+                    <div className="flex items-center gap-0.5 rounded-full border border-white/12 bg-white/[0.04] p-0.5">
+                        {([
+                            ["grid", Grid2x2, "Mosaico en rejilla (⌘⌥T)"],
+                            ["columns", Columns2, "Mosaico en columnas"],
+                            ["rows", Rows2, "Mosaico en filas"],
+                        ] as Array<[TileMode, typeof Grid2x2, string]>).map(([mode, Icon, title]) => (
+                            <button
+                                key={mode}
+                                type="button"
+                                onClick={() => doTile(mode)}
+                                title={title}
+                                aria-label={title}
+                                className={cn(
+                                    "grid size-6 place-items-center rounded-full transition-colors cursor-pointer",
+                                    "text-muted-foreground hover:bg-white/[0.12] hover:text-foreground",
+                                )}
+                            >
+                                <Icon className="size-3.5" />
+                            </button>
+                        ))}
+                        <button
+                            type="button"
+                            onClick={() => clearTiling(desktop.id)}
+                            title="Ventanas libres (⌘⌥F)"
+                            aria-label="Ventanas libres"
+                            disabled={!tilingActive}
+                            className={cn(
+                                "grid size-6 place-items-center rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-30",
+                                tilingActive
+                                    ? "bg-cyan-400/20 text-cyan-200"
+                                    : "text-muted-foreground hover:bg-white/[0.12] hover:text-foreground",
+                            )}
+                        >
+                            <Frame className="size-3.5" />
+                        </button>
+                    </div>
+                )}
+
                 {/* Exposé: vista de conjunto de ventanas */}
                 {desktop.windows.length > 0 && (
                     <button
@@ -1069,6 +1212,7 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                             onClose={() => setCtxMenu(null)}
                             onOpen={openIcon}
                             onRename={(id) => setRenamingId(id)}
+                            onQuickLook={(icon, tab) => setQuickLook({ icon, tab })}
                         />
                     ) : (
                         <CanvasContextMenu
@@ -1083,9 +1227,22 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                             onChangeBackground={() => setSettingsOpen(true)}
                             onOpenSettings={() => setSettingsOpen(true)}
                             onOpenExpose={() => setExposeOpen(true)}
+                            onTile={visibleWindows.length > 1 && !isMobile ? doTile : undefined}
+                            onUntile={tilingActive ? () => clearTiling(desktop.id) : undefined}
                         />
                     )}
                 </>
+            )}
+
+            {/* ── Vista previa / Información / Compartir de un icono (B-2) ── */}
+            {quickLook && (
+                <DesktopQuickLook
+                    desktopId={desktop.id}
+                    icon={quickLook.icon}
+                    initialTab={quickLook.tab}
+                    onClose={() => setQuickLook(null)}
+                    onOpen={(icon) => { setQuickLook(null); openIcon(icon); }}
+                />
             )}
 
             {/* ── Panel "+ Añadir" ── */}
@@ -1120,6 +1277,9 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                             className="absolute inset-0 z-[50] bg-black/35 backdrop-blur-[2px]"
                             aria-hidden
                         />
+                        {/* Centrado con FLEX, no con `-translate-*`: Framer Motion escribe
+                            su propio `transform` y machacaría las clases de translate. */}
+                        <div key="cursor-sheet-wrap" className="pointer-events-none absolute inset-0 z-[52] grid place-items-center p-3">
                         <motion.div
                             key="cursor-sheet"
                             role="dialog"
@@ -1128,7 +1288,7 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                             animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
                             exit={reduced ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.97 }}
                             transition={reduced ? { duration: 0.15 } : { type: "spring", stiffness: 320, damping: 30 }}
-                            className="ss-crystal absolute left-1/2 top-1/2 z-[52] w-[400px] max-w-[calc(100vw-24px)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/12 bg-card/95 p-4 shadow-2xl backdrop-blur-2xl"
+                            className="ss-crystal pointer-events-auto w-[400px] max-w-full rounded-3xl border border-white/12 bg-card/95 p-4 shadow-2xl backdrop-blur-2xl"
                         >
                             <span aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/70 to-transparent" />
                             <header className="mb-3 flex items-center gap-2">
@@ -1148,6 +1308,7 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                                 <CursorSettingsPanel />
                             </div>
                         </motion.div>
+                        </div>
                     </>
                 )}
             </AnimatePresence>

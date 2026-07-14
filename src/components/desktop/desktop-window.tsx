@@ -9,18 +9,34 @@
 // carmesí · minimizar ámbar · maximizar lima), arrastre por cabecera,
 // redimensión por los 8 bordes/esquinas, snap a mitades/cuartos con
 // vista previa translúcida al arrastrar contra los bordes de pantalla,
-// z-order al enfocar y animación líquida al abrir/minimizar (Framer
-// Motion, respeta prefers-reduced-motion). En móvil la ventana ocupa
-// casi toda la pantalla (swap por chips).
+// z-order al enfocar, mosaico (pantalla dividida), pantalla completa y
+// animación líquida al abrir/minimizar (Framer Motion, respeta
+// prefers-reduced-motion). En móvil ocupa casi toda la pantalla.
+//
+// ⚠️ REGLA DE ORO DE ESTE ARCHIVO (Adenda 68 · B-1 — causa raíz del bug
+// del «difuminado»): el marco NUNCA puede llevar `filter` (ni animado ni
+// estático) ni `backdrop-filter` en el MISMO elemento que contiene el
+// contenido. Un `filter` no-`none`:
+//   1. convierte el elemento en backdrop-root → destroza su propio
+//      `backdrop-filter` (el cristal deja de funcionar), y
+//   2. fuerza a TODO su subárbol (incluido el <iframe> de la app) a
+//      pasar por una pasada de filtro → la ventana entera se ve borrosa
+//      y apagada.
+// Framer Motion, además, deja el `filter: blur(0px)` FIJO en el estilo
+// inline al acabar la animación → el daño era permanente.
+// Por eso: el cristal vive en una CAPA PROPIA (`WindowGlass`, hermana y
+// por debajo del contenido) y la animación de apertura solo toca
+// opacity/scale/y.
 // ════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { X, Minus, Maximize2, Minimize2 } from "lucide-react";
+import { X, Minus, Maximize2, Minimize2, Expand, Shrink, Columns2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DesktopWindow, DesktopWindowRect } from "./desktop-store";
 import {
     closeWindow, focusWindow, setWindowMinimized, setWindowRect, toggleWindowMaximized,
+    toggleWindowFullscreen,
 } from "./desktop-store";
 import { resolveSnapZone, snapZoneRect, type SnapZone } from "./desktop-window-snap";
 
@@ -77,8 +93,28 @@ function ResizeEdges({ onBegin }: { onBegin: (e: React.PointerEvent, handle: Res
     );
 }
 
+/**
+ * Cristal de la ventana (Crystal Liquid Glass) en una CAPA PROPIA.
+ * Lleva el `backdrop-filter` y el fondo, y va DEBAJO del contenido
+ * (`-z-10`, sin eventos) → el contenido (incluidos iframes, canvas y
+ * vídeo) jamás es descendiente de un elemento con backdrop-filter, que
+ * es lo que rompía el compositing y pintaba la ventana borrosa (B-1).
+ */
+function WindowGlass({ isTop }: { isTop: boolean }): React.ReactElement {
+    return (
+        <span
+            aria-hidden
+            className={cn(
+                "pointer-events-none absolute inset-0 -z-10 rounded-2xl backdrop-blur-2xl",
+                isTop ? "bg-card/90" : "bg-card/80",
+            )}
+        />
+    );
+}
+
 export function DesktopWindowFrame({
-    desktopId, win, chrome, isTop, isMobile, topInset, snapEnabled = true, onSnapPreview, headerExtra, children,
+    desktopId, win, chrome, isTop, isMobile, topInset, snapEnabled = true, onSnapPreview,
+    tiledRect, headerExtra, children,
 }: {
     desktopId: string;
     win: DesktopWindow;
@@ -91,6 +127,8 @@ export function DesktopWindowFrame({
     snapEnabled?: boolean;
     /** Notifica al lienzo la zona de snap activa (pinta el preview global). */
     onSnapPreview?: (zone: SnapZone | null) => void;
+    /** Rect impuesto por el MOSAICO (B-3). Si viene, la ventana no se mueve a mano. */
+    tiledRect?: DesktopWindowRect | null;
     headerExtra?: React.ReactNode;
     children: React.ReactNode;
 }): React.ReactElement {
@@ -116,7 +154,8 @@ export function DesktopWindowFrame({
                 next = {
                     ...d.orig,
                     x: Math.min(Math.max(d.orig.x + dx, -(d.orig.w - 140)), vw - 90),
-                    y: Math.min(Math.max(d.orig.y + dy, topInset - 6), vh - 70),
+                    // B-1: nunca por encima del inset → jamás bajo la barra superior.
+                    y: Math.min(Math.max(d.orig.y + dy, topInset), vh - 70),
                 };
                 if (snapEnabled) {
                     const zone = resolveSnapZone(e.clientX, e.clientY, vw, vh, topInset);
@@ -140,8 +179,8 @@ export function DesktopWindowFrame({
                 }
                 if (h.includes("n")) {
                     const rawH = d.orig.h - dy;
-                    nh = Math.min(Math.max(rawH, MIN_H), d.orig.y + d.orig.h - topInset + 4);
-                    ny = Math.max(topInset - 6, d.orig.y + (d.orig.h - nh));
+                    nh = Math.min(Math.max(rawH, MIN_H), d.orig.y + d.orig.h - topInset);
+                    ny = Math.max(topInset, d.orig.y + (d.orig.h - nh));
                 }
                 next = { x: nx, y: ny, w: nw, h: nh };
             }
@@ -174,8 +213,12 @@ export function DesktopWindowFrame({
         };
     }, [dragging, desktopId, win.id, topInset, snapEnabled, onSnapPreview]);
 
+    // El mosaico y la pantalla completa mandan sobre el rect libre.
+    const tiled = Boolean(tiledRect);
+    const locked = isMobile || win.maximized || win.fullscreen || tiled;
+
     const beginMove = (e: React.PointerEvent) => {
-        if (isMobile || win.maximized) return;
+        if (locked) return;
         if ((e.target as HTMLElement).closest("button, a, input")) return;
         e.preventDefault();
         dragRef.current = { mode: "move", startX: e.clientX, startY: e.clientY, orig: { x: win.x, y: win.y, w: win.w, h: win.h } };
@@ -183,7 +226,7 @@ export function DesktopWindowFrame({
     };
 
     const beginResize = (e: React.PointerEvent, handle: ResizeHandle) => {
-        if (isMobile || win.maximized) return;
+        if (locked) return;
         e.preventDefault();
         e.stopPropagation();
         dragRef.current = { mode: "resize", handle, startX: e.clientX, startY: e.clientY, orig: { x: win.x, y: win.y, w: win.w, h: win.h } };
@@ -194,33 +237,43 @@ export function DesktopWindowFrame({
         if (!isTop) focusWindow(desktopId, win.id);
     };
 
-    const rect = live ?? { x: win.x, y: win.y, w: win.w, h: win.h };
+    const rect = live ?? tiledRect ?? { x: win.x, y: win.y, w: win.w, h: win.h };
     const zIndex = 20 + win.z;
 
-    const frameStyle: React.CSSProperties = isMobile
-        ? { left: 8, right: 8, top: topInset + 4, bottom: 92, zIndex }
-        : win.maximized
-            ? { left: 8, top: topInset + 4, width: "calc(100% - 16px)", height: `calc(100% - ${topInset + 16}px)`, zIndex }
-            : { left: rect.x, top: rect.y, width: rect.w, height: rect.h, zIndex };
+    // Pantalla completa: la ventana se saca de la capa del lienzo (el LIENZO la
+    // renderiza en su propia capa por encima de la barra superior y del dock).
+    const frameStyle: React.CSSProperties = win.fullscreen
+        ? { inset: 0, zIndex: 1 }
+        : isMobile
+            ? { left: 8, right: 8, top: topInset + 4, bottom: 92, zIndex }
+            : win.maximized
+                ? { left: 8, top: topInset + 4, width: "calc(100% - 16px)", height: `calc(100% - ${topInset + 16}px)`, zIndex }
+                : { left: rect.x, top: rect.y, width: rect.w, height: rect.h, zIndex };
 
     return (
         <motion.div
-            initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.9, y: 26, filter: "blur(8px)" }}
-            animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-            exit={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.86, y: 48, filter: "blur(10px)" }}
-            transition={reduced ? { duration: 0.12 } : { type: "spring", stiffness: 300, damping: 30, mass: 0.9 }}
+            // ⚠️ NADA de `filter` aquí (ver cabecera del archivo): solo
+            // opacity/scale/y. Framer Motion dejaba `filter: blur(0px)` fijo y
+            // eso rompía el cristal y volvía borroso todo el subárbol.
+            initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: 18 }}
+            animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.9, y: 32 }}
+            transition={reduced ? { duration: 0.12 } : { type: "spring", stiffness: 320, damping: 32, mass: 0.85 }}
             onPointerDownCapture={focus}
             style={frameStyle}
             className={cn(
-                "absolute flex flex-col overflow-hidden rounded-2xl border shadow-2xl",
-                "bg-card/90 backdrop-blur-2xl",
+                "absolute flex flex-col overflow-hidden border shadow-2xl",
+                win.fullscreen ? "rounded-none" : "rounded-2xl",
                 !dragging && "transition-[left,top,width,height] duration-300 ease-[cubic-bezier(0.22,0.9,0.3,1)]",
                 dragging && "transition-none",
-                isTop
-                    ? "border-white/20"
-                    : "border-white/10 opacity-[0.97] saturate-[0.92]",
+                // Sin `opacity` ni `saturate` en el marco: ambas crean stacking
+                // context / filtro y reintroducirían el bug. La jerarquía visual
+                // se transmite solo con borde y sombra.
+                isTop ? "border-white/20" : "border-white/[0.08]",
             )}
         >
+            {/* Cristal en capa propia (backdrop-filter aislado del contenido). */}
+            <WindowGlass isTop={isTop} />
             {/* Hairline de acento (identidad de la entidad de la ventana) */}
             <span
                 aria-hidden
@@ -242,10 +295,10 @@ export function DesktopWindowFrame({
             {/* ── Barra de título ── */}
             <header
                 onPointerDown={beginMove}
-                onDoubleClick={() => !isMobile && toggleWindowMaximized(desktopId, win.id)}
+                onDoubleClick={() => !isMobile && !tiled && toggleWindowMaximized(desktopId, win.id)}
                 className={cn(
                     "relative z-10 flex h-9 shrink-0 items-center gap-2 border-b border-white/10 bg-white/[0.04] px-2.5 select-none",
-                    !isMobile && !win.maximized && "cursor-grab active:cursor-grabbing",
+                    !locked && "cursor-grab active:cursor-grabbing",
                 )}
             >
                 {/* Semáforo Trinity: cerrar · minimizar · maximizar */}
@@ -274,7 +327,7 @@ export function DesktopWindowFrame({
                         title={win.maximized ? "Restaurar" : "Maximizar"}
                         aria-label={win.maximized ? "Restaurar ventana" : "Maximizar ventana"}
                         className="grid size-3.5 place-items-center rounded-full border border-black/30 bg-[#39FF14] transition-transform hover:scale-110 cursor-pointer disabled:opacity-40"
-                        disabled={isMobile}
+                        disabled={isMobile || tiled || win.fullscreen}
                     >
                         {win.maximized ? (
                             <Minimize2 className="size-2 text-black/60 opacity-0 transition-opacity group-hover:opacity-100" strokeWidth={3} />
@@ -283,6 +336,16 @@ export function DesktopWindowFrame({
                         )}
                     </button>
                 </div>
+
+                {/* Indicador de mosaico (la ventana la coloca la rejilla) */}
+                {tiled && (
+                    <span
+                        title="En mosaico — arrastra los divisores para repartir el espacio"
+                        className="grid size-5 shrink-0 place-items-center rounded-md border border-white/12 text-cyan-200/80"
+                    >
+                        <Columns2 className="size-3" />
+                    </span>
+                )}
 
                 <span
                     className="grid size-5.5 shrink-0 place-items-center overflow-hidden rounded-md border border-white/15"
@@ -299,6 +362,17 @@ export function DesktopWindowFrame({
                     )}
                 </div>
                 {headerExtra}
+
+                {/* Pantalla completa (B-3) — cubre barra superior y dock. */}
+                <button
+                    type="button"
+                    onClick={() => toggleWindowFullscreen(desktopId, win.id)}
+                    title={win.fullscreen ? "Salir de pantalla completa (Esc)" : "Pantalla completa"}
+                    aria-label={win.fullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+                    className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground/70 transition-colors hover:bg-white/10 hover:text-foreground cursor-pointer"
+                >
+                    {win.fullscreen ? <Shrink className="size-3" /> : <Expand className="size-3" />}
+                </button>
             </header>
 
             {/* ── Cuerpo ── */}
@@ -307,7 +381,7 @@ export function DesktopWindowFrame({
             </div>
 
             {/* ── Asas de redimensión (los 4 bordes + las 4 esquinas) ── */}
-            {!isMobile && !win.maximized && <ResizeEdges onBegin={beginResize} />}
+            {!locked && <ResizeEdges onBegin={beginResize} />}
         </motion.div>
     );
 }

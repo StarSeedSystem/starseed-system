@@ -17,14 +17,16 @@ import React from "react";
 import {
     FolderPlus, StickyNote, Link2, LayoutGrid, ArrowUpDown, List, Grid3x3,
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
-    Trash2, Magnet, FolderInput, Sparkles, Check, PictureInPicture2, type LucideIcon,
+    Trash2, Magnet, FolderInput, Sparkles, Check, PictureInPicture2,
+    Eye, Info, Grid2x2, Columns2, Rows2, Frame, Home, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize } from "./desktop-store";
+import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize, TileMode } from "./desktop-store";
 import {
     addIcon, createNoteIcon, sortIcons, autoArrangeIcons, setSnap, updateIcon,
     duplicateIcon, removeIcon, moveIconToFolder, setDesktopView, DEFAULT_DESKTOP_VIEW,
 } from "./desktop-store";
+import type { QuickLookTab } from "./desktop-quick-look";
 
 const MENU_W = 210;
 
@@ -130,6 +132,7 @@ function MenuShell({
 export function CanvasContextMenu({
     x, y, desktop, canvasRef, snap, onClose,
     onAddApps, onAddWidgets, onChangeBackground, onOpenSettings, onOpenExpose,
+    onTile, onUntile,
 }: {
     x: number;
     y: number;
@@ -143,6 +146,10 @@ export function CanvasContextMenu({
     onOpenSettings: () => void;
     /** Abre Exposé (vista de conjunto). Omitido → oculta el ítem. */
     onOpenExpose?: () => void;
+    /** Organiza las ventanas en mosaico. Omitido (o <2 ventanas) → oculta. */
+    onTile?: (mode: TileMode) => void;
+    /** Deshace el mosaico. Omitido (no hay mosaico activo) → oculta. */
+    onUntile?: () => void;
 }): React.ReactElement {
     const view = desktop.view ?? {};
     const run = (fn: () => void) => { fn(); onClose(); };
@@ -165,6 +172,15 @@ export function CanvasContextMenu({
             <MenuItem icon={Sparkles} label="Pídeselo a Aurora" onClick={() => run(askAurora)} />
             {onOpenExpose && desktop.windows.length > 0 && (
                 <MenuItem icon={LayoutGrid} label="Vista de conjunto" shortcut="F3" onClick={() => run(onOpenExpose)} />
+            )}
+            {/* Pantalla dividida — cualquier nº de ventanas (B-3) */}
+            {onTile && (
+                <SubMenu icon={Grid2x2} label="Organizar en mosaico">
+                    <MenuItem icon={Grid2x2} label="Rejilla" shortcut="⌘⌥T" onClick={() => run(() => onTile("grid"))} />
+                    <MenuItem icon={Columns2} label="Columnas" onClick={() => run(() => onTile("columns"))} />
+                    <MenuItem icon={Rows2} label="Filas" onClick={() => run(() => onTile("rows"))} />
+                    {onUntile && <MenuItem icon={Frame} label="Ventanas libres" shortcut="⌘⌥F" onClick={() => run(onUntile)} />}
+                </SubMenu>
             )}
             <MenuItem icon={LayoutGrid} label="Auto-organizar" onClick={() => run(() => autoArrangeIcons(desktop.id))} />
             <SubMenu icon={ArrowUpDown} label="Ordenar por">
@@ -193,7 +209,7 @@ export function CanvasContextMenu({
 
 // ── Menú de un ICONO ─────────────────────────────────────────────
 export function IconContextMenu({
-    x, y, desktop, icon, canvasRef, onClose, onOpen, onRename,
+    x, y, desktop, icon, canvasRef, onClose, onOpen, onRename, onQuickLook,
 }: {
     x: number;
     y: number;
@@ -203,18 +219,28 @@ export function IconContextMenu({
     onClose: () => void;
     onOpen: (icon: DesktopIcon) => void;
     onRename: (id: string) => void;
+    /** Abre el Quick Look (vista previa · información · compartir · permisos). */
+    onQuickLook?: (icon: DesktopIcon, tab: QuickLookTab) => void;
 }): React.ReactElement {
     const run = (fn: () => void) => { fn(); onClose(); };
-    const canPreview = icon.kind === "widget" || (icon.kind === "file" && (icon.fileKind === "image" || icon.fileKind === "gif"));
+    const canLivePreview = icon.kind === "widget" || (icon.kind === "file" && (icon.fileKind === "image" || icon.fileKind === "gif"));
     // Folders raíz destino (no la propia si es folder).
     const folders = desktop.icons.filter((i) => i.kind === "folder" && i.id !== icon.id);
+    // ¿Está dentro de un folder? Entonces puede volver a la raíz del escritorio.
+    const inFolder = !desktop.icons.some((i) => i.id === icon.id);
 
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
             <MenuItem icon={ExternalLink} label="Abrir" onClick={() => run(() => onOpen(icon))} />
+            {onQuickLook && (
+                <>
+                    <MenuItem icon={Eye} label="Vista previa" shortcut="Espacio" onClick={() => run(() => onQuickLook(icon, "preview"))} />
+                    <MenuItem icon={Info} label="Información" onClick={() => run(() => onQuickLook(icon, "info"))} />
+                </>
+            )}
             <MenuItem icon={Pencil} label="Renombrar" onClick={() => run(() => onRename(icon.id))} />
             <MenuItem icon={Copy} label="Duplicar" onClick={() => run(() => duplicateIcon(desktop.id, icon.id))} />
-            {canPreview && (
+            {canLivePreview && (
                 <MenuItem
                     icon={MonitorPlay}
                     label={icon.viewMode === "preview" ? "Ver como icono" : "Vista previa viva"}
@@ -240,8 +266,15 @@ export function IconContextMenu({
                 ))}
             </div>
 
-            {folders.length > 0 && (
-                <SubMenu icon={FolderInput} label="Enviar a folder">
+            {(folders.length > 0 || inFolder) && (
+                <SubMenu icon={FolderInput} label="Mover a">
+                    {inFolder && (
+                        <MenuItem
+                            icon={Home}
+                            label="Escritorio (raíz)"
+                            onClick={() => run(() => moveIconToFolder(desktop.id, icon.id, null))}
+                        />
+                    )}
                     {folders.map((f) => (
                         <MenuItem key={f.id} icon={FolderPlus} label={f.name} onClick={() => run(() => moveIconToFolder(desktop.id, icon.id, f.id))} />
                     ))}

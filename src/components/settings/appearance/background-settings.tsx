@@ -49,10 +49,12 @@ import {
     Boxes,
     Box,
     AudioLines,
-    Link2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn, applyAlpha } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
+import { addLayer, normalizeLayers } from "@/lib/appearance/background-layers";
+import { BackgroundLayersPanel } from "./background-layers-panel";
 
 /* ──────────────────────────────────────────────────────────────────────
  * Tipos y catálogos
@@ -582,8 +584,17 @@ export function BackgroundSettings() {
         updateConfig({ background: { type: "spline" } } as any);
     };
 
-    const pickAudiomorphic = () => {
-        updateConfig({ background: { type: "audiomorphic" } } as any);
+    // ⚠️ Audiomorphic YA NO es un `background.type` (Adenda 68 · D): eso era lo
+    // que lo dejaba pegado como fondo exclusivo del sistema, sincronizado a toda
+    // la cuenta y resucitando en cada carga. Ahora se AÑADE como capa.
+    const addAudiomorphicLayer = () => {
+        const layers = normalizeLayers(config.background.layers);
+        if (layers.some((l) => l.kind === "audiomorphic")) {
+            toast.message("Audiomorphic ya está en tus capas de fondo");
+            return;
+        }
+        updateConfig({ background: { layers: addLayer(layers, "audiomorphic") } } as any);
+        toast.success("Audiomorphic añadido como capa (mezcla «screen»)");
     };
 
     // ── WebGL 3D ──────────────────────────────────────────────────────────
@@ -598,11 +609,8 @@ export function BackgroundSettings() {
     const setWebglSpeed = (v: number) => updateConfig({ background: { webglSpeed: v } } as any);
     const setWebglZoom = (v: number) => updateConfig({ background: { webglZoom: v } } as any);
 
-    // ── Audiomorphic ──────────────────────────────────────────────────────
-    const audiomorphic = config.background.audiomorphic ?? { url: "https://audiomorphic.vercel.app", overlay: 0.15 };
-    const isAudiomorphic = currentType === "audiomorphic";
-    const setAudioUrl = (url: string) => updateConfig({ background: { audiomorphic: { url } } } as any);
-    const setAudioOverlay = (overlay: number) => updateConfig({ background: { audiomorphic: { overlay } } } as any);
+    // ── Audiomorphic (como CAPA) ──────────────────────────────────────────
+    const hasAudiomorphicLayer = normalizeLayers(config.background.layers).some((l) => l.kind === "audiomorphic");
 
     const isSpline = currentType === "spline";
 
@@ -670,7 +678,12 @@ export function BackgroundSettings() {
     const paletteColors = living.colors.length ? living.colors : DEFAULT_PALETTE;
 
     return (
-        <div className="rounded-2xl border border-border/50 bg-card/30 p-4 mt-4 space-y-6">
+        <div className="mt-4 space-y-4">
+            {/* Capas de fondo: pila ordenada, opacidad, mezcla, ámbito. Va PRIMERO
+                porque es el modelo nuevo; el fondo base se elige debajo. */}
+            <BackgroundLayersPanel />
+
+        <div className="rounded-2xl border border-border/50 bg-card/30 p-4 space-y-6">
             {/* Keyframes para previews fluidos */}
             <style>{FLUID_KEYFRAMES}</style>
 
@@ -1022,7 +1035,7 @@ export function BackgroundSettings() {
                 </div>
             </div>
 
-            {/* ── Familia: Audiomorphic (visualizador embebido) ── */}
+            {/* ── Familia: Audiomorphic — ahora es una CAPA, no un fondo exclusivo ── */}
             <div>
                 <h4 className="text-xs font-semibold text-muted-foreground/90 mb-2 flex items-center gap-1.5">
                     <AudioLines className="w-3.5 h-3.5" /> Audiomorphic
@@ -1030,64 +1043,37 @@ export function BackgroundSettings() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <button
                         type="button"
-                        aria-pressed={isAudiomorphic}
-                        onClick={pickAudiomorphic}
+                        aria-pressed={hasAudiomorphicLayer}
+                        onClick={addAudiomorphicLayer}
                         className={cn(
                             "text-left p-2.5 rounded-xl border transition-all cursor-pointer",
-                            isAudiomorphic
+                            hasAudiomorphicLayer
                                 ? "border-primary/50 bg-primary/10 ring-1 ring-primary/30"
                                 : "border-border/60 bg-card/40 hover:bg-card/70 hover:border-primary/25"
                         )}
                     >
-                        <div className="relative w-full h-16 rounded-lg overflow-hidden border border-border/30 flex items-center justify-center" style={{ background: "linear-gradient(135deg, #1a0b2e 0%, #0a0e27 50%, #2e1065 100%)" }}>
-                            <AudioLines className="w-7 h-7 text-primary/80" />
+                        <div className="relative w-full h-16 rounded-lg overflow-hidden border border-border/30 flex items-center justify-center" style={{ background: "radial-gradient(circle at 50% 50%, rgba(168,85,247,0.95) 0%, rgba(34,211,238,0.5) 38%, #050505 74%)" }}>
+                            <AudioLines className="w-7 h-7 text-white/85" />
                         </div>
                         <div className="flex items-center gap-2 mt-2 mb-0.5">
-                            <AudioLines className={cn("w-4 h-4 shrink-0", isAudiomorphic ? "text-primary" : "text-muted-foreground")} />
+                            <AudioLines className={cn("w-4 h-4 shrink-0", hasAudiomorphicLayer ? "text-primary" : "text-muted-foreground")} />
                             <span className="text-sm font-semibold truncate">Audiomorphic</span>
-                            {isAudiomorphic && (
+                            {hasAudiomorphicLayer && (
                                 <span className="ml-auto w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
                             )}
                         </div>
-                        <p className="text-xs text-muted-foreground leading-relaxed">Visualizador embebido a pantalla completa.</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                            {hasAudiomorphicLayer
+                                ? "Ya está en tus capas (arriba). Ajústalo allí."
+                                : "Añádelo como CAPA sobre el fondo elegido: con la mezcla «screen» su negro desaparece y solo se ve el espiral."}
+                        </p>
                     </button>
                 </div>
-                {/* Controles especificos Audiomorphic: URL + overlay. */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
-                    <div className="rounded-xl border border-border/60 bg-card/40 p-3">
-                        <span className="text-xs font-semibold flex items-center gap-1.5 mb-2">
-                            <Link2 className="w-3.5 h-3.5 text-primary" /> URL del visualizador
-                        </span>
-                        <input
-                            type="url"
-                            value={audiomorphic.url}
-                            onChange={(e) => setAudioUrl(e.target.value)}
-                            placeholder="https://audiomorphic.vercel.app"
-                            className="w-full text-xs px-2.5 py-2 rounded-lg border border-border/60 bg-background/60 text-foreground focus:outline-none focus:border-primary/40"
-                        />
-                    </div>
-                    <div className="rounded-xl border border-border/60 bg-card/40 p-3">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold flex items-center gap-1.5">
-                                <Layers className="w-3.5 h-3.5 text-primary" /> Overlay
-                            </span>
-                            <span className="text-xs font-mono text-muted-foreground tabular-nums">
-                                {Math.round((audiomorphic.overlay ?? 0.15) * 100)}%
-                            </span>
-                        </div>
-                        <input
-                            type="range"
-                            min={0}
-                            max={0.8}
-                            step={0.05}
-                            value={audiomorphic.overlay ?? 0.15}
-                            onChange={(e) => setAudioOverlay(parseFloat(e.target.value))}
-                            className="w-full accent-primary cursor-pointer"
-                        />
-                    </div>
-                </div>
-                <p className="text-[11px] text-muted-foreground/70 mt-2">
-                    Si el sitio bloquea el embebido (X-Frame-Options), el fondo podria no mostrarse; la opcion permanece disponible.
+                <p className="text-[11px] text-muted-foreground/70 mt-2 max-w-prose">
+                    Audiomorphic ya <b>no es un fondo exclusivo</b> ni se activa solo: es una capa opcional que se apila
+                    sobre el fondo base. Sus presets del espiral (Deriva · Armónico · Génesis) y el micrófono se manejan
+                    dentro del propio visualizador con el <b>modo interacción</b> — la app externa no acepta esos ajustes
+                    por URL, y el OS no finge que sí.
                 </p>
             </div>
 
@@ -1282,6 +1268,7 @@ export function BackgroundSettings() {
                     <Maximize2 className="w-3.5 h-3.5" /> Modo wallpaper / pantalla completa
                 </button>
             </div>
+        </div>
         </div>
     );
 }

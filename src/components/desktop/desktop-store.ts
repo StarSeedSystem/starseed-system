@@ -98,9 +98,41 @@ export interface DesktopWindow extends DesktopWindowRect {
     z: number;
     minimized: boolean;
     maximized: boolean;
-    /** Rect previo para restaurar al des-maximizar. */
+    /**
+     * Pantalla COMPLETA (Adenda 68 · B-3): la ventana sale de la capa del
+     * lienzo y cubre el viewport entero (incluida la barra superior del
+     * escritorio). Distinto de `maximized`, que sigue respetando la barra.
+     * Opcional → un escritorio guardado sin este campo carga igual.
+     */
+    fullscreen?: boolean;
+    /** Rect previo para restaurar al des-maximizar / salir de pantalla completa. */
     prev?: DesktopWindowRect;
 }
+
+/**
+ * Mosaico (pantalla dividida) del escritorio — Adenda 68 · B-3.
+ * Modelo columnas → filas: admite CUALQUIER número de ventanas y divisores
+ * arrastrables que reparten el espacio (colFr entre columnas, rowFr entre las
+ * filas de cada columna). Todo opcional: un escritorio guardado SIN `tiling`
+ * sigue cargando y comportándose exactamente igual (ventanas libres).
+ */
+export interface DesktopTiling {
+    /** Ids de ventana por columna; cada columna es una pila de filas. */
+    cols: string[][];
+    /** Fracción de ancho de cada columna (misma longitud que `cols`, suma ≈ 1). */
+    colFr: number[];
+    /** Fracción de alto de cada fila DENTRO de su columna (suma ≈ 1 por columna). */
+    rowFr: number[][];
+}
+
+/** Distribuciones automáticas del mosaico. */
+export type TileMode = "grid" | "columns" | "rows";
+
+/** Altura reservada por la barra superior del escritorio (px). */
+export const DESKTOP_TOP_INSET = 50;
+
+/** Fracción mínima de una columna/fila del mosaico (evita divisores impracticables). */
+const MIN_FR = 0.08;
 
 export interface DesktopWallpaper {
     type: "inherit" | "custom";
@@ -152,6 +184,8 @@ export interface Desktop {
     windows: DesktopWindow[];
     /** Preferencias de vista/diseño (opcional; ver DEFAULT_DESKTOP_VIEW). */
     view?: DesktopView;
+    /** Mosaico activo (pantalla dividida). Ausente → ventanas libres (v1.3). */
+    tiling?: DesktopTiling;
 }
 
 export interface DesktopsState {
@@ -254,6 +288,19 @@ function normalizeIcon(raw: unknown, depth = 0): DesktopIcon | null {
     return icon;
 }
 
+/**
+ * Y mínima de una ventana. Adenda 68 · B-1 (CAUSA RAÍZ del bug del difuminado):
+ * la barra superior del escritorio vive en z-[40] con `backdrop-blur-2xl`, y
+ * TODA la capa de ventanas vive en z-[15] → cualquier ventana colocada dentro
+ * de la banda 0..DESKTOP_TOP_INSET quedaba PINTADA DEBAJO de esa barra
+ * translúcida y borrosa (se veía apagada, «en una capa inferior») y sus
+ * botones cerrar/minimizar/maximizar ni siquiera recibían el clic. Se clampa
+ * aquí (normalización) para REPARAR también los escritorios ya guardados así.
+ */
+function clampWindowY(y: number): number {
+    return Math.max(DESKTOP_TOP_INSET, y);
+}
+
 function normalizeWindow(raw: unknown): DesktopWindow | null {
     if (!raw || typeof raw !== "object") return null;
     const r = raw as Record<string, unknown>;
@@ -269,20 +316,63 @@ function normalizeWindow(raw: unknown): DesktopWindow | null {
             meta: cr?.meta && typeof cr.meta === "object" ? (cr.meta as Record<string, string | undefined>) : undefined,
         },
         x: num(r.x, 64),
-        y: num(r.y, 40),
+        y: clampWindowY(num(r.y, DESKTOP_TOP_INSET)),
         w: Math.max(280, num(r.w, 760)),
         h: Math.max(200, num(r.h, 520)),
         z: Math.max(1, num(r.z, 1)),
         minimized: r.minimized === true,
         maximized: r.maximized === true,
+        fullscreen: r.fullscreen === true,
         prev: r.prev && typeof r.prev === "object"
             ? {
                 x: num((r.prev as Record<string, unknown>).x, 64),
-                y: num((r.prev as Record<string, unknown>).y, 40),
+                y: clampWindowY(num((r.prev as Record<string, unknown>).y, DESKTOP_TOP_INSET)),
                 w: Math.max(280, num((r.prev as Record<string, unknown>).w, 760)),
                 h: Math.max(200, num((r.prev as Record<string, unknown>).h, 520)),
             }
             : undefined,
+    };
+}
+
+/** Normaliza fracciones a suma 1 con un mínimo por celda (defensivo). */
+function normalizeFractions(raw: unknown, n: number): number[] {
+    if (n <= 0) return [];
+    const arr = Array.isArray(raw) ? raw : [];
+    const vals = Array.from({ length: n }, (_, i) => {
+        const v = num(arr[i], 0);
+        return v > 0 && Number.isFinite(v) ? v : 1 / n;
+    });
+    const total = vals.reduce((a, b) => a + b, 0) || 1;
+    const scaled = vals.map((v) => Math.max(MIN_FR, v / total));
+    const sum = scaled.reduce((a, b) => a + b, 0) || 1;
+    return scaled.map((v) => v / sum);
+}
+
+/**
+ * Mosaico: se normaliza SIEMPRE contra las ventanas realmente visibles del
+ * escritorio, de modo que un doc antiguo (sin `tiling`), corrupto o con ids
+ * fantasma nunca rompe el render — simplemente se cae a ventanas libres.
+ */
+function normalizeTiling(raw: unknown, windows: DesktopWindow[]): DesktopTiling | undefined {
+    if (!raw || typeof raw !== "object") return undefined;
+    const r = raw as Record<string, unknown>;
+    if (!Array.isArray(r.cols)) return undefined;
+    const live = new Set(windows.filter((w) => !w.minimized && !w.fullscreen).map((w) => w.id));
+    const seen = new Set<string>();
+    const cols: string[][] = [];
+    for (const col of r.cols) {
+        if (!Array.isArray(col)) continue;
+        const rows = col.filter(
+            (id): id is string => typeof id === "string" && live.has(id) && !seen.has(id) && (seen.add(id), true),
+        );
+        if (rows.length > 0) cols.push(rows);
+    }
+    if (cols.length === 0) return undefined;
+    const rawRowFr = Array.isArray(r.rowFr) ? r.rowFr : [];
+    return {
+        cols,
+        colFr: normalizeFractions(r.colFr, cols.length),
+        rowFr: cols.map((col, i) => normalizeFractions(rawRowFr[i], col.length)),
     };
 }
 
@@ -306,6 +396,9 @@ function normalizeDesktop(raw: unknown): Desktop | null {
     if (!raw || typeof raw !== "object") return null;
     const r = raw as Record<string, unknown>;
     const wp = r.wallpaper as Record<string, unknown> | undefined;
+    const windows = Array.isArray(r.windows)
+        ? r.windows.map((w) => normalizeWindow(w)).filter((w): w is DesktopWindow => w !== null)
+        : [];
     return {
         id: str(r.id, newId("desk")),
         name: str(r.name, "Escritorio"),
@@ -315,10 +408,9 @@ function normalizeDesktop(raw: unknown): Desktop | null {
         icons: Array.isArray(r.icons)
             ? r.icons.map((i) => normalizeIcon(i)).filter((i): i is DesktopIcon => i !== null)
             : [],
-        windows: Array.isArray(r.windows)
-            ? r.windows.map((w) => normalizeWindow(w)).filter((w): w is DesktopWindow => w !== null)
-            : [],
+        windows,
         view: normalizeView(r.view),
+        tiling: normalizeTiling(r.tiling, windows),
     };
 }
 
@@ -842,27 +934,29 @@ export function openWindow(
         const w = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
         const h = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
         const idx = d.windows.length;
+        // Cascada que NUNCA invade la banda de la barra superior (B-1).
+        const maxY = Math.max(DESKTOP_TOP_INSET, vh - h - 120);
         const win: DesktopWindow = {
             id: resultId,
             contentRef,
             x: Math.max(8, Math.min(48 + (idx % 6) * 36, vw - w - 16)),
-            y: Math.max(4, Math.min(20 + (idx % 6) * 30, vh - h - 120)),
+            y: Math.min(clampWindowY(DESKTOP_TOP_INSET + 6 + (idx % 6) * 30), maxY),
             w,
             h,
             z: nextZ(d),
             minimized: false,
             maximized: false,
         };
-        return { ...d, windows: [...d.windows, win] };
+        // Si hay mosaico activo, la ventana nueva entra en él (no se queda suelta).
+        return reconcileTiling({ ...d, windows: [...d.windows, win] });
     });
     return resultId;
 }
 
 export function closeWindow(desktopId: string, winId: string): void {
-    mutateDesktop(desktopId, (d) => ({
-        ...d,
-        windows: d.windows.filter((w) => w.id !== winId),
-    }));
+    mutateDesktop(desktopId, (d) =>
+        reconcileTiling({ ...d, windows: d.windows.filter((w) => w.id !== winId) }),
+    );
 }
 
 export function focusWindow(desktopId: string, winId: string): void {
@@ -880,12 +974,49 @@ export function focusWindow(desktopId: string, winId: string): void {
 export function setWindowMinimized(desktopId: string, winId: string, minimized: boolean): void {
     mutateDesktop(desktopId, (d) => {
         const z = minimized ? 0 : nextZ(d);
-        return {
+        return reconcileTiling({
             ...d,
             windows: d.windows.map((w) =>
-                w.id === winId ? { ...w, minimized, ...(minimized ? {} : { z }) } : w,
+                w.id === winId
+                    ? { ...w, minimized, ...(minimized ? { fullscreen: false } : { z }) }
+                    : w,
             ),
-        };
+        });
+    });
+}
+
+/**
+ * Pantalla COMPLETA (B-3). A diferencia de `maximized` (que respeta la barra
+ * superior y vive en la capa z-[15] del lienzo), la ventana en pantalla
+ * completa se renderiza en su PROPIA capa por encima de la barra y del dock.
+ * Guarda/restaura el rect previo igual que maximizar.
+ */
+export function toggleWindowFullscreen(desktopId: string, winId: string): void {
+    mutateDesktop(desktopId, (d) => {
+        const target = d.windows.find((w) => w.id === winId);
+        if (!target) return d;
+        const top = nextZ(d);
+        const windows = d.windows.map((w) => {
+            if (w.id !== winId) return w;
+            if (w.fullscreen) {
+                const prev = w.prev;
+                return {
+                    ...w,
+                    fullscreen: false,
+                    prev: undefined,
+                    ...(prev ? { x: prev.x, y: clampWindowY(prev.y), w: prev.w, h: prev.h } : {}),
+                };
+            }
+            return {
+                ...w,
+                fullscreen: true,
+                minimized: false,
+                z: top,
+                prev: w.prev ?? { x: w.x, y: w.y, w: w.w, h: w.h },
+            };
+        });
+        // Una ventana a pantalla completa sale del mosaico mientras dure.
+        return reconcileTiling({ ...d, windows });
     });
 }
 
@@ -900,7 +1031,7 @@ export function toggleWindowMaximized(desktopId: string, winId: string): void {
                     ...w,
                     maximized: false,
                     prev: undefined,
-                    ...(prev ? { x: prev.x, y: prev.y, w: prev.w, h: prev.h } : {}),
+                    ...(prev ? { x: prev.x, y: clampWindowY(prev.y), w: prev.w, h: prev.h } : {}),
                 };
             }
             return {
@@ -920,13 +1051,160 @@ export function setWindowRect(desktopId: string, winId: string, rect: Partial<De
                 ? {
                     ...w,
                     ...(rect.x !== undefined ? { x: rect.x } : {}),
-                    ...(rect.y !== undefined ? { y: rect.y } : {}),
+                    // B-1: ninguna ventana puede quedar bajo la barra superior.
+                    ...(rect.y !== undefined ? { y: clampWindowY(rect.y) } : {}),
                     ...(rect.w !== undefined ? { w: Math.max(280, rect.w) } : {}),
                     ...(rect.h !== undefined ? { h: Math.max(200, rect.h) } : {}),
                 }
                 : w,
         ),
     }));
+}
+
+// ── Acciones: mosaico / pantalla dividida (B-3) ──────────────────
+
+/** Ventanas que participan en el mosaico (visibles y no en pantalla completa). */
+function tileableWindows(d: Desktop): DesktopWindow[] {
+    return d.windows.filter((w) => !w.minimized && !w.fullscreen);
+}
+
+/**
+ * Mantiene el mosaico coherente con las ventanas vivas: añade las nuevas a la
+ * columna más corta, elimina las que ya no están y renormaliza fracciones.
+ * Si no queda ninguna (o no había mosaico), devuelve el escritorio sin `tiling`.
+ */
+function reconcileTiling(d: Desktop): Desktop {
+    if (!d.tiling) return d;
+    const live = tileableWindows(d);
+    const liveIds = new Set(live.map((w) => w.id));
+    const placed = new Set<string>();
+    const cols: string[][] = [];
+    const rowFrIn: number[][] = [];
+    d.tiling.cols.forEach((col, i) => {
+        const rows: string[] = [];
+        const frs: number[] = [];
+        col.forEach((id, j) => {
+            if (!liveIds.has(id) || placed.has(id)) return;
+            placed.add(id);
+            rows.push(id);
+            frs.push(d.tiling!.rowFr[i]?.[j] ?? 0);
+        });
+        if (rows.length > 0) {
+            cols.push(rows);
+            rowFrIn.push(frs);
+        }
+    });
+    // Ventanas nuevas → a la columna con menos filas (reparto natural).
+    for (const w of live) {
+        if (placed.has(w.id)) continue;
+        if (cols.length === 0) { cols.push([w.id]); rowFrIn.push([0]); continue; }
+        let best = 0;
+        for (let i = 1; i < cols.length; i++) if (cols[i].length < cols[best].length) best = i;
+        cols[best].push(w.id);
+        rowFrIn[best].push(0);
+    }
+    if (cols.length === 0) {
+        const { tiling: _drop, ...rest } = d;
+        void _drop;
+        return rest;
+    }
+    // Las columnas conservan su ancho; las filas nuevas entran a partes iguales.
+    const colFr = normalizeFractions(
+        cols.map((_, i) => d.tiling!.colFr[i] ?? 0),
+        cols.length,
+    );
+    return {
+        ...d,
+        tiling: { cols, colFr, rowFr: cols.map((col, i) => normalizeFractions(rowFrIn[i], col.length)) },
+    };
+}
+
+/** Construye un mosaico automático con TODAS las ventanas visibles. */
+export function tileWindows(desktopId: string, mode: TileMode = "grid"): void {
+    mutateDesktop(desktopId, (d) => {
+        const live = tileableWindows(d).sort((a, b) => a.z - b.z);
+        if (live.length === 0) return d;
+        const n = live.length;
+        const colCount =
+            mode === "columns" ? n
+                : mode === "rows" ? 1
+                    : Math.ceil(Math.sqrt(n)); // grid ≈ cuadrado
+        const cols: string[][] = Array.from({ length: colCount }, () => []);
+        // Reparto por columnas (round-robin) → alturas equilibradas con cualquier N.
+        live.forEach((w, i) => cols[i % colCount].push(w.id));
+        const used = cols.filter((c) => c.length > 0);
+        return {
+            ...d,
+            tiling: {
+                cols: used,
+                colFr: normalizeFractions([], used.length),
+                rowFr: used.map((c) => normalizeFractions([], c.length)),
+            },
+        };
+    });
+}
+
+/** Deshace el mosaico: las ventanas vuelven a ser libres (conservan su rect). */
+export function clearTiling(desktopId: string): void {
+    mutateDesktop(desktopId, (d) => {
+        if (!d.tiling) return d;
+        const { tiling: _drop, ...rest } = d;
+        void _drop;
+        return rest;
+    });
+}
+
+/** Aplica el arrastre de un divisor: nuevas fracciones de columnas y/o filas. */
+export function setTileFractions(
+    desktopId: string,
+    patch: { colFr?: number[]; rowFr?: { col: number; fr: number[] } },
+): void {
+    mutateDesktop(desktopId, (d) => {
+        if (!d.tiling) return d;
+        const t = d.tiling;
+        const colFr = patch.colFr ? normalizeFractions(patch.colFr, t.cols.length) : t.colFr;
+        const rowFr = patch.rowFr
+            ? t.rowFr.map((fr, i) =>
+                i === patch.rowFr!.col ? normalizeFractions(patch.rowFr!.fr, t.cols[i].length) : fr,
+            )
+            : t.rowFr;
+        return { ...d, tiling: { ...t, colFr, rowFr } };
+    });
+}
+
+/**
+ * Rects en píxeles de cada ventana del mosaico para un viewport dado.
+ * Puro (sin DOM) → el lienzo lo usa en render y el frame solo pinta.
+ */
+export function tiledRects(
+    tiling: DesktopTiling,
+    vw: number,
+    vh: number,
+    topInset: number,
+    gap = 6,
+): Record<string, DesktopWindowRect> {
+    const out: Record<string, DesktopWindowRect> = {};
+    const x0 = gap;
+    const y0 = topInset + gap;
+    const totalW = Math.max(0, vw - gap * 2);
+    const totalH = Math.max(0, vh - y0 - gap);
+    let cx = x0;
+    tiling.cols.forEach((col, i) => {
+        const cw = Math.round(totalW * (tiling.colFr[i] ?? 1 / tiling.cols.length));
+        let cy = y0;
+        col.forEach((id, j) => {
+            const rh = Math.round(totalH * (tiling.rowFr[i]?.[j] ?? 1 / col.length));
+            out[id] = {
+                x: cx,
+                y: cy,
+                w: Math.max(120, cw - gap),
+                h: Math.max(100, rh - gap),
+            };
+            cy += rh;
+        });
+        cx += cw;
+    });
+    return out;
 }
 
 // ── Suscripción + hooks ──────────────────────────────────────────

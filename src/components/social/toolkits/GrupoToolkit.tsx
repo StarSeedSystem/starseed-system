@@ -18,7 +18,9 @@ import {
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Carril de pestañas: `SectionTabs` (menú unificado del OS). (Adenda 68 §C)
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { GroupEducationPanel } from "@/components/education/group-education-panel";
@@ -39,6 +41,15 @@ import {
   Network,
   Landmark,
 } from "lucide-react";
+
+const TABS: SectionTabItem[] = [
+  { value: "sesiones", label: "Sesiones", icon: CalendarClock },
+  { value: "tareas", label: "Tareas", icon: ListTodo },
+  { value: "recursos", label: "Recursos", icon: BookOpen },
+  { value: "eventos", label: "Eventos", icon: Network },
+  { value: "educacion", label: "Educación", icon: GraduationCap },
+  { value: "decisiones", label: "Decisiones", icon: Landmark },
+];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -278,6 +289,8 @@ export function GrupoToolkit({
 }) {
   const data = getGroup(slug);
   const ac = accent ?? "#22d3ee";
+  // `Tabs` controlado: lo exige el carril externo (`SectionTabs`).
+  const [tab, setTab] = useState("sesiones");
 
   // Acciones por defecto de la entidad (Adenda 63 §8). El ámbito real (grupo
   // os_groups o página os_pages) llega en entityKind, igual que en Educación.
@@ -324,56 +337,14 @@ export function GrupoToolkit({
         <span className="text-sm text-white/50">{data.blurb}</span>
       </div>
 
-      <Tabs defaultValue="sesiones">
-        <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto gap-1 bg-white/5 p-1 rounded-xl">
-          <TabsTrigger
-            value="sesiones"
-            className="cursor-pointer whitespace-nowrap data-[state=active]:text-white"
-            style={
-              {
-                "--tw-ring-color": ac,
-              } as React.CSSProperties
-            }
-          >
-            <CalendarClock size={13} className="mr-1.5 inline" />
-            Sesiones
-          </TabsTrigger>
-          <TabsTrigger
-            value="tareas"
-            className="cursor-pointer whitespace-nowrap"
-          >
-            <ListTodo size={13} className="mr-1.5 inline" />
-            Tareas
-          </TabsTrigger>
-          <TabsTrigger
-            value="recursos"
-            className="cursor-pointer whitespace-nowrap"
-          >
-            <BookOpen size={13} className="mr-1.5 inline" />
-            Recursos
-          </TabsTrigger>
-          <TabsTrigger
-            value="eventos"
-            className="cursor-pointer whitespace-nowrap"
-          >
-            <Network size={13} className="mr-1.5 inline" />
-            Eventos
-          </TabsTrigger>
-          <TabsTrigger
-            value="educacion"
-            className="cursor-pointer whitespace-nowrap"
-          >
-            <GraduationCap size={13} className="mr-1.5 inline" />
-            Educación
-          </TabsTrigger>
-          <TabsTrigger
-            value="decisiones"
-            className="cursor-pointer whitespace-nowrap"
-          >
-            <Landmark size={13} className="mr-1.5 inline" />
-            Decisiones
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={tab} onValueChange={setTab}>
+        <SectionTabs
+          items={TABS}
+          value={tab}
+          onValueChange={setTab}
+          size="sm"
+          ariaLabel="Herramientas del grupo"
+        />
 
         <TabsContent value="sesiones" className="mt-4">
           <TabSesiones data={data} ac={ac} />

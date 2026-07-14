@@ -21,7 +21,9 @@ import {
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Carril de pestañas: `SectionTabs` (menú unificado del OS). (Adenda 68 §C)
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { EntityLibraryPanel } from "@/components/library/entity-library-panel";
@@ -46,6 +48,16 @@ import {
   ShieldCheck,
   BookMarked,
 } from "lucide-react";
+
+const TABS: SectionTabItem[] = [
+  { value: "legislativo", label: "Legislativo", icon: Scale },
+  { value: "ejecutivo", label: "Ejecutivo", icon: Wallet },
+  { value: "judicial", label: "Judicial", icon: HeartHandshake },
+  { value: "territorio", label: "Territorio", icon: Map },
+  { value: "voto-liquido", label: "Voto Líquido", icon: Network },
+  { value: "decisiones", label: "Decisiones", icon: Gavel },
+  { value: "biblioteca", label: "Biblioteca", icon: BookMarked },
+];
 
 // Humanise a slug → "Taller De Permacultura"
 function humaniseSlug(slug: string): string {
@@ -72,6 +84,8 @@ export function EntidadFederativaToolkit({
 }) {
   const data = getFederativeEntity(slug);
   const ac = accent ?? "#007FFF";
+  // `Tabs` controlado: lo exige el carril externo (`SectionTabs`).
+  const [tab, setTab] = useState("legislativo");
 
   // Acciones por defecto de la entidad (Adenda 63 §8).
   const quickActions = (
@@ -121,37 +135,15 @@ export function EntidadFederativaToolkit({
         <span className="text-xs text-muted-foreground">{data.blurb}</span>
       </div>
 
-      <Tabs defaultValue="legislativo">
-        <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto gap-1 mb-4">
-          <TabsTrigger value="legislativo" className="cursor-pointer whitespace-nowrap">
-            <Scale className="mr-1.5 h-3.5 w-3.5" />
-            Legislativo
-          </TabsTrigger>
-          <TabsTrigger value="ejecutivo" className="cursor-pointer whitespace-nowrap">
-            <Wallet className="mr-1.5 h-3.5 w-3.5" />
-            Ejecutivo
-          </TabsTrigger>
-          <TabsTrigger value="judicial" className="cursor-pointer whitespace-nowrap">
-            <HeartHandshake className="mr-1.5 h-3.5 w-3.5" />
-            Judicial
-          </TabsTrigger>
-          <TabsTrigger value="territorio" className="cursor-pointer whitespace-nowrap">
-            <Map className="mr-1.5 h-3.5 w-3.5" />
-            Territorio
-          </TabsTrigger>
-          <TabsTrigger value="voto-liquido" className="cursor-pointer whitespace-nowrap">
-            <Network className="mr-1.5 h-3.5 w-3.5" />
-            Voto Líquido
-          </TabsTrigger>
-          <TabsTrigger value="decisiones" className="cursor-pointer whitespace-nowrap">
-            <Gavel className="mr-1.5 h-3.5 w-3.5" />
-            Decisiones
-          </TabsTrigger>
-          <TabsTrigger value="biblioteca" className="cursor-pointer whitespace-nowrap">
-            <BookMarked className="mr-1.5 h-3.5 w-3.5" />
-            Biblioteca
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={tab} onValueChange={setTab}>
+        <SectionTabs
+          items={TABS}
+          value={tab}
+          onValueChange={setTab}
+          size="sm"
+          className="mb-4"
+          ariaLabel="Herramientas de la Entidad Federativa"
+        />
 
         {/* ── TAB 1: LEGISLATIVO ── */}
         <TabsContent value="legislativo" className="space-y-6">

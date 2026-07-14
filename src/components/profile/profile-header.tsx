@@ -1,11 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import React from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Rss, Edit, Bookmark, Share2 } from "lucide-react";
 import Image from "next/image";
 import { ProfileStatsBlocks } from "./profile-stats-blocks";
 
@@ -57,43 +54,58 @@ export function ProfileHeader({ profileData }: ProfileHeaderProps) {
                 <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-secondary/10 opacity-30 mix-blend-overlay" />
             </div>
 
-            {/* Content Layer */}
-            <div className="relative z-10 px-[clamp(1rem,4vw,2rem)] pt-[clamp(5rem,18vw,8rem)] flex flex-col md:flex-row items-start md:items-end gap-[clamp(1rem,3vw,1.5rem)]">
+            {/* Content Layer
+                Estructura responsive (Adenda 68 §C):
+                  · Móvil  → columna: avatar + identidad + bloques, todo a lo ancho.
+                  · ≥sm    → avatar y texto en fila; el texto SIEMPRE con `min-w-0`
+                             (si no, un nombre o un handle largo estiraría el flex
+                             y desbordaría la tarjeta).
+                Ya NO hay "Action Matrix" aquí: Seguir / Editar / Compartir / Mensaje
+                viven —reales y funcionando— en `ProfileQuickActions`, justo debajo.
+                Antes se duplicaban, y encima los botones Compartir y Guardar de esta
+                cabecera NO hacían nada (no tenían onClick): eran decoración. */}
+            <div className="relative z-10 flex min-w-0 flex-col gap-[clamp(0.75rem,3vw,1.5rem)] px-[clamp(0.875rem,4vw,2rem)] pt-[clamp(4rem,16vw,8rem)] sm:flex-row sm:items-end">
                 {/* Identity Core (Avatar) — imagen real o iniciales */}
                 <div className="relative shrink-0">
-                    <div className="h-[clamp(5rem,20vw,8rem)] w-[clamp(5rem,20vw,8rem)] rounded-full p-1 bg-gradient-to-br from-white/50 to-white/10 backdrop-blur-xl shadow-2xl ring-1 ring-white/30">
+                    <div className="h-[clamp(4.5rem,18vw,8rem)] w-[clamp(4.5rem,18vw,8rem)] rounded-full bg-gradient-to-br from-white/50 to-white/10 p-1 shadow-2xl ring-1 ring-white/30 backdrop-blur-xl">
                         <Avatar className="h-full w-full rounded-full border-2 border-transparent">
                             <AvatarImage
                                 src={profileData.avatar || undefined}
                                 className="object-cover"
                                 data-ai-hint={profileData.dataAiHint}
                             />
-                            <AvatarFallback className="text-[clamp(1.1rem,5vw,1.5rem)] font-bold bg-background/50 backdrop-blur">
+                            <AvatarFallback className="bg-background/50 text-[clamp(1.1rem,5vw,1.5rem)] font-bold backdrop-blur">
                                 {initialsOf(profileData.name)}
                             </AvatarFallback>
                         </Avatar>
                     </div>
                 </div>
 
-                {/* Info Array */}
-                <div className="flex-1 min-w-0 pb-2 w-full">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 backdrop-blur-sm text-[10px] sm:text-xs">
+                {/* Info Array — `min-w-0` es lo que permite truncar/envolver aquí dentro. */}
+                <div className="min-w-0 flex-1 pb-2">
+                    <Badge
+                        variant="outline"
+                        className="mb-1.5 max-w-full border-primary/20 bg-primary/10 text-[10px] text-primary backdrop-blur-sm sm:text-xs"
+                    >
+                        <span className="truncate">
                             {profileData.pageType && profileData.pageType !== "personal"
                                 ? profileData.pageType.charAt(0).toUpperCase() + profileData.pageType.slice(1)
                                 : "Ciudadano Soberano"}
-                        </Badge>
-                    </div>
+                        </span>
+                    </Badge>
 
-                    <h1 className="text-[clamp(1.5rem,6vw,2.25rem)] font-bold font-headline tracking-tight text-foreground drop-shadow-sm break-words">
+                    <h1 className="font-headline text-[clamp(1.35rem,6vw,2.25rem)] font-bold leading-tight tracking-tight text-foreground drop-shadow-sm [overflow-wrap:anywhere]">
                         {profileData.name}
                     </h1>
-                    <p className="text-[clamp(0.9rem,3.5vw,1.125rem)] font-medium text-muted-foreground/80 mb-4 font-mono truncate">
+                    <p className="mb-3 truncate font-mono text-[clamp(0.8rem,3.2vw,1.125rem)] font-medium text-muted-foreground/80">
                         {profileData.handle}
                     </p>
 
                     {profileData.bio && (
-                        <p className="max-w-2xl text-[clamp(0.875rem,2.5vw,1rem)] text-foreground/90 leading-relaxed backdrop-blur-sm rounded-lg break-words">
+                        // `line-clamp-4` + `[overflow-wrap:anywhere]`: una bio larga (o una
+                        // URL sin espacios) envuelve y se recorta con elegancia en vez de
+                        // estirar la tarjeta. Sin bio → no se pinta nada (vacío honesto).
+                        <p className="max-w-2xl text-[clamp(0.85rem,2.5vw,1rem)] leading-relaxed text-foreground/90 [overflow-wrap:anywhere] line-clamp-4 sm:line-clamp-none">
                             {profileData.bio}
                         </p>
                     )}
@@ -101,30 +113,6 @@ export function ProfileHeader({ profileData }: ProfileHeaderProps) {
                     {/* Display principal: bloques reales y configurables (sustituye a
                         las antiguas métricas inventadas Reputación / Nodos / Impacto). */}
                     <ProfileStatsBlocks handle={profileData.handle} isOwner={isOwner} />
-                </div>
-
-                {/* Action Matrix */}
-                <div className="flex flex-wrap sm:flex-nowrap md:flex-col lg:flex-row gap-3 md:mb-2 w-full md:w-auto mt-4 md:mt-0">
-                    {!isOwner && (
-                        <Button size="lg" className="flex-1 sm:flex-none cursor-pointer shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-shadow gap-2">
-                            <Rss className="h-4 w-4" /> Seguir
-                        </Button>
-                    )}
-                    {isOwner && (
-                        <Button variant="outline" size="lg" asChild className="flex-1 sm:flex-none cursor-pointer backdrop-blur-md bg-background/30 border-white/10 hover:bg-background/50 gap-2">
-                            <Link href="/cuenta">
-                            <Edit className="h-4 w-4" /> Editar
-                            </Link>
-                        </Button>
-                    )}
-                    <div className="flex gap-2 shrink-0">
-                        <Button variant="ghost" size="icon" aria-label="Compartir perfil" className="h-10 w-10 cursor-pointer rounded-full hover:bg-white/10">
-                            <Share2 className="h-5 w-5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" aria-label="Guardar perfil" className="h-10 w-10 cursor-pointer rounded-full hover:bg-white/10">
-                            <Bookmark className="h-5 w-5" />
-                        </Button>
-                    </div>
                 </div>
             </div>
         </div>

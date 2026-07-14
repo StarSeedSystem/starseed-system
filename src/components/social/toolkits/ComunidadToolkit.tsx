@@ -19,7 +19,9 @@ import {
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Carril de pestañas: `SectionTabs` (menú unificado del OS). (Adenda 68 §C)
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { SectionTabs, type SectionTabItem } from "@/components/ui/section-tabs";
 import { Separator } from "@/components/ui/separator";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
 import { getCommunity, type CommunityData } from "@/data/sample-governance";
@@ -38,6 +40,14 @@ import {
     ArrowUpRight,
     Landmark,
 } from "lucide-react";
+
+const TABS: SectionTabItem[] = [
+    { value: "proyectos", label: "Proyectos", icon: Hammer },
+    { value: "procomun", label: "Procomún", icon: Boxes },
+    { value: "tesoreria", label: "Tesorería", icon: Wallet },
+    { value: "mentorias", label: "Mentorías", icon: GraduationCap },
+    { value: "decisiones", label: "Decisiones", icon: Landmark },
+];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -299,6 +309,8 @@ export function ComunidadToolkit({
 }) {
     const data = getCommunity(slug);
     const ac = accent ?? GOLD;
+    // `Tabs` controlado: lo exige el carril externo (`SectionTabs`).
+    const [tab, setTab] = useState("proyectos");
 
     // Acciones por defecto de la entidad (Adenda 63 §8). Las comunidades son
     // páginas (os_pages · kind "comunidad") → entityKind "page".
@@ -350,30 +362,15 @@ export function ComunidadToolkit({
                 </div>
             </div>
 
-            {/* Tabs */}
-            <Tabs defaultValue="proyectos">
-                <TabsList className="flex w-full flex-nowrap justify-start overflow-x-auto">
-                    <TabsTrigger value="proyectos" className="cursor-pointer shrink-0">
-                        <Hammer className="mr-1.5 h-3.5 w-3.5" />
-                        Proyectos
-                    </TabsTrigger>
-                    <TabsTrigger value="procomun" className="cursor-pointer shrink-0">
-                        <Boxes className="mr-1.5 h-3.5 w-3.5" />
-                        Procomún
-                    </TabsTrigger>
-                    <TabsTrigger value="tesoreria" className="cursor-pointer shrink-0">
-                        <Wallet className="mr-1.5 h-3.5 w-3.5" />
-                        Tesorería
-                    </TabsTrigger>
-                    <TabsTrigger value="mentorias" className="cursor-pointer shrink-0">
-                        <GraduationCap className="mr-1.5 h-3.5 w-3.5" />
-                        Mentorías
-                    </TabsTrigger>
-                    <TabsTrigger value="decisiones" className="cursor-pointer shrink-0">
-                        <Landmark className="mr-1.5 h-3.5 w-3.5" />
-                        Decisiones
-                    </TabsTrigger>
-                </TabsList>
+            {/* Tabs — carril unificado del OS (`SectionTabs`). */}
+            <Tabs value={tab} onValueChange={setTab}>
+                <SectionTabs
+                    items={TABS}
+                    value={tab}
+                    onValueChange={setTab}
+                    size="sm"
+                    ariaLabel="Herramientas de la comunidad"
+                />
 
                 <TabsContent value="proyectos" className="mt-4">
                     <TabProyectos data={data} ac={ac} />

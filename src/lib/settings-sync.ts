@@ -89,8 +89,12 @@ export const SYNCED_KEYS = [
     "starseed.aurora.persona-profiles.v1", // perfiles de personalidad (avatar, permisos, aprendizaje)
     "starseed.astraura.deploy.v1",         // qué habilidades/repos se instalan en cada neurona/cerebro/perfil
     "starseed.astraura.scope.v1",          // ámbito unificado de Astraura (cuenta/grupos/páginas/entidades)
-    // ── Conectores de integraciones (Adenda 67 · P4). Solo endpoints/preferencias:
-    //    las CLAVES de cada servicio quedan cifradas en el dispositivo, nunca viajan.
+    // ── Conectores de integraciones (Adenda 67 · P4 · ampliado en Adenda 68 A) ───
+    //    Viajan enabled/endpoint/extra NO secreto. La CLAVE de cada servicio
+    //    (`apiKey`, y los campos secretos de `extra`) se ELIMINA antes de subir
+    //    (`sanitizeForCloud`) y se RESTAURA desde el dispositivo al aplicar
+    //    (`mergeLocalSecrets`). ⚠️ Antes de la Adenda 68 esto NO era cierto: el
+    //    objeto entero (con `apiKey` en claro) se subía a `user_settings.prefs`.
     "starseed.integration.typesense",        // búsqueda (con caída a Supabase)
     "starseed.integration.postiz",           // publicación en redes (siempre con confirmación explícita)
     "starseed.integration.tencentdb-memory", // memoria de agente por gateway HTTP
@@ -98,6 +102,23 @@ export const SYNCED_KEYS = [
     "starseed.integration.openmanus",        // delegación de tareas a agentes
     "starseed.integration.penpot",           // diseño/lienzo por instancia
     "starseed.integration.opencut",          // edición de vídeo
+    "starseed.integration.searxng",          // búsqueda web soberana de Aurora
+    // ── Adenda 68 · A · SYNC TOTAL de Aurora/Astraura ────────────────────────
+    //    Todo lo de Aurora/Astraura es de ÁMBITO CUENTA (decisión del usuario):
+    //    la misma Aurora en cualquier neurona/dispositivo/perfil de la cuenta.
+    "starseed.capabilities.v1",        // capacidades/skills ACTIVAS (espejo de lo instalado) — ai/astraura/skills.ts
+    "starseed.aurora.avatar.v1",       // avatar y presencia visual de Aurora — ai/astraura/avatar-config.ts
+    "starseed.aurora.channels.v1",     // canales de Aurora (chat interno, Telegram, Google Chat…) — lib/channels/telegram.ts
+    "starseed.astraura.webaccess.v1",  // acceso web de Aurora (on/off + política) — ai/astraura/web-access.ts
+    "starseed.aurora.always-on",       // escucha continua (wake word) — lib/aurora/wake-word.ts
+    "starseed.aurora.autonomy",        // autonomía de voz de Aurora — lib/aurora/voice-autonomy.ts
+    "starseed.aurora.wake.acoustic",   // wake acústico activado (la CLAVE Porcupine NUNCA viaja)
+    "starseed.aurora.oss-tts",         // opt-in del TTS OSS — lib/aurora/tts-oss/opt-in.ts
+    "starseed.aurora.oss-tts.voice",   // voz elegida del TTS OSS
+    "starseed.aurora.oss-stt",         // opt-in del STT OSS (Whisper) — lib/aurora/stt-oss/opt-in.ts
+    "starseed.aurora.oss-stt.model",   // modelo de Whisper elegido
+    "starseed.aurora.oss-stt.lang",    // idioma del STT OSS
+    "starseed.ai.nim-function-model.v1", // modelo por función (NIM) — ai/functions/function-models.ts
     // ── Alarmas funcionales (jul-2026 · lib/alarms/alarms.ts) ─────────────────
     "starseed.alarms.v1", // alarmas del usuario (mensajes/correos/invitaciones a eventos) + snooze/descarte
     // ── Hub de Conectores por usuario (jul-2026 · connector-credentials.ts) ───
@@ -150,6 +171,144 @@ export const SYNCED_PREFIX_EXCLUDE = [
     "starseed.entitylib.", // Biblioteca por entidad: la gestiona entity-state.ts, no la cuenta
 ] as const;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * SECRETOS Y CLAVES DE DISPOSITIVO — LO QUE NUNCA VIAJA (Adenda 68 · A)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Regla del proyecto (CLAUDE.md §6 · Identidad Soberana): las CREDENCIALES se
+ * quedan cifradas en el dispositivo. Aquí se hace CUMPLIR, no solo se declara.
+ *
+ * Dos mecanismos:
+ *   1. `NEVER_SYNCED_KEYS` / `NEVER_SYNCED_PREFIXES` — la clave entera nunca
+ *      sale del dispositivo (secretos puros y estado local del dispositivo).
+ *   2. `sanitizeForCloud()` — para claves que SÍ viajan pero cuyo VALOR mezcla
+ *      config útil con secretos (las integraciones: `{enabled, endpoint,
+ *      apiKey, extra}`). Se sube la config y se poda el secreto.
+ */
+
+/** Claves que JAMÁS se suben (ni por clave exacta ni por prefijo dinámico). */
+export const NEVER_SYNCED_KEYS = [
+    // ── Secretos puros ──────────────────────────────────────────────────────
+    "starseed.ai.providers",            // proveedores IA del usuario (claves cifradas en el dispositivo)
+    "starseed.ai.active",               // proveedor activo (apunta a una clave local)
+    "starseed.ai.salt",                 // material criptográfico del cifrado local
+    "starseed.ai.verifier",             // verificador de la contraseña maestra local
+    "starseed.connectors.creds.v1",     // credenciales del Hub de Conectores (cifradas, locales)
+    "starseed.aurora.wake.porcupine.key", // clave de Porcupine (wake acústico)
+    "starseed.aurora.chats.v1",         // multichat: cada chat puede llevar `apiKey` EN CLARO (mode:"custom")
+    // ── Estado propio del DISPOSITIVO (sincronizarlo lo rompería) ───────────
+    "starseed.aurora.leader.v1",        // elección de instancia única de Aurora (por pestaña/dispositivo)
+    "starseed.aurora.orb.hidden.v1",    // descarte de sesión del orbe (no es preferencia estable)
+    "starseed.aurora.greeted.session",  // saludo ya dado en esta sesión
+    "starseed.astraura.cooldown.v1",    // cooldown de fuentes de IA (medido en ESTE dispositivo)
+    "starseed.astraura.usage.v1",       // contadores de uso locales
+    "starseed.astraura.routes.v1",      // log de rutas del router (telemetría local)
+    "starseed.astraura.huggingbay.cache.v1", // caché de catálogo
+    "starseed.sync.realtime.v1",        // interruptor del motor (deliberadamente por dispositivo)
+    "starseed.sync.meta.v1",            // marcas de tiempo LWW locales (ver realtime-sync.ts)
+] as const;
+
+/** Prefijos que JAMÁS se suben. */
+export const NEVER_SYNCED_PREFIXES = [
+    "starseed.ai.key.",         // material de claves API por proveedor
+    "starseed.connectors.cred", // cualquier variante de credenciales
+] as const;
+
+/** ¿Esta clave está PROHIBIDA en la nube? (secreto o estado del dispositivo). */
+export function isNeverSyncedKey(key: string): boolean {
+    if ((NEVER_SYNCED_KEYS as readonly string[]).includes(key)) return true;
+    return NEVER_SYNCED_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
+/** ¿Es la config de una integración? (global o por cerebro). */
+export function isIntegrationConfigKey(key: string): boolean {
+    return (
+        key.startsWith("starseed.integration.") ||
+        /^starseed\.brain\.[^.]+\.integration\./.test(key)
+    );
+}
+
+/** Nombres de campo que se consideran secretos dentro de `extra` de una integración. */
+const SECRET_FIELD_RE = /(key|token|secret|password|passwd|pass|auth|credential|bearer)/i;
+
+/**
+ * Poda los SECRETOS del valor antes de subirlo a la cuenta.
+ * Hoy solo las integraciones mezclan config y secreto; el resto pasa tal cual.
+ * Nunca lanza: ante cualquier duda devuelve el valor original SOLO si no es una
+ * clave de integración (si lo es y no se puede podar, se descarta el valor).
+ */
+export function sanitizeForCloud(key: string, value: unknown): unknown {
+    if (!isIntegrationConfigKey(key)) return value;
+    try {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+        const v = value as Record<string, unknown>;
+        const out: Record<string, unknown> = {};
+        for (const [k, val] of Object.entries(v)) {
+            if (k === "apiKey") continue; // el secreto se queda en el dispositivo
+            if (k === "extra" && val && typeof val === "object" && !Array.isArray(val)) {
+                const extra: Record<string, unknown> = {};
+                for (const [ek, ev] of Object.entries(val as Record<string, unknown>)) {
+                    if (SECRET_FIELD_RE.test(ek)) continue; // p. ej. extra.token, extra.apiSecret
+                    extra[ek] = ev;
+                }
+                out.extra = extra;
+                continue;
+            }
+            out[k] = val;
+        }
+        return out;
+    } catch {
+        return {}; // ante un valor raro, mejor subir nada que subir un secreto
+    }
+}
+
+/**
+ * Devuelve el valor remoto CON los secretos locales reinyectados, para que
+ * aplicar la config de otro dispositivo no BORRE la clave que este dispositivo
+ * sí tiene guardada (la clave nunca viaja, pero tampoco debe perderse).
+ */
+export function mergeLocalSecrets(key: string, remoteValue: unknown, localRaw: string | null): unknown {
+    if (!isIntegrationConfigKey(key)) return remoteValue;
+    try {
+        if (!remoteValue || typeof remoteValue !== "object" || Array.isArray(remoteValue)) return remoteValue;
+        if (!localRaw) return remoteValue;
+        const local = JSON.parse(localRaw) as Record<string, unknown> | null;
+        if (!local || typeof local !== "object" || Array.isArray(local)) return remoteValue;
+
+        const merged: Record<string, unknown> = { ...(remoteValue as Record<string, unknown>) };
+        if (typeof local.apiKey === "string" && local.apiKey) merged.apiKey = local.apiKey;
+
+        const localExtra = local.extra;
+        if (localExtra && typeof localExtra === "object" && !Array.isArray(localExtra)) {
+            const remoteExtra =
+                merged.extra && typeof merged.extra === "object" && !Array.isArray(merged.extra)
+                    ? { ...(merged.extra as Record<string, unknown>) }
+                    : {};
+            for (const [ek, ev] of Object.entries(localExtra as Record<string, unknown>)) {
+                if (SECRET_FIELD_RE.test(ek)) remoteExtra[ek] = ev; // el secreto local manda
+            }
+            merged.extra = remoteExtra;
+        }
+        return merged;
+    } catch {
+        return remoteValue;
+    }
+}
+
+/** Claves de Aurora/Astraura (ámbito CUENTA) — usado por la UI de sincronización. */
+export function isAuroraKey(key: string): boolean {
+    return (
+        key.startsWith("starseed.aurora.") ||
+        key.startsWith("starseed.astraura.") ||
+        key === "starseed.capabilities.v1" ||
+        isIntegrationConfigKey(key)
+    );
+}
+
+/** Claves de Aurora/Astraura que SÍ se sincronizan (para contar en la UI). */
+export function auroraSyncedKeys(): string[] {
+    return (SYNCED_KEYS as readonly string[]).filter((k) => isAuroraKey(k) && !isNeverSyncedKey(k));
+}
+
 export interface SyncResult {
     ok: boolean;
     reason?: "no-session" | "no-table" | "empty" | "error";
@@ -171,10 +330,13 @@ function collectPrefs(): Record<string, unknown> {
     const bundle: Record<string, unknown> = {};
     if (typeof window === "undefined") return bundle;
     for (const key of SYNCED_KEYS) {
+        if (isNeverSyncedKey(key)) continue; // defensa en profundidad (nunca debería estar en la lista)
         const raw = window.localStorage.getItem(key);
         if (raw != null) {
-            try { bundle[key] = JSON.parse(raw); }
-            catch { bundle[key] = raw; } // valores no-JSON (p.ej. "on"/"off") tal cual
+            let value: unknown;
+            try { value = JSON.parse(raw); }
+            catch { value = raw; } // valores no-JSON (p.ej. "on"/"off") tal cual
+            bundle[key] = sanitizeForCloud(key, value); // los secretos NO salen del dispositivo
         }
     }
     return bundle;
@@ -247,12 +409,16 @@ export async function pullPreferences(): Promise<SyncResult & { applied?: string
 
         const applied: string[] = [];
         for (const [key, value] of Object.entries(data.prefs as Record<string, unknown>)) {
+            if (isNeverSyncedKey(key)) continue; // nunca aplicar secretos/estado de otro dispositivo
             const isExactKey = (SYNCED_KEYS as readonly string[]).includes(key);
             const isExcludedPrefix = SYNCED_PREFIX_EXCLUDE.some((prefix) => key.startsWith(prefix));
             const isDynamicPrefix = !isExcludedPrefix && SYNCED_PREFIXES.some((prefix) => key.startsWith(prefix));
             if (!isExactKey && !isDynamicPrefix) continue; // ni clave exacta ni prefijo dinámico permitido
             try {
-                const serialized = typeof value === "string" ? value : JSON.stringify(value);
+                // La clave API local se conserva: la nube nunca la trae, y aplicar
+                // la config remota no debe borrar la que este dispositivo ya tiene.
+                const merged = mergeLocalSecrets(key, value, window.localStorage.getItem(key));
+                const serialized = typeof merged === "string" ? merged : JSON.stringify(merged);
                 window.localStorage.setItem(key, serialized);
                 applied.push(key);
             } catch { /* clave individual ignorada */ }

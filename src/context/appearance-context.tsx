@@ -1,7 +1,18 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
+// Capas de fondo (Adenda 68 · D): la pila que va ENCIMA del fondo base.
+// La migración `migrateBackgroundLayers` es la que apaga el fantasma de
+// Audiomorphic en las configs ya persistidas. Ver src/lib/appearance/background-layers.ts.
+import {
+    BG_LAYERS_VERSION,
+    migrateBackgroundLayers,
+    normalizeLayers,
+    type BackgroundLayer,
+} from "@/lib/appearance/background-layers";
+import { ACTIVE_PROFILE_KEY, PROFILE_ACTIVE_EVENT } from "@/lib/profiles/profiles";
 // Catálogo de TEMAS/ESTILOS (theme-engine.ts + theme-catalog.ts): importar el
 // catálogo registra sus ~24 ThemePacks builtin (efecto de carga, side-effect
 // de registerTheme). appliedTheme()/applyTheme() re-aplican el tema que el
@@ -67,11 +78,36 @@ export interface AppearanceConfig {
         crystalPreset?: "none" | "clear" | "frosted" | "holographic" | "obsidian" | "quantic" | "organic-frosted";
     };
     background: {
+        /**
+         * FONDO BASE (la capa de abajo del todo). Los motores pesados del OS
+         * (Spline, WebGL, Living, Materia…) son singletons que leen este campo.
+         *
+         * ⚠️ "audiomorphic" está DEPRECADO como tipo base (Adenda 68 · D): el
+         * visualizador ya NO es un fondo exclusivo sino una CAPA de `layers`.
+         * Se mantiene en la unión sólo para que las configs antiguas tipen; la
+         * migración de arranque lo convierte en capa apagada. Nada del código
+         * nuevo debe volver a escribirlo aquí.
+         */
         type: "solid" | "gradient" | "image" | "video" | "webgl" | "spline"
             | "liquid-aurora" | "liquid-plasma" | "liquid-lava" | "liquid-oceanic" | "liquid-iris"
             | "materia-oro-vivo" | "materia-cristal-liquido" | "materia-bosque-dorado"
             | "living" // fondo animado vivo (canvas, variantes creativas, siempre activo)
-            | "audiomorphic"; // visualizador Audiomorphic embebido a pantalla completa (iframe)
+            | "audiomorphic"; // DEPRECADO (ver arriba) — migrado a capa
+        /**
+         * PILA DE CAPAS que se pinta ENCIMA del fondo base, en orden
+         * (índice 0 = la más baja). Cada capa: tipo, opacidad, mezcla,
+         * visibilidad. Opcional → una config antigua (sin capas) sigue siendo
+         * válida y se comporta exactamente igual que antes (pila vacía).
+         */
+        layers?: BackgroundLayer[];
+        /** Versión del modelo de capas (dispara la migración). */
+        layersVersion?: number;
+        /**
+         * ÁMBITO del fondo: overrides por PERFIL o por PÁGINA/PROGRAMA.
+         * Clave: `perfil:<id>` · `pagina:<ruta>`. Valor: parche del fondo que
+         * se fusiona sobre el global. Resolución: página > perfil > cuenta.
+         */
+        scopes?: Record<string, Record<string, unknown>>;
         value: string; // url or css value
         blur: number; // background blur
         animation: "none" | "pan" | "zoom" | "pulse" | "scroll";
@@ -443,6 +479,11 @@ const defaultConfig: AppearanceConfig = {
         // Cada usuario lo personaliza luego en su cuenta (Ajustes → Apariencia → Fondo).
         // Cambio aditivo: configs guardadas conservan su type. SOP: integracion-portal.
         type: "spline",
+        // Pila de capas VACÍA por defecto: el OS arranca con UN solo fondo.
+        // Audiomorphic NO entra aquí — es opt-in desde Ajustes → Apariencia.
+        layers: [],
+        layersVersion: BG_LAYERS_VERSION,
+        scopes: {},
         value: "",
         blur: 0,
         animation: "none",
@@ -686,8 +727,26 @@ const defaultConfig: AppearanceConfig = {
     },
 };
 
+/** Ámbito del fondo: cuenta (global) · perfil activo · página/programa actual. */
+export type BackgroundScopeMode = "cuenta" | "perfil" | "pagina";
+
 interface AppearanceContextType {
+    /** Config EFECTIVA (con el override de ámbito ya resuelto). */
     config: AppearanceConfig;
+    /** Config CRUDA/global (sin resolver ámbitos). La usa el panel de capas. */
+    rawConfig: AppearanceConfig;
+    // ── Ámbito del fondo (Adenda 68 · D) ────────────────────────────────
+    /** Ámbito en el que se ESCRIBEN los cambios de fondo. */
+    bgScopeMode: BackgroundScopeMode;
+    setBgScopeMode: (mode: BackgroundScopeMode) => void;
+    /** true si el ámbito activo tiene un fondo propio (override). */
+    bgScopeHasOverride: boolean;
+    /** Elimina el override del ámbito activo. */
+    clearBackgroundScope: () => void;
+    /** Ruta actual (la que identifica el ámbito "página"). */
+    bgScopePath: string;
+    /** Perfil activo (o null si no hay). */
+    bgScopeProfileId: string | null;
     updateConfig: (updates: DeepPartial<AppearanceConfig>) => void;
     resetConfig: () => void;
     updateSection: <K extends keyof AppearanceConfig>(section: K, data: DeepPartial<AppearanceConfig[K]>) => void;
@@ -761,6 +820,24 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
                     merged.typography.customFonts = [];
                 }
 
+                // ── MIGRACIÓN DE FONDO → CAPAS (Adenda 68 · D) ────────────────
+                // Es la que ARREGLA el bug real: una config con
+                // `background.type === "audiomorphic"` (grabada en su día por el
+                // widget / la ventana de config, y propagada a TODOS los
+                // dispositivos porque "appearance-config-v2" es una SYNCED_KEY de
+                // ámbito CUENTA) montaba el iframe del visualizador en cada carga.
+                // La migración lo saca del arranque y lo deja como capa APAGADA.
+                const migrated = migrateBackgroundLayers(merged.background ?? {});
+                merged.background = {
+                    ...merged.background,
+                    type: migrated.type,
+                    layers: migrated.layers,
+                    layersVersion: migrated.layersVersion,
+                    scopes: (merged.background?.scopes && typeof merged.background.scopes === "object")
+                        ? merged.background.scopes
+                        : {},
+                };
+
                 setConfig(merged);
             } catch (e) {
                 console.error("Failed to parse appearance config", e);
@@ -769,6 +846,66 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         }
         setMounted(true);
     }, []);
+
+    // ── Perfil activo (ámbito del fondo) ───────────────────────────────────
+    // Lectura barata de localStorage + evento (NO usamos useActiveProfile aquí:
+    // ese hook consulta Supabase y este provider envuelve TODO el árbol).
+    const [profileId, setProfileId] = useState<string | null>(null);
+    useEffect(() => {
+        const read = () => {
+            try { setProfileId(localStorage.getItem(ACTIVE_PROFILE_KEY) || null); } catch { setProfileId(null); }
+        };
+        read();
+        window.addEventListener(PROFILE_ACTIVE_EVENT, read);
+        window.addEventListener("storage", read);
+        return () => {
+            window.removeEventListener(PROFILE_ACTIVE_EVENT, read);
+            window.removeEventListener("storage", read);
+        };
+    }, []);
+
+    const pathname = usePathname() || "/";
+
+    // Ámbito de EDICIÓN del fondo (cuenta · perfil · página). Es una preferencia
+    // de la sesión de edición: no se persiste ni se sincroniza.
+    const [bgScopeMode, setBgScopeMode] = useState<BackgroundScopeMode>("cuenta");
+
+    const scopeKeyFor = React.useCallback((mode: BackgroundScopeMode): string | null => {
+        if (mode === "perfil") return profileId ? `perfil:${profileId}` : null;
+        if (mode === "pagina") return `pagina:${pathname}`;
+        return null;
+    }, [profileId, pathname]);
+
+    /**
+     * Fondo EFECTIVO: global ⟵ override de perfil ⟵ override de página.
+     * Todo el OS (incluidos los motores pesados, que leen `config.background.type`)
+     * consume el resultado, así que el ámbito funciona para el fondo entero.
+     */
+    const resolvedConfig = useMemo<AppearanceConfig>(() => {
+        const scopes = config.background?.scopes;
+        if (!scopes || typeof scopes !== "object") return config;
+        const profileOv = profileId ? scopes[`perfil:${profileId}`] : undefined;
+        // Página: coincidencia por prefijo más largo (una ruta hija hereda de su padre).
+        let pageOv: Record<string, unknown> | undefined;
+        let bestLen = -1;
+        for (const key of Object.keys(scopes)) {
+            if (!key.startsWith("pagina:")) continue;
+            const route = key.slice("pagina:".length);
+            if (route === pathname || (route !== "/" && pathname.startsWith(route + "/"))) {
+                if (route.length > bestLen) { bestLen = route.length; pageOv = scopes[key]; }
+            }
+        }
+        if (!profileOv && !pageOv) return config;
+        let background = config.background;
+        if (profileOv) background = deepMerge(background, profileOv);
+        if (pageOv) background = deepMerge(background, pageOv);
+        // Defensa: un override nunca puede resucitar el fondo fantasma.
+        if ((background.type as string) === "audiomorphic" || (background.type as string) === "none") {
+            background = { ...background, type: "spline" };
+        }
+        background = { ...background, layers: normalizeLayers(background.layers) };
+        return { ...config, background };
+    }, [config, profileId, pathname]);
 
     // Re-aplica el ThemePack del catálogo (theme-engine.ts) que el usuario
     // dejó activo la última vez, si lo hay — sin esto, un tema aplicado desde
@@ -780,12 +917,18 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         if (applied?.id) applyThemePack(applied.id, (applied.mode as "light" | "dark" | "auto") || "auto");
     }, []);
 
-    // Save to local storage on change
+    // Save to local storage on change (SIEMPRE la config CRUDA: los overrides de
+    // ámbito viven dentro de `background.scopes`, no se pierden).
     useEffect(() => {
         if (!mounted) return;
         localStorage.setItem("appearance-config-v2", JSON.stringify(config));
-        applyStyles(config);
     }, [config, mounted]);
+
+    // Aplica al DOM el fondo EFECTIVO (con el override de perfil/página resuelto).
+    useEffect(() => {
+        if (!mounted) return;
+        applyStyles(resolvedConfig);
+    }, [resolvedConfig, mounted]);
 
     const applyStyles = (currentConfig: AppearanceConfig) => {
         if (!currentConfig) return; // Safety check
@@ -1104,16 +1247,39 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         }
     };
 
+    /**
+     * Escribe un parche de FONDO respetando el ámbito activo:
+     *  • "cuenta"  → escribe en `background` (comportamiento de siempre).
+     *  • "perfil"/"pagina" → escribe en `background.scopes[clave]` (override).
+     * Devuelve la config nueva. Se usa desde updateConfig y updateSection para
+     * que TODA la UI de fondo existente respete el ámbito sin tocarla.
+     */
+    const withScopedBackground = (prev: AppearanceConfig, bgPatch: Record<string, unknown>): AppearanceConfig => {
+        const key = scopeKeyFor(bgScopeMode);
+        if (!key) return deepMerge(prev, { background: bgPatch });
+        const scopes = { ...(prev.background.scopes ?? {}) };
+        scopes[key] = deepMerge(scopes[key] ?? {}, bgPatch);
+        return { ...prev, background: { ...prev.background, scopes } };
+    };
+
     const updateConfig = (updates: DeepPartial<AppearanceConfig>) => {
         setConfig((prev) => {
             pushHistory(prev);
-            return deepMerge(prev, updates);
+            const { background, ...rest } = updates as Record<string, unknown>;
+            let next = Object.keys(rest).length ? deepMerge(prev, rest) : prev;
+            if (background && typeof background === "object") {
+                next = withScopedBackground(next, background as Record<string, unknown>);
+            }
+            return next;
         });
     };
 
     const updateSection = <K extends keyof AppearanceConfig>(section: K, data: DeepPartial<AppearanceConfig[K]>) => {
         setConfig(prev => {
             pushHistory(prev);
+            if (section === "background") {
+                return withScopedBackground(prev, data as Record<string, unknown>);
+            }
             return {
                 ...prev,
                 [section]: {
@@ -1123,6 +1289,26 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             };
         });
     }
+
+    /** ¿El ámbito seleccionado tiene un override propio guardado? */
+    const bgScopeHasOverride = (() => {
+        const key = scopeKeyFor(bgScopeMode);
+        if (!key) return false;
+        const ov = config.background.scopes?.[key];
+        return !!ov && Object.keys(ov).length > 0;
+    })();
+
+    /** Borra el override del ámbito activo (vuelve a heredar de la cuenta). */
+    const clearBackgroundScope = () => {
+        const key = scopeKeyFor(bgScopeMode);
+        if (!key) return;
+        setConfig(prev => {
+            pushHistory(prev);
+            const scopes = { ...(prev.background.scopes ?? {}) };
+            delete scopes[key];
+            return { ...prev, background: { ...prev.background, scopes } };
+        });
+    };
 
     const addCustomFont = (font: CustomFont) => {
         setConfig(prev => ({
@@ -1219,7 +1405,14 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
 
     return (
         <AppearanceContext.Provider value={{
-            config,
+            config: resolvedConfig,
+            rawConfig: config,
+            bgScopeMode,
+            setBgScopeMode,
+            bgScopeHasOverride,
+            clearBackgroundScope,
+            bgScopePath: pathname,
+            bgScopeProfileId: profileId,
             updateConfig,
             resetConfig,
             updateSection,
