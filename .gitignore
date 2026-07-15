@@ -78,3 +78,6 @@ Icon
 # macOS custom folder icon files (rompen checkout en Windows)
 
 AI-refernces /
+
+# Local dev server log (never commit)
+dev_server.log

@@ -631,6 +631,13 @@ export async function appendMessage(input: AppendMessageInput): Promise<AiMessag
           });
         }
       }
+
+      // ── Semantic Memory Categorization ──
+      // Extraemos la memoria en segundo plano, sin bloquear el hilo.
+      void import("@/lib/aurora/semantic-memory")
+        .then(({ extractSemanticMemory }) => extractSemanticMemory(convId, cachedMessages(convId)))
+        .catch(() => {});
+
       return saved;
     }
     // `ignoreDuplicates` con conflicto devuelve 0 filas: el mensaje YA estaba.

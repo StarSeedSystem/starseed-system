@@ -277,7 +277,7 @@ export function PersonalitiesPanel({
         type: "personality",
         refId: p.id,
         title: p.name,
-        summary: p.description || p.personaje || "Personalidad de Aurora",
+        note: p.description || p.personaje || "Personalidad de Aurora",
         content: exportPersonalityJson(p),
       });
       toast.success(`«${p.name}» enviada a tu Biblioteca.`);
@@ -306,14 +306,9 @@ export function PersonalitiesPanel({
       const saved = await saveBrain({ ...brain, includes: { ...brain.includes, personalities: newIds } });
       if (!saved) throw new Error("Error guardando el cerebro.");
       
+      
       // Actualizar localmente la memoria de la personalidad y las asignaciones
-      const localAssignments = getPersonalityAssignments();
-      if (isConnected) {
-        delete localAssignments.porCerebro[brainId];
-      } else {
-        localAssignments.porCerebro[brainId] = p.id;
-      }
-      writeAssignments(localAssignments);
+      setActivePersonality({ scope: "cerebro", brainId }, isConnected ? null : p.id);
       
       const currentAllowed = p.memoryPolicy?.cerebrosPermitidos ?? [];
       const updatedProfile = {

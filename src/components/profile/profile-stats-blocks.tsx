@@ -55,6 +55,7 @@ const BLOCK_META: Record<
     aportaciones: { label: "Aportaciones", icon: HandHeart, accent: "text-rose-400" },
     publicaciones: { label: "Publicaciones", icon: FileText, accent: "text-sky-400" },
     enlaces: { label: "Enlaces", icon: Link2, accent: "text-emerald-400" },
+    archivos: { label: "Archivos", icon: FileText, accent: "text-indigo-400" },
 };
 
 interface ProfileStatsBlocksProps {
@@ -62,6 +63,8 @@ interface ProfileStatsBlocksProps {
     handle: string;
     /** true si quien mira es dueño del perfil (habilita el engranaje). */
     isOwner: boolean;
+    userId?: string;
+    profileId?: string;
 }
 
 export function ProfileStatsBlocks({ handle, isOwner, userId, profileId }: ProfileStatsBlocksProps) {

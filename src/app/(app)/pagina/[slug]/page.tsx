@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { GlassCard } from "@/components/ui/glass-card";
+import { EntityHeader } from "@/components/social/entity-header";
 import { PostCard } from "@/components/social/PostCard";
 import { ShareButton } from "@/components/social/SocialActions";
 import { MemberAvatars } from "@/components/social/MemberAvatars";
@@ -276,16 +277,20 @@ export default function PaginaPage() {
         }
         list.push({ id: "posts", label: "Publicaciones", node: <PageFeed slug={page.slug} accent={accentForTabs} /> });
         list.push({
-            id: "about",
-            label: "Acerca de",
+            id: "dashboard",
+            label: "Dashboard",
             node: (
-                <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
+                <div className="grid gap-6 lg:grid-cols-2">
+                    <div className="lg:col-span-2">
+                        <GlassCard className="p-[clamp(1rem,3vw,1.75rem)]">
                     <div className="mb-3 flex items-center gap-2" style={{ color: accentForTabs }}>
                         <Info className="h-5 w-5" />
                         <h2 className="font-headline text-lg font-semibold">Acerca de</h2>
                     </div>
                     <p className="leading-relaxed text-foreground/90">{page.description}</p>
-                </GlassCard>
+                        </GlassCard>
+                    </div>
+                </div>
             ),
         });
         list.push({ id: "members", label: "Miembros", node: <MemberAvatars system="politico" total={page.memberCount} accent={accentForTabs} seed={page.id} /> });
@@ -495,107 +500,52 @@ export default function PaginaPage() {
                 </div>
             )}
 
-            {/* ── Portada ── */}
-            <GlassCard className="overflow-hidden">
-                <div className="relative aspect-[3/1] w-full overflow-hidden bg-muted/40">
-                    {effectiveCover && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                            src={effectiveCover}
-                            alt={page.name}
-                            onError={onImgError}
-                            className="absolute inset-0 h-full w-full object-cover"
+            
+            <EntityHeader
+                entity={{
+                    id: page.id,
+                    kind: page.kind,
+                    slug: page.slug,
+                    name: page.name,
+                    description: page.description,
+                    coverUrl: effectiveCover,
+                    memberCount: page.memberCount,
+                    accent: accent
+                }}
+                isOwner={isOwner}
+                isCommunity={isCommunity}
+                onEdit={() => setEditOpen(true)}
+                onCustomize={() => setLayoutEditorOpen(true)}
+                followState={useFollow(page.slug)}
+            />
+
+            <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-3">
+                <div className={`min-w-0 ${activeTab === 'agenda' ? "lg:col-span-3" : "lg:col-span-2"}`}>
+                    <Tabs value={activeTab} onValueChange={setActiveTab}>
+                        <SectionTabs
+                            className="w-full max-w-full overflow-hidden"
+                            items={visibleTabs.map((t) => ({ value: t.id, label: t.label }))}
+                            value={activeTab}
+                            onValueChange={setActiveTab}
+                            ariaLabel={`Secciones de ${page.name}`}
                         />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent" />
-                </div>
 
-                <div className="flex flex-col gap-4 p-[clamp(1rem,3vw,1.75rem)]">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div className="min-w-0">
-                            <Badge
-                                variant="outline"
-                                className="mb-2 w-fit capitalize"
-                                style={{ borderColor: `${accent}55`, color: accent }}
-                            >
-                                {page.kind}
-                            </Badge>
-                            <h1
-                                className="font-headline text-[clamp(1.5rem,5vw,2.5rem)] font-bold leading-tight"
-                                style={{ fontFamily: "var(--font-headline, 'Fraunces', serif)" }}
-                            >
-                                {page.name}
-                            </h1>
-                            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                                <Users className="h-4 w-4" />
-                                {page.memberCount.toLocaleString("es-ES")} miembros
-                            </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <FollowButton
-                                pageSlug={page.slug}
-                                accent={accent}
-                                count={page.memberCount}
-                                isCommunity={isCommunity}
-                            />
-                            {isOwner && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setEditOpen(true)}
-                                    className="gap-2 cursor-pointer"
-                                    style={{ borderColor: `${accent}55`, color: accent }}
-                                >
-                                    <Pencil className="h-4 w-4" />
-                                    Editar
-                                </Button>
-                            )}
-                            {isOwner && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setLayoutEditorOpen(true)}
-                                    className="gap-2 cursor-pointer"
-                                    style={{ borderColor: `${accent}55`, color: accent }}
-                                >
-                                    <Settings2 className="h-4 w-4" />
-                                    Personalizar
-                                </Button>
-                            )}
-                            <ShareButton title={page.name} accent={accent} />
-                        </div>
+                        {visibleTabs.map((t) => (
+                            <TabsContent key={t.id} value={t.id} className="mt-6 min-w-0 animate-in fade-in-50 duration-500">
+                                {t.node}
+                            </TabsContent>
+                        ))}
+                    </Tabs>
+                </div>
+                {activeTab !== 'agenda' && (
+                    <div className="min-w-0 lg:col-span-1 mt-14">
+                        <GlassCard className="p-4">
+                            <h3 className="font-headline text-lg font-semibold mb-3">Red</h3>
+                            <MemberAvatars count={page.memberCount} accent={accent} />
+                        </GlassCard>
                     </div>
-                    {page.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                            {page.tags.map((t) => (
-                                <Badge key={t} variant="secondary" className="text-[11px]">
-                                    #{t}
-                                </Badge>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </GlassCard>
-
-            {/* ── Pestañas (orden/visibilidad personalizables desde "Personalizar") ──
-                Carril unificado del OS (`SectionTabs`): scroll-x REAL + máscara de
-                fundido + snap. Antes era un `TabsList` con `overflow-x-auto` que en
-                móvil no llegaba a desplazarse (su ancestro no podía encogerse) y
-                dejaba las últimas pestañas fuera de alcance. (Adenda 68 §C) */}
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <SectionTabs
-                    items={visibleTabs.map((t) => ({ value: t.id, label: t.label }))}
-                    value={activeTab}
-                    onValueChange={setActiveTab}
-                    ariaLabel={`Secciones de ${page.name}`}
-                />
-
-                {visibleTabs.map((t) => (
-                    <TabsContent key={t.id} value={t.id} className="mt-6 min-w-0 animate-in fade-in-50 duration-500">
-                        {t.node}
-                    </TabsContent>
-                ))}
-            </Tabs>
+                )}
+            </div>
 
             <p className="text-center text-xs text-muted-foreground">
                 <Link href="/network" className="cursor-pointer hover:underline" style={{ color: GOLD }}>

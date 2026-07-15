@@ -8092,17 +8092,17 @@ pkce-challenge@^5.0.0:
   resolved "https://registry.npmjs.org/pkce-challenge/-/pkce-challenge-5.0.1.tgz"
   integrity sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==
 
-playwright-core@1.58.2:
-  version "1.58.2"
-  resolved "https://registry.npmjs.org/playwright-core/-/playwright-core-1.58.2.tgz"
-  integrity sha512-yZkEtftgwS8CsfYo7nm0KE8jsvm6i/PTgVtB8DL726wNf6H2IMsDuxCpJj59KDaxCtSnrWan2AeDqM7JBaultg==
+playwright-core@1.61.1:
+  version "1.61.1"
+  resolved "https://registry.npmjs.org/playwright-core/-/playwright-core-1.61.1.tgz"
+  integrity sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==
 
-playwright@^1.58.2:
-  version "1.58.2"
-  resolved "https://registry.npmjs.org/playwright/-/playwright-1.58.2.tgz"
-  integrity sha512-vA30H8Nvkq/cPBnNw4Q8TWz1EJyqgpuinBcHET0YVJVFldr8JDNiU9LaWAE1KqSkRYazuaBhTpB5ZzShOezQ6A==
+playwright@^1.61.1:
+  version "1.61.1"
+  resolved "https://registry.npmjs.org/playwright/-/playwright-1.61.1.tgz"
+  integrity sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==
   dependencies:
-    playwright-core "1.58.2"
+    playwright-core "1.61.1"
   optionalDependencies:
     fsevents "2.3.2"
 

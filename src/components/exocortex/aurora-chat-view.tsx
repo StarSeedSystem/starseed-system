@@ -49,6 +49,7 @@ import { MessageActionBar } from "@/components/aurora/message-action-bar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { listPersonalityProfiles } from "@/lib/aurora/personalities";
+import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
 
 // ── Tipos de props ───────────────────────────────────────────────────────────
 /** Un mensaje "en vivo" del motor (conversation lleva `.at`). */

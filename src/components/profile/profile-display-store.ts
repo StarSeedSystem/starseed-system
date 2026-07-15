@@ -33,6 +33,7 @@ export const PROFILE_BLOCK_IDS = [
     "aportaciones",
     "publicaciones",
     "enlaces",
+    "archivos",
 ] as const;
 export type ProfileBlockId = (typeof PROFILE_BLOCK_IDS)[number];
 

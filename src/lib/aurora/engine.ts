@@ -495,7 +495,8 @@ export function useAuroraEngine(): AuroraEngine {
     return () => {
       keepAliveRef.current = false; // desmontaje real: no reanudar el reconocimiento
       try { recognitionRef.current?.stop?.(); } catch { /* */ }
-      try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
+      // speechSynthesis.cancel() ELIMINADO intencionalmente para permitir
+      // continuidad de voz en segundo plano durante transiciones o soft reloads.
     };
   }, []);
 
