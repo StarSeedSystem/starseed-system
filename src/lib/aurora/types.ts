@@ -81,6 +81,17 @@ export interface Personality {
   content?: string | null;
   tags?: string[];
   is_template?: boolean;
+  /** Bloque de inteligencia (Adenda 67 · P3 / Hermione). Ausente ⇒ modo auto.
+   * Estructura intencionalmente laxa aquí (el tipo fuerte vive en
+   * personalities.ts como `PersonalityIntelligence`) para no crear un
+   * import circular (personalities.ts ya importa de types.ts). */
+  intelligence?: {
+    modo?: "auto" | "fija";
+    global?: { fuente?: string; modelo?: string };
+    porSentido?: Record<string, { fuente?: string; modelo?: string }>;
+    motorVoz?: string;
+    permitirPago?: boolean;
+  };
   created_at?: string;
   updated_at?: string;
 }

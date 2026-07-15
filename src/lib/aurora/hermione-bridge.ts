@@ -190,7 +190,7 @@ export function watchHermioneThread(opts: {
   };
 
   // Camino 1: postgres_changes sobre astraura_messages (red de seguridad).
-  const unsub = onTableChange("astraura_messages", { event: "*", schema: "public" }, handle);
+  const unsub = onTableChange("astraura_messages", { event: "*" }, handle);
   return () => {
     try {
       unsub();
@@ -224,7 +224,7 @@ export async function writeHermioneReply(opts: {
     });
     if (!error) {
       // Avisa a los clientes en tiempo real (mismo topic que Adenda 69).
-      emitChange(AI_CHATS_TOPIC, { convId: opts.convId, kind: "message" });
+      emitChange(AI_CHATS_TOPIC, { id: opts.convId, data: { convId: opts.convId, kind: "message" } });
     }
     return !error;
   } catch {

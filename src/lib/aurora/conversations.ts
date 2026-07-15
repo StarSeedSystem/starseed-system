@@ -627,7 +627,7 @@ export async function appendMessage(input: AppendMessageInput): Promise<AiMessag
             clientId: data.client_id as string,
             text,
             userId: uid,
-            profileKey: conv?.profileKey ?? activeProfileId(),
+            profileKey: conv?.profileKey ?? activeProfileId() ?? undefined,
           });
         }
       }
