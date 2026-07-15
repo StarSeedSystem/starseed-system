@@ -1,21 +1,31 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useEffect, useState } from "react";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS } from "@/ai/providers";
-
 import type { ProviderConfig, ProviderId } from "@/ai/providers/types";
 import { toast } from "sonner";
-import { Zap, BrainCircuit, Activity, Wrench, Settings } from "lucide-react";
+import { Zap, BrainCircuit, Activity, Wrench, Settings, Settings2, ChevronRight, Bot, Server, Shield, Network } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { listPersonalityProfiles } from "@/lib/aurora/personalities";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
+} from "@/components/ui/dropdown-menu";
 
 export function ChatHeaderOptions({
   selectedAgentId,
   setSelectedAgentId,
-  agents = [
-    { id: "1", name: "Núcleo StarSeed" },
-    { id: "2", name: "Musa Creativa" }
-  ]
+  agents = []
 }: {
   selectedAgentId: string;
   setSelectedAgentId: (id: string) => void;
@@ -24,10 +34,14 @@ export function ChatHeaderOptions({
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
   const [activeProviderIdState, setActiveProviderIdState] = useState<ProviderId | null>(null);
 
-  // Additional mock states for new options
-  const [sentidos, setSentidos] = useState<string[]>(['todos']);
-  const [habilidades, setHabilidades] = useState<string[]>(['search', 'files']);
-  const [conexiones, setConexiones] = useState<string[]>(['core']);
+  // Fetch real personalities on render
+  const realPersonalities = listPersonalityProfiles();
+  
+  // Combine real personalities with any local agents passed as props
+  const combinedAgents = [
+    ...realPersonalities.map(p => ({ id: p.id, name: p.name, isGlobal: true })),
+    ...agents.filter(a => !realPersonalities.find(rp => rp.id === a.id)).map(a => ({ ...a, isGlobal: false }))
+  ];
 
   useEffect(() => {
     setConfigs(loadConfigs());
@@ -40,79 +54,112 @@ export function ChatHeaderOptions({
     toast.success(`Modelo activo: ${PROVIDERS[id].info.label}`);
   }
 
+  const activeAgentName = combinedAgents.find(a => a.id === selectedAgentId)?.name || "Personalidad";
+
   return (
-    <div className="flex flex-wrap items-center gap-2 overflow-x-auto scrollbar-hide py-1">
-      {/* 1. Personalidad (Agente) */}
-      <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
-        <SelectTrigger className="h-8 min-w-[140px] bg-card/60 backdrop-blur border-border/50 text-xs shadow-sm">
-          <BrainCircuit className="w-3.5 h-3.5 mr-1.5 text-primary" />
-          <SelectValue placeholder="Personalidad" />
-        </SelectTrigger>
-        <SelectContent>
-          {agents.map((agent: any) => (
-            <SelectItem key={agent.id} value={agent.id} className="text-xs">
-              {agent.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="bg-card/60 backdrop-blur border-border/50 shadow-sm text-xs rounded-full">
+          <Settings2 className="w-3.5 h-3.5 mr-2" />
+          Ajustes de Aurora
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64 bg-black/90 backdrop-blur-xl border border-cyan-500/20 text-cyan-50 z-[200]">
+        
+        {/* Personalidades */}
+        <DropdownMenuLabel className="text-xs text-cyan-500/70 font-mono">Personalidad Activa</DropdownMenuLabel>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="text-xs cursor-pointer hover:bg-cyan-500/20">
+            <BrainCircuit className="w-3.5 h-3.5 mr-2 text-cyan-400" />
+            <span className="truncate">{activeAgentName}</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent className="w-56 bg-black/95 backdrop-blur-xl border border-cyan-500/20 z-[201]">
+              <DropdownMenuLabel className="text-[10px] uppercase text-cyan-500/50">Globales (Aurora)</DropdownMenuLabel>
+              {realPersonalities.map((p) => (
+                <DropdownMenuItem 
+                  key={p.id} 
+                  className="text-xs cursor-pointer hover:bg-cyan-500/20"
+                  onClick={() => setSelectedAgentId(p.id)}
+                >
+                  <Bot className="w-3.5 h-3.5 mr-2 text-cyan-400" />
+                  {p.name}
+                  {p.id === selectedAgentId && <span className="ml-auto text-cyan-400 text-[10px]">Activo</span>}
+                </DropdownMenuItem>
+              ))}
+              {agents.filter(a => !realPersonalities.find(rp => rp.id === a.id)).length > 0 && (
+                <>
+                  <DropdownMenuSeparator className="bg-cyan-500/20" />
+                  <DropdownMenuLabel className="text-[10px] uppercase text-cyan-500/50">Locales (Studio)</DropdownMenuLabel>
+                  {agents.filter(a => !realPersonalities.find(rp => rp.id === a.id)).map(a => (
+                    <DropdownMenuItem 
+                      key={a.id} 
+                      className="text-xs cursor-pointer hover:bg-cyan-500/20"
+                      onClick={() => setSelectedAgentId(a.id)}
+                    >
+                      <BrainCircuit className="w-3.5 h-3.5 mr-2 text-primary" />
+                      {a.name}
+                      {a.id === selectedAgentId && <span className="ml-auto text-cyan-400 text-[10px]">Activo</span>}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
+        
+        <DropdownMenuSeparator className="bg-cyan-500/20" />
 
-      {/* 2. Modelos de IA (Provider) */}
-      {configs.filter(c => c.enabled).length > 0 && (
-        <Select
-          value={activeProviderIdState ?? configs[0]?.id}
-          onValueChange={(v) => setProvider(v as ProviderId)}
-        >
-          <SelectTrigger className="h-8 min-w-[140px] bg-card/60 backdrop-blur border-border/50 text-xs shadow-sm">
-            <Zap className="w-3.5 h-3.5 mr-1.5 text-yellow-400" />
-            <SelectValue placeholder="Modelo IA" />
-          </SelectTrigger>
-          <SelectContent>
-            {configs.filter(c => c.enabled).map(c => (
-              <SelectItem key={c.id} value={c.id} className="text-xs">
-                {PROVIDERS[c.id as ProviderId]?.info.local ? "🖥 " : "☁ "}{c.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+        {/* Modelos */}
+        <DropdownMenuLabel className="text-xs text-cyan-500/70 font-mono">Motor de Inferencia</DropdownMenuLabel>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="text-xs cursor-pointer hover:bg-cyan-500/20">
+            <Zap className="w-3.5 h-3.5 mr-2 text-yellow-400" />
+            <span className="truncate">
+              {activeProviderIdState && PROVIDERS[activeProviderIdState] 
+                ? PROVIDERS[activeProviderIdState].info.label 
+                : "Seleccionar modelo..."}
+            </span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent className="w-56 bg-black/95 backdrop-blur-xl border border-cyan-500/20 z-[201]">
+              {configs.filter(c => c.enabled).length === 0 ? (
+                <DropdownMenuItem disabled className="text-xs text-white/40">No hay modelos activos</DropdownMenuItem>
+              ) : (
+                configs.filter(c => c.enabled).map(c => (
+                  <DropdownMenuItem 
+                    key={c.id} 
+                    className="text-xs cursor-pointer hover:bg-cyan-500/20"
+                    onClick={() => setProvider(c.id as ProviderId)}
+                  >
+                    <span className="mr-2 opacity-50">{PROVIDERS[c.id as ProviderId]?.info.local ? "🖥" : "☁"}</span>
+                    {c.label}
+                    {c.id === activeProviderIdState && <span className="ml-auto text-yellow-400 text-[10px]">Activo</span>}
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
 
-      {/* 3. Sentidos */}
-      <Select value="todos" onValueChange={() => toast.info("Edición de Sentidos próximamente")}>
-        <SelectTrigger className="h-8 min-w-[120px] bg-card/60 backdrop-blur border-border/50 text-xs shadow-sm">
-          <Activity className="w-3.5 h-3.5 mr-1.5 text-pink-400" />
-          <SelectValue placeholder="Sentidos" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="todos" className="text-xs">Todos los sentidos</SelectItem>
-          <SelectItem value="solo_texto" className="text-xs">Solo texto</SelectItem>
-          <SelectItem value="texto_voz" className="text-xs">Texto y voz</SelectItem>
-        </SelectContent>
-      </Select>
+        <DropdownMenuSeparator className="bg-cyan-500/20" />
 
-      {/* 4. Habilidades (Skills) */}
-      <Select value="activas" onValueChange={() => toast.info("Edición de Habilidades próximamente")}>
-        <SelectTrigger className="h-8 min-w-[120px] bg-card/60 backdrop-blur border-border/50 text-xs shadow-sm">
-          <Wrench className="w-3.5 h-3.5 mr-1.5 text-blue-400" />
-          <SelectValue placeholder="Habilidades" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="activas" className="text-xs">Skills activas</SelectItem>
-          <SelectItem value="ninguna" className="text-xs">Ninguna</SelectItem>
-        </SelectContent>
-      </Select>
-
-      {/* 5. Conexiones (Plugins, MCPs) */}
-      <Select value="basicas" onValueChange={() => toast.info("Edición de Conexiones próximamente")}>
-        <SelectTrigger className="h-8 min-w-[120px] bg-card/60 backdrop-blur border-border/50 text-xs shadow-sm">
-          <Settings className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
-          <SelectValue placeholder="Conexiones" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="basicas" className="text-xs">Conexiones base</SelectItem>
-          <SelectItem value="todas" className="text-xs">Todas las extensiones</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
+        {/* Sentidos y Habilidades */}
+        <DropdownMenuLabel className="text-xs text-cyan-500/70 font-mono">Capacidades del Sistema</DropdownMenuLabel>
+        <DropdownMenuItem className="text-xs cursor-pointer hover:bg-cyan-500/20" onClick={() => toast.info("Sentidos activos: Todos")}>
+          <Activity className="w-3.5 h-3.5 mr-2 text-pink-400" />
+          Sentidos y Memoria (100%)
+        </DropdownMenuItem>
+        <DropdownMenuItem className="text-xs cursor-pointer hover:bg-cyan-500/20" onClick={() => toast.info("Habilidades activas: Búsqueda, Archivos, OS")}>
+          <Wrench className="w-3.5 h-3.5 mr-2 text-blue-400" />
+          Skills Activas (OS)
+        </DropdownMenuItem>
+        <DropdownMenuItem className="text-xs cursor-pointer hover:bg-cyan-500/20" onClick={() => toast.info("Conexiones: Base")}>
+          <Network className="w-3.5 h-3.5 mr-2 text-emerald-400" />
+          Conexiones Base
+        </DropdownMenuItem>
+        
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
