@@ -24,8 +24,9 @@ import { useFullscreen } from "@/hooks/useFullscreen";
 import { UniversalEditor } from "@/components/layout/universal-editor";
 import { Switch } from "@/components/ui/switch";
 import { useAppearance } from "@/context/appearance-context";
-import { MemoryBrain3D } from "@/components/exocortex/memory-brain-3d";
-import { AuroraChatView } from "@/components/exocortex/aurora-chat-view";
+import dynamic from "next/dynamic";
+const MemoryBrain3D = dynamic(() => import("@/components/exocortex/memory-brain-3d").then((mod) => mod.MemoryBrain3D), { ssr: false });
+import { AuroraChatSection } from "@/components/exocortex/aurora-chat-section";
 
 type Domain = 'ALL' | 'POLITICS' | 'EDUCATION' | 'CULTURE' | 'SYSTEM';
 
@@ -559,8 +560,8 @@ export function ZenithCurtain() {
                                     sentidos + reactivación del orbe) integrado en el Exocórtex. */}
                                 {mainView === "aurora" && (
                                     <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto custom-scrollbar">
-                                        <div className="mx-auto w-full max-w-5xl px-4 md:px-8 lg:px-12 py-5">
-                                            <AuroraChatView />
+                                        <div className="mx-auto w-full px-4 md:px-8 lg:px-12 py-5 h-full flex flex-col">
+                                            <AuroraChatSection />
                                         </div>
                                     </div>
                                 )}

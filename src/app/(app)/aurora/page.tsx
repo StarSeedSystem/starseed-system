@@ -20,8 +20,8 @@ export default function AuroraPage() {
         <h1 className="text-2xl font-bold text-fuchsia-50">Aurora · Voz de Astraura</h1>
         <p className="text-sm text-white/50 mt-1 mb-5">
           Control por voz en tiempo real de todos tus sistemas StarSeed. Configura voz, carácter, personalidad y
-          emociones — o crea y comparte un <span className="text-fuchsia-200">Ego (ego.md)</span>: la identidad
-          portable de Aurora, integrable en cualquier contexto.
+          emociones — o administra tus <span className="text-fuchsia-200">Personalidades (ego.md)</span>: identidades
+          portables de Aurora, integrables en cualquier contexto.
         </p>
 
         {/* Secciones */}
@@ -46,7 +46,7 @@ export default function AuroraPage() {
                 : "bg-white/5 border-white/10 text-white/60 hover:border-fuchsia-400/30",
             )}
           >
-            <Sparkles className="w-3.5 h-3.5" /> Ego (ego.md)
+            <Sparkles className="w-3.5 h-3.5" /> Personalidades (ego.md)
           </button>
           <button
             onClick={() => setSection("chats")}

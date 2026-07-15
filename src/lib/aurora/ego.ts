@@ -40,6 +40,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type {
+  PersonalityResponseStyle,
+  PersonalityTools,
+  PersonalityMemoryPolicy,
+  PersonalityVoiceStyle,
+  PersonalityIntelligence,
+  VoiceGender,
+} from "./personalities";
+
 /* ------------------------------------------------------------------ */
 /* Tipos                                                               */
 /* ------------------------------------------------------------------ */
@@ -70,6 +79,25 @@ export interface EgoAttachment {
   at?: string;
 }
 
+export interface EgoConfig {
+  icon?: string;
+  traits?: Record<string, number>;
+  prompts?: { esencia: string; estilo: string; extra: string };
+  idioma?: string;
+  idiomasSecundarios?: string[];
+  generoVoz?: VoiceGender;
+  personaje?: string;
+  cultura?: string;
+  filosofia?: string;
+  responseStyle?: PersonalityResponseStyle;
+  tools?: PersonalityTools;
+  memoryPolicy?: PersonalityMemoryPolicy;
+  voiceStyle?: PersonalityVoiceStyle;
+  intelligence?: PersonalityIntelligence;
+  knowledge?: string[];
+  [key: string]: unknown;
+}
+
 export interface AuroraEgo {
   id: string;
   owner?: string;
@@ -77,7 +105,7 @@ export interface AuroraEgo {
   summary: string;
   shareable: boolean;
   attached_to: Record<string, unknown>;
-  config: Record<string, unknown>;
+  config: EgoConfig;
   created_at?: string;
   updated_at?: string;
 }
@@ -452,7 +480,7 @@ function normalizeEgo(row: Record<string, unknown>): AuroraEgo {
     summary: (row.summary as string) || "",
     shareable: !!row.shareable,
     attached_to: (row.attached_to as Record<string, unknown>) || {},
-    config: (row.config as Record<string, unknown>) || {},
+    config: (row.config as EgoConfig) || {},
     created_at: (row.created_at as string) ?? undefined,
     updated_at: (row.updated_at as string) ?? undefined,
   };

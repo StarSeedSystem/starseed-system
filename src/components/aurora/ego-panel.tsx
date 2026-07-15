@@ -14,12 +14,13 @@
  * contexto (grupo/página/comunidad/evento/perfil/app/widget/pizarra/publicación).
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -51,11 +52,17 @@ import {
   type EgoFile,
   type EgoSource,
   type EgoContextKind,
+  type EgoConfig,
 } from "@/lib/aurora/ego";
 import { saveResource } from "@/lib/library-store";
 import { listBrains, type Brain } from "@/lib/brains/brains";
 import { attachEgoToBrain } from "@/lib/aurora/ego";
 import { useRealtimeRows } from "@/lib/realtime/realtime";
+import {
+  PERSONALITY_TRAIT_GROUPS,
+  defaultPersonalityTraits,
+  type PersonalityTraitGroup,
+} from "@/lib/aurora/personalities";
 import {
   Plus,
   Save,
@@ -74,8 +81,37 @@ import {
   Library,
   Paperclip,
   BrainCircuit,
+  Settings2,
+  Mic,
+  Brain as BrainLucide,
+  Heart,
+  MessageSquare,
   X,
 } from "lucide-react";
+
+/* ── Opciones curadas (reutilizadas de personalities-panel) ── */
+const PERSONAJE_OPTIONS = [
+  "Guía", "Mentora", "Musa", "Analista", "Guardiana", "Exploradora", "Poeta",
+  "Sabia", "Ingeniera", "Narradora", "Capitana", "Alquimista",
+];
+const CULTURA_OPTIONS = [
+  "Universal", "Ciberdélica", "Cosmopolita", "Mediterránea", "Latinoamericana",
+  "Andina", "Caribeña", "Ibérica", "Nórdica", "Japonesa", "Solarpunk",
+];
+const FILOSOFIA_OPTIONS = [
+  "Equilibrio", "Humanista", "Racionalista", "Estoica", "Epicúrea", "Vitalista",
+  "Budista", "Taoísta", "Empirista", "Mística", "Transhumanista", "Ontocrática",
+];
+const IDIOMAS = [
+  { id: "es", label: "Español" }, { id: "en", label: "Inglés" },
+  { id: "fr", label: "Francés" }, { id: "pt", label: "Portugués" },
+  { id: "de", label: "Alemán" }, { id: "it", label: "Italiano" },
+  { id: "ja", label: "Japonés" }, { id: "zh", label: "Chino" },
+];
+const TONE_OPTIONS = ["cálido", "sereno", "vivaz", "neutro", "suave", "luminoso", "profundo", "etéreo"];
+const EMOTION_OPTIONS = ["calma", "alegría", "entusiasmo", "ternura", "asombro", "concentración", "serenidad luminosa"];
+
+type EgoTab = "config" | "archivos" | "conexiones";
 
 export default function AuroraEgoPanel() {
   // ── Egos del usuario (selector) ──
@@ -111,6 +147,8 @@ export default function AuroraEgoPanel() {
     }
   };
 
+  const [activeTab, setActiveTab] = useState<EgoTab>("config");
+
   return (
     <div className="space-y-5">
       {/* ── Header ─────────────────────────────────────────── */}
@@ -119,19 +157,19 @@ export default function AuroraEgoPanel() {
           <Sparkles className="w-5 h-5 text-white" />
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-white">ego.md — la identidad portable de Aurora.</div>
+          <div className="text-sm font-semibold text-white">Personalidades de Aurora</div>
           <div className="text-[11px] text-white/50">
-            Un Ego reúne personalidad, voz, sentidos, emociones, carácter, modelos, habilidades, plugins y conexiones.
-            Compártelo, replícalo, expórtalo, instálalo, conéctalo e intégralo en cualquier contexto.
+            Cada personalidad reúne rasgos, voz, sentidos, emociones, carácter, modelos, habilidades, plugins y conexiones.
+            Compártela, replícala, expórtala, instálala, conéctala e intégrala en cualquier contexto.
           </div>
         </div>
       </div>
 
-      {/* ── Selector de ego ────────────────────────────────── */}
+      {/* ── Selector de personalidad ────────────────────────── */}
       <div className="rounded-xl border border-white/10 bg-black/20 p-4">
         <div className="flex items-center gap-2 flex-wrap">
           <Sparkles className="w-4 h-4 text-fuchsia-300" />
-          <span className="text-sm font-semibold text-fuchsia-50">Tus Egos</span>
+          <span className="text-sm font-semibold text-fuchsia-50">Tus Personalidades</span>
           <Badge variant="outline" className="border-white/15 text-white/50 text-[10px]">
             {egos.length}
           </Badge>
@@ -139,17 +177,17 @@ export default function AuroraEgoPanel() {
 
         {egosLoading ? (
           <div className="flex items-center gap-2 text-sm text-white/50 py-4">
-            <Loader2 className="w-4 h-4 animate-spin" /> Cargando egos…
+            <Loader2 className="w-4 h-4 animate-spin" /> Cargando personalidades…
           </div>
         ) : egos.length === 0 ? (
           <div className="mt-3 rounded-xl border border-dashed border-white/15 p-6 text-center">
             <Sparkles className="w-8 h-8 text-white/25 mx-auto mb-2" />
             <p className="text-sm text-white/55">
-              Aún no tienes ningún Ego de Aurora. Crea el primero para empezar.
+              Aún no tienes ninguna personalidad de Aurora. Crea la primera para empezar.
             </p>
             <Button className="mt-3 gap-1.5" disabled={creatingEgo} onClick={onCreateEgo}>
               {creatingEgo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Crear mi primer Ego
+              Crear mi primera personalidad
             </Button>
           </div>
         ) : (
@@ -172,19 +210,307 @@ export default function AuroraEgoPanel() {
             ))}
             <Button size="sm" variant="outline" className="gap-1.5" disabled={creatingEgo} onClick={onCreateEgo}>
               {creatingEgo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Nuevo Ego
+              Nueva personalidad
             </Button>
           </div>
         )}
       </div>
 
-      {/* ── Ego activo: ficheros + acciones ────────────────── */}
+      {/* ── Personalidad activa: acciones + pestañas ────────── */}
       {activeEgo && (
         <>
           <EgoActions ego={activeEgo} onChanged={reloadEgos} />
-          <EgoFilesEditor egoId={activeEgo.id} />
+
+          {/* Pestañas */}
+          <div className="flex gap-1 rounded-lg border border-white/10 bg-black/20 p-1">
+            {([
+              { id: "config" as const, label: "Configuración", icon: Settings2 },
+              { id: "archivos" as const, label: "Archivos (ego.md)", icon: FileText },
+              { id: "conexiones" as const, label: "Conexiones", icon: BrainCircuit },
+            ]).map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={cn(
+                  "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition",
+                  activeTab === t.id
+                    ? "bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-100"
+                    : "text-white/50 hover:text-white/70 hover:bg-white/5 border border-transparent",
+                )}
+              >
+                <t.icon className="w-3.5 h-3.5" />
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Contenido de la pestaña */}
+          {activeTab === "config" && (
+            <EgoConfigEditor ego={activeEgo} onChanged={reloadEgos} />
+          )}
+          {activeTab === "archivos" && (
+            <EgoFilesEditor egoId={activeEgo.id} />
+          )}
+          {activeTab === "conexiones" && (
+            <EgoConnectionsEditor ego={activeEgo} onChanged={reloadEgos} />
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+/* ================================================================== */
+/* Editor de Configuración (rasgos, memoria, voz, identidad)           */
+/* ================================================================== */
+
+function EgoConfigEditor({ ego, onChanged }: { ego: AuroraEgo; onChanged: () => void }) {
+  const cfg = ego.config || {};
+  const [traits, setTraits] = useState<Record<string, number>>(() => ({
+    ...defaultPersonalityTraits(),
+    ...(cfg.traits || {}),
+  }));
+  const [personaje, setPersonaje] = useState(cfg.personaje || "");
+  const [cultura, setCultura] = useState(cfg.cultura || "");
+  const [filosofia, setFilosofia] = useState(cfg.filosofia || "");
+  const [idioma, setIdioma] = useState(cfg.idioma || "es");
+  const [usarMemorias, setUsarMemorias] = useState(cfg.memoryPolicy?.usarMemorias ?? true);
+  const [nivelContexto, setNivelContexto] = useState<"breve" | "completo">(cfg.memoryPolicy?.nivelContexto ?? "completo");
+  const [voiceTone, setVoiceTone] = useState(cfg.voiceStyle?.tone || "cálido");
+  const [voiceEmotion, setVoiceEmotion] = useState(cfg.voiceStyle?.emotion || "calma");
+  const [voiceRate, setVoiceRate] = useState(cfg.voiceStyle?.rate ?? 1);
+  const [voicePitch, setVoicePitch] = useState(cfg.voiceStyle?.pitch ?? 1);
+  const [voiceEnergy, setVoiceEnergy] = useState(cfg.voiceStyle?.energy ?? 50);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  // Marcar dirty en cualquier cambio
+  const mark = useCallback(() => setDirty(true), []);
+
+  const onSave = async () => {
+    setSaving(true);
+    const nextConfig: EgoConfig = {
+      ...cfg,
+      traits,
+      personaje, cultura, filosofia, idioma,
+      memoryPolicy: { usarMemorias, nivelContexto, cerebrosPermitidos: cfg.memoryPolicy?.cerebrosPermitidos ?? "todos" },
+      voiceStyle: { tone: voiceTone, emotion: voiceEmotion, rate: voiceRate, pitch: voicePitch, energy: voiceEnergy },
+    };
+    const saved = await saveEgo({ ...ego, config: nextConfig });
+    setSaving(false);
+    if (saved) {
+      setDirty(false);
+      onChanged();
+      toast.success("Configuración de personalidad guardada.");
+    } else {
+      toast.error("No se pudo guardar la configuración.");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* ── Identidad ── */}
+      <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-fuchsia-300" />
+          <span className="text-sm font-semibold text-fuchsia-50">Identidad y carácter</span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label className="text-[11px] text-white/55">Personaje / Arquetipo</label>
+            <select
+              value={personaje}
+              onChange={(e) => { setPersonaje(e.target.value); mark(); }}
+              className="w-full mt-0.5 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+            >
+              <option value="" className="bg-zinc-900">— Elegir —</option>
+              {PERSONAJE_OPTIONS.map((p) => <option key={p} value={p} className="bg-zinc-900">{p}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] text-white/55">Cultura</label>
+            <select
+              value={cultura}
+              onChange={(e) => { setCultura(e.target.value); mark(); }}
+              className="w-full mt-0.5 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+            >
+              <option value="" className="bg-zinc-900">— Elegir —</option>
+              {CULTURA_OPTIONS.map((c) => <option key={c} value={c} className="bg-zinc-900">{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] text-white/55">Filosofía</label>
+            <select
+              value={filosofia}
+              onChange={(e) => { setFilosofia(e.target.value); mark(); }}
+              className="w-full mt-0.5 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+            >
+              <option value="" className="bg-zinc-900">— Elegir —</option>
+              {FILOSOFIA_OPTIONS.map((f) => <option key={f} value={f} className="bg-zinc-900">{f}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] text-white/55">Idioma</label>
+            <select
+              value={idioma}
+              onChange={(e) => { setIdioma(e.target.value); mark(); }}
+              className="w-full mt-0.5 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+            >
+              {IDIOMAS.map((l) => <option key={l.id} value={l.id} className="bg-zinc-900">{l.label}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Rasgos (Sliders por grupo) ── */}
+      <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <Heart className="w-4 h-4 text-fuchsia-300" />
+          <span className="text-sm font-semibold text-fuchsia-50">Rasgos de personalidad</span>
+        </div>
+        {PERSONALITY_TRAIT_GROUPS.map((g) => (
+          <div key={g.id} className="space-y-2">
+            <div className="text-[11px] uppercase tracking-widest text-white/40 flex items-center gap-1.5">
+              {g.label}
+            </div>
+            {g.traits.map((t) => {
+              const val = traits[t.key] ?? t.default;
+              return (
+                <div key={t.key} className="flex items-center gap-3">
+                  <span className="w-32 text-[11px] text-white/60 shrink-0 truncate">
+                    {t.low ? `${t.low} ↔ ${t.high}` : t.label}
+                  </span>
+                  <Slider
+                    min={0} max={100} step={1}
+                    value={[val]}
+                    onValueChange={([v]) => { setTraits((p) => ({ ...p, [t.key]: v })); mark(); }}
+                    className="flex-1"
+                  />
+                  <span className="w-8 text-right text-[11px] text-white/50 font-mono">{val}</span>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Memoria ── */}
+      <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <BrainLucide className="w-4 h-4 text-violet-300" />
+          <span className="text-sm font-semibold text-fuchsia-50">Política de memoria</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <Switch checked={usarMemorias} onCheckedChange={(v) => { setUsarMemorias(v); mark(); }} />
+          <span className="text-xs text-white/70">Usar memorias del usuario</span>
+        </div>
+        {usarMemorias && (
+          <div className="flex items-center gap-3">
+            <label className="text-[11px] text-white/55">Nivel de contexto</label>
+            <select
+              value={nivelContexto}
+              onChange={(e) => { setNivelContexto(e.target.value as "breve" | "completo"); mark(); }}
+              className="bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+            >
+              <option value="completo" className="bg-zinc-900">Completo</option>
+              <option value="breve" className="bg-zinc-900">Breve</option>
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* ── Estilo de voz ── */}
+      <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Mic className="w-4 h-4 text-cyan-300" />
+          <span className="text-sm font-semibold text-fuchsia-50">Estilo de voz</span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="text-[11px] text-white/55">Tono</label>
+            <select
+              value={voiceTone}
+              onChange={(e) => { setVoiceTone(e.target.value); mark(); }}
+              className="w-full mt-0.5 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+            >
+              {TONE_OPTIONS.map((t) => <option key={t} value={t} className="bg-zinc-900">{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] text-white/55">Emoción base</label>
+            <select
+              value={voiceEmotion}
+              onChange={(e) => { setVoiceEmotion(e.target.value); mark(); }}
+              className="w-full mt-0.5 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+            >
+              {EMOTION_OPTIONS.map((em) => <option key={em} value={em} className="bg-zinc-900">{em}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <span className="w-20 text-[11px] text-white/55">Velocidad</span>
+            <Slider min={50} max={200} step={5} value={[voiceRate * 100]} onValueChange={([v]) => { setVoiceRate(v / 100); mark(); }} className="flex-1" />
+            <span className="w-10 text-right text-[11px] text-white/50 font-mono">{voiceRate.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-20 text-[11px] text-white/55">Tono / pitch</span>
+            <Slider min={50} max={200} step={5} value={[voicePitch * 100]} onValueChange={([v]) => { setVoicePitch(v / 100); mark(); }} className="flex-1" />
+            <span className="w-10 text-right text-[11px] text-white/50 font-mono">{voicePitch.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-20 text-[11px] text-white/55">Energía</span>
+            <Slider min={0} max={100} step={1} value={[voiceEnergy]} onValueChange={([v]) => { setVoiceEnergy(v); mark(); }} className="flex-1" />
+            <span className="w-10 text-right text-[11px] text-white/50 font-mono">{voiceEnergy}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Guardar ── */}
+      <div className="flex items-center justify-end gap-3">
+        {dirty && <Badge variant="outline" className="border-amber-500/40 text-amber-300 text-[10px]">sin guardar</Badge>}
+        <Button className="gap-1.5" disabled={saving || !dirty} onClick={onSave}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Guardar configuración
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/* Editor de Conexiones (cerebros + contextos)                         */
+/* ================================================================== */
+
+function EgoConnectionsEditor({ ego, onChanged }: { ego: AuroraEgo; onChanged: () => void }) {
+  const atts = attachmentsOf(ego.attached_to);
+  return (
+    <div className="space-y-4">
+      {/* Conexiones actuales */}
+      {atts.length > 0 && (
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <Link2 className="w-4 h-4 text-cyan-300" />
+            <span className="text-sm font-semibold text-fuchsia-50">Conexiones actuales</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {atts.map((a, i) => {
+              const def = EGO_CONTEXT_KINDS.find((k) => k.id === a.kind);
+              return (
+                <span
+                  key={`${a.kind}-${a.ref}-${i}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-100"
+                >
+                  <span>{def?.icon ?? "🔗"}</span>
+                  {a.label || def?.label || a.kind}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <ConnectToBrain ego={ego} onDone={onChanged} />
+      <AttachToContext ego={ego} onDone={onChanged} />
     </div>
   );
 }
@@ -368,7 +694,7 @@ function EgoFilesEditor({ egoId }: { egoId: string }) {
           <div className="rounded-xl border border-white/10 bg-black/20 p-8 text-center">
             <FileText className="w-8 h-8 text-white/25 mx-auto mb-2" />
             <p className="text-sm text-white/50">
-              Selecciona un fichero del ego para empezar a editar.
+              Selecciona un fichero de la personalidad para empezar a editar.
             </p>
           </div>
         ) : (
@@ -470,7 +796,7 @@ function EgoActions({ ego, onChanged }: { ego: AuroraEgo; onChanged: () => void 
     setBusy(false);
     if (ok) {
       onChanged();
-      toast.success(ego.shareable ? "Ego dejado de compartir." : "Ego compartido y publicado en la Biblioteca.");
+      toast.success(ego.shareable ? "Personalidad dejada de compartir." : "Personalidad compartida y publicada en la Biblioteca.");
     } else toast.error("No se pudo cambiar el estado de compartir.");
   }
 
@@ -481,7 +807,7 @@ function EgoActions({ ego, onChanged }: { ego: AuroraEgo; onChanged: () => void 
     setBusy(false);
     if (copy) {
       onChanged();
-      toast.success(`Ego replicado: "${copy.name}".`);
+      toast.success(`Personalidad replicada: "${copy.name}".`);
     } else toast.error("No se pudo replicar.");
   }
 
@@ -492,7 +818,7 @@ function EgoActions({ ego, onChanged }: { ego: AuroraEgo; onChanged: () => void 
       const blob = new Blob([egoToMarkdownBundle(ego, files)], { type: "text/markdown;charset=utf-8" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `ego-${slug(ego.name)}.md`;
+      a.download = `personalidad-${slug(ego.name)}.md`;
       a.click();
     } catch {
       toast.error("No se pudo exportar Markdown.");
@@ -506,7 +832,7 @@ function EgoActions({ ego, onChanged }: { ego: AuroraEgo; onChanged: () => void 
       const blob = new Blob([egoToJSON(ego, files)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `ego-${slug(ego.name)}.json`;
+      a.download = `personalidad-${slug(ego.name)}.json`;
       a.click();
     } catch {
       toast.error("No se pudo exportar JSON.");
@@ -526,8 +852,8 @@ function EgoActions({ ego, onChanged }: { ego: AuroraEgo; onChanged: () => void 
         const installed = await installEgo(parsed);
         if (installed) {
           onChanged();
-          toast.success(`Ego instalado: "${installed.name}".`);
-        } else toast.error("No se pudo instalar el ego.");
+          toast.success(`Personalidad instalada: "${installed.name}".`);
+        } else toast.error("No se pudo instalar la personalidad.");
       } catch {
         toast.error("Archivo no válido (.json o .md).");
       }
@@ -542,7 +868,7 @@ function EgoActions({ ego, onChanged }: { ego: AuroraEgo; onChanged: () => void 
     setBusy(true);
     const ok = await withFiles((files) => saveEgoAsMemory(ego, files));
     setBusy(false);
-    if (ok) toast.success(`Integrado como memoria .md: "Ego de Aurora · ${ego.name}".`);
+    if (ok) toast.success(`Integrado como memoria .md: "Personalidad de Aurora · ${ego.name}".`);
     else toast.error("No se pudo integrar en memoria.");
   }
 

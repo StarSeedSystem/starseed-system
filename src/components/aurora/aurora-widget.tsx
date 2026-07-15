@@ -496,7 +496,7 @@ export function AuroraWidget() {
       return;
     }
 
-    // TAP simple → ABRE EL REPRODUCTOR DE CHATS DE AURORA
+    // TAP simple → ABRE EL POPOVER CON MÁS OPCIONES (Reproductor/Controles)
     setOpen(true);
     // única superficie que puede aparecer es el reproductor resumido, y eso lo
     // decide la conversación (interim/reply), no este gesto.
@@ -812,16 +812,7 @@ export function AuroraWidget() {
           (aurora:suggest / aurora:notify). NO existe ya el globo «Te escucho…»
           (AuroraSpeechBubble, eliminado): nunca puede haber dos ventanas.
       ══════════════════════════════════════════════════════════════════ */}
-      {!trinityOpen && !open && miniPlayerActive && (
-        <AuroraMiniPlayer
-          anchor={miniAnchor}
-          active={miniPlayerActive}
-          proactive={proactive}
-          onOpenExocortex={openExocortexChat}
-          onExpandPanel={() => setOpen(true)}
-          onDismiss={dismissMini}
-        />
-      )}
+      {/* Reproductor MiniPlayer eliminado por solicitud del usuario */}
 
       {/* ══════════════════════════════════════════════════════════════════
           MINI-POPOVER anclado al orbe: estado + transporte + últimas 2 líneas
