@@ -113,8 +113,11 @@ export default function EgoBrainPanel({
     <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
         <Sparkles className="w-4 h-4 text-fuchsia-300" />
-        <span className="text-sm font-semibold text-fuchsia-50">Egos de Aurora</span>
-        <span className="text-xs text-white/45">— agentes ego.md conectados a este cerebro</span>
+        <span className="text-sm font-semibold text-fuchsia-50">Personalidades de Aurora</span>
+        <span className="text-xs text-white/45">— agentes .md conectados a este cerebro</span>
+        <Button variant="ghost" size="icon" className="h-6 w-6 text-white/50" onClick={reload}>
+          <RefreshCw className="w-3 h-3" />
+        </Button>
         <a
           href="/aurora"
           className="ml-auto inline-flex items-center gap-1 text-xs text-fuchsia-300 hover:text-fuchsia-200 hover:underline"

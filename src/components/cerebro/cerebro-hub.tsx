@@ -88,7 +88,7 @@ const PILLARS: {
   },
   {
     id: "egos",
-    label: "Egos de Aurora",
+    label: "Personalidades de Aurora",
     icon: Sparkles,
     blurb: "Agentes ego.md: conecta identidades portables de Aurora a este cerebro.",
     accent: "fuchsia",
@@ -310,7 +310,7 @@ export default function CerebroHub() {
             { id: "memoria", label: "Memoria" },
             { id: "habilidades", label: "Habilidades" },
             { id: "contexto", label: "Contexto" },
-            { id: "egos", label: "Egos de Aurora" },
+            { id: "egos", label: "Personalidades de Aurora" },
           ]}
           description="Comparte este cerebro completo o solo algunas de sus ramas. Privado en lo personal, transparente en lo público."
         />

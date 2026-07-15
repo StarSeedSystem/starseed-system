@@ -981,4 +981,6 @@ export function ensureDefaultBrain(): Promise<Brain | null> {
     // Nunca bloquea el alta/login.
     return null;
   }
+  })();
+  return ensureDefaultBrainPromise;
 }

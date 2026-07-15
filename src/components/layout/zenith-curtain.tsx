@@ -25,7 +25,7 @@ import { UniversalEditor } from "@/components/layout/universal-editor";
 import { Switch } from "@/components/ui/switch";
 import { useAppearance } from "@/context/appearance-context";
 import { MemoryBrain3D } from "@/components/exocortex/memory-brain-3d";
-import { AuroraChatSection } from "@/components/exocortex/aurora-chat-section";
+import { AuroraChatView } from "@/components/exocortex/aurora-chat-view";
 
 type Domain = 'ALL' | 'POLITICS' | 'EDUCATION' | 'CULTURE' | 'SYSTEM';
 
@@ -555,14 +555,12 @@ export function ZenithCurtain() {
                                     </div>
                                 )}
 
-                                {/* Aurora — TODO su sistema de chats/funciones (voz + multichat +
-                                    sentidos + registro + guía contextual + reactivación del orbe)
-                                    integrado en el Exocórtex. Se enfoca solo al recibir el evento
-                                    `starseed:open-aurora-exocortex` (orbe / paleta de comandos). */}
+                                {/* Chat de Aurora — chat completo del widget (voz + multichat +
+                                    sentidos + reactivación del orbe) integrado en el Exocórtex. */}
                                 {mainView === "aurora" && (
                                     <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto custom-scrollbar">
-                                        <div className="mx-auto w-full h-full max-w-[1600px] px-4 md:px-8 lg:px-12 py-5">
-                                            <AuroraChatSection />
+                                        <div className="mx-auto w-full max-w-5xl px-4 md:px-8 lg:px-12 py-5">
+                                            <AuroraChatView />
                                         </div>
                                     </div>
                                 )}

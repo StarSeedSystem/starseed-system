@@ -37,6 +37,7 @@ import { onTableChange } from "@/lib/realtime/realtime";
 import { AI_CHATS_TOPIC, emitChange, onChange } from "@/lib/sync/live-signal";
 import { activeProfileId } from "@/lib/profiles/profiles";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
+import { isHermioneActive, forwardToHermioneNeuron } from "@/lib/aurora/hermione-bridge";
 
 // ── Claves y eventos ─────────────────────────────────────────────────────────
 /** Caché local (offline / arranque instantáneo). NO se sincroniza por prefs. */
@@ -606,6 +607,30 @@ export async function appendMessage(input: AppendMessageInput): Promise<AiMessag
         updatedAt: new Date(saved.ts).toISOString(),
         data: { convId, kind: "message" },
       });
+      // ── Adenda 70 · Puente Hermione ──
+      // Si el mensaje es del usuario y la personalidad activa es Hermione, lo
+      // reenviamos a la neurona servidor (esta Mac) que lo entrega a la sesión
+      // Hermes viva. Degrada en silencio si la neurona no está online (Astraura
+      // normal responde). Idempotente vía clientId.
+      if (role === "user" && data.client_id) {
+        const activeId = (() => {
+          try {
+            const raw = window.localStorage.getItem("starseed.aurora.personality.active.v1");
+            const a = raw ? JSON.parse(raw) : null;
+            return (a && (a.global ?? null)) || null;
+          } catch { return null; }
+        })();
+        if (isHermioneActive(activeId)) {
+          void forwardToHermioneNeuron({
+            convId,
+            msgId: saved.id,
+            clientId: data.client_id as string,
+            text,
+            userId: uid,
+            profileKey: conv?.profileKey ?? activeProfileId(),
+          });
+        }
+      }
       return saved;
     }
     // `ignoreDuplicates` con conflicto devuelve 0 filas: el mensaje YA estaba.
