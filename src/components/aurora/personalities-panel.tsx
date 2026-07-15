@@ -30,6 +30,7 @@ import {
   FileUp,
   Globe2,
   Library,
+  Loader2,
   Pencil,
   Plus,
   RotateCcw,
@@ -157,9 +158,17 @@ const btnAzure =
   "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[#007FFF]/40 bg-[#007FFF]/15 px-2.5 py-1.5 text-[11px] text-blue-100 transition-colors duration-200 hover:bg-[#007FFF]/30";
 const labelCls = "text-[10px] uppercase tracking-wide text-white/45";
 
+import { getBrain, saveBrain } from "@/lib/brains/brains";
+
 /* ═══════════════════════════════ Panel ═══════════════════════════════ */
 
-export function PersonalitiesPanel() {
+export function PersonalitiesPanel({
+  brainId,
+  brainName,
+}: {
+  brainId?: string | null;
+  brainName?: string;
+} = {}) {
   const [profiles, setProfiles] = useState<PersonalityProfile[]>([]);
   const [assignments, setAssignments] = useState<PersonalityAssignments>({
     global: null, porSeccion: {}, porChat: {}, porCerebro: {},
@@ -169,6 +178,8 @@ export function PersonalitiesPanel() {
   const [libItems, setLibItems] = useState<SavedItem[] | null>(null);
   const [libOpen, setLibOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [busyBrainId, setBusyBrainId] = useState<string | null>(null);
+  const [connectedIds, setConnectedIds] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(() => {
@@ -189,6 +200,23 @@ export function PersonalitiesPanel() {
       window.removeEventListener("storage", onChange);
     };
   }, [refresh]);
+
+  // Lee las personalidades ya conectadas al cerebro activo (en BD).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!brainId) {
+        setConnectedIds([]);
+        return;
+      }
+      const brain = await getBrain(brainId);
+      const ids = brain?.includes?.personalities ?? [];
+      if (alive) setConnectedIds(ids);
+    })();
+    return () => { alive = false; };
+  }, [brainId, profiles]);
+
+  const connectedSet = useMemo(() => new Set(connectedIds), [connectedIds]);
 
   /** Badges de contexto donde este perfil está activo. */
   const badgesFor = useCallback(
@@ -248,20 +276,66 @@ export function PersonalitiesPanel() {
       await saveItem(ref, {
         type: "personality",
         refId: p.id,
-        title: `Personalidad · ${p.name}`,
-        description: p.description,
-        note: `v${p.version} · por ${p.author}`,
+        title: p.name,
+        summary: p.description || p.personaje || "Personalidad de Aurora",
         content: exportPersonalityJson(p),
-        mime: "application/x-starseed-personality+json",
-        tags: ["personalidad", "aurora"],
       });
-      toast.success(`«${p.name}» compartida en tu Biblioteca (se sincroniza entre tus cuentas y dispositivos).`);
+      toast.success(`«${p.name}» enviada a tu Biblioteca.`);
     } catch {
-      toast.error("No pude guardar en la Biblioteca.");
+      toast.error("No pude compartirla.");
     } finally {
       setBusy(false);
     }
   }, []);
+
+  const toggleBrainConnection = useCallback(async (p: PersonalityProfile) => {
+    if (!brainId) return;
+    setBusyBrainId(p.id);
+    try {
+      const brain = await getBrain(brainId);
+      if (!brain) throw new Error("No se pudo cargar el cerebro.");
+      const isConnected = connectedSet.has(p.id);
+      
+      let newIds = brain.includes?.personalities ?? [];
+      if (isConnected) {
+        newIds = newIds.filter(id => id !== p.id);
+      } else {
+        if (!newIds.includes(p.id)) newIds.push(p.id);
+      }
+      
+      const saved = await saveBrain({ ...brain, includes: { ...brain.includes, personalities: newIds } });
+      if (!saved) throw new Error("Error guardando el cerebro.");
+      
+      // Actualizar localmente la memoria de la personalidad y las asignaciones
+      const localAssignments = getPersonalityAssignments();
+      if (isConnected) {
+        delete localAssignments.porCerebro[brainId];
+      } else {
+        localAssignments.porCerebro[brainId] = p.id;
+      }
+      writeAssignments(localAssignments);
+      
+      const currentAllowed = p.memoryPolicy?.cerebrosPermitidos ?? [];
+      const updatedProfile = {
+        ...p,
+        memoryPolicy: {
+          ...p.memoryPolicy,
+          cerebrosPermitidos: isConnected
+            ? (Array.isArray(currentAllowed) ? currentAllowed.filter(id => id !== brainId) : currentAllowed)
+            : (currentAllowed === "todos" ? "todos" : [...(currentAllowed as string[]), brainId])
+        }
+      };
+      savePersonalityProfile(updatedProfile);
+      
+      setConnectedIds(newIds);
+      refresh();
+      toast.success(isConnected ? "Personalidad desconectada del cerebro." : "Personalidad conectada al cerebro.");
+    } catch (err: any) {
+      toast.error(err.message || "Error al conectar con el cerebro.");
+    } finally {
+      setBusyBrainId(null);
+    }
+  }, [brainId, connectedSet, refresh]);
 
   /* ── Importar / Biblioteca / presets ── */
 
@@ -525,6 +599,17 @@ export function PersonalitiesPanel() {
                 <button className={btn} disabled={busy} onClick={() => void compartir(p)} title="Guardar en tu Biblioteca para compartir/instalar entre cuentas">
                   <Share2 className="h-3 w-3" /> Biblioteca
                 </button>
+                {brainId && (
+                  <button 
+                    className={cn(btn, connectedSet.has(p.id) ? "border-[#39FF14]/40 bg-[#39FF14]/15 text-[#b9ffab]" : "")} 
+                    disabled={busyBrainId === p.id} 
+                    onClick={() => toggleBrainConnection(p)} 
+                    title={connectedSet.has(p.id) ? "Desconectar de este cerebro" : "Conectar a este cerebro"}
+                  >
+                    {busyBrainId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Globe2 className="h-3 w-3" />}
+                    {connectedSet.has(p.id) ? "Conectada" : "Conectar"}
+                  </button>
+                )}
                 <button
                   className={cn(btn, "border-red-500/25 text-red-200/80 hover:bg-red-500/15")}
                   onClick={() => eliminar(p)}

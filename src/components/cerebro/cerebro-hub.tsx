@@ -28,7 +28,7 @@ import MemoriaPanel from "@/components/cerebro/memoria-panel";
 import HabilidadesPanel from "@/components/cerebro/habilidades-panel";
 import ContextoPanel from "@/components/cerebro/contexto-panel";
 import NeuronasPanel from "@/components/cerebro/neuronas-panel";
-import EgoBrainPanel from "@/components/aurora/ego-brain-panel";
+import { PersonalitiesPanel } from "@/components/aurora/personalities-panel";
 import {
   Brain as BrainIcon,
   FileText,
@@ -290,7 +290,7 @@ export default function CerebroHub() {
             <NeuronasPanel brainId={activeBrainId} brainName={activeBrain?.name} />
           )}
           {pillar === "egos" && brains.length > 0 && (
-            <EgoBrainPanel brainId={activeBrainId} brainName={activeBrain?.name} />
+            <PersonalitiesPanel brainId={activeBrainId} brainName={activeBrain?.name} />
           )}
         </div>
       )}
