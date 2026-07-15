@@ -111,6 +111,34 @@ export function FinderContextMenu({
         .filter(Boolean) as PersonalityProfile[];
 
     const isItem = target.kind === "item";
+    const targetItem = items.find((i) => i.id === target.id);
+    const itemText = targetItem
+        ? targetItem.kind === "text"
+            ? ((targetItem as any).content || targetItem.name)
+            : targetItem.name
+        : "";
+
+    const readWithAurora = (p?: PersonalityProfile) => {
+        if (!itemText) return;
+        speak?.(itemText, p);
+        window.dispatchEvent(new CustomEvent("starseed:open-aurora-exocortex", { 
+            detail: { text: itemText, personality: p } 
+        }));
+    };
+
+    const copyToAuroraChat = () => {
+        if (!itemText) return;
+        import("sonner").then(({ toast }) => {
+            window.dispatchEvent(
+                new CustomEvent("aurora:inject-text", {
+                    detail: { text: itemText.substring(0, 2000) },
+                })
+            );
+            window.dispatchEvent(new CustomEvent("starseed:open-aurora-exocortex"));
+            toast.success("Copiado al chat de Aurora");
+        });
+    };
+
     const wrap = (fn?: () => void) => () => {
         fn?.();
         onClose();
@@ -244,6 +272,38 @@ export function FinderContextMenu({
                         <Link2 className="h-3.5 w-3.5" /> Crear acceso directo
                     </DropdownMenuItem>
                 )}
+
+                <DropdownMenuItem className="cursor-pointer gap-2 text-xs text-[#7fb8ff] focus:text-[#7fb8ff]" onClick={wrap(copyToAuroraChat)}>
+                    <MessageSquare className="h-3.5 w-3.5" /> Copiar al chat de Aurora
+                </DropdownMenuItem>
+
+                <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="cursor-pointer gap-2 text-xs text-[#7fb8ff] focus:text-[#7fb8ff]">
+                        <Volume2 className="h-3.5 w-3.5" /> Leer con Aurora
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                        <DropdownMenuSubContent className="w-56 border-white/10 bg-black/95 text-white backdrop-blur-2xl">
+                            <DropdownMenuItem className="cursor-pointer text-xs" onClick={wrap(() => readWithAurora())}>
+                                Predeterminada ({aurora?.activePersonality?.name || "Aurora"})
+                            </DropdownMenuItem>
+                            {personalities.length > 0 && (
+                                <>
+                                    <DropdownMenuSeparator className="bg-white/10" />
+                                    <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground">Otras</DropdownMenuLabel>
+                                    {personalities.map((p) => (
+                                        <DropdownMenuItem
+                                            key={p.id}
+                                            className="cursor-pointer text-xs"
+                                            onClick={wrap(() => readWithAurora(p))}
+                                        >
+                                            {p.name}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </>
+                            )}
+                        </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                </DropdownMenuSub>
 
                 {target.canWrite && (
                     <>

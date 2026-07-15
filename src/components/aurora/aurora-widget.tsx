@@ -292,7 +292,13 @@ export function AuroraWidget() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     setFullChatOpen(isAuroraFullChatOpen());
-    return subscribeAuroraFullChat((o) => setFullChatOpen(o));
+    const unsub = subscribeAuroraFullChat((o) => setFullChatOpen(o));
+    const onExoOpen = () => setFullChatOpen(true);
+    window.addEventListener(AURORA_EXOCORTEX_OPEN_EVENT, onExoOpen);
+    return () => {
+      unsub();
+      window.removeEventListener(AURORA_EXOCORTEX_OPEN_EVENT, onExoOpen);
+    };
   }, []);
   // Si el chat completo se abre con el mini-popover del orbe ya desplegado, lo
   // cerramos: nunca deben coexistir.

@@ -265,12 +265,13 @@ export function ZenithCurtain() {
                         exit={{ y: "-100%", x: "-50%", opacity: 0, scale: 0.96 }}
                         transition={{ type: "spring", damping: 30, stiffness: 200 }}
                         className={cn(
+                            curtain.curtainContainer,
                             "fixed left-1/2 -translate-x-1/2 z-[90] pointer-events-auto rounded-3xl overflow-hidden box-border",
                             "shadow-[0_20px_50px_rgba(6,182,212,0.3)] border border-cyan-500/30 text-cyan-50",
                             // Material StarSeed: aro neón Zenith que respira suave (azul #007FFF)
                             "ss-neon ss-neon--zenith",
                             // Anclado dentro del viewport + safe-area (nunca se sale).
-                            "top-[max(0.75rem,env(safe-area-inset-top))] w-[min(96vw,80rem)] max-w-[100vw]",
+                            "top-[max(0.75rem,env(safe-area-inset-top))] w-[min(98vw,1600px)] max-w-[100vw]",
                             "h-[min(92vh,calc(100dvh-1.5rem))]"
                         )}
                     >
@@ -560,7 +561,7 @@ export function ZenithCurtain() {
                                     `starseed:open-aurora-exocortex` (orbe / paleta de comandos). */}
                                 {mainView === "aurora" && (
                                     <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto custom-scrollbar">
-                                        <div className="mx-auto w-full max-w-5xl px-4 md:px-8 lg:px-12 py-5">
+                                        <div className="mx-auto w-full h-full max-w-[1600px] px-4 md:px-8 lg:px-12 py-5">
                                             <AuroraChatSection />
                                         </div>
                                     </div>

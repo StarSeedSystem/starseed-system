@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { Zap, BrainCircuit, Activity, Wrench, Settings, Settings2, ChevronRight, Bot, Server, Shield, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { listPersonalityProfiles } from "@/lib/aurora/personalities";
+import { useAuroraEngine } from "@/lib/aurora/engine";
+import { useSavedLibrary } from "@/lib/library-store";
 
 import {
   DropdownMenu,
@@ -22,26 +24,29 @@ import {
   DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 
-export function ChatHeaderOptions({
-  selectedAgentId,
-  setSelectedAgentId,
-  agents = []
-}: {
-  selectedAgentId: string;
-  setSelectedAgentId: (id: string) => void;
-  agents?: { id: string, name: string }[];
-}) {
+export function ChatHeaderOptions() {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
   const [activeProviderIdState, setActiveProviderIdState] = useState<ProviderId | null>(null);
 
+  const aurora = useAuroraEngine();
+  const { items } = useSavedLibrary();
+
   // Fetch real personalities on render
-  const realPersonalities = listPersonalityProfiles();
+  const realPersonalities = items
+    .filter((it) => it.kind === "personality" && (it as any).content)
+    .map((it) => {
+      try { return JSON.parse((it as any).content || "{}"); }
+      catch { return null; }
+    })
+    .filter(Boolean);
   
-  // Combine real personalities with any local agents passed as props
-  const combinedAgents = [
-    ...realPersonalities.map(p => ({ id: p.id, name: p.name, isGlobal: true })),
-    ...agents.filter(a => !realPersonalities.find(rp => rp.id === a.id)).map(a => ({ ...a, isGlobal: false }))
-  ];
+  // Combine real personalities
+  const combinedAgents = realPersonalities.map(p => ({ id: p.id, name: p.name, isGlobal: true }));
+  const selectedAgentId = aurora?.activePersonality?.id || "aurora";
+  const setSelectedAgentId = (id: string) => {
+    const p = realPersonalities.find((p) => p.id === id);
+    if (p && aurora) aurora.pickPersonality(p);
+  };
 
   useEffect(() => {
     setConfigs(loadConfigs());

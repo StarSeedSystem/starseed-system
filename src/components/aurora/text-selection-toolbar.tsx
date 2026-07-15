@@ -5,6 +5,7 @@ import { Volume2, MessageSquarePlus, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuroraEngine } from "@/lib/aurora/engine";
 import { toast } from "sonner";
+import { AuroraReadButton } from "./aurora-read-button";
 
 /**
  * TextSelectionToolbar — barra flotante global que aparece al seleccionar texto.
@@ -104,14 +105,7 @@ export function TextSelectionToolbar() {
                 transform: "translateX(-50%)",
             }}
         >
-            <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 text-xs text-white/80 hover:text-white cursor-pointer"
-                onClick={handleSpeak}
-            >
-                <Volume2 className="h-3.5 w-3.5" /> Leer
-            </Button>
+            <AuroraReadButton text={selection.text} className="border-none bg-transparent shadow-none" />
             <Button
                 variant="ghost"
                 size="sm"

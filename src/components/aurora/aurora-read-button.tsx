@@ -36,6 +36,10 @@ export function AuroraReadButton({ text, defaultPersonalityId, className }: Auro
 
   const handleRead = (p?: PersonalityProfile) => {
     aurora?.speak(text, p);
+    // Además de hablar, abrimos la vista completa para tener "más opciones" y que el texto leído se copie implícitamente
+    window.dispatchEvent(new CustomEvent("starseed:open-aurora-exocortex", { 
+      detail: { text, personality: p } 
+    }));
   };
 
   return (

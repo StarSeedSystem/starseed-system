@@ -32,6 +32,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { Check, ChevronDown, ChevronRight, Copy } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { MessageMedia } from "@/components/aurora/universal-viewer";
 import { AuroraReadButton } from "@/components/aurora/aurora-read-button";
@@ -445,17 +446,28 @@ function TableView({ table }: { table: ParsedTable }) {
 /* ═══════════════════════════ Markdown (react-markdown) ═══════════════════════════ */
 
 const MD_COMPONENTS: Components = {
-  a: ({ node: _node, children, href, ...props }) => (
-    <a
-      {...props}
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="cursor-pointer text-[#7fb8ff] underline decoration-white/20 underline-offset-2 transition-colors duration-200 hover:text-white hover:decoration-white/40"
-    >
-      {children}
-    </a>
-  ),
+  a: ({ node: _node, children, href, ...props }) => {
+    const isInternal = href?.startsWith("/") || href?.startsWith("#");
+    const className = "cursor-pointer text-[#7fb8ff] underline decoration-white/20 underline-offset-2 transition-colors duration-200 hover:text-white hover:decoration-white/40";
+    if (isInternal && href) {
+      return (
+        <Link href={href} className={className}>
+          {children}
+        </Link>
+      );
+    }
+    return (
+      <a
+        {...props}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+      >
+        {children}
+      </a>
+    );
+  },
   h1: ({ children }) => <h1 className="mb-1.5 mt-2 text-[16px] font-semibold text-white/95">{children}</h1>,
   h2: ({ children }) => <h2 className="mb-1.5 mt-2 text-[14px] font-semibold text-white/95">{children}</h2>,
   h3: ({ children }) => <h3 className="mb-1 mt-2 text-[13px] font-semibold text-white/90">{children}</h3>,

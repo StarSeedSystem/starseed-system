@@ -1166,16 +1166,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
           <div className="axc-card relative z-[1] px-3.5 py-3">
             <div className="axc-label mb-1.5">Opciones del Chat</div>
             <div className="mt-2 -mx-2 px-2 overflow-x-auto">
-              <ChatHeaderOptions 
-                selectedAgentId={activePersonality.id ?? activePersonality.name}
-                setSelectedAgentId={pickPersonality}
-                agents={
-                  (aurora?.personalities.length
-                    ? aurora.personalities
-                    : (snap?.personalities?.length ? snap.personalities : [activePersonality])
-                  ).map(p => ({ id: p.id ?? p.name, name: p.name }))
-                }
-              />
+              <ChatHeaderOptions />
             </div>
             <p className="mt-1.5 text-[10px] leading-relaxed text-white/40">
               La personalidad define voz, carácter y parámetros. Editor completo

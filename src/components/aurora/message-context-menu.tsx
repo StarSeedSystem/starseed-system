@@ -27,11 +27,13 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bookmark, Copy, GitBranch, Loader2, RotateCcw, Sparkles, Undo2 } from "lucide-react";
+import { Bookmark, Copy, GitBranch, Loader2, RotateCcw, Sparkles, Undo2, Volume2, MessageSquarePlus } from "lucide-react";
 import { detectAvailability, type SourceAvailability } from "@/ai/astraura/availability";
-import type { AuroraMessageMeta } from "@/lib/aurora/engine";
+import { useAuroraEngine, type AuroraMessageMeta } from "@/lib/aurora/engine";
 import { executeUndo } from "@/lib/aurora/undo";
 import { myLibraryDestinations, saveItem } from "@/lib/library/entity-library";
+import { useSavedLibrary } from "@/lib/library-store";
+import type { PersonalityProfile } from "@/lib/aurora/personalities";
 
 /** Un mensaje normalizado (vivo o cargado) para el menú contextual. */
 export interface ChatMessagePayload {
@@ -76,6 +78,17 @@ export function MessageContextMenu({
   const [avail, setAvail] = useState<SourceAvailability[] | null>(null);
   const isAurora = payload.role === "aurora";
   const undoableTools = (payload.meta?.tools ?? []).filter((t) => !!t.undo);
+  
+  const aurora = useAuroraEngine();
+  const { items } = useSavedLibrary();
+  const personalities = items
+    .filter((it) => it.kind === "personality" && (it as any).content)
+    .map((it) => {
+      try { return JSON.parse((it as any).content || "{}") as PersonalityProfile; }
+      catch { return null; }
+    })
+    .filter(Boolean) as PersonalityProfile[];
+  const defaultPersonality = aurora?.activePersonality;
 
   useEffect(() => {
     if (!isAurora || !onRetryMessage) return;
@@ -91,6 +104,23 @@ export function MessageContextMenu({
   const wrap = (fn: () => void) => () => {
     fn();
     onClose();
+  };
+
+  const readMessage = (p?: PersonalityProfile) => {
+    aurora?.speak(payload.text, p);
+    window.dispatchEvent(new CustomEvent("starseed:open-aurora-exocortex", { 
+      detail: { text: payload.text, personality: p } 
+    }));
+  };
+
+  const copyToChat = () => {
+    window.dispatchEvent(
+      new CustomEvent("aurora:inject-text", {
+        detail: { text: payload.text.substring(0, 2000) },
+      })
+    );
+    window.dispatchEvent(new CustomEvent("starseed:open-aurora-exocortex"));
+    toast.success("Mensaje copiado al chat de Aurora");
   };
 
   const copyMessage = () => {
@@ -169,6 +199,41 @@ export function MessageContextMenu({
         <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(copyMessage)}>
           <Copy className="h-3.5 w-3.5" /> Copiar mensaje
         </DropdownMenuItem>
+
+        <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(copyToChat)}>
+          <MessageSquarePlus className="h-3.5 w-3.5" /> Copiar al chat
+        </DropdownMenuItem>
+
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="cursor-pointer gap-2 text-xs">
+            <Volume2 className="h-3.5 w-3.5" /> Leer con Aurora
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent className="w-56 border-white/10 bg-black/95 text-white backdrop-blur-2xl">
+              <DropdownMenuItem
+                className="cursor-pointer text-xs"
+                onClick={wrap(() => readMessage())}
+              >
+                Predeterminada ({defaultPersonality?.name || "Aurora"})
+              </DropdownMenuItem>
+              {personalities.length > 0 && (
+                <>
+                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground">Otras</DropdownMenuLabel>
+                  {personalities.map((p) => (
+                    <DropdownMenuItem
+                      key={p.id}
+                      className="cursor-pointer text-xs"
+                      onClick={wrap(() => readMessage(p))}
+                    >
+                      {p.name}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
 
         {onBranchFromMessage && (
           <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(branch)}>
