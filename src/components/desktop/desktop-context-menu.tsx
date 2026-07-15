@@ -14,6 +14,8 @@
 // ════════════════════════════════════════════════════════════════
 
 import React from "react";
+import { Volume2 } from "lucide-react";
+import { useAurora } from "@/components/aurora/aurora-provider";
 import {
     FolderPlus, StickyNote, Link2, LayoutGrid, ArrowUpDown, List, Grid3x3,
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
@@ -162,7 +164,11 @@ export function CanvasContextMenu({
     activePage?: number;
 }): React.ReactElement {
     const view = desktop.view ?? {};
+    
     const clip = useDesktopClipboard();
+    const aurora = useAurora();
+    const speak = aurora?.speak;
+
     const pages = desktopPageCount(desktop);
     const run = (fn: () => void) => { fn(); onClose(); };
     const askAurora = () => {
@@ -296,6 +302,15 @@ export function IconContextMenu({
             )}
 
             <MenuDivider />
+            
+            <MenuItem icon={Volume2} label="Leer en voz alta" onClick={() => run(() => speak?.(`Icono seleccionado: ${icon.name}`))} />
+            <MenuItem icon={Sparkles} label="Copiar al chat de Aurora" onClick={() => run(() => {
+                try {
+                    window.dispatchEvent(new CustomEvent("starseed:open-aurora-exocortex"));
+                    window.dispatchEvent(new CustomEvent("aurora:suggest", { detail: { context: "desktop-icon", iconName: icon.name, iconId: icon.id } }));
+                } catch { /* noop */ }
+            })} />
+
             {/* Portapapeles del escritorio (real: entre folders, páginas y escritorios) */}
             <MenuItem icon={Copy} label="Copiar" shortcut="⌘C" onClick={() => run(() => copyIcon(desktop.id, icon.id))} />
             <MenuItem icon={Scissors} label="Cortar" shortcut="⌘X" onClick={() => run(() => cutIcon(desktop.id, icon.id))} />

@@ -44,6 +44,7 @@ import { MessageProcessModal } from "@/components/aurora/message-process-modal";
 // imágenes/audio/vídeo/PDF a partir de una URL dentro del mensaje.
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import type { UniversalAttachment } from "@/lib/files/os-files";
+import { MessageActionBar } from "@/components/aurora/message-action-bar";
 
 // ── Tipos de props ───────────────────────────────────────────────────────────
 /** Un mensaje "en vivo" del motor (conversation lleva `.at`). */
@@ -528,10 +529,39 @@ function Conversation(props: {
             <div className="axc-role">{m.role === "user" ? "Tú" : auroraName}</div>
             {/* Renderizador universal: markdown, código, tablas, JSON, SVG,
                 imágenes/vídeo/audio/PDF/3D/CSV… del mensaje */}
-            <MessageRenderer text={m.text} compact={m.role === "user"} />
-            {m.role === "aurora" && m.meta && (
-              <ProcessLine meta={m.meta} onOpenFull={() => openProcess(m.meta)} />
-            )}
+            {(() => {
+              let displayText = m.text;
+              let extraInfo: string | undefined = undefined;
+              if (m.role === "aurora") {
+                const regex = /(?:\n\s*(?:—|-|_)*\s*\*?(?:Modelo utilizado|Modelo usado|Modelo:|Modelo actual):?[\s\S]*)$/i;
+                const match = displayText.match(regex);
+                if (match) {
+                  extraInfo = match[0].trim();
+                  displayText = displayText.substring(0, match.index).trim();
+                }
+              }
+              const enhancedMeta = m.meta || extraInfo ? { ...m.meta, modelText: extraInfo } : undefined;
+              return (
+                <div className="group relative">
+                  <MessageRenderer text={displayText} compact={m.role === "user"} />
+                  <MessageActionBar
+                    payload={{
+                      role: m.role,
+                      text: m.text,
+                      ts: m.at ?? Date.now(),
+                      meta: enhancedMeta,
+                      history: visibleConvo.slice(0, i + 1).map((e) => ({ role: e.role, text: e.text, ts: e.at ?? 0 })),
+                    }}
+                    onBranchFromMessage={onBranchFromMessage}
+                    onRetryMessage={onRetryMessage}
+                    onViewProcess={openProcess}
+                  />
+                  {m.role === "aurora" && enhancedMeta && (
+                    <ProcessLine meta={enhancedMeta} onOpenFull={() => openProcess(enhancedMeta)} />
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ))
       )}

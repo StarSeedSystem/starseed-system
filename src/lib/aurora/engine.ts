@@ -97,6 +97,8 @@ export interface AuroraMessageMeta {
   attempts?: number;
   /** Duración de la llamada ganadora, en ms. */
   ms?: number;
+  /** Texto original del modelo (sin directivas parseadas) */
+  modelText?: string;
   /** Dificultad estimada de la petición (0..1). */
   difficulty?: number;
   /** Por qué se eligió esa fuente (transparencia del router). */
@@ -167,14 +169,14 @@ export interface AuroraEngine {
   transcript: string;
   interim: string;
   lastReply: string;
-  activePersonality: Personality;
+  activePersonality: any;
   settings: AuroraSettings;
   voices: Voice[];
-  personalities: Personality[];
+  personalities: any[];
   start: () => void;
   stop: () => void;
   toggle: () => void;
-  speak: (text: string) => void;
+  speak: (text: string, forcePersonality?: any) => void;
   runCommand: (transcript: string, opts?: { forceSource?: { sourceId: string; modelId: string } }) => Promise<void>;
   /** ¿La síntesis de voz está pausada (transporte)? */
   paused: boolean;
@@ -376,6 +378,7 @@ export function useAuroraEngine(): AuroraEngine {
   const [paused, setPaused] = useState(false);
   const [replyHistory, setReplyHistory] = useState<string[]>([]);
   const [conversation, setConversation] = useState<ConversationEntry[]>([]);
+  const conversationRef = useRef<ConversationEntry[]>([]);
   const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
   // ── DOS NIVELES: fondo PASIVO (solo escucha la palabra "Aurora", SILENCIOSO,
   //    sin indicador activo) vs ACTIVA (engaged: procesa lo que digas, con el
@@ -627,11 +630,15 @@ export function useAuroraEngine(): AuroraEngine {
   //      LATIDO del orbe (emitAuroraSpeak start/boundary/end) alrededor del audio.
   //   3) Si el motor OSS no aplica / no está disponible / falla, cae a la voz del
   //      navegador (speakWithBrowser) — comportamiento histórico intacto.
-  const speak = useCallback((text: string) => {
+  const speak = useCallback((text: string, forcePersonality?: any) => {
     if (typeof window === "undefined") return;
-    const clean = (text || "").replace(/\[\[goto:[^\]]+\]\]/gi, "").trim();
+    let clean = (text || "").replace(/\[\[goto:[^\]]+\]\]/gi, "");
+    // Limpia caracteres según el usuario para una voz fluida.
+    clean = clean.replace(/[*_~`´#|><.,;:\-\[\](){}\\\/"—–]/g, " ");
+    clean = clean.replace(/\s+/g, " ");
+    clean = clean.trim();
     if (!clean) return;
-    const p = activeRef.current;
+    const p = forcePersonality || activeRef.current;
 
     const runBrowser = () => speakWithBrowser(clean, p);
 
@@ -720,14 +727,22 @@ export function useAuroraEngine(): AuroraEngine {
     });
     historyIndexRef.current = -1; // -1 = al final (última respuesta)
     const entryMeta: AuroraMessageMeta = meta ?? { local: true, reason: "Regla determinista del motor (sin modelo de IA)." };
-    setConversation((prev) => [...prev, { role: "aurora" as const, text: t, at: Date.now(), meta: entryMeta }].slice(-HISTORY_LIMIT));
+    setConversation((prev) => {
+      const next = [...prev, { role: "aurora" as const, text: t, at: Date.now(), meta: entryMeta }].slice(-HISTORY_LIMIT);
+      conversationRef.current = next;
+      return next;
+    });
   }, []);
 
   // Registra lo que el usuario dijo/escribió.
   const pushUser = useCallback((text: string) => {
     const t = (text || "").trim();
     if (!t) return;
-    setConversation((prev) => [...prev, { role: "user" as const, text: t, at: Date.now() }].slice(-HISTORY_LIMIT));
+    setConversation((prev) => {
+      const next = [...prev, { role: "user" as const, text: t, at: Date.now() }].slice(-HISTORY_LIMIT);
+      conversationRef.current = next;
+      return next;
+    });
   }, []);
 
   // Registra una acción ejecutada (para el panel del chat).
@@ -1039,8 +1054,18 @@ export function useAuroraEngine(): AuroraEngine {
         (toolsSection ? "\n\n" + toolsSection : "") +
         (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
         contextNote;
+      // Se incluye el historial reciente (conversationRef) antes del mensaje actual.
+      // Así mantenemos el contexto continuo en los comandos de voz.
+      const historyMessages = conversationRef.current.map((msg): ChatMessage => ({
+        role: msg.role === 'aurora' ? 'assistant' : 'user',
+        content: msg.text,
+      }));
+      if (historyMessages.length > 0 && historyMessages[historyMessages.length - 1].role === 'user' && historyMessages[historyMessages.length - 1].content === text) {
+        historyMessages.pop();
+      }
       const messages: ChatMessage[] = [
         { role: "system", content: system },
+        ...historyMessages,
         { role: "user", content: text },
       ];
       const temperature = 0.4 + (Number(activeRef.current.params?.creatividad ?? 60) / 100) * 0.6;
@@ -1048,9 +1073,9 @@ export function useAuroraEngine(): AuroraEngine {
       // Router agéntico gratis-primero (auto) o proveedor clásico (manual).
       // `forceSource` (opcional): "Reintentar" del menú contextual de mensajes
       // fuerza un proveedor/modelo concreto para ESTA llamada.
-      // 15 seconds timeout to prevent hanging which causes mic revoke and UI glitch loops
+      // Timeout incrementado a 60s (Ollama puede tardar en cargar el modelo, o cloud ser lento)
       const abortCtrl = new AbortController();
-      const timeoutId = setTimeout(() => abortCtrl.abort(), 15000);
+      const timeoutId = setTimeout(() => abortCtrl.abort(), 60000);
 
       const res = await astrauraChat({
         messages,

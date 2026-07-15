@@ -25,6 +25,8 @@ interface ProfileFilesSectionProps {
     isOwner: boolean;
     /** Nombre visible del perfil (para los textos). */
     name: string;
+    /** UID del dueño del perfil (para resolver su biblioteca pública). */
+    ownerUid?: string | null;
 }
 
 function formatSavedAt(ts: number): string {
@@ -39,8 +41,25 @@ function formatSavedAt(ts: number): string {
     }
 }
 
-export function ProfileFilesSection({ isOwner, name }: ProfileFilesSectionProps) {
-    const { items } = useSavedLibrary();
+import { useEntityLibrary, libraryRef } from "@/lib/library/entity-library";
+import { profilePublicNodes } from "@/lib/sharing/access";
+
+export function ProfileFilesSection({ isOwner, name, ownerUid }: ProfileFilesSectionProps) {
+    const localLibrary = useSavedLibrary();
+    // Resolutor de la biblioteca pública del perfil visitado
+    const { doc: publicDoc, loading: publicLoading } = useEntityLibrary(
+        !isOwner && ownerUid ? libraryRef("user", ownerUid) : null
+    );
+
+    // Los archivos públicos mostrados al visitante
+    const publicFiles = React.useMemo(() => {
+        if (isOwner || !publicDoc) return [];
+        const shown = profilePublicNodes(publicDoc);
+        return shown.files.map((f) => publicDoc.items.find((it) => it.id === f.id)).filter(Boolean) as any[];
+    }, [isOwner, publicDoc]);
+
+    const items = isOwner ? localLibrary.items.filter(it => it.kind === 'file' || it.kind === 'package') : publicFiles;
+    const isLoading = !isOwner && publicLoading;
 
     return (
         <Card>
@@ -64,9 +83,15 @@ export function ProfileFilesSection({ isOwner, name }: ProfileFilesSectionProps)
             </CardHeader>
             <CardContent>
                 {/* Perfil ajeno: no hay fuente real accesible de sus archivos. */}
-                {!isOwner && (
+                {!isOwner && items.length === 0 && !isLoading && (
                     <p className="rounded-xl border border-dashed border-white/12 p-6 text-center text-sm text-muted-foreground">
                         Este perfil aún no comparte archivos públicos.
+                    </p>
+                )}
+
+                {!isOwner && isLoading && (
+                    <p className="rounded-xl border border-dashed border-white/12 p-6 text-center text-sm text-muted-foreground animate-pulse">
+                        Sincronizando archivos públicos...
                     </p>
                 )}
 
@@ -76,7 +101,7 @@ export function ProfileFilesSection({ isOwner, name }: ProfileFilesSectionProps)
                     </p>
                 )}
 
-                {isOwner && items.length > 0 && (
+                {items.length > 0 && (
                     <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         {items.map((item) => {
                             const inner = (

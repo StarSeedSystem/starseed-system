@@ -82,6 +82,12 @@ export function MessageProcessModal({ open, meta, onOpenChange }: MessageProcess
 
             {meta.reason && <p className="text-white/60">{meta.reason}</p>}
 
+            {meta.modelText && (
+              <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-white/70">
+                {meta.modelText}
+              </div>
+            )}
+
             {meta.tools && meta.tools.length > 0 && (
               <div className="space-y-1.5">
                 <div className="text-[10px] uppercase tracking-wide text-white/40">Herramientas invocadas</div>

@@ -7,6 +7,13 @@
 // en el repo; ver architecture/libreria-biblioteca-sync.md §6).
 // ════════════════════════════════════════════════════════════════════════════
 
+
+import { DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from "@/components/ui/dropdown-menu";
+import { Volume2 } from "lucide-react";
+import { useAurora } from "@/components/aurora/aurora-provider";
+import { useSavedLibrary } from "@/lib/library-store";
+import type { PersonalityProfile } from "@/lib/aurora/personalities";
+
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -17,7 +24,7 @@ import {
 import {
     ExternalLink, Eye, GitBranch, Copy, ClipboardCopy, ClipboardPaste,
     Link2, FolderInput, Tags, Share2, Send, ShieldCheck, Trash2, Package, Megaphone,
-    PenSquare, History, MessageSquare, Boxes, ScrollText,
+    PenSquare, History, MessageSquare, Boxes, ScrollText, Sparkles,
     type LucideIcon,
 } from "lucide-react";
 
@@ -92,6 +99,17 @@ export function FinderContextMenu({
     onShare, onSendTo, onPublish, onPublishToCatalog, onPublishFolderToCatalog, onPermissions, onRemove,
     onEdit, onVersions, onHistory, onLog, onBranches, onComments, onInstallTo, extraActions,
 }: FinderContextMenuProps) {
+    
+    const aurora = useAurora();
+    const speak = aurora?.speak;
+    const { items } = useSavedLibrary();
+    const personalities = items
+        .filter((it) => it.kind === "personality" && (it as any).content)
+        .map((it) => {
+            try { return JSON.parse((it as any).content || "{}") as PersonalityProfile; } catch { return null; }
+        })
+        .filter(Boolean) as PersonalityProfile[];
+
     const isItem = target.kind === "item";
     const wrap = (fn?: () => void) => () => {
         fn?.();
@@ -119,6 +137,15 @@ export function FinderContextMenu({
                         <Eye className="h-3.5 w-3.5" /> Vista previa
                     </DropdownMenuItem>
                 )}
+
+                <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(() => {
+                    try {
+                        window.dispatchEvent(new CustomEvent("starseed:open-aurora-exocortex"));
+                        window.dispatchEvent(new CustomEvent("aurora:suggest", { detail: { context: "finder-item", itemId: target.id, itemKind: target.kind } }));
+                    } catch { /* noop */ }
+                })}>
+                    <Sparkles className="h-3.5 w-3.5" /> Preguntar a Aurora
+                </DropdownMenuItem>
 
                 {isItem && !target.isAlias && (
                     <>

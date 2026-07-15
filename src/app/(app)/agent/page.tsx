@@ -63,6 +63,9 @@ import { openAuroraSetup } from "@/lib/aurora/setup-config";
 import ProviderPanel from "@/components/exocortex/provider-panel";
 import AuroraStudio from "@/components/aurora/aurora-studio";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
+import { MessageActionBar } from "@/components/aurora/message-action-bar";
+import { MessageProcessModal } from "@/components/aurora/message-process-modal";
+import { useAurora } from "@/components/aurora/aurora-provider";
 import StoragePanel from "@/components/storage/storage-panel";
 import ConnectionsHub from "@/components/storage/connections-hub";
 import BrainsPanel from "@/components/brains/brains-panel";
@@ -91,6 +94,8 @@ import {
 } from "@/lib/aurora/conversations";
 
 import { chat, chatSmart } from "@/ai/client/chat";
+import { astrauraChat } from "@/ai/astraura/router";
+import { parseDirectives } from "@/lib/aurora/actions";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS, type ProviderId } from "@/ai/providers";
 import type { ProviderConfig, ChatMessage } from "@/ai/providers/types";
@@ -411,6 +416,9 @@ function AgentPageInner() {
   const [activeProviderId, setActiveProviderIdState] = useState<ProviderId | null>(null);
   const [passphrase, setPassphrase] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  
+  const [process, setProcess] = useState<{ open: boolean; meta?: any }>({ open: false });
+
   const [streaming, setStreaming] = useState(false);
 
   // Skills & Tools state
@@ -430,6 +438,7 @@ function AgentPageInner() {
     });
   }, []);
 
+  const aurora = useAurora();
   const activeAgent = agents.find(a => a.id === selectedAgentId) || agents[0];
   const activeProviderConfig = useMemo(
     () => configs.find(c => c.enabled && c.id === activeProviderId) ?? configs.find(c => c.enabled),
@@ -455,7 +464,7 @@ function AgentPageInner() {
     if (!convId) {
       const created = await ensureActiveConversation({
         title: titleFromText(text),
-        kind: 'astraura',
+        kind: 'aurora',
         surface: 'agent',
       });
       convId = created.id;
@@ -468,7 +477,7 @@ function AgentPageInner() {
       role: 'user',
       text,
       convId,
-      kind: 'astraura',
+      kind: 'aurora',
       surface: 'agent',
     });
 
@@ -477,7 +486,7 @@ function AgentPageInner() {
         role: 'assistant',
         text: 'Aún no tienes un proveedor de IA configurado. Ve a Ajustes → IA & Modelos y añade Ollama (local) u otro proveedor con tu propia clave.',
         convId,
-        kind: 'astraura',
+        kind: 'aurora',
         surface: 'agent',
         meta: { local: true, provider: 'Astraura (respuesta local)' },
       });
@@ -538,23 +547,33 @@ function AgentPageInner() {
     let acc = "";
     const startedAt = Date.now();
     try {
-      await chatSmart({
+      await astrauraChat({
+        chatId: convId,
         messages: history,
         temperature: activeAgent.temperature,
-        passphrase,
         signal: abortRef.current.signal,
         onChunk: (delta) => {
+          // Filtrar directivas [[...]] del stream para no ensuciar la UI
+          const match = delta.match(/\[\[(.*?)\]\]/);
+          if (!match) {
+            setStreamText(prev => prev + delta);
+          }
           acc += delta;
-          setStreamText(acc);
         },
       });
+
+      // Procesar directivas agénticas al finalizar
+      const directives = parseDirectives(acc);
+      if (directives.length > 0 && aurora) {
+        await aurora.runDirectives(acc);
+      }
       // 4) La respuesta completa se persiste en la conversación unificada.
       if (acc.trim()) {
         await appendUnifiedMessage({
           role: 'assistant',
           text: acc,
           convId,
-          kind: 'astraura',
+          kind: 'aurora',
           surface: 'agent',
           source: activeProviderConfig.label,
           meta: {
@@ -572,7 +591,7 @@ function AgentPageInner() {
           role: 'assistant',
           text: `${acc}\n\n⚠ ${msg}`,
           convId,
-          kind: 'astraura',
+          kind: 'aurora',
           surface: 'agent',
           source: activeProviderConfig.label,
           meta: { provider: activeProviderConfig.label, model: activeProviderConfig.defaultModel },
@@ -582,7 +601,7 @@ function AgentPageInner() {
           role: 'assistant',
           text: `⚠ ${msg}`,
           convId,
-          kind: 'astraura',
+          kind: 'aurora',
           surface: 'agent',
           meta: { local: true, provider: 'Astraura (error)' },
         });
@@ -610,12 +629,17 @@ function AgentPageInner() {
   // Lo que se pinta: los mensajes REALES de la conversación unificada + la
   // burbuja en vivo de la respuesta que se está transmitiendo. Si el hilo está
   // vacío, un saludo honesto (no se persiste: es UI, no historial).
-  const messages: ChatTurn[] = useMemo(() => {
-    const base: ChatTurn[] = cloudMessages
+  
+  const messages = useMemo(() => {
+    const base = cloudMessages
       .filter(m => m.role !== 'system')
-      .map(m => ({
+      .map((m, i, arr) => ({
+        id: m.id,
         role: m.role === 'assistant' ? 'agent' : 'user',
         content: m.text,
+        ts: m.ts,
+        meta: m.meta,
+        history: arr.slice(0, i + 1).map(e => ({ role: e.role === 'assistant' ? 'aurora' : 'user', text: e.text, ts: e.ts })),
         timestamp: (() => {
           try { return new Date(m.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
           catch { return ''; }
@@ -623,16 +647,21 @@ function AgentPageInner() {
       }));
     if (base.length === 0 && !streaming) {
       base.push({
+        id: 'placeholder',
         role: 'agent',
         content: 'Sistemas neurales activos. Escribe aquí o háblale a Aurora desde el orbe: es la **misma conversación**. Elige un proveedor de IA en Ajustes → IA & Modelos para conversar de verdad.',
         timestamp: 'Ahora',
+        ts: Date.now(),
+        meta: undefined,
+        history: [],
       });
     }
     if (streaming) {
-      base.push({ role: 'agent', content: streamText, timestamp: '', pending: true });
+      base.push({ id: 'streaming', role: 'agent', content: streamText, timestamp: '', ts: Date.now(), pending: true, meta: undefined, history: [] });
     }
     return base;
   }, [cloudMessages, streaming, streamText]);
+
 
   return (
     <div className="flex flex-col h-[calc(100dvh-5rem)] gap-4 p-3 sm:p-4 md:p-6 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-w-[1600px] mx-auto w-full box-border overflow-x-hidden">
@@ -815,7 +844,7 @@ function AgentPageInner() {
                 size="icon"
                 className="shrink-0 bg-card/60 backdrop-blur border-border/50 cursor-pointer lg:hidden"
                 title="Nueva conversación"
-                onClick={() => void conv.create({ kind: 'astraura', surface: 'agent' })}
+                onClick={() => void conv.create({ kind: 'aurora', surface: 'agent' })}
               >
                 <Plus className="w-4 h-4" />
               </Button>
@@ -851,7 +880,7 @@ function AgentPageInner() {
             <ScrollArea className="flex-1 p-4" ref={scrollRef}>
               <div className="flex flex-col gap-4 max-w-3xl mx-auto pt-16 sm:pt-12">
                 {messages.map((msg, i) => (
-                  <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div key={msg.id ?? i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                     <Avatar className="w-8 h-8 border border-white/10">
                       {msg.role === 'agent' ? (
                         <AvatarFallback className="bg-primary/20 text-primary"><Bot className="w-4 h-4" /></AvatarFallback>
@@ -859,18 +888,35 @@ function AgentPageInner() {
                         <AvatarFallback className="bg-muted/40 text-xs">Tú</AvatarFallback>
                       )}
                     </Avatar>
-                    <div className={`p-3 rounded-2xl max-w-[80%] text-sm shadow-sm ${msg.role === 'user'
+                    <div className={`group relative p-3 rounded-2xl max-w-[80%] text-sm shadow-sm ${msg.role === 'user'
                       ? 'bg-primary text-primary-foreground rounded-tr-none'
                       : 'bg-card border rounded-tl-none'
                       }`}>
-                      {/* Renderizador universal: markdown, código con copiar,
-                          tablas, JSON plegable, SVG e imágenes/audio/vídeo/archivos. */}
                       <MessageRenderer text={msg.content} compact={msg.role === 'user'} />
                       {msg.pending && <span className="inline-block w-2 h-4 ml-1 bg-primary/70 animate-pulse align-middle" />}
+                      {!msg.pending && msg.meta && (
+                        <MessageActionBar
+                          payload={{
+                            role: msg.role === 'user' ? 'user' : 'aurora',
+                            text: msg.content,
+                            ts: msg.ts ?? Date.now(),
+                            meta: msg.meta,
+                            history: [],
+                          }}
+                          onViewProcess={(meta) => setProcess({ open: true, meta })}
+                        />
+                      )}
                     </div>
                   </div>
                 ))}
+              
               </div>
+              <MessageProcessModal
+                open={process.open}
+                meta={process.meta as any}
+                onOpenChange={(o) => setProcess(p => ({ ...p, open: o }))}
+              />
+
             </ScrollArea>
 
             <div className="p-4 border-t bg-background/40 backdrop-blur-md space-y-2">

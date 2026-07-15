@@ -451,6 +451,7 @@ export function ProfileIdentityPanel() {
                                         folder="avatares"
                                         title="Cambiar foto de perfil"
                                         hideTabs={["neuronas"]}
+                                        cropOptions={{ aspectRatio: 1, circularCrop: true }}
                                         className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 text-xs font-medium text-foreground/80 hover:bg-white/10"
                                     >
                                         <Upload className="w-3.5 h-3.5" />
@@ -478,6 +479,7 @@ export function ProfileIdentityPanel() {
                                         folder="portadas"
                                         title="Cambiar foto de portada"
                                         hideTabs={["neuronas"]}
+                                        cropOptions={{ aspectRatio: 3 / 1, circularCrop: false }}
                                         className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 text-xs font-medium text-foreground/80 hover:bg-white/10"
                                     >
                                         <Upload className="w-3.5 h-3.5" />

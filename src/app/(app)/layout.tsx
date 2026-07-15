@@ -25,6 +25,8 @@ import { AuthGate } from "@/components/auth/auth-gate";
 // conserva en el repo por si se reutiliza, pero ya no se monta globalmente.
 // import { AiOverlay } from "@/components/hermes/ai-overlay";
 import { GlobalEntityCreator } from "@/components/layout/global-entity-creator";
+import { GlobalSelectionMenu } from "@/components/layout/global-selection-menu";
+import { TextSelectionToolbar } from "@/components/aurora/text-selection-toolbar";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { config } = useAppearance();
@@ -45,6 +47,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <main className="flex-1 flex flex-col bg-transparent transition-all duration-300 overflow-y-auto">
               <div className="w-full px-[clamp(0.75rem,2vw,2rem)] py-[clamp(0.75rem,1.5vw,1.5rem)] flex flex-col gap-[clamp(0.75rem,1.5vw,1.5rem)] flex-1">
                 {children}
+                <TextSelectionToolbar />
                 <AuthGate />
                 <OnboardingGate />
                 {/* Presentación breve de Aurora (tras el alta de cuenta): 3-5
@@ -58,6 +61,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <AlarmScheduler />
         <ActiveAlertModal />
         <GlobalEntityCreator />
+        <GlobalSelectionMenu />
         {/* IA: ahora se accede desde el Exocórtex del menú Trinity (Zenith),
             no desde un botón flotante. */}
       </StoriesProvider>

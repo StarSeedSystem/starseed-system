@@ -75,6 +75,8 @@ export interface UniversalFilePickerProps {
     title?: string;
     /** Oculta alguna pestaña si no aplica al contexto (por defecto las 4 visibles). */
     hideTabs?: Array<"dispositivo" | "bibliotecas" | "neuronas" | "red">;
+    /** Opciones de recorte de imagen antes de la subida (ej. para avatares/portadas). */
+    cropOptions?: { aspectRatio?: number; circularCrop?: boolean };
 }
 
 // ───────────────────────── Utilidades de icono/formato ───────────────────────
@@ -100,68 +102,89 @@ interface DeviceUpload {
     attachment?: UniversalAttachment;
 }
 
+import { ImageCropperModal } from "./image-cropper-modal";
+
 function DeviceTab({
-    accept, folder, onUploaded,
+    accept, folder, cropOptions, onUploaded,
 }: {
     accept?: string;
     folder?: string;
+    cropOptions?: UniversalFilePickerProps["cropOptions"];
     onUploaded: (attachments: UniversalAttachment[]) => void;
 }) {
     const [uploads, setUploads] = useState<DeviceUpload[]>([]);
     const [dragOver, setDragOver] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const handleFiles = useCallback(
-        async (files: FileList | File[] | null) => {
-            if (!files) return;
-            const list = Array.from(files);
-            if (list.length === 0) return;
+    // Estado del cropper
+    const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+    const [pendingFileForCrop, setPendingFileForCrop] = useState<File | null>(null);
 
-            const initial: DeviceUpload[] = list.map((f) => ({
-                id: `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                name: f.name,
-                size: f.size,
-                pct: 0,
-                status: "subiendo",
-            }));
-            setUploads((prev) => [...initial, ...prev]);
+    const uploadActualFiles = useCallback(async (list: File[]) => {
+        if (list.length === 0) return;
 
-            const done: UniversalAttachment[] = [];
-            for (let i = 0; i < list.length; i++) {
-                const file = list[i];
-                const uploadId = initial[i].id;
-                const res = await uploadFile(file, {
-                    folder,
-                    onProgress: (pct) => {
-                        setUploads((prev) => prev.map((u) => (u.id === uploadId ? { ...u, pct } : u)));
-                    },
-                });
-                if (res.ok && res.file) {
-                    const attachment = fileToAttachment(res.file);
-                    done.push(attachment);
-                    setUploads((prev) =>
-                        prev.map((u) => (u.id === uploadId ? { ...u, status: "hecho", pct: 100, attachment } : u)),
-                    );
-                    // Adenda 66 §2: el objeto está en Storage pero su fila `os_files`
-                    // no se pudo registrar. Antes esto se daba por bueno en silencio
-                    // (por eso el archivo no llegaba a los otros dispositivos). Ahora
-                    // se DICE, y la fila queda en cola de reintento automático.
-                    if (res.warning) {
-                        toast.warning(`«${file.name}» subido, pero sin registrar aún`, {
-                            description: res.warning,
-                        });
-                    }
-                } else {
-                    setUploads((prev) =>
-                        prev.map((u) => (u.id === uploadId ? { ...u, status: "error", error: res.error } : u)),
-                    );
-                    toast.error(res.error || `No se pudo subir «${file.name}».`);
+        const initial: DeviceUpload[] = list.map((f) => ({
+            id: `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name: f.name,
+            size: f.size,
+            pct: 0,
+            status: "subiendo",
+        }));
+        setUploads((prev) => [...initial, ...prev]);
+
+        const done: UniversalAttachment[] = [];
+        for (let i = 0; i < list.length; i++) {
+            const file = list[i];
+            const uploadId = initial[i].id;
+            const res = await uploadFile(file, {
+                folder,
+                onProgress: (pct) => {
+                    setUploads((prev) => prev.map((u) => (u.id === uploadId ? { ...u, pct } : u)));
+                },
+            });
+            if (res.ok && res.file) {
+                const attachment = fileToAttachment(res.file);
+                done.push(attachment);
+                setUploads((prev) =>
+                    prev.map((u) => (u.id === uploadId ? { ...u, status: "hecho", pct: 100, attachment } : u)),
+                );
+                if (res.warning) {
+                    toast.warning(`«${file.name}» subido, pero sin registrar aún`, {
+                        description: res.warning,
+                    });
                 }
+            } else {
+                setUploads((prev) =>
+                    prev.map((u) => (u.id === uploadId ? { ...u, status: "error", error: res.error } : u)),
+                );
+                toast.error(res.error || `No se pudo subir «${file.name}».`);
             }
-            if (done.length > 0) onUploaded(done);
+        }
+        if (done.length > 0) onUploaded(done);
         },
-        [folder, onUploaded],
+        [folder, onUploaded]
     );
+
+    
+    const handleFiles = useCallback(async (files: FileList | File[] | null) => {
+        if (!files) return;
+        const list = Array.from(files);
+        if (list.length === 0) return;
+
+        if (cropOptions && list.length === 1 && list[0].type.startsWith("image/")) {
+            setPendingFileForCrop(list[0]);
+            setCropImageSrc(URL.createObjectURL(list[0]));
+            return;
+        }
+        
+        uploadActualFiles(list);
+    }, [cropOptions, uploadActualFiles]);
+
+    const handleCropComplete = useCallback((croppedFile: File) => {
+        setCropImageSrc(null);
+        setPendingFileForCrop(null);
+        uploadActualFiles([croppedFile]);
+    }, [uploadActualFiles]);
 
     return (
         <div className="space-y-3">
@@ -700,6 +723,7 @@ export interface AttachFilePickerButtonProps {
     folder?: string;
     title?: string;
     hideTabs?: Array<"dispositivo" | "bibliotecas" | "neuronas" | "red">;
+    cropOptions?: { aspectRatio: number, circularCrop: boolean };
     className?: string;
     /** Icono/etiqueta ya los define el llamador vía children; por defecto un clip. */
     children?: ReactNode;
@@ -707,7 +731,7 @@ export interface AttachFilePickerButtonProps {
 
 /** Botón + diálogo listos para usar (clip por defecto) — evita repetir el estado `open` en cada composer. */
 export function AttachFilePickerButton({
-    onPick, accept, folder, title, hideTabs, className, children,
+    onPick, accept, folder, title, hideTabs, className, children, cropOptions
 }: AttachFilePickerButtonProps) {
     const [open, setOpen] = useState(false);
     return (
@@ -722,7 +746,7 @@ export function AttachFilePickerButton({
             >
                 {children ?? <Upload className="size-4" />}
             </button>
-            <UniversalFilePicker
+            <UniversalFilePicker cropOptions={cropOptions}
                 open={open}
                 onOpenChange={setOpen}
                 onPick={(a) => {

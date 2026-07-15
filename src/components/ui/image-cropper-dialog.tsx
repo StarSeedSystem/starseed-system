@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import Cropper from "react-easy-crop";
 import {
     Dialog,
@@ -24,7 +24,7 @@ export interface ImageCropperDialogProps {
     /** aspect ratio: 1 for avatar, 16/9 or adaptable for cover */
     aspect?: number;
     title?: string;
-    onCropComplete: (croppedBlob: Blob) => void;
+    onCropComplete: (croppedBlob: Blob | null) => void;
 }
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
@@ -80,17 +80,45 @@ export function ImageCropperDialog({
 }: ImageCropperDialogProps) {
     const [crop, setCrop] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
+    const [internalAspect, setInternalAspect] = useState<number | undefined>(aspect ?? (mode === "avatar" ? 1 : 16 / 9));
     const [croppedAreaPixels, setCroppedAreaPixels] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+
+    const [naturalAspect, setNaturalAspect] = useState<number>(16 / 9);
+
+    useEffect(() => {
+        if (!imageSrc) return;
+        let isMounted = true;
+        const img = new Image();
+        img.onload = () => {
+            if (isMounted && img.naturalHeight) {
+                setNaturalAspect(img.naturalWidth / img.naturalHeight);
+            }
+        };
+        img.src = imageSrc;
+        return () => { isMounted = false; };
+    }, [imageSrc]);
+
 
     const onCropCompleteHandler = useCallback((croppedArea: any, croppedAreaPixels: any) => {
         setCroppedAreaPixels(croppedAreaPixels);
     }, []);
 
+    
     const handleSave = async () => {
-        if (!imageSrc || !croppedAreaPixels) return;
+        if (!imageSrc) return;
+
+        // Bypass cropping for Original (Adaptable)
+        if (internalAspect === undefined) {
+            onCropComplete(null);
+            onOpenChange(false);
+            return;
+        }
+
+        if (!croppedAreaPixels) return;
 
         setIsProcessing(true);
+
         try {
             const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels);
             if (croppedBlob) {
@@ -107,8 +135,11 @@ export function ImageCropperDialog({
         }
     };
 
-    const finalAspect = aspect ?? (mode === "avatar" ? 1 : 16 / 9);
+    useEffect(() => {
+        if (aspect) setInternalAspect(aspect);
+    }, [aspect]);
 
+    const finalAspect = internalAspect ?? (mode === "avatar" ? 1 : naturalAspect);
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-xl border-white/10 bg-black/95 backdrop-blur-2xl">
@@ -139,6 +170,47 @@ export function ImageCropperDialog({
                     )}
                 </div>
 
+                {mode === "cover" && (
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2 px-2">
+                        <span className="text-xs text-white/60 mr-2">Proporción:</span>
+                        <Button 
+                            variant={internalAspect === 16 / 9 ? "secondary" : "outline"} 
+                            size="sm" className="h-7 text-xs" 
+                            onClick={() => setInternalAspect(16 / 9)}
+                        >
+                            16:9
+                        </Button>
+                        <Button 
+                            variant={internalAspect === 4 / 3 ? "secondary" : "outline"} 
+                            size="sm" className="h-7 text-xs" 
+                            onClick={() => setInternalAspect(4 / 3)}
+                        >
+                            4:3
+                        </Button>
+                        <Button 
+                            variant={internalAspect === 21 / 9 ? "secondary" : "outline"} 
+                            size="sm" className="h-7 text-xs" 
+                            onClick={() => setInternalAspect(21 / 9)}
+                        >
+                            21:9
+                        </Button>
+                        <Button 
+                            variant={internalAspect === 1 ? "secondary" : "outline"} 
+                            size="sm" className="h-7 text-xs" 
+                            onClick={() => setInternalAspect(1)}
+                        >
+                            1:1
+                        </Button>
+                        <Button 
+                            variant={internalAspect === undefined ? "secondary" : "outline"} 
+                            size="sm" className="h-7 text-xs" 
+                            onClick={() => setInternalAspect(undefined)}
+                        >
+                            Libre
+                        </Button>
+                    </div>
+                )}
+
                 <div className="mt-4 flex items-center gap-4 px-2">
                     <span className="text-xs text-white/60">Zoom</span>
                     <Slider
@@ -160,6 +232,19 @@ export function ImageCropperDialog({
                     >
                         Cancelar
                     </Button>
+                    {mode === "cover" && (
+                        <Button
+                            variant="secondary"
+                            className="cursor-pointer gap-2 mr-auto"
+                            onClick={() => {
+                                onOpenChange(false);
+                                onCropComplete(null);
+                            }}
+                            disabled={isProcessing}
+                        >
+                            <Crop className="size-4" /> Original (Adaptable)
+                        </Button>
+                    )}
                     <Button
                         className="cursor-pointer gap-2"
                         onClick={handleSave}

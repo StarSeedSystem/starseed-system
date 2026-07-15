@@ -38,13 +38,15 @@ export function ProfileHeader({ profileData }: ProfileHeaderProps) {
             {/* Holographic Background Layer — portada REAL o gradiente honesto */}
             <div className="absolute inset-0 z-0">
                 {profileData.cover ? (
-                    <Image
+                    <img
                         src={profileData.cover}
-                        alt="Cover"
-                        fill
-                        className="object-cover opacity-80 group-hover:scale-105 transition-transform duration-700"
-                        priority
+                        alt=""
+                        className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700"
                         data-ai-hint={profileData.coverHint}
+                        onError={(e) => {
+                            // Si falla la imagen (CORS, 404, etc), ocultarla para que se vea el gradiente de fallback.
+                            e.currentTarget.style.display = 'none';
+                        }}
                     />
                 ) : (
                     // Sin portada: aurora sutil de sistema (decoración, no dato falso).

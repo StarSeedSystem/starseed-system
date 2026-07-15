@@ -525,7 +525,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) skip(); setOpen(v); }}>
-      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-fuchsia-500 via-purple-500 to-cyan-400 flex items-center justify-center shrink-0 shadow-lg">

@@ -47,6 +47,7 @@ import EgoContextOption from "@/components/aurora/ego-context-option";
 import { createEgoForContext, type EgoContextKind } from "@/lib/aurora/ego";
 import { PlacePicker, type PlaceSelection } from "@/components/maps/place-picker";
 import { Lock, Loader2, Upload, X, ImageIcon } from "lucide-react";
+import { ImageCropperDialog } from "@/components/ui/image-cropper-dialog";
 
 // ── Tipos del editor ──
 
@@ -156,37 +157,37 @@ function placeFromEntity(
 /** Límite de tamaño para subidas de imagen (~5 MB). */
 const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
 
-/**
- * Control reutilizable de subida de imagen (avatar o portada).
- *
- * Permite: (1) elegir un archivo (image/*) que se sube a Storage vía
- * uploadEntityMedia mostrando spinner / error / éxito y una vista previa, o
- * (2) pegar una URL manual como alternativa. La URL resultante se eleva al
- * formulario padre vía onChange (se persiste luego en create/update).
- */
-function MediaUploadField({
-    kind,
-    value,
-    onChange,
-    accent,
-    onNeedsAuth,
-}: {
-    kind: "avatar" | "cover";
+interface ImageUploadProps {
+    label?: string;
     value: string;
     onChange: (url: string) => void;
+    kind: "avatar" | "cover";
     accent: string;
     onNeedsAuth: () => void;
-}) {
+}
+
+function ImageUpload({
+    label,
+    value,
+    onChange,
+    kind,
+    accent,
+    onNeedsAuth,
+}: ImageUploadProps) {
     const inputId = `entity-${kind}-file`;
     const fileRef = React.useRef<HTMLInputElement | null>(null);
     const [uploading, setUploading] = React.useState(false);
     const [uploadError, setUploadError] = React.useState<string | null>(null);
     const [justUploaded, setJustUploaded] = React.useState(false);
+    
+    // Estados para el cropper
+    const [cropperOpen, setCropperOpen] = React.useState(false);
+    const [cropperSrc, setCropperSrc] = React.useState<string | null>(null);
+    const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
 
     const isCover = kind === "cover";
-    const label = isCover ? "Portada" : "Avatar";
 
-    const handleFile = async (file: File | undefined | null) => {
+    const handleFileSelect = (file: File | undefined | null) => {
         setUploadError(null);
         setJustUploaded(false);
         if (!file) return;
@@ -195,14 +196,33 @@ function MediaUploadField({
             setUploadError("El archivo debe ser una imagen.");
             return;
         }
-        if (file.size > MAX_MEDIA_BYTES) {
+        if (file.size > 5 * 1024 * 1024) {
             setUploadError("La imagen supera el límite de 5 MB.");
             return;
         }
 
+        setSelectedFile(file);
+        setCropperSrc(URL.createObjectURL(file));
+        setCropperOpen(true);
+    };
+
+    const handleCropComplete = async (croppedBlob: Blob | null) => {
+        setCropperOpen(false);
+        setCropperSrc(null);
+        
+        if (!selectedFile) return;
+        
+        const finalFile = croppedBlob 
+            ? new File([croppedBlob], selectedFile.name, {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+            }) 
+            : selectedFile;
+        
+        setSelectedFile(null);
         setUploading(true);
         try {
-            const res = await uploadEntityMedia(file, kind);
+            const res = await uploadEntityMedia(finalFile, kind);
             if (res.needsAuth) {
                 onNeedsAuth();
                 setUploadError("Inicia sesión para subir imágenes.");
@@ -218,7 +238,6 @@ function MediaUploadField({
             setUploadError(e?.message || "Error al subir la imagen.");
         } finally {
             setUploading(false);
-            // Permite re-elegir el mismo archivo si fuese necesario.
             if (fileRef.current) fileRef.current.value = "";
         }
     };
@@ -236,6 +255,9 @@ function MediaUploadField({
                             src={value}
                             alt="Vista previa de portada"
                             className="h-28 w-full object-cover"
+                            onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                            }}
                         />
                         <button
                             type="button"
@@ -257,6 +279,9 @@ function MediaUploadField({
                             alt="Vista previa de avatar"
                             className="h-14 w-14 rounded-full border border-input object-cover"
                             style={{ boxShadow: `0 0 0 2px ${accent}33` }}
+                            onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                            }}
                         />
                         <button
                             type="button"
@@ -284,55 +309,46 @@ function MediaUploadField({
                 </div>
             )}
 
-            {/* Botón de subida + input file oculto */}
-            <div className="flex items-center gap-2">
-                <input
-                    ref={fileRef}
-                    id={inputId}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleFile(e.target.files?.[0])}
-                    disabled={uploading}
-                />
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileRef.current?.click()}
-                    disabled={uploading}
-                    className="gap-2 cursor-pointer"
-                >
-                    {uploading ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                        <Upload className="h-3.5 w-3.5" />
-                    )}
-                    {uploading ? "Subiendo…" : value ? "Cambiar imagen" : "Subir imagen"}
-                </Button>
-                {justUploaded && !uploading && (
-                    <span className="text-xs text-emerald-400">Imagen subida ✓</span>
-                )}
-            </div>
-
-            {/* Alternativa: URL manual */}
-            <Input
-                value={value}
-                onChange={(e) => {
-                    onChange(e.target.value);
-                    setJustUploaded(false);
-                    setUploadError(null);
-                }}
-                placeholder="…o pega una URL de imagen"
-                autoComplete="off"
-                className="text-xs"
-            />
-
-            {uploadError && (
-                <p className="text-xs text-red-400" role="alert">
-                    {uploadError}
-                </p>
+            {/* Subida */}
+            {!value && (
+                <div className="flex items-center gap-3">
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={uploading}
+                        className="cursor-pointer gap-2"
+                        onClick={() => fileRef.current?.click()}
+                    >
+                        {uploading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Upload className="h-4 w-4" />
+                        )}
+                        Subir imagen
+                    </Button>
+                    <input
+                        ref={fileRef}
+                        id={inputId}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleFileSelect(e.target.files?.[0])}
+                    />
+                    {uploading && <span className="text-xs text-muted-foreground animate-pulse">Subiendo...</span>}
+                    {justUploaded && !uploading && <span className="text-xs text-green-500">Subida completada</span>}
+                </div>
             )}
+            
+            {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
+            
+            <ImageCropperDialog
+                open={cropperOpen}
+                onOpenChange={setCropperOpen}
+                imageSrc={cropperSrc}
+                mode={kind}
+                onCropComplete={handleCropComplete}
+            />
         </div>
     );
 }
@@ -714,7 +730,7 @@ export function EntityEditorDialog({
 
                     {/* Imágenes: avatar (no eventos) + portada (todos) */}
                     {type !== "event" && (
-                        <MediaUploadField
+                        <ImageUpload
                             kind="avatar"
                             value={avatarUrl}
                             onChange={setAvatarUrl}
@@ -722,7 +738,7 @@ export function EntityEditorDialog({
                             onNeedsAuth={() => setNeedsAuth(true)}
                         />
                     )}
-                    <MediaUploadField
+                    <ImageUpload
                         kind="cover"
                         value={coverUrl}
                         onChange={setCoverUrl}

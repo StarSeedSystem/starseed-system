@@ -404,8 +404,20 @@ function ProfileEditorDialog({
 }) {
     const [cropper, setCropper] = useState<{ open: boolean; type: "avatar" | "cover"; url: string } | null>(null);
 
-    const handleCropComplete = async (blob: Blob) => {
+    const handleCropComplete = async (blob: Blob | null) => {
         if (!cropper) return;
+        
+        if (!blob) {
+            // Usar original
+            if (cropper.type === "avatar") {
+                onChange({ ...editor, avatarUrl: cropper.url });
+            } else {
+                onChange({ ...editor, coverUrl: cropper.url });
+            }
+            setCropper(null);
+            return;
+        }
+
         const file = new File([blob], `cropped-${cropper.type}-${Date.now()}.jpg`, { type: "image/jpeg" });
         const res = await uploadFile(file, { folder: `perfil/${cropper.type}`, isPublic: true });
         if (res.ok && res.file?.url) {

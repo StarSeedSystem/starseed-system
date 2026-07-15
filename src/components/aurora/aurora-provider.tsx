@@ -573,7 +573,7 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
       /** Interrumpe de inmediato lo que Aurora está diciendo. */
       interrupt: () => engineRef.current?.interrupt(),
       /** Hace hablar a Aurora (TTS) con un texto dado. */
-      speak: (text: string) => engineRef.current?.speak(text),
+      speak: (text: string, forcePersonality?: any) => engineRef.current?.speak(text, forcePersonality),
       /** Activa/pausa/interrumpe la voz — SUPERVISADO (sin bucles de arranque). */
       toggle: () => supervisedRef.current?.toggle(),
       /** Enciende la escucha continua — SUPERVISADO (backoff + watchdog). */

@@ -401,7 +401,7 @@ export default function ProfilePage() {
         { id: 'library', title: 'Biblioteca', node: <ProfileLibraryCard name={profileData.name} uid={user?.id ?? null} ownerUid={visitedOwnerUid} isOwner={isOwner} /> },
         { id: 'collections', title: 'Colecciones', node: <CollectionsGrid /> },
         { id: 'enlaces', title: 'Enlaces', node: <ProfileLinksSection handle={pageHandle} isOwner={isOwner} name={profileData.name} /> },
-        { id: 'archivos', title: 'Archivos', node: <ProfileFilesSection isOwner={isOwner} name={profileData.name} /> },
+
         { id: 'discusion', title: 'Discusión Abierta', node: <ProfileDiscussionCard /> },
         {
             id: 'sobremi',
@@ -592,9 +592,7 @@ export default function ProfilePage() {
                         <TabsContent value="enlaces" className="mt-6">
                             <ProfileLinksSection handle={pageHandle} isOwner={isOwner} name={profileData.name} />
                         </TabsContent>
-                        <TabsContent value="archivos" className="mt-6">
-                            <ProfileFilesSection isOwner={isOwner} name={profileData.name} />
-                        </TabsContent>
+
                         <TabsContent value="sobremi" className="mt-6 animate-in fade-in-50 duration-500">
                             <ProfileAboutExtendedCard
                                 isOwner={isOwner}
