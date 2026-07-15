@@ -1040,7 +1040,23 @@ function emitPersonalityChanged(): void {
 /** Lista de personalidades (siembra los presets la primera vez). */
 export function listPersonalityProfiles(): PersonalityProfile[] {
   const stored = readProfileList();
-  if (stored) return stored;
+  if (stored) {
+    // Adenda 70: fusiona presets NUEVOS (p.ej. Hermione) en la lista ya
+    // sembrada del usuario SIN pisar sus personalizaciones ni sus presets
+    // editados. Así una personalidad recién añadida al código aparece para
+    // quienes ya tenían una lista guardada (de lo contrario el seed solo
+    // corría en la primera carga y el nuevo preset nunca se veía).
+    const have = new Set(stored.map((p) => p.id));
+    const missing = PERSONALITY_PRESETS.filter((p) => !have.has(p.id)).map((p) =>
+      normalizePersonalityProfile(p),
+    );
+    if (missing.length) {
+      const merged = [...stored, ...missing];
+      writeProfileList(merged);
+      return merged;
+    }
+    return stored;
+  }
   // Primera vez: sembramos los presets para que sean editables/eliminables.
   const seed = PERSONALITY_PRESETS.map((p) => normalizePersonalityProfile(p));
   writeProfileList(seed);

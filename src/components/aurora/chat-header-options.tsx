@@ -7,9 +7,10 @@ import type { ProviderConfig, ProviderId } from "@/ai/providers/types";
 import { toast } from "sonner";
 import { Zap, BrainCircuit, Activity, Wrench, Settings, Settings2, ChevronRight, Bot, Server, Shield, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { listPersonalityProfiles } from "@/lib/aurora/personalities";
+import { listPersonalityProfiles, setActivePersonality } from "@/lib/aurora/personalities";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import { useSavedLibrary } from "@/lib/library-store";
+import { getHermioneNeuron, HERMIONE_PERSONALITY_ID } from "@/lib/aurora/hermione-bridge";
 
 import {
   DropdownMenu,
@@ -40,12 +41,15 @@ export function ChatHeaderOptions() {
     })
     .filter(Boolean);
   
-  // Combine real personalities
-  const combinedAgents = realPersonalities.map(p => ({ id: p.id, name: p.name, isGlobal: true }));
+  const defaultPersonalities = listPersonalityProfiles();
+  const allPersonalities = [
+    ...defaultPersonalities.map(p => ({ id: p.id, name: p.name, isGlobal: true })),
+    ...realPersonalities.map(p => ({ id: p.id, name: p.name, isGlobal: false }))
+  ];
+
   const selectedAgentId = aurora?.activePersonality?.id || "aurora";
   const setSelectedAgentId = (id: string) => {
-    const p = realPersonalities.find((p) => p.id === id);
-    if (p && aurora) aurora.pickPersonality(p);
+    setActivePersonality({ scope: "global" }, id);
   };
 
   useEffect(() => {
@@ -59,7 +63,21 @@ export function ChatHeaderOptions() {
     toast.success(`Modelo activo: ${PROVIDERS[id].info.label}`);
   }
 
-  const activeAgentName = combinedAgents.find(a => a.id === selectedAgentId)?.name || "Personalidad";
+  const activeAgentName = allPersonalities.find(a => a.id === selectedAgentId)?.name || "Personalidad";
+
+  // Adenda 70 · Estado de la neurona servidor de Hermione (esta Mac / Hermes).
+  // Muestra en el menú si el puente a Hermes está vivo cuando Hermione es activa.
+  const [hermioneOnline, setHermioneOnline] = useState<boolean | null>(null);
+  const isHermione = selectedAgentId === HERMIONE_PERSONALITY_ID;
+  useEffect(() => {
+    let alive = true;
+    if (isHermione) {
+      getHermioneNeuron().then((n) => { if (alive) setHermioneOnline(!!n?.online); }).catch(() => {});
+    } else {
+      setHermioneOnline(null);
+    }
+    return () => { alive = false; };
+  }, [isHermione]);
 
   return (
     <DropdownMenu>
@@ -81,7 +99,7 @@ export function ChatHeaderOptions() {
           <DropdownMenuPortal>
             <DropdownMenuSubContent className="w-56 bg-black/95 backdrop-blur-xl border border-cyan-500/20 z-[201]">
               <DropdownMenuLabel className="text-[10px] uppercase text-cyan-500/50">Globales (Aurora)</DropdownMenuLabel>
-              {realPersonalities.map((p) => (
+              {defaultPersonalities.map((p) => (
                 <DropdownMenuItem 
                   key={p.id} 
                   className="text-xs cursor-pointer hover:bg-cyan-500/20"
@@ -92,11 +110,11 @@ export function ChatHeaderOptions() {
                   {p.id === selectedAgentId && <span className="ml-auto text-cyan-400 text-[10px]">Activo</span>}
                 </DropdownMenuItem>
               ))}
-              {agents.filter(a => !realPersonalities.find(rp => rp.id === a.id)).length > 0 && (
+              {realPersonalities.length > 0 && (
                 <>
                   <DropdownMenuSeparator className="bg-cyan-500/20" />
                   <DropdownMenuLabel className="text-[10px] uppercase text-cyan-500/50">Locales (Studio)</DropdownMenuLabel>
-                  {agents.filter(a => !realPersonalities.find(rp => rp.id === a.id)).map(a => (
+                  {realPersonalities.map(a => (
                     <DropdownMenuItem 
                       key={a.id} 
                       className="text-xs cursor-pointer hover:bg-cyan-500/20"
@@ -113,6 +131,25 @@ export function ChatHeaderOptions() {
           </DropdownMenuPortal>
         </DropdownMenuSub>
         
+        {/* Adenda 70 · Puente Hermione → neurona servidor (Hermes / esta Mac) */}
+        {isHermione && (
+          <div className="px-2 py-1.5 text-[10px] rounded-md border border-cyan-500/20 bg-cyan-500/5 mx-1 my-1">
+            <div className="flex items-center gap-1.5 text-cyan-300">
+              <Server className="w-3 h-3" />
+              <span className="font-medium">Hermione · puente Hermes</span>
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-white/60">
+              {hermioneOnline === null ? (
+                <span className="text-white/40">Comprobando servidor…</span>
+              ) : hermioneOnline ? (
+                <span className="text-emerald-300">● Neurona servidor ONLINE (esta computadora)</span>
+              ) : (
+                <span className="text-amber-300">○ Neurona OFFLINE — Astraura responde normalmente</span>
+              )}
+            </div>
+          </div>
+        )}
+
         <DropdownMenuSeparator className="bg-cyan-500/20" />
 
         {/* Modelos */}
