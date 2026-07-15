@@ -1,0 +1,35 @@
+
+> starseed-network@0.1.0-alpha dev
+> next dev --turbopack -p 9002
+
+   ▲ Next.js 15.5.12 (Turbopack)
+   - Local:        http://localhost:9002
+   - Network:      http://192.168.0.17:9002
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Compiled middleware in 419ms
+ ✓ Ready in 1469ms
+ ⚠ Webpack is configured while Turbopack is not, which may cause problems.
+ ⚠ See instructions if you need to configure Turbopack:
+  https://nextjs.org/docs/app/api-reference/next-config-js/turbopack
+
+ ○ Compiling /_not-found/page ...
+
+warn - The class `ease-[cubic-bezier(0.22,0.9,0.3,1)]` is ambiguous and matches multiple utilities.
+warn - If this is content and not a class, replace it with `ease-&lsqb;cubic-bezier(0.22,0.9,0.3,1)&rsqb;` to silence this warning.
+
+warn - The class `ease-[cubic-bezier(0.23,1,0.32,1)]` is ambiguous and matches multiple utilities.
+warn - If this is content and not a class, replace it with `ease-&lsqb;cubic-bezier(0.23,1,0.32,1)&rsqb;` to silence this warning.
+ ✓ Compiled /_not-found/page in 27.8s
+ GET /astraura 404 in 30473ms
+ GET /astraura 404 in 15844ms
+ ○ Compiling /aurora ...
+ ✓ Compiled /aurora in 3.2s
+ GET /aurora 200 in 3638ms
+ GET /aurora 200 in 614ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 2.6s
+ ⨯ A conflicting public file and page file was found for path /apple-icon.png https://nextjs.org/docs/messages/conflicting-public-file-page
+ GET /apple-icon.png 500 in 2840ms
+ GET /aurora 200 in 2055ms

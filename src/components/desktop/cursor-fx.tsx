@@ -159,7 +159,14 @@ export function CursorFxHost(): React.ReactElement | null {
     const reduced = useReducedMotionPref();
     const [effects, setEffects] = useState<ClickEffect[]>([]);
     const idRef = useRef(0);
+    const [mounted, setMounted] = useState(false);
+    
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     const [isPrimary] = useState<boolean>(() => {
+        if (typeof window === "undefined") return false;
         if (hostActive) return false;
         hostActive = true;
         return true;
@@ -216,7 +223,7 @@ export function CursorFxHost(): React.ReactElement | null {
         return () => window.removeEventListener("pointerdown", onDown, { capture: true } as EventListenerOptions);
     }, [cfg.click, reduced, isPrimary]);
 
-    if (!isPrimary) return null;
+    if (!mounted || !isPrimary) return null;
 
     return (
         <div aria-hidden className="pointer-events-none fixed inset-0 z-[200] overflow-hidden">
