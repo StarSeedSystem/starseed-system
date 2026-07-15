@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Zap, BrainCircuit, Activity, Wrench, Settings, Settings2, ChevronRight, Bot, Server, Shield, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { listPersonalityProfiles } from "@/lib/aurora/personalities";
-import { useAuroraEngine } from "@/lib/aurora/engine";
+import { useAurora } from "@/components/aurora/aurora-provider";
 import { useSavedLibrary } from "@/lib/library-store";
 
 import {
@@ -28,7 +28,7 @@ export function ChatHeaderOptions() {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
   const [activeProviderIdState, setActiveProviderIdState] = useState<ProviderId | null>(null);
 
-  const aurora = useAuroraEngine();
+  const aurora = useAurora();
   const { items } = useSavedLibrary();
 
   // Fetch real personalities on render

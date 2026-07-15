@@ -934,6 +934,8 @@ export function seedBrainDefaults(brainId: string): void {
 /* Cerebro StarSeed por defecto (auto-creación en alta de cuenta)       */
 /* ------------------------------------------------------------------ */
 
+let ensureDefaultBrainPromise: Promise<Brain | null> | null = null;
+
 /**
  * Crea de forma DEFENSIVA un cerebro StarSeed por defecto si el usuario aún no
  * tiene ninguno. No bloquea el login: cualquier fallo se traga (try/catch),
@@ -941,16 +943,19 @@ export function seedBrainDefaults(brainId: string): void {
  * localStorage por defecto (selecciones del catálogo + skills) para el cerebro
  * recién creado. Devuelve el cerebro creado, el primero existente, o null.
  */
-export async function ensureDefaultBrain(): Promise<Brain | null> {
-  try {
-    const owner = await uid();
-    if (!owner) return null;
-    const existing = await listBrains();
-    if (existing.length > 0) {
-      // Ya tiene cerebros: no creamos nada (idempotente).
-      return existing[0] ?? null;
-    }
-    // El servidor StarSeed gestionado como ancla del cerebro por defecto.
+export function ensureDefaultBrain(): Promise<Brain | null> {
+  if (ensureDefaultBrainPromise) return ensureDefaultBrainPromise;
+
+  ensureDefaultBrainPromise = (async () => {
+    try {
+      const owner = await uid();
+      if (!owner) return null;
+      const existing = await listBrains();
+      if (existing.length > 0) {
+        // Ya tiene cerebros: no creamos nada (idempotente).
+        return existing[0] ?? null;
+      }
+      // El servidor StarSeed gestionado como ancla del cerebro por defecto.
     const starseedServer: BrainServer = {
       id: newServerId(),
       kind: "starseed",
