@@ -303,8 +303,11 @@ export function IconContextMenu({
 
             <MenuDivider />
             
-            <MenuItem icon={Volume2} label="Leer en voz alta" onClick={() => run(() => speak?.(`Icono seleccionado: ${icon.name}`))} />
-            <MenuItem icon={Sparkles} label="Copiar al chat de Aurora" onClick={() => run(() => {
+            <div className="relative group">
+                <MenuItem icon={Volume2} label="Leer en voz alta" onClick={() => run(() => speak?.(`Icono seleccionado: ${icon.name}`))} />
+                {/* Ocultamos las personalidades extra en desktop por simplicidad o permitimos click */}
+            </div>
+            <MenuItem icon={MessageSquare} label="Copiar al chat" onClick={() => run(() => {
                 try {
                     window.dispatchEvent(new CustomEvent("starseed:open-aurora-exocortex"));
                     window.dispatchEvent(new CustomEvent("aurora:suggest", { detail: { context: "desktop-icon", iconName: icon.name, iconId: icon.id } }));

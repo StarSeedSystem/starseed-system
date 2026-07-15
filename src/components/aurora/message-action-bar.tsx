@@ -4,11 +4,13 @@ import { Volume2, Info, Copy, GitBranch, RotateCcw, ChevronDown, Check } from "l
 import { toast } from "sonner";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useSavedLibrary } from "@/lib/library-store";
 import { useAurora } from "./aurora-provider";
 import type { ChatMessagePayload } from "./message-context-menu";
 import type { PersonalityProfile } from "@/lib/aurora/personalities";
+import { announceLine } from "@/ai/astraura/router";
 
 export interface MessageActionBarProps {
   payload: ChatMessagePayload;
@@ -24,6 +26,7 @@ export function MessageActionBar({ payload, onBranchFromMessage, onRetryMessage,
   const { items } = useSavedLibrary();
   const [copied, setCopied] = useState(false);
   const isAurora = payload.role === "aurora";
+  const [infoOpen, setInfoOpen] = useState(false);
 
   // Buscar personalidades guardadas en la biblioteca
   const personalities = items
@@ -99,7 +102,7 @@ export function MessageActionBar({ payload, onBranchFromMessage, onRetryMessage,
       </Button>
 
       {isAurora && onViewProcess && (
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onViewProcess(payload.meta)} title="Ver información del proceso">
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { if (onViewProcess) onViewProcess(payload.meta); setInfoOpen(true); }} title="Ver información del proceso">
           <Info className="h-3.5 w-3.5 text-muted-foreground" />
         </Button>
       )}
@@ -115,6 +118,40 @@ export function MessageActionBar({ payload, onBranchFromMessage, onRetryMessage,
           <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
         </Button>
       )}
+    
+
+      {/* Modal de Información (Datos del Modelo y Alternativas) */}
+      <Dialog open={infoOpen} onOpenChange={setInfoOpen}>
+        <DialogContent className="bg-black/95 border-white/10 text-white sm:max-w-md backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-light text-blue-300">Información de la Respuesta</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm text-gray-300 mt-2">
+            {payload.meta ? (
+              <>
+                <div className="p-3 bg-white/5 rounded-md border border-white/10">
+                  <h4 className="font-semibold text-white mb-1">Metadatos de IA</h4>
+                  <ul className="list-disc pl-4 space-y-1">
+                    {payload.meta.route?.sourceId && <li><strong>Proveedor:</strong> {payload.meta.route.sourceLabel || payload.meta.route.sourceId}</li>}
+                    {payload.meta.route?.modelId && <li><strong>Modelo:</strong> {payload.meta.route.modelLabel || payload.meta.route.modelId}</li>}
+                    {payload.meta.tokens && <li><strong>Tokens:</strong> {payload.meta.tokens}</li>}
+                  </ul>
+                </div>
+                {payload.meta.route && (
+                  <div className="p-3 bg-blue-500/10 rounded-md border border-blue-500/20 text-blue-200">
+                    <h4 className="font-semibold text-blue-100 mb-1">Transparencia y Alternativas</h4>
+                    <p className="whitespace-pre-wrap">{announceLine(payload.meta.route) || "No hay información adicional de alternativas para esta ruta."}</p>
+                    <p className="mt-2 text-xs opacity-70">Puedes cambiar estas opciones en los ajustes de Astraura AI.</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p>No hay datos técnicos disponibles para este mensaje.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

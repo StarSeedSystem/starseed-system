@@ -55,7 +55,6 @@ const BLOCK_META: Record<
     aportaciones: { label: "Aportaciones", icon: HandHeart, accent: "text-rose-400" },
     publicaciones: { label: "Publicaciones", icon: FileText, accent: "text-sky-400" },
     enlaces: { label: "Enlaces", icon: Link2, accent: "text-emerald-400" },
-    archivos: { label: "Archivos", icon: FolderOpen, accent: "text-violet-400" },
 };
 
 interface ProfileStatsBlocksProps {

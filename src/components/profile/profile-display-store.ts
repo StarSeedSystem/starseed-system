@@ -33,7 +33,6 @@ export const PROFILE_BLOCK_IDS = [
     "aportaciones",
     "publicaciones",
     "enlaces",
-    "archivos",
 ] as const;
 export type ProfileBlockId = (typeof PROFILE_BLOCK_IDS)[number];
 
@@ -47,7 +46,6 @@ export const PROFILE_SECTION_IDS = [
     "library",
     "collections",
     "enlaces",
-    "archivos",
     "discusion",
     // Aditivo (Formatos de perfil): contenido público sincronizado vía
     // entity-layout.ts (entity_state 'layout', kind='user') — a diferencia de

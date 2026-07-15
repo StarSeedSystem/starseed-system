@@ -1087,12 +1087,10 @@ export function useAuroraEngine(): AuroraEngine {
       }).finally(() => clearTimeout(timeoutId));
       setThinking(false); // ya llegó la respuesta
       let reply = (res?.text || "").trim();
-      // TRANSPARENCIA: si la fuente cambió (o el usuario quiere oírlo siempre),
-      // Aurora menciona qué modelo usó y sus alternativas. Aditivo y opcional.
-      try {
-        const announce = announceLine(res?.route);
-        if (announce) reply = reply ? `${reply}\n\n${announce}` : announce;
-      } catch { /* */ }
+      // TRANSPARENCIA: La fuente y las alternativas se calcularon, pero ya no se 
+      // adjuntan automáticamente al texto. Se guardan en los metadatos (route) para 
+      // ser inspeccionados en el botón de información del mensaje.
+      // (Eliminada la inyección de announceLine en el reply).
 
       // 1) Directivas de ACCIÓN [[ACCION: nombre {json}]] — el control real del OS.
       //    Las extraemos, las quitamos del discurso, y las ejecutamos. Cada una

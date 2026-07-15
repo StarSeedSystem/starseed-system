@@ -32,7 +32,6 @@ import { ProfileModeBar } from "@/components/profile/profile-mode-bar";
 import { ProfileQuickActions } from "@/components/profile/profile-quick-actions";
 import { ProfileFreeLayout, type FreeSectionDef } from "@/components/profile/profile-free-layout";
 import { ProfileLinksSection } from "@/components/profile/profile-links-section";
-import { ProfileFilesSection } from "@/components/profile/profile-files-section";
 import { ProfileXRView } from "@/components/profile/profile-xr-view";
 import { useProfileDisplay, normalizeHandleKey } from "@/components/profile/profile-display-store";
 import { useProfileRealCounts } from "@/components/profile/use-profile-real-counts";
@@ -463,7 +462,6 @@ export default function ProfilePage() {
         { value: 'library', label: 'Biblioteca', icon: Library },
         { value: 'collections', label: 'Colecciones', icon: Layers },
         { value: 'enlaces', label: 'Enlaces', icon: Link2, badge: badge(counts.enlaces) },
-        { value: 'archivos', label: 'Archivos', icon: FolderOpen, badge: badge(counts.archivos) },
         { value: 'sobremi', label: 'Sobre mí', icon: BookText },
         { value: 'galeria', label: 'Galería', icon: Images, badge: badge(profileLayout.gallery.length) },
         { value: 'secciones', label: 'Secciones', icon: LayoutList, badge: badge(profileLayout.sections.length) },

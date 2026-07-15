@@ -34,6 +34,7 @@ import { OmniDock } from "@/components/layout/omni-dock";
 // login, onboarding… — y para que el ZenithCurtain (Exocórtex) quede DENTRO del
 // árbol del provider. Ambos son defensivos sin sesión.
 import { AuroraProvider } from "@/components/aurora/aurora-provider";
+import { SystemSelectionProvider } from "@/components/system-selection-provider";
 import { AuroraWidget } from "@/components/aurora/aurora-widget";
 // Guía dinámica de bienvenida y ayuda (tour vivo de la interfaz). Global,
 // defensiva y SSR-safe: arranca sola en la primera visita y se reabre con el
@@ -193,7 +194,7 @@ export default function RootLayout({
                         <GlobalEnvironment />
                         {/* Fondo del ThemePack activo (catálogo de temas), si define uno. */}
                         <ThemeBackgroundHost />
-                        {children}
+                        <SystemSelectionProvider>{children}</SystemSelectionProvider>
                         <ZenithCurtain />
                         <SideCurtains />
 

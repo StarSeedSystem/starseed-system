@@ -34,6 +34,8 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import { Check, ChevronDown, ChevronRight, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MessageMedia } from "@/components/aurora/universal-viewer";
+import { AuroraReadButton } from "@/components/aurora/aurora-read-button";
+
 
 /* ═══════════════════════════ Sanitización HTML/SVG ═══════════════════════════
  * Whitelist DOM propia (sin DOMPurify ni dependencias nuevas): recorre el árbol
@@ -522,6 +524,7 @@ export interface MessageRendererProps {
    *  el llamador ya lo pinta aparte. Por defecto se incluye (true). */
   media?: boolean;
   className?: string;
+  personalityId?: string;
 }
 
 /**
@@ -530,19 +533,20 @@ export interface MessageRendererProps {
  * saneado y (opcionalmente) el visor de medios existente debajo. Defensivo:
  * ante cualquier fallo de parseo, cae a texto plano con saltos de línea.
  */
-export function MessageRenderer({ text, compact = false, media = true, className }: MessageRendererProps) {
+export function MessageRenderer({ text, compact = false, media = true, className, personalityId }: MessageRendererProps) {
   const segments = useMemo(() => {
     try { return splitSegments(text || ""); } catch { return [{ kind: "prose", text: text || "" } as Segment]; }
   }, [text]);
 
   return (
-    <div className={cn("min-w-0", className)}>
+    <div className={cn("min-w-0 relative group/renderer", className)}>
       {segments.map((seg, i) => {
         if (seg.kind === "code") return <CodeBlock key={i} lang={seg.lang} code={seg.code} />;
         if (seg.kind === "svg") return <InlineSvg key={i} svg={seg.svg} />;
         return <ProseSegment key={i} text={seg.text} />;
       })}
       {media && <MessageMedia text={text} compact={compact} />}
+      <AuroraReadButton text={text} defaultPersonalityId={personalityId} className="absolute -top-3 -right-3 opacity-0 group-hover/renderer:opacity-100 z-10" />
     </div>
   );
 }

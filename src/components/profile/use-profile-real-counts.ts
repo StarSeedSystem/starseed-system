@@ -126,9 +126,6 @@ export function useProfileRealCounts(opts: {
             
             // Archivos: si no es owner, contamos nodos marcados como 'public' en su libreria (doc_acl_allows read).
             let archivos: number | null = null;
-            if (isOwner) {
-                // Owner cuenta desde estado global local (esto se hace abajo, saltamos)
-            } else if (resolvedUserId) {
                 try {
                     // Contar archivos públicos en entity_state para la libreria de este usuario
                     // Asumimos que los items publicos se leen directamente porque RLS lo permite
@@ -147,7 +144,6 @@ export function useProfileRealCounts(opts: {
                 } catch {
                     /* sin dato */
                 }
-            }
 
             if (active) setRemote({ comunidades, grupos, publicaciones, archivos });
         })();
@@ -168,6 +164,6 @@ export function useProfileRealCounts(opts: {
         // Enlaces: los configurados por el dueño en este dispositivo.
         enlaces: isOwner || linksCount > 0 ? linksCount : null,
         // Archivos: Biblioteca local si es dueño, si no, conteo público.
-        archivos: isOwner ? savedItems.length : remote.archivos,
+        archivos: remote.archivos,
     };
 }

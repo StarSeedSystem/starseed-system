@@ -490,8 +490,8 @@ export function AuroraWidget() {
       return;
     }
 
-    // TAP simple → EMPIEZA A ESCUCHAR Y ABRE EL CHAT (Adenda: reproductor predeterminado).
-    openExocortexChat();
+    // TAP simple → ABRE EL REPRODUCTOR DE CHATS DE AURORA
+    setOpen(true);
     // única superficie que puede aparecer es el reproductor resumido, y eso lo
     // decide la conversación (interim/reply), no este gesto.
     //

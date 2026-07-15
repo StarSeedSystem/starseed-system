@@ -52,6 +52,7 @@ import { AuroraChatExplorer } from "@/components/exocortex/aurora-chat-explorer"
 import { AuroraAvatar } from "@/components/aurora/aurora-avatar";
 import type { CatalogChat } from "@/lib/aurora/chat-catalog";
 import { useAurora } from "@/components/aurora/aurora-provider";
+import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
 import {
   getAuroraBridge,
   getAuroraState,
@@ -1163,21 +1164,19 @@ export function AuroraChatSection({ className }: { className?: string }) {
 
           {/* Selector de personalidad */}
           <div className="axc-card relative z-[1] px-3.5 py-3">
-            <div className="axc-label mb-1.5">Personalidad activa</div>
-            <select
-              className="axc-select"
-              value={activePersonality.id ?? activePersonality.name}
-              onChange={(e) => pickPersonality(e.target.value)}
-              disabled={!hasCtx || (aurora?.personalities.length ?? 0) === 0}
-              title="Cambiar la personalidad activa de Aurora"
-            >
-              {(aurora?.personalities.length
-                ? aurora.personalities
-                : (snap?.personalities?.length ? snap.personalities : [activePersonality])
-              ).map((p) => (
-                <option key={p.id ?? p.name} value={p.id ?? p.name}>{p.name}</option>
-              ))}
-            </select>
+            <div className="axc-label mb-1.5">Opciones del Chat</div>
+            <div className="mt-2 -mx-2 px-2 overflow-x-auto">
+              <ChatHeaderOptions 
+                selectedAgentId={activePersonality.id ?? activePersonality.name}
+                setSelectedAgentId={pickPersonality}
+                agents={
+                  (aurora?.personalities.length
+                    ? aurora.personalities
+                    : (snap?.personalities?.length ? snap.personalities : [activePersonality])
+                  ).map(p => ({ id: p.id ?? p.name, name: p.name }))
+                }
+              />
+            </div>
             <p className="mt-1.5 text-[10px] leading-relaxed text-white/40">
               La personalidad define voz, carácter y parámetros. Editor completo
               (niveladores, contextos, Biblioteca) en la pestaña{" "}

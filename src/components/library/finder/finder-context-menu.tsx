@@ -138,14 +138,32 @@ export function FinderContextMenu({
                     </DropdownMenuItem>
                 )}
 
-                <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(() => {
+                                <DropdownMenuItem className="cursor-pointer gap-2 text-xs" onClick={wrap(() => {
                     try {
                         window.dispatchEvent(new CustomEvent("starseed:open-aurora-exocortex"));
                         window.dispatchEvent(new CustomEvent("aurora:suggest", { detail: { context: "finder-item", itemId: target.id, itemKind: target.kind } }));
                     } catch { /* noop */ }
                 })}>
-                    <Sparkles className="h-3.5 w-3.5" /> Preguntar a Aurora
+                    <MessageSquare className="h-3.5 w-3.5 text-blue-300" /> Copiar al chat
                 </DropdownMenuItem>
+
+                <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="gap-2 text-xs cursor-pointer">
+                        <Volume2 className="h-3.5 w-3.5 text-white/80" /> Leer en voz alta
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                        <DropdownMenuSubContent className="bg-black/90 border-white/10 backdrop-blur-xl z-[9999]">
+                            <DropdownMenuItem className="text-xs text-white cursor-pointer" onClick={wrap(() => speak?.(`Seleccionaste el ${target.kind} con ID ${target.id}`, aurora?.activePersonality))}>
+                                {aurora?.activePersonality?.name || "Predeterminada"} (Actual)
+                            </DropdownMenuItem>
+                            {personalities.map((p) => (
+                                <DropdownMenuItem key={p.id} className="text-xs text-white cursor-pointer" onClick={wrap(() => speak?.(`Seleccionaste el ${target.kind} con ID ${target.id}`, p))}>
+                                    {p.name}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                </DropdownMenuSub>
 
                 {isItem && !target.isAlias && (
                     <>

@@ -24,6 +24,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Archive, ChevronDown, ChevronRight, GitBranch, History, ListChecks, MessageSquare,
   Paperclip, Pause, Pencil, Play, Plus, Send, SkipBack, SkipForward, Square, X,
+  Settings2, Activity, HardDrive, Terminal, Bot, Sparkles, Network, Menu
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
@@ -45,6 +46,9 @@ import { MessageProcessModal } from "@/components/aurora/message-process-modal";
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import type { UniversalAttachment } from "@/lib/files/os-files";
 import { MessageActionBar } from "@/components/aurora/message-action-bar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { listPersonalityProfiles } from "@/lib/aurora/personalities";
 
 // ── Tipos de props ───────────────────────────────────────────────────────────
 /** Un mensaje "en vivo" del motor (conversation lleva `.at`). */
@@ -504,9 +508,9 @@ function Conversation(props: {
           ))
         )
       ) : visibleConvo.length === 0 ? (
-        <div className="flex h-full flex-col items-center justify-center gap-1 px-2 text-center">
-          <History className="h-5 w-5 text-white/25" />
-          <div className="text-[11px] leading-relaxed text-white/40">
+                <div className="flex h-full flex-col items-center justify-center gap-4 px-4 text-center">
+          <History className="h-6 w-6 text-white/20 mb-2" />
+          <div className="text-xs leading-relaxed text-white/50 max-w-sm">
             Aquí verás tu conversación con {auroraName}. Háblale desde el orbe, usa la
             barra de arriba o escríbele abajo: tiene control total del OS y sigue activa
             en segundo plano.
@@ -637,6 +641,64 @@ export function AuroraChatView(props: AuroraChatViewProps) {
           )}
         </div>
       )}
+
+      <div className="relative z-[2] mb-2 flex items-center justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="bg-black/40 border-white/10 text-white/70 hover:bg-white/10 hover:text-white rounded-full">
+              <Settings2 className="w-3.5 h-3.5 mr-2" />
+              Opciones de Aurora
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64 bg-black/90 backdrop-blur-xl border border-cyan-500/20 text-cyan-50">
+            <DropdownMenuLabel className="text-xs text-cyan-500/70 font-mono">Personalidades</DropdownMenuLabel>
+            {listPersonalityProfiles().map(p => (
+              <DropdownMenuItem 
+                key={p.id}
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent("starseed:inject-chat", {
+                      detail: { text: `Activa la personalidad ${p.name}` }
+                    })
+                  );
+                }}
+                className="hover:bg-cyan-500/20 cursor-pointer text-xs"
+              >
+                <Bot className="w-3.5 h-3.5 mr-2 text-cyan-400" />
+                {p.name}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator className="bg-cyan-500/20" />
+            <DropdownMenuLabel className="text-xs text-cyan-500/70 font-mono">Habilidades & Sentidos</DropdownMenuLabel>
+            <DropdownMenuItem 
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent("starseed:inject-chat", {
+                    detail: { text: "Revisar mis sentidos y conexiones activas" }
+                  })
+                );
+              }}
+              className="hover:bg-cyan-500/20 cursor-pointer text-xs"
+            >
+              <Activity className="w-3.5 h-3.5 mr-2 text-emerald-400" />
+              Estado del Sistema
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent("starseed:inject-chat", {
+                    detail: { text: "Analizar los logs recientes del sistema" }
+                  })
+                );
+              }}
+              className="hover:bg-cyan-500/20 cursor-pointer text-xs"
+            >
+              <Terminal className="w-3.5 h-3.5 mr-2 text-amber-400" />
+              Ver Logs del Sistema
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       <Conversation
         auroraName={auroraName}
