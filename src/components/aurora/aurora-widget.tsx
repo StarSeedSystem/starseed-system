@@ -496,11 +496,13 @@ export function AuroraWidget() {
       return;
     }
 
-    // TAP simple → ABRE EL POPOVER CON MÁS OPCIONES (Reproductor/Controles)
-    setOpen(true);
-    // única superficie que puede aparecer es el reproductor resumido, y eso lo
-    // decide la conversación (interim/reply), no este gesto.
-    //
+    // TAP simple → REVIVE EL REPRODUCTOR DE CONVERSACIÓN COMPLETO (la superficie
+    // rica del orbe: transporte ampliado, historial, iluminación reactiva) y, si
+    // hay voz/STT, empieza a escuchar en silencio. Recuperado (Adenda 70): el
+    // agente previo había sustituido esto por abrir solo el popover, ocultando
+    // el reproductor resumido. El mini-player es la ÚNICA superficie anclada al
+    // orbe; el popover queda accesible desde el botón «Panel» del reproductor.
+    setMiniDismissed(false);
     // Adaptación por capacidades, SIN abrir ventanas mientras exista voz/STT:
     //   · voz no disponible tras reintentos → REINTENTA (con backoff). Silencio.
     //   · hay reconocimiento pero FALTA el permiso de micrófono → PIDE acceso
@@ -812,7 +814,20 @@ export function AuroraWidget() {
           (aurora:suggest / aurora:notify). NO existe ya el globo «Te escucho…»
           (AuroraSpeechBubble, eliminado): nunca puede haber dos ventanas.
       ══════════════════════════════════════════════════════════════════ */}
-      {/* Reproductor MiniPlayer eliminado por solicitud del usuario */}
+      {/* Reproductor de conversación resumido (LA superficie completa del
+          orbe): transporte ampliado, historial deslizable, iluminación
+          reactiva, chip de ruta y texto proactivo. Restaurado (Adenda 70):
+          el agente previo lo había quitado del árbol dejando solo el popover. */}
+      {!trinityOpen && !open && miniPlayerActive && (
+        <AuroraMiniPlayer
+          anchor={miniAnchor}
+          active={miniPlayerActive}
+          proactive={proactive}
+          onOpenExocortex={openExocortexChat}
+          onExpandPanel={() => setOpen(true)}
+          onDismiss={dismissMini}
+        />
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════
           MINI-POPOVER anclado al orbe: estado + transporte + últimas 2 líneas

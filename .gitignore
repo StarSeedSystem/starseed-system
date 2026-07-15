@@ -81,3 +81,6 @@ AI-refernces /
 
 # Local dev server log (never commit)
 dev_server.log
+
+# Hermione local bridge server (uses local credentials, never commit)
+scripts/hermione-bridge-server.mjs
