@@ -490,8 +490,8 @@ export function AuroraWidget() {
       return;
     }
 
-    // TAP simple → EMPIEZA A ESCUCHAR EN SILENCIO. Un toque = activar el modo
-    // escucha y NADA MÁS: no abrimos popover ni Exocórtex, no leemos nada. La
+    // TAP simple → EMPIEZA A ESCUCHAR Y ABRE EL CHAT (Adenda: reproductor predeterminado).
+    openExocortexChat();
     // única superficie que puede aparecer es el reproductor resumido, y eso lo
     // decide la conversación (interim/reply), no este gesto.
     //

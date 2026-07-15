@@ -139,6 +139,7 @@ function TreeNode({ ctx, depth, tree, onOpenContext }: TreeNodeProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(ctx.title);
+  const [selectedAgentId, setSelectedAgentId] = useState('agent-core');
   const children = tree.childrenOf(ctx.id);
   const hasChildren = children.length > 0;
   const isActive = tree.activeId === ctx.id;
@@ -594,6 +595,7 @@ function Conversation(props: {
 
 // ── Vista principal ──────────────────────────────────────────────────────────
 export function AuroraChatView(props: AuroraChatViewProps) {
+  const [selectedAgentId, setSelectedAgentId] = useState('agent-core');
   const {
     auroraName, twoColumn, className,
     visibleConvo, interim, loadedSession, actionLog = [], paused,
@@ -729,7 +731,7 @@ export function AuroraChatView(props: AuroraChatViewProps) {
                 {activeCtx ? activeCtx.title : loadedSession ? (loadedSession.label ?? dayLabel(loadedSession.day)) : "Chat en vivo"}
               </div>
             </div>
-            {/* Transparencia: qué inteligencia usó Aurora en la última respuesta */}
+            <div className="flex-1 px-4"><ChatHeaderOptions selectedAgentId={selectedAgentId} setSelectedAgentId={setSelectedAgentId} /></div>
             <RouteChip compact className="shrink-0" />
             {activeCtx && (
               <button
@@ -800,8 +802,8 @@ export function AuroraChatView(props: AuroraChatViewProps) {
             {activeCtx.title}
           </span>
         )}
-        {/* Transparencia: qué inteligencia usó Aurora en la última respuesta */}
-        <RouteChip compact className="ml-auto" />
+        <div className="flex-1 ml-4"><ChatHeaderOptions selectedAgentId={selectedAgentId} setSelectedAgentId={setSelectedAgentId} /></div>
+        <RouteChip compact className="shrink-0" />
       </div>
 
       {/* Árbol desplegable */}

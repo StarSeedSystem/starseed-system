@@ -8,6 +8,8 @@ import { ProfileStatsBlocks } from "./profile-stats-blocks";
 
 interface ProfileHeaderProps {
     profileData: {
+        user_id?: string;
+        profile_id?: string;
         name: string;
         handle: string;
         bio: string;
@@ -114,7 +116,7 @@ export function ProfileHeader({ profileData }: ProfileHeaderProps) {
 
                     {/* Display principal: bloques reales y configurables (sustituye a
                         las antiguas métricas inventadas Reputación / Nodos / Impacto). */}
-                    <ProfileStatsBlocks handle={profileData.handle} isOwner={isOwner} />
+                    <ProfileStatsBlocks handle={profileData.handle} isOwner={isOwner} userId={profileData.user_id} profileId={profileData.profile_id} />
                 </div>
             </div>
         </div>

@@ -24,7 +24,7 @@ import { AuroraChatView, type AuroraChatViewProps } from "@/components/exocortex
 const AXF_CSS = `
 .axf-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;
   padding:0;color:#eef2ff;animation:axf-fade .22s ease both;}
-.axf-backdrop{position:absolute;inset:0;background:rgba(2,4,10,.72);
+.axf-backdrop{position:absolute;inset:0;background:rgba(10, 20, 50, 0.85);
   backdrop-filter:blur(14px) saturate(1.15);-webkit-backdrop-filter:blur(14px) saturate(1.15);}
 .axf-shell{position:relative;z-index:1;display:flex;flex-direction:column;flex:1;min-height:0;
   margin:0;border-radius:0;overflow:hidden;
@@ -32,7 +32,7 @@ const AXF_CSS = `
     radial-gradient(120% 60% at 10% -4%, rgba(0,127,255,.14), transparent 55%),
     radial-gradient(110% 60% at 96% -2%, rgba(220,20,60,.1), transparent 55%),
     radial-gradient(140% 80% at 50% 112%, rgba(57,255,20,.05), transparent 60%),
-    linear-gradient(180deg, rgba(9,13,22,.96), rgba(5,8,14,.94));
+    linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.94));
   border-top:2px solid transparent;}
 .axf-shell::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;z-index:3;pointer-events:none;
   background:linear-gradient(90deg, transparent, #007FFF 18%, #39FF14 42%, #FFBF00 62%, #DC143C 85%, transparent);opacity:.7;}

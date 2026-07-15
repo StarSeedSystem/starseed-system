@@ -65,7 +65,7 @@ interface ProfileStatsBlocksProps {
     isOwner: boolean;
 }
 
-export function ProfileStatsBlocks({ handle, isOwner }: ProfileStatsBlocksProps) {
+export function ProfileStatsBlocks({ handle, isOwner, userId, profileId }: ProfileStatsBlocksProps) {
     const { config, toggleBlock, reorderBlocks } = useProfileDisplay(handle);
     const counts = useProfileRealCounts({ isOwner, linksCount: config.links.length });
 

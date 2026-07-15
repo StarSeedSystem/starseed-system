@@ -538,6 +538,7 @@ export default function ProfilePage() {
                 <div className={`min-w-0 ${activeTab === 'agenda' ? "lg:col-span-3" : "lg:col-span-2"}`}>
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
                         <SectionTabs
+                            className="w-full max-w-full overflow-hidden"
                             items={tabItems}
                             value={activeTab}
                             onValueChange={setActiveTab}

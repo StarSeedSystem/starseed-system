@@ -35,26 +35,31 @@ interface RemoteCounts {
     comunidades: number | null;
     grupos: number | null;
     publicaciones: number | null;
+    archivos: number | null;
 }
 
-const EMPTY_REMOTE: RemoteCounts = { comunidades: null, grupos: null, publicaciones: null };
+const EMPTY_REMOTE: RemoteCounts = { comunidades: null, grupos: null, publicaciones: null, archivos: null };
 
 export function useProfileRealCounts(opts: {
-    /** true si el perfil visto pertenece a la sesión actual. */
     isOwner: boolean;
-    /** Nº de enlaces configurados localmente para este handle. */
     linksCount: number;
+    targetUserId?: string;
+    targetProfileId?: string;
 }): ProfileRealCounts {
-    const { isOwner, linksCount } = opts;
+    const { isOwner, linksCount, targetUserId, targetProfileId } = opts;
     const { user, profile } = useAccount();
     const { items: savedItems } = useSavedLibrary();
     const [remote, setRemote] = useState<RemoteCounts>(EMPTY_REMOTE);
 
-    const userId = user?.id ?? null;
-    const profileId = typeof profile?.id === "string" && profile.id ? profile.id : null;
+    const currentUserId = user?.id ?? null;
+    const currentProfileId = typeof profile?.id === "string" && profile.id ? profile.id : null;
+    
+    // Si isOwner, usamos nuestros IDs, si no, los del target.
+    const resolvedUserId = isOwner ? currentUserId : targetUserId;
+    const resolvedProfileId = isOwner ? currentProfileId : targetProfileId;
 
     useEffect(() => {
-        if (!isOwner || !userId) {
+        if (!resolvedUserId) {
             setRemote(EMPTY_REMOTE);
             return;
         }
@@ -69,7 +74,7 @@ export function useProfileRealCounts(opts: {
                 const { count, error } = await supabase
                     .from("os_memberships")
                     .select("group_slug", { count: "exact", head: true })
-                    .eq("user_id", userId);
+                    .eq("user_id", resolvedUserId);
                 if (!error && typeof count === "number") grupos = count;
             } catch {
                 /* sin dato real → null */
@@ -81,7 +86,7 @@ export function useProfileRealCounts(opts: {
                 const { data, error } = await supabase
                     .from("os_follows")
                     .select("page_slug")
-                    .eq("follower_id", userId);
+                    .eq("follower_id", resolvedUserId);
                 if (!error && Array.isArray(data)) {
                     const slugs = data
                         .map((r) => (r as { page_slug?: string | null }).page_slug)
@@ -106,25 +111,51 @@ export function useProfileRealCounts(opts: {
 
             // Publicaciones: posts reales de la cuenta (cafe_posts.profile_id).
             let publicaciones: number | null = null;
-            if (profileId) {
+            if (resolvedProfileId) {
                 try {
                     const { count, error } = await supabase
                         .from("cafe_posts")
                         .select("id", { count: "exact", head: true })
-                        .eq("profile_id", profileId);
+                        .eq("profile_id", resolvedProfileId);
                     if (!error && typeof count === "number") publicaciones = count;
                 } catch {
                     /* sin dato real → null */
                 }
             }
 
-            if (active) setRemote({ comunidades, grupos, publicaciones });
+            
+            // Archivos: si no es owner, contamos nodos marcados como 'public' en su libreria (doc_acl_allows read).
+            let archivos: number | null = null;
+            if (isOwner) {
+                // Owner cuenta desde estado global local (esto se hace abajo, saltamos)
+            } else if (resolvedUserId) {
+                try {
+                    // Contar archivos públicos en entity_state para la libreria de este usuario
+                    // Asumimos que los items publicos se leen directamente porque RLS lo permite
+                    // Pero la forma mas rapida es contar los elementos en el doc de libreria.
+                    const { data, error } = await supabase.from('os_entity_library').select('doc').eq('id', `user:${resolvedUserId}`).single();
+                    if (!error && data?.doc) {
+                        const doc = data.doc;
+                        const wholeLibrary = doc.acl?.showInProfile === true;
+                        if (wholeLibrary) {
+                            archivos = (doc.folders?.length || 0) + (doc.files?.length || 0);
+                        } else {
+                            archivos = (doc.folders?.filter(f => f.acl?.scope === 'public').length || 0) + 
+                                       (doc.files?.filter(f => f.acl?.scope === 'public').length || 0);
+                        }
+                    }
+                } catch {
+                    /* sin dato */
+                }
+            }
+
+            if (active) setRemote({ comunidades, grupos, publicaciones, archivos });
         })();
 
         return () => {
             active = false;
         };
-    }, [isOwner, userId, profileId]);
+    }, [isOwner, currentUserId, currentProfileId, resolvedUserId, resolvedProfileId]);
 
     return {
         comunidades: remote.comunidades,
@@ -136,7 +167,7 @@ export function useProfileRealCounts(opts: {
         publicaciones: remote.publicaciones,
         // Enlaces: los configurados por el dueño en este dispositivo.
         enlaces: isOwner || linksCount > 0 ? linksCount : null,
-        // Archivos: Biblioteca local del dueño (localStorage soberano).
-        archivos: isOwner ? savedItems.length : null,
+        // Archivos: Biblioteca local si es dueño, si no, conteo público.
+        archivos: isOwner ? savedItems.length : remote.archivos,
     };
 }

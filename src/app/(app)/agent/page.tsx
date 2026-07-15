@@ -66,6 +66,7 @@ import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { MessageActionBar } from "@/components/aurora/message-action-bar";
 import { MessageProcessModal } from "@/components/aurora/message-process-modal";
 import { useAurora } from "@/components/aurora/aurora-provider";
+import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
 import StoragePanel from "@/components/storage/storage-panel";
 import ConnectionsHub from "@/components/storage/connections-hub";
 import BrainsPanel from "@/components/brains/brains-panel";
@@ -848,33 +849,7 @@ function AgentPageInner() {
               >
                 <Plus className="w-4 h-4" />
               </Button>
-              {configs.filter(c => c.enabled).length > 0 && (
-                <Select
-                  value={activeProviderId ?? configs[0]?.id}
-                  onValueChange={(v) => setProvider(v as ProviderId)}
-                >
-                  <SelectTrigger className="w-[180px] max-w-[44vw] bg-card/60 backdrop-blur border-border/50">
-                    <SelectValue placeholder="Proveedor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {configs.filter(c => c.enabled).map(c => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {PROVIDERS[c.id].info.local ? "🖥 " : "☁ "}{c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
-                <SelectTrigger className="w-[160px] max-w-[44vw] bg-card/60 backdrop-blur border-border/50">
-                  <SelectValue placeholder="Agente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {agents.map(agent => (
-                    <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ChatHeaderOptions selectedAgentId={selectedAgentId} setSelectedAgentId={setSelectedAgentId} agents={agents} />
             </div>
 
             <ScrollArea className="flex-1 p-4" ref={scrollRef}>
