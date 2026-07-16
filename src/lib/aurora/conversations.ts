@@ -38,6 +38,7 @@ import { AI_CHATS_TOPIC, emitChange, onChange } from "@/lib/sync/live-signal";
 import { activeProfileId } from "@/lib/profiles/profiles";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { isHermioneActive, forwardToHermioneNeuron } from "@/lib/aurora/hermione-bridge";
+import { registerHermioneChatEverywhere } from "@/lib/aurora/hermione-server";
 
 // ── Claves y eventos ─────────────────────────────────────────────────────────
 /** Caché local (offline / arranque instantáneo). NO se sincroniza por prefs. */
@@ -629,6 +630,11 @@ export async function appendMessage(input: AppendMessageInput): Promise<AiMessag
             userId: uid,
             profileKey: conv?.profileKey ?? activeProfileId() ?? undefined,
           });
+          // Sincronización por chat (Adenda 70): cada chat que usa Hermione se
+          // registra con su MISMO nombre en TODAS las neuronas con Hermes,
+          // en tiempo real (carpeta/chat espejo en cada Hermes).
+          const chatName = conv?.title ?? titleFromText(text);
+          void registerHermioneChatEverywhere(convId, chatName);
         }
       }
 

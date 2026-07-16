@@ -49,6 +49,17 @@
 import { createClient } from "@/utils/supabase/client";
 import { onTableChange } from "@/lib/realtime/realtime";
 import { AI_CHATS_TOPIC, emitChange } from "@/lib/sync/live-signal";
+import {
+  scoreModelForTask,
+  keylessCloudSources,
+  isFreeModelId,
+  type CatalogSource,
+  type CatalogModel,
+  type TaskKind,
+} from "@/ai/astraura/free-catalog";
+import { listOpenRouterFreeModels } from "@/ai/providers/openrouter";
+import { DEFAULT_INTELLIGENCE, type IntelligenceSettings } from "@/ai/astraura/router";
+import { skillsSystemPrompt, skillsRoutingBias } from "@/ai/astraura/skills";
 
 /** Id estable de la personalidad Hermione (creada en la cuenta maggasukha). */
 export const HERMIONE_PERSONALITY_ID = "c9fe7030-fc68-49c6-a705-58f7900887f9";
@@ -283,3 +294,211 @@ export const HERMIONE_LIBRARY_MANIFEST = {
   setup:
     "1) Instala la personalidad. 2) En Ajustes → Astraura → Neuronas, registra TU computadora como neurona de kind 'server' con capabilities.bridge.mode='external-hermes' apuntando a tu sesión local. 3) Activa Hermione en cualquier chat de Aurora.",
 };
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * SELECCIÓN DINÁMICA DEL MEJOR MODELO GRATUITO (Adenda 70)
+ * ---------------------------------------------------------------------------
+ * Hermione elige el mejor modelo :free disponible combinando:
+ *   · la librería de modelos gratuitos del OS (free-catalog + OpenRouter :free
+ *     vivos vía listOpenRouterFreeModels),
+ *   · las predeterminadas de Astraura (DEFAULT_INTELLIGENCE),
+ *   · las opciones gratuitas de la CUENTA (user_settings.intelligence),
+ *   · el pin de inteligencia de la propia Hermione (su bloque `intelligence`),
+ *   · y las fuentes SIN CLAVE del OS como red de seguridad universal.
+ * Nunca gasta créditos de pago salvo que el usuario lo fuerce explícitamente.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+export type HermioneModelTask = TaskKind;
+
+export interface HermioneModelChoice {
+  /** id para la API (p.ej. "openrouter/qwen3-coder:free"). */
+  id: string;
+  /** fuente que lo sirve (id del catálogo: "openrouter-free", "pollinations"…). */
+  source: string;
+  /** etiqueta legible. */
+  label: string;
+  /** ¿es gratuito? (siempre true salvo override de pago explícito). */
+  free: boolean;
+}
+
+/** Lee el bloque `intelligence` de la personalidad Hermione (su pin de créditos). */
+function getHermioneIntelligencePin(): { modo?: string; global?: { fuente?: string; modelo?: string }; porSentido?: Record<string, { fuente?: string; modelo?: string }>; permitirPago?: boolean } | null {
+  try {
+    const list = listPersonalityProfiles();
+    const p = list.find((x) => x.id === HERMIONE_PERSONALITY_ID);
+    return (p as any)?.intelligence ?? null;
+  } catch { return null; }
+}
+
+/** Lee la inteligencia configurada en la CUENTA (user_settings.intelligence). */
+async function getAccountIntelligence(): Promise<IntelligenceSettings | null> {
+  try {
+    const sb = createClient();
+    const { data } = await sb
+      .from("user_settings")
+      .select("intelligence")
+      .maybeSingle();
+    return (data?.intelligence as IntelligenceSettings) ?? null;
+  } catch { return null; }
+}
+
+/**
+ * Elige el mejor modelo :free para una tarea. Si la cuenta o el pin de Hermione
+ * fijan un override (por tarea o global) y ese override es gratuito, se respeta.
+ */
+export async function selectBestFreeModelForHermione(
+  task: HermioneModelTask = "chat",
+  needsVision = false,
+): Promise<HermioneModelChoice | null> {
+  try {
+    // 1) Modelos :free VIVOS de OpenRouter (librería de APIs/modelos gratuitos del OS).
+    const freeOrIds = await listOpenRouterFreeModels();
+    const openrouterSource: CatalogSource = {
+      id: "openrouter-free",
+      label: "OpenRouter (gratis)",
+      tier: "cloud",
+      providerId: "openrouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+      requiresKey: false,
+      preferFreeModels: true,
+      weight: 1.2,
+      models: (freeOrIds.length ? freeOrIds : ["openrouter/free"]).map((id) => ({
+        id,
+        label: id,
+        strengths: ["chat", "code", "reasoning", "vision", "fast", "long"],
+        quality: 7,
+        vision: true,
+      })),
+    };
+    // 2) Fuentes SIN CLAVE del OS (red de seguridad universal de Astraura).
+    const keyless = keylessCloudSources();
+    const sources: CatalogSource[] = [openrouterSource, ...keyless];
+
+    // 3) Mejor por scoreModelForTask (calidad + fortaleza + visión + peso fuente).
+    let best: { score: number; m: CatalogModel; s: CatalogSource } | null = null;
+    for (const s of sources) {
+      for (const m of s.models) {
+        const sc = scoreModelForTask(s, m, task, needsVision);
+        if (sc < 0) continue;
+        if (!best || sc > best.score) best = { score: sc, m, s };
+      }
+    }
+
+    // 4) Override por tarea de la CUENTA y del PIN de Hermione (gratis siempre).
+    const account = await getAccountIntelligence();
+    const pin = getHermioneIntelligencePin();
+    const overrideId =
+      account?.perTask?.[task] ||
+      pin?.porSentido?.[task]?.modelo ||
+      pin?.global?.modelo ||
+      DEFAULT_INTELLIGENCE.perTask?.[task];
+    if (overrideId) {
+      const isFree = isFreeModelId(overrideId) || overrideId === "openrouter/free";
+      const allowPaid = pin?.permitirPago === true || account?.allowConfiguredPaid === true;
+      if (isFree || allowPaid) {
+        return { id: overrideId, source: "override", label: overrideId, free: isFree };
+      }
+    }
+
+    if (best) {
+      return { id: best.m.id, source: best.s.id, label: best.m.label, free: isFreeModelId(best.m.id) };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * SINCRONIZACIÓN DE CAPACIDADES A CADA HERMES / NEURONA (Adenda 70)
+ * ---------------------------------------------------------------------------
+ * Reúne TODAS las habilidades y conexiones de Aurora (system prompt de
+ * capacidades activas + sesgo de routing + sentidos + conexiones de la cuenta)
+ * y las "instala" en cada neurona con Hermes, para que tenga las MISMAS
+ * capacidades de toda Astraura del OS y las cuentas, sincronizadas.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+export interface HermioneCapabilities {
+  /** Bloque de system prompt con TODAS las habilidades activas de Aurora. */
+  skillsSystemPrompt: string;
+  /** Sesgo de routing agregado de las capacidades activas. */
+  routingBias: { preferStrong: boolean; web: boolean; vision: boolean; planning: boolean };
+  /** Sentidos activos de la cuenta (si están disponibles). */
+  senses: string[];
+  /** Conexiones activas de la cuenta (si están disponibles). */
+  connections: string[];
+  /** Momento de generación (para saber si está fresco). */
+  generatedAt: string;
+}
+
+/** Reúne las capacidades de Astraura que se instalarán en cada Hermes/neurona. */
+export function gatherAuroraCapabilitiesForHermes(): HermioneCapabilities {
+  try {
+    const bias = skillsRoutingBias();
+    return {
+      skillsSystemPrompt: skillsSystemPrompt(),
+      routingBias: bias,
+      senses: [],
+      connections: [],
+      generatedAt: new Date().toISOString(),
+    };
+  } catch {
+    return {
+      skillsSystemPrompt: "",
+      routingBias: { preferStrong: false, web: false, vision: false, planning: false },
+      senses: [],
+      connections: [],
+      generatedAt: new Date().toISOString(),
+    };
+  }
+}
+
+/** Instala las capacidades de Astraura en la neurona (capabilities.hermesCapabilities). */
+export async function installCapabilitiesOnNeuron(
+  neuronId: string,
+  caps: HermioneCapabilities,
+): Promise<boolean> {
+  try {
+    const sb = createClient();
+    const { data } = await sb.from("neuron_devices").select("capabilities").eq("id", neuronId).maybeSingle();
+    const cur = ((data?.capabilities as object) || {}) as Record<string, unknown>;
+    cur.hermesCapabilities = caps;
+    cur.hermesInstalled = true;
+    const { error } = await sb.from("neuron_devices").update({ capabilities: cur }).eq("id", neuronId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Atajo: sincroniza las capacidades de Astraura con TODAS las neuronas de la
+ * cuenta que tienen Hermes instalado (auto-descubrimiento). Devuelve el número
+ * de neuronas actualizadas.
+ */
+export async function syncCapabilitiesToAllHermesNeurons(): Promise<number> {
+  try {
+    const caps = gatherAuroraCapabilitiesForHermes();
+    const sb = createClient();
+    const { data } = await sb
+      .from("neuron_devices")
+      .select("id, capabilities")
+      .limit(50);
+    const rows = (data as Array<{ id: string; capabilities?: any }>) || [];
+    let updated = 0;
+    for (const row of rows) {
+      const capsRow = row.capabilities || {};
+      const bridge = capsRow.bridge;
+      const hasHermes =
+        (bridge && bridge.mode === "external-hermes") ||
+        capsRow.hermesInstalled === true ||
+        (Array.isArray(capsRow.servesPersonalities) && capsRow.servesPersonalities.includes("hermione"));
+      if (!hasHermes) continue;
+      const ok = await installCapabilitiesOnNeuron(row.id, caps);
+      if (ok) updated++;
+    }
+    return updated;
+  } catch {
+    return 0;
+  }
+}

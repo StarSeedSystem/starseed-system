@@ -33,3 +33,232 @@ warn - If this is content and not a class, replace it with `ease-&lsqb;cubic-bez
  ⨯ A conflicting public file and page file was found for path /apple-icon.png https://nextjs.org/docs/messages/conflicting-public-file-page
  GET /apple-icon.png 500 in 2840ms
  GET /aurora 200 in 2055ms
+ ✓ Compiled in 9.7s
+ ✓ Compiled in 5s
+ ✓ Compiled in 5.2s
+ ✓ Compiled in 4.3s
+ ✓ Compiled in 4.7s
+ ○ Compiling /agent ...
+
+-----
+[1m[31mFATAL[39m[0m: An unexpected Turbopack error occurred. A panic log has been written to /var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/next-panic-fcf7dd47d0778d2d549e88f5cbcbc77a.log.
+
+To help make Turbopack better, report this error by clicking here: https://github.com/vercel/next.js/discussions/new?category=turbopack-error-report&title=Turbopack%20Error%3A%20%5Bproject%5D%2Fsrc%2Fapp%2Fglobals.css%20%5Bapp-client%5D%20%28css%29&body=Turbopack%20version%3A%20%60v15.5.11-2-g6cef99228%60%0ANext.js%20version%3A%20%600.0.0%60%0A%0AError%20message%3A%0A%60%60%60%0ATurbopack%20Error%3A%20%5Bproject%5D%2Fsrc%2Fapp%2Fglobals.css%20%5Bapp-client%5D%20%28css%29%0A%60%60%60&labels=Turbopack,Turbopack%20Panic%20Backtrace
+-----
+
+ ✓ Compiled in 1271s
+ ✓ Compiled /agent in 1271.1s
+ ⨯ [Error: ENOENT: no such file or directory, open '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'
+}
+Error [TurbopackInternalError]: Failed to write app endpoint /(app)/agent/page
+
+Caused by:
+- [project]/src/app/globals.css [app-client] (css)
+- creating new process
+- node process exited before we could connect to it with exit status: 1
+
+Debug info:
+- Execution of TaskId { id: 2147484407 } transient failed
+- Execution of get_written_endpoint_with_issues_operation failed
+- Execution of endpoint_write_to_disk failed
+- Execution of <AppEndpoint as Endpoint>::output failed
+- Failed to write app endpoint /(app)/agent/page
+- Execution of AppEndpoint::output failed
+- Execution of AppProject::app_module_graphs failed
+- Execution of *<AppEndpoint as Endpoint>::additional_entries failed
+- Execution of *ModuleGraph::from_graphs failed
+- Execution of SingleModuleGraph::new_with_entries_visited_intern failed
+- [project]/src/app/globals.css [app-client] (css)
+- Execution of primary_chunkable_referenced_modules failed
+- Execution of <CssModuleAsset as Module>::references failed
+- Execution of parse_css failed
+- Execution of <PostCssTransformedAsset as Asset>::content failed
+- Execution of PostCssTransformedAsset::process failed
+- creating new process
+- node process exited before we could connect to it with exit status: 1
+  Process output:
+  
+  Process error output:
+  node:internal/modules/cjs/loader:1433
+    throw err;
+    ^
+  
+  Error: Cannot find module '/Users/alex/Documents/starseed-os-main/.next/postcss.js'
+      at Function._resolveFilename (node:internal/modules/cjs/loader:1430:15)
+      at defaultResolveImpl (node:internal/modules/cjs/loader:1040:19)
+      at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1045:22)
+      at Function._load (node:internal/modules/cjs/loader:1216:25)
+      at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+      at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+      at node:internal/main/run_main_module:36:49 {
+    code: 'MODULE_NOT_FOUND',
+  }
+  
+  Node.js v22.22.3
+    at <unknown> (TurbopackInternalError: Failed to write app endpoint /(app)/agent/page) {
+  location: undefined
+}
+ ⨯ [Error: ENOENT: no such file or directory, open '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'
+}
+[Error: ENOENT: no such file or directory, open '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'
+}
+
+-----
+[1m[31mFATAL[39m[0m: An unexpected Turbopack error occurred. A panic log has been written to /var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/next-panic-fcf7dd47d0778d2d549e88f5cbcbc77a.log.
+
+To help make Turbopack better, report this error by clicking here: https://github.com/vercel/next.js/discussions/new?category=turbopack-error-report&title=Turbopack%20Error%3A%20Failed%20to%20write%20app%20endpoint%20%2F%28app%29%2Fagent%2Fpage&body=Turbopack%20version%3A%20%60v15.5.11-2-g6cef99228%60%0ANext.js%20version%3A%20%600.0.0%60%0A%0AError%20message%3A%0A%60%60%60%0ATurbopack%20Error%3A%20Failed%20to%20write%20app%20endpoint%20%2F%28app%29%2Fagent%2Fpage%0A%60%60%60&labels=Turbopack,Turbopack%20Panic%20Backtrace
+-----
+
+ ⨯ [Error: ENOENT: no such file or directory, open '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'
+}
+Error [TurbopackInternalError]: Failed to write app endpoint /(app)/agent/page
+
+Caused by:
+- [project]/src/app/globals.css [app-client] (css)
+- creating new process
+- node process exited before we could connect to it with exit status: 1
+
+Debug info:
+- Execution of TaskId { id: 2147484426 } transient failed
+- Execution of get_written_endpoint_with_issues_operation failed
+- Execution of endpoint_write_to_disk failed
+- Execution of <AppEndpoint as Endpoint>::output failed
+- Failed to write app endpoint /(app)/agent/page
+- Execution of AppEndpoint::output failed
+- Execution of AppProject::app_module_graphs failed
+- Execution of *<AppEndpoint as Endpoint>::additional_entries failed
+- Execution of *ModuleGraph::from_graphs failed
+- Execution of SingleModuleGraph::new_with_entries_visited_intern failed
+- [project]/src/app/globals.css [app-client] (css)
+- Execution of primary_chunkable_referenced_modules failed
+- Execution of <CssModuleAsset as Module>::references failed
+- Execution of parse_css failed
+- Execution of <PostCssTransformedAsset as Asset>::content failed
+- Execution of PostCssTransformedAsset::process failed
+- creating new process
+- node process exited before we could connect to it with exit status: 1
+  Process output:
+  
+  Process error output:
+  node:internal/modules/cjs/loader:1433
+    throw err;
+    ^
+  
+  Error: Cannot find module '/Users/alex/Documents/starseed-os-main/.next/postcss.js'
+      at Function._resolveFilename (node:internal/modules/cjs/loader:1430:15)
+      at defaultResolveImpl (node:internal/modules/cjs/loader:1040:19)
+      at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1045:22)
+      at Function._load (node:internal/modules/cjs/loader:1216:25)
+      at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+      at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+      at node:internal/main/run_main_module:36:49 {
+    code: 'MODULE_NOT_FOUND',
+  }
+  
+  Node.js v22.22.3
+    at <unknown> (TurbopackInternalError: Failed to write app endpoint /(app)/agent/page) {
+  location: undefined
+}
+ ⨯ [Error: ENOENT: no such file or directory, open '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'
+}
+[Error: ENOENT: no such file or directory, open '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'
+}
+
+-----
+[1m[31mFATAL[39m[0m: An unexpected Turbopack error occurred. A panic log has been written to /var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/next-panic-fcf7dd47d0778d2d549e88f5cbcbc77a.log.
+
+To help make Turbopack better, report this error by clicking here: https://github.com/vercel/next.js/discussions/new?category=turbopack-error-report&title=Turbopack%20Error%3A%20Failed%20to%20write%20app%20endpoint%20%2F%28app%29%2Faurora%2Fpage&body=Turbopack%20version%3A%20%60v15.5.11-2-g6cef99228%60%0ANext.js%20version%3A%20%600.0.0%60%0A%0AError%20message%3A%0A%60%60%60%0ATurbopack%20Error%3A%20Failed%20to%20write%20app%20endpoint%20%2F%28app%29%2Faurora%2Fpage%0A%60%60%60&labels=Turbopack,Turbopack%20Panic%20Backtrace
+-----
+
+ ✓ Compiled /aurora in 26ms
+ ⨯ [Error: ENOENT: no such file or directory, open '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'
+}
+Error [TurbopackInternalError]: Failed to write app endpoint /(app)/aurora/page
+
+Caused by:
+- [project]/src/app/globals.css [app-client] (css)
+- creating new process
+- node process exited before we could connect to it with exit status: 1
+
+Debug info:
+- Execution of TaskId { id: 2147484445 } transient failed
+- Execution of get_written_endpoint_with_issues_operation failed
+- Execution of endpoint_write_to_disk failed
+- Execution of <AppEndpoint as Endpoint>::output failed
+- Failed to write app endpoint /(app)/aurora/page
+- Execution of AppEndpoint::output failed
+- Execution of AppProject::app_module_graphs failed
+- Execution of *<AppEndpoint as Endpoint>::additional_entries failed
+- Execution of *ModuleGraph::from_graphs failed
+- Execution of SingleModuleGraph::new_with_entries_visited_intern failed
+- [project]/src/app/globals.css [app-client] (css)
+- Execution of primary_chunkable_referenced_modules failed
+- Execution of <CssModuleAsset as Module>::references failed
+- Execution of parse_css failed
+- Execution of <PostCssTransformedAsset as Asset>::content failed
+- Execution of PostCssTransformedAsset::process failed
+- creating new process
+- node process exited before we could connect to it with exit status: 1
+  Process output:
+  
+  Process error output:
+  node:internal/modules/cjs/loader:1433
+    throw err;
+    ^
+  
+  Error: Cannot find module '/Users/alex/Documents/starseed-os-main/.next/postcss.js'
+      at Function._resolveFilename (node:internal/modules/cjs/loader:1430:15)
+      at defaultResolveImpl (node:internal/modules/cjs/loader:1040:19)
+      at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1045:22)
+      at Function._load (node:internal/modules/cjs/loader:1216:25)
+      at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+      at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+      at node:internal/main/run_main_module:36:49 {
+    code: 'MODULE_NOT_FOUND',
+  }
+  
+  Node.js v22.22.3
+    at <unknown> (TurbopackInternalError: Failed to write app endpoint /(app)/aurora/page) {
+  location: undefined
+}
+ ⨯ [Error: ENOENT: no such file or directory, open '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'
+}
+[Error: ENOENT: no such file or directory, open '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/alex/Documents/starseed-os-main/.next/server/pages/_app/build-manifest.json'
+}
+[?25h
