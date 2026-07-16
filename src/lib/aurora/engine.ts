@@ -29,7 +29,9 @@ import {
   listPersonalities,
   saveSettings,
   searchMemories,
+  getActivePersonality,
 } from "@/lib/aurora/personalities";
+import { isHermioneActive, getHermioneNeuron } from "@/lib/aurora/hermione-bridge";
 import {
   actionsSystemPromptSection,
   auroraToolsActionPromptSection,
@@ -1020,6 +1022,24 @@ export function useAuroraEngine(): AuroraEngine {
         return;
       }
     } catch { /* la visión es opcional: si falla, continúa al fallback */ }
+
+    // ── Adenda 70 · Puente Hermione ──
+    // Si la personalidad activa es Hermione y su neurona servidor (esta Mac)
+    // está ONLINE, DELEGAMOS el mensaje al puente: NO generamos respuesta local
+    // (Astraura). El reenvío ya ocurre en appendMessage al guardar el mensaje
+    // del usuario, y la respuesta de Hermes vuelve por astraura_messages en
+    // tiempo real y se muestra en el chat. Esto elimina la doble respuesta
+    // (que el usuario percibía como "el mensaje se reinicia antes de completar")
+    // y hace que Hermione conteste de verdad. Si la neurona no está online,
+    // degradamos a Astraura normal (comportamiento previo, sin romper nada).
+    if (isHermioneActive(getActivePersonality()?.id)) {
+      let neuron: { online?: boolean } | null = null;
+      try { neuron = await getHermioneNeuron(); } catch { neuron = null; }
+      if (neuron?.online) {
+        // El puente entregará la respuesta; no respondemos con Aurora.
+        return;
+      }
+    }
 
     // ── fallback: Astraura ──
     try {
