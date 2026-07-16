@@ -913,7 +913,12 @@ export function useAiConversations(): UseAiConversations {
     startAiChatSync();
     const refresh = () => {
       setConversations(cachedConversations());
-      setActiveId(getActiveConversationId());
+      // Solo actualizamos activeId si localStorage tiene un id válido DIFERENTE al actual.
+      // Nunca reseteamos a null si ya teníamos un activeId (evita "reinicio" durante respuesta).
+      const stored = getActiveConversationId();
+      if (stored) {
+        setActiveId((current) => current !== stored ? stored : current);
+      }
     };
     refresh();
     void refreshConversations().then(refresh);
