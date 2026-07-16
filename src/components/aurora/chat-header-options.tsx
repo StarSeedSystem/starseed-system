@@ -7,7 +7,7 @@ import type { ProviderConfig, ProviderId } from "@/ai/providers/types";
 import { toast } from "sonner";
 import { Zap, BrainCircuit, Activity, Wrench, Settings, Settings2, ChevronRight, Bot, Server, Shield, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { listPersonalityProfiles, setActivePersonality } from "@/lib/aurora/personalities";
+import { listPersonalityProfiles, setActivePersonality, getActivePersonality, PERSONALITY_CHANGED_EVENT } from "@/lib/aurora/personalities";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import { useSavedLibrary } from "@/lib/library-store";
 import { getHermioneNeuron, HERMIONE_PERSONALITY_ID } from "@/lib/aurora/hermione-bridge";
@@ -47,9 +47,21 @@ export function ChatHeaderOptions() {
     ...realPersonalities.map(p => ({ id: p.id, name: p.name, isGlobal: false }))
   ];
 
-  const selectedAgentId = aurora?.activePersonality?.id || "aurora";
+  // Adenda 70 · El indicador debe reflejar el PERFIL activo (fuente de verdad),
+  // no el sistema legacy `aurora.activePersonality` (que no se sincroniza con
+  // el perfil y por eso "se quedaba en Hermione" aunque eligieras otra).
+  const [selectedAgentId, setSelectedAgentIdState] = useState<string>(
+    () => getActivePersonality()?.id || "aurora"
+  );
+  useEffect(() => {
+    const sync = () => setSelectedAgentIdState(getActivePersonality()?.id || "aurora");
+    sync();
+    window.addEventListener(PERSONALITY_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(PERSONALITY_CHANGED_EVENT, sync);
+  }, []);
   const setSelectedAgentId = (id: string) => {
     setActivePersonality({ scope: "global" }, id);
+    setSelectedAgentIdState(id);
   };
 
   useEffect(() => {
