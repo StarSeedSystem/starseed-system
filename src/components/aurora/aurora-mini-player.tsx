@@ -358,7 +358,7 @@ export function AuroraMiniPlayer({
 
             {/* Menú de personalidades (anclado, cristalino). */}
             {pickerOpen && (
-              <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-xl border border-white/10 bg-black/80 backdrop-blur-2xl shadow-2xl shadow-black/50 p-1 max-h-56 overflow-y-auto">
+              <div className="absolute left-0 right-0 bottom-full z-10 mb-1 rounded-xl border border-white/10 bg-black/80 backdrop-blur-2xl shadow-2xl shadow-black/50 p-1 max-h-56 overflow-y-auto">
                 {personalities.map((p) => (
                   <button
                     key={p.id}

@@ -50,18 +50,10 @@ export function ChatHeaderOptions() {
   // Adenda 70 · El indicador debe reflejar el PERFIL activo (fuente de verdad),
   // no el sistema legacy `aurora.activePersonality` (que no se sincroniza con
   // el perfil y por eso "se quedaba en Hermione" aunque eligieras otra).
-  const [selectedAgentId, setSelectedAgentIdState] = useState<string>(
-    () => getActivePersonality()?.id || "aurora"
-  );
-  useEffect(() => {
-    const sync = () => setSelectedAgentIdState(getActivePersonality()?.id || "aurora");
-    sync();
-    window.addEventListener(PERSONALITY_CHANGED_EVENT, sync);
-    return () => window.removeEventListener(PERSONALITY_CHANGED_EVENT, sync);
-  }, []);
+  // Se lee en el render (SSR-safe, sin useEffect/setState → sin bucle de render).
+  const selectedAgentId = getActivePersonality()?.id || "aurora";
   const setSelectedAgentId = (id: string) => {
     setActivePersonality({ scope: "global" }, id);
-    setSelectedAgentIdState(id);
   };
 
   useEffect(() => {
