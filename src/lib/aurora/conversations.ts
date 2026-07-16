@@ -38,7 +38,6 @@ import { AI_CHATS_TOPIC, emitChange, onChange } from "@/lib/sync/live-signal";
 import { activeProfileId } from "@/lib/profiles/profiles";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { isHermioneActive, forwardToHermioneNeuron } from "@/lib/aurora/hermione-bridge";
-import { registerHermioneChatEverywhere } from "@/lib/aurora/hermione-server";
 
 // ── Claves y eventos ─────────────────────────────────────────────────────────
 /** Caché local (offline / arranque instantáneo). NO se sincroniza por prefs. */
@@ -631,10 +630,15 @@ export async function appendMessage(input: AppendMessageInput): Promise<AiMessag
             profileKey: conv?.profileKey ?? activeProfileId() ?? undefined,
           });
           // Sincronización por chat (Adenda 70): cada chat que usa Hermione se
-          // registra con su MISMO nombre en TODAS las neuronas con Hermes,
-          // en tiempo real (carpeta/chat espejo en cada Hermes).
+          // registra con su MISMO nombre en TODAS las neuronas con Hermes, en
+          // tiempo real. Se hace vía la RUTA SERVER (service role) porque el
+          // cliente anónimo no puede escribir neuron_devices (RLS lo bloquea).
           const chatName = conv?.title ?? titleFromText(text);
-          void registerHermioneChatEverywhere(convId, chatName);
+          void fetch("/api/neurons/hermione/sync-chats", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ convId, name: chatName }),
+          }).catch(() => {});
         }
       }
 

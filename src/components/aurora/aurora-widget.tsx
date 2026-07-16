@@ -201,6 +201,9 @@ export function AuroraWidget() {
   // Reproductor resumido: descartable (X / auto-ocultar). Reaparece en cuanto
   // hay actividad NUEVA de conversación (el usuario habla o Aurora responde).
   const [miniDismissed, setMiniDismissed] = useState(false);
+  // Adenda 70: el usuario puede FORZAR el reproductor (y su selector de
+  // personalidad) tocando el orbe, aunque aún no haya iniciado conversación.
+  const [miniForced, setMiniForced] = useState(false);
   const interimLive = aurora?.interim;
   const transcriptLive = aurora?.transcript;
   const lastReplyLive = aurora?.lastReply;
@@ -503,6 +506,8 @@ export function AuroraWidget() {
     // el reproductor resumido. El mini-player es la ÚNICA superficie anclada al
     // orbe; el popover queda accesible desde el botón «Panel» del reproductor.
     setMiniDismissed(false);
+    setMiniForced(true); // Adenda 70: el toque del orbe muestra el reproductor y
+    // su selector de personalidad, aunque aún no haya conversación iniciada.
     // Adaptación por capacidades, SIN abrir ventanas mientras exista voz/STT:
     //   · voz no disponible tras reintentos → REINTENTA (con backoff). Silencio.
     //   · hay reconocimiento pero FALTA el permiso de micrófono → PIDE acceso
@@ -747,7 +752,7 @@ export function AuroraWidget() {
   // Trinity). Y SIEMPRE cede ante el CHAT COMPLETO: si el Exocórtex está
   // abierto, la conversación se lee allí y el resumido NO se monta (nada de
   // chat duplicado).
-  const miniPlayerActive = conversationStarted && !miniDismissed && !fullChatOpen;
+  const miniPlayerActive = (conversationStarted || miniForced) && !miniDismissed && !fullChatOpen;
 
   // Últimas 2 líneas de la conversación (usuario y Aurora, voz o texto).
   const lastLines = conversation.slice(-2);

@@ -42,6 +42,10 @@ import {
   type AuroraActionResult,
   type AuroraDirective,
 } from "@/lib/aurora/actions";
+import {
+  getActivePersonality,
+  PERSONALITY_CHANGED_EVENT,
+} from "@/lib/aurora/personalities";
 // Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
 // eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
 import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
@@ -498,6 +502,22 @@ export function useAuroraEngine(): AuroraEngine {
       // speechSynthesis.cancel() ELIMINADO intencionalmente para permitir
       // continuidad de voz en segundo plano durante transiciones o soft reloads.
     };
+  }, []);
+
+  // Adenda 70: el motor (legacy activePersonality) debe reflejar la personalidad
+  // activa del PERFIL (localStorage), que es la fuente de verdad del puente
+  // Hermione. Sin esto, al seleccionar Hermione desde cualquier chat el motor
+  // seguía como Aurora y el UI parecía "no cambiar". Sincroniza en tiempo real.
+  useEffect(() => {
+    const sync = () => {
+      const p = getActivePersonality();
+      if (p?.id) setActivePersonalityState((cur) => (cur.id === p.id ? cur : (p as unknown as Personality)));
+    };
+    sync();
+    if (typeof window !== "undefined") {
+      window.addEventListener(PERSONALITY_CHANGED_EVENT, sync);
+      return () => window.removeEventListener(PERSONALITY_CHANGED_EVENT, sync);
+    }
   }, []);
 
   const reloadPersonalities = useCallback(async () => {
