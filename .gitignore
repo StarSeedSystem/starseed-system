@@ -84,3 +84,4 @@ dev_server.log
 
 # Hermione local bridge server (uses local credentials, never commit)
 scripts/hermione-bridge-server.mjs
+_commit_msg.txt
