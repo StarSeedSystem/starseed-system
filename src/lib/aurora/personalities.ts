@@ -38,6 +38,11 @@ import {
   type AuroraSettings,
   type Personality,
 } from "./types";
+// Adenda 70: el id del preset Hermione se fija al id estable de la cuenta
+// (aurora_personalities + neurona servidor). Se usa el literal para EVITAR un
+// import circular con hermione-bridge.ts (que ya exporta HERMIONE_PERSONALITY_ID
+// con este mismo valor). Mantener ambos en sincronía.
+export const HERMIONE_PERSONALITY_ID = "c9fe7030-fc68-49c6-a705-58f7900887f9";
 
 async function uid(): Promise<string | null> {
   try {
@@ -832,7 +837,12 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
   // (nunca los de pago: permitirPago:false) y falla de forma transparente al
   // router automático si el :free no está disponible.
   baseProfile({
-    id: "preset-hermione",
+    // ⚠️ ID UNIFICADO (Adenda 70): debe coincidir EXACTAMENTE con
+    // HERMIONE_PERSONALITY_ID (la personalidad de la cuenta en aurora_personalities
+    // y la neurona servidor en neuron_devices). Así al seleccionarlo desde
+    // cualquier chat de Aurora se activa el mismo id que el puente espera y
+    // el reenvío a la neurona Hermes funciona de inmediato.
+    id: HERMIONE_PERSONALITY_ID,
     name: "Hermione",
     icon: "BrainCircuit",
     description:

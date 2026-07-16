@@ -41,6 +41,13 @@ import { useAurora } from "./aurora-provider";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
 import { MessageRenderer } from "./message-renderer";
 import { RouteChip } from "./route-chip";
+import {
+  listPersonalityProfiles,
+  setActivePersonality,
+  getActivePersonality,
+  HERMIONE_PERSONALITY_ID as HERMIONE_ID,
+  PERSONALITY_CHANGED_EVENT,
+} from "@/lib/aurora/personalities";
 import styles from "./aurora-mini-player.module.css";
 
 /** Inactividad tras la cual el reproductor resumido se retira solo. */
@@ -101,6 +108,20 @@ export function AuroraMiniPlayer({
   const reduce = useReducedMotion();
 
   const [expanded, setExpanded] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const personalities = useMemo(() => listPersonalityProfiles(), []);
+  // Personalidad activa: fuente de verdad = PersonalityProfile (localStorage),
+  // que es lo que usa el puente Hermione. Reacciona al cambio en tiempo real.
+  const [activeProfile, setActiveProfile] = useState(() => getActivePersonality());
+  useEffect(() => {
+    const sync = () => setActiveProfile(getActivePersonality());
+    sync();
+    if (typeof window !== "undefined") {
+      window.addEventListener(PERSONALITY_CHANGED_EVENT, sync);
+      return () => window.removeEventListener(PERSONALITY_CHANGED_EVENT, sync);
+    }
+  }, []);
+  const activePersonalityId = activeProfile?.id;
   const autohideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const historyScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -284,7 +305,7 @@ export function AuroraMiniPlayer({
         onDragEnd={onDragEnd}
         // La TARJETA sí captura el puntero (pointer-events:auto) para el swipe y
         // los botones; el envoltorio de arriba se mantiene inerte.
-        className={cn(styles.player, "pointer-events-auto flex select-none flex-col")}
+        className={cn(styles.player, "relative pointer-events-auto flex select-none flex-col")}
         style={{
           ["--mp-rgb" as string]: accentRgb,
         }}
@@ -316,15 +337,55 @@ export function AuroraMiniPlayer({
           </span>
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold tracking-wide text-white/90">Aurora</span>
-              <span
-                className="truncate font-mono text-[8px] uppercase tracking-[0.16em]"
-                style={{ color: "rgb(var(--mp-rgb) / 0.9)" }}
-              >
-                {turnLabel}
+            {/* Selector de personalidad: tocar cambia la personalidad activa
+                DESDE este chat (global), sin salir del reproductor. Conforme al
+                diseño cristalino: botón compacto con el nombre y un cheurón. */}
+            <button
+              type="button"
+              onClick={() => { clearAutohide(); setPickerOpen((v) => !v); }}
+              aria-label="Cambiar personalidad de Aurora"
+              title="Personalidad activa — toca para cambiar"
+              className="group flex items-center gap-1.5 rounded-md px-1 -mx-1 hover:bg-white/10 transition-colors"
+            >
+              <span className="text-[11px] font-semibold tracking-wide text-white/90 truncate max-w-[8rem]">
+                {activeProfile?.name || (activePersonalityId === HERMIONE_ID ? "Hermione" : "Aurora")}
               </span>
+              <ChevronUp className={cn("h-3 w-3 text-white/50 transition-transform", pickerOpen && "rotate-180")} />
+            </button>
+            <div className="flex items-center gap-1.5 text-[8px] font-mono uppercase tracking-[0.16em]" style={{ color: "rgb(var(--mp-rgb) / 0.9)" }}>
+              {turnLabel}
             </div>
+
+            {/* Menú de personalidades (anclado, cristalino). */}
+            {pickerOpen && (
+              <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-xl border border-white/10 bg-black/80 backdrop-blur-2xl shadow-2xl shadow-black/50 p-1 max-h-56 overflow-y-auto">
+                {personalities.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setActivePersonality({ scope: "global" }, p.id);
+                      setPickerOpen(false);
+                      clearAutohide();
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11px] transition-colors",
+                      p.id === activePersonalityId
+                        ? "bg-cyan-500/20 text-cyan-100"
+                        : "text-white/75 hover:bg-white/10",
+                    )}
+                  >
+                    <span className="truncate flex-1">{p.name}</span>
+                    {p.id === HERMIONE_ID && (
+                      <span className="text-[8px] uppercase tracking-wider text-emerald-300/80">Hermes</span>
+                    )}
+                    {p.id === activePersonalityId && (
+                      <span className="text-[9px] text-cyan-300">●</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Ecualizador cristalino: iluminación reactiva a la voz (usuario/Aurora). */}

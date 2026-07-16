@@ -65,31 +65,62 @@ export interface HermioneBridgeInfo {
   online: boolean;
   personalityId: string;
   note: string;
+  /** Id de la neurona servidor descubierta (la que tiene Hermes instalado). */
+  neuronId?: string;
 }
 
-/** Lee la neurona servidor de Hermione de la cuenta (si existe y está online). */
+/** Lee la neurona servidor de Hermione de la cuenta.
+ *
+ * AUTO-DESCUBRIMIENTO (Adenda 70): en lugar de fijarse a UN id de neurona,
+ * busca en TODAS las neuronas de la cuenta (RLS por owner) aquella que tenga
+ * Hermes instalado y esté ONLINE, y devuelve la primera encontrada. Así, al
+ * instalar/usar la personalidad Hermione desde CUALQUIER chat de Aurora, el
+ * sistema localiza automáticamente el servidor Hermes activo (esta computadora
+ * u otra neurona de la cuenta/perfiles) y sincroniza el chat en tiempo real,
+ * sin configuración manual.
+ *
+ * Una neurona "tiene Hermes instalado" si:
+ *   · capabilities.bridge.mode === "external-hermes", O
+ *   · capabilities.hermesInstalled === true, O
+ *   · capabilities.servesPersonalities incluye "hermione".
+ */
 export async function getHermioneNeuron(): Promise<HermioneBridgeInfo | null> {
   try {
     const sb = createClient();
     const { data } = await sb
       .from("neuron_devices")
       .select("id, capabilities, last_seen_at")
-      .eq("id", HERMIONE_NEURON_ID)
-      .maybeSingle();
-    if (!data) return null;
-    const caps = (data.capabilities as any) || {};
-    const bridge = caps.bridge;
-    if (!bridge || bridge.mode !== "external-hermes") return null;
-    const seen = data.last_seen_at ? Date.parse(data.last_seen_at) : 0;
-    const online = Date.now() - seen < 3 * 60_000;
-    const endpoint =
-      (bridge.endpoint as string) || caps.bridgeEndpoint || DEFAULT_BRIDGE_ENDPOINT;
-    return {
-      endpoint,
-      online,
-      personalityId: bridge.personalityId || HERMIONE_PERSONALITY_ID,
-      note: bridge.note || "",
-    };
+      .order("last_seen_at", { ascending: false })
+      .limit(50);
+    const rows = (data as Array<{ id: string; capabilities?: any; last_seen_at?: string }>) || [];
+    const now = Date.now();
+    for (const row of rows) {
+      const caps = row.capabilities || {};
+      const bridge = caps.bridge;
+      const hasHermes =
+        (bridge && bridge.mode === "external-hermes") ||
+        caps.hermesInstalled === true ||
+        (Array.isArray(caps.servesPersonalities) && caps.servesPersonalities.includes("hermione")) ||
+        (Array.isArray(caps.servesPersonalities) && caps.servesPersonalities.includes("Hermione"));
+      if (!hasHermes) continue;
+      const seen = row.last_seen_at ? Date.parse(row.last_seen_at) : 0;
+      const online = now - seen < 3 * 60_000;
+      const endpoint =
+        (bridge?.endpoint as string) ||
+        caps.bridgeEndpoint ||
+        (caps.hermesBridge ? DEFAULT_BRIDGE_ENDPOINT : null);
+      if (!endpoint) continue;
+      // Priorizamos la neurona ONLINE; si ninguna está online, devolvemos la
+      // primera candidata (el indicador mostrará OFFLINE y Astraura asume).
+      return {
+        endpoint,
+        online,
+        personalityId: bridge?.personalityId || HERMIONE_PERSONALITY_ID,
+        note: bridge?.note || caps.note || "Neurona con Hermes instalado.",
+        neuronId: row.id,
+      };
+    }
+    return null;
   } catch {
     return null;
   }
