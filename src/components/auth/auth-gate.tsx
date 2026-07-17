@@ -58,6 +58,7 @@ export function AuthGate() {
   const [pending, setPending] = useState<"" | "form" | "otp" | "guest">("");
   const [msg, setMsg] = useState("");
   const [ok, setOk] = useState("");
+  const [code, setCode] = useState("");
   const emailRef = useRef<HTMLInputElement | null>(null);
 
   const check = useCallback(async () => {
@@ -105,28 +106,75 @@ export function AuthGate() {
     }
   };
 
-  // ── Entrar con código por correo (sin contraseña) — Supabase OTP ──
-  // Envía un enlace/código mágico al correo. Al volver, Supabase crea la sesión.
-  const sendMagicLink = async () => {
+  // ── Entrar con código por correo (sin contraseña) — OTP del OS ──────────────
+  // (Adenda 71-bis · 2026-07-17) Como @star.seed NO tiene SMTP, el OTP de
+  // Supabase por email no llega. En su lugar el OS GENERA el código y lo entrega
+  // en la bandeja de correos y notificaciones del OS (tablas ss_mail/notifications
+  // vía /api/auth/otp/request, server con service_role). El usuario ve el código
+  // dentro del OS y lo introduce; /api/auth/otp/verify valida y crea la sesión.
+  const requestOtp = async () => {
     const addr = email.trim();
     if (!addr) {
       setMsg("Escribe tu correo para enviarte el código.");
       emailRef.current?.focus();
       return;
     }
-    setBusy(true); setPending("otp"); setMsg(""); setOk("");
+    setBusy(true); setPending("otp"); setMsg(""); setOk(""); setCode("");
     try {
-      const emailRedirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
-      const { error } = await sb.auth.signInWithOtp({
-        email: addr,
-        options: { shouldCreateUser: true, emailRedirectTo },
+      const res = await fetch("/api/auth/otp/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: addr }),
       });
-      if (error) setMsg(traducir(error.message));
-      else setOk(`Te enviamos un enlace/código a ${addr}. Ábrelo en este dispositivo para entrar.`);
-    } catch (err: any) {
-      setMsg(traducir(err?.message || ""));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        setMsg(data.error || "No se pudo generar el código.");
+        setPending("");
+      } else {
+        setOk("Revisa tu bandeja de correos y notificaciones del OS (arriba a la derecha). Escribe aquí el código de 6 dígitos que aparece.");
+      }
+    } catch (err: unknown) {
+      setMsg(err instanceof Error ? err.message : "Error de red.");
+      setPending("");
     } finally {
-      setBusy(false); setPending("");
+      setBusy(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    const addr = email.trim();
+    const c = code.trim();
+    if (!addr || !/^\d{6}$/.test(c)) {
+      setMsg("Escribe el código de 6 dígitos que te llegó al OS.");
+      return;
+    }
+    setBusy(true); setMsg(""); setOk("");
+    try {
+      const res = await fetch("/api/auth/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: addr, code: c }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.session) {
+        setMsg(data.error || "Código incorrecto o expirado.");
+        setBusy(false);
+        return;
+      }
+      // Canjear la sesión en el cliente.
+      const { error } = await sb.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+      if (error) {
+        setMsg(error.message);
+        setBusy(false);
+        return;
+      }
+      // onAuthStateChange marcará authed=true y desmontará esta pantalla.
+    } catch (err: unknown) {
+      setMsg(err instanceof Error ? err.message : "Error de red.");
+      setBusy(false);
     }
   };
 
@@ -288,18 +336,49 @@ export function AuthGate() {
           </button>
         </form>
 
-        {/* Entrar con código por correo (sin contraseña) — OTP */}
-        <button
-          type="button"
-          className="ss-auth-soft"
-          onClick={sendMagicLink}
-          disabled={busy}
-          aria-busy={busy && pending === "otp"}
-          style={{ width: "100%", marginTop: 10, border: "1px solid rgba(255,255,255,.16)", borderRadius: 13, padding: "11px 0", color: "rgba(255,255,255,.92)", fontWeight: 600, fontSize: 13.5, cursor: busy ? "default" : "pointer", opacity: busy && pending !== "otp" ? .6 : 1, transition: "background .15s, border-color .15s, opacity .15s", background: "rgba(255,255,255,.04)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-        >
-          <span aria-hidden>✉️</span>
-          {pending === "otp" ? "Enviando código…" : "Entrar con código por correo (sin contraseña)"}
-        </button>
+        {/* Entrar con código por correo (sin contraseña) — OTP del OS */}
+        {pending !== "otp" ? (
+          <button
+            type="button"
+            className="ss-auth-soft"
+            onClick={requestOtp}
+            disabled={busy}
+            style={{ width: "100%", marginTop: 10, border: "1px solid rgba(255,255,255,.16)", borderRadius: 13, padding: "11px 0", color: "rgba(255,255,255,.92)", fontWeight: 600, fontSize: 13.5, cursor: busy ? "default" : "pointer", opacity: busy ? .6 : 1, transition: "background .15s, border-color .15s, opacity .15s", background: "rgba(255,255,255,.04)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+          >
+            <span aria-hidden>✉️</span>
+            Entrar con código por correo (sin contraseña)
+          </button>
+        ) : (
+          <div style={{ marginTop: 10 }}>
+            <input
+              className="ss-auth-field"
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="Código de 6 dígitos (de tu bandeja del OS)"
+              style={{ ...inputStyle, marginBottom: 8, textAlign: "center", letterSpacing: "0.3em", fontSize: 18 }}
+            />
+            <button
+              type="button"
+              className="ss-auth-primary"
+              onClick={verifyOtp}
+              disabled={busy}
+              aria-busy={busy}
+              style={{ width: "100%", border: "none", borderRadius: 13, padding: "11px 0", color: "#fff", fontWeight: 700, fontSize: 14, cursor: busy ? "default" : "pointer", opacity: busy ? .8 : 1, background: "linear-gradient(135deg,#7c5cff,#23d5ab)" }}
+            >
+              {busy ? "Verificando…" : "Verificar código y entrar"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPending(""); setCode(""); setOk(""); }}
+              style={{ width: "100%", marginTop: 6, background: "transparent", border: "none", color: "rgba(255,255,255,.5)", fontSize: 12, cursor: "pointer", padding: "4px 0" }}
+            >
+              Volver
+            </button>
+          </div>
+        )}
 
         {/* separador */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0 12px" }}>
