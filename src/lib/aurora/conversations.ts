@@ -361,11 +361,21 @@ export async function refreshConversations(): Promise<AiConversation[]> {
     if (error || !data) return cachedConversations();
     const convs = (data as unknown as ConvRow[]).map(toConv);
     const cache = readCache();
-    // La nube manda para la LISTA (pero conservamos los mensajes cacheados).
-    cache.convs = convs;
+    // (Adenda 71-bis · 2026-07-17) FUSIONAR nube + caché local, NO reemplazar.
+    // Si un conv se creó en local y su insert en la nube aún no se confirmó
+    // (o falló), debe seguir visible hasta que la nube lo confirme. El conv
+    // en la nube gana en updatedAt; el local que no está en la nube se conserva.
+    const cloudIds = new Set(convs.map((c) => c.id));
+    const localOnly = cache.convs.filter((c) => !cloudIds.has(c.id));
+    // Conserva el surface/kind local si la nube no lo trajo (p.ej. por gating de columnas).
+    const merged = convs.map((c) => {
+      const loc = cache.convs.find((x) => x.id === c.id);
+      return loc ? { ...loc, ...c } : c;
+    }).concat(localOnly);
+    cache.convs = merged;
     writeCache(cache);
     emit(AI_CONV_CHANGE_EVENT);
-    return convs;
+    return merged;
   } catch {
     return cachedConversations();
   }

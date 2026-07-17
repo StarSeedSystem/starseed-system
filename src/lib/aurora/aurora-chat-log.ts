@@ -170,25 +170,28 @@ export function appendAuroraChatEntry(entry: AuroraChatLogEntry): void {
   mirrorToCloud(entry);
 }
 
-/** Réplica del mensaje en la conversación unificada (nube). Nunca lanza. */
-function mirrorToCloud(entry: AuroraChatLogEntry): void {
+/** Réplica del mensaje en la conversación unificada (nube). Nunca lanza.
+ * (Adenda 71-bis · 2026-07-17) Unificación: el orbe espeja a la MISMA nube que
+ * Astraura AI y el Exocórtex, usando la conversación ACTIVA del orbe (o la
+ * crea). Antes era best-effort que tragaba errores en silencio y no fijaba
+ * convId, así que los mensajes del orbe no aparecían en las otras superficies.
+ * Ahora usamos ensureActiveConversation para fijar el hilo y appendMessage
+ * persiste en astraura_messages/aurora_conversations. */
+async function mirrorToCloud(entry: AuroraChatLogEntry): Promise<void> {
   try {
-    void import("@/lib/aurora/conversations")
-      .then(({ appendMessage }) =>
-        appendMessage({
-          role: entry.role, // "aurora" → "assistant" (normalizeRole)
-          text: entry.text,
-          ts: entry.ts,
-          meta: entry.meta ?? null,
-          kind: "aurora",
-          surface: "orb",
-        }),
-      )
-      .catch(() => {
-        /* offline / sin sesión: la caché local ya lo tiene */
-      });
+    const mod = await import("@/lib/aurora/conversations");
+    const conv = await mod.ensureActiveConversation({ kind: "aurora", surface: "orb" });
+    await mod.appendMessage({
+      role: entry.role, // "aurora" → "assistant" (normalizeRole)
+      text: entry.text,
+      ts: entry.ts,
+      meta: entry.meta ?? null,
+      kind: "aurora",
+      surface: "orb",
+      convId: conv.id,
+    });
   } catch {
-    /* defensivo */
+    /* offline / sin sesión: la caché local ya lo tiene */
   }
 }
 
