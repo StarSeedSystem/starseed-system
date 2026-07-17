@@ -49,7 +49,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Código incorrecto o expirado." }, { status: 401 });
     }
 
-    // Código válido → crear sesión vía auth.admin (service_role).
+    // Código válido → crear sesión. El magiclink de Supabase entrega la sesión
+    // como redirect a `#access_token=...&refresh_token=...`. Canjeamos el token
+    // en el servidor vía /auth/v1/verify (redirect manual) y extraemos los tokens
+    // del fragmento del Location.
     const { data: linkData, error: linkErr } = await sb.auth.admin.generateLink({
       type: "magiclink",
       email,
@@ -59,17 +62,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No se pudo generar la sesión." }, { status: 500 });
     }
 
-    // Extraer token_hash y type del action_link.
-    const url = new URL(linkData.properties.action_link);
-    const tokenHash = url.searchParams.get("token_hash");
-    const type = url.searchParams.get("type") || "magiclink";
-    if (!tokenHash) {
+    const actionUrl = new URL(linkData.properties.action_link);
+    const token = actionUrl.searchParams.get("token");
+    if (!token) {
       return NextResponse.json({ error: "Enlace de acceso inválido." }, { status: 500 });
     }
 
-    const { data: sessionData, error: exErr } = await sb.auth.exchangeCodeForSession(tokenHash);
-    if (exErr || !sessionData?.session) {
+    // Base Auth de Supabase (del mismo action_link).
+    const authBase = `${actionUrl.protocol}//${actionUrl.host}/auth/v1`;
+    const verifyUrl =
+      `${authBase}/verify?token=${encodeURIComponent(token)}` +
+      `&type=magiclink&redirect_to=${encodeURIComponent("https://starseed-os.vercel.app/auth/callback")}`;
+
+    const vres = await fetch(verifyUrl, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      redirect: "manual",
+    });
+    const location = vres.headers.get("location");
+    if (!location) {
       return NextResponse.json({ error: "No se pudo canjear la sesión." }, { status: 500 });
+    }
+    // location: https://...vercel.app/#access_token=XXX&refresh_token=YYY&...
+    const frag = location.split("#")[1] || "";
+    const params = new URLSearchParams(frag);
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    if (!access_token || !refresh_token) {
+      return NextResponse.json({ error: "No se pudo extraer la sesión." }, { status: 500 });
     }
 
     // Marcar el correo OTP como leído (best-effort, dentro del try).
@@ -77,10 +97,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      session: {
-        access_token: sessionData.session.access_token,
-        refresh_token: sessionData.session.refresh_token,
-      },
+      session: { access_token, refresh_token },
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Error desconocido";
