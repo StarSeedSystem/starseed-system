@@ -1813,6 +1813,13 @@ export async function install(pkg: LibraryPackage): Promise<InstallResult> {
           disabledSources: prefs.disabledSources.filter((id) => id !== sourceId),
         });
         registerInstalled(pkg);
+        // (Adenda 71-bis) Registra la fuente en el catálogo UNIFICADO
+        // adaptativo: así Aurora y los ajustes de personalidad por área la ven
+        // como disponible (sin tocar el router). Defensivo: import dinámico.
+        try {
+          const uni = await import("@/ai/astraura/unified-intelligence");
+          uni.registerLibrarySource({ catalogSourceId: sourceId });
+        } catch { /* noop */ }
         if (source.requiresKey) {
           // ¿Ya tiene el usuario una config con clave para esta fuente?
           let configured = false;

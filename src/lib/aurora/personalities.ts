@@ -38,6 +38,9 @@ import {
   type AuroraSettings,
   type Personality,
 } from "./types";
+// (Adenda 71-bis) Router adaptativo unificado: resuelve el pin "auto" de
+// personalidad por área con el mejor motor :free del ecosistema disponible.
+import { resolveAutoModel } from "@/ai/astraura/unified-intelligence";
 // Adenda 70: el id del preset Hermione se fija al id estable de la cuenta
 // (aurora_personalities + neurona servidor). Se usa el literal para EVITAR un
 // import circular con hermione-bridge.ts (que ya exporta HERMIONE_PERSONALITY_ID
@@ -1013,6 +1016,19 @@ export function intelligencePinFor(
     if (!intel || intel.modo !== "fija") return null;
     const pin = intel.porSentido?.[sense] ?? intel.global;
     if (!pin || (!pin.fuente && !pin.modelo)) return null;
+    // (Adenda 71-bis) Modo "auto": el usuario quiere "el mejor motor
+    // :free disponible del ecosistema unificado" para este sentido, no uno
+    // fijado a mano. Lo resolvemos vía el router adaptativo.
+    if (pin.modelo === "auto" || pin.fuente === "auto") {
+      const auto = resolveAutoModel(sense as unknown as string);
+      if (auto) {
+        return {
+          fuente: auto.fuente,
+          modelo: auto.modelo,
+          permitirPago: intel.permitirPago === true,
+        };
+      }
+    }
     return { ...pin, permitirPago: intel.permitirPago === true };
   } catch {
     return null;

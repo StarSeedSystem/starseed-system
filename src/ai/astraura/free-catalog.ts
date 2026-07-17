@@ -99,6 +99,8 @@ export interface CatalogSource {
   privacy: "local" | "browser" | "cloud";
   /** Multiplicador de prioridad (privacidad/soberanía puntúan más). */
   weight: number;
+  /** (Adenda 71-bis) Fuente registrada en runtime desde la Biblioteca. */
+  fromLibrary?: boolean;
   /**
    * (Adenda 67 · P0-2) La fuente FUNCIONA SIN CLAVE, pero acepta una clave
    * opcional para subir sus límites (p.ej. LLM7.io: 30 req/min anónimo →

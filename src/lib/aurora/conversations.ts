@@ -880,6 +880,11 @@ export function startAiChatSync(): void {
             live.startLiveCatalog();
             const { applyLiveOpenRouter } = await import("@/ai/astraura/free-catalog");
             await applyLiveOpenRouter();
+            // (Adenda 71-bis) Sistema UNIFICADO adaptativo: registra las
+            // fuentes instaladas desde la Biblioteca y resuelve el pin "auto"
+            // de personalidad por área con el mejor :free del ecosistema.
+            const { startUnifiedIntelligence } = await import("@/ai/astraura/unified-intelligence");
+            startUnifiedIntelligence();
         } catch {
             /* sin red: el catálogo estático ya es válido */
         }

@@ -16,6 +16,9 @@
 import { loadConfigs } from "@/ai/client/providerStore";
 import type { ProviderConfig } from "@/ai/providers/types";
 import { FREE_CATALOG, type CatalogSource } from "./free-catalog";
+// (Adenda 71-bis) Catálogo UNIFICADO: combina el curado + OpenRouter vivo
+// + fuentes instaladas desde la Biblioteca. El router adaptativo itera ESTE.
+import { getUnifiedCatalog } from "./unified-intelligence";
 import { chromeAiAvailable, webgpuAvailable } from "./builtin-engines";
 import { isDownloadableSource, isModelInstalled } from "./installed-models";
 
@@ -74,7 +77,7 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
   const configs = typeof window === "undefined" ? [] : loadConfigs();
   const out: SourceAvailability[] = [];
 
-  for (const source of FREE_CATALOG) {
+  for (const source of getUnifiedCatalog()) {
     const userConfig = userConfigForSource(source, configs);
 
     // ── MODELOS DESCARGABLES (opt-in): NUNCA "ready" salvo que el usuario los
