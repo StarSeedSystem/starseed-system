@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
 /**
  * POST /api/auth/otp/verify
@@ -9,8 +9,19 @@ import { createClient } from "@/utils/supabase/server";
  * sesión de Supabase en el servidor usando auth.admin (service_role) + canje de
  * magiclink al instante. Devuelve { session } para que el cliente haga
  * setSession. El código nunca viaja por email externo.
+ *
+ * Usa la SERVICE_ROLE explícita (no el cliente anon de @/utils/supabase/server):
+ * necesita auth.admin + lectura en ss_mail con RLS. API route de servidor.
  */
 export const runtime = "nodejs";
+
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://nxstilnyidvkqeosofuh.supabase.co",
+    process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+    { auth: { persistSession: false } },
+  );
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,7 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email o código inválidos." }, { status: 400 });
     }
 
-    const sb = await createClient(); // service_role (server)
+    const sb = getServiceClient();
 
     // Buscar el correo OTP del usuario en ss_mail (no expirado, 10 min).
     const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();

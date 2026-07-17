@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
 /**
  * POST /api/auth/otp/request
@@ -7,14 +7,23 @@ import { createClient } from "@/utils/supabase/server";
  * (Adenda 71-bis · 2026-07-17) Login por CÓDIGO sin contraseña para cuentas
  * @star.seed. Como @star.seed NO tiene SMTP externo, el OTP de Supabase por
  * email no llega. En su lugar, el OS GENERA el código y lo entrega en la
- * BANDEJA DE CORREOS y NOTIFICACIONES del OS de la cuenta (tablas ss_mail y
- * notifications), exactamente como pidió el usuario. El código es el "gate"
- * que el usuario ve dentro del OS; al verificarlo, /verify crea la sesión.
+ * BANDEJA DE CORREOS y NOTIFICACIONES del OS (tablas ss_mail y notifications)
+ * vía este endpoint. El código es el "gate" que el usuario ve dentro del OS;
+ * al verificarlo, /verify crea la sesión.
  *
- * Usa la SERVICE_ROLE en el servidor (no expuesta al cliente). La service_role
- * SÍ puede usar auth.admin (probado). El cliente nunca ve la service_role.
+ * Usa la SERVICE_ROLE explícita (no el cliente anon de @/utils/supabase/server)
+ * porque necesita auth.admin + escritura en ss_mail/notifications con RLS.
+ * Es una API route de servidor: la service_role NUNCA se expone al cliente.
  */
 export const runtime = "nodejs";
+
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://nxstilnyidvkqeosofuh.supabase.co",
+    process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+    { auth: { persistSession: false } },
+  );
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,7 +32,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email inválido." }, { status: 400 });
     }
 
-    const sb = await createClient(); // service_role (server)
+    const sb = getServiceClient();
 
     // Resolver el user_id de la cuenta (para ss_mail.to_user y notifications.user_id).
     let userId: string | null = null;
