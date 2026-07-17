@@ -46,7 +46,7 @@ import { AuroraControlPanel } from "@/components/aurora/aurora-control-panel";
 import { PersonalitiesPanel } from "@/components/aurora/personalities-panel";
 import { registerActiveAuroraChat } from "@/lib/aurora/personalities";
 import { AuroraAlwaysOn } from "@/components/exocortex/aurora-always-on";
-import { AuroraChatView } from "@/components/exocortex/aurora-chat-view";
+import { AuroraChatView, type LiveMessage } from "@/components/exocortex/aurora-chat-view";
 import { AuroraChatFullscreen } from "@/components/exocortex/aurora-chat-fullscreen";
 import { AuroraChatExplorer } from "@/components/exocortex/aurora-chat-explorer";
 import { AuroraAvatar } from "@/components/aurora/aurora-avatar";
@@ -85,8 +85,7 @@ import { useChatTree } from "@/lib/aurora/chat-tree";
 // Conversación UNIFICADA Aurora ↔ Astraura AI (Adenda 69 · I-1).
 import {
   useAiConversations,
-  loadMessages as loadCloudMessages,
-  setActiveConversationId,
+  useAiMessages,
   type AiConversation,
 } from "@/lib/aurora/conversations";
 
@@ -410,6 +409,9 @@ function dayLabel(day: string): string {
  * vista de chat y la deja activa: lo siguiente que hables cae en ese hilo.
  */
 function CloudConversations({ onOpen }: { onOpen: (c: AiConversation) => void }) {
+  // Fuente VIVA: este hook lee la MISMA caché/nube que `aiChats` (arriba) y se
+  // suscribe a los mismos eventos, así que la lista y la conversación activa
+  // resaltada aquí son las compartidas por orbe, Exocórtex y `/agent`.
   const { conversations, activeId, create, remove } = useAiConversations();
 
   return (
@@ -488,6 +490,11 @@ export function AuroraChatSection({ className }: { className?: string }) {
   const chatLog = useAuroraChatLog();
   // Árbol de contextos/temas de conversación (ramificación) — persistido aparte.
   const tree = useChatTree();
+  // Conversación unificada en la nube (misma que orbe y /agent). La lista de
+  // conversaciones y los mensajes en vivo se leen aquí para que las tres
+  // superficies compartan un solo hilo y se sincronicen en tiempo real.
+  const aiChats = useAiConversations();
+  const cloudMessages = useAiMessages(aiChats.activeId);
 
   const [tab, setTab] = useState<Tab>("folder");
   const [snap, setSnap] = useState<SnapshotPlus | null>(null);
@@ -579,7 +586,6 @@ export function AuroraChatSection({ className }: { className?: string }) {
   const interim = aurora?.interim ?? snap?.interim ?? "";
   const lastReply = aurora?.lastReply ?? snap?.lastReply ?? "";
   const actionStatus = aurora?.actionStatus ?? snap?.actionStatus ?? "";
-  const conversation = aurora?.conversation ?? snap?.conversation ?? [];
   const actionLog = aurora?.actionLog ?? snap?.actionLog ?? [];
   const activePersonality = aurora?.activePersonality ?? snap?.activePersonality ?? { name: "Aurora" };
   const voiceUnavailable = aurora?.voiceUnavailable ?? !!snap?.voiceUnavailable;
@@ -621,15 +627,18 @@ export function AuroraChatSection({ className }: { className?: string }) {
   }, [barDraft, doSend]);
 
   // "Nuevo chat": reinicio VISUAL del contexto en vivo (el motor conserva su
-  // ring interno; el registro persistente por día no se toca). Marca la frontera
-  // temporal a partir de la cual se muestra la conversación.
-  const newChat = useCallback(() => {
-    setSessionStartTs(Date.now());
+  // ring interno; el registro persistente por día no se toca) y, en la nube
+  // unificada, abre una conversación nueva que queda ACTIVA para el orbe, el
+  // mini-reproductor, `/agent` y este Exocórtex: el siguiente mensaje cae en
+  // ese hilo nuevo en todas las superficies.
+  const newChat = useCallback(async () => {
+    const conv = await aiChats.create({ kind: "aurora", surface: "exocortex" });
+    setSessionStartTs(0);
     setLoadedSession(null);
     setDraft("");
     setTab("chat");
     try { scrollRef.current && (scrollRef.current.scrollTop = 0); } catch { /* */ }
-  }, []);
+  }, [aiChats]);
 
   // Entrar a un contexto pasado del registro: carga sus mensajes en la vista de
   // chat (solo lectura de ese día). Escribir abajo continúa en el chat en vivo.
@@ -642,25 +651,16 @@ export function AuroraChatSection({ className }: { className?: string }) {
 
   // (Adenda 69 · I-1) Abrir una conversación de la NUBE — puede venir del orbe,
   // del mini-reproductor o de la sección de chats de Astraura AI (`/agent`): son
-  // el mismo modelo. La cargamos en la vista de chat y la dejamos ACTIVA, así
-  // que el siguiente mensaje (por voz o por texto, aquí o en `/agent`) continúa
-  // ESE hilo. Reutiliza `loadedSession`, que ya sabe pintar un contexto pasado.
+  // el mismo modelo. La dejamos ACTIVA en la conversación unificada, así que el
+  // chat en vivo (que ya lee de esa nube) la muestra y lo siguiente que hables
+  // —por voz o por texto, aquí o en `/agent`— continúa ESE hilo. Es la misma
+  // clave de unificación que usa el orbe, así que no rompemos nada de su flujo.
   const openCloudConversation = useCallback(async (conv: AiConversation) => {
     setSessionStartTs(0);
-    setActiveConversationId(conv.id);
-    const msgs = await loadCloudMessages(conv.id);
-    setLoadedSession({
-      day: auroraChatDayOf(conv.createdAt),
-      entries: msgs.map((m) => ({
-        role: m.role === "assistant" ? ("aurora" as const) : ("user" as const),
-        text: m.text,
-        ts: m.ts,
-        ...(m.meta ? { meta: m.meta } : {}),
-      })),
-      label: conv.title,
-    });
+    setLoadedSession(null); // el chat en vivo lee de la nube, no de un snapshot
+    aiChats.setActive(conv.id);
     setTab("chat");
-  }, []);
+  }, [aiChats]);
 
   // Abrir un CONTEXTO del árbol: reconstruye su conversación cruzando los
   // timestamps asociados (índice paralelo) con las entradas del registro. Lo fija
@@ -763,19 +763,25 @@ export function AuroraChatSection({ className }: { className?: string }) {
     } catch { /* */ }
   }, [aurora]);
 
-  // Conversación EN VIVO visible: si el usuario pulsó "Nuevo chat", solo desde
-  // esa frontera temporal (reinicio visual). ConversationEntry lleva `.at`.
-  const visibleConvo = useMemo(() => {
-    if (!sessionStartTs) return conversation;
+  // Conversación EN VIVO visible: ahora lee del ALMACÉN UNIFICADO de la nube
+  // (`aurora_conversations` + `astraura_messages`) vía `useAiMessages`, EXACTAMENTE
+  // igual que `/agent`. Así el Exocórtex, el orbe y Astraura AI comparten la MISMA
+  // lista de chats y se sincronizan en tiempo real. Si el usuario pulsó «Nuevo
+  // chat» mostramos solo desde esa frontera temporal (reinicio visual).
+  const visibleConvo = useMemo<LiveMessage[]>(() => {
+    const fromCloud: LiveMessage[] = cloudMessages.map((m) => ({
+      role: m.role === "assistant" ? "aurora" : "user",
+      text: m.text,
+      at: m.ts,
+      ...(m.meta ? { meta: m.meta } : {}),
+    }));
+    if (!sessionStartTs) return fromCloud;
     try {
-      return conversation.filter((m) => {
-        const at = (m as { at?: number })?.at;
-        return typeof at !== "number" || at >= sessionStartTs;
-      });
+      return fromCloud.filter((m) => (typeof m.at !== "number" || m.at >= sessionStartTs));
     } catch {
-      return conversation;
+      return fromCloud;
     }
-  }, [conversation, sessionStartTs]);
+  }, [cloudMessages, sessionStartTs]);
 
   // Auto-scroll del historial al fondo cuando llegan mensajes (solo en vivo).
   const convoLen = visibleConvo.length;
