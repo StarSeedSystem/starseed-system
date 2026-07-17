@@ -273,7 +273,12 @@ export const FREE_CATALOG: CatalogSource[] = [
     tier: "free-key",
     providerId: "openrouter",
     baseUrl: "https://openrouter.ai/api/v1",
-    requiresKey: true,
+    // (Adenda 71-bis) Los modelos :free de OpenRouter son USABLES SIN CLAVE;
+    // la clave solo sube los límites (igual que LLM7/OVH con keyOptional).
+    // Marcarlo requiresKey:false hace que aparezca en los ajustes por contexto
+    // como fuente elegible sin exigir clave, cumpliendo "OpenRouter como motor".
+    requiresKey: false,
+    keyOptional: true,
     getKeyUrl: "https://openrouter.ai/keys",
     preferFreeModels: true,
     limits: "20 req/min · 50 req/día (1.000/día con recarga única de $10). Solo modelos :free = coste 0.",

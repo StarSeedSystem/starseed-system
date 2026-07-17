@@ -184,7 +184,9 @@ function buildLiveSource(meta: CachedCatalog["meta"]): CatalogSource {
       tier: "free-key",
       providerId: "openrouter",
       baseUrl: BASE_URL,
-      requiresKey: true,
+      // (Adenda 71-bis) :free usable sin clave; la clave solo sube límites.
+      requiresKey: false,
+      keyOptional: true,
       preferFreeModels: true,
       limits: "Modelos :free de OpenRouter (coste 0).",
       why: "Una sola clave gratuita da acceso a decenas de modelos :free.",
