@@ -869,6 +869,21 @@ export function startAiChatSync(): void {
         const uid = await currentUserId();
         if (!uid) return;
 
+        // (Adenda 71 · 2026-07-17) Catálogo VIVO de OpenRouter (:free):
+        // arranca el refresco automático (enganche al sistema de auto-update del
+        // OS) y aplica el override sobre FREE_CATALOG. Así Aurora, Hermione y
+        // CUALQUIER personalidad que use `openrouter-free` ven los modelos
+        // reales de hoy — y los ajustes de personalidad POR ÁREA (intelligence
+        // → porSentido) se rellenan solos con el catálogo vivo. Best-effort.
+        try {
+            const live = await import("@/ai/astraura/openrouter-live-catalog");
+            live.startLiveCatalog();
+            const { applyLiveOpenRouter } = await import("@/ai/astraura/free-catalog");
+            await applyLiveOpenRouter();
+        } catch {
+            /* sin red: el catálogo estático ya es válido */
+        }
+
         await refreshConversations();
         const active = getActiveConversationId();
         if (active) await loadMessages(active);

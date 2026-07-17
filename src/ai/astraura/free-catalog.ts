@@ -888,9 +888,40 @@ export function toProviderModel(source: CatalogSource, model: CatalogModel | str
  * Parte inversa de `toProviderModel`: separa el primer segmento como proveedor.
  * El resto (que puede contener más "/", como en OpenRouter) es el id del modelo.
  */
-export function parseProviderModel(s: string): { provider: string; model: string } {
-  const str = String(s ?? "");
-  const i = str.indexOf("/");
-  if (i < 0) return { provider: "", model: str };
-  return { provider: str.slice(0, i), model: str.slice(i + 1) };
+/* ═══════════════════════════ CATÁLOGO VIVO (OpenRouter :free) ═══════════════════════════
+ * (Adenda 71 · 2026-07-17) El catálogo de OpenRouter `:free` se mantiene
+ * VIVO: `openrouter-live-catalog.ts` consulta la API pública de OpenRouter,
+ * filtra los `:free` y reemplaza los `models` de la fuente `openrouter-free`
+ * con los REALES de hoy. Esta función aplica ese override MUTANDO el array
+ * `FREE_CATALOG` (que ya consumen `availability.ts` y `router.ts`), de modo
+ * que Aurora, Hermione y CUALQUIER personalidad que apunte a `openrouter-free`
+ * se benefician automáticamente del catálogo vivo — sin tocar su lógica.
+ *
+ * Import DINÁMICO a propósito: `openrouter-live-catalog` ya importa
+ * `findSource` de este módulo, así que un import estático crearía ciclo. Al
+ * usar `import()` solo en tiempo de ejecución (tras el arranque) se rompe.
+ * Defensivo: nunca lanza; si el módulo vivo falla, el catálogo estático
+ * (ya cargado en `FREE_CATALOG`) se conserva intacto.
+ */
+let liveApplied = false;
+export async function applyLiveOpenRouter(): Promise<boolean> {
+  if (liveApplied) return true;
+  try {
+    const mod = await import("./openrouter-live-catalog");
+    const live = mod.liveOpenRouterSource();
+    const idx = FREE_CATALOG.findIndex((s) => s.id === "openrouter-free");
+    if (idx >= 0 && live) {
+      FREE_CATALOG[idx] = live;
+      liveApplied = true;
+      return true;
+    }
+  } catch {
+    /* silencio: nos quedamos con el estático */
+  }
+  return false;
+}
+
+/** ¿Ya se aplicó el override vivo? (para la UI no volver a forzar). */
+export function isLiveOpenRouterApplied(): boolean {
+  return liveApplied;
 }
