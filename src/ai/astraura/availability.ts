@@ -166,10 +166,13 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
  * NUNCA lanza.
  */
 export async function detectAvailabilitySafe(timeoutMs = 6000): Promise<SourceAvailability[]> {
+  // Fallback defensivo: NO usa FREE_CATALOG crudo (estático), sino el catálogo
+  // UNIFICADO (que ya incluye los modelos :free VIVOS si applyLiveOpenRouter()
+  // corrió). Así la UI de ajustes por contexto refleja el catálogo real aunque
+  // el sondeo/fetch falle. (Adenda 71-bis · 2026-07-17)
   const fallback = (): SourceAvailability[] =>
-    FREE_CATALOG.map((source) => ({
+    getUnifiedCatalog().map((source) => ({
       source,
-      // Sin sondas: damos por listas SOLO las que no necesitan clave ni descarga.
       ready: !source.requiresKey && source.privacy === "cloud" && source.tier !== "paid",
       reason: undefined,
     }));

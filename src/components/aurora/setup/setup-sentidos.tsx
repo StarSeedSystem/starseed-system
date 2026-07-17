@@ -123,6 +123,20 @@ export function SetupSentidos() {
     } catch {
       /* defaults */
     }
+    // (Adenda 71-bis · 2026-07-17) Aplica el catálogo VIVO de OpenRouter (:free)
+    // y arranca el sistema UNIFICADO adaptativo ANTES de detectar, para que los
+    // ajustes por contexto muestren los modelos :free reales de hoy (no el
+    // catálogo estático). Best-effort, defensivo.
+    try {
+      void (async () => {
+        const { applyLiveOpenRouter } = await import("@/ai/astraura/free-catalog");
+        await applyLiveOpenRouter();
+        const { startUnifiedIntelligence } = await import("@/ai/astraura/unified-intelligence");
+        startUnifiedIntelligence();
+      })();
+    } catch {
+      /* sin red: el catálogo estático ya es válido */
+    }
     void detect();
   }, [detect]);
 
