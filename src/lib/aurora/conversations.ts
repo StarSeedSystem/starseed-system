@@ -827,69 +827,106 @@ function dayConversationUuid(uid: string, day: string): string {
   ].join("-");
 }
 
-// ── Motor de sincronización (singleton por pestaña) ──────────────────────────
+// ── Motor de sincronización (singleton por pestaña + cross-tab) ───────────────
 const SYNC_FLAG = "__STARSEED_AI_CHATS_SYNC__";
+// BroadcastChannel nativo: propaga cambios ENTRE PESTAÑAS del mismo origen (el
+// postgres_changes llega por dispositivo, no por pestaña; sin esto, escribir en
+// la pestaña A no aparecía en la pestaña B hasta recargar).
+const TAB_SYNC = "starseed:ai-chats-tab";
+
+function tabChannel(): BroadcastChannel | null {
+    if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return null;
+    try {
+        return new BroadcastChannel(TAB_SYNC);
+    } catch {
+        return null;
+    }
+}
 
 /**
  * Arranca (una sola vez) la sincronización en vivo de las conversaciones:
  *   · pull de arranque (lista + mensajes de la conversación activa),
  *   · migración del `chatlog` legado (idempotente),
  *   · `postgres_changes` sobre `astraura_messages` y `aurora_conversations`,
- *   · `live-signal` (broadcast del canal de cuenta) — camino rápido.
+ *   · `live-signal` (broadcast del canal de cuenta) — camino rápido entre dispositivos,
+ *   · `BroadcastChannel` — camino rápido ENTRE PESTAÑAS del mismo navegador.
  * Idempotente y SSR-safe.
  */
 export function startAiChatSync(): void {
-  if (!isClient()) return;
-  const w = window as unknown as Record<string, unknown>;
-  if (w[SYNC_FLAG]) return;
-  w[SYNC_FLAG] = true;
+    if (!isClient()) return;
+    const w = window as unknown as Record<string, unknown>;
+    if (w[SYNC_FLAG]) return;
+    w[SYNC_FLAG] = true;
 
-  const boot = async () => {
-    const uid = await currentUserId();
-    if (!uid) return;
-
-    await refreshConversations();
-    const active = getActiveConversationId();
-    if (active) await loadMessages(active);
-    // Migración del historial legado (una vez; idempotente si se repite).
+    let bc: BroadcastChannel | null = null;
     try {
-      await migrateLegacyChatLog();
+        bc = tabChannel();
     } catch {
-      /* nunca bloquea el arranque */
+        bc = null;
     }
 
-    // Camino 1 — postgres_changes (red de seguridad, entre dispositivos).
-    onTableChange<MsgRow>("astraura_messages", { filter: `user_id=eq.${uid}`, event: "INSERT" }, (p) => {
-      const row = p.new;
-      if (!row?.chat_id) return;
-      upsertMsgCache(toMsg(row));
-    });
-    onTableChange<ConvRow>("aurora_conversations", { filter: `user_id=eq.${uid}`, event: "*" }, () => {
-      void refreshConversations();
-    });
+    const boot = async () => {
+        const uid = await currentUserId();
+        if (!uid) return;
 
-    // Camino 2 — live-signal (broadcast inmediato en el canal de cuenta).
-    onChange(AI_CHATS_TOPIC, (change) => {
-      const data = (change.data ?? {}) as { convId?: string; kind?: string };
-      if (data.kind === "conversation" || !data.convId) {
-        void refreshConversations();
-        return;
-      }
-      void loadMessages(data.convId);
-    });
-  };
+        await refreshConversations();
+        const active = getActiveConversationId();
+        if (active) await loadMessages(active);
+        // Migración del historial legado (una vez; idempotente si se repite).
+        try {
+            await migrateLegacyChatLog();
+        } catch {
+            /* nunca bloquea el arranque */
+        }
 
-  void boot();
+        // Camino 1 — postgres_changes (red de seguridad, entre dispositivos).
+        onTableChange<MsgRow>("astraura_messages", { filter: `user_id=eq.${uid}`, event: "INSERT" }, (p) => {
+            const row = p.new;
+            if (!row?.chat_id) return;
+            upsertMsgCache(toMsg(row));
+            // Reflejar también en las otras pestañas de este navegador.
+            bc?.postMessage({ kind: "message", convId: row.chat_id });
+        });
+        onTableChange<ConvRow>("aurora_conversations", { filter: `user_id=eq.${uid}`, event: "*" }, () => {
+            void refreshConversations();
+            bc?.postMessage({ kind: "conversation" });
+        });
 
-  // Al iniciar/cerrar sesión, rehacemos el arranque.
-  try {
-    const supabase = createClient();
-    supabase.auth.onAuthStateChange(() => {
-      void boot();
-    });
-  } catch {
-    /* defensivo */
-  }
+        // Camino 2 — live-signal (broadcast inmediato en el canal de cuenta).
+        onChange(AI_CHATS_TOPIC, (change) => {
+            const data = (change.data ?? {}) as { convId?: string; kind?: string };
+            if (data.kind === "conversation" || !data.convId) {
+                void refreshConversations();
+                return;
+            }
+            void loadMessages(data.convId);
+        });
+
+        // Camino 3 — BroadcastChannel (entre pestañas del mismo navegador).
+        if (bc) {
+            bc.onmessage = (ev: MessageEvent) => {
+                const d = ev.data as { kind?: string; convId?: string } | null;
+                if (!d) return;
+                if (d.kind === "conversation" || !d.convId) {
+                    void refreshConversations();
+                    return;
+                }
+                void loadMessages(d.convId);
+            };
+        }
+    };
+
+    void boot();
+
+    // Al iniciar/cerrar sesión, rehacemos el arranque.
+    try {
+        const supabase = createClient();
+        supabase.auth.onAuthStateChange(() => {
+            void boot();
+        });
+    } catch {
+        /* defensivo */
+    }
 }
 
 // ── Hooks ────────────────────────────────────────────────────────────────────

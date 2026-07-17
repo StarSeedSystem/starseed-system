@@ -52,7 +52,15 @@ export interface RealtimePayload<T = any> {
 }
 
 // ----------------------- Suscripción imperativa ------------------------------
-//
+
+// Registry de canales Realtime compartidos (dedupe por tabla+filtro+evento).
+// Evita abrir canales duplicados cuando varias partes de la app se suscriben a
+// la misma tabla/filtro, y cierra el canal solo cuando se desuscribe el último.
+const channelRegistry: Record<
+    string,
+    { subs: Set<(p: any) => void>; channel: any; supabase: any; removed: boolean }
+> = {};
+
 // `onTableChange` permite que código NO-React (p.ej. la capa de datos de
 // post-entity) se suscriba a cambios de una tabla y reciba una función de
 // limpieza. SSR-safe: en el servidor devuelve un no-op.
@@ -67,19 +75,43 @@ export function onTableChange<T = any>(
         return () => {};
     }
 
+    // ── DEDUPE DE CANALES ────────────────────────────────────────────────────
+    // BUG (2026-07-17): la clave del canal llevaba un `nonce` aleatorio, así que
+    // dos llamadas a `onTableChange` con el MISMO (tabla, filtro, evento)
+    // abrían DOS canales idénticos → fuga de canales Realtime (Supabase limita
+    // ~100 por conexión) y doble procesamiento del mismo payload. Ahora la clave
+    // es DETERMINISTA y un registry comparte UN canal entre todos los
+    // suscriptores; el canal solo se cierra cuando el último se desuscribe.
+    const event = opts?.event ?? "*";
+    const filter = opts?.filter;
+    const key = `${table}:${filter ?? "all"}:${event}`;
+
+    let registry = (channelRegistry as unknown) as Record<
+        string,
+        { subs: Set<(p: RealtimePayload<T>) => void>; channel: any; supabase: any; removed: boolean }
+    >;
+    const existing = registry[key];
+    if (existing) {
+        existing.subs.add(cb as any);
+        return () => {
+            existing.subs.delete(cb as any);
+            if (existing.subs.size === 0 && existing.channel) {
+                try {
+                    if (existing.supabase) existing.supabase.removeChannel(existing.channel);
+                } catch {
+                    /* best-effort */
+                }
+                delete registry[key];
+            }
+        };
+    }
+
     let removed = false;
     let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
     let supabase: ReturnType<typeof createClient> | null = null;
 
     try {
         supabase = createClient();
-        const event = opts?.event ?? "*";
-        const filter = opts?.filter;
-
-        // Clave única y estable por canal (tabla + filtro + evento + nonce).
-        const nonce = Math.random().toString(36).slice(2, 8);
-        const key = `${table}:${filter ?? "all"}:${event}:${nonce}`;
-
         const changeConfig: {
             event: RealtimeEvent;
             schema: string;
@@ -92,9 +124,20 @@ export function onTableChange<T = any>(
             .channel(`rt:${key}`)
             // El tipado del SDK para postgres_changes es laxo; casteamos el cb.
             .on("postgres_changes", changeConfig as any, (payload: any) => {
-                if (!removed) cb(payload as RealtimePayload<T>);
+                if (removed) return;
+                const entry = registry[key];
+                if (!entry) return;
+                entry.subs.forEach((fn) => {
+                    try {
+                        fn(payload as RealtimePayload<T>);
+                    } catch {
+                        /* un callback roto no debe tumbar a los demás */
+                    }
+                });
             })
             .subscribe();
+
+        registry[key] = { subs: new Set([cb as any]), channel, supabase, removed: false };
     } catch {
         // Si algo falla al crear el canal, degradamos a no-op silenciosamente.
         return () => {};
@@ -102,10 +145,18 @@ export function onTableChange<T = any>(
 
     return () => {
         removed = true;
-        try {
-            if (supabase && channel) supabase.removeChannel(channel);
-        } catch {
-            /* limpieza best-effort */
+        const entry = registry[key];
+        if (entry) {
+            entry.subs.delete(cb as any);
+            entry.removed = true;
+            if (entry.subs.size === 0 && entry.channel) {
+                try {
+                    if (entry.supabase) entry.supabase.removeChannel(entry.channel);
+                } catch {
+                    /* best-effort */
+                }
+                delete registry[key];
+            }
         }
     };
 }

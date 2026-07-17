@@ -261,7 +261,11 @@ export const FREE_CATALOG: CatalogSource[] = [
     //   2. `preferFreeModels` — el ranking sube los `:free` y NUNCA gasta
     //      créditos de pago del usuario por su cuenta.
     // Ids VERIFICADOS contra GET https://openrouter.ai/api/v1/models el
-    // 2026-07-13 (343 modelos, 21 con sufijo `:free`).
+    // 2026-07-17 (343 modelos, 20 con sufijo `:free`). Reverificación en vivo:
+    // el antiguo `openai/gpt-oss-120b:free` YA NO EXISTE (ahora es
+    // `gpt-oss-20b:free`); se añaden `tencent/hy3:free` (Hunyuan), la familia
+    // Nemotron 3 Nano (visión+razonamiento y rápidos) y `hermes-3-llama-3.1-405b`
+    // (coherencia con el asistente Hermes de StarSeed).
     id: "openrouter-free",
     label: "OpenRouter :free",
     tier: "free-key",
@@ -271,20 +275,35 @@ export const FREE_CATALOG: CatalogSource[] = [
     getKeyUrl: "https://openrouter.ai/keys",
     preferFreeModels: true,
     limits: "20 req/min · 50 req/día (1.000/día con recarga única de $10). Solo modelos :free = coste 0.",
-    why: "Una sola clave gratuita da acceso a ~21 modelos GRATIS variados (razonamiento, visión, código, 1M de contexto). Aurora solo usa los `:free`.",
+    why: "Una sola clave gratuita da acceso a 20 modelos GRATIS variados (razonamiento, visión, código, 1M de contexto). Aurora solo usa los `:free` y elige por tarea.",
     privacy: "cloud",
     weight: 1,
     models: [
       { id: "openrouter/free", label: "Auto (mejor :free disponible)", strengths: ["chat", "summary"], quality: 7, note: "Router automático de OpenRouter, solo modelos gratis" },
+      // RAZONAMIENTO/CONTEXTO LARGO — modelos gigantes con 1M de contexto.
+      { id: "nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra 550B", strengths: ["reasoning", "long"], quality: 9, context: 1000000, note: "Mejor razonamiento gratis (1M ctx)" },
       { id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super 120B", strengths: ["reasoning", "long"], quality: 8, context: 1000000 },
-      { id: "nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra 550B", strengths: ["reasoning", "long"], quality: 9, context: 1000000 },
-      { id: "qwen/qwen3-coder:free", label: "Qwen3 Coder", strengths: ["code"], quality: 8, context: 1000000, note: "1M de contexto" },
+      { id: "qwen/qwen3-coder:free", label: "Qwen3 Coder", strengths: ["code", "long"], quality: 8, context: 1000000, note: "1M ctx · código" },
+      { id: "nousresearch/hermes-3-llama-3.1-405b:free", label: "Hermes 3 405B", strengths: ["reasoning", "creative", "long"], quality: 9, context: 131072, note: "Gran calidad general · coherencia Hermes" },
+      // VISIÓN + RAZONAMIENTO — la joya para tareas que ven imágenes y piensan.
+      { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", label: "Nemotron 3 Nano Omni (visión+razonamiento)", strengths: ["vision", "reasoning"], quality: 8, vision: true, context: 256000, note: "Ve y razona (256K ctx)" },
       { id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B", strengths: ["chat", "vision", "translate"], quality: 8, vision: true, context: 262144 },
-      { id: "nvidia/nemotron-nano-12b-v2-vl:free", label: "Nemotron Nano 12B VL (visión)", strengths: ["vision", "fast"], quality: 7, vision: true },
-      { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B", strengths: ["chat", "creative"], quality: 8 },
-      { id: "openai/gpt-oss-120b:free", label: "GPT-OSS 120B", strengths: ["reasoning", "code"], quality: 8 },
-      { id: "qwen/qwen3-next-80b-a3b-instruct:free", label: "Qwen3 Next 80B", strengths: ["chat", "reasoning", "translate"], quality: 8 },
-      { id: "meta-llama/llama-3.2-3b-instruct:free", label: "Llama 3.2 3B", strengths: ["fast"], quality: 5 },
+      { id: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 26B (ligero)", strengths: ["chat", "vision", "translate", "fast"], quality: 7, vision: true, context: 262144 },
+      { id: "nvidia/nemotron-nano-12b-v2-vl:free", label: "Nemotron Nano 12B VL (visión)", strengths: ["vision", "fast"], quality: 7, vision: true, context: 128000 },
+      // CÓDIGO — modelos de razonamiento de código.
+      { id: "openai/gpt-oss-20b:free", label: "GPT-OSS 20B", strengths: ["reasoning", "code", "chat"], quality: 7, context: 131072 },
+      { id: "poolside/laguna-m.1:free", label: "Laguna M1 (código)", strengths: ["code"], quality: 7, context: 262144 },
+      { id: "poolside/laguna-xs-2.1:free", label: "Laguna XS (código rápido)", strengths: ["code", "fast"], quality: 6, context: 262144 },
+      { id: "cohere/north-mini-code:free", label: "Cohere North Mini Code", strengths: ["code", "fast"], quality: 7, context: 256000 },
+      // CHAT GENERAL / CREATIVO — fuertes y versátiles.
+      { id: "tencent/hy3:free", label: "Hunyuan Hy3", strengths: ["chat", "reasoning", "creative"], quality: 8, context: 262144, note: "Tencent Hunyuan 3" },
+      { id: "qwen/qwen3-next-80b-a3b-instruct:free", label: "Qwen3 Next 80B", strengths: ["chat", "reasoning", "translate"], quality: 8, context: 262144 },
+      { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B", strengths: ["chat", "creative"], quality: 8, context: 131072 },
+      // RÁPIDOS / PEQUEÑOS — para voz en tiempo real y tareas triviales.
+      { id: "nvidia/nemotron-3-nano-30b-a3b:free", label: "Nemotron 3 Nano 30B", strengths: ["chat", "fast"], quality: 7, context: 256000 },
+      { id: "nvidia/nemotron-nano-9b-v2:free", label: "Nemotron Nano 9B", strengths: ["chat", "fast"], quality: 6, context: 128000 },
+      { id: "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", label: "Dolphin Mistral 24B", strengths: ["chat", "creative"], quality: 7, context: 32768 },
+      { id: "meta-llama/llama-3.2-3b-instruct:free", label: "Llama 3.2 3B", strengths: ["fast"], quality: 5, context: 131072 },
     ],
   },
   {
