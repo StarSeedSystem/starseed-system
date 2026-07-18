@@ -302,10 +302,10 @@ export function ZenithCurtain() {
                                         </span>
                                         <div className="min-w-0">
                                             <h2 className="text-lg md:text-2xl font-light tracking-widest uppercase font-headline truncate">
-                                                Explorador Universal & Nexus
+                                                Exocortex
                                             </h2>
                                             <p className="text-[11px] text-cyan-300/60 font-mono hidden md:block truncate">
-                                                Memoria Universal · IA Contextual · Editor de Sistema
+                                                Astraura IA
                                             </p>
                                         </div>
                                     </div>
