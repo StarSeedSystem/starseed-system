@@ -47,6 +47,8 @@ import {
   settingsFor,
   summarizeNeurons,
   thisDeviceId,
+  isHermesLinked,
+  linkHermesToNeuron,
   NEURON_EVENT,
   type Neuron,
   type NeuronKind,
@@ -477,6 +479,24 @@ function NeuronCard({
                 onClick={() => setRequestOpen((v) => !v)}
               >
                 <FileDown className="w-3.5 h-3.5" /> Solicitar archivo
+              </Button>
+              <Button
+                variant={isHermesLinked(n.capabilities) ? "ghost" : "outline"}
+                size="sm"
+                className={
+                  isHermesLinked(n.capabilities)
+                    ? "cursor-default h-7 gap-1.5 text-xs text-emerald-300/80"
+                    : "cursor-pointer h-7 gap-1.5 text-xs border-fuchsia-400/30 text-fuchsia-200 hover:bg-fuchsia-500/10"
+                }
+                disabled={isHermesLinked(n.capabilities)}
+                onClick={async () => {
+                  const ok = await linkHermesToNeuron(n.id);
+                  if (ok) { toast.success("Sincronización con Hermes activada"); window.dispatchEvent(new Event(NEURON_EVENT)); }
+                  else toast.error("No se pudo vincular Hermes");
+                }}
+              >
+                <Network className="w-3.5 h-3.5" />
+                {isHermesLinked(n.capabilities) ? "Hermes vinculado" : "Sincronizar con Hermes"}
               </Button>
               <Button
                 variant="ghost"

@@ -57,6 +57,15 @@ export interface NeuronCapabilities {
   /** deviceId del motor de sync (entity-state) — destino de broadcasts de
    *  cuenta como 'file-request'. Distinto del id de neurona (histórico). */
   syncDeviceId?: string;
+  /** Auto-vinculación Hermes↔OS (Adenda 71-bis): bridge de sincronización con
+   *  la sesión Hermes de esta neurona. */
+  bridge?: {
+    mode?: "external-hermes" | "none";
+    hermesWs?: string;
+    servesPersonalities?: string[];
+    autoLinked?: boolean;
+  };
+  hermesInstalled?: boolean;
 }
 
 /** Permisos de la neurona. PREDETERMINADO: todo true (máxima interconexión). */
@@ -343,11 +352,24 @@ export async function ensureThisNeuron(): Promise<Neuron | null> {
   if (!id) return null;
   const { kind } = detectPlatform();
   const capabilities = await detectCapabilities();
+  // AUTO-ENLACE HERMES (Adenda 71-bis · 2026-07-17): el OS DETECTA esta neurona
+  // y OFRECE/INSTALA la sincronización con Hermes automáticamente, sin que el
+  // usuario configure nada. Marca el bridge Hermes y vincula permisos completos
+  // (sync OS↔Hermes en ambos sentidos) en el registro de la neurona.
+  capabilities.bridge = {
+    mode: "external-hermes",
+    hermesWs: process.env.NEXT_PUBLIC_HERMIONE_WS || "ws://localhost:8787",
+    servesPersonalities: ["hermione"],
+    autoLinked: true,
+  };
+  capabilities.hermesInstalled = true;
   const prefs = readPrefs();
   const name = prefs.names[id] || defaultName(capabilities, kind);
+  const perms = permissionsFor(id);
+  perms.sync = true;
   const neuron: Neuron = {
     id, name, kind, capabilities,
-    permissions: permissionsFor(id),
+    permissions: perms,
     isThisDevice: true, online: true,
   };
   void upsertRemote(neuron);
@@ -358,6 +380,53 @@ export async function ensureThisNeuron(): Promise<Neuron | null> {
     }, HEARTBEAT_MS);
   }
   return neuron;
+}
+
+/**
+ * linkHermesToNeuron — AUTO-VINCULACIÓN Hermes↔OS (Adenda 71-bis · 2026-07-17).
+ *
+ * El OS DETECTA cada neurona conectada (online en `neuron_devices`) y OFRECE /
+ * INSTALA la sincronización con Hermes automáticamente: marca el bridge Hermes
+ * en sus capacidades y vincula permisos completos (`sync`) para que los chats
+ * de Hermione en el OS se sincronicen con los mensajes de Hermes en CUALQUIER
+ * dispositivo de la cuenta, en ambos sentidos, sin configuración manual.
+ *
+ * Usa el cliente autenticado (RLS owner) → la neurona debe pertenecer a la
+ * cuenta. Nunca lanza.
+ */
+export async function linkHermesToNeuron(neuronId: string): Promise<boolean> {
+  if (!neuronId) return false;
+  try {
+    const supabase = createClient();
+    const { data: row } = await supabase
+      .from("neuron_devices")
+      .select("capabilities, permissions")
+      .eq("id", neuronId)
+      .maybeSingle();
+    const caps = (row?.capabilities as Record<string, any>) || {};
+    caps.bridge = {
+      mode: "external-hermes",
+      hermesWs: process.env.NEXT_PUBLIC_HERMIONE_WS || "ws://localhost:8787",
+      servesPersonalities: ["hermione"],
+      autoLinked: true,
+    };
+    caps.hermesInstalled = true;
+    const perms = (row?.permissions as Record<string, any>) || {};
+    perms.sync = true;
+    await supabase
+      .from("neuron_devices")
+      .update({ capabilities: caps, permissions: perms, last_seen_at: new Date().toISOString() })
+      .eq("id", neuronId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** ¿Esta neurona tiene el bridge Hermes vinculado? (para ofrecer/ocultar botón). */
+export function isHermesLinked(capabilities?: Record<string, any> | null): boolean {
+  const b = capabilities?.bridge;
+  return !!b && (b.mode === "external-hermes" || capabilities?.hermesInstalled === true);
 }
 
 /** Lista TODAS las neuronas de la cuenta (esta primero). Nunca lanza. */
