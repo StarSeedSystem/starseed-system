@@ -38,6 +38,7 @@ import { detectAvailabilitySafe, userConfigForSource, type SourceAvailability } 
 import { chromeAiChat, chromeAiReadyNow, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown } from "./usage";
 import { skillsSystemPrompt, skillsRoutingBias } from "./skills";
+import { findOssService } from "@/lib/services/oss-services";
 // Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
 // la personalidad resuelta por contexto (chat > cerebro > sección > global).
 // Aditivo y tolerante: sin personalidad activa, no cambia NADA.
@@ -771,7 +772,17 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   if (cc) {
     const parts: string[] = [];
     if (cc.skills?.length) parts.push(`Habilidades preferidas para este chat: ${cc.skills.join(", ")}.`);
-    if (cc.connections?.length) parts.push(`SOLO tienes disponibles estas conexiones para este chat: ${cc.connections.join(", ")}. No asumas otras conexiones.`);
+    if (cc.connections?.length) {
+      // Resuelve los ids a servicios REALES del catálogo (filtra phantoms) y
+      // los lista de forma autoritativa: el LLM solo puede usar esas conexiones.
+      const real = cc.connections
+        .map((id) => findOssService(id))
+        .filter((s): s is NonNullable<typeof s> => !!s)
+        .map((s) => s.name || s.id);
+      if (real.length) {
+        parts.push(`SOLO tienes disponibles estas conexiones para este chat: ${real.join(", ")}. No asumas otras conexiones ni intentes usar servicios externos no listados.`);
+      }
+    }
     const sensesOn = cc.senses ? Object.keys(cc.senses).filter((k) => cc.senses![k]) : [];
     if (sensesOn.length) parts.push(`Sentidos activos en este chat: ${sensesOn.join(", ")}.`);
     if (cc.memoryScope) parts.push(`Alcance de memoria para este chat: ${cc.memoryScope}.`);

@@ -51,6 +51,21 @@ export interface ChatConfig {
   log?: boolean;
 }
 
+/** Etiqueta legible del proveedor/modelo guardado por chat (Adenda 71-bis fix-21). */
+export function providerLabel(id?: string | null): string | null {
+  if (!id) return null;
+  try {
+    const cfgs = loadConfigs() as Array<{ id: string; label?: string }>;
+    const hit = cfgs.find((c) => c.id === id);
+    if (hit?.label) return hit.label;
+  } catch { /* noop */ }
+  try {
+    const p = (PROVIDERS as Record<string, { label?: string }>)[id];
+    if (p?.label) return p.label;
+  } catch { /* noop */ }
+  return id;
+}
+
 const THEMES: Record<ChatConfigContext, { ring: string; grad: string; accent: string; btn: string }> = {
   exocortex: {
     ring: "border-violet-400/40",

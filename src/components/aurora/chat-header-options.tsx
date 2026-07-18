@@ -2,9 +2,10 @@
 
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Settings } from "lucide-react";
+import { Settings, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ChatConfigMenu, type PersonalityOptionContext } from "@/components/aurora/chat-config-menu";
+import { ChatConfigMenu, providerLabel, type PersonalityOptionContext } from "@/components/aurora/chat-config-menu";
+import { useAiConversations } from "@/lib/aurora/conversations";
 
 /**
  * ChatHeaderOptions — único botón "Opciones" que abre el MENÚ UNIFICADO de
@@ -40,8 +41,22 @@ export function ChatHeaderOptions({ context = "astraura", convId }: { context?: 
     setOptsOpen((v) => !v);
   };
 
+  // Badge de modelo por chat (Adenda 71-bis fix-21): muestra el proveedor/
+  // modelo fijado para ESTE chat, leído de meta.config.provider.
+  const { conversations } = useAiConversations();
+  const prov = (conversations.find((c) => c.id === convId)?.meta as any)?.config?.provider;
+  const provLabel = providerLabel(prov);
+
   return (
     <div className="relative flex items-center gap-2">
+      {provLabel && (
+        <span
+          className="hidden sm:inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-light tracking-wide text-white/70"
+          title={`Modelo de este chat: ${provLabel}`}
+        >
+          <Cpu className="h-3 w-3 text-[#39FF14]" /> {provLabel}
+        </span>
+      )}
       <Button
         ref={btnRef}
         variant="outline"
