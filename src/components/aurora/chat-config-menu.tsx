@@ -22,7 +22,7 @@ import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   Brain, UserRound, Eye, Cpu, Boxes, Zap, Network,
-  Check, ChevronRight, X,
+  Check, ChevronRight, X, Plus, Search,
 } from "lucide-react";
 import {
   listPersonalityProfiles, setActivePersonality,
@@ -114,6 +114,27 @@ const CATEGORY_LABELS: Record<string, string> = {
 // Orden de grupo al renderizar la sección Conexiones.
 const CATEGORY_ORDER = ["llm", "stt", "tts", "image", "video", "workflow", "calendar", "docs", "design", "website"];
 
+// Filtro de búsqueda para la sección Conexiones (Adenda 71-bis fix-23).
+function matchesConn(c: { label: string; purpose: string; category: string }, q: string): boolean {
+  if (!q.trim()) return true;
+  const t = q.trim().toLowerCase();
+  return (
+    c.label.toLowerCase().includes(t) ||
+    c.purpose.toLowerCase().includes(t) ||
+    c.category.toLowerCase().includes(t)
+  );
+}
+
+// Abre el panel de conexiones OSS preseleccionando un servicio (Adenda 71-bis fix-23).
+function openConnect(serviceId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.open(`/servicios?connect=${encodeURIComponent(serviceId)}`, "_blank", "noopener");
+  } catch {
+    window.location.href = `/servicios?connect=${encodeURIComponent(serviceId)}`;
+  }
+}
+
 type SectionKey = (typeof SECTION_DEFS)[number]["key"];
 
 const SKILL_KEYS = ["taste", "pm", "web-senses", "research", "vision", "voice", "planning", "memory"] as const;
@@ -143,6 +164,7 @@ export function ChatConfigMenu({
   const [sensesActive, setSensesActive] = useState<string[]>([]);
   const [connections, setConnections] = useState<{ id: string; label: string; category: string; purpose: string; connected: boolean }[]>([]);
   const [capsEnv, setCapsEnv] = useState<Record<string, boolean>>({});
+  const [connQuery, setConnQuery] = useState("");
 
   const load = useCallback(async () => {
     let initial: ChatConfig = {};
@@ -251,6 +273,13 @@ export function ChatConfigMenu({
           </button>
         )}
       </div>
+      <div className="px-4 pt-2 pb-1 flex flex-wrap gap-1.5 text-[10px] text-white/45">
+        <span className="rounded-full bg-white/5 px-2 py-0.5">🔗 {cfg.connections?.length || 0} conexiones</span>
+        <span className="rounded-full bg-white/5 px-2 py-0.5">⚡ {cfg.skills?.length || 0} habilidades</span>
+        <span className="rounded-full bg-white/5 px-2 py-0.5">👁 {Object.values(cfg.senses || {}).filter(Boolean).length} sentidos</span>
+        <span className="rounded-full bg-white/5 px-2 py-0.5">{cfg.voice === false ? "🔇 sin voz" : "🔊 voz"}</span>
+        <span className="rounded-full bg-white/5 px-2 py-0.5">{cfg.log === false ? "🚫 sin registro" : "📝 registro"}</span>
+      </div>
 
       <div className="grid grid-cols-1 gap-2 p-3">
         {SECTION_DEFS.map((s) => (
@@ -323,23 +352,47 @@ export function ChatConfigMenu({
           )}
           {open === "conexiones" && (
             <Section title="Conexiones (servicios del ecosistema)">
+              <div className="relative mb-2">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+                <input
+                  value={connQuery}
+                  onChange={(e) => setConnQuery(e.target.value)}
+                  placeholder="Buscar conexión…"
+                  className="w-full rounded-lg border border-white/10 bg-black/30 pl-8 pr-2.5 py-1.5 text-xs text-white placeholder:text-white/30 outline-none focus:border-white/30"
+                />
+              </div>
               <div className="space-y-3">
-                {CATEGORY_ORDER.filter((cat) => connections.some((c) => c.category === cat)).map((cat) => (
+                {CATEGORY_ORDER.filter((cat) => connections.some((c) => c.category === cat && matchesConn(c, connQuery))).map((cat) => (
                   <div key={cat}>
                     <div className="text-[10px] uppercase tracking-wider text-white/35 mb-1">{CATEGORY_LABELS[cat] || cat}</div>
                     <div className="space-y-1">
-                      {connections.filter((c) => c.category === cat).map((c) => (
+                      {connections.filter((c) => c.category === cat && matchesConn(c, connQuery)).map((c) => (
                         <Row
                           key={c.id}
                           label={c.label}
                           hint={c.connected ? `conectado · ${c.purpose}` : c.purpose}
+                          connected={c.connected}
                           active={cfg.connections?.includes(c.id)}
                           onClick={() => toggleConn(c.id)}
+                          action={
+                            !c.connected ? (
+                              <button
+                                title={`Conectar ${c.label}`}
+                                onClick={(e) => { e.stopPropagation(); openConnect(c.id); }}
+                                className="inline-flex items-center gap-1 rounded-md border border-emerald-400/40 px-1.5 py-0.5 text-[10px] text-emerald-200 hover:bg-emerald-500/15"
+                              >
+                                <Plus className="w-3 h-3" /> Conectar
+                              </button>
+                            ) : undefined
+                          }
                         />
                       ))}
                     </div>
                   </div>
                 ))}
+                {CATEGORY_ORDER.every((cat) => !connections.some((c) => c.category === cat && matchesConn(c, connQuery))) && (
+                  <div className="text-[11px] text-white/30 px-1 py-2">Sin resultados para “{connQuery}”.</div>
+                )}
               </div>
             </Section>
           )}
@@ -365,20 +418,35 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ label, active, onClick, hint }: { label: string; active?: boolean; onClick: () => void; hint?: string }) {
+function Row({ label, active, onClick, hint, connected, action }: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  hint?: string;
+  /** Muestra un punto verde "conectado" (sección Conexiones). */
+  connected?: boolean;
+  /** Slot de acción a la derecha (p.ej. botón "Conectar"). */
+  action?: React.ReactNode;
+}) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition text-left",
+        "w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-xs transition text-left",
         active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5",
       )}
     >
-      <span className="min-w-0">
-        <span className="capitalize truncate block">{label}</span>
-        {hint && <span className="text-[10px] text-white/30 truncate block">{hint}</span>}
+      <span className="min-w-0 flex items-center gap-2">
+        {connected && <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px] shadow-emerald-400/70 shrink-0" title="conectado" />}
+        <span className="min-w-0">
+          <span className="capitalize truncate block">{label}</span>
+          {hint && <span className="text-[10px] text-white/30 truncate block">{hint}</span>}
+        </span>
       </span>
-      {active && <Check className="w-3.5 h-3.5 text-emerald-300 shrink-0 ml-2" />}
+      <span className="flex items-center gap-1.5 shrink-0">
+        {action}
+        {active && !action && <Check className="w-3.5 h-3.5 text-emerald-300" />}
+      </span>
     </button>
   );
 }

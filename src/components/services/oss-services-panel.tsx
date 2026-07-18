@@ -19,7 +19,7 @@
  * espejo opcional en la cuenta). NO duplica la capa tri-fuente existente.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -489,6 +489,22 @@ export function OssServicesPanel({
     if (created) toast.success(`Conexión añadida a ${service.name}`);
     else toast.error("No se pudo añadir la conexión.");
   }
+
+  // Atajo desde el menú unificado de chat (Adenda 71-bis fix-23): si la URL
+  // trae ?connect=<serviceId>, añade la conexión de ese servicio al montar.
+  useEffect(() => {
+    try {
+      const id = new URLSearchParams(window.location.search).get("connect");
+      if (!id) return;
+      const svc = services.find((s) => s.id === id);
+      if (svc) handleAdd(svc);
+      // Limpia el param para no re-añadir en navegaciones posteriores.
+      const url = new URL(window.location.href);
+      url.searchParams.delete("connect");
+      window.history.replaceState({}, "", url.toString());
+    } catch { /* defensivo */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services]);
 
   function handleMakeDefault(service: OssService, connection: OssConnection) {
     const ok = setDefaultFor(service.category, connection.id, scope);
