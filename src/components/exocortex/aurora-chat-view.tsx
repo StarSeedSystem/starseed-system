@@ -794,7 +794,7 @@ export function AuroraChatView(props: AuroraChatViewProps) {
                 {activeCtx ? activeCtx.title : loadedSession ? (loadedSession.label ?? dayLabel(loadedSession.day)) : "Chat en vivo"}
               </div>
             </div>
-            <div className="flex-1 px-4"><ChatHeaderOptions /></div>
+            <div className="flex-1 px-4"><ChatHeaderOptions context="exocortex" /></div>
             <RouteChip compact className="shrink-0" />
             {activeCtx && (
               <button
@@ -865,7 +865,7 @@ export function AuroraChatView(props: AuroraChatViewProps) {
             {activeCtx.title}
           </span>
         )}
-        <div className="flex-1 ml-4"><ChatHeaderOptions /></div>
+        <div className="flex-1 ml-4"><ChatHeaderOptions context="exocortex" /></div>
         <RouteChip compact className="shrink-0" />
       </div>
 

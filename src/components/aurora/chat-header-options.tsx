@@ -24,10 +24,12 @@ import {
   DropdownMenuSubContent,
   DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
+import { PersonalityOptionsWindow, type PersonalityOptionContext } from "@/components/aurora/personality-options-window";
 
-export function ChatHeaderOptions() {
+export function ChatHeaderOptions({ context = "astraura" }: { context?: PersonalityOptionContext }) {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
   const [activeProviderIdState, setActiveProviderIdState] = useState<ProviderId | null>(null);
+  const [optsOpen, setOptsOpen] = useState(false);
 
   const aurora = useAurora();
   const { items } = useSavedLibrary();
@@ -84,7 +86,17 @@ export function ChatHeaderOptions() {
   }, [isHermione]);
 
   return (
-    <DropdownMenu>
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOptsOpen(true)}
+        className="bg-card/60 backdrop-blur border-border/50 shadow-sm text-xs rounded-full hover:bg-cyan-500/10"
+      >
+        <Settings className="w-3.5 h-3.5 mr-2" />
+        Opciones
+      </Button>
+      <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="bg-card/60 backdrop-blur border-border/50 shadow-sm text-xs rounded-full">
           <Settings2 className="w-3.5 h-3.5 mr-2" />
@@ -207,5 +219,7 @@ export function ChatHeaderOptions() {
         
       </DropdownMenuContent>
     </DropdownMenu>
+      <PersonalityOptionsWindow open={optsOpen} onOpenChange={setOptsOpen} context={context} />
+    </div>
   );
 }
