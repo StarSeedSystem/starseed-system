@@ -89,6 +89,7 @@ import {
   appendMessage as appendUnifiedMessage,
   ensureActiveConversation,
   titleFromText,
+  setActiveChatLogEnabled,
 } from "@/lib/aurora/conversations";
 
 import { chat, chatSmart } from "@/ai/client/chat";
@@ -365,6 +366,13 @@ function AgentPageInner() {
   // en tiempo real y entre dispositivos.
   const conv = useAiConversations();
   const cloudMessages = useAiMessages(conv.activeId);
+
+  // Sincroniza el flag 'Registro' por chat del menú unificado (Adenda 71-bis):
+  // el grabador del Registro no guarda cuando este chat lo tiene desactivado.
+  useEffect(() => {
+    const cfg = (conv.conversations.find((c) => c.id === conv.activeId)?.meta as any)?.config;
+    setActiveChatLogEnabled(cfg ? cfg.log !== false : true);
+  }, [conv.activeId, conv.conversations]);
   /** Respuesta que se está transmitiendo ahora mismo (aún no persistida). */
   const [streamText, setStreamText] = useState("");
   const [inputValue, setInputValue] = useState("");

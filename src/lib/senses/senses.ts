@@ -274,6 +274,22 @@ export function getActiveSenses(who?: "aurora" | "astraura"): string[] {
   }).map((s) => s.id);
 }
 
+/**
+ * Activa SOLO los sentidos indicados (el resto se desactivan) y persiste el
+ * config. Espeja a window de inmediato para que Aurora reaccione en vivo.
+ * (Adenda 71-bis: usado por el menú unificado de chat para hacer el toggle de
+ * Sentidos REAL, no solo guardarlo en meta.config.)
+ */
+export async function setActiveSenses(ids: string[]): Promise<SensesConfig | null> {
+  const current = await getSenses().catch(() => defaultConfig());
+  const next: SensesConfig = { ...current };
+  for (const s of SENSES) {
+    next.enabled = { ...(next.enabled as Record<string, boolean>) };
+    next.enabled[s.id] = ids.includes(s.id);
+  }
+  return saveSenses(next);
+}
+
 // ── Permisos / pruebas reales del navegador ──────────────────────────────────
 
 function findSense(senseId: string): Sense | undefined {

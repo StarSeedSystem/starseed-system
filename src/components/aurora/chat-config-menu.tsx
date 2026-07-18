@@ -29,7 +29,7 @@ import {
 } from "@/lib/aurora/personalities";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS } from "@/ai/providers";
-import { SENSES, getActiveSenses } from "@/lib/senses/senses";
+import { SENSES, getActiveSenses, setActiveSenses } from "@/lib/senses/senses";
 import { getOssServices } from "@/lib/services/oss-services";
 import { getCapabilities } from "@/lib/aurora/capabilities";
 
@@ -45,6 +45,10 @@ export interface ChatConfig {
   connections?: string[];
   memoryScope?: string;
   senses?: Record<string, boolean>;
+  /** Voz (Aurora habla) por chat — Adenda 71-bis. */
+  voice?: boolean;
+  /** Registro (historial persistente) por chat — Adenda 71-bis. */
+  log?: boolean;
 }
 
 const THEMES: Record<ChatConfigContext, { ring: string; grad: string; accent: string; btn: string }> = {
@@ -164,7 +168,14 @@ export function ChatConfigMenu({
     const s = { ...(cfg.senses || {}) };
     s[k] = !s[k];
     patch({ senses: s });
+    // Hace el toggle REAL en el sistema: recalcula el set activo y persiste.
+    try {
+      const live = SENSES.map((x) => x.id).filter((id) => (id === k ? s[k] : (cfg.senses?.[id] ?? sensesActive.includes(id))));
+      void setActiveSenses(live);
+    } catch { /* */ }
   };
+  const toggleVoice = () => patch({ voice: !cfg.voice });
+  const toggleLog = () => patch({ log: !cfg.log });
   const toggleSkill = (k: string) => {
     const arr = cfg.skills ? [...cfg.skills] : [];
     const i = arr.indexOf(k);
@@ -243,6 +254,8 @@ export function ChatConfigMenu({
                   onClick={() => toggleCap(k)}
                 />
               ))}
+              <Row label="Voz (Aurora habla)" active={cfg.voice !== false} onClick={toggleVoice} />
+              <Row label="Registro (historial persistente)" active={cfg.log !== false} onClick={toggleLog} />
             </Section>
           )}
           {open === "sentidos" && (

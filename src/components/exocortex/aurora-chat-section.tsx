@@ -87,6 +87,7 @@ import {
   useAiConversations,
   useAiMessages,
   type AiConversation,
+  setActiveChatLogEnabled,
 } from "@/lib/aurora/conversations";
 
 // ── Tipos locales ────────────────────────────────────────────────────────────
@@ -575,6 +576,13 @@ export function AuroraChatSection({ className }: { className?: string }) {
     return () => { try { registerActiveAuroraChat(null); } catch { /* defensivo */ } };
   }, [tree.activeId]);
 
+  // Sincroniza el flag 'Registro' por chat del menú unificado (Adenda 71-bis):
+  // el grabador del Registro no guarda cuando este chat lo tiene desactivado.
+  useEffect(() => {
+    const cfg = aiChats.conversations.find((c) => c.id === tree.activeId)?.meta?.config as any;
+    setActiveChatLogEnabled(cfg ? cfg.log !== false : true);
+  }, [tree.activeId, aiChats.conversations]);
+
   // Asocia cada mensaje (voz o texto, usuario o Aurora) al contexto ACTIVO del
   // árbol, si lo hay (índice paralelo en chat-tree; no toca el registro). Así la
   // ramificación captura la conversación de cada contexto sin duplicar datos.
@@ -751,8 +759,12 @@ export function AuroraChatSection({ className }: { className?: string }) {
   }, [aurora]);
 
   const doSpeak = useCallback((t: string) => {
+    // Respeta el flag 'Voz' por chat del menú unificado (Adenda 71-bis):
+    // si este chat lo tiene desactivado, Aurora no habla.
+    const cfg = aiChats.conversations.find((c) => c.id === tree.activeId)?.meta?.config as any;
+    if (cfg && cfg.voice === false) return;
     try { if (aurora) aurora.speak(t); else speakAurora(t); } catch { /* */ }
-  }, [aurora]);
+  }, [aurora, aiChats.conversations, tree.activeId]);
 
   const doRetryVoice = useCallback(() => {
     try {

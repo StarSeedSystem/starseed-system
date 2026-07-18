@@ -23,6 +23,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AURORA_CONVERSATION_EVENT } from "@/lib/aurora/aurora-orb-bus";
+import { isActiveChatLogEnabled } from "@/lib/aurora/conversations";
 // Tipo SOLO (import type: se borra en compilación, sin ciclo real en runtime).
 // Metadatos de proceso por mensaje (Adenda "Aurora siempre responde", jul-2026).
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
@@ -353,6 +354,8 @@ export function ensureAuroraChatLogRecorder(): void {
         if (!d || typeof d.text !== "string") return;
         const role = d.role === "user" ? "user" : d.role === "aurora" ? "aurora" : null;
         if (!role) return;
+        // Respeta el flag 'Registro' por chat del menú unificado (Adenda 71-bis).
+        if (!isActiveChatLogEnabled()) return;
         // `meta` viaja como `unknown` por el bus (genérico, sin acoplarse al
         // motor): lo aceptamos solo si es un objeto plano, y solo en mensajes
         // de Aurora (los de usuario nunca llevan metadatos de proceso).

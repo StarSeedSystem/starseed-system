@@ -261,6 +261,19 @@ export function getActiveConversationId(): string | null {
 }
 
 /**
+ * Flag de "Registro" por chat del menú unificado (Adenda 71-bis). El chat UI
+ * lo actualiza al cambiar de chat activo; el grabador del Registro lo consulta
+ * para no guardar cuando este chat lo tiene desactivado.
+ */
+let activeChatLogEnabled = true;
+export function setActiveChatLogEnabled(v: boolean): void {
+  activeChatLogEnabled = v;
+}
+export function isActiveChatLogEnabled(): boolean {
+  return activeChatLogEnabled;
+}
+
+/**
  * Fija la conversación activa. **Es la clave de la unificación**: el orbe, el
  * mini-reproductor, el Exocórtex y `/agent` escriben TODOS en la conversación
  * activa, así que hablar por voz y escribir en `/agent` es la MISMA conversación.
