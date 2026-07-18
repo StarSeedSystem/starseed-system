@@ -303,7 +303,7 @@ export function AuroraMiniPlayer({
       >
       <motion.div
         role="group"
-        aria-label="Reproductor de conversación de Aurora"
+        aria-label="Reproductor de conversación de Astraura IA"
         drag={reduce ? false : "y"}
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={0.14}
@@ -466,7 +466,7 @@ export function AuroraMiniPlayer({
               >
                 {collapsedLines.length === 0 && !interim && !proactive && (
                   <p className="px-1 text-[11px] italic text-white/45">
-                    {listening ? "Te escucho…" : "Conversación de Aurora"}
+                    {listening ? "Te escucho…" : "Conversación de Astraura IA"}
                   </p>
                 )}
                 {collapsedLines.map((m, i) => (
@@ -597,7 +597,7 @@ export function AuroraMiniPlayer({
           <button
             type="button"
             onClick={openExocortex}
-            title="Abrir la ventana completa de Aurora en el Exocórtex"
+            title="Abrir la ventana completa de Astraura IA en el Exocórtex"
             aria-label="Abrir en Exocórtex"
             className={cn(styles.footBtn, styles.footBtnPrimary, "ml-auto")}
           >

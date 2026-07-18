@@ -115,7 +115,7 @@ export function AuroraChatFullscreen(props: AuroraChatFullscreenProps) {
   if (!open) return null;
 
   return (
-    <div className="axf-overlay" role="dialog" aria-modal="true" aria-label="Aurora · pantalla completa">
+    <div className="axf-overlay" role="dialog" aria-modal="true" aria-label="Astraura IA · pantalla completa">
       <style>{AXF_CSS}</style>
       <div className="axf-backdrop" onClick={onClose} aria-hidden />
       <div className="axf-shell">

@@ -995,7 +995,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
 
       {/* ── Acciones: sección completa + reactivar orbe ── */}
       <div className="relative z-[1] flex flex-wrap items-center gap-2">
-        <a href="/aurora" className="axc-btn azure" title="Abrir la sección completa de Aurora (personalidades, voz, memoria)">
+        <a href="/aurora" className="axc-btn azure" title="Abrir la sección completa de Astraura IA (personalidades, voz, memoria)">
           <ExternalLink className="h-3.5 w-3.5" /> Abrir sección completa
         </a>
         <button
@@ -1115,7 +1115,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
             <button
               onClick={() => setFullscreen(true)}
               className="axc-btn azure"
-              title="Abrir el chat de Aurora a pantalla completa (árbol de contextos + conversación)"
+              title="Abrir el chat de Astraura IA a pantalla completa (árbol de contextos + conversación)"
             >
               <Maximize2 className="h-3.5 w-3.5" /> Pantalla completa
             </button>

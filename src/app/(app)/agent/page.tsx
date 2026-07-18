@@ -401,7 +401,7 @@ function AgentPageInner() {
   const openExocortex = useCallback(() => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('starseed:open-aurora-exocortex'));
-      toast.success('Abriendo el Exocórtex de Aurora — mismo cerebro que Astraura.');
+      toast.success('Abriendo el Exocórtex de Astraura IA — mismo cerebro que Astraura.');
     }
   }, []);
 
@@ -475,7 +475,7 @@ function AgentPageInner() {
     }
 
     // 2) El mensaje del usuario se persiste YA (nube + caché): aparece al
-    //    instante aquí y, en tiempo real, en el Exocórtex de Aurora.
+    //    instante aquí y, en tiempo real, en el Exocórtex de Astraura IA.
     await appendUnifiedMessage({
       role: 'user',
       text,
@@ -715,7 +715,7 @@ function AgentPageInner() {
         type="button"
         onClick={openExocortex}
         className="group w-full max-w-full box-border text-left rounded-xl border border-emerald-400/25 bg-gradient-to-r from-emerald-500/10 via-fuchsia-500/[0.06] to-blue-500/10 backdrop-blur-md px-3 sm:px-4 py-2.5 sm:py-3 cursor-pointer transition-colors duration-200 hover:border-emerald-400/45 hover:from-emerald-500/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40"
-        aria-label="Abrir el Exocórtex de Aurora"
+        aria-label="Abrir el Exocórtex de Astraura IA"
       >
         <div className="flex items-center gap-3 min-w-0">
           <span className="shrink-0 grid place-items-center h-9 w-9 rounded-lg bg-gradient-to-tr from-emerald-500/30 to-fuchsia-500/30 border border-white/10">
