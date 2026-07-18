@@ -31,6 +31,7 @@ import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/clie
 import { PROVIDERS } from "@/ai/providers";
 import { SENSES, getActiveSenses, setActiveSenses } from "@/lib/senses/senses";
 import { getOssServices } from "@/lib/services/oss-services";
+import { readConnections } from "@/lib/services/oss-connections";
 import { getCapabilities } from "@/lib/aurora/capabilities";
 
 export type ChatConfigContext = "exocortex" | "orbe" | "astraura";
@@ -97,6 +98,22 @@ const SECTION_DEFS = [
   { key: "conexiones", label: "Conexiones", Icon: Network },
 ] as const;
 
+// Etiquetas legibles de categoría de conexiones (Adenda 71-bis fix-22).
+const CATEGORY_LABELS: Record<string, string> = {
+  llm: "Modelos / Chat",
+  stt: "Voz → Texto",
+  tts: "Texto → Voz",
+  image: "Imagen",
+  video: "Vídeo",
+  workflow: "Automatización",
+  calendar: "Agenda",
+  docs: "Documentos",
+  design: "Diseño",
+  website: "Web / Sitios",
+};
+// Orden de grupo al renderizar la sección Conexiones.
+const CATEGORY_ORDER = ["llm", "stt", "tts", "image", "video", "workflow", "calendar", "docs", "design", "website"];
+
 type SectionKey = (typeof SECTION_DEFS)[number]["key"];
 
 const SKILL_KEYS = ["taste", "pm", "web-senses", "research", "vision", "voice", "planning", "memory"] as const;
@@ -124,7 +141,7 @@ export function ChatConfigMenu({
   const [providers, setProviders] = useState<{ id: string; label: string }[]>([]);
   const [senses, setSenses] = useState<{ id: string; label: string }[]>([]);
   const [sensesActive, setSensesActive] = useState<string[]>([]);
-  const [connections, setConnections] = useState<{ id: string; label: string }[]>([]);
+  const [connections, setConnections] = useState<{ id: string; label: string; category: string; purpose: string; connected: boolean }[]>([]);
   const [capsEnv, setCapsEnv] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
@@ -146,7 +163,18 @@ export function ChatConfigMenu({
     } catch { /* */ }
     try { setSenses(SENSES.map((s) => ({ id: s.id, label: s.label }))); } catch { /* */ }
     try { setSensesActive(getActiveSenses()); } catch { /* */ }
-    try { setConnections(getOssServices().map((s: any) => ({ id: s.id, label: s.name || s.id }))); } catch { /* */ }
+    try {
+      const connectedIds = new Set(readConnections().map((c) => c.serviceId));
+      setConnections(
+        getOssServices().map((s: any) => ({
+          id: s.id,
+          label: s.name || s.id,
+          category: s.category || "other",
+          purpose: s.purpose || "",
+          connected: connectedIds.has(s.id),
+        })),
+      );
+    } catch { /* */ }
     try {
       const c = getCapabilities();
       setCapsEnv({
@@ -295,9 +323,24 @@ export function ChatConfigMenu({
           )}
           {open === "conexiones" && (
             <Section title="Conexiones (servicios del ecosistema)">
-              {connections.map((c) => (
-                <Row key={c.id} label={c.label} active={cfg.connections?.includes(c.id)} onClick={() => toggleConn(c.id)} />
-              ))}
+              <div className="space-y-3">
+                {CATEGORY_ORDER.filter((cat) => connections.some((c) => c.category === cat)).map((cat) => (
+                  <div key={cat}>
+                    <div className="text-[10px] uppercase tracking-wider text-white/35 mb-1">{CATEGORY_LABELS[cat] || cat}</div>
+                    <div className="space-y-1">
+                      {connections.filter((c) => c.category === cat).map((c) => (
+                        <Row
+                          key={c.id}
+                          label={c.label}
+                          hint={c.connected ? `conectado · ${c.purpose}` : c.purpose}
+                          active={cfg.connections?.includes(c.id)}
+                          onClick={() => toggleConn(c.id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </Section>
           )}
           {open === "memorias" && (
