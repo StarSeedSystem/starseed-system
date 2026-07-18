@@ -552,6 +552,7 @@ function AgentPageInner() {
     try {
       await astrauraChat({
         chatId: convId,
+        chatConfig: (conv.conversations.find((c) => c.id === convId)?.meta as any)?.config,
         messages: history,
         temperature: activeAgent.temperature,
         signal: abortRef.current.signal,

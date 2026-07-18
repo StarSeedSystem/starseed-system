@@ -458,8 +458,22 @@ export interface AstrauraChatRequest {
   taskHint?: TaskKind;
   /** Cerebro activo (se propaga a chatSmart/manual). */
   brainId?: string;
-  /** Chat activo (opcional): permite resolver la personalidad POR CHAT. */
+  /** Chat activo (op opcional): permite resolver la personalidad POR CHAT. */
   chatId?: string;
+  /**
+   * Configuración POR CHAT del menú unificado de Astraura (Adenda 71-bis).
+   * Leída de aurora_conversations.meta.config por el llamador y pasada aquí
+   * para que las opciones elegidas (modelo, skills, conexiones, sentidos,
+   * memorias) afecten de verdad la generación de este chat. Campos opcionales;
+   * si falta alguno, el router degrada a su comportamiento normal.
+   */
+  chatConfig?: {
+    provider?: string | null;
+    skills?: string[];
+    connections?: string[];
+    senses?: Record<string, boolean>;
+    memoryScope?: string;
+  };
   /** Estado para la UI ("Eligiendo modelo…", "Usando Groq…"). */
   onStatus?: (status: string) => void;
   /**
@@ -743,9 +757,24 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       userCtxText = await withTimeout(buildUserContext(ucSettings.defaultLevel), 3500, "contexto de usuario").catch(() => "");
     }
   } catch { /* defensivo: Aurora sigue funcionando sin contexto */ }
-  const brainExtra = [personaText, ctxText, capText, userCtxText].filter(Boolean).join("\n\n");
+  // ── Config POR CHAT del menú unificado (Adenda 71-bis) ──────────────────
+  // Hace operativas las opciones elegidas en ChatConfigMenu: inyecta las
+  // habilidades / conexiones / sentidos / memorias activas de ESTE chat en el
+  // system prompt. El PIN de modelo se aplica más abajo (tras rankCandidates).
+  let chatCfgNote = "";
+  const cc = req.chatConfig;
+  if (cc) {
+    const parts: string[] = [];
+    if (cc.skills?.length) parts.push(`Habilidades preferidas para este chat: ${cc.skills.join(", ")}.`);
+    if (cc.connections?.length) parts.push(`Conexiones disponibles para este chat: ${cc.connections.join(", ")}.`);
+    const sensesOn = cc.senses ? Object.keys(cc.senses).filter((k) => cc.senses![k]) : [];
+    if (sensesOn.length) parts.push(`Sentidos activos en este chat: ${sensesOn.join(", ")}.`);
+    if (cc.memoryScope) parts.push(`Alcance de memoria para este chat: ${cc.memoryScope}.`);
+    if (parts.length) chatCfgNote = "CONFIGURACIÓN DE ESTE CHAT (Astraura):\n" + parts.join("\n");
+  }
+  const brainExtra = [personaText, ctxText, capText, userCtxText, chatCfgNote].filter(Boolean).join("\n\n");
   const messages = brainExtra ? mergeSystemPrompt(req.messages, brainExtra) : req.messages;
-  const reqX: AstrauraChatRequest = brainExtra ? { ...req, messages } : req;
+  let reqX: AstrauraChatRequest = brainExtra ? { ...req, messages } : req;
 
   if (prefs.mode === "manual") {
     return chat({
@@ -772,6 +801,14 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // y, en el peor caso, devuelve las fuentes SIN CLAVE como listas.
   const avail = await detectAvailabilitySafe();
   const candidates = rankCandidates(profile, avail, prefs);
+
+  // PIN de MODELO por chat (Adenda 71-bis): si el menú fijó un proveedor para
+  // este chat y hay un candidato con esa fuente, lo antepone vía forceSource
+  // (degrada al ranking normal si esa fuente no está disponible ahora).
+  if (req.chatConfig?.provider && !req.forceSource) {
+    const pinned = candidates.find((c) => c.source.id === req.chatConfig!.provider);
+    if (pinned) reqX = { ...reqX, forceSource: { sourceId: pinned.source.id, modelId: pinned.model.id } };
+  }
 
   const failovers: { sourceId: string; error: string }[] = [];
 

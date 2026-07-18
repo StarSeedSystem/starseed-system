@@ -77,6 +77,8 @@ export interface AiConversation {
   archived?: boolean;
   /** Carpeta de chat (Adenda 71-bis): los chats se adjuntan a folders. */
   folder?: string | null;
+  /** meta jsonb: contiene config del menú unificado (meta.config). */
+  meta?: any | null;
 }
 
 export interface AiMessage {
@@ -298,6 +300,7 @@ interface ConvRow {
   profile_key: string | null;
   archived: boolean | null;
   folder: string | null;
+  meta: any | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -328,6 +331,7 @@ function toConv(r: ConvRow): AiConversation {
     profileKey: r.profile_key,
     archived: !!r.archived,
     folder: r.folder ?? null,
+    meta: r.meta ?? null,
     createdAt: Number.isFinite(created) ? created : Date.now(),
     updatedAt: Number.isFinite(updated) ? updated : Date.now(),
   };
@@ -357,7 +361,7 @@ export async function refreshConversations(): Promise<AiConversation[]> {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("aurora_conversations")
-      .select("id,title,kind,persona,source,model,surface,profile_key,archived,folder,created_at,updated_at")
+      .select("id,title,kind,persona,source,model,surface,profile_key,archived,folder,meta,created_at,updated_at")
       .eq("user_id", uid)
       .eq("archived", false)
       .order("updated_at", { ascending: false })
@@ -461,7 +465,7 @@ export async function createConversation(opts: CreateConversationOptions = {}): 
           model: local.model,
           surface: local.surface,
         })
-        .select("id,title,kind,persona,source,model,surface,profile_key,archived,folder,created_at,updated_at")
+        .select("id,title,kind,persona,source,model,surface,profile_key,archived,folder,meta,created_at,updated_at")
         .single();
       if (!error && data) {
         const conv = toConv(data as unknown as ConvRow);
