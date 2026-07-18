@@ -851,7 +851,7 @@ function AgentPageInner() {
               >
                 <Plus className="w-4 h-4" />
               </Button>
-              <ChatHeaderOptions context="astraura" />
+              <ChatHeaderOptions context="astraura" convId={conv.activeId ?? null} />
             </div>
 
             <ScrollArea className="flex-1 p-4" ref={scrollRef}>

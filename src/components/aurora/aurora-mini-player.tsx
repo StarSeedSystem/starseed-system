@@ -49,6 +49,9 @@ import {
   PERSONALITY_CHANGED_EVENT,
 } from "@/lib/aurora/personalities";
 import styles from "./aurora-mini-player.module.css";
+import { ChatConfigMenu } from "./chat-config-menu";
+import { useAiConversations } from "@/lib/aurora/conversations";
+import { Settings } from "lucide-react";
 
 /** Inactividad tras la cual el reproductor resumido se retira solo. */
 const AUTOHIDE_MS = 10_000;
@@ -109,6 +112,8 @@ export function AuroraMiniPlayer({
 
   const [expanded, setExpanded] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const conv = useAiConversations();
+  const [optsOpen, setOptsOpen] = useState(false);
   const personalities = useMemo(() => listPersonalityProfiles(), []);
   // Personalidad activa: fuente de verdad = PersonalityProfile (localStorage),
   // que es lo que usa el puente Hermione. Reacciona al cambio en tiempo real.
@@ -569,18 +574,23 @@ export function AuroraMiniPlayer({
             <span className="text-[10px] font-medium">{expanded ? "Menos" : "Historial"}</span>
           </button>
 
-          {onExpandPanel && (
+          <div className="relative">
             <button
               type="button"
-              onClick={() => { clearAutohide(); onExpandPanel(); }}
-              title="Abrir el panel completo (Chat · Voz · Control)"
-              aria-label="Abrir panel completo"
+              onClick={() => setOptsOpen((v) => !v)}
+              title="Opciones de configuración del chat (Astraura)"
+              aria-label="Opciones de configuración del chat"
               className={cn(styles.footBtn, styles.footBtnGhost)}
             >
-              <Maximize2 className="h-3.5 w-3.5" />
-              <span className="text-[10px] font-medium">Panel</span>
+              <Settings className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-medium">Opciones</span>
             </button>
-          )}
+            {optsOpen && (
+              <div className="absolute bottom-full right-0 z-[300] mb-2 w-[19rem] max-w-[90vw]">
+                <ChatConfigMenu convId={conv.activeId ?? null} context="orbe" onClose={() => setOptsOpen(false)} />
+              </div>
+            )}
+          </div>
 
           <button
             type="button"
