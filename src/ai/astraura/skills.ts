@@ -575,9 +575,12 @@ export function activeCapabilities(): SkillCapability[] {
   return SKILL_CAPABILITIES.filter((c) => set.has(c.id));
 }
 
-/** Bloque de system prompt que Aurora antepone al cerebro (o "" si no hay ninguna). */
-export function skillsSystemPrompt(): string {
-  const act = activeCapabilities();
+/** Bloque de system prompt que Aurora antepone al cerebro (o "" si no hay ninguna).
+ *  Si `only` se pasa, restringe a esos ids (filtro por chat del menú unificado,
+ *  Adenda 71-bis fix-20): el LLM solo recibe las habilidades elegidas para este
+ *  chat, no todas las activas globalmente. */
+export function skillsSystemPrompt(only?: string[]): string {
+  const act = activeCapabilities().filter((c) => !only || only.includes(c.id));
   if (!act.length) return "";
   return (
     "Capacidades activas de Aurora (Biblioteca StarSeed):\n" +

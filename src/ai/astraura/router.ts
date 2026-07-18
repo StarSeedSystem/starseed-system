@@ -727,7 +727,13 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // Cerebro contextual: (1) conocimiento del sistema/secciones/enlaces (context.ts),
   // (2) resumen de la pantalla actual, (3) capacidades activas (skills.ts). Todo
   // se antepone al system prompt para que Aurora sepa DÓNDE está y qué puede hacer.
-  const capText = skillsSystemPrompt();
+  // ── Config POR CHAT del menú unificado (Adenda 71-bis) ──────────────────
+  // Se lee aquí para poder filtrar capacidades/habilidades por chat abajo.
+  const cc = req.chatConfig;
+  // ── Capacidades activas (skills.ts) ──
+  // Filtro POR CHAT del menú unificado (Adenda 71-bis fix-20): si este chat
+  // eligió habilidades concretas, el LLM solo recibe esas (no todas globales).
+  const capText = skillsSystemPrompt(cc?.skills && cc.skills.length ? cc.skills : undefined);
   // ── Personalidad activa (Adenda 63 §11) ── resuelta por contexto con
   // prioridad chat > cerebro > sección (ruta de red actual) > global, y
   // compilada a un bloque en español. Tolerante: si nada está activo o algo
@@ -762,11 +768,10 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // habilidades / conexiones / sentidos / memorias activas de ESTE chat en el
   // system prompt. El PIN de modelo se aplica más abajo (tras rankCandidates).
   let chatCfgNote = "";
-  const cc = req.chatConfig;
   if (cc) {
     const parts: string[] = [];
     if (cc.skills?.length) parts.push(`Habilidades preferidas para este chat: ${cc.skills.join(", ")}.`);
-    if (cc.connections?.length) parts.push(`Conexiones disponibles para este chat: ${cc.connections.join(", ")}.`);
+    if (cc.connections?.length) parts.push(`SOLO tienes disponibles estas conexiones para este chat: ${cc.connections.join(", ")}. No asumas otras conexiones.`);
     const sensesOn = cc.senses ? Object.keys(cc.senses).filter((k) => cc.senses![k]) : [];
     if (sensesOn.length) parts.push(`Sentidos activos en este chat: ${sensesOn.join(", ")}.`);
     if (cc.memoryScope) parts.push(`Alcance de memoria para este chat: ${cc.memoryScope}.`);
