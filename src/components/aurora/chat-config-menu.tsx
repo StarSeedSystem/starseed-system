@@ -188,7 +188,7 @@ export function ChatConfigMenu({
   };
 
   return (
-    <div className={cn("rounded-2xl border backdrop-blur-2xl text-white shadow-2xl", theme.ring, theme.grad)}>
+    <div className={cn("w-[22rem] sm:w-[24rem] max-w-[92vw] rounded-2xl border backdrop-blur-2xl text-white shadow-2xl", theme.ring, theme.grad)}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className={cn("text-sm font-light tracking-wide", theme.accent)}>Configuración del chat · Astraura</div>
         {onClose && (
@@ -198,26 +198,26 @@ export function ChatConfigMenu({
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3">
+      <div className="grid grid-cols-1 gap-2 p-3">
         {SECTION_DEFS.map((s) => (
           <button
             key={s.key}
             onClick={() => setOpen(open === s.key ? null : s.key)}
             className={cn(
-              "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs transition text-left",
+              "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition text-left",
               theme.btn,
               open === s.key && "ring-1 ring-white/40",
             )}
           >
             <s.Icon className="w-4 h-4 shrink-0" />
             <span className="flex-1 min-w-0 truncate">{s.label}</span>
-            <ChevronRight className={cn("w-3 h-3 transition", open === s.key && "rotate-90")} />
+            <ChevronRight className={cn("w-4 h-4 transition shrink-0", open === s.key && "rotate-90")} />
           </button>
         ))}
       </div>
 
       {open && (
-        <div className="px-3 pb-3 max-h-[50vh] overflow-y-auto">
+        <div className="px-3 pb-3 max-h-[55vh] overflow-y-auto">
           {open === "personalidad" && (
             <Section title="Personalidad de este chat">
               {personalities.map((p) => (

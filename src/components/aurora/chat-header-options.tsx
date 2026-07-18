@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS } from "@/ai/providers";
 import type { ProviderConfig, ProviderId } from "@/ai/providers/types";
@@ -30,6 +31,19 @@ export function ChatHeaderOptions({ context = "astraura", convId }: { context?: 
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
   const [activeProviderIdState, setActiveProviderIdState] = useState<ProviderId | null>(null);
   const [optsOpen, setOptsOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const openOpts = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      const width = typeof window !== "undefined" && window.innerWidth >= 640 ? 384 : Math.min(window.innerWidth * 0.92, 352);
+      let left = r.right - width;
+      left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+      setPos({ top: r.bottom + 8, left });
+    }
+    setOptsOpen((v) => !v);
+  };
 
   const aurora = useAurora();
   const { items } = useSavedLibrary();
@@ -88,18 +102,24 @@ export function ChatHeaderOptions({ context = "astraura", convId }: { context?: 
   return (
     <div className="relative flex items-center gap-2">
       <Button
+        ref={btnRef}
         variant="outline"
         size="sm"
-        onClick={() => setOptsOpen((v) => !v)}
+        onClick={openOpts}
         className="bg-card/60 backdrop-blur border-border/50 shadow-sm text-xs rounded-full hover:bg-cyan-500/10"
       >
         <Settings className="w-3.5 h-3.5 mr-2" />
         Opciones
       </Button>
-      {optsOpen && (
-        <div className="absolute right-0 top-full z-[300] mt-2 w-[19rem] max-w-[90vw]">
+      {optsOpen && pos && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed z-[9999]"
+          style={{ top: pos.top, left: pos.left }}
+          onMouseLeave={() => setOptsOpen(false)}
+        >
           <ChatConfigMenu convId={convId} context={context} onClose={() => setOptsOpen(false)} />
-        </div>
+        </div>,
+        document.body,
       )}
       <DropdownMenu>
       <DropdownMenuTrigger asChild>

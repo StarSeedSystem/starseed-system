@@ -31,6 +31,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion, type PanInfo } from "framer-motion";
 import {
   Sparkles, X, Play, Pause, Square, SkipForward, SkipBack,
@@ -585,10 +586,11 @@ export function AuroraMiniPlayer({
               <Settings className="h-3.5 w-3.5" />
               <span className="text-[10px] font-medium">Opciones</span>
             </button>
-            {optsOpen && (
-              <div className="absolute bottom-full right-0 z-[300] mb-2 w-[19rem] max-w-[90vw]">
+            {optsOpen && typeof document !== "undefined" && createPortal(
+              <div className="fixed bottom-24 right-4 z-[9999] max-w-[92vw]">
                 <ChatConfigMenu convId={conv.activeId ?? null} context="orbe" onClose={() => setOptsOpen(false)} />
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
 
