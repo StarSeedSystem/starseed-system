@@ -47,6 +47,10 @@ import { resolveAutoModel } from "@/ai/astraura/unified-intelligence";
 // con este mismo valor). Mantener ambos en sincronía.
 export const HERMIONE_PERSONALITY_ID = "c9fe7030-fc68-49c6-a705-58f7900887f9";
 
+// (Adenda 71-bis) Auto-vinculación Hermes: al seleccionar la personalidad
+// Hermione, el OS OFRECE/INSTALA la sincronización con Hermes en este dispositivo.
+import { linkHermesToNeuron, thisDeviceId, isHermesLinked, NEURON_EVENT } from "@/lib/neurons/neurons";
+
 async function uid(): Promise<string | null> {
   try {
     const sb = createClient();
@@ -1308,6 +1312,17 @@ export function setActivePersonality(context: PersonalityContext, id: string | n
   writeAssignments(a);
   const active = resolvePersonalityForContext({});
   if (active) emitVoiceStyleForProfile(active);
+  // (Adenda 71-bis) Al seleccionar Hermione, el OS OFRECE/INSTALA la
+  // sincronización con Hermes en este dispositivo automáticamente. Fire-and-forget:
+  // no bloquea la UI y degrada silenciosamente si no hay sesión/red.
+  if (id === HERMIONE_PERSONALITY_ID && typeof window !== "undefined") {
+    const dev = thisDeviceId();
+    if (dev) {
+      void linkHermesToNeuron(dev).then((ok) => {
+        if (ok) window.dispatchEvent(new Event(NEURON_EVENT));
+      });
+    }
+  }
 }
 
 /** Personalidad activa de un contexto CONCRETO (sin herencia). Sin contexto = global. */
