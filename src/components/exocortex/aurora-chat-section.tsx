@@ -367,6 +367,18 @@ const AXC_CSS = `
 .axc-tree-archrow:hover{background:rgba(148,163,184,.06);}
 .axc-tree-foot{font-size:9.5px;line-height:1.5;color:rgba(148,163,184,.5);padding-top:4px;margin-top:2px;
   border-top:1px solid rgba(148,163,184,.08);}
+/* Layout de 2 columnas de la vista compartida (panel normal Y fullscreen).
+   DEFINIDO GLOBAL: antes solo existía dentro de aurora-chat-fullscreen.tsx,
+   lo que rompía el layout cuando AuroraChatView se monta en el panel normal
+   (árbol y conversación se encimaban / salían de los marcos -> glitch). */
+.axc-view-2col{display:grid;grid-template-columns:1fr;gap:14px;flex:1;min-height:0;width:100%;}
+@media (min-width:768px){
+  .axc-view-2col{grid-template-columns:minmax(240px,320px) 1fr;gap:16px;}
+}
+.axc-view-tree{min-height:0;display:none;}
+@media (min-width:768px){ .axc-view-tree{display:block;} }
+.axc-view-main{min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px;}
+.axc-view-mainhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 @media (prefers-reduced-motion: reduce){
   .axc-orb,.axc-live .dot,.axc-msg{animation:none !important;}
   .axc-chip,.axc-btn,.axc-send,.axc-tbtn,.axc-switch .knob,.axc-msg,.axc-mic{transition:none !important;}
