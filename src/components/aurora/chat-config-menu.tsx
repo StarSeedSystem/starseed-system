@@ -190,7 +190,7 @@ export function ChatConfigMenu({
   return (
     <div className={cn("w-[22rem] sm:w-[24rem] max-w-[92vw] rounded-2xl border backdrop-blur-2xl text-white shadow-2xl", theme.ring, theme.grad)}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-        <div className={cn("text-sm font-light tracking-wide", theme.accent)}>Configuración del chat · Astraura</div>
+        <div className={cn("text-sm font-light tracking-wide", theme.accent)}>Configuración del chat · Astraura IA</div>
         {onClose && (
           <button onClick={onClose} className="text-white/40 hover:text-white">
             <X className="w-4 h-4" />

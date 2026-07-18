@@ -343,7 +343,7 @@ export function ZenithCurtain() {
                                             title="Chat completo de Aurora: voz, sesiones paralelas, sentidos y configuraciones"
                                         >
                                             <Sparkles className="w-3.5 h-3.5" />
-                                            <span className="hidden sm:inline text-xs uppercase tracking-wider">Aurora</span>
+                                            <span className="hidden sm:inline text-xs uppercase tracking-wider">Astraura IA</span>
                                         </Button>
 
                                         {/* AI Senses Toggle */}
