@@ -806,7 +806,7 @@ export function AuroraWidget() {
   // Exocórtex (Zenith) y la sección Astraura.
   if (!fabEnabled) return null;
   // Si el orbe está oculto (descarte de sesión), no renderizamos NADA flotante.
-  // La reactivación vive en el Exocórtex → sección "Chat de Aurora".
+  // La reactivación vive en el Exocórtex → sección "Chat de Astraura IA".
   if (hidden) return null;
 
   return (
@@ -958,7 +958,7 @@ export function AuroraWidget() {
                 <button
                   onClick={openExocortexChat}
                   className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] text-cyan-100 hover:bg-cyan-500/20 transition cursor-pointer"
-                  title="Abrir el chat completo de Aurora en el Exocórtex (Zenith)"
+                  title="Abrir el chat completo de Astraura IA en el Exocórtex (Zenith)"
                 >
                   <MessageSquare className="w-3.5 h-3.5" /> Abrir chat en Exocórtex
                 </button>

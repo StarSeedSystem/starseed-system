@@ -98,7 +98,7 @@ export function AuroraMemoryPanel({
         type="button"
         onClick={() => void handleAsk()}
         disabled={sending}
-        title="Abrir Aurora con el contexto de tus memorias"
+        title="Abrir Astraura IA con el contexto de tus memorias"
         className={cn(
           "inline-flex items-center gap-1.5 rounded-lg border border-fuchsia-400/30",
           "bg-gradient-to-r from-fuchsia-500/15 to-cyan-500/15 px-3 py-1.5 text-xs",

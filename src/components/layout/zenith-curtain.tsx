@@ -329,7 +329,7 @@ export function ZenithCurtain() {
                                             <span className="hidden sm:inline text-xs uppercase tracking-wider">Cerebro</span>
                                         </Button>
 
-                                        {/* Chat de Aurora (voz + multichat + configuraciones del widget) */}
+                                        {/* Chat de Astraura IA (voz + multichat + configuraciones del widget) */}
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -556,7 +556,7 @@ export function ZenithCurtain() {
                                     </div>
                                 )}
 
-                                {/* Chat de Aurora — chat completo del widget (voz + multichat +
+                                {/* Chat de Astraura IA — chat completo del widget (voz + multichat +
                                     sentidos + reactivación del orbe) integrado en el Exocórtex. */}
                                 {mainView === "aurora" && (
                                     <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto custom-scrollbar">

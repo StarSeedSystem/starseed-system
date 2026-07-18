@@ -8,7 +8,7 @@
  * no abrían nada. Ahora es la lista REAL de la CONVERSACIÓN UNIFICADA
  * (`aurora_conversations` en la nube), la MISMA que alimenta a Aurora (orbe,
  * mini-reproductor, Exocórtex). Lo que hables por voz con Aurora aparece aquí,
- * y lo que escribas aquí aparece en el Exocórtex de Aurora. En tiempo real.
+ * y lo que escribas aquí aparece en el Exocórtex de Astraura IA. En tiempo real.
  */
 
 import { useState } from "react";
