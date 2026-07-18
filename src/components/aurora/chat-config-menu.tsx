@@ -2,16 +2,18 @@
 
 /**
  * ChatConfigMenu — MENÚ UNIFICADO de configuración de chat de Astraura AI
- * (Adenda 71-bis · 2026-07-17).
+ * (Adenda 71-bis · 2026-07-17, mejorado fix-11).
  *
- * Sustituye los botones sueltos "Opciones" / "Ajustes de Astraura" por UN menú
- * con estilo del contexto del OS y 7 botones principales:
+ * 7 botones principales con estilo del contexto del OS:
  *   Memorias · Personalidad · Sentidos · Motor de modelos · Capacidades ·
  *   Habilidades · Conexiones.
  * Cada uno despliega opciones y ajustes modulables POR CHAT, recordadas e
- * interconectadas vía la cuenta (se guardan en aurora_conversations.meta.config
- * y se sincronizan en tiempo real entre dispositivos y secciones).
- *
+ * interconectadas vía la cuenta (aurora_conversations.meta.config, sincronizado
+ * en tiempo real). Las secciones reflejan el estado VIVO del sistema:
+ *   · Sentidos   → SENSES[] + getActiveSenses()  (lib/senses/senses.ts)
+ *   · Conexiones → getOssServices()              (lib/services/oss-connections.ts)
+ *   · Capacidades→ getCapabilities()             (lib/aurora/capabilities.ts)
+ *   · Personalidad/Modelos → setActivePersonality / setActiveProviderId
  * Diseño adaptado por contexto (exocortex / orbe / astraura) y responsive.
  */
 
@@ -23,10 +25,13 @@ import {
   Check, ChevronRight, X,
 } from "lucide-react";
 import {
-  listPersonalityProfiles, setActivePersonality, HERMIONE_PERSONALITY_ID,
+  listPersonalityProfiles, setActivePersonality,
 } from "@/lib/aurora/personalities";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS } from "@/ai/providers";
+import { SENSES, getActiveSenses } from "@/lib/senses/senses";
+import { getOssServices } from "@/lib/services/oss-services";
+import { getCapabilities } from "@/lib/aurora/capabilities";
 
 export type ChatConfigContext = "exocortex" | "orbe" | "astraura";
 /** Alias mantenido para ChatHeaderOptions (antes venía de personality-options-window). */
@@ -63,7 +68,7 @@ const THEMES: Record<ChatConfigContext, { ring: string; grad: string; accent: st
   },
 };
 
-const SECTIONS = [
+const SECTION_DEFS = [
   { key: "memorias", label: "Memorias", Icon: Brain },
   { key: "personalidad", label: "Personalidad", Icon: UserRound },
   { key: "sentidos", label: "Sentidos", Icon: Eye },
@@ -73,12 +78,18 @@ const SECTIONS = [
   { key: "conexiones", label: "Conexiones", Icon: Network },
 ] as const;
 
-type SectionKey = (typeof SECTIONS)[number]["key"];
+type SectionKey = (typeof SECTION_DEFS)[number]["key"];
 
-const CAP_KEYS = ["mic", "voice", "vision", "web", "file", "memory", "cron", "location"] as const;
-const SENSE_KEYS = ["vision", "hearing", "voice", "location", "intuition"] as const;
 const SKILL_KEYS = ["taste", "pm", "web-senses", "research", "vision", "voice", "planning", "memory"] as const;
-const ALL_CONNS = ["telegram", "google-chat", "mcp", "api", "web-search", "drive", "fediverso"] as const;
+const SKILL_LABELS: Record<string, string> = {
+  taste: "Gusto / preferencia", pm: "Project manager", "web-senses": "Sentidos web",
+  research: "Investigación", vision: "Visión", voice: "Voz", planning: "Planificación", memory: "Memoria",
+};
+const CAP_LABELS: Record<string, string> = {
+  mic: "Micrófono", voice: "Voz", vision: "Visión", web: "Web", file: "Archivos",
+  memory: "Memoria", cron: "Cron", location: "Ubicación",
+};
+const MEM_SCOPES = ["personal", "compartida", "cerebro-activo", "todas"] as const;
 
 export function ChatConfigMenu({
   convId, context = "astraura", onClose,
@@ -92,9 +103,12 @@ export function ChatConfigMenu({
   const [open, setOpen] = useState<SectionKey | null>(null);
   const [personalities, setPersonalities] = useState<{ id: string; name: string }[]>([]);
   const [providers, setProviders] = useState<{ id: string; label: string }[]>([]);
+  const [senses, setSenses] = useState<{ id: string; label: string }[]>([]);
+  const [sensesActive, setSensesActive] = useState<string[]>([]);
+  const [connections, setConnections] = useState<{ id: string; label: string }[]>([]);
+  const [capsEnv, setCapsEnv] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
-    // Config del chat desde meta.config
     let initial: ChatConfig = {};
     if (convId) {
       try {
@@ -108,8 +122,20 @@ export function ChatConfigMenu({
     try { setPersonalities(listPersonalityProfiles().map((p) => ({ id: p.id, name: p.name }))); } catch { /* */ }
     try {
       const cfgs = loadConfigs();
-      const providers = PROVIDERS as Record<string, unknown>;
-      setProviders(cfgs.map((c: any) => ({ id: c.id, label: c.label || c.id })).filter((p: any) => providers[p.id]));
+      const provs = PROVIDERS as Record<string, unknown>;
+      setProviders(cfgs.map((c: any) => ({ id: c.id, label: c.label || c.id })).filter((p: any) => provs[p.id]));
+    } catch { /* */ }
+    try { setSenses(SENSES.map((s) => ({ id: s.id, label: s.label }))); } catch { /* */ }
+    try { setSensesActive(getActiveSenses()); } catch { /* */ }
+    try { setConnections(getOssServices().map((s: any) => ({ id: s.id, label: s.name || s.id }))); } catch { /* */ }
+    try {
+      const c = getCapabilities();
+      setCapsEnv({
+        mic: c.micPermission === "granted",
+        voice: c.hasTTS,
+        vision: c.hasMediaDevices,
+        web: true, file: true, memory: true, cron: true, location: c.isMobile !== undefined,
+      });
     } catch { /* */ }
   }, [convId]);
 
@@ -172,9 +198,8 @@ export function ChatConfigMenu({
         )}
       </div>
 
-      {/* 7 botones principales */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3">
-        {SECTIONS.map((s) => (
+        {SECTION_DEFS.map((s) => (
           <button
             key={s.key}
             onClick={() => setOpen(open === s.key ? null : s.key)}
@@ -191,7 +216,6 @@ export function ChatConfigMenu({
         ))}
       </div>
 
-      {/* Panel desplegable de la sección activa */}
       {open && (
         <div className="px-3 pb-3 max-h-[50vh] overflow-y-auto">
           {open === "personalidad" && (
@@ -209,36 +233,48 @@ export function ChatConfigMenu({
             </Section>
           )}
           {open === "capacidades" && (
-            <Section title="Capacidades del entorno">
-              {CAP_KEYS.map((k) => (
-                <Row key={k} label={k} active={!!cfg.capabilities?.[k]} onClick={() => toggleCap(k)} />
+            <Section title="Capacidades del entorno (estado real del dispositivo)">
+              {Object.keys(CAP_LABELS).map((k) => (
+                <Row
+                  key={k}
+                  label={CAP_LABELS[k]}
+                  hint={capsEnv[k] === false ? "no disponible en este dispositivo" : undefined}
+                  active={capsEnv[k] !== false && !!cfg.capabilities?.[k]}
+                  onClick={() => toggleCap(k)}
+                />
               ))}
             </Section>
           )}
           {open === "sentidos" && (
-            <Section title="Sentidos activos">
-              {SENSE_KEYS.map((k) => (
-                <Row key={k} label={k} active={!!cfg.senses?.[k]} onClick={() => toggleSense(k)} />
+            <Section title="Sentidos activos (sistema)">
+              {senses.map((s) => (
+                <Row
+                  key={s.id}
+                  label={s.label}
+                  hint={sensesActive.includes(s.id) ? "activo en el sistema" : undefined}
+                  active={!!cfg.senses?.[s.id]}
+                  onClick={() => toggleSense(s.id)}
+                />
               ))}
             </Section>
           )}
           {open === "habilidades" && (
-            <Section title="Habilidades (skills)">
+            <Section title="Habilidades (skills de Astraura)">
               {SKILL_KEYS.map((k) => (
-                <Row key={k} label={k} active={cfg.skills?.includes(k)} onClick={() => toggleSkill(k)} />
+                <Row key={k} label={SKILL_LABELS[k] || k} active={cfg.skills?.includes(k)} onClick={() => toggleSkill(k)} />
               ))}
             </Section>
           )}
           {open === "conexiones" && (
-            <Section title="Conexiones">
-              {ALL_CONNS.map((k) => (
-                <Row key={k} label={k} active={cfg.connections?.includes(k)} onClick={() => toggleConn(k)} />
+            <Section title="Conexiones (servicios del ecosistema)">
+              {connections.map((c) => (
+                <Row key={c.id} label={c.label} active={cfg.connections?.includes(c.id)} onClick={() => toggleConn(c.id)} />
               ))}
             </Section>
           )}
           {open === "memorias" && (
-            <Section title="Memorias">
-              {["personal", "compartida", "cerebro-activo", "todas"].map((k) => (
+            <Section title="Memorias accesibles por este chat">
+              {MEM_SCOPES.map((k) => (
                 <Row key={k} label={k} active={cfg.memoryScope === k} onClick={() => patch({ memoryScope: k })} />
               ))}
             </Section>
@@ -258,7 +294,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ label, active, onClick }: { label: string; active?: boolean; onClick: () => void }) {
+function Row({ label, active, onClick, hint }: { label: string; active?: boolean; onClick: () => void; hint?: string }) {
   return (
     <button
       onClick={onClick}
@@ -267,8 +303,11 @@ function Row({ label, active, onClick }: { label: string; active?: boolean; onCl
         active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5",
       )}
     >
-      <span className="capitalize truncate">{label}</span>
-      {active && <Check className="w-3.5 h-3.5 text-emerald-300" />}
+      <span className="min-w-0">
+        <span className="capitalize truncate block">{label}</span>
+        {hint && <span className="text-[10px] text-white/30 truncate block">{hint}</span>}
+      </span>
+      {active && <Check className="w-3.5 h-3.5 text-emerald-300 shrink-0 ml-2" />}
     </button>
   );
 }
