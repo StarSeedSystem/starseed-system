@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { TelegramChatsFolder } from "@/components/exocortex/telegram-chats-folder";
 import { useAiConversations, type AiConversation } from "@/lib/aurora/conversations";
+import { ChatFolders } from "@/components/aurora/chat-folders";
 
 function whenLabel(ts: number): string {
   try {
@@ -88,6 +89,20 @@ export function ChatNeuralSidebar() {
           <Plus className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Carpetas de chat (Adenda 71-bis): los chats se adjuntan a folders y
+          se ven en todas las secciones porque comparten el almacén unificado. */}
+      <ChatFolders
+        activeConvId={activeId}
+        folder={conversations.find((c) => c.id === activeId)?.folder ?? null}
+        onPick={async (f) => {
+          if (!activeId) return;
+          try {
+            const sb = (await import("@/utils/supabase/client")).createClient();
+            await sb.from("aurora_conversations").update({ folder: f }).eq("id", activeId);
+          } catch { /* */ }
+        }}
+      />
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {conversations.length === 0 && (
