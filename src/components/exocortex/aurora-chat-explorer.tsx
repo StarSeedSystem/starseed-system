@@ -471,8 +471,8 @@ export function AuroraChatExplorer(props: AuroraChatExplorerProps) {
             }}
             placeholder={
               barMode === "buscar"
-                ? "Buscar en la red y en tus chats… (Enter también pregunta a Aurora)"
-                : `Pregunta a ${auroraName} o busca en tus chats…`
+                ? "Busca en tus chats y memorias"
+                : "Busca en tus chats y memorias"
             }
             className="axc-bar-input"
             aria-label={barMode === "buscar" ? "Buscar recursos" : "Preguntar a Aurora"}

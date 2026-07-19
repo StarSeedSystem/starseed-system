@@ -46,6 +46,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { parseWikilinks } from "@/lib/okf";
+// Modo cerebro (Adenda I2 · tarea 2): alimentar la malla con brain_memory_files
+// + memorias del cerebro + fuentes, mapeándolo a la MISMA estructura (baúl=tipo,
+// memoria=nodo hoja, conexión=fuente) sin tocar el render 3D.
+import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+import { inferMemoryType, memoryTypeById } from "@/lib/brains/memory-types";
+import { getBrain } from "@/lib/brains/brains";
+import { serversForBrain } from "@/lib/brains/servers";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -811,10 +818,143 @@ function AstrauraPanel({
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Modo CEREBRO: mapea brain_memory_files + memorias + fuentes a vaults/memories
+// (baúl = TIPO de memoria; memoria = archivo/memoria; conexión = fuente).
+// ────────────────────────────────────────────────────────────────────────────
+
+const FUENTES_VAULT_ID = "t:__fuentes__";
+
+async function buildBrainMesh(
+  uid: string,
+  brainId: string | null,
+): Promise<{ vaults: VaultRow[]; memories: MemoryRow[]; error: string | null }> {
+  try {
+    const sb = createClient();
+    // 1) Archivos .md del cerebro.
+    const files = await listMemoryFiles(brainId);
+    // 2) Memorias del cerebro (tabla memories, scope='brain') + enlazadas.
+    let includes: string[] = [];
+    let sources: string[] = [];
+    if (brainId) {
+      try {
+        const brain = await getBrain(brainId);
+        includes = Array.isArray(brain?.includes?.memories) ? brain!.includes.memories : [];
+        const cfg = (brain?.config || {}) as Record<string, unknown>;
+        const ms = Array.isArray(cfg.memorySources) ? (cfg.memorySources as Record<string, unknown>[]) : [];
+        sources = ms.map((s) => String(s.name ?? "fuente"));
+        for (const s of brain?.servers ?? []) sources.push(String(s.name ?? s.kind ?? "servidor"));
+      } catch { /* sin cerebro */ }
+      try {
+        const linked = await serversForBrain(brainId);
+        for (const l of linked) sources.push(l.name);
+      } catch { /* sin enlaces */ }
+    }
+    let memRows: MemoryRow[] = [];
+    try {
+      const orFilter = brainId
+        ? `and(scope.eq.brain,scope_ref.eq.${brainId})`
+        : "scope.eq.account";
+      const { data } = await sb
+        .from("memories")
+        .select("id,owner,name,kinds,format,scope,scope_ref,vault_id,content")
+        .eq("owner", uid)
+        .or(orFilter)
+        .limit(300);
+      memRows = (data as MemoryRow[]) ?? [];
+      // Añade las enlazadas por includes que no vinieran por scope.
+      if (includes.length) {
+        const have = new Set(memRows.map((m) => m.id));
+        const missing = includes.filter((id) => !have.has(id));
+        if (missing.length) {
+          const { data: extra } = await sb
+            .from("memories")
+            .select("id,owner,name,kinds,format,scope,scope_ref,vault_id,content")
+            .eq("owner", uid)
+            .in("id", missing);
+          memRows = [...memRows, ...((extra as MemoryRow[]) ?? [])];
+        }
+      }
+    } catch { /* memorias opcionales */ }
+
+    // 3) Baúles sintéticos: uno por TIPO presente + un baúl "Fuentes".
+    const typesPresent = new Set<string>();
+    for (const f of files) typesPresent.add(inferMemoryType(f.name, f.meta).id);
+    for (const m of memRows) typesPresent.add((m.kinds ?? []).find(Boolean) ?? "memory");
+
+    const vaults: VaultRow[] = Array.from(typesPresent).map((typeId) => ({
+      id: `t:${typeId}`,
+      owner: uid,
+      name: memoryTypeById(typeId).label,
+      connections: {},
+    }));
+    if (sources.length) {
+      vaults.push({ id: FUENTES_VAULT_ID, owner: uid, name: "Fuentes de memoria", connections: {} });
+    }
+
+    // 4) Memorias (nodos hoja). Archivos → id `file:<id>`; memorias → `mem:<id>`.
+    const memories: MemoryRow[] = [];
+    for (const f of files) {
+      const typeId = inferMemoryType(f.name, f.meta).id;
+      memories.push({
+        id: `file:${f.id}`,
+        owner: uid,
+        name: f.name,
+        kinds: [typeId],
+        content: f.content,
+        vault_id: `t:${typeId}`,
+      });
+    }
+    for (const m of memRows) {
+      const typeId = (m.kinds ?? []).find(Boolean) ?? "memory";
+      memories.push({
+        id: `mem:${m.id}`,
+        owner: uid,
+        name: m.name,
+        kinds: m.kinds ?? [typeId],
+        content: m.content,
+        vault_id: `t:${typeId}`,
+      });
+    }
+    // Fuentes como nodos hoja del baúl "Fuentes".
+    const seenSrc = new Set<string>();
+    for (const s of sources) {
+      const key = s.toLowerCase();
+      if (seenSrc.has(key)) continue;
+      seenSrc.add(key);
+      memories.push({
+        id: `src:${key}`,
+        owner: uid,
+        name: s,
+        kinds: ["connections"],
+        content: "",
+        vault_id: FUENTES_VAULT_ID,
+      });
+    }
+
+    return { vaults, memories, error: null };
+  } catch (e) {
+    return { vaults: [], memories: [], error: e instanceof Error ? e.message : "No se pudo construir la malla del cerebro." };
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Componente principal
 // ────────────────────────────────────────────────────────────────────────────
 
-export function MemoryMesh3D({ className = "" }: { className?: string }) {
+export function MemoryMesh3D({
+  className = "",
+  brainMode = false,
+  brainId = null,
+  onSelectMemory,
+}: {
+  className?: string;
+  /** Modo cerebro: la malla se alimenta del cerebro, no de toda la cuenta. */
+  brainMode?: boolean;
+  /** Cerebro activo (null = memorias de cuenta sin cerebro). */
+  brainId?: string | null;
+  /** Clic en un nodo de archivo → abre su editor (id del brain_memory_file). */
+  onSelectMemory?: (fileId: string) => void;
+}) {
   const [vaults, setVaults] = useState<VaultRow[]>([]);
   const [memories, setMemories] = useState<MemoryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -832,6 +972,7 @@ export function MemoryMesh3D({ className = "" }: { className?: string }) {
   useEffect(() => {
     let alive = true;
     (async () => {
+      setLoading(true);
       try {
         const sb = createClient();
         const { data: au } = await sb.auth.getUser();
@@ -844,18 +985,27 @@ export function MemoryMesh3D({ className = "" }: { className?: string }) {
           }
           return;
         }
-        const [{ data: v, error: ve }, { data: m, error: me }] = await Promise.all([
-          sb.from("vaults").select("id,owner,name,scope,connections,preferences").eq("owner", uid),
-          sb
-            .from("memories")
-            .select("id,owner,name,kinds,format,scope,vault_id,content")
-            .eq("owner", uid)
-            .limit(500),
-        ]);
-        if (!alive) return;
-        if (ve || me) setLoadError((ve?.message || me?.message) ?? null);
-        setVaults((v as VaultRow[]) ?? []);
-        setMemories((m as MemoryRow[]) ?? []);
+        if (brainMode) {
+          // Modo cerebro: baúl=tipo, memoria=archivo/memoria, conexión=fuente.
+          const built = await buildBrainMesh(uid, brainId);
+          if (!alive) return;
+          setVaults(built.vaults);
+          setMemories(built.memories);
+          setLoadError(built.error);
+        } else {
+          const [{ data: v, error: ve }, { data: m, error: me }] = await Promise.all([
+            sb.from("vaults").select("id,owner,name,scope,connections,preferences").eq("owner", uid),
+            sb
+              .from("memories")
+              .select("id,owner,name,kinds,format,scope,vault_id,content")
+              .eq("owner", uid)
+              .limit(500),
+          ]);
+          if (!alive) return;
+          if (ve || me) setLoadError((ve?.message || me?.message) ?? null);
+          setVaults((v as VaultRow[]) ?? []);
+          setMemories((m as MemoryRow[]) ?? []);
+        }
       } catch (err) {
         if (alive) setLoadError((err as Error).message);
       } finally {
@@ -865,7 +1015,7 @@ export function MemoryMesh3D({ className = "" }: { className?: string }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [brainMode, brainId]);
 
   const clusters = useMemo(() => buildClusters(vaults, memories), [vaults, memories]);
 
@@ -911,9 +1061,17 @@ export function MemoryMesh3D({ className = "" }: { className?: string }) {
     });
   }, []);
 
-  const onNodeClick = useCallback((node: GNode) => {
-    setFocusedVault((prev) => (prev === node.vaultId ? null : node.vaultId));
-  }, []);
+  const onNodeClick = useCallback(
+    (node: GNode) => {
+      // Modo cerebro: clic en un nodo de ARCHIVO abre su editor de memoria.
+      if (brainMode && onSelectMemory && node.kind === "memory" && node.id.startsWith("m:file:")) {
+        onSelectMemory(node.id.slice("m:file:".length));
+        return;
+      }
+      setFocusedVault((prev) => (prev === node.vaultId ? null : node.vaultId));
+    },
+    [brainMode, onSelectMemory],
+  );
 
   const focusVaultByName = useCallback(
     (name: string) => {

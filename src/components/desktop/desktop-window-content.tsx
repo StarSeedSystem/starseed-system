@@ -229,7 +229,9 @@ const NATIVE_APP_VIEWS: Record<string, React.ComponentType> = {
     library: lazyApp(() => import("@/app/(app)/library/page"), "biblioteca"),
     agent: lazyApp(() => import("@/app/(app)/agent/page"), "agentes"),
     network: lazyApp(() => import("@/app/(app)/network/page"), "red"),
-    nexus: lazyApp(() => import("@/app/(app)/nexus/page"), "nexus"),
+    // `nexus` (portal de marca externo) ya NO es una vista nativa: la antigua
+    // página `/nexus` se fusionó en la pestaña «Nexus» de Astraura IA y su ruta
+    // es ahora un redirect. El portal de marca se abre como iframe externo.
 };
 
 // ── APP: nativa (montada) · externa (iframe defensivo) · ruta · enlace ──
@@ -240,8 +242,9 @@ function AppContent({ appId, fallbackName }: { appId: string; fallbackName?: str
     const [stuck, setStuck] = useState(false);
 
     const NativeView = NATIVE_APP_VIEWS[appId];
-    // Basta con estar en el registro: `status` ya no decide (nexus es "live" y
-    // también es un módulo real del OS). Solo "soon" se queda fuera.
+    // Basta con estar en el registro de vistas nativas para montarse como módulo
+    // del OS; `status` ya no decide (solo "soon" se queda fuera). Las apps de
+    // marca externas (p. ej. StarSeed Nexus) no están en el registro: se embeben.
     const isNative = Boolean(app) && app!.status !== "soon" && Boolean(NativeView);
 
     const href = app?.open.href;

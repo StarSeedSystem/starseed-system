@@ -94,6 +94,12 @@ import {
 
 import { chat, chatSmart } from "@/ai/client/chat";
 import { astrauraChat } from "@/ai/astraura/router";
+// Pipeline compartido de Aurora (Adenda 71-ter · I1): acciones+conocimiento en el
+// prompt, voz por personalidad/ajustes, y dictado por voz reutilizable.
+import { composeAuroraSystem, speakAuroraReply, resolveTurnPersona } from "@/lib/aurora/turn";
+import { startDictation, isDictationSupported, type DictationHandle } from "@/lib/aurora/dictation";
+import { ConfigChangeNotice, isConfigChangeMessage } from "@/components/aurora/config-change-notice";
+import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { parseDirectives } from "@/lib/aurora/actions";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS, type ProviderId } from "@/ai/providers";
@@ -113,6 +119,7 @@ const BrowserWindows = nextDynamic(() => import("@/components/browser/browser-wi
 const AiAppGenerator = nextDynamic(() => import("@/components/appgen/ai-app-generator"), { ssr: false });
 import { TelegramSpacesPanel } from "@/components/exocortex/telegram-spaces-panel";
 import { ChatNeuralSidebar } from "@/components/agent/chat-neural-sidebar";
+import { NexusWorkspaces } from "@/components/agent/nexus-workspaces";
 import { MemoryHub } from "@/components/exocortex/memory-hub";
 import { AgentRuntimePanel } from "@/components/agent/agent-runtime-panel";
 import { VaultsPanel } from "@/components/exocortex/vaults-panel";
@@ -159,7 +166,7 @@ const STUDIO_SECTIONS: StudioSection[] = [
     hint: "Resumen del estado y conversación con tu IA.",
     items: [
       { value: "overview", label: "Resumen", icon: LayoutDashboard },
-      { value: "chat", label: "Chat Neural", icon: Bot },
+      { value: "chat", label: "Nexus", icon: Bot },
     ],
   },
   {
@@ -289,6 +296,10 @@ const TAB_ALIASES: Record<string, string> = {
   wiki: "okf",
   sentidos: "senses",
   aurora: "aurora",
+  // La antigua página independiente `/nexus` (mock) se fusionó en esta pestaña
+  // «Nexus» (value "chat"); su redirect y cualquier enlace `?tab=nexus` caen aquí.
+  nexus: "chat",
+  chats: "chat",
 };
 function normalizeTab(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -352,6 +363,19 @@ const initialWorkflows: WorkflowItem[] = [
 ];
 
 type ChatTurn = { role: "user" | "agent"; content: string; timestamp: string; pending?: boolean };
+
+/** Mensaje renderizable del hilo de Astraura (incluye divisores de config). */
+interface AgentRenderMsg {
+  id: string;
+  role: "agent" | "user" | "system";
+  content: string;
+  ts: number;
+  meta?: AuroraMessageMeta | null;
+  history: { role: string; text: string; ts: number }[];
+  timestamp: string;
+  pending?: boolean;
+  configChange?: boolean;
+}
 
 function AgentPageInner() {
   const params = useSearchParams();
@@ -431,6 +455,10 @@ function AgentPageInner() {
   const [process, setProcess] = useState<{ open: boolean; meta?: any }>({ open: false });
 
   const [streaming, setStreaming] = useState(false);
+  // Dictado por voz (Adenda 71-ter · I1): mic como el del orbe, reutilizando el
+  // helper compartido de STT (sin instanciar el motor supervisado siempre-activo).
+  const [listening, setListening] = useState(false);
+  const dictRef = useRef<DictationHandle | null>(null);
 
   // Skills & Tools state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
@@ -457,14 +485,25 @@ function AgentPageInner() {
   );
   const activeProviderInfo = activeProviderConfig ? PROVIDERS[activeProviderConfig.id].info : null;
 
+  // Personalidad activa (nombre VISIBLE en el Nexus) — misma resolución por
+  // contexto que el pipeline de Astraura (chat > sección > global). Solo lectura:
+  // deja claro QUIÉN responde en este hilo sin tocar el envío del agente I1.
+  const activePersona = useMemo(() => {
+    try {
+      return resolveTurnPersona({ convId: conv.activeId, route: "/agent" })?.profile ?? null;
+    } catch {
+      return null;
+    }
+  }, [conv.activeId, conv.conversations]);
+
   function setProvider(id: ProviderId) {
     setActiveProviderId(id);
     setActiveProviderIdState(id);
     toast.success(`Proveedor activo: ${PROVIDERS[id].info.label}`);
   }
 
-  async function handleSend() {
-    const text = inputValue.trim();
+  async function handleSend(override?: string) {
+    const text = (override ?? inputValue).trim();
     if (!text || streaming) return;
 
     setInputValue("");
@@ -532,6 +571,17 @@ function AgentPageInner() {
       // Snapshot del calendario unificado.
       systemPieces.push(calendar.aiContextSnapshot());
 
+      // Pipeline compartido (Adenda 71-ter · I1): acciones [[ACCION:…]] del OS +
+      // herramientas del cerebro activo + conocimiento del ecosistema + contexto
+      // de ruta. Es lo que hacía del chat del orbe el más completo; ahora /agent
+      // también lo tiene. La personalidad la inyecta astrauraChat (chatId).
+      try {
+        const extras = await composeAuroraSystem({
+          route: typeof window !== "undefined" ? window.location.pathname : "/agent",
+        });
+        if (extras) systemPieces.push(extras);
+      } catch { /* defensivo: sin extras, /agent responde igual */ }
+
       // Persistir el turno como chunk en la memoria OpenHuman
       // (tree + FTS) para que sea recuperable en futuros turnos.
       getOpenHumanEngine().ingest(text, 'chat', `chat-${Date.now()}`);
@@ -594,6 +644,10 @@ function AgentPageInner() {
             ms: Date.now() - startedAt,
           },
         });
+        // 5) Voz según personalidad/ajustes: respeta el toggle meta.config.voice
+        //    del chat (por defecto activo si la personalidad tiene voz). Reutiliza
+        //    el TTS del engine vía el puente global (no duplica motor de voz).
+        speakAuroraReply(acc, { convId });
       }
     } catch (err) {
       const msg = (err as Error).message;
@@ -632,6 +686,32 @@ function AgentPageInner() {
     // `catch`/`finally` (abortar lanza AbortError, que entra por el catch).
   }
 
+  // Mic (STT igual que el orbe): dicta en el campo y envía al terminar la frase.
+  const toggleMic = useCallback(() => {
+    if (dictRef.current?.active()) {
+      dictRef.current.stop();
+      dictRef.current = null;
+      setListening(false);
+      return;
+    }
+    if (!isDictationSupported()) {
+      toast.error("Tu navegador no soporta dictado por voz.");
+      return;
+    }
+    setListening(true);
+    dictRef.current = startDictation({
+      onInterim: (t) => setInputValue(t),
+      onFinal: (t) => {
+        setInputValue(t);
+        setListening(false);
+        dictRef.current = null;
+        void handleSend(t);
+      },
+      onEnd: () => { setListening(false); dictRef.current = null; },
+      onError: (m) => { setListening(false); dictRef.current = null; toast.error(m); },
+    });
+  }, [handleSend]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -642,21 +722,31 @@ function AgentPageInner() {
   // burbuja en vivo de la respuesta que se está transmitiendo. Si el hilo está
   // vacío, un saludo honesto (no se persiste: es UI, no historial).
   
-  const messages = useMemo(() => {
-    const base = cloudMessages
-      .filter(m => m.role !== 'system')
-      .map((m, i, arr) => ({
-        id: m.id,
-        role: m.role === 'assistant' ? 'agent' : 'user',
-        content: m.text,
-        ts: m.ts,
-        meta: m.meta,
-        history: arr.slice(0, i + 1).map(e => ({ role: e.role === 'assistant' ? 'aurora' : 'user', text: e.text, ts: e.ts })),
-        timestamp: (() => {
-          try { return new Date(m.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
-          catch { return ''; }
-        })(),
-      }));
+  const messages = useMemo<AgentRenderMsg[]>(() => {
+    // Mantiene los divisores "⚙️ Ajustes del chat actualizados" (role 'system'
+    // + meta.kind 'config-change'); filtra el resto de mensajes de sistema.
+    const base: AgentRenderMsg[] = cloudMessages
+      .filter(m => m.role !== 'system' || isConfigChangeMessage(m.role, m.text, m.meta))
+      .map((m, i, arr) => {
+        if (isConfigChangeMessage(m.role, m.text, m.meta)) {
+          return {
+            id: m.id, role: 'system', content: m.text, ts: m.ts,
+            meta: m.meta, history: [], timestamp: '', configChange: true,
+          };
+        }
+        return {
+          id: m.id,
+          role: (m.role === 'assistant' ? 'agent' : 'user') as AgentRenderMsg['role'],
+          content: m.text,
+          ts: m.ts,
+          meta: m.meta,
+          history: arr.slice(0, i + 1).map(e => ({ role: e.role === 'assistant' ? 'aurora' : 'user', text: e.text, ts: e.ts })),
+          timestamp: (() => {
+            try { return new Date(m.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
+            catch { return ''; }
+          })(),
+        };
+      });
     if (base.length === 0 && !streaming) {
       base.push({
         id: 'placeholder',
@@ -860,12 +950,36 @@ function AgentPageInner() {
               >
                 <Plus className="w-4 h-4" />
               </Button>
+              {/* Volver al Portal Nexus (espacios de trabajo = carpetas reales). */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0 bg-card/60 backdrop-blur border-border/50 cursor-pointer"
+                title="Espacios de trabajo · Portal Nexus"
+                aria-label="Ir a los espacios de trabajo del Nexus"
+                onClick={() => conv.setActive(null)}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+              </Button>
+              {activePersona && (
+                <span
+                  className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-2.5 py-1 text-[11px] font-medium text-fuchsia-100"
+                  title="Personalidad activa de Astraura en este chat"
+                >
+                  <Sparkles className="h-3 w-3 text-fuchsia-300" /> {activePersona.name}
+                </span>
+              )}
               <ChatHeaderOptions context="astraura" convId={conv.activeId ?? null} />
             </div>
 
             <ScrollArea className="flex-1 p-4" ref={scrollRef}>
               <div className="flex flex-col gap-4 max-w-3xl mx-auto pt-16 sm:pt-12">
-                {messages.map((msg, i) => (
+                {!conv.activeId ? (
+                  <NexusWorkspaces onOpenTab={(t) => setActiveTab(t)} />
+                ) : messages.map((msg, i) => (
+                  msg.configChange ? (
+                    <ConfigChangeNotice key={msg.id ?? i} text={msg.content} />
+                  ) : (
                   <div key={msg.id ?? i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                     <Avatar className="w-8 h-8 border border-white/10">
                       {msg.role === 'agent' ? (
@@ -894,8 +1008,9 @@ function AgentPageInner() {
                       )}
                     </div>
                   </div>
+                  )
                 ))}
-              
+
               </div>
               <MessageProcessModal
                 open={process.open}
@@ -919,7 +1034,17 @@ function AgentPageInner() {
                 </div>
               )}
               <div className="flex gap-2 max-w-3xl mx-auto items-center">
-                <Button variant="outline" size="icon" className="shrink-0" disabled><Mic className="w-4 h-4" /></Button>
+                <Button
+                  type="button"
+                  variant={listening ? "default" : "outline"}
+                  size="icon"
+                  className={cn("shrink-0", listening && "bg-primary text-primary-foreground animate-pulse")}
+                  onClick={toggleMic}
+                  title={listening ? "Detener dictado" : "Dictar por voz"}
+                  aria-label={listening ? "Detener dictado" : "Dictar por voz"}
+                >
+                  <Mic className="w-4 h-4" />
+                </Button>
                 <Input
                   placeholder={`Conversando con ${activeAgent.name}${activeProviderConfig ? ` vía ${activeProviderConfig.label}` : ""}...`}
                   className="flex-1 bg-background/50"
@@ -933,7 +1058,7 @@ function AgentPageInner() {
                     <Square className="w-4 h-4" /> Detener
                   </Button>
                 ) : (
-                  <Button onClick={handleSend} className="shrink-0 gap-2" disabled={!inputValue.trim()}>
+                  <Button onClick={() => handleSend()} className="shrink-0 gap-2" disabled={!inputValue.trim()}>
                     <Send className="w-4 h-4" />
                   </Button>
                 )}

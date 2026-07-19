@@ -100,12 +100,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "missing_fields" }, { status: 400 });
     }
 
-    // Verifica que la neurona servidor de Hermayone existe y pertenece a la cuenta.
+    // Verifica que exista una neurona servidor de Hermayone en la cuenta
+    // (RLS ya acota a owner=auth.uid(); no dependemos de un id hardcodeado).
     const sb = createClient();
     const { data: neuron } = await sb
       .from("neuron_devices")
       .select("id, capabilities")
-      .eq("id", "c0ffee01-1234-4abc-8def-0123456789ab")
+      .eq("capabilities->bridge->>mode", "external-hermes")
+      .limit(1)
       .maybeSingle();
     const caps = (neuron as any)?.capabilities;
     if (!caps?.bridge || caps.bridge.mode !== "external-hermes") {

@@ -21,7 +21,7 @@ import {
     Plus, Library, Import,
     Sliders, Activity, Terminal,
     Bot, Layout, BookOpen, Settings2,
-    Send, Maximize2, Trash2, X, Sparkles, Users, Palette, Globe, Cpu
+    Send, Maximize2, Trash2, X, Sparkles, Users, Palette, Globe, Cpu, Pencil
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -234,6 +234,32 @@ export function SideCurtains() {
                                 <div className="text-center">
                                     <span className="block text-xl font-light tracking-wider text-emerald-100 mb-1">Lienzo Universal</span>
                                     <span className="text-sm text-emerald-200/60 font-light px-4 whitespace-normal">Creador de publicaciones específicas: bloques, archivos y widgets para cualquier sección de la red.</span>
+                                </div>
+                            </Button>
+                        </div>
+
+                        {/* Editor Universal — puerta única para editar cualquier
+                            sección del OS (diseño, disposición, funcionamiento, IA,
+                            biblioteca). Se movió aquí desde la cabecera del Exocórtex
+                            (Adenda 71-ter · I3): dispara el evento global
+                            'starseed:open-editor', que el GlobalEditorHost del layout
+                            raíz atiende — así abre aunque la ventana Exocórtex esté
+                            cerrada. Entre «Lienzo Universal» y «Fragua de Widgets». */}
+                        <div className="mb-6 flex-shrink-0 px-2">
+                            <Button
+                                className="w-full h-auto py-5 rounded-3xl flex items-center gap-4 bg-gradient-to-r from-violet-600/20 via-fuchsia-600/15 to-emerald-600/15 border border-violet-500/30 hover:border-violet-400/50 hover:from-violet-600/30 hover:via-fuchsia-600/25 hover:to-emerald-600/25 transition-all group shadow-lg min-h-[44px]"
+                                onClick={() => {
+                                    setActiveEdge(null);
+                                    // Abrir el Editor Universal desde cualquier ruta.
+                                    window.dispatchEvent(new CustomEvent('starseed:open-editor'));
+                                }}
+                            >
+                                <div className="p-3 rounded-full bg-violet-500/20 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(139,92,246,0.3)]">
+                                    <Pencil className="w-7 h-7 text-violet-200" />
+                                </div>
+                                <div className="text-left">
+                                    <span className="block text-lg font-light tracking-wider text-violet-100">Editor Universal</span>
+                                    <span className="text-xs text-violet-300/50 font-mono uppercase tracking-wider">Diseño · Código · IA · Biblioteca</span>
                                 </div>
                             </Button>
                         </div>

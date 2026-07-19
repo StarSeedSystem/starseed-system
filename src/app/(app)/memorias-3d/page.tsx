@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
+import CerebroAliasBanner from "@/components/cerebro/cerebro-alias-banner";
 
 // El Canvas / three.js solo puede ejecutarse en el navegador, por lo que el
 // componente se carga con ssr:false (de lo contrario el build/SSR falla).
@@ -28,6 +29,10 @@ export default function Memorias3DPage() {
           Explora tus baúles, memorias y conexiones como un grafo 3D interactivo. Rota, haz zoom,
           cambia de vista y pide a Astraura que te ayude a organizarlo.
         </p>
+        {/* Alias → pilar Memoria de Cerebros, vista 3D (mismo componente compartido). */}
+        <div className="mt-3">
+          <CerebroAliasBanner view="3d" />
+        </div>
       </header>
       <div className="min-h-[60vh] flex-1">
         <Mesh className="h-full w-full" />

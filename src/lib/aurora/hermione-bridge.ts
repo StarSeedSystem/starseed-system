@@ -60,6 +60,7 @@ import {
 import { listOpenRouterFreeModels } from "@/ai/providers/openrouter";
 import { DEFAULT_INTELLIGENCE, type IntelligenceSettings } from "@/ai/astraura/router";
 import { skillsSystemPrompt, skillsRoutingBias } from "@/ai/astraura/skills";
+import { listPersonalityProfiles } from "@/lib/aurora/personalities";
 
 /** Id estable de la personalidad Hermione (creada en la cuenta maggasukha). */
 export const HERMIONE_PERSONALITY_ID = "c9fe7030-fc68-49c6-a705-58f7900887f9";
@@ -100,13 +101,15 @@ export async function getHermioneNeuron(): Promise<HermioneBridgeInfo | null> {
     const sb = createClient();
     const { data } = await sb
       .from("neuron_devices")
-      .select("id, capabilities, last_seen_at")
+      .select("id, capabilities, permissions, last_seen_at")
       .order("last_seen_at", { ascending: false })
       .limit(50);
-    const rows = (data as Array<{ id: string; capabilities?: any; last_seen_at?: string }>) || [];
+    const rows = (data as Array<{ id: string; capabilities?: any; permissions?: any; last_seen_at?: string }>) || [];
     const now = Date.now();
+    let fallback: HermioneBridgeInfo | null = null;
     for (const row of rows) {
       const caps = row.capabilities || {};
+      const perms = row.permissions || {};
       const bridge = caps.bridge;
       const hasHermes =
         (bridge && bridge.mode === "external-hermes") ||
@@ -114,6 +117,10 @@ export async function getHermioneNeuron(): Promise<HermioneBridgeInfo | null> {
         (Array.isArray(caps.servesPersonalities) && caps.servesPersonalities.includes("hermione")) ||
         (Array.isArray(caps.servesPersonalities) && caps.servesPersonalities.includes("Hermione"));
       if (!hasHermes) continue;
+      // Permisos vinculados (requisito del usuario): la neurona debe aceptar
+      // órdenes de agente (control del dispositivo). DEFAULT del OS = agent=true;
+      // solo se bloquea si el dueño lo puso explícitamente en false.
+      if (perms.agent === false) continue;
       const seen = row.last_seen_at ? Date.parse(row.last_seen_at) : 0;
       const online = now - seen < 3 * 60_000;
       const endpoint =
@@ -121,17 +128,19 @@ export async function getHermioneNeuron(): Promise<HermioneBridgeInfo | null> {
         caps.bridgeEndpoint ||
         (caps.hermesBridge ? DEFAULT_BRIDGE_ENDPOINT : null);
       if (!endpoint) continue;
-      // Priorizamos la neurona ONLINE; si ninguna está online, devolvemos la
-      // primera candidata (el indicador mostrará OFFLINE y Astraura asume).
-      return {
+      const info: HermioneBridgeInfo = {
         endpoint,
         online,
         personalityId: bridge?.personalityId || HERMIONE_PERSONALITY_ID,
         note: bridge?.note || caps.note || "Neurona con Hermes instalado.",
         neuronId: row.id,
       };
+      // Preferimos la neurona ONLINE (la más recientemente vista); si ninguna
+      // está online guardamos la más reciente como respaldo (Astraura asume).
+      if (online) return info;
+      if (!fallback) fallback = info;
     }
-    return null;
+    return fallback;
   } catch {
     return null;
   }
@@ -356,10 +365,13 @@ export async function selectBestFreeModelForHermione(
     const openrouterSource: CatalogSource = {
       id: "openrouter-free",
       label: "OpenRouter (gratis)",
-      tier: "cloud",
+      tier: "free-key",
       providerId: "openrouter",
       baseUrl: "https://openrouter.ai/api/v1",
       requiresKey: false,
+      limits: "Modelos con sufijo :free · límites por modelo/día.",
+      why: "Amplio catálogo de modelos :free vivos, ideal para Hermione sin gastar créditos.",
+      privacy: "cloud",
       preferFreeModels: true,
       weight: 1.2,
       models: (freeOrIds.length ? freeOrIds : ["openrouter/free"]).map((id) => ({

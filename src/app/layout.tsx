@@ -60,6 +60,10 @@ import { FileRequestListener } from "@/components/files/file-request-listener";
 // de /dashboard). Persiste los widgets forjados con el mismo mecanismo local +
 // sync que el dashboard. Sin UI hasta que llega el evento.
 import { GlobalForgeHost } from "@/components/creation/global-forge-host";
+// Editor Universal GLOBAL (Adenda 71-ter · I3): escucha 'starseed:open-editor'
+// (disparado desde el Centro de Creación de Trinity) y abre la MISMA
+// UniversalEditor en CUALQUIER ruta, aunque la ventana Exocórtex esté cerrada.
+import { GlobalEditorHost } from "@/components/creation/global-editor-host";
 // Alarmas propias del usuario (invitaciones a eventos, recordatorios…):
 // @/lib/alarms/alarms.ts. Global (root), a diferencia del <AlarmScheduler/>
 // del Sincrómetro (que vive solo dentro de (app), atado a CalendarProvider) —
@@ -219,6 +223,8 @@ export default function RootLayout({
                         <AutoUpdateWatcher />
                         {/* Fragua de Widgets universal (escucha 'starseed:open-forge' fuera del dashboard). */}
                         <GlobalForgeHost />
+                        {/* Editor Universal global (escucha 'starseed:open-editor' desde el Centro de Creación). */}
+                        <GlobalEditorHost />
                         <SplineWatermarkCover />
                         <PerimeterInterface />
                         {/* Trinity Móvil · Bloque 4 — asas de borde + deslizar desde

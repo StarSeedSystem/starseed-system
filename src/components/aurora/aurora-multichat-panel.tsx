@@ -23,6 +23,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { chatSmart } from "@/ai/client/chat";
+// Pipeline compartido (Adenda 71-ter · I1): personalidad + acciones + conocimiento
+// en el prompt, y voz por personalidad. El failover gratis-primero ya lo aporta
+// chatSmart()/runMoA(); aquí sumamos personalidad y voz sin cambiar la UI.
+import { composeAuroraSystem, speakAuroraReply } from "@/lib/aurora/turn";
 import type { ChatMessage } from "@/ai/providers/types";
 import { PROVIDER_ORDER, getProvider } from "@/ai/providers";
 import { loadConfigs } from "@/ai/client/providerStore";
@@ -119,8 +123,18 @@ export function AuroraMultichatPanel() {
 
     // Interconexión: contexto de otras sesiones referenciadas (#94).
     const interconnect = buildInterconnectContext(current, chats);
-    const messages: ChatMessage[] = interconnect
-      ? [{ role: "system", content: interconnect }, ...history]
+    // Pipeline compartido: personalidad (chatSmart NO la inyecta) + acciones del
+    // OS + conocimiento del ecosistema + contexto de ruta. Defensivo.
+    let preamble = "";
+    try {
+      preamble = await composeAuroraSystem({
+        includePersona: true,
+        route: typeof window !== "undefined" ? window.location.pathname : "/",
+      });
+    } catch { /* */ }
+    const systemBlock = [preamble, interconnect].filter(Boolean).join("\n\n");
+    const messages: ChatMessage[] = systemBlock
+      ? [{ role: "system", content: systemBlock }, ...history]
       : history;
 
     // Selector por chat → modo MoA + override de proveedor (#95).
@@ -143,6 +157,9 @@ export function AuroraMultichatPanel() {
       });
       const finalText = (acc || res?.text || "").trim();
       mc.updateLastMessage(current.id, "assistant", finalText || "(sin respuesta)");
+      // Voz según la personalidad activa (respeta su estilo). Sin convId no hay
+      // toggle por chat: gobierna la voz global de la personalidad efectiva.
+      if (finalText) speakAuroraReply(finalText, {});
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "";
       const friendly = msg && !/abort/i.test(msg)

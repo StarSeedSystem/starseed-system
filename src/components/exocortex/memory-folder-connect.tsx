@@ -13,11 +13,12 @@
 //    más tarde, fuera de este componente. Ver `architecture/memoria-cerebros-sync.md`.
 // ════════════════════════════════════════════════════════════════
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import {
   FolderSync,
   Link2,
@@ -31,6 +32,10 @@ import {
   Pencil,
   Minus,
   ListTree,
+  FolderOpen,
+  Upload,
+  Download,
+  HardDriveDownload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -47,7 +52,16 @@ import {
   readRoots,
   addRoot,
   removeRoot,
+  readFolderViaPicker,
+  readFolderFromFileList,
+  supportsDirectoryPicker,
+  importRootToBrain,
+  registerMemorySourceOnBrain,
+  exportBranchAsMd,
+  synthManifestFromFiles,
   type ConnectedRoot,
+  type RootFileContent,
+  type ImportReport,
 } from "@/lib/memory-sync/connect";
 
 // Iconos por tipo de rama (coherente con el lenguaje visual del Memory Hub).
@@ -119,12 +133,30 @@ function BranchesTable({ manifest }: { manifest: MemoryManifest }) {
   );
 }
 
-export function MemoryFolderConnect() {
+export function MemoryFolderConnect({
+  brainId = null,
+  brainName,
+  onImported,
+}: {
+  /** Si se pasa, habilita la IMPORTACIÓN REAL de la carpeta a este cerebro. */
+  brainId?: string | null;
+  brainName?: string;
+  /** Callback tras importar (para recargar la lista de memorias del cerebro). */
+  onImported?: () => void;
+} = {}) {
   // Entrada: URL o JSON pegado.
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Importación REAL de carpeta (File System Access API o subida) → brain_memory_files.
+  const [folderManifest, setFolderManifest] = useState<MemoryManifest | null>(null);
+  const [folderFiles, setFolderFiles] = useState<RootFileContent[]>([]);
+  const [reading, setReading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importReport, setImportReport] = useState<ImportReport | null>(null);
+  const uploadRef = useRef<HTMLInputElement | null>(null);
 
   // Vista previa del manifiesto parseado (antes de "Conectar").
   const [preview, setPreview] = useState<MemoryManifest | null>(null);
@@ -203,6 +235,67 @@ export function MemoryFolderConnect() {
     }
   }
 
+  // ── Importación REAL de carpeta → brain_memory_files (Adenda I2 · tarea 5) ──
+  function applyFolder(manifest: MemoryManifest | null, files: RootFileContent[]) {
+    const m = manifest ?? synthManifestFromFiles(files);
+    setFolderManifest(m);
+    setFolderFiles(files);
+    setImportReport(null);
+    if (!m.branches.length) setError("La carpeta no tiene manifest ni ficheros .md reconocibles.");
+  }
+
+  async function pickFolder() {
+    setReading(true);
+    setError(null);
+    try {
+      const { manifest, files } = await readFolderViaPicker();
+      applyFolder(manifest, files);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo leer la carpeta.");
+    } finally {
+      setReading(false);
+    }
+  }
+
+  async function onUploadFolder(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    setReading(true);
+    setError(null);
+    try {
+      const { manifest, files } = await readFolderFromFileList(list);
+      applyFolder(manifest, files);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo leer la carpeta.");
+    } finally {
+      setReading(false);
+      if (uploadRef.current) uploadRef.current.value = "";
+    }
+  }
+
+  async function doImport() {
+    if (!folderManifest) return;
+    setImporting(true);
+    setError(null);
+    try {
+      const report = await importRootToBrain(brainId, folderManifest, folderFiles);
+      setImportReport(report);
+      if (brainId) {
+        await registerMemorySourceOnBrain(brainId, {
+          name: folderManifest.name,
+          url: null,
+          branches: folderManifest.branches.length,
+          kind: "memory_root",
+        });
+      }
+      toast.success(`Importadas ${report.created + report.updated} rama(s): ${report.created} nuevas, ${report.updated} actualizadas, ${report.skipped} omitidas.`);
+      onImported?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo importar la carpeta.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <Card className="border-fuchsia-500/20 bg-black/20 p-0">
       <div className="p-4 space-y-4">
@@ -219,6 +312,74 @@ export function MemoryFolderConnect() {
               Vincula un <span className="font-mono">memory root</span> (su <span className="font-mono">memory.manifest.json</span>) y previsualiza qué se sincronizaría por memoria. No escribe en ninguna cuenta.
             </div>
           </div>
+        </div>
+
+        {/* IMPORTAR carpeta REAL → cerebro (Adenda I2 · tarea 5) */}
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/10 p-3 space-y-2">
+          <div className="text-[11px] text-emerald-100/90 flex items-center gap-1.5">
+            <HardDriveDownload className="w-3.5 h-3.5 text-emerald-300/80" />
+            Importar carpeta de memorias {brainId ? <>a <span className="font-semibold">{brainName || "este cerebro"}</span></> : "(dentro de un cerebro)"}
+          </div>
+          <div className="text-[10px] text-white/50">
+            Lee tu <span className="font-mono">memory root</span> del disco (con <span className="font-mono">memory.manifest.json</span> o solo .md) e importa cada rama como archivo de memoria del cerebro. Conflictos por <span className="font-mono">updated</span>: gana el más reciente. Escribe de verdad en <span className="font-mono">brain_memory_files</span>.
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {supportsDirectoryPicker() && (
+              <Button size="sm" variant="outline" className="gap-1.5 border-emerald-400/30 text-emerald-100 hover:bg-emerald-900/20" disabled={reading} onClick={pickFolder}>
+                {reading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />} Abrir carpeta…
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className="gap-1.5 border-cyan-400/30 text-cyan-100 hover:bg-cyan-900/20" disabled={reading} onClick={() => uploadRef.current?.click()}>
+              {reading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Subir carpeta
+            </Button>
+            <input
+              ref={uploadRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => onUploadFolder(e.target.files)}
+              {...({ webkitdirectory: "", directory: "" } as unknown as React.InputHTMLAttributes<HTMLInputElement>)}
+            />
+          </div>
+
+          {folderManifest && (
+            <div className="rounded-lg border border-white/10 bg-black/20 p-2.5 space-y-2">
+              <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                <ListTree className="w-3.5 h-3.5 text-emerald-300" />
+                <span className="font-semibold text-emerald-50">{folderManifest.name}</span>
+                <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-200/80">{folderManifest.branches.length} ramas</Badge>
+                <Badge variant="outline" className="text-[9px] border-white/15 text-white/55">{folderFiles.length} .md leídos</Badge>
+              </div>
+              <BranchesTable manifest={folderManifest} />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-500" disabled={importing || !brainId || folderManifest.branches.length === 0} onClick={doImport} title={brainId ? "Importa las ramas como archivos de memoria del cerebro" : "Disponible dentro de un cerebro"}>
+                  {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <HardDriveDownload className="w-3.5 h-3.5" />} Importar al cerebro
+                </Button>
+                {!brainId && <span className="text-[10px] text-amber-300/70">Disponible en el pilar Memoria de un cerebro.</span>}
+                {folderFiles.length > 0 && <span className="text-[10px] text-white/45 ml-1">Exportar rama:</span>}
+                {folderFiles.slice(0, 8).map((f) => (
+                  <button key={f.archivo} onClick={() => exportBranchAsMd(f.archivo, f.content)} className="text-[10px] inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-white/70 hover:bg-white/10" title={`Descargar ${f.archivo}`}>
+                    <Download className="w-2.5 h-2.5" /> {f.archivo.split("/").pop()}
+                  </button>
+                ))}
+              </div>
+              {importReport && (
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/10 p-2 text-[10px] text-white/70 space-y-1">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="text-[9px] border-emerald-400/40 text-emerald-200">+{importReport.created} creadas</Badge>
+                    <Badge variant="outline" className="text-[9px] border-cyan-400/40 text-cyan-200">~{importReport.updated} actualizadas</Badge>
+                    <Badge variant="outline" className="text-[9px] border-amber-400/40 text-amber-200">{importReport.skipped} omitidas</Badge>
+                  </div>
+                  {importReport.results.some((r) => r.status === "skipped-older" && r.diff) && (
+                    <div className="text-white/45">
+                      Conflictos (el archivo del cerebro era más reciente):{" "}
+                      {importReport.results.filter((r) => r.status === "skipped-older" && r.diff).map((r) => r.name).join(", ")}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Entrada: URL del manifiesto */}

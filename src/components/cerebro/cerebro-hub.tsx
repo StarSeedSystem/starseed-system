@@ -17,14 +17,14 @@
  * sistema de cerebros existente (brains) sin romper /cerebros.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { listBrains, saveBrain, type Brain } from "@/lib/brains/brains";
 import { useRealtimeRows } from "@/lib/realtime/realtime";
-import MemoriaPanel from "@/components/cerebro/memoria-panel";
+import MemoryViews, { type MemoryViewId, type MemoryListSub } from "@/components/cerebro/memory-views";
 import HabilidadesPanel from "@/components/cerebro/habilidades-panel";
 import ContextoPanel from "@/components/cerebro/contexto-panel";
 import NeuronasPanel from "@/components/cerebro/neuronas-panel";
@@ -109,11 +109,44 @@ export default function CerebroHub() {
   const [shareOpen, setShareOpen] = useState(false);
   // Enviar el cerebro activo a un destino (publicación/mensaje/entidad/librería/enlace).
   const [sendToOpen, setSendToOpen] = useState(false);
+  // Deep-link de la vista de Memoria (?tab=memoria&mview=3d&msub=hub&brain=…).
+  const [memView, setMemView] = useState<MemoryViewId>("lista");
+  const [memSub, setMemSub] = useState<MemoryListSub>("archivos");
 
   // Selecciona el primer cerebro al cargar.
   useEffect(() => {
     if (!activeBrainId && brains.length) setActiveBrainId(brains[0].id);
   }, [brains, activeBrainId]);
+
+  // Lee los query params una vez en cliente (preserva enlaces desde /memorias y /memorias-3d).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    const tab = p.get("tab");
+    if (tab && (["memoria", "habilidades", "contexto", "neuronas", "egos"] as string[]).includes(tab)) setPillar(tab as Pillar);
+    const mv = p.get("mview");
+    if (mv && (["lista", "2d", "3d", "fuentes"] as string[]).includes(mv)) setMemView(mv as MemoryViewId);
+    const ms = p.get("msub");
+    if (ms && (["archivos", "hub"] as string[]).includes(ms)) setMemSub(ms as MemoryListSub);
+    const b = p.get("brain");
+    if (b) setActiveBrainId(b);
+  }, []);
+
+  // Actualiza los query params al cambiar de sub-vista de Memoria (sin recargar).
+  const onMemViewChange = useCallback((view: MemoryViewId, sub: MemoryListSub) => {
+    setMemView(view);
+    setMemSub(sub);
+    if (typeof window === "undefined") return;
+    try {
+      const p = new URLSearchParams(window.location.search);
+      p.set("tab", "memoria");
+      p.set("mview", view);
+      p.set("msub", sub);
+      window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
+    } catch {
+      /* noop */
+    }
+  }, []);
 
   const activeBrain = brains.find((b) => b.id === activeBrainId) ?? null;
 
@@ -281,7 +314,15 @@ export default function CerebroHub() {
       {/* Neuronas son de la CUENTA (dispositivos), no requieren cerebro creado. */}
       {(brains.length > 0 || pillar === "neuronas") && (
         <div className="pt-1">
-          {pillar === "memoria" && brains.length > 0 && <MemoriaPanel brainId={activeBrainId} />}
+          {pillar === "memoria" && brains.length > 0 && (
+            <MemoryViews
+              brainId={activeBrainId}
+              brainName={activeBrain?.name}
+              initialView={memView}
+              initialSub={memSub}
+              onViewChange={onMemViewChange}
+            />
+          )}
           {pillar === "habilidades" && brains.length > 0 && (
             <HabilidadesPanel brainId={activeBrainId} brainName={activeBrain?.name} />
           )}

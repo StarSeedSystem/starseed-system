@@ -25,10 +25,13 @@ export const APP_CATALOG: StarseedApp[] = [
         accent: "#39FF14",
         category: "starseed",
         status: "live",
+        // El portal de MARCA StarSeed Nexus es un sitio EXTERNO propio. Antes
+        // abría vía la ruta interna `/nexus`, que ahora es solo un redirect a la
+        // pestaña «Nexus» de Astraura IA — algo distinto. Se abre por su URL real
+        // (ventana embebida con reserva a pestaña), como el resto de apps de marca.
         open: {
-            primary: "route",
-            allowed: ["route", "window", "tab"],
-            route: "/nexus",
+            primary: "window",
+            allowed: ["window", "tab"],
             href: "https://starseed-nexus.vercel.app",
             embeddable: true,
         },

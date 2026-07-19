@@ -107,6 +107,12 @@ export interface AuroraMessageMeta {
   reason?: string;
   /** Herramientas invocadas durante esta respuesta (nombre + resultado). */
   tools?: ToolInvocationMeta[];
+  /**
+   * Clase especial de mensaje (Adenda 71-ter): "config-change" marca un divisor
+   * sutil de "ajustes del chat actualizados". Aditivo; los mensajes normales no
+   * lo llevan.
+   */
+  kind?: string;
 }
 
 /** Una entrada del historial de conversación (para el chat-widget). */
@@ -1095,6 +1101,27 @@ export function useAuroraEngine(): AuroraEngine {
       // `forceSource` (opcional): "Reintentar" del menú contextual de mensajes
       // fuerza un proveedor/modelo concreto para ESTA llamada.
       // Timeout incrementado a 60s (Ollama puede tardar en cargar el modelo, o cloud ser lento)
+      // ── Conversación activa REAL (Adenda 71-ter · I1) ──────────────────────
+      // El orbe debe pasar chatId + chatConfig REALES de aurora_conversations
+      // para que la personalidad POR CHAT y la config del menú unificado (modelo
+      // fijado, skills, conexiones, sentidos, memorias) también gobiernen la voz.
+      // Si no hay conversación activa, se crea una (surface "orb"). Defensivo.
+      let orbChatId: string | undefined;
+      let orbChatConfig:
+        | { provider?: string | null; skills?: string[]; connections?: string[]; senses?: Record<string, boolean>; memoryScope?: string }
+        | undefined;
+      try {
+        const conv = await import("@/lib/aurora/conversations");
+        orbChatId = conv.getActiveConversationId() ?? undefined;
+        if (!orbChatId) {
+          const created = await conv.ensureActiveConversation({ surface: "orb", kind: "aurora" });
+          orbChatId = created.id;
+        }
+        const active = conv.cachedConversations().find((c) => c.id === orbChatId);
+        const cfg = (active?.meta as { config?: typeof orbChatConfig } | null | undefined)?.config;
+        if (cfg && typeof cfg === "object") orbChatConfig = cfg;
+      } catch { /* sin conversación: el router degrada a global */ }
+
       const abortCtrl = new AbortController();
       const timeoutId = setTimeout(() => abortCtrl.abort(), 60000);
 
@@ -1102,6 +1129,8 @@ export function useAuroraEngine(): AuroraEngine {
         messages,
         temperature,
         brainId: brainIdRef.current,
+        chatId: orbChatId,
+        chatConfig: orbChatConfig,
         onStatus: (s) => { if (s) setStatus(s); },
         forceSource: opts?.forceSource,
         signal: abortCtrl.signal,

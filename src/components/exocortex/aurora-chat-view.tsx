@@ -50,14 +50,17 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Button } from "@/components/ui/button";
 import { listPersonalityProfiles } from "@/lib/aurora/personalities";
 import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
+import { useAiConversations } from "@/lib/aurora/conversations";
+import { ConfigChangeNotice, isConfigChangeMessage } from "@/components/aurora/config-change-notice";
 
 // ── Tipos de props ───────────────────────────────────────────────────────────
 /** Un mensaje "en vivo" del motor (conversation lleva `.at`). */
 export interface LiveMessage {
-  role: "user" | "aurora";
+  /** 'system' = divisor sutil de "ajustes del chat actualizados" (config-change). */
+  role: "user" | "aurora" | "system";
   text: string;
   at?: number;
-  /** (Aditivo) Metadatos de proceso de esta respuesta — solo Aurora los lleva. */
+  /** (Aditivo) Metadatos de proceso de esta respuesta — solo Aurora los lleva. `meta.kind`='config-change' marca el divisor. */
   meta?: AuroraMessageMeta;
 }
 
@@ -518,18 +521,25 @@ function Conversation(props: {
           </div>
         </div>
       ) : (
-        visibleConvo.map((m, i) => (
+        visibleConvo.map((m, i) =>
+          isConfigChangeMessage(m.role, m.text, m.meta) ? (
+            <ConfigChangeNotice key={i} text={m.text} />
+          ) : (
           <div
             key={i}
             className={cn("axc-msg", m.role === "user" ? "user" : "aurora")}
             {...bind({
-              role: m.role,
+              // Los divisores 'system' ya se renderizan como ConfigChangeNotice
+              // arriba; aquí sólo llegan burbujas user/aurora. Estrechamos el tipo
+              // y excluimos 'system' del historial que va al modelo/ramificación.
+              role: m.role === "user" ? "user" : "aurora",
               text: m.text,
               ts: m.at ?? Date.now(),
               meta: m.meta,
               history: visibleConvo
                 .slice(0, i + 1)
-                .map((e) => ({ role: e.role, text: e.text, ts: e.at ?? 0 })),
+                .filter((e) => e.role !== "system")
+                .map((e) => ({ role: e.role === "user" ? "user" : "aurora", text: e.text, ts: e.at ?? 0 })),
             })}
           >
             <div className="axc-role">{m.role === "user" ? "Tú" : auroraName}</div>
@@ -552,11 +562,11 @@ function Conversation(props: {
                   <MessageRenderer text={displayText} compact={m.role === "user"} />
                   <MessageActionBar
                     payload={{
-                      role: m.role,
+                      role: m.role === "user" ? "user" : "aurora",
                       text: m.text,
                       ts: m.at ?? Date.now(),
                       meta: enhancedMeta,
-                      history: visibleConvo.slice(0, i + 1).map((e) => ({ role: e.role, text: e.text, ts: e.at ?? 0 })),
+                      history: visibleConvo.slice(0, i + 1).filter((e) => e.role !== "system").map((e) => ({ role: e.role === "user" ? "user" : "aurora", text: e.text, ts: e.at ?? 0 })),
                     }}
                     onBranchFromMessage={onBranchFromMessage}
                     onRetryMessage={onRetryMessage}
@@ -612,6 +622,12 @@ export function AuroraChatView(props: AuroraChatViewProps) {
 
   const [treeOpen, setTreeOpen] = useState(false);
   const activeCtx = tree.activeId ? tree.contextById(tree.activeId) : undefined;
+  // (Adenda 71-ter · fix convId) El menú de Opciones debe operar sobre la
+  // conversación REAL de aurora_conversations (id de aiChats), NO sobre el id
+  // del árbol de contextos LOCAL (tree.activeId), que provocaba que el menú
+  // apareciese desincronizado. Caemos al id del árbol sólo si no hay activa.
+  const aiChats = useAiConversations();
+  const realConvId = aiChats.activeId ?? tree.activeId ?? null;
 
   // Bloque conversación + entrada + transporte + acciones (reutilizado).
   const conversationBlock = (
@@ -794,7 +810,7 @@ export function AuroraChatView(props: AuroraChatViewProps) {
                 {activeCtx ? activeCtx.title : loadedSession ? (loadedSession.label ?? dayLabel(loadedSession.day)) : "Chat en vivo"}
               </div>
             </div>
-            <div className="flex-1 px-4"><ChatHeaderOptions context="exocortex" convId={tree.activeId ?? null} /></div>
+            <div className="flex-1 px-4"><ChatHeaderOptions context="exocortex" convId={realConvId} /></div>
             <RouteChip compact className="shrink-0" />
             {activeCtx && (
               <button
@@ -865,7 +881,7 @@ export function AuroraChatView(props: AuroraChatViewProps) {
             {activeCtx.title}
           </span>
         )}
-        <div className="flex-1 ml-4"><ChatHeaderOptions context="exocortex" convId={tree.activeId ?? null} /></div>
+        <div className="flex-1 ml-4"><ChatHeaderOptions context="exocortex" convId={realConvId} /></div>
         <RouteChip compact className="shrink-0" />
       </div>
 

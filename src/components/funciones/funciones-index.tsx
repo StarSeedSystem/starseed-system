@@ -83,7 +83,7 @@ const GROUPS: FeatureGroup[] = [
     icon: Sparkles,
     accent: "fuchsia",
     features: [
-      { label: "Chat Neural", route: "/agent", blurb: "Conversa con Astraura en tiempo real.", icon: MessageSquare },
+      { label: "Nexus", route: "/agent?tab=chat", blurb: "Conversa con Astraura en tiempo real — chats, carpetas y espacios.", icon: MessageSquare },
       { label: "Cerebro", route: "/agent?tab=cerebro", blurb: "El núcleo cognitivo de tu agente.", icon: Brain },
       { label: "Foundry", route: "/agent?tab=foundry", blurb: "Forja y entrena nuevos agentes.", icon: Hammer },
       { label: "Skills", route: "/agent?tab=skills", blurb: "Habilidades que Astraura puede invocar.", icon: Wand2 },

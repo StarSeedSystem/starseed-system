@@ -51,8 +51,9 @@ import {
 } from "@/lib/aurora/personalities";
 import styles from "./aurora-mini-player.module.css";
 import { ChatConfigMenu } from "./chat-config-menu";
+import { MiniPlayerOpenMenu } from "./mini-player-open-menu";
 import { useAiConversations } from "@/lib/aurora/conversations";
-import { Settings } from "lucide-react";
+import { Settings, FolderOpen } from "lucide-react";
 
 /** Inactividad tras la cual el reproductor resumido se retira solo. */
 const AUTOHIDE_MS = 10_000;
@@ -115,6 +116,8 @@ export function AuroraMiniPlayer({
   const [pickerOpen, setPickerOpen] = useState(false);
   const conv = useAiConversations();
   const [optsOpen, setOptsOpen] = useState(false);
+  // Selector compacto de chats/carpetas + cerebros + nuevo chat (Adenda 71-ter).
+  const [openMenuOpen, setOpenMenuOpen] = useState(false);
   const personalities = useMemo(() => listPersonalityProfiles(), []);
   // Personalidad activa: fuente de verdad = PersonalityProfile (localStorage),
   // que es lo que usa el puente Hermione. Reacciona al cambio en tiempo real.
@@ -574,6 +577,26 @@ export function AuroraMiniPlayer({
             <ChevronUp className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")} />
             <span className="text-[10px] font-medium">{expanded ? "Menos" : "Historial"}</span>
           </button>
+
+          {/* Abrir cualquier chat de cualquier carpeta · cerebros · nuevo chat. */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setOpenMenuOpen((v) => !v)}
+              title="Abrir chats, elegir cerebro o crear un chat nuevo"
+              aria-label="Chats y cerebros"
+              className={cn(styles.footBtn, styles.footBtnGhost)}
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-medium">Chats</span>
+            </button>
+            {openMenuOpen && typeof document !== "undefined" && createPortal(
+              <div className="fixed bottom-24 right-4 z-[9999] max-w-[92vw]">
+                <MiniPlayerOpenMenu onClose={() => setOpenMenuOpen(false)} />
+              </div>,
+              document.body,
+            )}
+          </div>
 
           <div className="relative">
             <button

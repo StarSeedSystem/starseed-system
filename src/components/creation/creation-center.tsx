@@ -44,15 +44,19 @@ import {
     Layers,
     Eye,
     Cpu,
+    Pencil,
     type LucideIcon,
 } from "lucide-react";
 
 // ── Áreas ────────────────────────────────────────────────────────────────────
 
-type AreaId = "lienzo" | "fragua" | "pizarras" | "publicar";
+type AreaId = "lienzo" | "editor" | "fragua" | "pizarras" | "publicar";
 
 const AREAS: Array<{ id: AreaId; label: string; desc: string; icon: LucideIcon }> = [
     { id: "lienzo", label: "Lienzo Universal", desc: "Publicaciones por bloques", icon: Sparkles },
+    // Editor Universal ENTRE «Lienzo Universal» y «Fragua de Widgets» (Adenda
+    // 71-ter · I3): mismo evento global que la cortina Trinity ('starseed:open-editor').
+    { id: "editor", label: "Editor Universal", desc: "Edita cualquier sección del OS", icon: Pencil },
     { id: "fragua", label: "Fragua de Widgets", desc: "Widgets generados con IA", icon: Hammer },
     { id: "pizarras", label: "Pizarras", desc: "Espacio de trabajo ilimitado", icon: Presentation },
     { id: "publicar", label: "Zona de Publicación", desc: "Publicar por contexto", icon: Send },
@@ -60,7 +64,7 @@ const AREAS: Array<{ id: AreaId; label: string; desc: string; icon: LucideIcon }
 
 function parseAreaParam(raw: string | null): AreaId {
     const k = (raw ?? "").trim().toLowerCase();
-    if (k === "fragua" || k === "pizarras" || k === "publicar" || k === "lienzo") return k;
+    if (k === "fragua" || k === "pizarras" || k === "publicar" || k === "lienzo" || k === "editor") return k;
     return "lienzo";
 }
 
@@ -144,6 +148,41 @@ function FraguaPanel() {
                         </Button>
                     </Link>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Editor Universal (dispara el host global 'starseed:open-editor') ──────────
+
+function EditorPanel() {
+    const openEditor = useCallback(() => {
+        if (typeof window === "undefined") return;
+        window.dispatchEvent(new CustomEvent("starseed:open-editor"));
+    }, []);
+
+    return (
+        <div className="mx-auto w-full max-w-3xl">
+            <div className="rounded-3xl border border-violet-500/25 bg-white/[0.04] backdrop-blur-xl p-5 sm:p-8 text-center space-y-5">
+                <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-600/30 border border-violet-400/30 flex items-center justify-center shadow-[0_0_25px_rgba(139,92,246,0.25)]">
+                    <Pencil className="w-7 h-7 text-violet-200" />
+                </div>
+                <div>
+                    <h3 className="text-xl font-light text-white">Editor Universal</h3>
+                    <p className="text-sm text-white/45 mt-1 max-w-md mx-auto">
+                        La puerta única para editar cualquier sección del OS: diseño y
+                        estilos, disposición, funcionamiento, con IA o con código, e
+                        importar desde la Biblioteca.
+                    </p>
+                </div>
+                <Button
+                    size="lg"
+                    onClick={openEditor}
+                    className="cursor-pointer gap-2 rounded-2xl bg-violet-500/25 border border-violet-400/40 text-violet-100 hover:bg-violet-500/35 transition-all duration-200 shadow-[0_0_20px_rgba(139,92,246,0.15)] w-full sm:w-auto min-h-[44px]"
+                >
+                    <Pencil className="w-4 h-4" />
+                    Abrir el Editor Universal
+                </Button>
             </div>
         </div>
     );
@@ -243,7 +282,7 @@ export function CreationCenter() {
             </header>
 
             {/* Pestañas de áreas */}
-            <nav className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <nav className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                 {AREAS.map((a) => {
                     const Icon = a.icon;
                     const active = area === a.id;
@@ -272,6 +311,7 @@ export function CreationCenter() {
             {/* Área activa */}
             <div className="min-h-[320px]">
                 {area === "lienzo" && <LienzoComposer initialDest={dest ?? undefined} initialGeo={initialGeo ?? undefined} />}
+                {area === "editor" && <EditorPanel />}
                 {area === "fragua" && <FraguaPanel />}
                 {area === "pizarras" && <PizarrasPanel />}
                 {area === "publicar" && <QuickPublisher initialDest={dest ?? undefined} />}

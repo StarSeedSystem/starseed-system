@@ -7,11 +7,12 @@
  * Sincronizado en tiempo real (tabla en supabase_realtime).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { FolderPlus, Folder, Check } from "lucide-react";
+import { useChatFolders } from "@/lib/aurora/chat-folders-store";
 
 export function ChatFolders({
   activeConvId,
@@ -22,30 +23,18 @@ export function ChatFolders({
   folder?: string | null;
   onPick: (folder: string | null) => void;
 }) {
-  const [folders, setFolders] = useState<string[]>([]);
+  // Almacén compartido y EN VIVO (Adenda 71-ter · I1): las carpetas creadas en
+  // cualquier superficie aparecen aquí al instante (postgres_changes + broadcast).
+  const { folders: folderObjs, create: createFolder } = useChatFolders();
+  const folders = folderObjs.map((f) => f.name);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-
-  const load = useCallback(async () => {
-    try {
-      const sb = createClient();
-      const { data } = await sb.from("aurora_chat_folders").select("name").order("position");
-      setFolders((data || []).map((f: any) => f.name));
-    } catch { /* */ }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   const create = async () => {
     const n = name.trim();
     if (!n) return;
-    try {
-      const sb = createClient();
-      const { data: u } = await sb.auth.getUser();
-      if (!u.user) return;
-      await sb.from("aurora_chat_folders").insert({ user_id: u.user.id, name: n, position: folders.length });
-      setName(""); setCreating(false); await load();
-    } catch { /* */ }
+    await createFolder(n);
+    setName(""); setCreating(false);
   };
 
   const assign = async (f: string | null) => {

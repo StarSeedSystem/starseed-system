@@ -83,6 +83,9 @@ import {
 } from "@/lib/aurora/personalities";
 import { saveItem, listLibrary, type SavedItem } from "@/lib/library/entity-library";
 import { currentUserRef } from "@/lib/sync/entity-state";
+// (Adenda 71-ter · I3) La función «Probar voz» de la antigua pestaña «Voz» del
+// Exocórtex se trasladó AQUÍ: cada personalidad prueba su propio estilo de voz.
+import { speakAurora } from "@/lib/aurora/open-aurora";
 
 /* ── Opciones curadas para los selects (el valor actual se añade si falta) ── */
 
@@ -1036,6 +1039,21 @@ function PersonalityEditor({
                 aria-label="Energía"
               />
             </div>
+            {/* Probar voz — aplica el estilo de ESTA personalidad y la hace hablar
+                (misma función que tenía la antigua pestaña «Voz», ahora por perfil). */}
+            <button
+              type="button"
+              className={cn(btnAzure, "min-h-[44px] justify-center")}
+              onClick={() => {
+                try {
+                  emitVoiceStyleForProfile(normalizePersonalityProfile(draft));
+                  speakAurora(`Hola, soy ${draft.name || "tu Exocórtex"}. Así suena mi voz.`);
+                } catch { /* voz no disponible: sin efecto */ }
+              }}
+              title="Escuchar cómo suena esta personalidad con su estilo de voz"
+            >
+              <ProfileIcon name="Volume2" className="h-3.5 w-3.5" /> Probar voz
+            </button>
           </AccordionContent>
         </AccordionItem>
 

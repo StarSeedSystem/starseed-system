@@ -436,6 +436,8 @@ export interface CreateConversationOptions {
   surface?: AiSurface;
   source?: string | null;
   model?: string | null;
+  /** Carpeta de chat destino (Adenda 71-ter). null/undefined = sin carpeta ("Todos"). */
+  folder?: string | null;
 }
 
 /**
@@ -455,6 +457,7 @@ export async function createConversation(opts: CreateConversationOptions = {}): 
     model: opts.model ?? null,
     surface: opts.surface ?? "orb",
     profileKey,
+    folder: opts.folder ?? null,
     createdAt: now,
     updatedAt: now,
   };
@@ -477,6 +480,7 @@ export async function createConversation(opts: CreateConversationOptions = {}): 
           source: local.source,
           model: local.model,
           surface: local.surface,
+          folder: local.folder ?? null,
         })
         .select("id,title,kind,persona,source,model,surface,profile_key,archived,folder,meta,created_at,updated_at")
         .single();

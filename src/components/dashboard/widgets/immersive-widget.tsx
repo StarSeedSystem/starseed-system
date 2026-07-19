@@ -73,7 +73,7 @@ export function ImmersiveWidget() {
             connections={[
                 { label: 'Audiomorphic', href: '/immersive', color: '#A855F7' },
                 { label: 'Omnifrecuencias', href: '/omnifrecuencias', color: '#22D3EE' },
-                { label: 'Nexus', href: '/nexus', color: '#39FF14' },
+                { label: 'Nexus', href: 'https://starseed-nexus.vercel.app', color: '#39FF14' },
             ]}
         >
             {(size) => {

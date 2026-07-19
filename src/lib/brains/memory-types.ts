@@ -62,6 +62,45 @@ import {
 /** Id de tipo de memoria. Extensible: cualquier string registrado vale. */
 export type MemoryTypeId = string;
 
+/**
+ * Taxonomía COGNITIVA transversal (jul-2026). Mapea cada tipo de memoria a una
+ * de las 8 categorías cognitivas usadas por el grafo semántico
+ * (src/components/exocortex/exocortex-brain.tsx KIND_LABEL y
+ * src/data/starseed-memory-graph.json). Es un EJE ORTOGONAL al `id` de tipo:
+ * varios tipos (memory, knowledge…) comparten un mismo `cognitiveKind`
+ * (semantic). Sirve de filtro extra en el Hub y las vistas 2D/3D.
+ */
+export type CognitiveKind =
+  | "identity"
+  | "semantic"
+  | "episodic"
+  | "procedural"
+  | "project"
+  | "reference"
+  | "account"
+  | "feedback";
+
+/** Etiquetas es-ES de la taxonomía cognitiva (idénticas a exocortex-brain.tsx). */
+export const COGNITIVE_KINDS: Record<CognitiveKind, { label: string; color: string; blurb: string }> = {
+  identity:   { label: "Identidad",  color: "#c084fc", blurb: "Quién es: alma, ego, valores y reglas." },
+  semantic:   { label: "Semántica",  color: "#38bdf8", blurb: "Hechos, conocimiento y significados." },
+  episodic:   { label: "Episódica",  color: "#94a3b8", blurb: "Eventos, bitácoras y traspasos en el tiempo." },
+  procedural: { label: "Procedural", color: "#fbbf24", blurb: "Cómo hacer: skills, agentes, funciones, MCPs." },
+  project:    { label: "Proyecto",   color: "#818cf8", blurb: "Objetivos, tareas, sueños e ideas en gestación." },
+  reference:  { label: "Referencia", color: "#2dd4bf", blurb: "Contexto, configs, APIs y material de consulta." },
+  account:    { label: "Cuenta",     color: "#4ade80", blurb: "Perfiles y datos de cuenta." },
+  feedback:   { label: "Feedback",   color: "#f472b6", blurb: "Correcciones y aprendizajes del usuario." },
+};
+
+/** Lista ordenada de ids cognitivos (para selects/filtros). */
+export const COGNITIVE_KIND_IDS: CognitiveKind[] = Object.keys(COGNITIVE_KINDS) as CognitiveKind[];
+
+/** Etiqueta legible de un id cognitivo (cae al propio id si no existe). */
+export function cognitiveKindLabel(id: string | null | undefined): string {
+  if (!id) return "—";
+  return COGNITIVE_KINDS[id as CognitiveKind]?.label ?? id;
+}
+
 export interface MemoryTypeDef {
   id: MemoryTypeId;
   label: string;
@@ -73,6 +112,8 @@ export interface MemoryTypeDef {
   defaultFile: string;
   /** ¿Es uno de los 5 tipos "núcleo" ya sembrados por ensureSeedFiles()? */
   core?: boolean;
+  /** Categoría cognitiva transversal (taxonomía de 8) a la que pertenece. */
+  cognitiveKind?: CognitiveKind;
 }
 
 /* ------------------------------------------------------------------ */
@@ -80,37 +121,37 @@ export interface MemoryTypeDef {
 /* ------------------------------------------------------------------ */
 
 const BUILTIN_TYPES: MemoryTypeDef[] = [
-  { id: "memory", label: "Memoria", blurb: "Hechos/estado genéricos (fallback).", icon: FileText, color: "#38bdf8", defaultFile: "memory.md", core: true },
-  { id: "ego", label: "Ego", blurb: "Configuración/identidad de Aurora.", icon: Bot, color: "#f0abfc", defaultFile: "ego.md" },
-  { id: "soul", label: "Alma", blurb: "Identidad, valores y reglas del cerebro.", icon: Sparkles, color: "#c084fc", defaultFile: "soul.md", core: true },
-  { id: "dream", label: "Sueños", blurb: "Objetivos e ideas en gestación.", icon: Moon, color: "#818cf8", defaultFile: "dream.md", core: true },
-  { id: "imagine", label: "Imaginación", blurb: "Ideas especulativas / brainstorming.", icon: Wand2, color: "#e879f9", defaultFile: "imagine.md" },
-  { id: "style", label: "Estilo", blurb: "Sistema de diseño / preferencias visuales.", icon: Paintbrush, color: "#fb7185", defaultFile: "style.md" },
-  { id: "reminders", label: "Recordatorios", blurb: "Recordatorios y tareas con fecha.", icon: Bell, color: "#fcd34d", defaultFile: "reminders.md" },
-  { id: "knowledge", label: "Conocimiento", blurb: "Conocimiento consolidado / aprendizajes.", icon: BookOpen, color: "#60a5fa", defaultFile: "knowledge.md" },
-  { id: "contexts", label: "Contextos", blurb: "Contexto de sesión/situación.", icon: Layers, color: "#2dd4bf", defaultFile: "contexts.md" },
-  { id: "skills", label: "Habilidades", blurb: "Catálogo de habilidades del cerebro.", icon: Wrench, color: "#fbbf24", defaultFile: "skills.md", core: true },
-  { id: "plugins", label: "Plugins", blurb: "Plugins/MCPs instalados y su config.", icon: Puzzle, color: "#a78bfa", defaultFile: "plugins.md" },
-  { id: "apis", label: "APIs", blurb: "APIs y conexiones (claves por referencia).", icon: Plug, color: "#34d399", defaultFile: "apis.md", core: true },
-  { id: "designs", label: "Diseños", blurb: "Diseños/mockups referenciados.", icon: Palette, color: "#f472b6", defaultFile: "designs.md" },
-  { id: "mcps", label: "MCPs", blurb: "Servidores MCP conectados.", icon: Cable, color: "#22d3ee", defaultFile: "mcps.md" },
-  { id: "logs", label: "Registros", blurb: "Bitácora de eventos del sistema.", icon: ScrollText, color: "#94a3b8", defaultFile: "logs.md" },
-  { id: "ui", label: "Interfaz", blurb: "Preferencias de interfaz.", icon: LayoutGrid, color: "#7dd3fc", defaultFile: "ui.md" },
-  { id: "handoff", label: "Traspaso", blurb: "Traspasos de contexto entre sesiones/agentes.", icon: Send, color: "#fdba74", defaultFile: "handoff.md" },
-  { id: "profiles", label: "Perfiles", blurb: "Perfiles de cuenta relevantes.", icon: Users, color: "#4ade80", defaultFile: "profiles.md" },
-  { id: "agents", label: "Agentes", blurb: "Agentes configurados.", icon: Bot, color: "#fb923c", defaultFile: "agents.md" },
-  { id: "pages", label: "Páginas", blurb: "Páginas/entidades relevantes.", icon: FileCode, color: "#c4b5fd", defaultFile: "pages.md" },
-  { id: "functions", label: "Funciones", blurb: "Funciones/acciones definidas.", icon: Braces, color: "#93c5fd", defaultFile: "functions.md" },
-  { id: "configs", label: "Configuraciones", blurb: "Configuraciones técnicas.", icon: Settings, color: "#a3a3a3", defaultFile: "configs.md" },
-  { id: "preferences", label: "Preferencias", blurb: "Preferencias de usuario.", icon: Settings, color: "#d4d4d8", defaultFile: "preferences.md" },
-  { id: "dashboards", label: "Dashboards", blurb: "Dashboards guardados.", icon: LayoutDashboard, color: "#5eead4", defaultFile: "dashboards.md" },
-  { id: "desktops", label: "Escritorios", blurb: "Escritorios guardados.", icon: MonitorSmartphone, color: "#fda4af", defaultFile: "desktops.md" },
-  { id: "whiteboard", label: "Pizarra blanca", blurb: "Pizarras (contenido/enlaces).", icon: PenSquare, color: "#fef08a", defaultFile: "whiteboard.md" },
-  { id: "blackboard", label: "Pizarra negra", blurb: "Notas de pizarra oficial/lectura.", icon: Presentation, color: "#d6d3d1", defaultFile: "blackboard.md" },
-  { id: "web", label: "Web", blurb: "Referencias web relevantes.", icon: Globe, color: "#67e8f9", defaultFile: "web.md" },
-  { id: "browser", label: "Navegador", blurb: "Contexto de navegación.", icon: Compass, color: "#86efac", defaultFile: "browser.md" },
-  { id: "apps", label: "Apps", blurb: "Apps generadas/instaladas relevantes.", icon: AppWindow, color: "#fdba74", defaultFile: "apps.md" },
-  { id: "widgets", label: "Widgets", blurb: "Widgets configurados.", icon: Component, color: "#fbcfe8", defaultFile: "widgets.md" },
+  { id: "memory", label: "Memoria", blurb: "Hechos/estado genéricos (fallback).", icon: FileText, color: "#38bdf8", defaultFile: "memory.md", core: true, cognitiveKind: "semantic" },
+  { id: "ego", label: "Ego", blurb: "Configuración/identidad de Aurora.", icon: Bot, color: "#f0abfc", defaultFile: "ego.md", cognitiveKind: "identity" },
+  { id: "soul", label: "Alma", blurb: "Identidad, valores y reglas del cerebro.", icon: Sparkles, color: "#c084fc", defaultFile: "soul.md", core: true, cognitiveKind: "identity" },
+  { id: "dream", label: "Sueños", blurb: "Objetivos e ideas en gestación.", icon: Moon, color: "#818cf8", defaultFile: "dream.md", core: true, cognitiveKind: "project" },
+  { id: "imagine", label: "Imaginación", blurb: "Ideas especulativas / brainstorming.", icon: Wand2, color: "#e879f9", defaultFile: "imagine.md", cognitiveKind: "project" },
+  { id: "style", label: "Estilo", blurb: "Sistema de diseño / preferencias visuales.", icon: Paintbrush, color: "#fb7185", defaultFile: "style.md", cognitiveKind: "reference" },
+  { id: "reminders", label: "Recordatorios", blurb: "Recordatorios y tareas con fecha.", icon: Bell, color: "#fcd34d", defaultFile: "reminders.md", cognitiveKind: "project" },
+  { id: "knowledge", label: "Conocimiento", blurb: "Conocimiento consolidado / aprendizajes.", icon: BookOpen, color: "#60a5fa", defaultFile: "knowledge.md", cognitiveKind: "semantic" },
+  { id: "contexts", label: "Contextos", blurb: "Contexto de sesión/situación.", icon: Layers, color: "#2dd4bf", defaultFile: "contexts.md", cognitiveKind: "reference" },
+  { id: "skills", label: "Habilidades", blurb: "Catálogo de habilidades del cerebro.", icon: Wrench, color: "#fbbf24", defaultFile: "skills.md", core: true, cognitiveKind: "procedural" },
+  { id: "plugins", label: "Plugins", blurb: "Plugins/MCPs instalados y su config.", icon: Puzzle, color: "#a78bfa", defaultFile: "plugins.md", cognitiveKind: "procedural" },
+  { id: "apis", label: "APIs", blurb: "APIs y conexiones (claves por referencia).", icon: Plug, color: "#34d399", defaultFile: "apis.md", core: true, cognitiveKind: "reference" },
+  { id: "designs", label: "Diseños", blurb: "Diseños/mockups referenciados.", icon: Palette, color: "#f472b6", defaultFile: "designs.md", cognitiveKind: "reference" },
+  { id: "mcps", label: "MCPs", blurb: "Servidores MCP conectados.", icon: Cable, color: "#22d3ee", defaultFile: "mcps.md", cognitiveKind: "procedural" },
+  { id: "logs", label: "Registros", blurb: "Bitácora de eventos del sistema.", icon: ScrollText, color: "#94a3b8", defaultFile: "logs.md", cognitiveKind: "episodic" },
+  { id: "ui", label: "Interfaz", blurb: "Preferencias de interfaz.", icon: LayoutGrid, color: "#7dd3fc", defaultFile: "ui.md", cognitiveKind: "reference" },
+  { id: "handoff", label: "Traspaso", blurb: "Traspasos de contexto entre sesiones/agentes.", icon: Send, color: "#fdba74", defaultFile: "handoff.md", cognitiveKind: "episodic" },
+  { id: "profiles", label: "Perfiles", blurb: "Perfiles de cuenta relevantes.", icon: Users, color: "#4ade80", defaultFile: "profiles.md", cognitiveKind: "account" },
+  { id: "agents", label: "Agentes", blurb: "Agentes configurados.", icon: Bot, color: "#fb923c", defaultFile: "agents.md", cognitiveKind: "procedural" },
+  { id: "pages", label: "Páginas", blurb: "Páginas/entidades relevantes.", icon: FileCode, color: "#c4b5fd", defaultFile: "pages.md", cognitiveKind: "reference" },
+  { id: "functions", label: "Funciones", blurb: "Funciones/acciones definidas.", icon: Braces, color: "#93c5fd", defaultFile: "functions.md", cognitiveKind: "procedural" },
+  { id: "configs", label: "Configuraciones", blurb: "Configuraciones técnicas.", icon: Settings, color: "#a3a3a3", defaultFile: "configs.md", cognitiveKind: "reference" },
+  { id: "preferences", label: "Preferencias", blurb: "Preferencias de usuario.", icon: Settings, color: "#d4d4d8", defaultFile: "preferences.md", cognitiveKind: "reference" },
+  { id: "dashboards", label: "Dashboards", blurb: "Dashboards guardados.", icon: LayoutDashboard, color: "#5eead4", defaultFile: "dashboards.md", cognitiveKind: "reference" },
+  { id: "desktops", label: "Escritorios", blurb: "Escritorios guardados.", icon: MonitorSmartphone, color: "#fda4af", defaultFile: "desktops.md", cognitiveKind: "reference" },
+  { id: "whiteboard", label: "Pizarra blanca", blurb: "Pizarras (contenido/enlaces).", icon: PenSquare, color: "#fef08a", defaultFile: "whiteboard.md", cognitiveKind: "project" },
+  { id: "blackboard", label: "Pizarra negra", blurb: "Notas de pizarra oficial/lectura.", icon: Presentation, color: "#d6d3d1", defaultFile: "blackboard.md", cognitiveKind: "reference" },
+  { id: "web", label: "Web", blurb: "Referencias web relevantes.", icon: Globe, color: "#67e8f9", defaultFile: "web.md", cognitiveKind: "reference" },
+  { id: "browser", label: "Navegador", blurb: "Contexto de navegación.", icon: Compass, color: "#86efac", defaultFile: "browser.md", cognitiveKind: "episodic" },
+  { id: "apps", label: "Apps", blurb: "Apps generadas/instaladas relevantes.", icon: AppWindow, color: "#fdba74", defaultFile: "apps.md", cognitiveKind: "reference" },
+  { id: "widgets", label: "Widgets", blurb: "Widgets configurados.", icon: Component, color: "#fbcfe8", defaultFile: "widgets.md", cognitiveKind: "reference" },
 ];
 
 /** Registro mutable (BUILTIN_TYPES + tipos custom registrados en caliente). */
@@ -143,6 +184,55 @@ export function memoryTypeById(id: string | null | undefined): MemoryTypeDef {
 /** Ids válidos del catálogo actual (para validar selects/formularios). */
 export function memoryTypeIds(): string[] {
   return Array.from(REGISTRY.keys());
+}
+
+/**
+ * Mapa de respaldo para los `kinds` que usa el Memory Hub (tabla `memories`) y
+ * que NO son ids de tipo del registro (md, 3d, tokens, connections, mcp…).
+ */
+const HUB_KIND_TO_COGNITIVE: Record<string, CognitiveKind> = {
+  md: "semantic",
+  "3d": "reference",
+  tokens: "reference",
+  connections: "reference",
+  mcp: "procedural",
+  apis: "reference",
+  skills: "procedural",
+  plugins: "procedural",
+  soul: "identity",
+  ego: "identity",
+  dream: "project",
+  memory: "semantic",
+};
+
+/**
+ * Categoría cognitiva de un tipo/kind: (1) `cognitiveKind` del tipo registrado,
+ * (2) mapa del Hub, (3) fallback "semantic". Nunca lanza.
+ */
+export function cognitiveKindOf(typeOrKind: string | null | undefined): CognitiveKind {
+  try {
+    if (!typeOrKind) return "semantic";
+    const def = REGISTRY.get(typeOrKind);
+    if (def?.cognitiveKind) return def.cognitiveKind;
+    if (HUB_KIND_TO_COGNITIVE[typeOrKind]) return HUB_KIND_TO_COGNITIVE[typeOrKind];
+    return "semantic";
+  } catch {
+    return "semantic";
+  }
+}
+
+/**
+ * Categoría cognitiva de una memoria del Hub por su lista de `kinds[]`: usa el
+ * primer kind reconocido; si ninguno, "semantic".
+ */
+export function cognitiveKindOfKinds(kinds: string[] | null | undefined): CognitiveKind {
+  if (!Array.isArray(kinds) || kinds.length === 0) return "semantic";
+  for (const k of kinds) {
+    const def = REGISTRY.get(k);
+    if (def?.cognitiveKind) return def.cognitiveKind;
+    if (HUB_KIND_TO_COGNITIVE[k]) return HUB_KIND_TO_COGNITIVE[k];
+  }
+  return "semantic";
 }
 
 /* ------------------------------------------------------------------ */

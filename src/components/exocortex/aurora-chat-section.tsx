@@ -5,16 +5,16 @@
  * ----------------------------------------------------------------------------
  * TODO el sistema de chats y funciones de Aurora dentro del Exocórtex:
  *
- *   · Chat completo (burbujas, entrada, envío) + registro de acciones en vivo.
- *   · Transporte de voz (reproducir/pausar, interrumpir, saltar adelante/atrás)
- *     y estado hablando/escuchando, con "Voz no disponible · Reintentar"
- *     alimentado por el supervisor del provider (voiceUnavailable/retryVoice).
- *   · Selector de personalidad + toggle "Aurora activa".
- *   · Configuraciones del widget reutilizadas TAL CUAL (importadas, no editadas):
- *     AuroraControlPanel (sentidos) y AuroraMultichatPanel (sesiones paralelas).
- *   · Pestaña "Registro": TODA la conversación (voz y texto) persistida en
- *     localStorage por `aurora-chat-log.ts`, en sesiones por día con resumen,
- *     ver/limpiar/exportar (JSON y Markdown).
+ *   · Chat completo (burbujas, entrada, envío) por el PIPELINE COMPARTIDO
+ *     `sendAuroraTurn` (voz + personalidad + acciones + config del chat, el mismo
+ *     de la orbe) + registro de acciones en vivo.
+ *   · Menú superior INTERNO (Adenda 71-ter · I3): selector de Cerebro, Opciones
+ *     del chat (convId real) e iconos compactos (Cerebro 3D, Pantalla, Espacios).
+ *   · Pestañas: Folders (carpetas→chats en tiempo real), Chat, Control,
+ *     Personalidades (incluye el estilo/prueba de voz), Sentidos (panel REAL) y
+ *     Registro. Se retiraron «Chats» (integrado en Folders) y «Voz».
+ *   · Pestaña "Registro": TODA la conversación persistida en `aurora-chat-log.ts`,
+ *     en sesiones por día con resumen, ver/limpiar/exportar (JSON y Markdown).
  *   · Guía contextual "¿Qué puedo hacer aquí?" según la ruta (usePathname).
  *   · Botones "Abrir sección completa" (/aurora) y "Reactivar orbe"
  *     (setOrbHidden(false) del bus del orbe).
@@ -34,17 +34,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
-  AlertTriangle, Bot, ChevronDown, Compass, Drama, ExternalLink, FileJson,
-  FileText, FolderTree, GitBranch, History, Layers, ListChecks, Maximize2,
-  MessageSquare, Mic, MicOff, Orbit, Pause, Play, Plus, Power, RefreshCw,
-  ScrollText, Search, Send, SkipBack, SkipForward, SlidersHorizontal, Sparkles,
-  Square, Trash2, Volume2, Wand2,
+  AlertTriangle, Bot, Brain as BrainIcon, Check, ChevronDown, ChevronRight, Compass,
+  Drama, ExternalLink, Eye, FileJson, FileText, FolderOpen, FolderTree,
+  History, Layers, Maximize2, Minimize2, MessageSquare, Mic, MicOff,
+  Orbit, Plus, RefreshCw, ScrollText, Search, Send,
+  SlidersHorizontal, Sparkles, Trash2, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AuroraMultichatPanel } from "@/components/aurora/aurora-multichat-panel";
+import { useFullscreen } from "@/hooks/useFullscreen";
 import { AuroraControlPanel } from "@/components/aurora/aurora-control-panel";
 import { PersonalitiesPanel } from "@/components/aurora/personalities-panel";
+import SensesPanel from "@/components/senses/senses-panel";
 import { registerActiveAuroraChat } from "@/lib/aurora/personalities";
+// Pipeline COMPARTIDO de turno (voz + personalidad + acciones + config del chat),
+// el mismo que usa la orbe. El chat del Exocórtex lo usa en doSend (Adenda 71-ter).
+import { sendAuroraTurn, resolveTurnPersona } from "@/lib/aurora/turn";
+// Carpetas de chat en tiempo real + selector de cerebro por contexto.
+import { useChatFolders } from "@/lib/aurora/chat-folders-store";
+import { listBrains, getSelection, selectBrainForContext, type Brain } from "@/lib/brains/brains";
+import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
 import { AuroraAlwaysOn } from "@/components/exocortex/aurora-always-on";
 import { AuroraChatView, type LiveMessage } from "@/components/exocortex/aurora-chat-view";
 import { AuroraChatFullscreen } from "@/components/exocortex/aurora-chat-fullscreen";
@@ -52,12 +60,10 @@ import { AuroraChatExplorer } from "@/components/exocortex/aurora-chat-explorer"
 import { AuroraAvatar } from "@/components/aurora/aurora-avatar";
 import type { CatalogChat } from "@/lib/aurora/chat-catalog";
 import { useAurora } from "@/components/aurora/aurora-provider";
-import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
 import {
   getAuroraBridge,
   getAuroraState,
   subscribeAurora,
-  sendToAurora,
   speakAurora,
   toggleAuroraVoice,
   setAuroraEnabled,
@@ -91,7 +97,9 @@ import {
 } from "@/lib/aurora/conversations";
 
 // ── Tipos locales ────────────────────────────────────────────────────────────
-type Tab = "folder" | "chat" | "chats" | "voz" | "control" | "personalidad" | "registro";
+// (Adenda 71-ter · I3) Se quitaron "chats" (multichat, integrado en Folders) y
+// "voz" (sus ajustes viven en Personalidades). Se añadió "sentidos" (panel real).
+type Tab = "folder" | "chat" | "control" | "personalidad" | "sentidos" | "registro";
 
 /** El puente v4 añade voiceUnavailable a la instantánea (aditivo). */
 type SnapshotPlus = AuroraStateSnapshot & { voiceUnavailable?: boolean };
@@ -380,6 +388,22 @@ const AXC_CSS = `
 @media (min-width:768px){ .axc-view-tree{display:block;} }
 .axc-view-main{min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px;}
 .axc-view-mainhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+/* ── Menú superior interno del Exocórtex: Cerebro · Opciones · iconos ── */
+.axc-tools{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.axc-tool{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:7px 12px;border-radius:13px;cursor:pointer;
+  font-size:11px;font-weight:600;border:1px solid rgba(148,163,184,.18);background:rgba(148,163,184,.07);color:rgba(226,232,240,.85);
+  transition:transform .16s ease, background .2s, border-color .2s, color .2s;}
+.axc-tool:hover{color:#fff;background:rgba(0,127,255,.16);border-color:rgba(0,127,255,.4);transform:translateY(-1px);}
+.axc-tool:active{transform:scale(.97);}
+.axc-toolico{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;cursor:pointer;flex:none;
+  border:1px solid rgba(148,163,184,.16);background:rgba(148,163,184,.06);color:rgba(226,232,240,.8);
+  transition:transform .16s ease, background .2s, color .2s, border-color .2s;}
+.axc-toolico:hover{color:#fff;background:rgba(0,127,255,.18);border-color:rgba(0,127,255,.4);transform:translateY(-1px);}
+.axc-toolico:active{transform:scale(.94);}
+.axc-toolico.on{color:#101728;border-color:transparent;background:linear-gradient(135deg,#39FF14,#007FFF);}
+.axc-toolmenu{position:absolute;left:0;top:calc(100% + 6px);z-index:40;width:16rem;max-width:82vw;border-radius:16px;
+  border:1px solid rgba(0,127,255,.32);background:rgba(5,8,14,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  box-shadow:0 24px 60px rgba(0,0,0,.6);padding:6px;}
 @media (prefers-reduced-motion: reduce){
   .axc-orb,.axc-live .dot,.axc-msg{animation:none !important;}
   .axc-chip,.axc-btn,.axc-send,.axc-tbtn,.axc-switch .knob,.axc-msg,.axc-mic{transition:none !important;}
@@ -493,6 +517,154 @@ function CloudConversations({ onOpen }: { onOpen: (c: AiConversation) => void })
   );
 }
 
+// ── Selector de CEREBRO del menú interno (Adenda 71-ter · I3) ────────────────
+/**
+ * Selector de cerebros del perfil, sincronizado con la orbe y la sección de
+ * cerebros vía `selectBrainForContext`/`listBrains` (contexto "global") — mismo
+ * patrón que `MiniPlayerOpenMenu`. Reemplaza al viejo botón "Cerebro" de la
+ * cabecera de la ventana (que abría el visor 3D; ese queda en un icono compacto).
+ */
+function BrainSelector() {
+  const [open, setOpen] = useState(false);
+  const [brains, setBrains] = useState<Brain[]>([]);
+  const [brainId, setBrainId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try { const bs = await listBrains(); if (alive) setBrains(bs); } catch { /* */ }
+      try { const sel = await getSelection("global", null); if (alive) setBrainId(sel?.brain_id ?? null); } catch { /* */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const pick = useCallback(async (b: Brain) => {
+    setBrainId(b.id);
+    setOpen(false);
+    try { await selectBrainForContext("global", null, b.id, (b.servers || []).map((s) => s.id)); } catch { /* */ }
+  }, []);
+
+  const activeName = brains.find((b) => b.id === brainId)?.name || "Cerebro";
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="axc-tool"
+        title="Cerebro activo del perfil (se sincroniza con la orbe y la sección de cerebros)"
+        aria-expanded={open}
+      >
+        <BrainIcon className="h-3.5 w-3.5 text-[#7fb8ff]" />
+        <span className="max-w-[9rem] truncate">{activeName}</span>
+        <ChevronDown className={cn("h-3 w-3 opacity-60 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="axc-toolmenu" onMouseLeave={() => setOpen(false)}>
+          <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-white/35">Cerebro del perfil</div>
+          {brains.length === 0 ? (
+            <div className="px-2 py-2 text-[11px] text-white/35">No hay cerebros en este perfil.</div>
+          ) : (
+            <div className="axc-scroll max-h-64 overflow-y-auto">
+              {brains.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => void pick(b)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs transition min-h-[44px]",
+                    brainId === b.id ? "bg-white/10 text-white" : "text-white/65 hover:bg-white/5",
+                  )}
+                >
+                  <BrainIcon className="h-3.5 w-3.5 shrink-0 text-cyan-400/70" />
+                  <span className="min-w-0 flex-1 truncate">{b.name}</span>
+                  {brainId === b.id && <Check className="h-3.5 w-3.5 text-emerald-300" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Explorador de CARPETAS → chats (Adenda 71-ter · I3) ──────────────────────
+/**
+ * Muestra los chats DENTRO de sus carpetas (useChatFolders + useAiConversations,
+ * en tiempo real). Al seleccionar un chat se abre COMPLETO en la sección de chat
+ * y queda como chat base ACTIVO también para la orbe flotante (setActive del
+ * activeId compartido). Integra aquí la función de la antigua pestaña «Chats».
+ */
+function FoldersBrowser({ activeId, onOpen }: { activeId: string | null; onOpen: (id: string) => void }) {
+  const { conversations } = useAiConversations();
+  const { folders } = useChatFolders();
+  const [q, setQ] = useState("");
+
+  const query = q.trim().toLowerCase();
+  const byFolder = new Map<string, AiConversation[]>();
+  for (const c of conversations) {
+    if (query && !c.title.toLowerCase().includes(query)) continue;
+    const key = c.folder || "";
+    const arr = byFolder.get(key) ?? [];
+    arr.push(c);
+    byFolder.set(key, arr);
+  }
+  const knownNames = new Set(folders.map((f) => f.name));
+  const groups = [
+    ...folders.map((f) => ({ name: f.name, items: byFolder.get(f.name) ?? [] })),
+    ...[...byFolder.keys()].filter((k) => k && !knownNames.has(k)).map((k) => ({ name: k, items: byFolder.get(k) ?? [] })),
+    ...((byFolder.get("")?.length ?? 0) > 0 ? [{ name: "Sin carpeta", items: byFolder.get("") ?? [] }] : []),
+  ].filter((g) => g.items.length > 0);
+
+  return (
+    <div className="space-y-2">
+      <div className="axc-inputrow">
+        <FolderOpen className="ml-1 h-4 w-4 shrink-0 text-[#7fb8ff]" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Busca en tus chats y memorias"
+          className="axc-input"
+          aria-label="Buscar en tus chats"
+        />
+      </div>
+      <div className="axc-scroll max-h-[46dvh] space-y-2 overflow-y-auto pr-1">
+        {groups.length === 0 ? (
+          <div className="axc-card px-3.5 py-6 text-center text-[11px] leading-relaxed text-white/40">
+            {query ? "Ningún chat coincide con tu búsqueda." : "Aún no hay chats en carpetas. Crea un chat nuevo y se organizará aquí."}
+          </div>
+        ) : (
+          groups.map((g) => (
+            <div key={g.name} className="axc-card overflow-hidden">
+              <div className="flex items-center gap-1.5 border-b border-white/5 px-3 py-2 text-[10px] uppercase tracking-wider text-white/40">
+                <FolderOpen className="h-3 w-3 text-[#FFBF00]" /> {g.name}
+                <span className="ml-auto rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/50">{g.items.length}</span>
+              </div>
+              <div className="space-y-0.5 p-1.5">
+                {g.items.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => onOpen(c.id)}
+                    className={cn(
+                      "flex min-h-[44px] w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs transition",
+                      c.id === activeId ? "bg-[#39FF14]/10 text-white ring-1 ring-[#39FF14]/30" : "text-white/70 hover:bg-white/5",
+                    )}
+                    title={`Abrir «${c.title}» (queda activo también para la orbe)`}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 shrink-0 text-[#7fb8ff]" />
+                    <span className="min-w-0 flex-1 truncate">{c.title}</span>
+                    <span className="shrink-0 font-mono text-[9px] text-white/30">{fmtTime(c.updatedAt)}</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-white/25" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Sección ──────────────────────────────────────────────────────────────────
 export function AuroraChatSection({ className }: { className?: string }) {
   // Motor por CONTEXTO (la cortina Zenith vive dentro de AuroraProvider) —
@@ -508,6 +680,9 @@ export function AuroraChatSection({ className }: { className?: string }) {
   // superficies compartan un solo hilo y se sincronicen en tiempo real.
   const aiChats = useAiConversations();
   const cloudMessages = useAiMessages(aiChats.activeId);
+  // Pantalla completa del navegador — icono compacto del menú interno (antes en
+  // la cabecera de la ventana Zenith).
+  const { isFullscreen, toggle: toggleFullscreen, isSupported: fsSupported } = useFullscreen();
 
   const [tab, setTab] = useState<Tab>("folder");
   const [snap, setSnap] = useState<SnapshotPlus | null>(null);
@@ -610,6 +785,14 @@ export function AuroraChatSection({ className }: { className?: string }) {
   const activePersonality = aurora?.activePersonality ?? snap?.activePersonality ?? { name: "Aurora" };
   const voiceUnavailable = aurora?.voiceUnavailable ?? !!snap?.voiceUnavailable;
   const auroraName = activePersonality?.name || "Aurora";
+  // Nombre de la personalidad CONFIGURADA activa para este chat (placeholder del
+  // input): p.ej. "Pregunta a Hermione…". Misma resolución por contexto
+  // (chat > cerebro > sección > global) que usa el pipeline compartido.
+  const placeholderName = useMemo(() => {
+    try {
+      return resolveTurnPersona({ convId: aiChats.activeId, route: pathname ?? undefined })?.profile?.name || auroraName;
+    } catch { return auroraName; }
+  }, [aiChats.activeId, pathname, auroraName]);
 
   // ── Acciones unificadas ────────────────────────────────────────────────────
   // `opts.forceSource` (Adenda "Aurora siempre responde") solo lo soporta el
@@ -618,10 +801,21 @@ export function AuroraChatSection({ className }: { className?: string }) {
     const t = (text ?? "").trim();
     if (!t) return;
     try {
-      if (aurora) await aurora.send(t, opts);
-      else await sendToAurora(t);
+      // Reintento con FUENTE FORZADA (elegir modelo): solo lo soporta el motor
+      // del orbe; el resto del flujo pasa por el pipeline compartido.
+      if (opts?.forceSource && aurora) { await aurora.send(t, opts); return; }
+      // PIPELINE COMPARTIDO (Adenda 71-ter · I3), el MISMO de la orbe: personalidad
+      // por contexto + acciones [[ACCION:…]] + conocimiento + config del chat + voz
+      // + persistencia en la conversación unificada. La respuesta aparece en la
+      // vista (useAiMessages) y queda sincronizada con orbe y /agent.
+      await sendAuroraTurn({
+        text: t,
+        convId: aiChats.activeId ?? undefined,
+        surface: "exocortex",
+        route: pathname ?? undefined,
+      });
     } catch { /* defensivo */ }
-  }, [aurora]);
+  }, [aurora, aiChats.activeId, pathname]);
 
   const submitDraft = useCallback(async () => {
     const t = draft.trim();
@@ -680,6 +874,17 @@ export function AuroraChatSection({ className }: { className?: string }) {
     setLoadedSession(null); // el chat en vivo lee de la nube, no de un snapshot
     aiChats.setActive(conv.id);
     setTab("chat");
+  }, [aiChats]);
+
+  // Abrir un chat desde el explorador de CARPETAS (Folders): lo deja ACTIVO
+  // (activeId compartido → también para la orbe flotante) y lo abre completo en
+  // la sección de chat. (Adenda 71-ter · I3)
+  const openFolderChat = useCallback((id: string) => {
+    setSessionStartTs(0);
+    setLoadedSession(null);
+    aiChats.setActive(id);
+    setTab("chat");
+    try { scrollRef.current && (scrollRef.current.scrollTop = 0); } catch { /* */ }
   }, [aiChats]);
 
   // Abrir un CONTEXTO del árbol: reconstruye su conversación cruzando los
@@ -794,7 +999,8 @@ export function AuroraChatSection({ className }: { className?: string }) {
   // chat» mostramos solo desde esa frontera temporal (reinicio visual).
   const visibleConvo = useMemo<LiveMessage[]>(() => {
     const fromCloud: LiveMessage[] = cloudMessages.map((m) => ({
-      role: m.role === "assistant" ? "aurora" : "user",
+      // 'system' → divisor sutil (ConfigChangeNotice); assistant → aurora; resto → user.
+      role: m.role === "assistant" ? "aurora" : m.role === "system" ? "system" : "user",
       text: m.text,
       at: m.ts,
       ...(m.meta ? { meta: m.meta } : {}),
@@ -835,29 +1041,9 @@ export function AuroraChatSection({ className }: { className?: string }) {
     } catch { /* */ }
   }, [chatLog]);
 
-  // ── Transporte de voz (reproducir/pausar · interrumpir · saltar) ───────────
-  const Transport = () => (
-    <div className="relative z-[1] flex items-center justify-center gap-1.5 rounded-[16px] border border-white/10 bg-white/[0.03] px-2 py-2">
-      <button onClick={tSkipB} title="Retroceder a la respuesta anterior" className="axc-tbtn">
-        <SkipBack className="h-4 w-4" />
-      </button>
-      {paused ? (
-        <button onClick={tResume} title="Reanudar la voz" className="axc-tbtn primary">
-          <Play className="h-4 w-4" />
-        </button>
-      ) : (
-        <button onClick={tPause} title="Pausar la voz" className="axc-tbtn primary">
-          <Pause className="h-4 w-4" />
-        </button>
-      )}
-      <button onClick={tInterrupt} title="Interrumpir a Aurora" className="axc-tbtn danger">
-        <Square className="h-4 w-4" />
-      </button>
-      <button onClick={tSkipF} title="Adelantar a la respuesta siguiente" className="axc-tbtn">
-        <SkipForward className="h-4 w-4" />
-      </button>
-    </div>
-  );
+  // (Adenda 71-ter · I3) El componente `Transport` (pestaña «Voz», ya retirada)
+  // se eliminó. Los controles de transporte (pausar/reanudar/saltar/interrumpir)
+  // siguen en la vista de chat (AuroraChatView) vía tPause/tResume/tSkip*/tInterrupt.
 
   return (
     <div className={cn("axc-root", className)}>
@@ -895,9 +1081,9 @@ export function AuroraChatSection({ className }: { className?: string }) {
           value={barDraft}
           onChange={(e) => setBarDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void submitBar(); } }}
-          placeholder="Pregunta a Aurora o busca recursos en la red…"
+          placeholder={`Pregunta a ${placeholderName}…`}
           className="axc-bar-input"
-          aria-label="Preguntar a Aurora o buscar en la red"
+          aria-label={`Preguntar a ${placeholderName}`}
         />
         {barDraft.trim() && (
           <button
@@ -953,39 +1139,10 @@ export function AuroraChatSection({ className }: { className?: string }) {
             </span>
           )}
         </button>
-        <div className="ml-auto flex items-center gap-3">
-          <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-white/70" title="Botón flotante de Aurora en todas las secciones del OS (preferencia, se sincroniza con tu cuenta)">
-            <Orbit className="h-3.5 w-3.5 text-[#7fb8ff]" />
-            <span className="hidden sm:inline">Botón flotante</span>
-            <button
-              role="switch"
-              aria-checked={fabEnabled}
-              onClick={() => {
-                const next = !fabEnabled;
-                setFabEnabled(next);
-                // Al reactivar, deshace también un descarte de sesión previo.
-                if (next && orbHidden) setOrbHidden(false);
-              }}
-              className="axc-switch"
-              title={fabEnabled ? "Ocultar el botón flotante de Aurora en todo el OS" : "Mostrar el botón flotante de Aurora en todo el OS"}
-            >
-              <span className="knob" />
-            </button>
-          </label>
-          <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-white/70" title="Encender o apagar Aurora globalmente">
-            <Power className="h-3.5 w-3.5 text-[#39FF14]" />
-            <span className="hidden sm:inline">Aurora</span>
-            <button
-              role="switch"
-              aria-checked={enabled}
-              onClick={() => doSetEnabled(!enabled)}
-              className="axc-switch"
-              title={enabled ? "Apagar Aurora" : "Encender Aurora"}
-            >
-              <span className="knob" />
-            </button>
-          </label>
-        </div>
+        {/* (Adenda 71-ter · I3) Los switches «Botón flotante» y «Aurora» se
+            retiraron: eran UI duplicada. El orbe se gestiona desde él mismo
+            («Ocultar orbe» + «Reactivar orbe» abajo) y desde Ajustes de Aurora;
+            el encendido global vive en Ajustes. El estado global no cambia. */}
       </div>
 
       {/* ── Voz no disponible · Reintentar (supervisor del provider) ── */}
@@ -1054,15 +1211,52 @@ export function AuroraChatSection({ className }: { className?: string }) {
         </div>
       )}
 
+      {/* ── Menú superior interno: Cerebro · Opciones · iconos compactos ──
+          (Adenda 71-ter · I3) Aquí se reubicaron las funciones de los antiguos
+          botones de la cabecera de la ventana: Cerebro (selector), Opciones (del
+          chat, convId real), y como iconos compactos Cerebro 3D, Pantalla y
+          Espacios. */}
+      <div className="axc-tools relative z-[1]">
+        <BrainSelector />
+        <ChatHeaderOptions context="astraura" convId={aiChats.activeId} />
+        <div className="ml-auto flex items-center gap-1.5">
+          <button
+            className="axc-toolico"
+            onClick={() => { if (typeof window !== "undefined") window.location.href = "/memorias-3d"; }}
+            title="Cerebro 3D · tu memoria y red en 3D"
+            aria-label="Abrir el Cerebro 3D"
+          >
+            <Orbit className="h-4 w-4" />
+          </button>
+          {fsSupported && (
+            <button
+              className={cn("axc-toolico", isFullscreen && "on")}
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+              aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+          )}
+          <button
+            className="axc-toolico"
+            onClick={() => { if (typeof window !== "undefined") window.location.href = "/nexus"; }}
+            title="Espacios (Nexus)"
+            aria-label="Abrir Espacios"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
       {/* ── Pestañas ── */}
       <div className="axc-chips relative z-[1]">
         {([
-          { id: "folder", label: "Folder", Icon: FolderTree },
+          { id: "folder", label: "Folders", Icon: FolderTree },
           { id: "chat", label: "Chat", Icon: MessageSquare },
-          { id: "chats", label: "Chats", Icon: Layers },
-          { id: "voz", label: "Voz", Icon: Volume2 },
           { id: "control", label: "Control", Icon: SlidersHorizontal },
           { id: "personalidad", label: "Personalidades", Icon: Drama },
+          { id: "sentidos", label: "Sentidos", Icon: Eye },
           { id: "registro", label: "Registro", Icon: ScrollText },
         ] as const).map(({ id, label, Icon }) => (
           <button
@@ -1085,10 +1279,12 @@ export function AuroraChatSection({ className }: { className?: string }) {
       )}
 
       {tab === "folder" ? (
-        /* Explorador de folder: TODOS los chats por fecha + tema, barra única
-           buscar⇄chatear (fusión), categorización automática, guardar-en-
-           memorias/duplicar/interconectar. Reutiliza la vista de chat al abrir. */
-        <div className="relative z-[1]">
+        /* FOLDERS: los chats DENTRO de sus carpetas (tiempo real). Al abrir uno
+           queda ACTIVO (también para la orbe). Debajo, el explorador fusionado
+           (buscar⇄chatear + por fecha/tema + guardar en memorias/duplicar/
+           interconectar), que reutiliza la vista de chat al abrir. */
+        <div className="relative z-[1] flex flex-col gap-3">
+          <FoldersBrowser activeId={aiChats.activeId} onOpen={openFolderChat} />
           <AuroraChatExplorer
             auroraName={auroraName}
             tree={tree}
@@ -1108,13 +1304,15 @@ export function AuroraChatSection({ className }: { className?: string }) {
            (global · secciones · este chat), editor con niveladores, Biblioteca
            (compartir/instalar) e importar/exportar JSON. Scroll propio con tope
            de altura para que la cortina siga siendo usable en móvil. */
-        <div className="axc-scroll relative z-[1] max-h-[62vh] overflow-y-auto overscroll-contain pr-1">
+        <div className="axc-scroll relative z-[1] max-h-[62dvh] overflow-y-auto overscroll-contain pr-1">
           <PersonalitiesPanel />
         </div>
-      ) : tab === "chats" ? (
-        /* Sesiones paralelas multi-proveedor — panel real, importado tal cual. */
-        <div className="relative z-[1]">
-          <AuroraMultichatPanel />
+      ) : tab === "sentidos" ? (
+        /* Sentidos REALES de Aurora/Astraura (senses-panel.tsx + senses.ts).
+           Sustituye al panel de sentidos MOCK que vivía en la cabecera de la
+           ventana Zenith (DEFAULT_SENSES eliminado). (Adenda 71-ter · I3) */
+        <div className="axc-scroll relative z-[1] max-h-[62dvh] overflow-y-auto overscroll-contain pr-1">
+          <SensesPanel />
         </div>
       ) : tab === "chat" ? (
         /* Cuando el overlay a pantalla completa está abierto, la vista compacta
@@ -1172,81 +1370,6 @@ export function AuroraChatSection({ className }: { className?: string }) {
             </div>
           )}
         </div>
-      ) : tab === "voz" ? (
-        <>
-          <Transport />
-
-          {/* Toggle Aurora activa */}
-          <div className="axc-card relative z-[1] flex items-center justify-between px-3.5 py-2.5">
-            <span className="inline-flex items-center gap-2 text-xs text-white/75">
-              <Power className="h-3.5 w-3.5 text-[#7fb8ff]" /> Aurora activa
-            </span>
-            <button
-              role="switch"
-              aria-checked={enabled}
-              onClick={() => doSetEnabled(!enabled)}
-              className="axc-switch"
-              title={enabled ? "Apagar Aurora" : "Encender Aurora"}
-            >
-              <span className="knob" />
-            </button>
-          </div>
-
-          {/* Selector de personalidad y Opciones del chat movidos arriba */}
-
-          {/* Último intercambio */}
-          {(interim || lastReply) && (
-            <div className="relative z-[1] space-y-2">
-              {interim && (
-                <div className="rounded-[14px] border border-[#007FFF]/25 bg-black/40 px-3 py-2">
-                  <div className="axc-role text-[#7fb8ff]">Tú</div>
-                  <div className="text-xs text-white/80">{interim}</div>
-                </div>
-              )}
-              {lastReply && (
-                <div className="rounded-[14px] border border-[#DC143C]/25 bg-[#DC143C]/10 px-3 py-2">
-                  <div className="axc-role text-rose-300/70">{auroraName}</div>
-                  <div className="text-xs text-rose-50/90">{lastReply}</div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Qué puede hacer */}
-          <div className="axc-card relative z-[1] px-3.5 py-2.5">
-            <div className="axc-label mb-1">Aurora puede actuar</div>
-            <div className="text-[11px] leading-relaxed text-white/55">
-              «Abre mis pizarras», «pon el tema oscuro», «lanza un agente», «busca en mis
-              memorias»… y sigue activa en segundo plano mientras lo hace.
-            </div>
-          </div>
-
-          {/* Controles de voz */}
-          <div className="relative z-[1] flex items-center gap-2">
-            <button
-              onClick={doToggleVoice}
-              disabled={!supported || !ready}
-              className="axc-btn lime flex-1"
-              title={listening ? "Parar de escuchar" : "Empezar a escuchar"}
-            >
-              <Volume2 className="h-3.5 w-3.5" /> {listening ? "Parar escucha" : "Activar voz"}
-            </button>
-            <button
-              onClick={() => doSpeak(`Hola, soy ${auroraName}. Estoy aquí para ayudarte en StarSeed.`)}
-              disabled={!supported || !ready}
-              className="axc-btn amber flex-1"
-              title="Escuchar la voz actual"
-            >
-              <Sparkles className="h-3.5 w-3.5" /> Probar voz
-            </button>
-          </div>
-
-          {!supported && ready && (
-            <div className="text-center text-[10px] text-amber-300/70">
-              Tu navegador no soporta voz. Aún puedes activar Aurora y gestionar sus sentidos en «Control».
-            </div>
-          )}
-        </>
       ) : (
         /* ── Pestaña Registro: sesiones por día + resumen + exportar/limpiar ── */
         <>

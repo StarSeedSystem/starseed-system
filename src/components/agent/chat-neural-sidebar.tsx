@@ -24,10 +24,12 @@ import {
   X,
   Orbit,
   Bot,
+  Folder,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TelegramChatsFolder } from "@/components/exocortex/telegram-chats-folder";
 import { useAiConversations, type AiConversation } from "@/lib/aurora/conversations";
+import { useChatFolders } from "@/lib/aurora/chat-folders-store";
 import { ChatFolders } from "@/components/aurora/chat-folders";
 
 function whenLabel(ts: number): string {
@@ -52,28 +54,39 @@ function groupOf(c: AiConversation): "aurora" | "astraura" {
 
 export function ChatNeuralSidebar() {
   const { conversations, activeId, setActive, create, rename, remove } = useAiConversations();
-  const [open, setOpen] = useState<Record<string, boolean>>({ aurora: true, astraura: true });
+  // Carpetas EN VIVO (Adenda 71-ter · I1): las conversaciones se agrupan por su
+  // carpeta (aurora_conversations.folder), no por origen. Orden estable por la
+  // posición de la tabla de carpetas; "Sin carpeta" al final.
+  const { folders } = useChatFolders();
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
 
+  const byFolder = new Map<string, AiConversation[]>();
+  for (const c of conversations) {
+    const key = c.folder || "";
+    const arr = byFolder.get(key) ?? [];
+    arr.push(c);
+    byFolder.set(key, arr);
+  }
+  const knownNames = new Set(folders.map((f) => f.name));
   const groups: {
-    id: "aurora" | "astraura";
+    id: string;
     name: string;
     Icon: typeof Orbit;
     items: AiConversation[];
   }[] = [
-    {
-      id: "astraura",
-      name: "Astraura AI (aquí)",
-      Icon: Bot,
-      items: conversations.filter((c) => groupOf(c) === "astraura"),
-    },
-    {
-      id: "aurora",
-      name: "Aurora (voz y orbe)",
-      Icon: Orbit,
-      items: conversations.filter((c) => groupOf(c) === "aurora"),
-    },
+    ...folders
+      .filter((f) => (byFolder.get(f.name)?.length ?? 0) > 0)
+      .map((f) => ({ id: `f:${f.name}`, name: f.name, Icon: Folder, items: byFolder.get(f.name) ?? [] })),
+    // Carpetas referenciadas por chats pero aún no en la tabla (defensivo).
+    ...[...byFolder.keys()]
+      .filter((k) => k && !knownNames.has(k))
+      .map((k) => ({ id: `f:${k}`, name: k, Icon: Folder, items: byFolder.get(k) ?? [] })),
+    // Chats sin carpeta al final.
+    ...((byFolder.get("")?.length ?? 0) > 0
+      ? [{ id: "__none__", name: "Sin carpeta", Icon: MessageSquare, items: byFolder.get("") ?? [] }]
+      : []),
   ];
 
   return (
@@ -116,10 +129,10 @@ export function ChatNeuralSidebar() {
           g.items.length === 0 ? null : (
             <div key={g.id} className="space-y-0.5">
               <button
-                onClick={() => setOpen((o) => ({ ...o, [g.id]: !o[g.id] }))}
+                onClick={() => setOpen((o) => ({ ...o, [g.id]: o[g.id] === false ? true : false }))}
                 className="flex w-full cursor-pointer items-center px-2 py-1.5 text-xs font-semibold text-cyan-300/80 transition-colors duration-150 hover:text-cyan-200"
               >
-                {open[g.id] ? (
+                {open[g.id] !== false ? (
                   <ChevronDown className="w-3 h-3 mr-1" />
                 ) : (
                   <ChevronRight className="w-3 h-3 mr-1" />
@@ -129,7 +142,7 @@ export function ChatNeuralSidebar() {
                 <span className="text-[10px] font-normal text-cyan-100/40">{g.items.length}</span>
               </button>
 
-              {open[g.id] && (
+              {open[g.id] !== false && (
                 <div className="ml-2 space-y-0.5 border-l border-cyan-500/10 pl-2">
                   {g.items.map((c) => (
                     <div

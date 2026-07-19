@@ -105,7 +105,7 @@ export const COMMAND_LIST_LISTINGS: CommandListListing[] = [
         accent: "#007FFF",
         commands: [
             { label: "Audiomorphic VR completo (pestaña nueva)", action: "open-app", target: "https://audiomorphic.vercel.app/?starseed_os=1&full=1" },
-            { label: "Portal StarSeed Nexus dentro del OS", action: "navigate", target: "/nexus" },
+            { label: "Portal StarSeed Nexus (web oficial)", action: "open-app", target: "https://starseed-nexus.vercel.app" },
         ],
     },
 ];

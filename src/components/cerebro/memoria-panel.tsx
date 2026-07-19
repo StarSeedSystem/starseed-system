@@ -42,7 +42,14 @@ import {
   FileText,
 } from "lucide-react";
 
-export default function MemoriaPanel({ brainId }: { brainId: string | null }) {
+export default function MemoriaPanel({
+  brainId,
+  focusFileId,
+}: {
+  brainId: string | null;
+  /** Abre este archivo al montar/cambiar (clic en nodo del grafo 2D/3D). */
+  focusFileId?: string | null;
+}) {
   const filter = useMemo(
     () => (brainId ? `brain_id=eq.${brainId}` : undefined),
     [brainId],
@@ -76,6 +83,18 @@ export default function MemoriaPanel({ brainId }: { brainId: string | null }) {
       setDirty(false);
     }
   }, [rows, activeId]);
+
+  // Abre un archivo concreto cuando lo pide el grafo (clic en nodo 2D/3D).
+  useEffect(() => {
+    if (!focusFileId) return;
+    const f = rows.find((r) => r.id === focusFileId);
+    if (f && f.id !== activeId) {
+      setActiveId(f.id);
+      setDraft(f.content);
+      setDirty(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusFileId, rows]);
 
   // Al cambiar de fichero, refresca el borrador (si no hay cambios sin guardar).
   useEffect(() => {

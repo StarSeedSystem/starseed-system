@@ -26,6 +26,28 @@ import { AuroraMemoryPanel } from "@/components/exocortex/aurora-memory-panel";
 // (coherente con el editor de texto — no hay una lista de adjuntos separada).
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import type { UniversalAttachment } from "@/lib/files/os-files";
+// Cerebro-scope: cuando el Hub vive DENTRO de un cerebro, filtra por cerebro y
+// permite adoptar memorias de la cuenta. Mismo componente para /memorias y para
+// el pilar Memoria de /cerebro (sin duplicar código).
+import {
+  listBrainMemories,
+  adoptMemoryToBrain,
+  releaseMemoryFromBrain,
+} from "@/lib/cerebro/brain-memories";
+// Taxonomía cognitiva (filtro extra) + gestión inteligente (Organizar con IA).
+import {
+  COGNITIVE_KINDS,
+  COGNITIVE_KIND_IDS,
+  cognitiveKindOfKinds,
+  type CognitiveKind,
+} from "@/lib/brains/memory-types";
+import {
+  summarizeToMemory,
+  classifyCognitiveKind,
+  detectDuplicates,
+  type DuplicateCluster,
+} from "@/lib/cerebro/ai-organize";
+import { Sparkles as SparklesIcon, Copy, Tag, Layers } from "lucide-react";
 
 // El PAT ya NO se guarda en config: vive cifrado en la bóveda (api/vault).
 type GithubConfig = { repo?: string; branch?: string; path?: string };
@@ -75,17 +97,37 @@ function slugify(s: string) {
     .replace(/^-+|-+$/g, "") || "memoria";
 }
 
-export function MemoryHub() {
+export function MemoryHub({
+  brainId = null,
+  brainName,
+  focusMemoryId,
+}: {
+  /** Si se pasa, el Hub trabaja DENTRO de este cerebro (scope='brain'). */
+  brainId?: string | null;
+  brainName?: string;
+  /** Abre automáticamente esta memoria al montar (clic en nodo 2D/3D). */
+  focusMemoryId?: string | null;
+} = {}) {
+  const inBrain = brainId != null;
   const [userId, setUserId] = useState<string | null>(null);
   const [items, setItems] = useState<Memory[]>([]);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-  const [scope, setScope] = useState("account");
+  const [scope, setScope] = useState(inBrain ? "brain" : "account");
   const [kinds, setKinds] = useState<string[]>([]);
   const [format, setFormat] = useState("markdown");
   const [storage, setStorage] = useState<string[]>(["account"]);
   const [sync, setSync] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Filtro por categoría cognitiva (taxonomía de 8) — filtro extra del Hub.
+  const [cogFilter, setCogFilter] = useState<CognitiveKind | null>(null);
+  // "Organizar con IA": estado de las acciones inteligentes.
+  const [organizing, setOrganizing] = useState<null | "resumir" | "clasificar" | "duplicados">(null);
+  const [dupes, setDupes] = useState<DuplicateCluster[] | null>(null);
+  // Adoptar de la cuenta (solo en modo cerebro).
+  const [showAdopt, setShowAdopt] = useState(false);
+  const [adoptable, setAdoptable] = useState<Memory[]>([]);
 
   // editor de contenido / sincronización
   const [openId, setOpenId] = useState<string | null>(null);
@@ -108,11 +150,19 @@ export function MemoryHub() {
       const { data: au } = await supabase.auth.getUser();
       const uid = au?.user?.id ?? null; setUserId(uid);
       if (uid) {
-        const { data } = await supabase.from("memories").select("*").eq("owner", uid).order("created_at", { ascending: false });
-        setItems((data as Memory[]) ?? []);
+        if (inBrain) {
+          // Modo cerebro: memorias con scope='brain'&scope_ref=brainId UNIÓN las
+          // enlazadas en includes.memories[] del cerebro.
+          const rows = await listBrainMemories(brainId);
+          setItems(rows as unknown as Memory[]);
+        } else {
+          // Modo cuenta: memorias que NO están adoptadas por un cerebro.
+          const { data } = await supabase.from("memories").select("*").eq("owner", uid).order("created_at", { ascending: false });
+          setItems(((data as Memory[]) ?? []).filter((m) => m.scope !== "brain"));
+        }
       }
     } catch { /* sin sesión */ }
-  }, []);
+  }, [inBrain, brainId]);
   useEffect(() => { load(); }, [load]);
   // TIEMPO REAL: la lista de memorias se actualiza en vivo entre dispositivos
   // cuando cambia la tabla `memories` del propietario actual (RLS aplica).
@@ -123,6 +173,28 @@ export function MemoryHub() {
   );
   // Carga la política de almacenamiento (umbral starseedMaxMb, destino preferido…).
   useEffect(() => { getPolicy().then(setPolicy).catch(() => setPolicy({})); }, [userId]);
+
+  // Abre automáticamente una memoria concreta (clic en nodo del grafo 2D/3D).
+  useEffect(() => {
+    if (!focusMemoryId) return;
+    const m = items.find((x) => x.id === focusMemoryId);
+    if (m && openId !== m.id) void openMemory(m);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusMemoryId, items]);
+
+  // Carga las memorias de cuenta ADOPTABLES cuando se abre el selector (modo cerebro).
+  useEffect(() => {
+    if (!showAdopt || !inBrain || !userId) return;
+    let alive = true;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase.from("memories").select("*").eq("owner", userId).order("created_at", { ascending: false });
+      if (!alive) return;
+      const brainMemIds = new Set(items.map((m) => m.id));
+      setAdoptable(((data as Memory[]) ?? []).filter((m) => !brainMemIds.has(m.id) && m.scope !== "brain"));
+    })();
+    return () => { alive = false; };
+  }, [showAdopt, inBrain, userId, items]);
 
   // Contexto compacto de las memorias reales del usuario para pasárselo a la
   // Aurora global (para que pueda buscar/leer/actuar sobre ellas).
@@ -207,8 +279,14 @@ export function MemoryHub() {
     setSaving(true);
     try {
       const supabase = createClient();
-      await supabase.from("memories").insert({ owner: userId, name: name.trim(), scope, kinds, format, storage, sync, content: "", config: {} });
-      setCreating(false); setName(""); setKinds([]); setFormat("markdown"); setScope("account"); setStorage(["account"]); setSync(true);
+      await supabase.from("memories").insert({
+        owner: userId,
+        name: name.trim(),
+        scope: inBrain ? "brain" : scope,
+        scope_ref: inBrain ? brainId : null,
+        kinds, format, storage, sync, content: "", config: {},
+      });
+      setCreating(false); setName(""); setKinds([]); setFormat("markdown"); setScope(inBrain ? "brain" : "account"); setStorage(["account"]); setSync(true);
       await load();
     } catch { /* error */ }
     setSaving(false);
@@ -350,6 +428,92 @@ export function MemoryHub() {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  // ── Categoría cognitiva efectiva de una memoria (config.cognitiveKind gana) ──
+  const cogOf = useCallback((m: Memory): CognitiveKind => {
+    const c = (m.config as Record<string, unknown> | null)?.cognitiveKind;
+    if (typeof c === "string" && (COGNITIVE_KIND_IDS as string[]).includes(c)) return c as CognitiveKind;
+    return cognitiveKindOfKinds(m.kinds);
+  }, []);
+
+  const visibleItems = useMemo(
+    () => (cogFilter ? items.filter((m) => cogOf(m) === cogFilter) : items),
+    [items, cogFilter, cogOf],
+  );
+
+  // ── Organizar con IA (gestión inteligente · Adenda I2) ──
+  async function aiSummarize() {
+    setOrganizing("resumir");
+    try {
+      let text = "";
+      try { text = await navigator.clipboard.readText(); } catch { /* sin permiso de portapapeles */ }
+      if (!text.trim()) {
+        const open = items.find((x) => x.id === openId);
+        text = (openId ? draft : open?.content) ?? "";
+      }
+      if (!text.trim()) {
+        setStatus({ kind: "err", msg: "Copia un chat/texto al portapapeles o abre una memoria, y vuelve a intentarlo." });
+        setOrganizing(null); return;
+      }
+      const res = await summarizeToMemory(text);
+      if (!res.ok) { setStatus({ kind: "err", msg: res.error || "No se pudo resumir." }); setOrganizing(null); return; }
+      const supabase = createClient();
+      await supabase.from("memories").insert({
+        owner: userId, name: (res.title || "Resumen").slice(0, 120),
+        scope: inBrain ? "brain" : "account", scope_ref: inBrain ? brainId : null,
+        kinds: ["memory"], format: "markdown", storage: ["account"], sync: true,
+        content: res.content, config: { aiSummary: true },
+      });
+      await load();
+      setStatus({ kind: "ok", msg: res.usedAi ? `Resumen creado: «${res.title}».` : `Resumen LOCAL creado (sin IA): «${res.title}».` });
+    } catch (e) { setStatus({ kind: "err", msg: e instanceof Error ? e.message : "Error al resumir." }); }
+    setOrganizing(null);
+  }
+
+  async function aiClassify() {
+    setOrganizing("clasificar");
+    try {
+      const untyped = items.filter((m) => (!m.kinds || m.kinds.length === 0) && !(m.config as Record<string, unknown> | null)?.cognitiveKind);
+      if (untyped.length === 0) { setStatus({ kind: "ok", msg: "Todas tus memorias ya están tipificadas." }); setOrganizing(null); return; }
+      let done = 0;
+      const supabase = createClient();
+      for (const m of untyped.slice(0, 12)) {
+        const { kind } = await classifyCognitiveKind(m.name, m.content ?? "");
+        const nextConfig = { ...(m.config ?? {}), cognitiveKind: kind };
+        await supabase.from("memories").update({ config: nextConfig }).eq("id", m.id);
+        done++;
+      }
+      await load();
+      setStatus({ kind: "ok", msg: `Clasificadas ${done} memoria(s) por categoría cognitiva.` });
+    } catch (e) { setStatus({ kind: "err", msg: e instanceof Error ? e.message : "Error al clasificar." }); }
+    setOrganizing(null);
+  }
+
+  function aiDedupe() {
+    setOrganizing("duplicados");
+    try {
+      const clusters = detectDuplicates(items.map((m) => ({ id: m.id, title: m.name, content: m.content })));
+      setDupes(clusters);
+      setStatus(
+        clusters.length
+          ? { kind: "ok", msg: `Detectados ${clusters.length} grupo(s) de posibles duplicados.` }
+          : { kind: "ok", msg: "No se detectaron duplicados por título/enlaces." },
+      );
+    } catch { setDupes([]); }
+    setOrganizing(null);
+  }
+
+  async function adopt(memoryId: string, move: boolean) {
+    if (!brainId) return;
+    const ok = await adoptMemoryToBrain(brainId, memoryId, { move });
+    if (ok) { await load(); setStatus({ kind: "ok", msg: move ? "Memoria MOVIDA a este cerebro." : "Memoria ENLAZADA a este cerebro." }); }
+    else setStatus({ kind: "err", msg: "No se pudo adoptar la memoria." });
+  }
+  async function release(memoryId: string) {
+    if (!brainId) return;
+    const ok = await releaseMemoryFromBrain(brainId, memoryId);
+    if (ok) { await load(); setStatus({ kind: "ok", msg: "Memoria devuelta a la cuenta." }); }
+  }
+
   if (!userId) {
     return <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-sm text-white/60 m-1">Inicia sesión para crear y sincronizar tus memorias de StarSeed.</div>;
   }
@@ -359,8 +523,14 @@ export function MemoryHub() {
       <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/15 p-4 flex flex-wrap items-center gap-3">
         <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-fuchsia-500 to-cyan-500 flex items-center justify-center"><Brain className="w-5 h-5 text-white" /></div>
         <div>
-          <div className="text-sm font-semibold text-fuchsia-50">Memory Hub · memorias de StarSeed</div>
-          <div className="text-[11px] text-fuchsia-300/60">Crea, configura y sincroniza tus memorias por contexto. Astraura te guía.</div>
+          <div className="text-sm font-semibold text-fuchsia-50">
+            {inBrain ? `Memory Hub · ${brainName || "cerebro"}` : "Memory Hub · memorias de StarSeed"}
+          </div>
+          <div className="text-[11px] text-fuchsia-300/60">
+            {inBrain
+              ? "Memorias de este cerebro (scope=cerebro + enlazadas). Crea, sincroniza y organiza con IA."
+              : "Crea, configura y sincroniza tus memorias por contexto. Astraura te guía."}
+          </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <AuroraMemoryPanel compact memoryContext={memoryContext} />
@@ -369,9 +539,84 @@ export function MemoryHub() {
         </div>
       </div>
 
-      {/* NUEVO (aditivo): Conectar folder de memorias (memory root → cerebro/baúl),
-          modo vista previa, sin conexión a la cuenta. */}
-      <MemoryFolderConnect />
+      {/* Organizar con IA (gestión inteligente) + adoptar de la cuenta (modo cerebro). */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-widest text-fuchsia-300/50 flex items-center gap-1"><SparklesIcon className="w-3 h-3" /> Organizar con IA</span>
+        <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs border-fuchsia-400/30 text-fuchsia-100 hover:bg-fuchsia-900/20" disabled={organizing !== null} onClick={aiSummarize} title="Resume el texto del portapapeles (o la memoria abierta) en una memoria nueva.">
+          {organizing === "resumir" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <SparklesIcon className="w-3.5 h-3.5" />} Resumir a memoria
+        </Button>
+        <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs border-cyan-400/30 text-cyan-100 hover:bg-cyan-900/20" disabled={organizing !== null} onClick={aiClassify} title="Sugiere una categoría cognitiva para las memorias sin tipo.">
+          {organizing === "clasificar" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Tag className="w-3.5 h-3.5" />} Clasificar sin tipo
+        </Button>
+        <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs border-amber-400/30 text-amber-100 hover:bg-amber-900/20" disabled={organizing !== null} onClick={aiDedupe} title="Detecta memorias posiblemente duplicadas por título y enlaces [[wiki]].">
+          {organizing === "duplicados" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />} Detectar duplicados
+        </Button>
+        {inBrain && (
+          <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs border-emerald-400/30 text-emerald-100 hover:bg-emerald-900/20 ml-auto" onClick={() => setShowAdopt((s) => !s)}>
+            <Layers className="w-3.5 h-3.5" /> Adoptar de la cuenta
+          </Button>
+        )}
+      </div>
+
+      {/* Duplicados detectados */}
+      {dupes && dupes.length > 0 && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-950/10 p-3 space-y-2">
+          <div className="text-[11px] text-amber-200/90 flex items-center gap-1.5"><Copy className="w-3.5 h-3.5" /> Posibles duplicados ({dupes.length} grupo/s) — revisa y fusiona a mano</div>
+          {dupes.map((c, i) => (
+            <div key={i} className="text-[11px] text-white/70 rounded-lg border border-white/10 bg-black/20 p-2">
+              <span className="text-white/45">motivo: {c.reason} · similitud {(c.score * 100).toFixed(0)}%</span>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {c.titles.map((t, j) => (
+                  <Badge key={j} variant="outline" className="text-[9px] border-amber-400/30 text-amber-100">{t}</Badge>
+                ))}
+              </div>
+            </div>
+          ))}
+          <button onClick={() => setDupes(null)} className="text-[10px] text-white/40 hover:text-white/70">ocultar</button>
+        </div>
+      )}
+
+      {/* Adoptar memorias de la cuenta al cerebro */}
+      {inBrain && showAdopt && (
+        <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/10 p-3 space-y-2">
+          <div className="text-[11px] text-emerald-200/90 flex items-center gap-1.5"><Layers className="w-3.5 h-3.5" /> Memorias de la cuenta ({adoptable.length}) — enlázalas o muévelas a este cerebro</div>
+          {adoptable.length === 0 ? (
+            <p className="text-[11px] text-white/40">No hay memorias de cuenta libres para adoptar.</p>
+          ) : (
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {adoptable.map((m) => (
+                <div key={m.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 p-2">
+                  <FileText className="w-3.5 h-3.5 text-fuchsia-300/70 shrink-0" />
+                  <span className="text-xs text-white/80 truncate flex-1">{m.name}</span>
+                  <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] border-cyan-400/30 text-cyan-100" onClick={() => adopt(m.id, false)} title="Enlazar (se referencia; sigue en la cuenta)">Enlazar</Button>
+                  <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] border-emerald-400/30 text-emerald-100" onClick={() => adopt(m.id, true)} title="Mover al cerebro (scope=cerebro)">Mover</Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Filtro por categoría cognitiva (taxonomía de 8) */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] uppercase tracking-widest text-white/40 flex items-center gap-1"><Layers className="w-3 h-3" /> Cognitiva:</span>
+        <button onClick={() => setCogFilter(null)} className={cn("text-[10px] rounded-full px-2 py-0.5 border transition", cogFilter === null ? "bg-white/15 border-white/30 text-white" : "bg-white/5 border-white/10 text-white/55 hover:border-white/20")}>Todas</button>
+        {COGNITIVE_KIND_IDS.map((k) => (
+          <button
+            key={k}
+            onClick={() => setCogFilter((cur) => (cur === k ? null : k))}
+            className={cn("text-[10px] rounded-full px-2 py-0.5 border transition", cogFilter === k ? "text-white" : "text-white/55 hover:text-white/80")}
+            style={cogFilter === k ? { background: COGNITIVE_KINDS[k].color + "33", borderColor: COGNITIVE_KINDS[k].color + "88" } : { background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.10)" }}
+            title={COGNITIVE_KINDS[k].blurb}
+          >
+            {COGNITIVE_KINDS[k].label}
+          </button>
+        ))}
+      </div>
+
+      {/* Conectar folder de memorias (memory root → cerebro), con importación real
+          a brain_memory_files cuando hay cerebro (Adenda I2 · tarea 5). */}
+      <MemoryFolderConnect brainId={brainId} brainName={brainName} onImported={load} />
 
       <div>
         <div className="text-[11px] uppercase tracking-widest text-fuchsia-300/50 mb-2 flex items-center gap-1"><Wand2 className="w-3 h-3" /> Empieza fácil — elige un tipo</div>
@@ -420,17 +665,28 @@ export function MemoryHub() {
       )}
 
       <div>
-        <div className="text-[11px] uppercase tracking-widest text-fuchsia-300/50 mb-2">Tus memorias</div>
+        <div className="text-[11px] uppercase tracking-widest text-fuchsia-300/50 mb-2">
+          {inBrain ? "Memorias del cerebro" : "Tus memorias"}
+          {cogFilter && <span className="ml-2 text-white/40 normal-case tracking-normal">· filtro: {COGNITIVE_KINDS[cogFilter].label} ({visibleItems.length})</span>}
+        </div>
         {items.length === 0 ? (
-          <div className="text-sm text-white/40 px-1">Aún no tienes memorias. Elige un tipo arriba para empezar — Astraura sugiere la configuración más simple.</div>
+          <div className="text-sm text-white/40 px-1">Aún no tienes memorias{inBrain ? " en este cerebro" : ""}. Elige un tipo arriba para empezar — Astraura sugiere la configuración más simple.</div>
+        ) : visibleItems.length === 0 ? (
+          <div className="text-sm text-white/40 px-1">Ninguna memoria en la categoría «{cogFilter ? COGNITIVE_KINDS[cogFilter].label : ""}». <button onClick={() => setCogFilter(null)} className="text-fuchsia-300 hover:underline">Ver todas</button>.</div>
         ) : (
           <div className="space-y-2">
-            {items.map((m) => (
+            {visibleItems.map((m) => (
               <div key={m.id} className="rounded-lg border border-white/10 bg-white/5">
                 <div className="p-3 flex items-start gap-3">
                   <button onClick={() => openMemory(m)} className="flex-1 min-w-0 text-left group">
                     <div className="text-sm font-medium text-white group-hover:text-fuchsia-200 transition flex items-center gap-1.5"><FileText className="w-3.5 h-3.5 text-fuchsia-300/70" /> {m.name}</div>
-                    <div className="flex flex-wrap gap-1 mt-1">{m.kinds.map((k) => <Badge key={k} variant="outline" className="text-[9px] border-fuchsia-500/30 text-fuchsia-200/80">{(KINDS.find((x) => x[0] === k) || [k, k])[1]}</Badge>)}</div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {m.kinds.map((k) => <Badge key={k} variant="outline" className="text-[9px] border-fuchsia-500/30 text-fuchsia-200/80">{(KINDS.find((x) => x[0] === k) || [k, k])[1]}</Badge>)}
+                      <Badge variant="outline" className="text-[9px]" style={{ borderColor: COGNITIVE_KINDS[cogOf(m)].color + "66", color: COGNITIVE_KINDS[cogOf(m)].color }} title={COGNITIVE_KINDS[cogOf(m)].blurb}>{COGNITIVE_KINDS[cogOf(m)].label}</Badge>
+                      {inBrain && (m.scope === "brain"
+                        ? <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-200/80">cerebro</Badge>
+                        : <Badge variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-200/80">enlazada</Badge>)}
+                    </div>
                     <div className="text-[10px] text-white/40 mt-1">{(SCOPES.find((x) => x[0] === m.scope) || ["", m.scope])[1]} · {m.format} · {m.sync ? "sync ✓" : "sin sync"}</div>
                     {/* Insignias de almacén: dónde vive realmente esta memoria + enlace a Drive si existe. */}
                     <div className="flex flex-wrap items-center gap-1 mt-1">
@@ -450,7 +706,12 @@ export function MemoryHub() {
                       })()}
                     </div>
                   </button>
-                  <button onClick={() => remove(m.id)} className="text-white/30 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {inBrain && (
+                      <button onClick={() => release(m.id)} className="text-white/30 hover:text-emerald-300" title="Soltar del cerebro (vuelve a la cuenta)"><Link2Off className="w-4 h-4" /></button>
+                    )}
+                    <button onClick={() => remove(m.id)} className="text-white/30 hover:text-red-400" title="Eliminar memoria"><Trash2 className="w-4 h-4" /></button>
+                  </div>
                 </div>
 
                 {openId === m.id && (

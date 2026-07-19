@@ -25,8 +25,10 @@ import {
   Check, ChevronRight, X, Plus, Search,
 } from "lucide-react";
 import {
-  listPersonalityProfiles, setActivePersonality,
+  listPersonalityProfiles, setActivePersonality, resolvePersonalityForContext,
+  getPersonalityAssignments,
 } from "@/lib/aurora/personalities";
+import { insertConfigChangeMessage } from "@/lib/aurora/config-change";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS } from "@/ai/providers";
 import { SENSES, getActiveSenses, setActiveSenses } from "@/lib/senses/senses";
@@ -165,6 +167,11 @@ export function ChatConfigMenu({
   const [connections, setConnections] = useState<{ id: string; label: string; category: string; purpose: string; connected: boolean }[]>([]);
   const [capsEnv, setCapsEnv] = useState<Record<string, boolean>>({});
   const [connQuery, setConnQuery] = useState("");
+  // Estado EFECTIVO global (Adenda 71-ter · fix convId): cuando el chat no fijó
+  // un valor, el menú muestra el estado REAL del sistema (personalidad activa,
+  // proveedor activo, sentidos activos) en vez de "sin selección".
+  const [effPersonalityId, setEffPersonalityId] = useState<string | null>(null);
+  const [effProvider, setEffProvider] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     let initial: ChatConfig = {};
@@ -177,6 +184,19 @@ export function ChatConfigMenu({
       } catch { /* */ }
     }
     setCfg(initial);
+    // (Adenda 71-ter · Task 10) Nube → local: si el chat fijó una personalidad en
+    // meta.config (fuente de verdad en la nube), la reflejamos en la asignación
+    // POR CHAT de localStorage para que resolvePersonalityForContext la respete en
+    // ESTE dispositivo (compat cross-device). Sólo si difiere (idempotente).
+    if (convId && initial.personalityId) {
+      try {
+        const cur = getPersonalityAssignments().porChat[convId];
+        if (cur !== initial.personalityId) setActivePersonality({ scope: "chat", chatId: convId }, initial.personalityId);
+      } catch { /* */ }
+    }
+    // Personalidad/proveedor EFECTIVOS (para hidratar el estado mostrado).
+    try { setEffPersonalityId(resolvePersonalityForContext({ chatId: convId ?? undefined })?.id ?? null); } catch { setEffPersonalityId(null); }
+    try { setEffProvider(getActiveProviderId() ?? null); } catch { setEffProvider(null); }
     try { setPersonalities(listPersonalityProfiles().map((p) => ({ id: p.id, name: p.name }))); } catch { /* */ }
     try {
       const cfgs = loadConfigs();
@@ -217,8 +237,12 @@ export function ChatConfigMenu({
       const sb = createClient();
       const { data } = await sb.from("aurora_conversations").select("meta").eq("id", convId).maybeSingle();
       const meta = (data?.meta as any) || {};
+      const prevCfg = (meta.config as ChatConfig) || {};
       meta.config = next;
       await sb.from("aurora_conversations").update({ meta }).eq("id", convId);
+      // Divisor sutil "⚙️ Ajustes del chat actualizados: …" en el hilo, con SÓLO
+      // los campos que cambiaron. Idempotente; aparece en todas las superficies.
+      void insertConfigChangeMessage(convId, prevCfg, next);
     } catch { /* */ }
   }, [convId]);
 
@@ -304,14 +328,26 @@ export function ChatConfigMenu({
           {open === "personalidad" && (
             <Section title="Personalidad de este chat">
               {personalities.map((p) => (
-                <Row key={p.id} label={p.name} active={cfg.personalityId === p.id} onClick={() => setPersonality(p.id)} />
+                <Row
+                  key={p.id}
+                  label={p.name}
+                  hint={!cfg.personalityId && effPersonalityId === p.id ? "activa (global)" : undefined}
+                  active={(cfg.personalityId ?? effPersonalityId) === p.id}
+                  onClick={() => setPersonality(p.id)}
+                />
               ))}
             </Section>
           )}
           {open === "modelos" && (
             <Section title="Motor de modelos">
               {providers.map((p) => (
-                <Row key={p.id} label={p.label} active={cfg.provider === p.id} onClick={() => setProvider(p.id)} />
+                <Row
+                  key={p.id}
+                  label={p.label}
+                  hint={!cfg.provider && effProvider === p.id ? "activo (global)" : undefined}
+                  active={(cfg.provider ?? effProvider) === p.id}
+                  onClick={() => setProvider(p.id)}
+                />
               ))}
             </Section>
           )}
@@ -337,7 +373,7 @@ export function ChatConfigMenu({
                   key={s.id}
                   label={s.label}
                   hint={sensesActive.includes(s.id) ? "activo en el sistema" : undefined}
-                  active={!!cfg.senses?.[s.id]}
+                  active={cfg.senses?.[s.id] ?? sensesActive.includes(s.id)}
                   onClick={() => toggleSense(s.id)}
                 />
               ))}
