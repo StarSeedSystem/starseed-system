@@ -27,6 +27,7 @@ import {
     Waves,
     Wind,
     Zap,
+    type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -84,7 +85,7 @@ function PanelHeader({
     subtitle,
     accent,
 }: {
-    icon: React.ElementType;
+    icon: LucideIcon;
     title: string;
     subtitle: string;
     accent: Accent;
@@ -155,7 +156,7 @@ function MetricStat({
 }
 
 // ── Celda compacta de métrica (rejilla de telemetría) ────────────
-function MetricCell({ metric, icon: Icon }: { metric: SpaceMetric; icon?: React.ElementType }) {
+function MetricCell({ metric, icon: Icon }: { metric: SpaceMetric; icon?: LucideIcon }) {
     const color = severityColor(metric.severity ?? 'calm');
     return (
         <div className="flex flex-col rounded-2xl border border-white/5 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.06]">
@@ -335,7 +336,7 @@ export function NoaaAttribution({
 
 // ── Escalas NOAA R / S / G (fila de chips) ───────────────────────
 function ScaleChips({ snapshot }: { snapshot: SpaceWeatherSnapshot }) {
-    const items: Array<{ icon: React.ElementType; metric: SpaceMetric }> = [
+    const items: Array<{ icon: LucideIcon; metric: SpaceMetric }> = [
         { icon: Radio, metric: snapshot.radiation.rScale },
         { icon: Zap, metric: snapshot.radiation.sScale },
         { icon: Magnet, metric: snapshot.geomagnetic.gScale },

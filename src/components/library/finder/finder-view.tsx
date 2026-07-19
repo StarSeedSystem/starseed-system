@@ -97,6 +97,7 @@ const TYPE_FILTERS: Array<{ key: "todos" | SavedItemType; label: string }> = [
     { key: "route", label: "Rutas" },
     { key: "external", label: "Enlaces" },
     { key: "bookmark", label: "Marcadores" },
+    { key: "design", label: "Diseños" },
     { key: "alias", label: "Accesos directos" },
     { key: "branch", label: "Ramas" },
     { key: "repo", label: "Repos conectados" },

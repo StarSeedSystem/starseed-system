@@ -83,6 +83,7 @@ import {
   Shapes,
   GitBranch,
   PackageCheck,
+  Palette,
   Rocket,
   Landmark,
   Sprout,
@@ -150,6 +151,8 @@ import { LibraryBrainsPopover } from "@/components/library/library-brains-popove
 import { PublicCatalogSection } from "@/components/library/finder/public-catalog-section";
 // ── Explorar por temas y categorías (Adenda 66 §5) ──
 import { LibraryTopicsExplorer } from "@/components/library/topics-explorer";
+// ── Pestaña "Diseños" (Adenda 72 C1): archivos .ssdesign.json del sistema/red/biblioteca ──
+import { DesignsLibraryPanel } from "@/components/library/designs-library-panel";
 
 // --- Types ---
 
@@ -158,7 +161,7 @@ type AssetType = "FILE" | "FOLDER" | "LIBRARY" | "PROGRAM" | "PAGE" | "CONCEPT";
 type ResourceType = "todos" | "articulos" | "cursos" | "documentos" | "comunidades";
 type SortMode = "recientes" | "valorados" | "populares";
 /** Pestañas de nivel superior (la tienda viva + la colección de siempre). */
-type LibraryTab = "instalar-starseed" | "destacado" | "categorias" | "repos" | "comunidad" | "coleccion" | "instalado";
+type LibraryTab = "instalar-starseed" | "destacado" | "categorias" | "repos" | "comunidad" | "coleccion" | "disenos" | "instalado";
 /** Pestañas internas de «Mi colección» (la Biblioteca anterior, intacta). */
 type CollectionTab = "explorar" | "personal" | "fuentes" | "updates";
 
@@ -1591,9 +1594,10 @@ function resolveInitialTab(
   if (t === "instalar-starseed" || t === "instalar" || t === "install") {
     return { top: "instalar-starseed", inner: "explorar" };
   }
-  if (t === "destacado" || t === "categorias" || t === "repos" || t === "instalado" || t === "comunidad") {
+  if (t === "destacado" || t === "categorias" || t === "repos" || t === "instalado" || t === "comunidad" || t === "disenos") {
     return { top: t as LibraryTab, inner: "explorar" };
   }
+  if (t === "diseños" || t === "designs" || t === "design") return { top: "disenos", inner: "explorar" };
   if (t === "store" || t === "tienda") return { top: "destacado", inner: "explorar" };
   if (t === "coleccion" || t === "colección") return { top: "coleccion", inner: "explorar" };
   if (t === "explorar" || t === "personal" || t === "fuentes" || t === "updates") {
@@ -1754,6 +1758,9 @@ function LibraryContent() {
           <TabsTrigger value="coleccion" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
             <BookMarked className="w-4 h-4" /> Mi colección
           </TabsTrigger>
+          <TabsTrigger value="disenos" className="gap-1.5 data-[state=active]:bg-violet-500/15 data-[state=active]:text-violet-200 cursor-pointer">
+            <Palette className="w-4 h-4" /> Diseños
+          </TabsTrigger>
           <TabsTrigger value="instalado" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
             <PackageCheck className="w-4 h-4" /> Instalado
           </TabsTrigger>
@@ -1775,6 +1782,11 @@ function LibraryContent() {
         <TabsContent value="comunidad" className="mt-6 space-y-8">
           <LibraryTopicsExplorer />
           <PublicCatalogSection />
+        </TabsContent>
+
+        {/* ── DISEÑOS: archivos .ssdesign.json del sistema/red/biblioteca (Adenda 72 C1) ── */}
+        <TabsContent value="disenos" className="mt-6">
+          <DesignsLibraryPanel />
         </TabsContent>
 
         {/* ── MI COLECCIÓN: la Biblioteca de siempre, intacta ── */}

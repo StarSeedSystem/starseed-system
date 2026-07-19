@@ -30,6 +30,7 @@ import {
     ChevronRight,
     X,
     Layers,
+    type LucideIcon,
 } from "lucide-react";
 import { WidgetShell } from "../kit";
 import {
@@ -64,7 +65,7 @@ interface LayerDef {
     id: LayerId;
     label: string;
     accent: string;
-    icon: React.ElementType;
+    icon: LucideIcon;
 }
 
 const LAYERS: LayerDef[] = [

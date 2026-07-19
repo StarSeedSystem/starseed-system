@@ -333,7 +333,7 @@ function TelemetryLine({ icon, label, value, color }: any) {
         <div className="flex items-center justify-between p-4 rounded-2xl bg-black/40 border border-white/5 hover:border-white/10 transition-all group/node">
             <div className="flex items-center gap-4">
                 <div className={cn("p-2 rounded-xl bg-white/5", color)}>
-                    {React.cloneElement(icon as React.ReactElement, { className: "size-4" })}
+                    {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: "size-4" })}
                 </div>
                 <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">{label}</span>
             </div>

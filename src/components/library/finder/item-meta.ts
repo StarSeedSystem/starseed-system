@@ -2,7 +2,7 @@
 // los tipos v2 (`alias`, `branch`). Puro, sin JSX.
 
 import {
-    Package, PenSquare, FileText, Globe, Link2, ExternalLink, CornerUpRight, GitBranch, Bookmark, Drama,
+    Package, PenSquare, FileText, Globe, Link2, ExternalLink, CornerUpRight, GitBranch, Bookmark, Drama, Palette,
     type LucideIcon,
 } from "lucide-react";
 import type { SavedItem, SavedItemType } from "@/lib/library/entity-library";
@@ -23,6 +23,8 @@ export const ITEM_TYPE_META: Record<SavedItemType, { label: string; icon: Lucide
     bookmark: { label: "Marcador", icon: Bookmark },
     /** v2.2 (Adenda 63 §11): personalidad de Aurora (archivo de configuración). */
     personality: { label: "Personalidad", icon: Drama },
+    /** v2.3 (Adenda 72 C1): archivo de diseño (.ssdesign.json). */
+    design: { label: "Diseño", icon: Palette },
 };
 
 export function itemTypeMeta(type: SavedItemType) {

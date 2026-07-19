@@ -32,7 +32,7 @@ import { EntityEditorDialog } from "@/components/social/entity-editor-dialog";
 import type { OsPage } from "@/lib/os-social";
 import { UnifiedCalendar } from "@/components/calendar/unified-calendar";
 import { CollectionsGrid } from "@/components/profile/collections/collections-grid";
-import { samplePages, sampleGroups } from "@/data/sample-entities";
+import { samplePages, sampleGroups, type SystemKey } from "@/data/sample-entities";
 import { listPartidos, listFederativeEntities } from "@/data/sample-governance";
 import { useEntityLayout, applyTabLayout, suggestedIntegrations } from "@/lib/entity-layout";
 import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
@@ -507,8 +507,8 @@ export default function PaginaPage() {
                     kind: page.kind,
                     slug: page.slug,
                     name: page.name,
-                    description: page.description,
-                    coverUrl: effectiveCover,
+                    description: page.description ?? "",
+                    coverUrl: effectiveCover ?? "",
                     memberCount: page.memberCount,
                     accent: accent
                 }}
@@ -541,7 +541,7 @@ export default function PaginaPage() {
                     <div className="min-w-0 lg:col-span-1 mt-14">
                         <GlassCard className="p-4">
                             <h3 className="font-headline text-lg font-semibold mb-3">Red</h3>
-                            <MemberAvatars count={page.memberCount} accent={accent} />
+                            <MemberAvatars system={(page as { system?: SystemKey }).system ?? "politico"} total={page.memberCount} accent={accent} seed={page.id} />
                         </GlassCard>
                     </div>
                 )}

@@ -12,7 +12,7 @@
 
 import React from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { LayoutGrid, MonitorPlay, Sparkles, Library, Plus } from "lucide-react";
+import { LayoutGrid, MonitorPlay, Sparkles, Library, Plus, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Desktop } from "./desktop-store";
 
@@ -101,7 +101,7 @@ function StarOrb({ reduced }: { reduced: boolean | null }): React.ReactElement {
 function ActionPill({
     icon: Icon, label, accent, onClick,
 }: {
-    icon: React.ElementType;
+    icon: LucideIcon;
     label: string;
     accent: string;
     onClick: () => void;

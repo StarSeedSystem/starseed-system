@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Sparkles, Layers, Eye, Cpu, Settings2, Code, Zap, Globe, Shield, RefreshCw, X, Sliders, PlayCircle, Grid3X3, ArrowUpRight, ChevronLeft, Save, Maximize2, Move, AlertTriangle, Download, CircleDashed, Loader2, Wand2 } from 'lucide-react';
+import { Sparkles, Layers, Eye, Cpu, Settings2, Code, Zap, Globe, Shield, RefreshCw, X, Sliders, PlayCircle, Grid3X3, ArrowUpRight, ChevronLeft, Save, Maximize2, Move, AlertTriangle, Download, CircleDashed, Loader2, Wand2, type LucideIcon } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -23,7 +23,7 @@ import {
     ForgeWidgetResult
 } from './widget-forge-types';
 
-const LAYOUT_ICONS: Record<string, React.ElementType> = {
+const LAYOUT_ICONS: Record<string, LucideIcon> = {
     'CircleDashed': Sparkles,
     'LayoutGrid': Grid3X3,
     'AlignCenter': Layers,

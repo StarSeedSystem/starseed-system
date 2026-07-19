@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, ArrowRight, Command, Type, Palette, Sparkles, LayoutGrid, Shapes, Move, AppWindow, Image, MoreHorizontal, Component } from "lucide-react";
+import { Search, ArrowRight, Command, Type, Palette, Sparkles, LayoutGrid, Shapes, Move, AppWindow, Image, MoreHorizontal, Component, type LucideIcon } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { CanvasState } from "./state-types";
@@ -14,7 +14,7 @@ interface SearchableSetting {
     id: string; // The ID used in SettingControl
     label: string;
     category: string;
-    icon: React.ElementType;
+    icon: LucideIcon;
     tab: string; // The tab ID to switch to
     keywords?: string[];
 }

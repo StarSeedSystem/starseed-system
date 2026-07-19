@@ -7,7 +7,8 @@ import { DashboardWidget, WidgetType } from "./dashboard-types";
 import { WidgetRegistry } from "./widget-registry";
 import { getSizeConstraints } from "./widget-manifest";
 import { AddWidgetDialog } from "./add-widget-dialog";
-import { Sparkles, ChevronUp, ChevronDown, Scaling } from "lucide-react";
+import { Sparkles, ChevronUp, ChevronDown, Scaling, Pin, Share2, X } from "lucide-react";
+import { WidgetConfigPopover } from "./kit/widget-config-popover";
 import { shareWidget } from "@/lib/widget-sync";
 import { getManifest } from "./widget-manifest";
 import { useToast } from "@/components/ui/use-toast";
@@ -80,6 +81,14 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
     // cualquier pantalla táctil, los widgets jamás se mueven al tocarlos, deslizar
     // hace scroll y todos los botones funcionan. En ratón se permite en edición.
     const canDragMouse = isEditMode && !isCoarse;
+
+    // Persiste un patch parcial en `widget.settings` (lo usa el panel de estilo
+    // por widget · WidgetConfigPopover). Fusiona sobre las settings actuales.
+    const applyWidgetSettings = useCallback((widgetId: string, patch: Record<string, any>) => {
+        setWidgets(widgets.map((w) => (
+            w.id === widgetId ? { ...w, settings: { ...(w.settings || {}), ...patch } } : w
+        )));
+    }, [widgets, setWidgets]);
 
     useEffect(() => {
         setMounted(true);
@@ -318,7 +327,8 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "up"); }}
                                             disabled={idx === 0}
-                                            className="absolute top-2 left-2 bg-background/80 hover:bg-background border rounded p-1 z-50 cursor-pointer transition-colors disabled:opacity-30"
+                                            aria-label="Subir el widget en el orden"
+                                            className="absolute top-2 left-2 grid place-items-center min-h-[36px] min-w-[36px] bg-background/80 hover:bg-background border rounded-lg z-50 cursor-pointer transition-colors disabled:opacity-30"
                                             title="Subir / mover antes"
                                         >
                                             <ChevronUp className="w-4 h-4" />
@@ -327,7 +337,8 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "down"); }}
                                             disabled={idx === ordered.length - 1}
-                                            className="absolute top-2 left-12 bg-background/80 hover:bg-background border rounded p-1 z-50 cursor-pointer transition-colors disabled:opacity-30"
+                                            aria-label="Bajar el widget en el orden"
+                                            className="absolute top-2 left-[3.25rem] grid place-items-center min-h-[36px] min-w-[36px] bg-background/80 hover:bg-background border rounded-lg z-50 cursor-pointer transition-colors disabled:opacity-30"
                                             title="Bajar / mover después"
                                         >
                                             <ChevronDown className="w-4 h-4" />
@@ -335,27 +346,48 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                         <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); cycleWidgetSize(widget.id); }}
-                                            className="absolute bottom-2 left-2 flex items-center gap-1 bg-background/80 hover:bg-background border rounded px-1.5 py-1 z-50 cursor-pointer transition-colors text-[10px] font-bold"
+                                            aria-label={`Cambiar tamaño del widget (actual: ${widgetSize(widget)})`}
+                                            className="absolute bottom-2 left-2 flex items-center gap-1 min-h-[36px] bg-background/80 hover:bg-background border rounded-lg px-2 py-1 z-50 cursor-pointer transition-colors text-[10px] font-bold"
                                             title="Cambiar tamaño (S/M/L/XL)"
                                         >
-                                            <Scaling className="w-3 h-3" />
+                                            <Scaling className="w-3.5 h-3.5" />
                                             {widgetSize(widget)}
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={(e) => { e.stopPropagation(); handlePinWidget(widget); }}
-                                            className="absolute top-2 right-[5.5rem] bg-indigo-500/60 hover:bg-indigo-500 text-white border border-indigo-400/50 rounded p-1 cursor-pointer z-50 transition-colors"
+                                            aria-label="Fijar el widget en pantalla"
+                                            className="absolute top-2 right-[6.75rem] grid place-items-center min-h-[36px] min-w-[36px] bg-indigo-500/60 hover:bg-indigo-500 text-white border border-indigo-400/50 rounded-lg cursor-pointer z-50 transition-colors"
                                             title="Fijar en pantalla"
-                                        >📌</button>
+                                        >
+                                            <Pin className="w-4 h-4" />
+                                        </button>
                                         <button
+                                            type="button"
                                             onClick={(e) => { e.stopPropagation(); handleShareWidget(widget); }}
-                                            className="absolute top-2 right-12 bg-emerald-500/60 hover:bg-emerald-500 text-white border border-emerald-400/50 rounded p-1 cursor-pointer z-50 transition-colors"
+                                            aria-label="Compartir el widget a la biblioteca"
+                                            className="absolute top-2 right-[3.5rem] grid place-items-center min-h-[36px] min-w-[36px] bg-emerald-500/60 hover:bg-emerald-500 text-white border border-emerald-400/50 rounded-lg cursor-pointer z-50 transition-colors"
                                             title="Compartir a la biblioteca"
-                                        >🔗</button>
+                                        >
+                                            <Share2 className="w-4 h-4" />
+                                        </button>
                                         <button
+                                            type="button"
                                             onClick={(e) => { e.stopPropagation(); handleDeleteWidget(widget.id); }}
-                                            className="absolute top-2 right-2 bg-destructive/80 hover:bg-destructive text-white border border-destructive rounded p-1 cursor-pointer z-50 transition-colors"
+                                            aria-label="Eliminar el widget"
+                                            className="absolute top-2 right-2 grid place-items-center min-h-[36px] min-w-[36px] bg-destructive/80 hover:bg-destructive text-white border border-destructive rounded-lg cursor-pointer z-50 transition-colors"
                                             title="Eliminar Widget"
-                                        >✕</button>
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                        {/* Config del widget (estilo: cristal/sólido/transparente/Trinity). */}
+                                        <WidgetConfigPopover
+                                            widget={widget}
+                                            onChangeSettings={(patch) => applyWidgetSettings(widget.id, patch)}
+                                            className="absolute bottom-2 right-2 min-h-[36px] min-w-[36px]"
+                                            side="top"
+                                            align="end"
+                                        />
                                     </>
                                 )}
                             </motion.div>
@@ -496,7 +528,8 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                                 <button
                                                     type="button"
                                                     onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "up"); }}
-                                                    className="absolute top-2 left-2 bg-background/80 hover:bg-background border rounded p-1 z-50 cursor-pointer transition-colors"
+                                                    aria-label="Subir el widget en el orden"
+                                                    className="absolute top-2 left-2 grid place-items-center min-h-[36px] min-w-[36px] bg-background/80 hover:bg-background border rounded-lg z-50 cursor-pointer transition-colors"
                                                     title="Subir / mover antes"
                                                 >
                                                     <ChevronUp className="w-4 h-4" />
@@ -504,7 +537,8 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                                 <button
                                                     type="button"
                                                     onClick={(e) => { e.stopPropagation(); moveWidget(widget.id, "down"); }}
-                                                    className="absolute top-2 left-12 bg-background/80 hover:bg-background border rounded p-1 z-50 cursor-pointer transition-colors"
+                                                    aria-label="Bajar el widget en el orden"
+                                                    className="absolute top-2 left-[3.25rem] grid place-items-center min-h-[36px] min-w-[36px] bg-background/80 hover:bg-background border rounded-lg z-50 cursor-pointer transition-colors"
                                                     title="Bajar / mover después"
                                                 >
                                                     <ChevronDown className="w-4 h-4" />
@@ -514,42 +548,57 @@ export function GridArea({ dashboardId, widgets, setWidgets, isEditMode, onPinWi
                                         <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); cycleWidgetSize(widget.id); }}
-                                            className="absolute bottom-2 left-2 flex items-center gap-1 bg-background/80 hover:bg-background border rounded px-1.5 py-1 z-50 cursor-pointer transition-colors text-[10px] font-bold"
+                                            aria-label={`Cambiar tamaño del widget (actual: ${widgetSize(widget)})`}
+                                            className="absolute bottom-2 left-2 flex items-center gap-1 min-h-[36px] bg-background/80 hover:bg-background border rounded-lg px-2 py-1 z-50 cursor-pointer transition-colors text-[10px] font-bold"
                                             title="Cambiar tamaño (S/M/L/XL)"
                                         >
-                                            <Scaling className="w-3 h-3" />
+                                            <Scaling className="w-3.5 h-3.5" />
                                             {widgetSize(widget)}
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handlePinWidget(widget);
                                             }}
-                                            className="absolute top-2 right-[5.5rem] bg-indigo-500/60 hover:bg-indigo-500 text-white border border-indigo-400/50 rounded p-1 cursor-pointer z-50 transition-colors"
+                                            aria-label="Fijar el widget en pantalla"
+                                            className="absolute top-2 right-[6.75rem] grid place-items-center min-h-[36px] min-w-[36px] bg-indigo-500/60 hover:bg-indigo-500 text-white border border-indigo-400/50 rounded-lg cursor-pointer z-50 transition-colors"
                                             title="Fijar en pantalla"
                                         >
-                                            📌
+                                            <Pin className="w-4 h-4" />
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleShareWidget(widget);
                                             }}
-                                            className="absolute top-2 right-12 bg-emerald-500/60 hover:bg-emerald-500 text-white border border-emerald-400/50 rounded p-1 cursor-pointer z-50 transition-colors"
+                                            aria-label="Compartir el widget a la biblioteca"
+                                            className="absolute top-2 right-[3.5rem] grid place-items-center min-h-[36px] min-w-[36px] bg-emerald-500/60 hover:bg-emerald-500 text-white border border-emerald-400/50 rounded-lg cursor-pointer z-50 transition-colors"
                                             title="Compartir a la biblioteca"
                                         >
-                                            🔗
+                                            <Share2 className="w-4 h-4" />
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleDeleteWidget(widget.id);
                                             }}
-                                            className="absolute top-2 right-2 bg-destructive/80 hover:bg-destructive text-white border border-destructive rounded p-1 cursor-pointer z-50 transition-colors"
+                                            aria-label="Eliminar el widget"
+                                            className="absolute top-2 right-2 grid place-items-center min-h-[36px] min-w-[36px] bg-destructive/80 hover:bg-destructive text-white border border-destructive rounded-lg cursor-pointer z-50 transition-colors"
                                             title="Eliminar Widget"
                                         >
-                                            ✕
+                                            <X className="w-4 h-4" />
                                         </button>
+                                        {/* Config del widget (estilo: cristal/sólido/transparente/Trinity). */}
+                                        <WidgetConfigPopover
+                                            widget={widget}
+                                            onChangeSettings={(patch) => applyWidgetSettings(widget.id, patch)}
+                                            className="absolute bottom-2 right-2"
+                                            side="top"
+                                            align="end"
+                                        />
                                     </>
                                 )}
                             </motion.div>

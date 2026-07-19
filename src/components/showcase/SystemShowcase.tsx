@@ -19,6 +19,7 @@ import {
     File as FileIcon,
     ExternalLink,
     ArrowUpRight,
+    type LucideIcon,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +52,7 @@ function SectionHeader({
     subtitle,
     accent,
 }: {
-    icon: React.ElementType;
+    icon: LucideIcon;
     title: string;
     subtitle: string;
     accent: string;
@@ -287,7 +288,7 @@ function AppCard({ a }: { a: ReturnType<typeof appsBySystem>[number] }) {
 }
 
 // ── Iconografía por formato de archivo ──
-const FILE_ICON: Record<SampleFileFormat, React.ElementType> = {
+const FILE_ICON: Record<SampleFileFormat, LucideIcon> = {
     imagen: FileImage,
     video: FileVideo,
     audio: FileAudio,

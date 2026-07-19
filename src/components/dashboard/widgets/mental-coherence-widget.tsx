@@ -2,7 +2,7 @@
 
 import React, { useId } from "react";
 import { motion } from "framer-motion";
-import { Brain, Sparkles, Target, Wind, Flame, Zap, TrendingUp } from "lucide-react";
+import { Brain, Sparkles, Target, Wind, Flame, Zap, TrendingUp, type LucideIcon } from "lucide-react";
 import { WidgetShell, ProgressRing, StatTile, Sparkline } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 
@@ -86,7 +86,7 @@ function BreathingRing({ value, size = 88, color }: { value: number; size: numbe
 // Bio-metric bar with icon + animated fill
 function BioBar({
     label, value, color, icon: Icon, delay = 0,
-}: { label: string; value: number; color: string; icon: React.ElementType; delay?: number }) {
+}: { label: string; value: number; color: string; icon: LucideIcon; delay?: number }) {
     const clamped = Math.max(0, Math.min(1, value));
     return (
         <motion.div

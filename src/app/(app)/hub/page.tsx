@@ -1694,7 +1694,14 @@ export default function HubPage() {
                         </Button>
                     </div>
                     {myPages.length === 0 && (
-                        <p className="rounded-2xl border border-dashed border-white/12 p-10 text-center text-sm text-muted-foreground">Aún no tienes páginas activas. Crea la primera.</p>
+                        <div className="rounded-2xl border border-dashed border-white/12 p-10 text-center">
+                            <p className="text-sm text-muted-foreground mb-4">Aún no tienes páginas activas. Crea la primera para reunir a tu comunidad.</p>
+                            <Button asChild size="sm" className="btn-pill shadow-[0_0_15px_rgba(var(--primary-rgb),0.3)]">
+                                <Link href="/crear?area=publicar&dest=pagina">
+                                    <Plus className="w-4 h-4 mr-1.5" /> Crear mi primera página
+                                </Link>
+                            </Button>
+                        </div>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {myPages.map((page, i) => (
@@ -1743,6 +1750,16 @@ export default function HubPage() {
                             </Link>
                         </Button>
                     </div>
+                    {studyGroups.length === 0 && (
+                        <div className="rounded-2xl border border-dashed border-white/12 p-10 text-center">
+                            <p className="text-sm text-muted-foreground mb-4">Aún no participas en ningún grupo. Crea uno o únete a los grupos sugeridos arriba.</p>
+                            <Button asChild size="sm" className="btn-pill shadow-[0_0_15px_rgba(var(--primary-rgb),0.3)]">
+                                <Link href="/crear?area=publicar&dest=grupo">
+                                    <Plus className="w-4 h-4 mr-1.5" /> Crear un grupo
+                                </Link>
+                            </Button>
+                        </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {studyGroups.map((group) => (
                             <Card key={group.id} className="group liquid-glass-panel shadow-lg hover:border-primary/40 transition-all duration-300 h-full p-2">

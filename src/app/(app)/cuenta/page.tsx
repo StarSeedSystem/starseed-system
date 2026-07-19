@@ -38,6 +38,8 @@ import { getLinkedExternalEmail, setLinkedExternalEmail } from "@/lib/mail/os-ma
 
 // ── Paneles YA EXISTENTES: se MONTAN aquí (reorganizados), nunca se duplica su lógica ──
 import { ConfigExportPanel } from "@/components/settings/advanced/config-export-panel";
+import { DesignSettingsPanel } from "@/components/settings/appearance/design-settings-panel";
+import { GuideButtonToggle } from "@/components/settings/appearance/guide-button-toggle";
 import { PrivacyPanel } from "@/components/settings/privacy/privacy-panel";
 import { NeuronsPanel } from "@/components/settings/neurons/neurons-panel";
 import { AccountSyncPanel } from "@/components/settings/account/account-sync-panel";
@@ -869,6 +871,12 @@ function CuentaContent() {
             description={desktopsInfo.active ? `Activo: ${desktopsInfo.active}` : "Organiza widgets e iconos"}
           />
           <QuickLink href="/settings?tab=trinity" icon={Compass} label="Trinity" description="Botón flotante y gestos de borde" />
+        </div>
+        {/* Interruptor del botón de guía flotante (default ON; se aplica en vivo). */}
+        <GuideButtonToggle />
+        {/* Estudio Universal de Diseño: importar / temas en carpetas / exportar (Adenda 72 C1) */}
+        <div style={card}>
+          <DesignSettingsPanel />
         </div>
       </section>
 

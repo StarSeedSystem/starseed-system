@@ -92,7 +92,11 @@ export type SavedItemType =
     /** v2.2 (Adenda 63, §11): personalidad de Aurora como archivo de configuración
      *  (JSON en `content`, ver src/lib/aurora/personalities.ts) — compartible e
      *  instalable entre cuentas desde la Biblioteca. */
-    | "personality";
+    | "personality"
+    /** v2.3 (Adenda 72, C1): archivo de DISEÑO (.ssdesign.json) — tema/paleta/
+     *  tipografía/fondo/layout/skin/estilo, JSON en `content` (ver
+     *  src/lib/design/design-files.ts). Aplicable a perfil/página desde el Estudio. */
+    | "design";
 
 /** Entrada de control de acceso: un usuario o un grupo (por id/slug). */
 export interface ACLEntry {

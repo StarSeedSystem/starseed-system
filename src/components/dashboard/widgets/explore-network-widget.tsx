@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
-import { TrendingUp, ChevronRight, Users, Telescope, Globe, Landmark, Vote, BookOpen, Palette, Building2, Flame, Sparkles, Check } from "lucide-react";
+import { TrendingUp, ChevronRight, Users, Telescope, Globe, Landmark, Vote, BookOpen, Palette, Building2, Flame, Sparkles, Check, type LucideIcon } from "lucide-react";
 import { WidgetShell, MiniList, Chip, ProgressBar, ProgressRing } from "../kit";
 import { useAppearance } from "@/context/appearance-context";
 import { useWidgetData } from "@/lib/widget-data";
@@ -29,7 +29,7 @@ const ACCENT = "#f59e0b";
 const HOT = 0.78;     // candente
 const RISING = 0.55;  // en ascenso
 
-const KIND_META: Record<NetworkEntity["kind"], { label: string; icon: React.ElementType }> = {
+const KIND_META: Record<NetworkEntity["kind"], { label: string; icon: LucideIcon }> = {
     comunidad:  { label: "Comunidad",  icon: Users },
     sangha:     { label: "Sangha",     icon: Globe },
     colectivo:  { label: "Colectivo",  icon: Palette },
@@ -41,7 +41,7 @@ type FilterKind = NetworkEntity["kind"] | "todas" | "partido" | "entidad";
 
 const FILTER_KEYS: FilterKind[] = ["todas", "comunidad", "sangha", "colectivo", "biorregion", "partido", "entidad"];
 
-const FILTER_META: Record<FilterKind, { label: string; icon: React.ElementType }> = {
+const FILTER_META: Record<FilterKind, { label: string; icon: LucideIcon }> = {
     todas:     { label: "Todo",       icon: Globe },
     comunidad: { label: "Comunidad",  icon: Users },
     sangha:    { label: "Sangha",     icon: Globe },
@@ -54,7 +54,7 @@ const FILTER_META: Record<FilterKind, { label: string; icon: React.ElementType }
 interface RichEntity extends NetworkEntity {
     href: string;
     typeLabel: string;
-    typeIcon: React.ElementType;
+    typeIcon: LucideIcon;
     filterKind: FilterKind;
 }
 

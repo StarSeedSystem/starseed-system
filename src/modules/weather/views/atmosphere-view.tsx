@@ -18,6 +18,7 @@ import {
     ShieldAlert,
     Rocket,
     Search,
+    type LucideIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
@@ -69,7 +70,7 @@ type TabState = 'terrestre' | 'espacial' | 'solar';
 interface TabDef {
     id: TabState;
     label: string;
-    icon: React.ElementType;
+    icon: LucideIcon;
     accent: string;
 }
 

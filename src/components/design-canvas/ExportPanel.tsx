@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Download, Copy, Check, FileJson, FileCode, Zap, Save } from "lucide-react";
+import { X, Download, Copy, Check, FileJson, FileCode, Zap, Save, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { CanvasState } from "./state-types";
@@ -139,7 +139,7 @@ export function ExportPanel({ state, onClose, onApplyToContext, onSaveTheme, onI
         }
     };
 
-    const formats: { id: ExportFormat; label: string; icon: React.ElementType; desc: string }[] = [
+    const formats: { id: ExportFormat; label: string; icon: LucideIcon; desc: string }[] = [
         { id: "json", label: "JSON", icon: FileJson, desc: "Theme package compatible" },
         { id: "css", label: "CSS Variables", icon: FileCode, desc: "Copy-paste ready" },
         { id: "apply", label: "Apply Live", icon: Zap, desc: "Push to network now" },

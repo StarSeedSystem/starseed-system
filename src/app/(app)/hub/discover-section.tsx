@@ -81,7 +81,9 @@ function groupToCard(g: OsGroup): DiscoverCard {
         description: g.description,
         memberCount: g.memberCount,
         avatarUrl: g.avatarUrl,
-        href: `/pagina/${g.slug}`,
+        // Los grupos viven en /grupo/<slug> (tabla os_groups). Enlazar a
+        // /pagina/<slug> devolvía 404 porque esa ruta consulta os_pages.
+        href: `/grupo/${g.slug}`,
         tags: g.tags,
     };
 }

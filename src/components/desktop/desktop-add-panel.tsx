@@ -15,6 +15,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
     X, Rocket, LayoutGrid, FolderOpen, Globe, FolderPlus, Search, Plus,
     Check, ExternalLink, MonitorPlay, Library as LibraryIcon, Eye, EyeOff,
+    type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,7 @@ import { useOpenDesktopIcon } from "./desktop-open";
 
 export type AddPanelTab = "apps" | "widgets" | "files" | "web" | "folder";
 
-const TABS: Array<{ id: AddPanelTab; label: string; icon: React.ElementType }> = [
+const TABS: Array<{ id: AddPanelTab; label: string; icon: LucideIcon }> = [
     { id: "apps", label: "Apps", icon: Rocket },
     { id: "widgets", label: "Widgets", icon: LayoutGrid },
     { id: "files", label: "Archivos", icon: FolderOpen },

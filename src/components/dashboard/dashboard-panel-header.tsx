@@ -6,7 +6,7 @@ import { useWorkspace } from "./dashboard-workspace-context";
 import { cn } from "@/lib/utils";
 import { LayoutPanelLeft, LayoutPanelTop, X, Star, Plus, Settings2, Trash2, MonitorSmartphone, Check, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -198,8 +198,13 @@ export function DashboardPanelHeader({
 }: HeaderProps) {
     const { setActiveDashboard, closePanel, splitPanel, setState } = useWorkspace();
 
+    // Ratón: el arrastre se activa tras mover 5px. Táctil: requiere una pulsación
+    // SOSTENIDA (220ms) antes de arrastrar, de modo que un deslizamiento rápido
+    // sobre la tira de pestañas HACE SCROLL en vez de reordenar por accidente
+    // (el glitch clásico de dnd-kit sobre táctil, aquí resuelto sin tocar el ratón).
     const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+        useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
     );
 
     const handleDragEnd = (event: DragEndEvent) => {
@@ -319,9 +324,6 @@ export function DashboardPanelHeader({
                                     Compartir
                                 </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem className="text-white hover:bg-white/10 cursor-pointer">
-                                Configurar Grilla
-                            </DropdownMenuItem>
                             <DropdownMenuSeparator className="bg-white/10" />
                             <DropdownMenuItem
                                 className="text-red-400 hover:bg-red-500/20 cursor-pointer focus:text-red-300"

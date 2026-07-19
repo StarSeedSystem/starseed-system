@@ -603,7 +603,7 @@ export default function AiAppGenerator() {
   // Render del árbol
   // ──────────────────────────────────────────────────────────────────────────
 
-  const renderTree = (node: TreeNode, depth = 0): JSX.Element[] => {
+  const renderTree = (node: TreeNode, depth = 0): React.ReactElement[] => {
     return node.children.flatMap((child) => {
       const pad = { paddingLeft: `${depth * 12 + 8}px` } as const;
       if (child.isDir) {

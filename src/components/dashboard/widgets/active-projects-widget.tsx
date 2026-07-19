@@ -1,7 +1,7 @@
 'use client';
 
 import Link from "next/link";
-import { Rocket, Plus, Users, ChevronRight, Landmark, Pause, RefreshCw, CheckCircle2, Activity, ArrowRight } from "lucide-react";
+import { Rocket, Plus, Users, ChevronRight, Landmark, Pause, RefreshCw, CheckCircle2, Activity, ArrowRight, type LucideIcon } from "lucide-react";
 import { WidgetShell, MiniList, ProgressRing, ProgressBar, Chip, timeUntil } from "../kit";
 import { useWidgetData } from "@/lib/widget-data";
 import type { Project } from "@/lib/widget-data";
@@ -13,7 +13,7 @@ import type { Project } from "@/lib/widget-data";
 // interconnects to /network/politics and /hub.
 // ════════════════════════════════════════════════════════════════
 
-const STATUS_META: Record<Project["status"], { label: string; color: string; icon: React.ElementType }> = {
+const STATUS_META: Record<Project["status"], { label: string; color: string; icon: LucideIcon }> = {
     activo:     { label: "Activo",     color: "#10b981", icon: Activity },
     pausado:    { label: "Pausado",    color: "#f59e0b", icon: Pause },
     revision:   { label: "Revisión",   color: "#6366f1", icon: RefreshCw },

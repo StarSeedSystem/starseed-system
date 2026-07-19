@@ -1,13 +1,14 @@
 "use client";
 
 import React from "react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
 export interface TabItem {
     id: string;
     label: string | React.ReactNode;
-    icon?: React.ElementType;
+    icon?: LucideIcon;
 }
 
 interface StitchTabsProps {

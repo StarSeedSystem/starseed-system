@@ -101,6 +101,10 @@ import {
   auroraTranscript,
   parseVoiceCommand,
 } from "./aurora-guide-voice";
+import {
+  getGuideButtonVisible,
+  subscribeGuideButtonVisible,
+} from "@/lib/onboarding/guide-visibility";
 
 // ── contratos externos (solo strings/constantes; sin importar el motor) ──────
 const GUIDE_SEEN_KEY = "starseed.guide.seen.v1";
@@ -405,6 +409,13 @@ export function AuroraGuide() {
   const [spot, setSpot] = useState<DOMRect | null>(null);
   // Pista visual de "comando de voz reconocido" (efímera).
   const [voiceHint, setVoiceHint] = useState<string | null>(null);
+  // Visibilidad del botón flotante de guía (preferencia de Ajustes → Personalización).
+  // Se aplica EN VIVO en todas las rutas: el botón se resuscribe a los cambios.
+  const [buttonVisible, setButtonVisible] = useState(true);
+  useEffect(() => {
+    setButtonVisible(getGuideButtonVisible());
+    return subscribeGuideButtonVisible(() => setButtonVisible(getGuideButtonVisible()));
+  }, []);
 
   const step = STEPS[index];
   const ctx = useMemo<GuideCtx>(() => ({ router, setActiveEdge }), [router, setActiveEdge]);
@@ -624,8 +635,10 @@ export function AuroraGuide() {
   }, [mode, step]);
 
   // ── acceso flotante discreto (siempre reabrible) ───────────────────────────
-  // Se oculta mientras la guía está abierta.
-  const FloatingAccess = !open ? (
+  // Se oculta mientras la guía está abierta, o si el usuario lo desactivó en
+  // Ajustes → Personalización ("Botón de guía"). El tour por primera visita y el
+  // helper global window.openStarseedGuide() siguen disponibles igualmente.
+  const FloatingAccess = !open && buttonVisible ? (
     <button
       type="button"
       onClick={() => openGuide(0)}

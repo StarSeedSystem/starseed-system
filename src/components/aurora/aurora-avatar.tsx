@@ -275,6 +275,8 @@ export function AuroraAvatar({ className, forcePosition }: AuroraAvatarProps) {
   const showLive2dLoading = wantsLive2d && live2dStatus === "loading";
   const position = forcePosition ?? config.position;
   const label = stateLabel({ unavailable, speaking, paused, listening, thinking });
+  // Tamaño real del orbe dentro del marco (deja aire coherente glass alrededor).
+  const orbSize = Math.round(config.size * 0.78);
 
   return (
     <div
@@ -285,7 +287,7 @@ export function AuroraAvatar({ className, forcePosition }: AuroraAvatarProps) {
       )}
     >
       <div
-        className="relative flex items-center justify-center rounded-[28px] border border-white/10 bg-black/30 backdrop-blur-md overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.35)]"
+        className="relative grid place-items-center rounded-[28px] border border-white/10 bg-black/30 backdrop-blur-md overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.35)]"
         style={{ width: config.size, height: config.size }}
         aria-hidden
       >
@@ -293,22 +295,36 @@ export function AuroraAvatar({ className, forcePosition }: AuroraAvatarProps) {
           <div ref={containerRef} className="h-full w-full" />
         ) : (
           <>
+            {/* Halo suave centrado tras el orbe (lectura de cristal-luz coherente). */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-0"
+              style={{
+                background:
+                  "radial-gradient(closest-side, rgba(201,168,255,0.16), rgba(127,184,255,0.07) 55%, transparent 78%)",
+              }}
+            />
             {showLive2dLoading && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40">
                 <Loader2 className="h-5 w-5 animate-spin text-white/50" />
               </div>
             )}
-            <AuroraOrb
-              size={Math.round(config.size * 0.78)}
-              speaking={speaking}
-              listening={listening}
-              paused={paused}
-              supported={supported}
-              unavailable={unavailable}
-            />
+            {/* El orbe (raíz `position:absolute; inset:0`) DEBE ir en un
+                contenedor `relative` de su tamaño exacto para quedar centrado
+                horizontal y verticalmente; sin él quedaba anclado arriba-izq. */}
+            <div className="relative z-[1]" style={{ width: orbSize, height: orbSize }}>
+              <AuroraOrb
+                size={orbSize}
+                speaking={speaking}
+                listening={listening}
+                paused={paused}
+                supported={supported}
+                unavailable={unavailable}
+              />
+            </div>
             {thinking && !speaking && !listening && (
               <span
-                className="absolute inset-3 rounded-full border-2 border-dashed border-[#7fb8ff]/50"
+                className="absolute inset-3 z-[2] rounded-full border-2 border-dashed border-[#7fb8ff]/50"
                 style={{ animation: "starseed-avatar-spin 3s linear infinite" }}
               />
             )}

@@ -29,6 +29,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
     X, Eye, Info, Share2, Lock, ExternalLink, FolderOpen, StickyNote,
     LayoutGrid, FileQuestion, Globe, ShieldCheck, Loader2,
+    type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getApp } from "@/components/dashboard/apps/app-catalog";
@@ -202,7 +203,7 @@ function PreviewBody({ icon }: { icon: DesktopIcon }): React.ReactElement {
     );
 }
 
-function EmptyBody({ icon: Icon, text }: { icon: React.ElementType; text: string }): React.ReactElement {
+function EmptyBody({ icon: Icon, text }: { icon: LucideIcon; text: string }): React.ReactElement {
     return (
         <div className="grid h-full place-items-center p-6 text-center">
             <div className="space-y-2">

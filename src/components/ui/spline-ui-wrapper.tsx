@@ -66,7 +66,7 @@ export function SplineUIWrapper({
     fallbackGradient = 'linear-gradient(135deg, rgba(15,0,30,1) 0%, rgba(5,5,25,1) 40%, rgba(0,10,20,1) 100%)',
 }: SplineUIWrapperProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const [isVisible, setIsVisible] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
     const [hasFailed, setHasFailed] = useState(false);

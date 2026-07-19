@@ -25,6 +25,7 @@ import {
 import { publish } from "@/lib/publish/publish";
 import { getCurrentUserId } from "@/lib/os-social";
 import MentionInput from "@/components/mentions/mention-input";
+import { createClient } from "@/utils/supabase/client";
 
 export default function NetworkPage() {
     const [rawPosts, setRawPosts] = useState<FeedPost[]>([]);
@@ -37,6 +38,8 @@ export default function NetworkPage() {
     const [algorithm, setAlgorithm] = useState<FeedAlgorithmId>("relevancia");
     const [weights, setWeights] = useState<FeedWeights>(loadFeedPreference().weights);
     const [preferredAreas, setPreferredAreas] = useState<string[]>([]);
+    // Propuestas activas REALES (proposals con status = 'open'); null = sin dato → "—".
+    const [activeProposals, setActiveProposals] = useState<number | null>(null);
 
     useEffect(() => {
         const pref = loadFeedPreference();
@@ -48,7 +51,29 @@ export default function NetworkPage() {
     useEffect(() => {
         loadFeed();
         void fetchMyConnectionIds().then(setConnectionIds);
+        // Contador REAL de propuestas activas (mismo criterio que el Hub / Política).
+        // Defensivo: cualquier fallo deja el valor en null → "—" honesto.
+        (async () => {
+            try {
+                const supabase = createClient();
+                const { count, error } = await supabase
+                    .from("proposals")
+                    .select("*", { count: "exact", head: true })
+                    .eq("status", "open");
+                if (!error) setActiveProposals(count ?? 0);
+            } catch {
+                /* sin dato → "—" */
+            }
+        })();
     }, []);
+
+    // Conceptos distintos en circulación (etiquetas únicas del feed) — dato REAL,
+    // sustituye al antiguo "Seeds en Flujo" que no tenía fuente de datos.
+    const conceptCount = useMemo(() => {
+        const s = new Set<string>();
+        for (const p of rawPosts) for (const t of p.tags) s.add(t);
+        return s.size;
+    }, [rawPosts]);
 
     const loadFeed = async () => {
         try {
@@ -138,7 +163,7 @@ export default function NetworkPage() {
     };
 
     return (
-        <div className="w-full px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] space-y-[clamp(1.5rem,3vw,3rem)] animate-in fade-in duration-500 pb-24">
+        <div className="w-full mx-auto max-w-6xl px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] space-y-[clamp(1.5rem,3vw,3rem)] animate-in fade-in duration-500 pb-24">
             {/* El "Cerebro" (gráfica viva) se trasladó al Exocórtex / Astraura AI (/agent → pestaña Cerebro). */}
 
             {/* Feed Section */}
@@ -218,8 +243,8 @@ export default function NetworkPage() {
                                 {[
                                     { label: "Publicaciones", value: rawPosts.length > 0 ? String(rawPosts.length) : "—", color: "text-cyan-500 dark:text-cyan-400", bg: "bg-cyan-500/10" },
                                     { label: "Conexiones", value: connectionIds.size > 0 ? String(connectionIds.size) : "—", color: "text-purple-500 dark:text-purple-400", bg: "bg-purple-500/10" },
-                                    { label: "Propuestas Activas", value: "—", color: "text-amber-500 dark:text-amber-400", bg: "bg-amber-500/10" },
-                                    { label: "Seeds en Flujo", value: "—", color: "text-emerald-500 dark:text-emerald-400", bg: "bg-emerald-500/10" },
+                                    { label: "Propuestas Activas", value: activeProposals != null ? String(activeProposals) : "—", color: "text-amber-500 dark:text-amber-400", bg: "bg-amber-500/10" },
+                                    { label: "Conceptos", value: conceptCount > 0 ? String(conceptCount) : "—", color: "text-emerald-500 dark:text-emerald-400", bg: "bg-emerald-500/10" },
                                 ].map(stat => (
                                     <div key={stat.label} className={`rounded-xl p-3 text-center ${stat.bg} border border-border/5`}>
                                         <div className={`text-xl font-bold font-headline ${stat.color}`}>{stat.value}</div>

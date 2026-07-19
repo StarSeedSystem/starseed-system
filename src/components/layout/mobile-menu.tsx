@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
     Home, User, Bot, MessageSquare, Users, Network,
-    PenSquare, Globe, Library, Info, Settings, Sparkles
+    PenSquare, Globe, Library, Info, Settings, Sparkles,
+    type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
@@ -18,7 +19,7 @@ export interface MobileMenuProps {
 
 interface NavItemProps {
     href: string;
-    icon: React.ElementType;
+    icon: LucideIcon;
     label: string;
     description?: string;
     isActive?: boolean;

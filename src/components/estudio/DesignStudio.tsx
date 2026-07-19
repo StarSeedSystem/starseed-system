@@ -9,16 +9,26 @@
  * construir sobre `/design-canvas`).
  */
 
-import React, { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Sliders, Shapes, Box, Bot, Blend, Layers } from "lucide-react";
+import {
+    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+    DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ArrowLeft, Sliders, Shapes, Box, Bot, Blend, Layers, Sparkles, User, Globe, Loader2 } from "lucide-react";
 import { ELEMENT_FAMILIES } from "./element-catalog";
 import type { ElementFamily, ElementOverride, ThemeDraftMeta } from "./types";
 import { makeId } from "./types";
 import { defaultOverride } from "./property-defaults";
+import { useMyLibraryDestinations } from "@/lib/library/entity-library";
+import {
+    resolveStudioDesign, clearStashedDesign, resolveDesignTokens,
+    applyDesignToProfile, applyDesignToEntity, type DesignFile,
+} from "@/lib/design/design-files";
 import { LivePreviewPanel } from "./LivePreviewPanel";
 import { PropertyPanel } from "./PropertyPanel";
 import { Canvas2DEditor } from "./Canvas2DEditor";
@@ -46,8 +56,83 @@ export function DesignStudio() {
     const [meta, setMeta] = useState<ThemeDraftMeta>(() => ({
         id: makeId("theme"), name: "Mi tema StarSeed", description: "", style: "personalizado",
     }));
+    const searchParams = useSearchParams();
+    const { destinations } = useMyLibraryDestinations();
+    const [applyBusy, setApplyBusy] = useState(false);
+    const [loadedName, setLoadedName] = useState<string | null>(null);
 
     const current = overrides[family] ?? defaultOverride();
+
+    const pageTargets = useMemo(
+        () => destinations.filter((d) => d.ref.kind === "page" || d.ref.kind === "group"),
+        [destinations],
+    );
+
+    // Carga un diseño (del catálogo, de la Biblioteca o importado) al estado del
+    // Estudio: lo trata como la familia "theme" (tokens globales) para poder
+    // personalizarlo y aplicarlo. Reutiliza el contrato theme-engine (tokens).
+    function loadDesignFile(file: DesignFile) {
+        const tokens = resolveDesignTokens(file, "auto");
+        setFamily("theme");
+        setOverrides((prev) => ({ ...prev, theme: { ...(prev.theme ?? defaultOverride()), tokens } }));
+        setMeta({
+            id: file.id,
+            name: file.nombre,
+            description: file.descripcion ?? "",
+            style: file.estilo ?? file.categoria ?? "personalizado",
+        });
+        setReplayKey((k) => k + 1);
+        setLoadedName(file.nombre);
+    }
+
+    // ?design=<id> o ?import=1 → abre un diseño cargado (una vez, al montar).
+    useEffect(() => {
+        const designId = searchParams?.get("design") ?? null;
+        const wantsImport = searchParams?.get("import");
+        if (!designId && !wantsImport) return;
+        const file = resolveStudioDesign(designId);
+        if (file) {
+            loadDesignFile(file);
+            clearStashedDesign();
+            toast.success(`«${file.nombre}» abierto en el Estudio`, { description: "Personalízalo y aplícalo donde quieras." });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    function currentDesignFile(): DesignFile {
+        return {
+            id: meta.id,
+            nombre: meta.name || "Diseño",
+            tipo: "tema-completo",
+            categoria: "temas",
+            payload: { tokens: current.tokens },
+            scope: ["perfil", "pagina", "grupo", "comunidad", "sistema"],
+            preview: { colors: [] },
+            version: 1,
+            descripcion: meta.description,
+            estilo: meta.style,
+        };
+    }
+
+    function applyToProfile() {
+        const ok = applyDesignToProfile(currentDesignFile());
+        if (ok) toast.success("Aplicado a tu perfil.", { description: "Cambia el aspecto de tu StarSeed. Revertible desde Ajustes → Apariencia." });
+        else toast.error("No se pudo aplicar el diseño.");
+    }
+
+    async function applyToEntity(refKey: string, label: string) {
+        const dest = destinations.find((d) => `${d.ref.kind}:${d.ref.id}` === refKey);
+        if (!dest) return;
+        setApplyBusy(true);
+        try {
+            await applyDesignToEntity(currentDesignFile(), dest.ref);
+            toast.success(`Aplicado a ${label}.`, { description: "Se ve al abrir esa entidad." });
+        } catch {
+            toast.error("No se pudo aplicar a la entidad.");
+        } finally {
+            setApplyBusy(false);
+        }
+    }
 
     function updateCurrent(next: ElementOverride) {
         setOverrides((prev) => ({ ...prev, [family]: next }));
@@ -102,9 +187,33 @@ export function DesignStudio() {
                     </Button>
                     <div>
                         <h1 className="font-headline text-lg font-light tracking-wide text-white sm:text-xl">Estudio Universal de Diseño</h1>
-                        <p className="text-[11px] text-white/40">Edita cualquier elemento del sistema con vista previa en vivo — nunca toca componentes base.</p>
+                        <p className="text-[11px] text-white/40">
+                            {loadedName ? `Editando: ${loadedName}` : "Edita cualquier elemento del sistema con vista previa en vivo — nunca toca componentes base."}
+                        </p>
                     </div>
                 </div>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button size="sm" disabled={applyBusy} className="h-8 gap-1.5 bg-primary/80 text-xs text-white hover:bg-primary">
+                            {applyBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Aplicar a…
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="border-white/10 bg-black/90 text-white backdrop-blur-xl">
+                        <DropdownMenuLabel className="text-[11px] text-white/50">Aplicar diseño actual</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={applyToProfile} className="cursor-pointer gap-2 text-xs">
+                            <User className="h-3.5 w-3.5" /> Perfil actual (tu StarSeed)
+                        </DropdownMenuItem>
+                        {pageTargets.length > 0 && <DropdownMenuSeparator className="bg-white/10" />}
+                        {pageTargets.map((d) => (
+                            <DropdownMenuItem key={`${d.ref.kind}:${d.ref.id}`} onClick={() => void applyToEntity(`${d.ref.kind}:${d.ref.id}`, d.label)} className="cursor-pointer gap-2 text-xs">
+                                <Globe className="h-3.5 w-3.5" /> {d.label}{d.hint ? ` · ${d.hint}` : ""}
+                            </DropdownMenuItem>
+                        ))}
+                        {pageTargets.length === 0 && (
+                            <p className="px-2 py-1.5 text-[10px] text-white/40">Inicia sesión y administra páginas/grupos para aplicar ahí.</p>
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </header>
 
             <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">

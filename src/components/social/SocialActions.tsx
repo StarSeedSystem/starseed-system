@@ -4,10 +4,10 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useSocialState, type SocialAction } from "@/hooks/use-social-state";
-import { Check, Plus, Share2, UserPlus, CalendarCheck, Star, Send } from "lucide-react";
+import { Check, Plus, Share2, UserPlus, CalendarCheck, Star, Send, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const ICONS: Record<SocialAction, React.ElementType> = {
+const ICONS: Record<SocialAction, LucideIcon> = {
     follow: UserPlus,
     join: Plus,
     request: Send,

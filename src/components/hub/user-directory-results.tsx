@@ -185,9 +185,13 @@ const GROUP_KIND_META: Record<SocialGroupHit["kind"], { label: string; accent: s
 
 function GroupRow({ hit }: { hit: SocialGroupHit }) {
     const meta = GROUP_KIND_META[hit.kind];
+    // Cada tipo vive en su ruta real: los grupos en /grupo/<slug> (os_groups),
+    // las páginas/comunidades en /pagina/<slug> (os_pages). Enlazar todo a
+    // /pagina devolvía 404 para los grupos.
+    const href = hit.kind === "grupo" ? `/grupo/${hit.slug}` : `/pagina/${hit.slug}`;
     return (
         <Link
-            href={`/pagina/${hit.slug}`}
+            href={href}
             className="group/item flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 hover:border-primary/30 transition-colors cursor-pointer"
         >
             <Avatar className="h-10 w-10 ring-2 ring-white/10 shrink-0">

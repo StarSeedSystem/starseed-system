@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SectionHeaderProps {
-    icon: React.ElementType;
+    icon: LucideIcon;
     title: string;
     color?: string;
     className?: string;

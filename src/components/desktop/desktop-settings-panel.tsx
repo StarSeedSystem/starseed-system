@@ -21,6 +21,7 @@ import {
     X, Settings2, ImageIcon, Grid3x3, Magnet, Palette, ArrowUpDown,
     SquareStack, Pencil, Copy, Trash2, Check, Plus, ChevronUp, ChevronDown,
     Maximize, Sparkles, PictureInPicture2, Share2,
+    type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -59,7 +60,7 @@ const THEMES: Array<{ id: DesktopTheme; name: string; dot: string }> = [
 
 // ── Bloque de sección ────────────────────────────────────────────
 function Section({ icon: Icon, title, children }: {
-    icon: React.ElementType; title: string; children: React.ReactNode;
+    icon: LucideIcon; title: string; children: React.ReactNode;
 }): React.ReactElement {
     return (
         <section className="space-y-2">

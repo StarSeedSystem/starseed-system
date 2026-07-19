@@ -22,6 +22,7 @@ import {
     BadgeCheck,
     MapPin,
     ArrowUpRight,
+    type LucideIcon,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +57,7 @@ function SectionHeader({
     title,
     accent,
 }: {
-    icon: React.ElementType;
+    icon: LucideIcon;
     title: string;
     accent: string;
 }) {
