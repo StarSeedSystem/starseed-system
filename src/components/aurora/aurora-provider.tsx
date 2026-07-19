@@ -111,6 +111,10 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
    */
   const [capabilities, setCapabilities] = useState<CapabilityReport>(() => getCapabilities());
   useEffect(() => {
+    // Margen proactivo de almacenamiento (Adenda 75-bis): si el localStorage
+    // va >80% lleno, poda al arrancar (espejos de memoria de cerebros, chatlog
+    // legado, backups…) para que NINGÚN módulo se encuentre la cuota llena.
+    void import("@/lib/safe-storage").then((m) => m.ensureStorageHeadroom()).catch(() => {});
     // Recalcula ya en cliente (window disponible): detecta STT/TTS reales y
     // CONSULTA el permiso de micrófono de verdad (Permissions API) en vez de
     // suponerlo. Con el permiso denegado, `voiceMode` deja de mentir ('full').

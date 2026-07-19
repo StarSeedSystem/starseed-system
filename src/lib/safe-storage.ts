@@ -256,6 +256,15 @@ export function pruneLocalStorage(): PruneReport {
         remove(key);
         continue;
       }
+      // (5) Espejos locales de memoria de cerebros (Adenda 75-bis): son
+      // snapshots de `brain_memory_files` que YA viven en la nube y se
+      // re-descargan al abrir el cerebro. En cuentas con muchos cerebros
+      // ocupan varios MB (medido en producción: ~4.5 MB de 5) y son la causa
+      // principal de la cuota llena. Cache pura → seguro de podar.
+      if (/^starseed\.brain\.[0-9a-f-]{36}\.memory-mirror\.v\d+$/i.test(key)) {
+        remove(key);
+        continue;
+      }
     } catch {
       /* una clave problemática nunca aborta la poda */
     }
@@ -291,4 +300,34 @@ function trimChatlogToRecent(key: string, cutoff: number): string | null {
   }
 }
 
-export default { safeGet, safeSet, safeRemove, pruneLocalStorage, lastPrune };
+/**
+ * Margen proactivo (Adenda 75-bis): si el almacenamiento local supera el
+ * umbral (~80% de los ~5 MB típicos), ejecuta la poda al ARRANCAR, sin esperar
+ * al primer fallo de escritura. Así los módulos aún no blindados tampoco se
+ * encuentran la cuota llena. Idempotente por sesión. Nunca lanza.
+ */
+let headroomChecked = false;
+export function ensureStorageHeadroom(thresholdBytes = 4_000_000): PruneReport | null {
+  if (!isClient() || headroomChecked) return null;
+  headroomChecked = true;
+  try {
+    let used = 0;
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k) used += k.length + (window.localStorage.getItem(k) ?? "").length;
+    }
+    if (used < thresholdBytes) return null;
+    const report = pruneLocalStorage();
+    try {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[storage] uso alto (${(used / 1048576).toFixed(2)} MB): poda proactiva liberó ${(report.freedBytes / 1048576).toFixed(2)} MB (${report.removed.length} claves)`,
+      );
+    } catch { /* noop */ }
+    return report;
+  } catch {
+    return null;
+  }
+}
+
+export default { safeGet, safeSet, safeRemove, pruneLocalStorage, lastPrune, ensureStorageHeadroom };
