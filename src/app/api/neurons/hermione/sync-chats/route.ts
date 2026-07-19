@@ -3,19 +3,42 @@ import {
   backfillAllHermesNeurons,
   backfillHermesChatsToNeuron,
   registerHermioneChatEverywhere,
+  listHermioneConversations,
 } from "@/lib/aurora/hermione-server";
 
 /**
+ * GET /api/neurons/hermione/sync-chats
+ * Índice de conversaciones de Hermione de la cuenta (para reflejarlo en los
+ * cerebros: `syncHermioneToBrainMemories` lo consume). Devuelve {convId, name}[].
+ */
+export async function GET() {
+  try {
+    const conversations = await listHermioneConversations();
+    return NextResponse.json({ ok: true, conversations });
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, conversations: [], error: e instanceof Error ? e.message : "Error al listar chats." },
+      { status: 200 },
+    );
+  }
+}
+
+/**
  * POST /api/neurons/hermione/sync-chats
- * Sincronización por chat de Hermione (Adenda 70):
- *   · sin body → BACKFILL de TODOS los chats de Hermione a TODAS las neuronas.
+ * Sincronización por chat de Hermione (Adenda 70 · ampliada 74):
+ *   · { index: true } → devuelve el ÍNDICE de chats de Hermione (para el cerebro).
+ *   · { convId, name } → registra ese chat en TODAS las neuronas (en tiempo real).
  *   · { neuronId } → BACKFILL de todos los chats a esa neurona (cuando recupera
  *     señal o se instala Hermes).
- *   · { convId, name } → registra ese chat en TODAS las neuronas (en tiempo real).
+ *   · sin body → BACKFILL de TODOS los chats de Hermione a TODAS las neuronas.
  */
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({} as any));
+    if (body?.index === true) {
+      const conversations = await listHermioneConversations();
+      return NextResponse.json({ ok: true, conversations });
+    }
     if (body?.convId && body?.name) {
       const updated = await registerHermioneChatEverywhere(body.convId, body.name);
       return NextResponse.json({ ok: true, updated });

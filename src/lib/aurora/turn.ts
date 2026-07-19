@@ -64,6 +64,7 @@ import {
 } from "@/lib/aurora/conversations";
 import type { ChatConfig } from "@/components/aurora/chat-config-menu";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
+import { buildAttachmentsContext, type UniversalAttachment } from "@/lib/aurora/attachments";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,12 @@ export interface SendAuroraTurnOptions {
   persistAssistant?: boolean;
   /** Etiqueta de origen/proveedor para el mensaje persistido. */
   source?: string | null;
+  /**
+   * Adjuntos del turno (dispositivo/bibliotecas/neuronas/red). Se persisten con
+   * el mensaje del usuario (`astraura_messages.attachments`) y su contexto se
+   * inyecta al modelo: contenido de los legibles (≤64KB) o nombre+tipo si no.
+   */
+  attachments?: UniversalAttachment[] | null;
 }
 
 export interface AuroraTurnResult {
@@ -353,15 +360,20 @@ export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<Auror
     convId = conv.id;
   }
 
-  // 2) Persistir el mensaje del usuario (optimista, en vivo).
+  // 2) Persistir el mensaje del usuario (optimista, en vivo) con sus adjuntos.
+  const attachments = opts.attachments && opts.attachments.length ? opts.attachments : null;
   if (opts.persistUser !== false && text) {
-    await appendMessage({ role: "user", text, convId, surface });
+    await appendMessage({ role: "user", text, convId, surface, attachments });
   }
 
-  // 3) System prompt: extras del orbe + lo propio del llamador.
+  // 3) System prompt: extras del orbe + contexto de adjuntos + lo propio del llamador.
   const persona = resolveTurnPersona({ convId, brainId: opts.brainId, route: opts.route });
   const extras = await composeAuroraSystem({ brainId: opts.brainId, route: opts.route });
-  const system = [opts.systemExtra, extras].filter(Boolean).join("\n\n");
+  let attachContext = "";
+  if (attachments) {
+    try { attachContext = await buildAttachmentsContext(attachments); } catch { /* sin contexto: sigue igual */ }
+  }
+  const system = [opts.systemExtra, attachContext, extras].filter(Boolean).join("\n\n");
 
   // 4) Historial (el REAL de la conversación unificada si no se pasó).
   const history = opts.history ?? historyFromCache(convId, text);

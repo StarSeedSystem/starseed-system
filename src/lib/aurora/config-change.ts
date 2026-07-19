@@ -20,7 +20,8 @@ import type { ChatConfig } from "@/components/aurora/chat-config-menu";
 import { listPersonalityProfiles } from "@/lib/aurora/personalities";
 import { loadConfigs } from "@/ai/client/providerStore";
 import { PROVIDERS } from "@/ai/providers";
-import { appendMessage } from "@/lib/aurora/conversations";
+import { appendMessage, patchCachedConversationConfig } from "@/lib/aurora/conversations";
+import { createClient } from "@/utils/supabase/client";
 
 export const CONFIG_CHANGE_KIND = "config-change";
 export const CONFIG_CHANGE_PREFIX = "⚙️ Ajustes del chat actualizados:";
@@ -133,4 +134,35 @@ export async function insertConfigChangeMessage(
       meta: { kind: CONFIG_CHANGE_KIND, local: true },
     });
   } catch { /* best-effort: el divisor es informativo */ }
+}
+
+// ── Escritura de un ajuste puntual del chat (reutilizable por botones) ────────
+/**
+ * Parchea `meta.config` de un chat en la NUBE (mismo modelo que el menú de
+ * Opciones) y refleja el cambio al instante en la caché local (optimista), para
+ * que superficies como el botón de voz de la fila de entrada persistan un ajuste
+ * (p.ej. `voice`) sin abrir el menú. Inserta el divisor "⚙️ Ajustes del chat
+ * actualizados" (idempotente). Devuelve la config resultante o `null`. Nunca lanza.
+ */
+export async function patchChatConfig(
+  convId: string | null | undefined,
+  patch: Partial<ChatConfig>,
+): Promise<ChatConfig | null> {
+  if (!convId) return null;
+  try {
+    const sb = createClient();
+    const { data } = await sb.from("aurora_conversations").select("meta").eq("id", convId).maybeSingle();
+    const meta = (data?.meta as Record<string, unknown>) || {};
+    const prevCfg = (meta.config as ChatConfig) || {};
+    const next: ChatConfig = { ...prevCfg, ...patch };
+    meta.config = next;
+    await sb.from("aurora_conversations").update({ meta }).eq("id", convId);
+    // Optimista: la caché refleja el ajuste ya (getChatConfig lo ve en el próximo turno).
+    try { patchCachedConversationConfig(convId, next as Record<string, unknown>); } catch { /* */ }
+    // Divisor sutil con SÓLO lo que cambió (aparece en todas las superficies).
+    void insertConfigChangeMessage(convId, prevCfg, next);
+    return next;
+  } catch {
+    return null;
+  }
 }

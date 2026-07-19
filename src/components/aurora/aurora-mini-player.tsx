@@ -52,8 +52,12 @@ import {
 import styles from "./aurora-mini-player.module.css";
 import { ChatConfigMenu } from "./chat-config-menu";
 import { MiniPlayerOpenMenu } from "./mini-player-open-menu";
-import { useAiConversations } from "@/lib/aurora/conversations";
-import { Settings, FolderOpen } from "lucide-react";
+import { useAiConversations, useAiMessages, appendMessage } from "@/lib/aurora/conversations";
+import { Settings, FolderOpen, Paperclip } from "lucide-react";
+// Adjuntos + voz de chat compartidos (Agente S1): 📎, chips y altavoz.
+import { summarizeAttachments, type UniversalAttachment } from "@/lib/aurora/attachments";
+import { ChatAttachButton, MessageAttachmentChips } from "@/components/aurora/chat-attach-button";
+import { ChatVoiceButtons } from "@/components/aurora/chat-voice-buttons";
 
 /** Inactividad tras la cual el reproductor resumido se retira solo. */
 const AUTOHIDE_MS = 10_000;
@@ -99,6 +103,8 @@ interface Line {
   role: Speaker;
   text: string;
   at: number;
+  /** (Agente S1) Adjuntos del mensaje (jsonb de `astraura_messages.attachments`). */
+  attachments?: unknown[] | null;
 }
 
 export function AuroraMiniPlayer({
@@ -115,6 +121,9 @@ export function AuroraMiniPlayer({
   const [expanded, setExpanded] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const conv = useAiConversations();
+  // Hilo desde la NUBE unificada (últimos ~20): así el reproductor de la orbe
+  // muestra TAMBIÉN lo hablado/escrito en el Exocórtex y en /agent (Agente S1).
+  const cloudMsgs = useAiMessages(conv.activeId);
   const [optsOpen, setOptsOpen] = useState(false);
   // Selector compacto de chats/carpetas + cerebros + nuevo chat (Adenda 71-ter).
   const [openMenuOpen, setOpenMenuOpen] = useState(false);
@@ -138,10 +147,27 @@ export function AuroraMiniPlayer({
   const speaking = !!aurora?.speaking;
   const paused = !!aurora?.paused;
   const interim = (aurora?.interim || "").trim();
-  const conversation = useMemo<Line[]>(
-    () => (aurora?.conversation as Line[] | undefined) ?? [],
-    [aurora?.conversation],
-  );
+  const conversation = useMemo<Line[]>(() => {
+    const live = (aurora?.conversation as Line[] | undefined) ?? [];
+    // Historia persistida (orbe + Exocórtex + /agent); los divisores 'system' no van aquí.
+    const fromCloud: Line[] = cloudMsgs
+      .filter((m) => m.role !== "system" && !!m.text.trim())
+      .map((m) => ({
+        role: m.role === "assistant" ? "aurora" : "user",
+        text: m.text,
+        at: m.ts,
+        attachments: m.attachments,
+      }));
+    if (fromCloud.length === 0) return live.slice(-20);
+    // Añadimos la COLA en vivo del ring del motor que aún no está en la nube
+    // (respuesta en streaming del turno actual), sin duplicar.
+    const lastAt = fromCloud[fromCloud.length - 1].at;
+    const seen = new Set(fromCloud.map((m) => `${m.role}|${m.text.trim()}`));
+    const tailLive = live.filter(
+      (m) => !seen.has(`${m.role}|${(m.text ?? "").trim()}`) && (m.at ?? 0) >= lastAt,
+    );
+    return [...fromCloud, ...tailLive].slice(-20);
+  }, [cloudMsgs, aurora?.conversation]);
   const voiceUnavailable = !!aurora?.voiceUnavailable;
 
   // ── ¿Quién tiene el turno? Define el color de la iluminación reactiva. ──
@@ -260,6 +286,23 @@ export function AuroraMiniPlayer({
     setExpanded(false);
     onDismiss?.();
   }, [clearAutohide, onDismiss]);
+
+  // 📎 (Agente S1): el picker universal ya subió el archivo (url real). Lo
+  // persistimos como mensaje del usuario en la conversación ACTIVA (la misma de
+  // todas las superficies); aparece en el hilo con su chip y el próximo turno lo ve.
+  const handleMiniAttach = useCallback(async (picked: UniversalAttachment[]) => {
+    if (!picked?.length) return;
+    clearAutohide();
+    try {
+      await appendMessage({
+        role: "user",
+        text: summarizeAttachments(picked),
+        convId: conv.activeId ?? undefined,
+        surface: "mini",
+        attachments: picked,
+      });
+    } catch { /* defensivo */ }
+  }, [conv.activeId, clearAutohide]);
 
   // ── Deslizar dentro del widget: arriba = expandir historial; abajo = colapsar. ──
   const onDragEnd = useCallback((_e: unknown, info: PanInfo) => {
@@ -499,8 +542,8 @@ export function AuroraMiniPlayer({
           <RouteChip compact inlinePanel className="mt-1.5" />
         </div>
 
-        {/* ── Transporte AMPLIADO: prev · play/pausa · stop · next · mic ── */}
-        <div className="flex items-center gap-1 px-2.5 pb-1.5 pt-2">
+        {/* ── Transporte AMPLIADO: prev · play/pausa · stop · next · mic · 📎 · voz ── */}
+        <div className="flex flex-wrap items-center gap-1 px-2.5 pb-1.5 pt-2">
           <div className={styles.transport}>
             <button
               type="button"
@@ -563,6 +606,23 @@ export function AuroraMiniPlayer({
               <MicOff className="h-3.5 w-3.5" />
             )}
           </button>
+
+          {/* 📎 Adjuntar (persiste en el hilo unificado) — Agente S1 */}
+          <ChatAttachButton
+            onPick={(p) => void handleMiniAttach(p)}
+            folder="aurora"
+            title="Adjuntar archivo"
+            className={cn(styles.ctrl, styles.ctrlMic)}
+          >
+            <Paperclip className="h-3.5 w-3.5" />
+          </ChatAttachButton>
+
+          {/* Altavoz: voz de respuesta on/off de ESTE chat (el mic es el del motor arriba). */}
+          <ChatVoiceButtons
+            convId={conv.activeId ?? null}
+            showMic={false}
+            buttonClassName="size-8"
+          />
         </div>
 
         {/* ── Pie: expandir panel clásico · abrir en Exocórtex ── */}
@@ -652,8 +712,11 @@ function LineRow({ line, clamp = false }: { line: Line; clamp?: boolean }) {
         <span>{line.text}</span>
       ) : (
         // Historial expandido (con scroll): renderizador universal completo
-        // (markdown/código/tablas/JSON), con visor de medios.
-        <MessageRenderer text={line.text} compact media={true} className="inline" />
+        // (markdown/código/tablas/JSON), con visor de medios + chips de adjuntos.
+        <span className="min-w-0 flex-1">
+          <MessageRenderer text={line.text} compact media={true} className="inline" />
+          <MessageAttachmentChips attachments={line.attachments} />
+        </span>
       )}
     </div>
   );

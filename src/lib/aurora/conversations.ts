@@ -719,6 +719,30 @@ export async function renameConversation(convId: string, title: string): Promise
   }
 }
 
+/**
+ * Parchea `meta.config` de una conversación SOLO en la caché local (optimista y
+ * síncrono), para que `getChatConfig` y las superficies reflejen un cambio de
+ * ajustes al instante mientras la nube lo confirma por realtime. Best-effort;
+ * no toca `updatedAt` (un cambio de ajustes no reordena la lista). Nunca lanza.
+ */
+export function patchCachedConversationConfig(
+  convId: string,
+  config: Record<string, unknown>,
+): void {
+  if (!convId) return;
+  try {
+    const cache = readCache();
+    const i = cache.convs.findIndex((c) => c.id === convId);
+    if (i < 0) return;
+    const prevMeta = (cache.convs[i].meta as Record<string, unknown> | null) ?? {};
+    cache.convs[i] = { ...cache.convs[i], meta: { ...prevMeta, config } };
+    writeCache(cache);
+    emit(AI_CONV_CHANGE_EVENT);
+  } catch {
+    /* defensivo */
+  }
+}
+
 /** Borra una conversación y sus mensajes (nube + caché + señal). */
 export async function deleteConversation(convId: string): Promise<void> {
   if (!convId) return;

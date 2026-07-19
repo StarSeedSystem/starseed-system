@@ -49,12 +49,15 @@ import {
   thisDeviceId,
   isHermesLinked,
   linkHermesToNeuron,
+  setNeuronHermioneSync,
+  neuronHermioneSyncEnabled,
   NEURON_EVENT,
   type Neuron,
   type NeuronKind,
   type NeuronRole,
   type NeuronSettings,
 } from "@/lib/neurons/neurons";
+import { useHermioneStatus } from "@/lib/aurora/hermione-autosync";
 import { sendAccountBroadcast } from "@/lib/sync/realtime-sync";
 import { deviceId as syncDeviceId } from "@/lib/sync/entity-state";
 import { saveServer, linkServer } from "@/lib/brains/servers";
@@ -84,6 +87,7 @@ import {
   FolderSync,
   StickyNote,
   Brain,
+  Sparkles,
 } from "lucide-react";
 
 /* ─────────────────────────── Constantes de UI ─────────────────────────── */
@@ -271,6 +275,7 @@ export default function NeuronasPanel({
             <p className="text-[11px] text-white/40 mt-1.5">{summarizeNeurons(neurons)}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <HermioneStatusBadge />
             <Badge
               variant="outline"
               className={cn(
@@ -319,6 +324,32 @@ export default function NeuronasPanel({
   );
 }
 
+/* ═══════════════════════ Badge de estado de Hermione ═══════════════════════ */
+
+/**
+ * Badge simple y EXPORTABLE del estado del puente Hermione ("en línea / sin
+ * neurona / reintentando / inactiva") + nº de mensajes en cola. Reutilizable en
+ * cualquier superficie (cabecera del panel, barra de estado, etc.).
+ */
+export function HermioneStatusBadge({ className }: { className?: string }) {
+  const { status, label, pending } = useHermioneStatus();
+  const tone =
+    status === "online"
+      ? "border-fuchsia-400/40 text-fuchsia-200 bg-fuchsia-500/10"
+      : status === "reintentando"
+        ? "border-amber-400/40 text-amber-200 bg-amber-500/10"
+        : status === "sin-neurona"
+          ? "border-zinc-500/30 text-zinc-300 bg-zinc-500/10"
+          : "border-white/10 text-white/40 bg-black/20";
+  return (
+    <Badge variant="outline" className={cn("text-[9px] gap-1", tone, className)} title={label}>
+      <Sparkles className={cn("w-3 h-3", status === "online" && "animate-pulse")} />
+      {label}
+      {pending > 0 && <span className="ml-0.5 opacity-80">· {pending} en cola</span>}
+    </Badge>
+  );
+}
+
 /* ═══════════════════════════ Tarjeta de neurona ═══════════════════════════ */
 
 function NeuronCard({
@@ -337,6 +368,7 @@ function NeuronCard({
   const Icon = KIND_ICONS[n.kind] ?? Cpu;
   const [settings, setSettings] = useState<NeuronSettings>(() => settingsFor(n.id));
   const [syncOn, setSyncOn] = useState<boolean>(n.permissions?.sync ?? true);
+  const [hermioneSync, setHermioneSyncState] = useState<boolean>(() => neuronHermioneSyncEnabled(n.capabilities));
 
   // Nombre editable
   const [editing, setEditing] = useState(false);
@@ -356,9 +388,10 @@ function NeuronCard({
     setSettings(s);
     setNotes(s.notes ?? "");
     setSyncOn(n.permissions?.sync ?? true);
+    setHermioneSyncState(neuronHermioneSyncEnabled(n.capabilities));
     setDraftName(n.name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [n.id, n.name, n.permissions?.sync]);
+  }, [n.id, n.name, n.permissions?.sync, neuronHermioneSyncEnabled(n.capabilities)]);
 
   const patchSettings = (patch: Partial<NeuronSettings>) => {
     setSettings((prev) => ({
@@ -571,6 +604,21 @@ function NeuronCard({
             try { setPermission(n.id, "sync", v); } catch { /* */ }
           }}
         />
+        {isHermesLinked(n.capabilities) && (
+          <SettingRow
+            icon={Sparkles}
+            label="Sincronizar chats de Hermione"
+            hint="Usa esta neurona para los chats y memorias de Hermione"
+            checked={hermioneSync}
+            onChange={(v) => {
+              setHermioneSyncState(v);
+              void setNeuronHermioneSync(n.id, v).then((ok) => {
+                if (ok) toast.success(v ? "Hermione sincroniza en esta neurona." : "Hermione ya no sincroniza en esta neurona.");
+                else { setHermioneSyncState(!v); toast.error("No se pudo actualizar la sincronización de Hermione."); }
+              });
+            }}
+          />
+        )}
       </div>
 
       {/* ── Rol ── */}

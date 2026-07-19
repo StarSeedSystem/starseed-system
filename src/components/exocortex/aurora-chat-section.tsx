@@ -49,6 +49,8 @@ import { registerActiveAuroraChat } from "@/lib/aurora/personalities";
 // Pipeline COMPARTIDO de turno (voz + personalidad + acciones + config del chat),
 // el mismo que usa la orbe. El chat del Exocórtex lo usa en doSend (Adenda 71-ter).
 import { sendAuroraTurn, resolveTurnPersona } from "@/lib/aurora/turn";
+// Adjuntos del chat (Agente S1): resumen/tipos compartidos.
+import { summarizeAttachments, type UniversalAttachment } from "@/lib/aurora/attachments";
 // Carpetas de chat en tiempo real + selector de cerebro por contexto.
 import { useChatFolders } from "@/lib/aurora/chat-folders-store";
 import { listBrains, getSelection, selectBrainForContext, type Brain } from "@/lib/brains/brains";
@@ -689,6 +691,8 @@ export function AuroraChatSection({ className }: { className?: string }) {
   const [bridgeReady, setBridgeReady] = useState(false);
   const [draft, setDraft] = useState("");
   const [barDraft, setBarDraft] = useState("");
+  // Adjuntos PENDIENTES (elegidos con 📎, aún sin enviar). Van con el próximo turno.
+  const [pendingAttachments, setPendingAttachments] = useState<UniversalAttachment[]>([]);
   const [orbHidden, setOrbHiddenState] = useState(false);
   // Preferencia estable del botón flotante de Aurora (default ON, sincronizada).
   const [fabEnabled, setFabEnabledState] = useState(true);
@@ -797,7 +801,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
   // ── Acciones unificadas ────────────────────────────────────────────────────
   // `opts.forceSource` (Adenda "Aurora siempre responde") solo lo soporta el
   // motor real (`aurora.send`); el puente global degrada enviando normal.
-  const doSend = useCallback(async (text: string, opts?: { forceSource?: { sourceId: string; modelId: string } }) => {
+  const doSend = useCallback(async (text: string, opts?: { forceSource?: { sourceId: string; modelId: string }; attachments?: UniversalAttachment[] }) => {
     const t = (text ?? "").trim();
     if (!t) return;
     try {
@@ -806,28 +810,49 @@ export function AuroraChatSection({ className }: { className?: string }) {
       if (opts?.forceSource && aurora) { await aurora.send(t, opts); return; }
       // PIPELINE COMPARTIDO (Adenda 71-ter · I3), el MISMO de la orbe: personalidad
       // por contexto + acciones [[ACCION:…]] + conocimiento + config del chat + voz
-      // + persistencia en la conversación unificada. La respuesta aparece en la
-      // vista (useAiMessages) y queda sincronizada con orbe y /agent.
-      await sendAuroraTurn({
+      // + persistencia en la conversación unificada (con adjuntos). La respuesta
+      // aparece en la vista (useAiMessages) y queda sincronizada con orbe y /agent.
+      const res = await sendAuroraTurn({
         text: t,
         convId: aiChats.activeId ?? undefined,
         surface: "exocortex",
         route: pathname ?? undefined,
+        attachments: opts?.attachments,
       });
+      // Adopta el convId creado en el primer envío (si no había activo): así la
+      // vista (useAiMessages) apunta ya al hilo correcto y no diverge (SOSPECHA 3).
+      if (!aiChats.activeId && res?.convId) aiChats.setActive(res.convId);
     } catch { /* defensivo */ }
-  }, [aurora, aiChats.activeId, pathname]);
+  }, [aurora, aiChats.activeId, aiChats.setActive, pathname]);
 
   const submitDraft = useCallback(async () => {
     const t = draft.trim();
-    if (!t) return;
+    const atts = pendingAttachments;
+    if (!t && atts.length === 0) return;
     setDraft("");
-    await doSend(t);
-  }, [draft, doSend]);
+    setPendingAttachments([]);
+    // Sin texto pero con adjuntos → un pie honesto para el hilo/modelo.
+    await doSend(t || summarizeAttachments(atts), { attachments: atts.length ? atts : undefined });
+  }, [draft, pendingAttachments, doSend]);
 
-  // Subida universal de archivos (Adenda 64 §9): Aurora solo maneja texto — el
-  // picker ya insertó la(s) URL(s) en `draft` (ver AuroraChatView); aquí solo
-  // dejamos un punto de extensión honesto (sin acción adicional por ahora).
-  const handleAttachFile = useCallback(() => { /* URL ya insertada en el draft por AuroraChatView */ }, []);
+  // 📎 (Agente S1): el selector universal ya subió los archivos (url real); los
+  // dejamos PENDIENTES para adjuntarlos al próximo mensaje (se persisten en
+  // `astraura_messages.attachments` y su contexto va al modelo).
+  const handleAttachFile = useCallback((picked: UniversalAttachment[]) => {
+    if (picked?.length) setPendingAttachments((prev) => [...prev, ...picked]);
+  }, []);
+  const removeAttachment = useCallback((i: number) => {
+    setPendingAttachments((prev) => prev.filter((_, idx) => idx !== i));
+  }, []);
+
+  // Dictado (mic de la fila de entrada): parcial → campo; final → envía con adjuntos.
+  const onDictateInterim = useCallback((t: string) => setDraft(t), []);
+  const onDictateFinal = useCallback((t: string) => {
+    const atts = pendingAttachments;
+    setDraft("");
+    setPendingAttachments([]);
+    void doSend(t, { attachments: atts.length ? atts : undefined });
+  }, [pendingAttachments, doSend]);
 
   // Barra superior: preguntar a Aurora / buscar en la red. Envía a send()
   // (genera o continúa el contexto de chat) y aterriza en la vista de chat.
@@ -1004,6 +1029,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
       text: m.text,
       at: m.ts,
       ...(m.meta ? { meta: m.meta } : {}),
+      ...(m.attachments && m.attachments.length ? { attachments: m.attachments } : {}),
     }));
     if (!sessionStartTs) return fromCloud;
     try {
@@ -1351,6 +1377,11 @@ export function AuroraChatSection({ className }: { className?: string }) {
             onSubmitDraft={() => { void submitDraft(); }}
             onExitLoadedSession={exitLoadedSession}
             onAttachFile={handleAttachFile}
+            convId={aiChats.activeId ?? null}
+            pendingAttachments={pendingAttachments}
+            onRemoveAttachment={removeAttachment}
+            onDictateInterim={onDictateInterim}
+            onDictateFinal={onDictateFinal}
             onPause={tPause}
             onResume={tResume}
             onSkipBack={tSkipB}
@@ -1515,6 +1546,11 @@ export function AuroraChatSection({ className }: { className?: string }) {
         onSubmitDraft={() => { void submitDraft(); }}
         onExitLoadedSession={exitLoadedSession}
         onAttachFile={handleAttachFile}
+        convId={aiChats.activeId ?? null}
+        pendingAttachments={pendingAttachments}
+        onRemoveAttachment={removeAttachment}
+        onDictateInterim={onDictateInterim}
+        onDictateFinal={onDictateFinal}
         onPause={tPause}
         onResume={tResume}
         onSkipBack={tSkipB}

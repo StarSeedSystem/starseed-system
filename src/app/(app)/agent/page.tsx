@@ -97,7 +97,10 @@ import { astrauraChat } from "@/ai/astraura/router";
 // Pipeline compartido de Aurora (Adenda 71-ter · I1): acciones+conocimiento en el
 // prompt, voz por personalidad/ajustes, y dictado por voz reutilizable.
 import { composeAuroraSystem, speakAuroraReply, resolveTurnPersona } from "@/lib/aurora/turn";
-import { startDictation, isDictationSupported, type DictationHandle } from "@/lib/aurora/dictation";
+// Adjuntos + voz de chat compartidos (Agente S1): 📎, chips, mic/altavoz.
+import { buildAttachmentsContext, summarizeAttachments, type UniversalAttachment } from "@/lib/aurora/attachments";
+import { ChatAttachButton, PendingAttachmentChips, MessageAttachmentChips } from "@/components/aurora/chat-attach-button";
+import { ChatVoiceButtons } from "@/components/aurora/chat-voice-buttons";
 import { ConfigChangeNotice, isConfigChangeMessage } from "@/components/aurora/config-change-notice";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { parseDirectives } from "@/lib/aurora/actions";
@@ -375,6 +378,7 @@ interface AgentRenderMsg {
   timestamp: string;
   pending?: boolean;
   configChange?: boolean;
+  attachments?: unknown[] | null;
 }
 
 function AgentPageInner() {
@@ -455,10 +459,11 @@ function AgentPageInner() {
   const [process, setProcess] = useState<{ open: boolean; meta?: any }>({ open: false });
 
   const [streaming, setStreaming] = useState(false);
-  // Dictado por voz (Adenda 71-ter · I1): mic como el del orbe, reutilizando el
-  // helper compartido de STT (sin instanciar el motor supervisado siempre-activo).
-  const [listening, setListening] = useState(false);
-  const dictRef = useRef<DictationHandle | null>(null);
+  // Adjuntos PENDIENTES (elegidos con 📎, aún sin enviar) — van con el próximo turno.
+  const [pendingAttachments, setPendingAttachments] = useState<UniversalAttachment[]>([]);
+  const removeAttachment = useCallback((i: number) => {
+    setPendingAttachments((prev) => prev.filter((_, idx) => idx !== i));
+  }, []);
 
   // Skills & Tools state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
@@ -503,10 +508,14 @@ function AgentPageInner() {
   }
 
   async function handleSend(override?: string) {
-    const text = (override ?? inputValue).trim();
+    const typed = (override ?? inputValue).trim();
+    const atts = pendingAttachments;
+    // Sin texto pero con adjuntos → un pie honesto para el hilo/modelo.
+    const text = typed || (atts.length ? summarizeAttachments(atts) : "");
     if (!text || streaming) return;
 
     setInputValue("");
+    setPendingAttachments([]);
 
     // 1) La conversación de destino: la ACTIVA (la misma que usa Aurora desde el
     //    orbe). Si no hay ninguna, se crea y queda activa para ambas superficies.
@@ -521,14 +530,15 @@ function AgentPageInner() {
       conv.setActive(created.id);
     }
 
-    // 2) El mensaje del usuario se persiste YA (nube + caché): aparece al
-    //    instante aquí y, en tiempo real, en el Exocórtex de Astraura IA.
+    // 2) El mensaje del usuario se persiste YA (nube + caché) con sus adjuntos:
+    //    aparece al instante aquí y, en tiempo real, en el Exocórtex y la orbe.
     await appendUnifiedMessage({
       role: 'user',
       text,
       convId,
       kind: 'aurora',
       surface: 'agent',
+      attachments: atts.length ? atts : undefined,
     });
 
     if (!activeProviderConfig) {
@@ -554,6 +564,11 @@ function AgentPageInner() {
     // Esto garantiza que la IA tiene contexto completo en cada turno.
     const systemPieces: string[] = [activeAgent.systemPrompt];
     rules.filter(r => r.isActive).forEach(r => systemPieces.push(`Regla "${r.name}": ${r.content}`));
+
+    // Contexto de adjuntos (Agente S1): contenido de los legibles (≤64KB) o nombre+tipo.
+    if (atts.length) {
+      try { const ac = await buildAttachmentsContext(atts); if (ac) systemPieces.push(ac); } catch { /* sin contexto: /agent responde igual */ }
+    }
 
     try {
       const upcomingEvents = calendar.items
@@ -686,32 +701,6 @@ function AgentPageInner() {
     // `catch`/`finally` (abortar lanza AbortError, que entra por el catch).
   }
 
-  // Mic (STT igual que el orbe): dicta en el campo y envía al terminar la frase.
-  const toggleMic = useCallback(() => {
-    if (dictRef.current?.active()) {
-      dictRef.current.stop();
-      dictRef.current = null;
-      setListening(false);
-      return;
-    }
-    if (!isDictationSupported()) {
-      toast.error("Tu navegador no soporta dictado por voz.");
-      return;
-    }
-    setListening(true);
-    dictRef.current = startDictation({
-      onInterim: (t) => setInputValue(t),
-      onFinal: (t) => {
-        setInputValue(t);
-        setListening(false);
-        dictRef.current = null;
-        void handleSend(t);
-      },
-      onEnd: () => { setListening(false); dictRef.current = null; },
-      onError: (m) => { setListening(false); dictRef.current = null; toast.error(m); },
-    });
-  }, [handleSend]);
-
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -740,6 +729,7 @@ function AgentPageInner() {
           content: m.text,
           ts: m.ts,
           meta: m.meta,
+          attachments: m.attachments,
           history: arr.slice(0, i + 1).map(e => ({ role: e.role === 'assistant' ? 'aurora' : 'user', text: e.text, ts: e.ts })),
           timestamp: (() => {
             try { return new Date(m.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
@@ -993,6 +983,7 @@ function AgentPageInner() {
                       : 'bg-card border rounded-tl-none'
                       }`}>
                       <MessageRenderer text={msg.content} compact={msg.role === 'user'} />
+                      <MessageAttachmentChips attachments={msg.attachments} />
                       {msg.pending && <span className="inline-block w-2 h-4 ml-1 bg-primary/70 animate-pulse align-middle" />}
                       {!msg.pending && msg.meta && (
                         <MessageActionBar
@@ -1033,18 +1024,23 @@ function AgentPageInner() {
                   />
                 </div>
               )}
+              {pendingAttachments.length > 0 && (
+                <div className="max-w-3xl mx-auto">
+                  <PendingAttachmentChips items={pendingAttachments} onRemove={removeAttachment} />
+                </div>
+              )}
               <div className="flex gap-2 max-w-3xl mx-auto items-center">
-                <Button
-                  type="button"
-                  variant={listening ? "default" : "outline"}
-                  size="icon"
-                  className={cn("shrink-0", listening && "bg-primary text-primary-foreground animate-pulse")}
-                  onClick={toggleMic}
-                  title={listening ? "Detener dictado" : "Dictar por voz"}
-                  aria-label={listening ? "Detener dictado" : "Dictar por voz"}
-                >
-                  <Mic className="w-4 h-4" />
-                </Button>
+                <ChatAttachButton
+                  onPick={(picked) => setPendingAttachments((prev) => [...prev, ...picked])}
+                  folder="aurora"
+                  className="shrink-0 size-9 rounded-full border border-white/12 bg-white/[0.03] text-white/70 hover:border-white/25 hover:text-white"
+                />
+                <ChatVoiceButtons
+                  convId={conv.activeId ?? null}
+                  onInterim={(t) => setInputValue(t)}
+                  onFinal={(t) => { setInputValue(""); void handleSend(t); }}
+                  className="shrink-0"
+                />
                 <Input
                   placeholder={`Conversando con ${activeAgent.name}${activeProviderConfig ? ` vía ${activeProviderConfig.label}` : ""}...`}
                   className="flex-1 bg-background/50"
@@ -1058,7 +1054,7 @@ function AgentPageInner() {
                     <Square className="w-4 h-4" /> Detener
                   </Button>
                 ) : (
-                  <Button onClick={() => handleSend()} className="shrink-0 gap-2" disabled={!inputValue.trim()}>
+                  <Button onClick={() => handleSend()} className="shrink-0 gap-2" disabled={!inputValue.trim() && pendingAttachments.length === 0}>
                     <Send className="w-4 h-4" />
                   </Button>
                 )}

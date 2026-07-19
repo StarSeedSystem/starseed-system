@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Archive, ChevronDown, ChevronRight, GitBranch, History, ListChecks, MessageSquare,
-  Paperclip, Pause, Pencil, Play, Plus, Send, SkipBack, SkipForward, Square, X,
+  Pause, Pencil, Play, Plus, Send, SkipBack, SkipForward, Square, X,
   Settings2, Activity, HardDrive, Terminal, Bot, Sparkles, Network, Menu
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -43,8 +43,10 @@ import { MessageProcessModal } from "@/components/aurora/message-process-modal";
 // botón de adjuntar sube el archivo e inserta su enlace en el draft; Aurora lo
 // recibe como texto normal y MessageRenderer/MessageMedia ya sabe mostrar
 // imágenes/audio/vídeo/PDF a partir de una URL dentro del mensaje.
-import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import type { UniversalAttachment } from "@/lib/files/os-files";
+// 📎 y voz de chat compartidos (Agente S1): botón, chips y mic/altavoz.
+import { ChatAttachButton, PendingAttachmentChips, MessageAttachmentChips } from "@/components/aurora/chat-attach-button";
+import { ChatVoiceButtons } from "@/components/aurora/chat-voice-buttons";
 import { MessageActionBar } from "@/components/aurora/message-action-bar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -62,6 +64,8 @@ export interface LiveMessage {
   at?: number;
   /** (Aditivo) Metadatos de proceso de esta respuesta — solo Aurora los lleva. `meta.kind`='config-change' marca el divisor. */
   meta?: AuroraMessageMeta;
+  /** (Aditivo · Agente S1) Adjuntos del mensaje (jsonb de `astraura_messages.attachments`). */
+  attachments?: unknown[] | null;
 }
 
 /** Una acción ejecutada por Aurora (para el registro breve del chat). */
@@ -108,6 +112,16 @@ export interface AuroraChatViewProps {
   onExitLoadedSession?: () => void;
   /** Adjuntos entregados por el selector universal (dispositivo/bibliotecas/neuronas), ya subidos con URL real. Opcional: sin este prop, no se muestra el botón de adjuntar. */
   onAttachFile?: (attachments: UniversalAttachment[]) => void;
+  /** (Agente S1) Chat activo (para el toggle de voz de la fila de entrada). */
+  convId?: string | null;
+  /** (Agente S1) Adjuntos pendientes (chips con ✕ sobre el composer). */
+  pendingAttachments?: UniversalAttachment[];
+  /** (Agente S1) Quitar un adjunto pendiente por índice. */
+  onRemoveAttachment?: (index: number) => void;
+  /** (Agente S1) Dictado: texto parcial → rellena el campo. */
+  onDictateInterim?: (text: string) => void;
+  /** (Agente S1) Dictado: frase final → la superficie la envía. */
+  onDictateFinal?: (text: string) => void;
 
   // ── Transporte de voz ──
   onPause: () => void;
@@ -560,6 +574,7 @@ function Conversation(props: {
               return (
                 <div className="group relative">
                   <MessageRenderer text={displayText} compact={m.role === "user"} />
+                  <MessageAttachmentChips attachments={m.attachments} />
                   <MessageActionBar
                     payload={{
                       role: m.role === "user" ? "user" : "aurora",
@@ -618,6 +633,7 @@ export function AuroraChatView(props: AuroraChatViewProps) {
     onPause, onResume, onSkipBack, onSkipForward, onInterrupt,
     tree, onOpenContext, fmtTime, dayLabel, onClose,
     onBranchFromMessage, onRetryMessage,
+    convId, pendingAttachments = [], onRemoveAttachment, onDictateInterim, onDictateFinal,
   } = props;
 
   const [treeOpen, setTreeOpen] = useState(false);
@@ -728,24 +744,31 @@ export function AuroraChatView(props: AuroraChatViewProps) {
         onRetryMessage={onRetryMessage}
       />
 
-      {/* Entrada + envío */}
+      {/* Adjuntos pendientes (chips con ✕) sobre la fila de entrada */}
+      {pendingAttachments.length > 0 && (
+        <PendingAttachmentChips
+          items={pendingAttachments}
+          onRemove={(i) => onRemoveAttachment?.(i)}
+          className="relative z-[1] px-1"
+        />
+      )}
+
+      {/* Entrada + 📎 + voz + envío */}
       <div className="axc-inputrow relative z-[1]">
         {onAttachFile && (
-          <AttachFilePickerButton
-            onPick={(picked: UniversalAttachment[]) => {
-              const links = picked
-                .filter((a) => !!a.url)
-                .map((a) => a.url as string)
-                .join(" ");
-              if (links) setDraft(draft ? `${draft} ${links}` : links);
-              onAttachFile(picked);
-            }}
+          <ChatAttachButton
+            onPick={(picked) => onAttachFile(picked)}
             folder="aurora"
-            title="Adjuntar archivo"
             className="axc-tbtn shrink-0"
-          >
-            <Paperclip className="h-4 w-4" />
-          </AttachFilePickerButton>
+          />
+        )}
+        {(onDictateFinal || onDictateInterim) && (
+          <ChatVoiceButtons
+            convId={convId ?? realConvId}
+            onInterim={onDictateInterim}
+            onFinal={onDictateFinal}
+            className="shrink-0"
+          />
         )}
         <input
           value={draft}
@@ -765,7 +788,7 @@ export function AuroraChatView(props: AuroraChatViewProps) {
             if (loadedSession && onExitLoadedSession) onExitLoadedSession();
             onSubmitDraft();
           }}
-          disabled={!draft.trim()}
+          disabled={!draft.trim() && pendingAttachments.length === 0}
           title="Enviar"
           className="axc-send"
         >

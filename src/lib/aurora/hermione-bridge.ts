@@ -60,7 +60,14 @@ import {
 import { listOpenRouterFreeModels } from "@/ai/providers/openrouter";
 import { DEFAULT_INTELLIGENCE, type IntelligenceSettings } from "@/ai/astraura/router";
 import { skillsSystemPrompt, skillsRoutingBias } from "@/ai/astraura/skills";
-import { listPersonalityProfiles } from "@/lib/aurora/personalities";
+import { listPersonalityProfiles, resolvePersonalityForContext } from "@/lib/aurora/personalities";
+// Carpetas de chat (Adenda 74): puerta ÚNICA a `aurora_chat_folders`. Se IMPORTA
+// (no se edita) para crear/asegurar la carpeta "Hermione" de forma idempotente.
+import { createFolder, refreshFolders, cachedFolders } from "@/lib/aurora/chat-folders-store";
+// Memorias de cerebro (Adenda 74): upsert idempotente por (owner, brain_id, name)
+// para reflejar el índice y los resúmenes de los chats de Hermione en el cerebro.
+import { listMemoryFiles, saveMemoryFile } from "@/lib/cerebro/memory-files";
+import type { ChatMessage } from "@/ai/providers/types";
 
 /** Id estable de la personalidad Hermione (creada en la cuenta maggasukha). */
 export const HERMIONE_PERSONALITY_ID = "c9fe7030-fc68-49c6-a705-58f7900887f9";
@@ -513,4 +520,549 @@ export async function syncCapabilitiesToAllHermesNeurons(): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * WATCHER ROBUSTO · ESTADO · COLA · FALLBACK · CARPETA · CEREBRO (Adenda 74)
+ * ---------------------------------------------------------------------------
+ * Sincronización funcional de Hermione desde CUALQUIER neurona de la cuenta que
+ * tenga Hermes en línea. Todo es defensivo y SSR-safe: nunca lanza.
+ *
+ *   1. ESTADO visible ("en línea / sin neurona / reintentando / inactivo") con
+ *      store en memoria + evento de ventana, consumible por la UI (badge).
+ *   2. COLA de mensajes pendientes (memoria + localStorage) que se vacía cuando
+ *      la neurona vuelve a estar en línea.
+ *   3. SALVAGUARDA anti-mudo: si la neurona figura online pero Hermes NO responde
+ *      en N s, el bridge escribe él mismo la respuesta con el router gratis-primero
+ *      (`astrauraChat`), marcada `source="fallback-sin-neurona"` (idempotente por
+ *      client_id, de modo que múltiples pestañas/dispositivos no dupliquen).
+ *   4. CARPETA "Hermione" idempotente y asignación de las conversaciones.
+ *   5. Reflejo del índice + resumen incremental de chats en `brain_memory_files`.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+export type HermioneBridgeStatus = "online" | "sin-neurona" | "reintentando" | "inactivo";
+
+export const HERMIONE_STATUS_EVENT = "starseed:hermione-status";
+const HERMIONE_QUEUE_KEY = "starseed.hermione.queue.v1";
+/** Ventana anti-mudo antes de que el bridge conteste por el router. */
+const FALLBACK_MS = 45_000;
+/** Extensión única si la neurona sigue viva (deja que Hermes termine, > timeout WS). */
+const FALLBACK_EXTEND_MS = 32_000;
+/** TTL de la caché de la neurona descubierta (evita spamear a Supabase). */
+const NEURON_TTL_MS = 12_000;
+
+let currentStatus: HermioneBridgeStatus = "inactivo";
+
+/** Estado actual del puente Hermione (para la UI/badge). */
+export function getHermioneStatus(): HermioneBridgeStatus {
+  return currentStatus;
+}
+
+/** Etiqueta legible en español del estado (para el badge exportable). */
+export function hermioneStatusLabel(s: HermioneBridgeStatus = currentStatus): string {
+  switch (s) {
+    case "online": return "Hermione: en línea";
+    case "reintentando": return "Hermione: reintentando";
+    case "sin-neurona": return "Hermione: sin neurona";
+    default: return "Hermione: inactiva";
+  }
+}
+
+/** ¿El puente está sano (neurona Hermes online y respondiendo)? */
+export function isHermioneBridgeHealthy(): boolean {
+  return currentStatus === "online";
+}
+
+function setHermioneStatus(s: HermioneBridgeStatus): void {
+  if (s === currentStatus) return;
+  currentStatus = s;
+  try {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(HERMIONE_STATUS_EVENT, { detail: { status: s } }));
+    }
+  } catch { /* noop */ }
+}
+
+/** Suscríbete a los cambios de estado del puente. Devuelve la función de baja. */
+export function onHermioneStatus(cb: (s: HermioneBridgeStatus) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const on = () => cb(currentStatus);
+  window.addEventListener(HERMIONE_STATUS_EVENT, on);
+  return () => window.removeEventListener(HERMIONE_STATUS_EVENT, on);
+}
+
+/* ── Cola de pendientes (memoria + localStorage) ───────────────────────────── */
+
+export interface HermionePending {
+  convId: string;
+  clientId: string;
+  text: string;
+  userId: string;
+  profileKey?: string;
+  ts: number;
+}
+
+function readQueue(): HermionePending[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(HERMIONE_QUEUE_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? (arr as HermionePending[]) : [];
+  } catch { return []; }
+}
+
+function writeQueue(q: HermionePending[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    // Acota tamaño (50) y antigüedad (24 h) para no crecer sin límite.
+    const cutoff = Date.now() - 24 * 3600_000;
+    const trimmed = q.filter((i) => i.ts >= cutoff).slice(-50);
+    window.localStorage.setItem(HERMIONE_QUEUE_KEY, JSON.stringify(trimmed));
+  } catch { /* noop */ }
+}
+
+/** Nº de mensajes pendientes de entregar a Hermes (para la UI). */
+export function pendingHermioneCount(): number {
+  return readQueue().length;
+}
+
+/** Encola un mensaje que no pudo llegar a Hermes (se reintenta al volver la neurona). */
+export function enqueueHermione(item: HermionePending): void {
+  const q = readQueue();
+  if (q.some((i) => i.clientId === item.clientId)) return; // idempotente
+  q.push(item);
+  writeQueue(q);
+}
+
+/**
+ * Vacía la cola contra la neurona (si está online). Cada mensaje entregado se
+ * retira. Devuelve el nº de mensajes entregados. Idempotente y seguro.
+ */
+export async function drainHermioneQueue(): Promise<number> {
+  const q = readQueue();
+  if (!q.length) return 0;
+  const neuron = await getHermioneNeuron();
+  if (!neuron || !neuron.online) return 0;
+  let delivered = 0;
+  const remaining: HermionePending[] = [];
+  for (const item of q) {
+    const r = await forwardToHermioneNeuronDetailed({
+      convId: item.convId,
+      msgId: "",
+      clientId: item.clientId,
+      text: item.text,
+      userId: item.userId,
+      profileKey: item.profileKey,
+    });
+    if (r.reachable) delivered++; // llegó a la neurona → catch-up de Hermes
+    else remaining.push(item);
+  }
+  writeQueue(remaining);
+  return delivered;
+}
+
+/* ── Forward con resultado detallado (llega / entregado a Hermes) ───────────── */
+
+export interface HermioneForwardResult {
+  /** La petición HTTP devolvió 200. */
+  ok: boolean;
+  /** La sesión Hermes viva procesó el mensaje (la ruta escribió la respuesta). */
+  delivered: boolean;
+  /** La neurona era alcanzable (online + endpoint respondió). */
+  reachable: boolean;
+}
+
+/**
+ * Variante de `forwardToHermioneNeuron` que informa si Hermes ENTREGÓ la
+ * respuesta (la ruta responde `{ delivered }`). No sustituye a la función
+ * booleana (que usa `conversations.ts`): la añade para el watcher/cola.
+ */
+export async function forwardToHermioneNeuronDetailed(opts: {
+  convId: string;
+  msgId: string;
+  clientId: string;
+  text: string;
+  userId: string;
+  profileKey?: string;
+}): Promise<HermioneForwardResult> {
+  const neuron = await getHermioneNeuron();
+  if (!neuron || !neuron.online) return { ok: false, delivered: false, reachable: false };
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12_000);
+    const res = await fetch(neuron.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        convId: opts.convId,
+        msgId: opts.msgId,
+        clientId: opts.clientId,
+        text: opts.text,
+        userId: opts.userId,
+        profileKey: opts.profileKey,
+        personalityId: HERMIONE_PERSONALITY_ID,
+      }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    let delivered = false;
+    try {
+      const json = await res.json();
+      delivered = json?.delivered === true;
+    } catch { /* respuesta no-JSON */ }
+    return { ok: res.ok, delivered, reachable: res.ok };
+  } catch {
+    return { ok: false, delivered: false, reachable: false };
+  }
+}
+
+/* ── Salvaguarda anti-mudo: responde por el router gratis-primero ───────────── */
+
+/**
+ * Escribe una respuesta de RESPALDO en el hilo cuando la neurona Hermes NO
+ * contesta (se quedó "online" pero muda). Usa el router gratis-primero de
+ * Astraura (`astrauraChat`, import dinámico para no cargar el router de más ni
+ * arriesgar ciclos) y marca `source="fallback-sin-neurona"`. Idempotente por
+ * client_id (índice único user_id,client_id) → múltiples pestañas no duplican.
+ */
+export async function writeHermioneFallbackReply(opts: {
+  convId: string;
+  userId: string;
+  text: string;
+  clientId: string;
+}): Promise<boolean> {
+  try {
+    let reply = "";
+    try {
+      const { astrauraChat } = await import("@/ai/astraura/router");
+      const messages: ChatMessage[] = [{ role: "user", content: opts.text }];
+      const res = await astrauraChat({ messages, chatId: opts.convId, temperature: 0.5 });
+      reply = (res?.text || "").trim();
+    } catch { reply = ""; }
+    if (!reply) {
+      reply =
+        "Tu neurona con Hermes no respondió a tiempo, así que te contesto con la inteligencia de Astraura (modelos gratuitos). Cuando la neurona vuelva a estar en línea, Hermione retomará el mando. ¿Seguimos?";
+    }
+    const sb = createClient();
+    const { error } = await sb.from("astraura_messages").upsert(
+      {
+        user_id: opts.userId,
+        chat_id: opts.convId,
+        role: "assistant",
+        source: "fallback-sin-neurona",
+        client_id: `hermione-fallback-${opts.clientId}`,
+        content: reply,
+        meta: { hermione: true, fallback: true, source: "fallback-sin-neurona", bridge: "external-hermes" },
+      },
+      { onConflict: "user_id,client_id", ignoreDuplicates: true },
+    );
+    if (!error) {
+      emitChange(AI_CHATS_TOPIC, { id: opts.convId, data: { convId: opts.convId, kind: "message" } });
+    }
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/* ── Carpeta "Hermione" (idempotente) + asignación de conversaciones ────────── */
+
+export const HERMIONE_FOLDER_NAME = "Hermione";
+
+/** Asegura la carpeta de chats "Hermione" (crea si falta). Idempotente. */
+export async function ensureHermioneFolder(): Promise<boolean> {
+  try {
+    let folders = cachedFolders();
+    if (!folders.some((f) => f.name === HERMIONE_FOLDER_NAME)) {
+      folders = await refreshFolders();
+    }
+    if (folders.some((f) => f.name === HERMIONE_FOLDER_NAME)) return true;
+    const created = await createFolder(HERMIONE_FOLDER_NAME);
+    return !!created;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Asigna una conversación a la carpeta "Hermione" (columna `aurora_conversations.folder`
+ * = nombre de carpeta, misma convención que la UI). No re-asigna si ya lo está.
+ */
+export async function assignConvToHermioneFolder(convId: string): Promise<boolean> {
+  if (!convId) return false;
+  try {
+    await ensureHermioneFolder();
+    const sb = createClient();
+    const { data } = await sb
+      .from("aurora_conversations")
+      .select("folder")
+      .eq("id", convId)
+      .maybeSingle();
+    if ((data as { folder?: string } | null)?.folder === HERMIONE_FOLDER_NAME) return true;
+    const { error } = await sb
+      .from("aurora_conversations")
+      .update({ folder: HERMIONE_FOLDER_NAME })
+      .eq("id", convId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/* ── Reflejo en las memorias del cerebro (índice + resumen incremental) ─────── */
+
+async function resolveActiveBrainId(explicit?: string | null): Promise<string | null> {
+  if (explicit !== undefined && explicit !== null) return explicit;
+  try {
+    const mod = await import("@/lib/brains/brains");
+    const sel = (await mod.getSelection?.("aurora", "")) as { brain_id?: string } | null;
+    return sel?.brain_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Refleja en `brain_memory_files` del cerebro del contexto activo:
+ *   (a) el ÍNDICE de chats de Hermione (nombre + id), y
+ *   (b) un RESUMEN incremental de las últimas conversaciones (últimos mensajes).
+ * Fichero "hermione-chats.md", upsert idempotente por (owner, brain_id, name).
+ * Exportada para uso MANUAL y programada (debounce) al recibir respuestas.
+ */
+export async function syncHermioneToBrainMemories(brainId?: string | null): Promise<boolean> {
+  try {
+    const sb = createClient();
+    const { data: userData } = await sb.auth.getUser();
+    const uid = userData?.user?.id;
+    if (!uid) return false;
+
+    // Índice de chats de Hermione (source hermione-bridge/fallback o meta.hermione).
+    const { data: msgs } = await sb
+      .from("astraura_messages")
+      .select("chat_id, role, content, created_at")
+      .or("source.eq.hermione-bridge,source.eq.fallback-sin-neurona,meta->>hermione.eq.true")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    const rows = ((msgs as Array<{ chat_id: string; role: string; content: string; created_at: string }>) || []);
+    const convIds = Array.from(new Set(rows.map((m) => m.chat_id).filter(Boolean)));
+
+    const { data: convs } = await sb
+      .from("aurora_conversations")
+      .select("id, title, updated_at")
+      .in("id", convIds.length ? convIds : ["_none_"]);
+    const byId = new Map<string, { title: string; updated_at?: string }>();
+    for (const c of ((convs as Array<{ id: string; title?: string; updated_at?: string }>) || [])) {
+      byId.set(c.id, { title: c.title || c.id, updated_at: c.updated_at });
+    }
+
+    // Construye el markdown: índice + resumen incremental (últimos intercambios).
+    const now = new Date().toISOString();
+    const lines: string[] = [
+      "# hermione-chats.md — Índice y resumen de los chats de Hermione",
+      "",
+      `> Generado automáticamente por el puente Hermione. Última actualización: ${now}.`,
+      `> Estado del puente: ${hermioneStatusLabel()}. Chats: ${convIds.length}.`,
+      "",
+      "## Índice de chats",
+      "",
+    ];
+    if (!convIds.length) {
+      lines.push("_Aún no hay conversaciones con Hermione._", "");
+    } else {
+      for (const id of convIds) {
+        const meta = byId.get(id);
+        lines.push(`- **${meta?.title || id}** (\`${id}\`)`);
+      }
+      lines.push("", "## Resumen reciente", "");
+      // Últimos 5 chats con sus 4 últimos mensajes (resumen incremental).
+      for (const id of convIds.slice(0, 5)) {
+        const meta = byId.get(id);
+        lines.push(`### ${meta?.title || id}`, "");
+        const chatMsgs = rows
+          .filter((m) => m.chat_id === id)
+          .slice(0, 4)
+          .reverse();
+        for (const m of chatMsgs) {
+          const who = m.role === "user" ? "Tú" : "Hermione";
+          const txt = (m.content || "").replace(/\s+/g, " ").slice(0, 240);
+          lines.push(`- **${who}:** ${txt}`);
+        }
+        lines.push("");
+      }
+    }
+    const content = lines.join("\n");
+
+    const resolvedBrain = await resolveActiveBrainId(brainId);
+    // Upsert idempotente por (owner, brain_id, name): busca el fichero existente
+    // y reutiliza su id para ACTUALIZAR (no duplicar).
+    const existing = await listMemoryFiles(resolvedBrain);
+    const prev = existing.find((f) => f.name === "hermione-chats.md");
+    const saved = await saveMemoryFile({
+      id: prev?.id,
+      brain_id: resolvedBrain,
+      name: "hermione-chats.md",
+      content,
+      source: "starseed",
+      meta: { type: "logs", kind: "hermione", chats: convIds.length, updatedAt: now },
+      sync: true,
+    });
+    return !!saved;
+  } catch {
+    return false;
+  }
+}
+
+/* ── Watcher robusto (salvaguarda + estado + cola + carpeta + cerebro) ──────── */
+
+let neuronCache: { at: number; info: HermioneBridgeInfo | null } | null = null;
+async function cachedNeuron(): Promise<HermioneBridgeInfo | null> {
+  const now = Date.now();
+  if (neuronCache && now - neuronCache.at < NEURON_TTL_MS) return neuronCache.info;
+  const info = await getHermioneNeuron();
+  neuronCache = { at: now, info };
+  return info;
+}
+
+/** ¿La conversación resuelve a la personalidad Hermione (chat > … > global)? */
+function chatUsesHermione(chatId: string): boolean {
+  try {
+    const p = resolvePersonalityForContext({ chatId });
+    return isHermioneActive(p?.id, p?.name);
+  } catch {
+    return false;
+  }
+}
+
+let brainSyncTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleBrainSync(): void {
+  if (brainSyncTimer) clearTimeout(brainSyncTimer);
+  brainSyncTimer = setTimeout(() => {
+    brainSyncTimer = null;
+    void syncHermioneToBrainMemories();
+  }, 6_000);
+}
+
+/**
+ * Watcher robusto del puente. NO reenvía (de eso ya se encarga `conversations.ts`
+ * en el dispositivo origen): actúa como SALVAGUARDA — vigila que cada mensaje de
+ * usuario en un chat de Hermione reciba respuesta; si la neurona figura online
+ * pero Hermes calla, contesta por el router; mantiene el ESTADO, la CARPETA y el
+ * reflejo al CEREBRO, y vacía la COLA cuando la neurona vuelve. Idempotente por
+ * pestaña (flag) y coordinado entre pestañas por `leaderGate` (opcional).
+ * Devuelve una función de baja.
+ */
+export function watchHermioneBridge(opts: {
+  userId: string;
+  /** Gate de líder entre pestañas: si devuelve false, esta pestaña no escribe fallback. */
+  leaderGate?: () => boolean;
+}): () => void {
+  if (typeof window === "undefined") return () => {};
+  const seenUser = new Set<string>();
+  const watchdogs = new Map<string, { timer: ReturnType<typeof setTimeout>; extended: boolean }>();
+  const isLeader = () => (opts.leaderGate ? opts.leaderGate() : true);
+
+  const clearWatchdog = (convId: string) => {
+    const w = watchdogs.get(convId);
+    if (w) { clearTimeout(w.timer); watchdogs.delete(convId); }
+  };
+
+  const armWatchdog = (convId: string, clientId: string, text: string) => {
+    clearWatchdog(convId);
+    const fire = async () => {
+      watchdogs.delete(convId);
+      // ¿Llegó ya una respuesta del asistente para este chat tras el user msg?
+      try {
+        const sb = createClient();
+        const { data } = await sb
+          .from("astraura_messages")
+          .select("id")
+          .eq("chat_id", convId)
+          .eq("role", "assistant")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (Array.isArray(data) && data.length) { setHermioneStatus("online"); return; }
+      } catch { /* seguimos al fallback */ }
+      const neuron = await cachedNeuron();
+      const w = watchdogs.get(convId);
+      // Si la neurona sigue viva y aún no extendimos, damos más margen a Hermes.
+      if (neuron?.online && !(w?.extended)) {
+        const timer = setTimeout(() => void fire(), FALLBACK_EXTEND_MS);
+        watchdogs.set(convId, { timer, extended: true });
+        setHermioneStatus("reintentando");
+        return;
+      }
+      // Sin respuesta y sin (o con) neurona → contestamos por el router (solo líder).
+      if (isLeader()) {
+        setHermioneStatus("reintentando");
+        await writeHermioneFallbackReply({ convId, userId: opts.userId, text, clientId });
+      }
+      void recomputeStatus();
+    };
+    const timer = setTimeout(() => void fire(), FALLBACK_MS);
+    watchdogs.set(convId, { timer, extended: false });
+  };
+
+  const onUser = async (row: { id: string; chat_id: string; client_id: string; content: string }) => {
+    const convId = row.chat_id;
+    const clientId = row.client_id;
+    if (!convId || !clientId || seenUser.has(clientId)) return;
+    seenUser.add(clientId);
+    // Carpeta + reflejo al cerebro (idempotentes, solo líder para no duplicar trabajo).
+    if (isLeader()) {
+      void assignConvToHermioneFolder(convId);
+      scheduleBrainSync();
+    }
+    const neuron = await cachedNeuron();
+    if (!neuron || !neuron.online) {
+      // Neurona apagada: el engine ya degrada a Astraura (no queda mudo). Encolamos
+      // para que Hermes se ponga al día cuando vuelva; no armamos watchdog.
+      enqueueHermione({ convId, clientId, text: row.content, userId: opts.userId, ts: Date.now() });
+      setHermioneStatus("sin-neurona");
+      return;
+    }
+    // Neurona online: el engine cortocircuita (no responde). Armamos la salvaguarda.
+    setHermioneStatus("online");
+    armWatchdog(convId, clientId, row.content);
+  };
+
+  const onAssistant = (row: { chat_id: string }) => {
+    clearWatchdog(row.chat_id);
+    setHermioneStatus("online");
+    if (isLeader()) scheduleBrainSync();
+  };
+
+  const unsub = onTableChange("astraura_messages", { event: "*" }, (payload) => {
+    try {
+      const row = payload?.new ?? payload;
+      if (!row) return;
+      if (row.user_id !== opts.userId) return;
+      if (!row.chat_id || !chatUsesHermione(row.chat_id)) return;
+      if (row.role === "user") void onUser(row);
+      else if (row.role === "assistant") onAssistant(row);
+    } catch { /* noop */ }
+  });
+
+  // Heartbeat: recomputa estado y vacía la cola cuando la neurona vuelve.
+  const hb = setInterval(() => { void recomputeStatus(); void drainHermioneQueue(); }, 20_000);
+  void recomputeStatus();
+
+  return () => {
+    try { unsub(); } catch { /* noop */ }
+    clearInterval(hb);
+    watchdogs.forEach((w) => clearTimeout(w.timer));
+    watchdogs.clear();
+    if (brainSyncTimer) { clearTimeout(brainSyncTimer); brainSyncTimer = null; }
+    setHermioneStatus("inactivo");
+  };
+}
+
+/** Recalcula el estado del puente a partir de la neurona y la cola. */
+export async function recomputeStatus(): Promise<HermioneBridgeStatus> {
+  const neuron = await cachedNeuron();
+  let s: HermioneBridgeStatus;
+  if (neuron?.online) s = "online";
+  else if (pendingHermioneCount() > 0) s = "reintentando";
+  else s = "sin-neurona";
+  setHermioneStatus(s);
+  return s;
 }

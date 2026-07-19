@@ -287,7 +287,8 @@ export async function registerHermioneChatEverywhere(convId: string, name: strin
         (bridge && bridge.mode === "external-hermes") ||
         c.hermesInstalled === true ||
         (Array.isArray(c.servesPersonalities) && c.servesPersonalities.includes("hermione"));
-      if (!hasHermes) continue;
+      // Adenda 74: respeta el toggle por neurona "Sincronizar chats de Hermione".
+      if (!hasHermes || c.hermioneSync === false) continue;
       const chats = (c.hermesChats as Record<string, string>) || {};
       if (chats[convId] === name) { updated++; continue; }
       chats[convId] = name;
@@ -307,6 +308,8 @@ export async function backfillHermesChatsToNeuron(neuronId: string): Promise<num
     const sb = serverWriteClient();
     const { data } = await sb.from("neuron_devices").select("capabilities").eq("id", neuronId).maybeSingle();
     const c = (data?.capabilities as any) || {};
+    // Adenda 74: si el usuario apagó la sync de Hermione en esta neurona, no backfilleamos.
+    if (c.hermioneSync === false) return 0;
     const chats = (c.hermesChats as Record<string, string>) || {};
     let added = 0;
     for (const conv of convs) {
@@ -333,7 +336,8 @@ export async function backfillAllHermesNeurons(): Promise<number> {
         (bridge && bridge.mode === "external-hermes") ||
         c.hermesInstalled === true ||
         (Array.isArray(c.servesPersonalities) && c.servesPersonalities.includes("hermione"));
-      if (!hasHermes) continue;
+      // Adenda 74: respeta el toggle por neurona "Sincronizar chats de Hermione".
+      if (!hasHermes || c.hermioneSync === false) continue;
       const chats = (c.hermesChats as Record<string, string>) || {};
       for (const conv of convs) chats[conv.convId] = conv.name;
       const newCaps = { ...c, hermesChats: chats, hermesInstalled: true };

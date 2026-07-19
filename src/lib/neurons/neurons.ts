@@ -429,6 +429,43 @@ export function isHermesLinked(capabilities?: Record<string, any> | null): boole
   return !!b && (b.mode === "external-hermes" || capabilities?.hermesInstalled === true);
 }
 
+/**
+ * ¿Esta neurona sincroniza los chats de Hermione? (Adenda 74). PREDETERMINADO:
+ * activo cuando tiene Hermes; solo se apaga si el usuario lo puso en false.
+ */
+export function neuronHermioneSyncEnabled(capabilities?: Record<string, any> | null): boolean {
+  return capabilities?.hermioneSync !== false;
+}
+
+/**
+ * Activa/desactiva la sincronización de chats de Hermione EN ESTA NEURONA.
+ * Persiste en `neuron_devices.capabilities.hermioneSync` (update jsonb, sin DDL).
+ * Cliente autenticado (RLS owner). Nunca lanza.
+ */
+export async function setNeuronHermioneSync(neuronId: string, on: boolean): Promise<boolean> {
+  if (!neuronId) return false;
+  try {
+    const supabase = createClient();
+    const { data: row } = await supabase
+      .from("neuron_devices")
+      .select("capabilities")
+      .eq("id", neuronId)
+      .maybeSingle();
+    const caps = (row?.capabilities as Record<string, any>) || {};
+    caps.hermioneSync = on;
+    const { error } = await supabase
+      .from("neuron_devices")
+      .update({ capabilities: caps, last_seen_at: new Date().toISOString() })
+      .eq("id", neuronId);
+    if (!error && typeof window !== "undefined") {
+      try { window.dispatchEvent(new Event(NEURON_EVENT)); } catch { /* */ }
+    }
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 /** Lista TODAS las neuronas de la cuenta (esta primero). Nunca lanza. */
 export async function listNeurons(): Promise<Neuron[]> {
   const meId = thisDeviceId();

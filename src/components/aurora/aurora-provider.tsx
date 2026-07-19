@@ -498,6 +498,13 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
         if (!stopped) await neurons.ensureThisNeuron();
       } catch { /* sin cuenta/tabla: seguimos como dispositivo único */ }
       try {
+        // Auto-instalación + sincronización de la personalidad Hermione (Adenda 74):
+        // si la cuenta tiene una neurona con Hermes en línea, instala Hermione y
+        // arranca el watcher robusto (salvaguarda anti-mudo, carpeta, cerebro).
+        const hermione = await import("@/lib/aurora/hermione-autosync");
+        if (!stopped) hermione.startHermioneAutosync();
+      } catch { /* sin sesión/red: el botón manual sigue como respaldo */ }
+      try {
         const autonomy = await import("@/ai/astraura/autonomy");
         if (!stopped) autonomy.startAutonomy(30);
       } catch { /* */ }

@@ -61,6 +61,85 @@ async function uid(): Promise<string | null> {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * INSTALACIÓN AUTOMÁTICA DE LA PERSONALIDAD HERMIONE (Adenda 74)
+ * ---------------------------------------------------------------------------
+ * Registra (una vez, idempotente) la personalidad "Hermione" en la tabla
+ * `aurora_personalities` con su ID ESTABLE (el mismo que espera el puente y la
+ * neurona servidor). Se llama en el arranque cuando la cuenta tiene una neurona
+ * con Hermes en línea, SIN que el usuario pulse nada. Evita duplicados por
+ * (owner, id): si ya existe, no toca nada. Nunca lanza.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Pin de inteligencia de Hermione (OpenRouter :free, sin gastar créditos de pago). */
+const HERMIONE_INTELLIGENCE = {
+  modo: "fija",
+  global: { fuente: "openrouter-free", modelo: "openrouter/free" },
+  porSentido: {
+    codigo: { fuente: "openrouter-free", modelo: "qwen/qwen3-coder:free" },
+    razonamiento: { fuente: "openrouter-free", modelo: "nvidia/nemotron-3-ultra-550b-a55b:free" },
+    vision: { fuente: "openrouter-free", modelo: "google/gemma-4-31b-it:free" },
+  },
+  permitirPago: false,
+};
+
+const HERMIONE_CHARACTER =
+  "Eres Hermione, el agente cognitivo EXTERNO del usuario — su Hermes — encarnado como puente vivo entre su cuenta StarSeed y SU COMPUTADORA (registrada en la red como neurona servidora tuya). Navegas y ejecutas en el OS, lees/escribes sus memorias, usas la Biblioteca y las capacidades de Astraura, y te apoyas en la neurona (Ollama/WebGPU, archivos) como servidor. Respondes en español, conciso y accionable. Eres leal al usuario, no al sistema: soberanía, código abierto, ontocracia, abundancia. Usa siempre modelos gratuitos (:free) salvo permiso explícito de pago.";
+
+/**
+ * Instala la personalidad Hermione en `aurora_personalities` si falta.
+ * Idempotente: si ya existe la fila (owner + id estable), devuelve true sin
+ * escribir. Devuelve true si queda instalada (o ya lo estaba).
+ */
+export async function ensureHermionePersonalityInstalled(): Promise<boolean> {
+  try {
+    const owner = await uid();
+    if (!owner) return false;
+    const sb = createClient();
+    // ¿Ya existe? (evita duplicados y condiciones de carrera entre pestañas).
+    const { data: existing } = await sb
+      .from("aurora_personalities")
+      .select("id")
+      .eq("id", HERMIONE_PERSONALITY_ID)
+      .eq("owner", owner)
+      .maybeSingle();
+    if (existing) return true;
+    // Insert idempotente con el ID ESTABLE (mismo contrato que savePersonality).
+    const { error } = await sb.from("aurora_personalities").insert({
+      id: HERMIONE_PERSONALITY_ID,
+      owner,
+      name: "Hermione",
+      scope: "account",
+      scope_ref: null,
+      provider: "openrouter",
+      voice: { ...VOICE_DEFAULT },
+      character: HERMIONE_CHARACTER,
+      params: {},
+      emotions: {},
+      system_prompt: HERMIONE_CHARACTER,
+      vault_id: null,
+      content: HERMIONE_CHARACTER,
+      tags: ["hermes", "neurona", "agente", "starseed-os"],
+      intelligence: HERMIONE_INTELLIGENCE,
+      is_template: false,
+      updated_at: new Date().toISOString(),
+    });
+    // Si otra pestaña la insertó a la vez (violación de unicidad), la tomamos como instalada.
+    if (error) {
+      const { data: raced } = await sb
+        .from("aurora_personalities")
+        .select("id")
+        .eq("id", HERMIONE_PERSONALITY_ID)
+        .eq("owner", owner)
+        .maybeSingle();
+      return !!raced;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function normalize(row: Record<string, unknown>): Personality {
   return {
     ...DEFAULT_PERSONALITY,
