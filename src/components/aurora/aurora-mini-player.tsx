@@ -132,7 +132,13 @@ export function AuroraMiniPlayer({
   // que es lo que usa el puente Hermione. Reacciona al cambio en tiempo real.
   const [activeProfile, setActiveProfile] = useState(() => getActivePersonality());
   useEffect(() => {
-    const sync = () => setActiveProfile(getActivePersonality());
+    // Idempotente: solo re-renderiza si la personalidad activa cambió de verdad
+    // (evita realimentar el ciclo lectura→normalización→evento; Adenda 74-bis).
+    const sync = () =>
+      setActiveProfile((prev) => {
+        const next = getActivePersonality();
+        return prev?.id === next?.id && prev?.name === next?.name ? prev : next;
+      });
     sync();
     if (typeof window !== "undefined") {
       window.addEventListener(PERSONALITY_CHANGED_EVENT, sync);

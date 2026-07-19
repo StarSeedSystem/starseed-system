@@ -1133,17 +1133,43 @@ function readProfileList(): PersonalityProfile[] | null {
 
 function writeProfileList(list: PersonalityProfile[]): void {
   if (!hasWindow()) return;
+  // Fix Adenda 74-bis (RangeError: Maximum call stack en producción): solo
+  // emitimos el evento si el contenido PERSISTIDO cambió de verdad. Antes,
+  // una lectura que renormalizaba (o un setItem fallido por cuota llena)
+  // emitía SIEMPRE → un listener releía → volvía a escribir → emit… bucle.
+  let changed = true;
   try {
-    window.localStorage.setItem(PERSONALITY_LIST_KEY, JSON.stringify(list));
-  } catch { /* cuota/privado: seguimos en memoria */ }
-  emitPersonalityChanged();
+    const next = JSON.stringify(list);
+    const prev = window.localStorage.getItem(PERSONALITY_LIST_KEY);
+    if (prev === next) changed = false;
+    else window.localStorage.setItem(PERSONALITY_LIST_KEY, next);
+  } catch { changed = false; /* cuota/privado: seguimos en memoria, sin señal */ }
+  if (changed) emitPersonalityChanged();
 }
 
+// Guardia de reentrada del emisor: si un listener provoca otro emit SÍNCRONO
+// (p. ej. relee la lista y esta se renormaliza), coalescemos en UN emit
+// diferido en vez de recursar hasta reventar la pila.
+let personalityEmitting = false;
+let personalityEmitQueued = false;
 function emitPersonalityChanged(): void {
   if (!hasWindow()) return;
+  if (personalityEmitting) {
+    if (!personalityEmitQueued) {
+      personalityEmitQueued = true;
+      setTimeout(() => {
+        personalityEmitQueued = false;
+        emitPersonalityChanged();
+      }, 0);
+    }
+    return;
+  }
+  personalityEmitting = true;
   try {
     window.dispatchEvent(new CustomEvent(PERSONALITY_CHANGED_EVENT));
-  } catch { /* noop */ }
+  } catch { /* noop */ } finally {
+    personalityEmitting = false;
+  }
 }
 
 /** Lista de personalidades (siembra los presets la primera vez). */
