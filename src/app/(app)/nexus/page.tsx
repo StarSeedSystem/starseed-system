@@ -10,7 +10,8 @@
  * cuentas, carpetas y contexto que el orbe y el Exocórtex.
  *
  * Aquí solo queda un redirect que preserva los query params entrantes y fija la
- * pestaña `chat` (Nexus). Cualquier enlace antiguo a `/nexus` sigue funcionando.
+ * pestaña `nexus` → «Nexus» (Portal Nexus · espacios de trabajo, value "overview").
+ * Cualquier enlace antiguo a `/nexus` sigue funcionando.
  */
 
 import { Suspense, useEffect } from "react";
@@ -25,7 +26,7 @@ function NexusRedirect() {
 
   useEffect(() => {
     const sp = new URLSearchParams(params?.toString() ?? "");
-    if (!sp.has("tab")) sp.set("tab", "chat"); // pestaña «Nexus»
+    if (!sp.has("tab")) sp.set("tab", "nexus"); // pestaña «Nexus» (Portal Nexus)
     router.replace(`/agent?${sp.toString()}`);
   }, [router, params]);
 

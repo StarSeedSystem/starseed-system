@@ -31,6 +31,7 @@ import { ensureAuroraChatLogRecorder } from "@/lib/aurora/aurora-chat-log";
 import { Globe, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AuroraChatSection } from "@/components/exocortex/aurora-chat-section";
+import { ExocortexErrorBoundary } from "@/components/exocortex/exocortex-error-boundary";
 
 // ── Swipe-to-close (centro de control) ──────────────────────────────
 // Gesto de arrastre que sigue al dedo y cierra al superar el umbral hacia
@@ -152,10 +153,14 @@ export function ZenithCurtain() {
                         "shadow-[0_20px_50px_rgba(6,182,212,0.3)] border border-cyan-500/30 text-cyan-50",
                         // Material StarSeed: aro neón Zenith que respira suave (azul #007FFF)
                         "ss-neon ss-neon--zenith",
-                        // Anclado dentro del viewport + safe-area (nunca se sale). 100dvh en vez de vh
-                        // para que la barra de URL de Android no lo recorte ni desborde.
+                        // Anclado dentro del viewport + safe-area (nunca se sale).
+                        // `svh` (small viewport height) mantiene la ventana ESTABLE en
+                        // Android: no crece/encoge cuando la barra de URL aparece/
+                        // desaparece ni cuando abre el teclado → el chat no salta ni
+                        // parpadea. El scroll vive DENTRO (cuerpo overflow-y-auto) y el
+                        // teclado sólo ajusta el padding del composer (visualViewport).
                         "top-[max(0.75rem,env(safe-area-inset-top))] w-[min(98vw,1600px)] max-w-[100vw]",
-                        "h-[min(92dvh,calc(100dvh-1.5rem))]"
+                        "h-[min(92svh,calc(100svh-1.5rem))]"
                     )}
                 >
                   {/* Capa de arrastre: sigue al dedo (swipe hacia arriba cierra). */}
@@ -195,7 +200,11 @@ export function ZenithCurtain() {
                             recorta, y el teclado del móvil puede empujar el input a la vista). */}
                         <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain custom-scrollbar">
                             <div className="mx-auto w-full max-w-5xl px-3 sm:px-5 md:px-8 lg:px-12 py-4 md:py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-                                <AuroraChatSection />
+                                {/* Límite de error: una excepción del Exocórtex NO tira la
+                                    cortina; ofrece «Reintentar» que re-monta sólo el contenido. */}
+                                <ExocortexErrorBoundary label="ventana Exocortex">
+                                    <AuroraChatSection />
+                                </ExocortexErrorBoundary>
                             </div>
                         </div>
                     </div>

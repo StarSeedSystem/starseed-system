@@ -166,10 +166,12 @@ const STUDIO_SECTIONS: StudioSection[] = [
     label: "Inicio",
     icon: LayoutDashboard,
     accent: "text-primary",
-    hint: "Resumen del estado y conversación con tu IA.",
+    hint: "Tus chats con la IA y el Portal Nexus de espacios de trabajo.",
     items: [
-      { value: "overview", label: "Resumen", icon: LayoutDashboard },
-      { value: "chat", label: "Nexus", icon: Bot },
+      // «Chats» = la vista de chats (pestaña PRINCIPAL/por defecto).
+      { value: "chat", label: "Chats", icon: Bot },
+      // «Nexus» = el Portal Nexus (espacios de trabajo) + panel de estado.
+      { value: "overview", label: "Nexus", icon: Network },
     ],
   },
   {
@@ -299,10 +301,14 @@ const TAB_ALIASES: Record<string, string> = {
   wiki: "okf",
   sentidos: "senses",
   aurora: "aurora",
-  // La antigua página independiente `/nexus` (mock) se fusionó en esta pestaña
-  // «Nexus» (value "chat"); su redirect y cualquier enlace `?tab=nexus` caen aquí.
-  nexus: "chat",
+  // Pestañas de Inicio (Adenda 75 · B2): «Chats» (value "chat", la vista de
+  // chats — pestaña por defecto) y «Nexus» (value "overview", el Portal Nexus
+  // con los espacios de trabajo + el panel de estado). Los enlaces históricos
+  // `/agent?tab=chat` y `?tab=chats` siguen cayendo en Chats; `?tab=nexus`
+  // abre el nuevo Portal Nexus, y `?tab=resumen` (nombre antiguo) también.
   chats: "chat",
+  nexus: "overview",
+  resumen: "overview",
 };
 function normalizeTab(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -889,8 +895,13 @@ function AgentPageInner() {
             )}
           </div>
 
+        {/* --- TAB: NEXUS (Portal Nexus · espacios de trabajo + estado) --- */}
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto">
-          <AiStudioDashboard />
+          <div className="space-y-6">
+            {/* El Portal Nexus (espacios de trabajo = carpetas reales) vive aquí. */}
+            <NexusWorkspaces onOpenTab={(t) => setActiveTab(t)} />
+            <AiStudioDashboard />
+          </div>
         </TabsContent>
 
         <TabsContent value="cerebro" className="flex-1 min-h-0 overflow-hidden">
@@ -940,14 +951,14 @@ function AgentPageInner() {
               >
                 <Plus className="w-4 h-4" />
               </Button>
-              {/* Volver al Portal Nexus (espacios de trabajo = carpetas reales). */}
+              {/* Ir a la pestaña Nexus (Portal Nexus · espacios de trabajo). */}
               <Button
                 variant="outline"
                 size="icon"
                 className="shrink-0 bg-card/60 backdrop-blur border-border/50 cursor-pointer"
                 title="Espacios de trabajo · Portal Nexus"
-                aria-label="Ir a los espacios de trabajo del Nexus"
-                onClick={() => conv.setActive(null)}
+                aria-label="Ir a la pestaña Nexus (Portal Nexus · espacios de trabajo)"
+                onClick={() => setActiveTab('overview')}
               >
                 <LayoutDashboard className="w-4 h-4" />
               </Button>
@@ -965,7 +976,28 @@ function AgentPageInner() {
             <ScrollArea className="flex-1 p-4" ref={scrollRef}>
               <div className="flex flex-col gap-4 max-w-3xl mx-auto pt-16 sm:pt-12">
                 {!conv.activeId ? (
-                  <NexusWorkspaces onOpenTab={(t) => setActiveTab(t)} />
+                  // El Portal Nexus (espacios de trabajo) ahora vive en la pestaña
+                  // «Nexus». Aquí, sin conversación activa, invitamos a empezar un
+                  // chat o a abrir ese portal — sin re-montar el árbol.
+                  <div className="flex flex-col items-center justify-center text-center gap-4 py-14">
+                    <span className="grid place-items-center h-14 w-14 rounded-2xl bg-gradient-to-tr from-primary/25 to-fuchsia-500/25 border border-white/10">
+                      <Bot className="w-7 h-7 text-primary" />
+                    </span>
+                    <div className="space-y-1">
+                      <h3 className="text-base font-semibold text-white">Sin conversación activa</h3>
+                      <p className="max-w-md text-sm text-white/50">
+                        Escribe abajo para empezar un chat nuevo con Astraura, o abre el Portal Nexus
+                        para elegir un espacio de trabajo (tus carpetas de chat).
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="gap-2 border-white/15 bg-white/[0.03] cursor-pointer"
+                      onClick={() => setActiveTab('overview')}
+                    >
+                      <LayoutDashboard className="w-4 h-4" /> Abrir Portal Nexus
+                    </Button>
+                  </div>
                 ) : messages.map((msg, i) => (
                   msg.configChange ? (
                     <ConfigChangeNotice key={msg.id ?? i} text={msg.content} />

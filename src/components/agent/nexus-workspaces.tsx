@@ -64,6 +64,10 @@ export function NexusWorkspaces({ onOpenTab }: { onOpenTab?: (tab: string) => vo
     return { byFolder: m, noneCount: none };
   }, [conversations]);
 
+  // El Portal Nexus vive ahora en la pestaña «Nexus»; abrir/crear un chat salta
+  // a la pestaña «Chats» para ver la conversación (activeId compartido).
+  const goToChats = () => onOpenTab?.("chat");
+
   /** Abre el chat más reciente de la carpeta; si está vacía, crea uno en ella. */
   const openFolder = (folderName: string | null) => {
     const inFolder = conversations
@@ -71,11 +75,17 @@ export function NexusWorkspaces({ onOpenTab }: { onOpenTab?: (tab: string) => vo
       .sort((a, b) => b.updatedAt - a.updatedAt);
     if (inFolder[0]) setActive(inFolder[0].id);
     else void create({ kind: "astraura", surface: "agent", folder: folderName ?? null, title: "Nueva conversación" });
+    goToChats();
   };
 
-  const newChat = () => void create({ kind: "astraura", surface: "agent", title: "Nueva conversación" });
-  const newChatIn = (folderName: string) =>
+  const newChat = () => {
+    void create({ kind: "astraura", surface: "agent", title: "Nueva conversación" });
+    goToChats();
+  };
+  const newChatIn = (folderName: string) => {
     void create({ kind: "astraura", surface: "agent", folder: folderName, title: "Nueva conversación" });
+    goToChats();
+  };
 
   const doCreateFolder = async () => {
     const n = name.trim();

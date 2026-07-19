@@ -38,6 +38,8 @@ import { AI_CHATS_TOPIC, emitChange, onChange } from "@/lib/sync/live-signal";
 import { activeProfileId } from "@/lib/profiles/profiles";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { isHermioneActive, forwardToHermioneNeuron } from "@/lib/aurora/hermione-bridge";
+import { safeGet, safeSet, safeRemove } from "@/lib/safe-storage";
+import { mergeUserPrefs } from "@/lib/sync/user-prefs";
 
 // ── Claves y eventos ─────────────────────────────────────────────────────────
 /** Caché local (offline / arranque instantáneo). NO se sincroniza por prefs. */
@@ -156,7 +158,7 @@ export function titleFromText(text: string): string {
 function readCache(): CacheShape {
   if (!isClient()) return { v: 1, convs: [], msgs: {} };
   try {
-    const raw = window.localStorage.getItem(AI_CONV_CACHE_KEY);
+    const raw = safeGet(AI_CONV_CACHE_KEY);
     if (!raw) return { v: 1, convs: [], msgs: {} };
     const p = JSON.parse(raw) as Partial<CacheShape> | null;
     return {
@@ -171,6 +173,8 @@ function readCache(): CacheShape {
 
 function writeCache(next: CacheShape): void {
   if (!isClient()) return;
+  // safeSet NUNCA lanza: ante cuota llena poda y, si no cabe, degrada a memoria.
+  // La nube sigue siendo la fuente de verdad; la UI nunca se rompe por el caché.
   try {
     const convs = [...next.convs]
       .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -181,9 +185,9 @@ function writeCache(next: CacheShape): void {
       if (!keep.has(k)) continue;
       msgs[k] = list.slice(-MSG_CAP);
     }
-    window.localStorage.setItem(AI_CONV_CACHE_KEY, JSON.stringify({ v: 1, convs, msgs }));
+    safeSet(AI_CONV_CACHE_KEY, JSON.stringify({ v: 1, convs, msgs }));
   } catch {
-    /* cuota llena → la nube sigue siendo la fuente de verdad */
+    /* serialización rara → la nube sigue siendo la fuente de verdad */
   }
 }
 
@@ -250,14 +254,21 @@ function upsertMsgCache(msg: AiMessage): boolean {
 }
 
 // ── Conversación activa (compartida por TODAS las superficies) ───────────────
+/**
+ * Espejo EN MEMORIA del id activo. Si el `localStorage` está degradado (cuota
+ * llena), el `setItem` no persiste, pero la sesión actual DEBE seguir sabiendo
+ * cuál es el chat activo para que la UI cambie de vista al crear/abrir un chat.
+ */
+let memoryActiveId: string | null = null;
+
 /** Id de la conversación activa en este dispositivo (o null). */
 export function getActiveConversationId(): string | null {
   if (!isClient()) return null;
-  try {
-    return window.localStorage.getItem(AI_CONV_ACTIVE_KEY) || null;
-  } catch {
-    return null;
-  }
+  // El espejo en memoria gana: refleja la última intención de esta sesión aunque
+  // el disco no la haya podido persistir (safeGet ya superpone su propio overlay).
+  const stored = safeGet(AI_CONV_ACTIVE_KEY);
+  if (stored) return stored;
+  return memoryActiveId;
 }
 
 /**
@@ -280,12 +291,12 @@ export function isActiveChatLogEnabled(): boolean {
  */
 export function setActiveConversationId(id: string | null): void {
   if (!isClient()) return;
-  try {
-    if (id) window.localStorage.setItem(AI_CONV_ACTIVE_KEY, id);
-    else window.localStorage.removeItem(AI_CONV_ACTIVE_KEY);
-  } catch {
-    /* defensivo */
-  }
+  // 1) Memoria SIEMPRE (fuente de verdad de la sesión aunque el disco esté lleno).
+  memoryActiveId = id;
+  // 2) Disco best-effort (safeSet/safeRemove nunca lanzan; degradan a memoria).
+  if (id) safeSet(AI_CONV_ACTIVE_KEY, id);
+  else safeRemove(AI_CONV_ACTIVE_KEY);
+  // 3) Evento para que TODAS las superficies reaccionen aunque el storage falle.
   emit(AI_CONV_CHANGE_EVENT);
 }
 
@@ -365,9 +376,24 @@ function toMsg(r: MsgRow): AiMessage {
   };
 }
 
-// ── Lectura desde la nube ────────────────────────────────────────────────────
-/** Baja la lista de conversaciones y refresca la caché. Devuelve la lista. */
-export async function refreshConversations(): Promise<AiConversation[]> {
+// ── Lectura desde la nube (SINGLE-FLIGHT anti-tormenta) ───────────────────────
+/**
+ * (Agente B1) Antes, N suscriptores (sidebar de /agent, Portal Nexus, Exocórtex,
+ * orbe…) montaban a la vez y cada uno llamaba a `refreshConversations`, y CADA
+ * `postgres_changes`/`live-signal` disparaba otra — de ahí los ~6 GET idénticos
+ * a `aurora_conversations` por carga. Ahora:
+ *   · SINGLE-FLIGHT: si hay una petición en vuelo, todos comparten ESA promesa.
+ *   · TTL corto: dentro de la ventana, una llamada no forzada devuelve la caché
+ *     sin volver a pegar a la red (colapsa ráfagas de montaje).
+ *   · Los caminos de tiempo real usan `scheduleRefreshConversations()`, que hace
+ *     UN refresco forzado con debounce (una ráfaga de cambios ⇒ 1 GET).
+ */
+const REFRESH_TTL_MS = 4000;
+let refreshInflight: Promise<AiConversation[]> | null = null;
+let lastRefreshAt = 0;
+let refreshDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function fetchConversationsFromCloud(): Promise<AiConversation[]> {
   const uid = await currentUserId();
   if (!uid) return cachedConversations();
   try {
@@ -400,6 +426,41 @@ export async function refreshConversations(): Promise<AiConversation[]> {
   } catch {
     return cachedConversations();
   }
+}
+
+/**
+ * Baja la lista de conversaciones y refresca la caché. Devuelve la lista.
+ * @param force  Ignora el TTL (pero NO el single-flight): úsalo tras un cambio
+ *               real (arranque, pull manual del usuario, ráfaga de realtime).
+ */
+export async function refreshConversations(force = false): Promise<AiConversation[]> {
+  // Single-flight: cualquier llamada concurrente comparte la petición en vuelo.
+  if (refreshInflight) return refreshInflight;
+  // TTL: dentro de la ventana, una llamada no forzada no vuelve a pegar a la red.
+  if (!force && Date.now() - lastRefreshAt < REFRESH_TTL_MS) {
+    return cachedConversations();
+  }
+  refreshInflight = fetchConversationsFromCloud();
+  try {
+    return await refreshInflight;
+  } finally {
+    lastRefreshAt = Date.now();
+    refreshInflight = null;
+  }
+}
+
+/**
+ * Refresco forzado con DEBOUNCE, para los caminos de tiempo real. Una ráfaga de
+ * `postgres_changes`/`live-signal`/`BroadcastChannel` (p.ej. varios upserts
+ * seguidos) colapsa en UN solo GET tras ~500 ms de calma.
+ */
+export function scheduleRefreshConversations(): void {
+  if (!isClient()) return;
+  if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
+  refreshDebounceTimer = setTimeout(() => {
+    refreshDebounceTimer = null;
+    void refreshConversations(true);
+  }, 500);
 }
 
 /** Baja los mensajes de una conversación y refresca la caché. */
@@ -462,6 +523,16 @@ export async function createConversation(opts: CreateConversationOptions = {}): 
     updatedAt: now,
   };
 
+  // (Agente B1 · createConversation IMPARABLE) Orden a prueba de storage lleno:
+  //   1) caché local OPTIMISTA (safe: nunca lanza, degrada a memoria),
+  //   2) activa YA (memoria + evento) → la UI cambia de vista al instante aunque
+  //      el disco esté lleno y aunque la nube tarde o falle,
+  //   3) insert en la nube SIEMPRE (await, con manejo de error real),
+  //   4) al confirmar, reconcilia (mismo id) enriqueciendo fechas/meta.
+  // La creación NUNCA vuelve a reventar por el caché local.
+  upsertConvCache(local);
+  setActiveConversationId(local.id);
+
   const uid = await currentUserId();
   if (uid) {
     try {
@@ -486,8 +557,8 @@ export async function createConversation(opts: CreateConversationOptions = {}): 
         .single();
       if (!error && data) {
         const conv = toConv(data as unknown as ConvRow);
+        // El id es el MISMO que el local → reconcilia sin duplicar ni cambiar el activo.
         upsertConvCache(conv);
-        setActiveConversationId(conv.id);
         void emitChange(AI_CHATS_TOPIC, {
           id: conv.id,
           updatedAt: new Date(conv.updatedAt).toISOString(),
@@ -495,13 +566,19 @@ export async function createConversation(opts: CreateConversationOptions = {}): 
         });
         return conv;
       }
-    } catch {
-      /* best-effort: caemos a la conversación local */
+      if (error) {
+        // Error real de la nube: se registra (una vez es suficiente para diagnóstico)
+        // pero NO se propaga — la conversación local ya está activa y usable.
+        // eslint-disable-next-line no-console
+        console.warn("[conversations] insert en nube falló; se conserva local", error.message ?? error);
+      }
+    } catch (e) {
+      // Red caída / permisos: la conversación local sigue activa. Nunca lanzamos.
+      // eslint-disable-next-line no-console
+      console.warn("[conversations] insert en nube lanzó; se conserva local", (e as Error)?.message ?? e);
     }
   }
 
-  upsertConvCache(local);
-  setActiveConversationId(local.id);
   return local;
 }
 
@@ -518,8 +595,9 @@ export async function ensureActiveConversation(opts: CreateConversationOptions =
   if (activeId) {
     const found = cached.find((c) => c.id === activeId);
     if (found) return found;
-    // Puede existir en la nube y no en esta caché (otro dispositivo).
-    const cloud = await refreshConversations();
+    // Puede existir en la nube y no en esta caché (otro dispositivo): forzamos
+    // (saltamos el TTL) porque buscamos un id concreto ya conocido.
+    const cloud = await refreshConversations(true);
     const hit = cloud.find((c) => c.id === activeId);
     if (hit) return hit;
   }
@@ -843,19 +921,89 @@ export async function migrateLegacyChatLog(): Promise<{ conversations: number; m
     }
   }
 
-  try {
-    window.localStorage.setItem(
-      AI_CONV_MIGRATED_KEY,
-      JSON.stringify({ at: Date.now(), conversations: convCount, messages: msgCount }),
-    );
-  } catch {
-    /* defensivo */
-  }
+  // Flag LOCAL (best-effort; puede degradar a memoria si el disco está lleno).
+  safeSet(
+    AI_CONV_MIGRATED_KEY,
+    JSON.stringify({ at: Date.now(), conversations: convCount, messages: msgCount }),
+  );
+  // Flag EN NUBE: el backfill del chatlog v1 no se vuelve a intentar en NINGÚN
+  // dispositivo (guard real, persistido, no dependiente del localStorage local).
+  await setChatlogMigratedInCloud();
+  migrationDone = true;
   if (convCount) {
-    await refreshConversations();
+    await refreshConversations(true);
     void emitChange(AI_CHATS_TOPIC, { data: { kind: "conversation" } });
   }
   return { conversations: convCount, messages: msgCount };
+}
+
+// ── Guard REAL del backfill (memoria + nube) ─────────────────────────────────
+/**
+ * (Agente B1 · fin de la tormenta) El backfill del chatlog legado se re-ejecutaba
+ * EN CADA CARGA (9-10 upserts a `aurora_conversations` sin que el usuario tocara
+ * nada) porque su único flag era un `localStorage.setItem` que, con el disco
+ * lleno, NUNCA persistía. Ahora el flag vive EN LA NUBE (`user_settings.prefs`),
+ * más un guard en memoria por sesión, así que la migración corre COMO MUCHO una
+ * vez por cuenta.
+ */
+let migrationChecked = false;
+let migrationDone = false;
+
+/** ¿Dice la nube que el chatlog v1 ya se migró? (best-effort; false si no se sabe). */
+async function isChatlogMigratedInCloud(): Promise<boolean> {
+  const uid = await currentUserId();
+  if (!uid) return false;
+  try {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("user_settings")
+      .select("prefs")
+      .eq("user_id", uid)
+      .maybeSingle();
+    const prefs = (data?.prefs ?? {}) as { migrations?: { chatlogV1?: boolean } };
+    return prefs.migrations?.chatlogV1 === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Marca en la nube que el chatlog v1 ya se migró (parche atómico, sin pisar nada). */
+async function setChatlogMigratedInCloud(): Promise<void> {
+  try {
+    await mergeUserPrefs({ migrations: { chatlogV1: true } });
+  } catch {
+    /* best-effort: el guard en memoria evita re-subir en esta sesión igualmente */
+  }
+}
+
+/**
+ * Ejecuta la migración del chatlog legado COMO MUCHO una vez:
+ *   · guard en memoria por sesión (varias superficies arrancan el sync),
+ *   · flag LOCAL rápido (si persistió),
+ *   · flag EN NUBE (verdad compartida entre dispositivos).
+ * Si ya está hecha, no sube ni un solo upsert. Nunca lanza.
+ */
+export async function maybeMigrateLegacyChatLog(): Promise<void> {
+  if (migrationDone || migrationChecked) return;
+  migrationChecked = true;
+  try {
+    // Camino rápido: flag local presente (barato, síncrono).
+    if (safeGet(AI_CONV_MIGRATED_KEY)) {
+      migrationDone = true;
+      return;
+    }
+    // Verdad compartida: ¿la nube ya lo marcó (otro dispositivo)?
+    if (await isChatlogMigratedInCloud()) {
+      migrationDone = true;
+      safeSet(AI_CONV_MIGRATED_KEY, JSON.stringify({ cloud: true, at: Date.now() }));
+      return;
+    }
+    // No consta hecho en ningún sitio → migra (idempotente por client_id) UNA vez.
+    await migrateLegacyChatLog();
+  } catch {
+    // Si falla, permitimos reintento en la próxima sesión (no marcamos done).
+    migrationChecked = false;
+  }
 }
 
 /**
@@ -948,12 +1096,13 @@ export function startAiChatSync(): void {
             /* sin red: el catálogo estático ya es válido */
         }
 
-        await refreshConversations();
+        await refreshConversations(true);
         const active = getActiveConversationId();
         if (active) await loadMessages(active);
-        // Migración del historial legado (una vez; idempotente si se repite).
+        // Migración del historial legado: COMO MUCHO una vez por cuenta (guard en
+        // nube + memoria). Ya no re-sube upserts en cada carga.
         try {
-            await migrateLegacyChatLog();
+            await maybeMigrateLegacyChatLog();
         } catch {
             /* nunca bloquea el arranque */
         }
@@ -967,7 +1116,8 @@ export function startAiChatSync(): void {
             bc?.postMessage({ kind: "message", convId: row.chat_id });
         });
         onTableChange<ConvRow>("aurora_conversations", { filter: `user_id=eq.${uid}`, event: "*" }, () => {
-            void refreshConversations();
+            // Debounce forzado: una ráfaga de cambios ⇒ 1 GET (no una tormenta).
+            scheduleRefreshConversations();
             bc?.postMessage({ kind: "conversation" });
         });
 
@@ -975,7 +1125,7 @@ export function startAiChatSync(): void {
         onChange(AI_CHATS_TOPIC, (change) => {
             const data = (change.data ?? {}) as { convId?: string; kind?: string };
             if (data.kind === "conversation" || !data.convId) {
-                void refreshConversations();
+                scheduleRefreshConversations();
                 return;
             }
             void loadMessages(data.convId);
@@ -987,7 +1137,7 @@ export function startAiChatSync(): void {
                 const d = ev.data as { kind?: string; convId?: string } | null;
                 if (!d) return;
                 if (d.kind === "conversation" || !d.convId) {
-                    void refreshConversations();
+                    scheduleRefreshConversations();
                     return;
                 }
                 void loadMessages(d.convId);
@@ -1074,7 +1224,7 @@ export function useAiConversations(): UseAiConversations {
   }, []);
 
   const refresh = useCallback(async () => {
-    await refreshConversations();
+    await refreshConversations(true); // pull manual del usuario: salta el TTL
     setConversations(cachedConversations());
   }, []);
 

@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { onTableChange } from "@/lib/realtime/realtime";
 import { emitChange, onChange } from "@/lib/sync/live-signal";
+import { safeGet, safeSet } from "@/lib/safe-storage";
 
 /** Topic de live-signal para carpetas (privado de la cuenta). */
 export const AI_FOLDERS_TOPIC = "aurora:folders";
@@ -49,7 +50,7 @@ function emitDom(): void {
 function readCache(): ChatFolder[] {
   if (!isClient()) return [];
   try {
-    const raw = window.localStorage.getItem(CACHE_KEY);
+    const raw = safeGet(CACHE_KEY);
     const arr = raw ? (JSON.parse(raw) as ChatFolder[]) : [];
     return Array.isArray(arr) ? arr : [];
   } catch { return []; }
@@ -57,9 +58,7 @@ function readCache(): ChatFolder[] {
 
 function writeCache(folders: ChatFolder[]): void {
   if (!isClient()) return;
-  try {
-    window.localStorage.setItem(CACHE_KEY, JSON.stringify(folders));
-  } catch { /* */ }
+  safeSet(CACHE_KEY, JSON.stringify(folders)); // nunca lanza (poda/degrada a memoria)
   emitDom();
 }
 

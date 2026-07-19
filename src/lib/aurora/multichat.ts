@@ -23,6 +23,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { ChatProviderOverride } from "@/ai/client/chat";
 import type { ProviderId } from "@/ai/providers/types";
+import { safeGet, safeSet } from "@/lib/safe-storage";
 
 // ── Tipos del proveedor por chat (#95) ───────────────────────────
 
@@ -178,7 +179,7 @@ function readState(): MultichatState {
     return { version: 1, chats: [makeDefaultChat()] };
   }
   try {
-    const raw = window.localStorage.getItem(CHATS_KEY);
+    const raw = safeGet(CHATS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<MultichatState>;
       const chats = Array.isArray(parsed?.chats)
@@ -194,7 +195,7 @@ function readState(): MultichatState {
 function readActiveId(chats: AuroraChat[]): string {
   let id: string | null = null;
   if (typeof window !== "undefined") {
-    try { id = window.localStorage.getItem(ACTIVE_KEY); } catch { /* noop */ }
+    try { id = safeGet(ACTIVE_KEY); } catch { /* noop */ }
   }
   if (id && chats.some((c) => c.id === id)) return id;
   return chats[0]?.id ?? "";
@@ -209,10 +210,9 @@ function ensureLoaded(): MultichatState {
 
 function persist() {
   if (typeof window === "undefined" || !state) return;
-  try {
-    window.localStorage.setItem(CHATS_KEY, JSON.stringify(state));
-    if (activeId) window.localStorage.setItem(ACTIVE_KEY, activeId);
-  } catch { /* noop: quota / private mode */ }
+  // safeSet nunca lanza: ante cuota llena poda y, si no cabe, degrada a memoria.
+  safeSet(CHATS_KEY, JSON.stringify(state));
+  if (activeId) safeSet(ACTIVE_KEY, activeId);
 }
 
 function emit() {

@@ -240,6 +240,12 @@ export function AuroraOrb({
 
     const reduce = prefersReducedMotion();
     let raf = 0;
+    let running = false;
+    // El bucle SÓLO corre cuando la pestaña está visible Y el orbe está en
+    // pantalla. En Android un rAF de canvas oculto (Exocórtex cerrado, pestaña
+    // en segundo plano o orbe fuera de vista) malgasta batería y provoca jank.
+    let docVisible = typeof document === "undefined" ? true : !document.hidden;
+    let onScreen = true; // hasta que el IntersectionObserver diga lo contrario
     let t = Math.random() * 10; // arranque desincronizado (más orgánico)
     let smooth = 0;             // energía suavizada (volumen → glow)
     let tilt = 0;               // tono espectral suavizado (-1 graves .. +1 agudos)
@@ -382,8 +388,51 @@ export function AuroraOrb({
       raf = requestAnimationFrame(draw);
     };
 
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+    // ── Arranque/parada del bucle según visibilidad ──
+    const startLoop = () => {
+      if (running) return;
+      running = true;
+      raf = requestAnimationFrame(draw);
+    };
+    const stopLoop = () => {
+      running = false;
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    };
+    const sync = () => {
+      if (docVisible && onScreen) startLoop();
+      else stopLoop();
+    };
+
+    const onVisibility = () => {
+      docVisible = typeof document === "undefined" ? true : !document.hidden;
+      sync();
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+
+    // Pausa cuando el orbe sale de la pantalla (scroll, cortina cerrada…).
+    let io: IntersectionObserver | null = null;
+    if (typeof IntersectionObserver !== "undefined") {
+      io = new IntersectionObserver(
+        (entries) => {
+          onScreen = entries.some((e) => e.isIntersecting);
+          sync();
+        },
+        { threshold: 0.01 },
+      );
+      try { io.observe(root); } catch { /* */ }
+    }
+
+    sync(); // arranca sólo si procede (visible + en pantalla)
+
+    return () => {
+      stopLoop();
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+      if (io) { try { io.disconnect(); } catch { /* */ } }
+    };
   }, [coreSize]);
 
   return (

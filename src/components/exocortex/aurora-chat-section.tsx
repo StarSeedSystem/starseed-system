@@ -53,6 +53,7 @@ import { sendAuroraTurn, resolveTurnPersona } from "@/lib/aurora/turn";
 import { summarizeAttachments, type UniversalAttachment } from "@/lib/aurora/attachments";
 // Carpetas de chat en tiempo real + selector de cerebro por contexto.
 import { useChatFolders } from "@/lib/aurora/chat-folders-store";
+import { groupConversationsByPersonality } from "@/lib/aurora/chat-grouping";
 import { listBrains, getSelection, selectBrainForContext, type Brain } from "@/lib/brains/brains";
 import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
 import { AuroraAlwaysOn } from "@/components/exocortex/aurora-always-on";
@@ -600,22 +601,28 @@ function FoldersBrowser({ activeId, onOpen }: { activeId: string | null; onOpen:
   const { conversations } = useAiConversations();
   const { folders } = useChatFolders();
   const [q, setQ] = useState("");
+  // (Agente B1) Eje de agrupación: por Folders (carpeta) o por Personalidad.
+  const [groupBy, setGroupBy] = useState<"folder" | "personality">("folder");
 
   const query = q.trim().toLowerCase();
+  const filtered = query ? conversations.filter((c) => c.title.toLowerCase().includes(query)) : conversations;
+
   const byFolder = new Map<string, AiConversation[]>();
-  for (const c of conversations) {
-    if (query && !c.title.toLowerCase().includes(query)) continue;
+  for (const c of filtered) {
     const key = c.folder || "";
     const arr = byFolder.get(key) ?? [];
     arr.push(c);
     byFolder.set(key, arr);
   }
   const knownNames = new Set(folders.map((f) => f.name));
-  const groups = [
+  const folderGroups = [
     ...folders.map((f) => ({ name: f.name, items: byFolder.get(f.name) ?? [] })),
     ...[...byFolder.keys()].filter((k) => k && !knownNames.has(k)).map((k) => ({ name: k, items: byFolder.get(k) ?? [] })),
-    ...((byFolder.get("")?.length ?? 0) > 0 ? [{ name: "Sin carpeta", items: byFolder.get("") ?? [] }] : []),
+    ...((byFolder.get("")?.length ?? 0) > 0 ? [{ name: "Sin folder", items: byFolder.get("") ?? [] }] : []),
   ].filter((g) => g.items.length > 0);
+  const personalityGroups = groupConversationsByPersonality(filtered).map((g) => ({ name: g.name, items: g.items }));
+  const groups = groupBy === "personality" ? personalityGroups : folderGroups;
+  const GroupIcon = groupBy === "personality" ? Sparkles : FolderOpen;
 
   return (
     <div className="space-y-2">
@@ -629,6 +636,29 @@ function FoldersBrowser({ activeId, onOpen }: { activeId: string | null; onOpen:
           aria-label="Buscar en tus chats"
         />
       </div>
+      {/* (Agente B1) Toggle de agrupación: Folders | Personalidad. */}
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => setGroupBy("folder")}
+          className={cn(
+            "flex-1 cursor-pointer rounded-lg px-2 py-1.5 text-[11px] font-medium transition flex items-center justify-center gap-1",
+            groupBy === "folder" ? "bg-[#FFBF00]/15 text-[#FFBF00] ring-1 ring-[#FFBF00]/30" : "text-white/45 hover:bg-white/5 hover:text-white/70",
+          )}
+          title="Agrupar los chats por folder"
+        >
+          <FolderOpen className="h-3 w-3" /> Folders
+        </button>
+        <button
+          onClick={() => setGroupBy("personality")}
+          className={cn(
+            "flex-1 cursor-pointer rounded-lg px-2 py-1.5 text-[11px] font-medium transition flex items-center justify-center gap-1",
+            groupBy === "personality" ? "bg-[#39FF14]/15 text-[#39FF14] ring-1 ring-[#39FF14]/30" : "text-white/45 hover:bg-white/5 hover:text-white/70",
+          )}
+          title="Agrupar los chats por personalidad asignada"
+        >
+          <Sparkles className="h-3 w-3" /> Personalidad
+        </button>
+      </div>
       <div className="axc-scroll max-h-[46dvh] space-y-2 overflow-y-auto pr-1">
         {groups.length === 0 ? (
           <div className="axc-card px-3.5 py-6 text-center text-[11px] leading-relaxed text-white/40">
@@ -638,7 +668,7 @@ function FoldersBrowser({ activeId, onOpen }: { activeId: string | null; onOpen:
           groups.map((g) => (
             <div key={g.name} className="axc-card overflow-hidden">
               <div className="flex items-center gap-1.5 border-b border-white/5 px-3 py-2 text-[10px] uppercase tracking-wider text-white/40">
-                <FolderOpen className="h-3 w-3 text-[#FFBF00]" /> {g.name}
+                <GroupIcon className="h-3 w-3 text-[#FFBF00]" /> {g.name}
                 <span className="ml-auto rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/50">{g.items.length}</span>
               </div>
               <div className="space-y-0.5 p-1.5">
@@ -700,6 +730,11 @@ export function AuroraChatSection({ className }: { className?: string }) {
   // Overlay a pantalla completa de la vista de chat (2 columnas en escritorio).
   const [fullscreen, setFullscreen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Sello de montaje (verificación B2 · Android): el DOM del Exocórtex NO debe
+  // re-montarse al redimensionar el viewport (teclado/barra de URL). Este valor
+  // sólo cambia si el árbol se re-monta de verdad (p. ej. tras «Reintentar» del
+  // límite de error), nunca por un simple resize.
+  const mountTsRef = useRef<number>(Date.now());
   // "Nuevo chat": marca temporal a partir de la cual se muestra la conversación
   // en vivo (reinicio VISUAL del contexto; el motor mantiene su ring interno).
   const [sessionStartTs, setSessionStartTs] = useState<number>(0);
@@ -1072,7 +1107,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
   // siguen en la vista de chat (AuroraChatView) vía tPause/tResume/tSkip*/tInterrupt.
 
   return (
-    <div className={cn("axc-root", className)}>
+    <div className={cn("axc-root", className)} data-exocortex-mount={mountTsRef.current}>
       <style>{AXC_CSS}</style>
 
       {/* ── Cabecera: orbe + estado hablando/escuchando + conexión ── */}

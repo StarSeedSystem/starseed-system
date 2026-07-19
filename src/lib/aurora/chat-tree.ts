@@ -27,6 +27,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { safeGet, safeSet } from "@/lib/safe-storage";
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 /** Clave de localStorage del árbol de contextos (versionada). */
@@ -111,7 +112,7 @@ function emitChange(): void {
 export function readChatTreeStore(): ChatTreeStore {
   if (typeof window === "undefined") return emptyStore();
   try {
-    const raw = window.localStorage.getItem(AURORA_CHATTREE_KEY);
+    const raw = safeGet(AURORA_CHATTREE_KEY);
     if (!raw) return emptyStore();
     const parsed = JSON.parse(raw) as Partial<ChatTreeStore> | null;
     if (!parsed || typeof parsed !== "object") return emptyStore();
@@ -178,9 +179,9 @@ function writeChatTreeStore(store: ChatTreeStore): void {
         store.index[id] = list.slice(-CONTEXT_TS_CAP);
       }
     }
-    window.localStorage.setItem(AURORA_CHATTREE_KEY, JSON.stringify(store));
+    safeSet(AURORA_CHATTREE_KEY, JSON.stringify(store)); // nunca lanza (poda/degrada)
   } catch {
-    /* defensivo: cuota llena / storage bloqueado → no rompemos nada */
+    /* defensivo: serialización rara → no rompemos nada */
   }
 }
 

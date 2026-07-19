@@ -623,6 +623,47 @@ function Conversation(props: {
   );
 }
 
+/**
+ * (Adenda 75 · B2) Composer consciente del teclado virtual (Android/iOS).
+ * Cuando el `visualViewport` se encoge por el teclado, escribe una CSS var
+ * (`--axc-kb`) DIRECTAMENTE en el nodo del composer (vía ref) para elevar la
+ * fila de entrada por encima del teclado. NO usa setState → cero re-render del
+ * árbol: el chat no se re-monta ni parpadea al abrir/cerrar el teclado. Sin
+ * `visualViewport` (navegadores viejos) es un no-op inofensivo.
+ */
+function useKeyboardInset(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let raf = 0;
+    const apply = () => {
+      raf = 0;
+      const el = ref.current;
+      if (!el) return;
+      // Parte del layout viewport tapada abajo por el teclado.
+      const overlap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      // Umbral: ignora deltas pequeños de la barra de URL (no es teclado).
+      const kb = overlap > 100 ? Math.round(overlap) : 0;
+      el.style.setProperty("--axc-kb", `${kb}px`);
+    };
+    const onChange = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(apply);
+    };
+    apply();
+    vv.addEventListener("resize", onChange);
+    vv.addEventListener("scroll", onChange);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      vv.removeEventListener("resize", onChange);
+      vv.removeEventListener("scroll", onChange);
+      const el = ref.current;
+      if (el) el.style.removeProperty("--axc-kb");
+    };
+  }, [ref]);
+}
+
 // ── Vista principal ──────────────────────────────────────────────────────────
 export function AuroraChatView(props: AuroraChatViewProps) {
   const [selectedAgentId, setSelectedAgentId] = useState('agent-core');
@@ -644,6 +685,11 @@ export function AuroraChatView(props: AuroraChatViewProps) {
   // apareciese desincronizado. Caemos al id del árbol sólo si no hay activa.
   const aiChats = useAiConversations();
   const realConvId = aiChats.activeId ?? tree.activeId ?? null;
+
+  // Composer consciente del teclado virtual (Android): ajusta su padding-bottom
+  // vía visualViewport sin re-render del árbol.
+  const composerRef = useRef<HTMLDivElement | null>(null);
+  useKeyboardInset(composerRef);
 
   // Bloque conversación + entrada + transporte + acciones (reutilizado).
   const conversationBlock = (
@@ -753,8 +799,13 @@ export function AuroraChatView(props: AuroraChatViewProps) {
         />
       )}
 
-      {/* Entrada + 📎 + voz + envío */}
-      <div className="axc-inputrow relative z-[1]">
+      {/* Entrada + 📎 + voz + envío. `--axc-kb` eleva la fila sobre el teclado
+          virtual en Android (visualViewport) preservando el padding base (5px). */}
+      <div
+        ref={composerRef}
+        className="axc-inputrow relative z-[1]"
+        style={{ paddingBottom: "calc(5px + var(--axc-kb, 0px))" }}
+      >
         {onAttachFile && (
           <ChatAttachButton
             onPick={(picked) => onAttachFile(picked)}

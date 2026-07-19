@@ -32,6 +32,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { safeGet, safeSet } from "@/lib/safe-storage";
 import {
   readAuroraChatEntries,
   readAuroraChatSessions,
@@ -150,7 +151,7 @@ function isMeta(v: unknown): v is CatalogMeta {
 export function readCatalogStore(): CatalogStore {
   if (typeof window === "undefined") return emptyCatalog();
   try {
-    const raw = window.localStorage.getItem(AURORA_CHATCATALOG_KEY);
+    const raw = safeGet(AURORA_CHATCATALOG_KEY);
     if (!raw) return emptyCatalog();
     const parsed = JSON.parse(raw) as Partial<CatalogStore> | null;
     if (!parsed || typeof parsed !== "object") return emptyCatalog();
@@ -189,9 +190,9 @@ function writeCatalogStore(store: CatalogStore): void {
         });
       for (const m of sorted.slice(0, ids.length - CATALOG_CAP)) delete store.metas[m.id];
     }
-    window.localStorage.setItem(AURORA_CHATCATALOG_KEY, JSON.stringify(store));
+    safeSet(AURORA_CHATCATALOG_KEY, JSON.stringify(store)); // nunca lanza (poda/degrada)
   } catch {
-    /* defensivo: cuota llena / storage bloqueado → no rompemos nada */
+    /* defensivo: serialización rara → no rompemos nada */
   }
 }
 

@@ -25,12 +25,14 @@ import {
   Orbit,
   Bot,
   Folder,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TelegramChatsFolder } from "@/components/exocortex/telegram-chats-folder";
 import { useAiConversations, type AiConversation } from "@/lib/aurora/conversations";
 import { useChatFolders } from "@/lib/aurora/chat-folders-store";
 import { ChatFolders } from "@/components/aurora/chat-folders";
+import { groupConversationsByPersonality } from "@/lib/aurora/chat-grouping";
 
 function whenLabel(ts: number): string {
   try {
@@ -61,6 +63,8 @@ export function ChatNeuralSidebar() {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  // (Agente B1) Eje de agrupación: por Folders (carpeta) o por Personalidad.
+  const [groupBy, setGroupBy] = useState<"folder" | "personality">("folder");
 
   const byFolder = new Map<string, AiConversation[]>();
   for (const c of conversations) {
@@ -70,24 +74,26 @@ export function ChatNeuralSidebar() {
     byFolder.set(key, arr);
   }
   const knownNames = new Set(folders.map((f) => f.name));
-  const groups: {
-    id: string;
-    name: string;
-    Icon: typeof Orbit;
-    items: AiConversation[];
-  }[] = [
+  type Group = { id: string; name: string; Icon: typeof Orbit; items: AiConversation[] };
+  const folderGroups: Group[] = [
     ...folders
       .filter((f) => (byFolder.get(f.name)?.length ?? 0) > 0)
       .map((f) => ({ id: `f:${f.name}`, name: f.name, Icon: Folder, items: byFolder.get(f.name) ?? [] })),
-    // Carpetas referenciadas por chats pero aún no en la tabla (defensivo).
+    // Folders referenciados por chats pero aún no en la tabla (defensivo).
     ...[...byFolder.keys()]
       .filter((k) => k && !knownNames.has(k))
       .map((k) => ({ id: `f:${k}`, name: k, Icon: Folder, items: byFolder.get(k) ?? [] })),
-    // Chats sin carpeta al final.
+    // Chats sin folder al final.
     ...((byFolder.get("")?.length ?? 0) > 0
-      ? [{ id: "__none__", name: "Sin carpeta", Icon: MessageSquare, items: byFolder.get("") ?? [] }]
+      ? [{ id: "__none__", name: "Sin folder", Icon: MessageSquare, items: byFolder.get("") ?? [] }]
       : []),
   ];
+  // Por personalidad: usa el helper compartido (mismo criterio en todas las superficies).
+  const personalityGroups: Group[] = groupConversationsByPersonality(conversations).map((g) => ({
+    ...g,
+    Icon: Sparkles,
+  }));
+  const groups: Group[] = groupBy === "personality" ? personalityGroups : folderGroups;
 
   return (
     <div className="hidden lg:flex w-64 shrink-0 flex-col rounded-xl border bg-background/40 overflow-hidden">
@@ -103,8 +109,38 @@ export function ChatNeuralSidebar() {
         </button>
       </div>
 
-      {/* Carpetas de chat (Adenda 71-bis): los chats se adjuntan a folders y
-          se ven en todas las secciones porque comparten el almacén unificado. */}
+      {/* (Agente B1) Toggle de agrupación: Folders | Personalidad. */}
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-white/5">
+        <button
+          onClick={() => setGroupBy("folder")}
+          className={cn(
+            "flex-1 cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium transition-colors duration-150 flex items-center justify-center gap-1",
+            groupBy === "folder"
+              ? "bg-cyan-500/15 text-cyan-100 ring-1 ring-cyan-500/30"
+              : "text-cyan-100/50 hover:bg-white/5 hover:text-cyan-100/80",
+          )}
+          title="Agrupar los chats por folder"
+        >
+          <Folder className="w-3 h-3" /> Folders
+        </button>
+        <button
+          onClick={() => setGroupBy("personality")}
+          className={cn(
+            "flex-1 cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium transition-colors duration-150 flex items-center justify-center gap-1",
+            groupBy === "personality"
+              ? "bg-fuchsia-500/15 text-fuchsia-100 ring-1 ring-fuchsia-500/30"
+              : "text-cyan-100/50 hover:bg-white/5 hover:text-cyan-100/80",
+          )}
+          title="Agrupar los chats por personalidad asignada"
+        >
+          <Sparkles className="w-3 h-3" /> Personalidad
+        </button>
+      </div>
+
+      {/* Folders de chat (Adenda 71-bis): los chats se adjuntan a folders y
+          se ven en todas las secciones porque comparten el almacén unificado.
+          La asignación rápida del chat activo solo aplica al eje Folders. */}
+      {groupBy === "folder" && (
       <ChatFolders
         activeConvId={activeId}
         folder={conversations.find((c) => c.id === activeId)?.folder ?? null}
@@ -116,6 +152,7 @@ export function ChatNeuralSidebar() {
           } catch { /* */ }
         }}
       />
+      )}
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {conversations.length === 0 && (

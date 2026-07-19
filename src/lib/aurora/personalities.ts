@@ -19,6 +19,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { safeGet, safeSet } from "@/lib/safe-storage";
 // Seguridad integrada (Adenda 63 §13): escaneo de secretos/PII al IMPORTAR
 // personalidades (redacción de `critical` + aviso). Ver importPersonalityJson.
 import { redactDeep, scanDeep, summarize, type Finding } from "@/lib/security/scanner";
@@ -1121,7 +1122,7 @@ export function intelligencePinFor(
 function readProfileList(): PersonalityProfile[] | null {
   if (!hasWindow()) return null;
   try {
-    const raw = window.localStorage.getItem(PERSONALITY_LIST_KEY);
+    const raw = safeGet(PERSONALITY_LIST_KEY);
     if (!raw) return null;
     const arr = JSON.parse(raw) as unknown;
     if (!Array.isArray(arr)) return null;
@@ -1140,10 +1141,10 @@ function writeProfileList(list: PersonalityProfile[]): void {
   let changed = true;
   try {
     const next = JSON.stringify(list);
-    const prev = window.localStorage.getItem(PERSONALITY_LIST_KEY);
+    const prev = safeGet(PERSONALITY_LIST_KEY);
     if (prev === next) changed = false;
-    else window.localStorage.setItem(PERSONALITY_LIST_KEY, next);
-  } catch { changed = false; /* cuota/privado: seguimos en memoria, sin señal */ }
+    else safeSet(PERSONALITY_LIST_KEY, next); // nunca lanza: poda o degrada a memoria
+  } catch { changed = false; /* serialización rara: seguimos en memoria, sin señal */ }
   if (changed) emitPersonalityChanged();
 }
 
@@ -1360,7 +1361,7 @@ function defaultAssignments(): PersonalityAssignments {
 export function getPersonalityAssignments(): PersonalityAssignments {
   if (!hasWindow()) return defaultAssignments();
   try {
-    const raw = window.localStorage.getItem(PERSONALITY_ACTIVE_KEY);
+    const raw = safeGet(PERSONALITY_ACTIVE_KEY);
     if (!raw) return defaultAssignments();
     const o = JSON.parse(raw) as Partial<PersonalityAssignments>;
     return {
@@ -1376,9 +1377,7 @@ export function getPersonalityAssignments(): PersonalityAssignments {
 
 function writeAssignments(a: PersonalityAssignments): void {
   if (!hasWindow()) return;
-  try {
-    window.localStorage.setItem(PERSONALITY_ACTIVE_KEY, JSON.stringify(a));
-  } catch { /* noop */ }
+  safeSet(PERSONALITY_ACTIVE_KEY, JSON.stringify(a)); // nunca lanza (poda/degrada)
   emitPersonalityChanged();
 }
 
