@@ -28,7 +28,8 @@ import {
   listPersonalityProfiles, setActivePersonality, resolvePersonalityForContext,
   getPersonalityAssignments,
 } from "@/lib/aurora/personalities";
-import { insertConfigChangeMessage } from "@/lib/aurora/config-change";
+import { patchChatConfig } from "@/lib/aurora/config-change";
+import { cachedConversations, AI_CONV_CHANGE_EVENT } from "@/lib/aurora/conversations";
 import { loadConfigs, getActiveProviderId, setActiveProviderId } from "@/ai/client/providerStore";
 import { PROVIDERS } from "@/ai/providers";
 import { SENSES, getActiveSenses, setActiveSenses } from "@/lib/senses/senses";
@@ -52,6 +53,19 @@ export interface ChatConfig {
   voice?: boolean;
   /** Registro (historial persistente) por chat — Adenda 71-bis. */
   log?: boolean;
+  // ── Espacios de trabajo y compartir (Adenda 76) ──
+  /** Espacio de trabajo al que pertenece el chat. */
+  workspaceId?: string;
+  /** Snapshot de las instrucciones del espacio (inyectado al system prompt). */
+  workspaceInstructions?: string;
+  /** Fijado: ordena arriba dentro de su carpeta. */
+  pinned?: boolean;
+  /** Destinatarios con los que se compartió (AccessGrant[] denormalizado). */
+  sharedWith?: unknown[];
+  /** Espejo os_spaces del chat compartido (snapshot en grupo). */
+  sharedSpaceId?: string | null;
+  /** Conversación de origen si este chat es una rama. */
+  branchedFrom?: string;
 }
 
 /** Etiqueta legible del proveedor/modelo guardado por chat (Adenda 71-bis fix-21). */
@@ -149,6 +163,8 @@ const CAP_LABELS: Record<string, string> = {
   memory: "Memoria", cron: "Cron", location: "Ubicación",
 };
 const MEM_SCOPES = ["personal", "compartida", "cerebro-activo", "todas"] as const;
+/** Alcance de memoria por defecto del sistema (marcado "(default)" si el chat no fijó uno). */
+const DEFAULT_MEM_SCOPE = "todas";
 
 export function ChatConfigMenu({
   convId, context = "astraura", onClose,
@@ -230,23 +246,37 @@ export function ChatConfigMenu({
 
   useEffect(() => { load(); }, [load]);
 
-  const save = useCallback(async (next: ChatConfig) => {
-    setCfg(next);
+  // (Adenda 76 · Task 5) SINCRONIZACIÓN EN VIVO por chat: cuando el meta.config de
+  // ESTE chat cambia (otra superficie, otro dispositivo, o el propio espacio de
+  // trabajo que le inyecta workspaceId/instrucciones), re-hidratamos desde la
+  // caché unificada (mantenida al día por el sync realtime). Así las 7 secciones
+  // reflejan el estado REAL sin necesidad de reabrir el menú.
+  useEffect(() => {
     if (!convId) return;
-    try {
-      const sb = createClient();
-      const { data } = await sb.from("aurora_conversations").select("meta").eq("id", convId).maybeSingle();
-      const meta = (data?.meta as any) || {};
-      const prevCfg = (meta.config as ChatConfig) || {};
-      meta.config = next;
-      await sb.from("aurora_conversations").update({ meta }).eq("id", convId);
-      // Divisor sutil "⚙️ Ajustes del chat actualizados: …" en el hilo, con SÓLO
-      // los campos que cambiaron. Idempotente; aparece en todas las superficies.
-      void insertConfigChangeMessage(convId, prevCfg, next);
-    } catch { /* */ }
+    const rehydrate = () => {
+      try {
+        const conv = cachedConversations().find((c) => c.id === convId);
+        const c = (conv?.meta as { config?: ChatConfig } | null | undefined)?.config;
+        if (c && typeof c === "object") setCfg(c);
+      } catch { /* */ }
+    };
+    window.addEventListener(AI_CONV_CHANGE_EVENT, rehydrate);
+    return () => window.removeEventListener(AI_CONV_CHANGE_EVENT, rehydrate);
   }, [convId]);
 
-  const patch = (p: Partial<ChatConfig>) => save({ ...cfg, ...p });
+  // (Adenda 76 · Task 5) ESCRITURA CANÓNICA: todos los cambios pasan por
+  // `patchChatConfig` (config-change.ts), que hace read-modify-write en la NUBE
+  // (sin pisar campos que otra superficie añadió a meta.config: workspaceId,
+  // sharedWith, pinned…), refleja el cambio en la CACHÉ local al instante (para
+  // que `getChatConfig`/turn.ts lo vea en el próximo turno) e inserta el divisor
+  // "⚙️ Ajustes del chat actualizados". Antes se escribía sólo en la nube y con
+  // el objeto completo, lo que dejaba desincronizadas las superficies que leen la
+  // caché y podía borrar campos nuevos del meta.config.
+  const patch = useCallback((p: Partial<ChatConfig>) => {
+    setCfg((prev) => ({ ...prev, ...p }));
+    if (!convId) return;
+    void patchChatConfig(convId, p);
+  }, [convId]);
 
   const toggleCap = (k: string) => {
     const caps = { ...(cfg.capabilities || {}) };
@@ -435,7 +465,13 @@ export function ChatConfigMenu({
           {open === "memorias" && (
             <Section title="Memorias accesibles por este chat">
               {MEM_SCOPES.map((k) => (
-                <Row key={k} label={k} active={cfg.memoryScope === k} onClick={() => patch({ memoryScope: k })} />
+                <Row
+                  key={k}
+                  label={k}
+                  hint={!cfg.memoryScope && DEFAULT_MEM_SCOPE === k ? "(default)" : undefined}
+                  active={(cfg.memoryScope ?? DEFAULT_MEM_SCOPE) === k}
+                  onClick={() => patch({ memoryScope: k })}
+                />
               ))}
             </Section>
           )}

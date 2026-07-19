@@ -36,6 +36,7 @@ import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
 import { useEntityThemeScope } from "@/lib/design/entity-theme-scope";
 import { FreeSectionsBlock } from "@/components/social/free-sections-block";
 import { EntityGalleryBlock } from "@/components/social/entity-gallery-block";
+import { EntityErrorBoundary } from "@/components/social/entity-error-boundary";
 import { GroupEducationPanel } from "@/components/education/group-education-panel";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
 import {
@@ -210,6 +211,18 @@ function GroupFeed({ slug, accent }: { slug: string; accent: string }) {
 }
 
 export default function GrupoPage() {
+    // Límite de error LOCAL (Adenda 76 · G3): ningún dato raro de la nube
+    // (os_groups/entity_state/toolkits/paneles) vuelve a tirar la app entera;
+    // degrada a una recuperación suave con «Reintentar». `notFound()` se
+    // re-lanza dentro del boundary, así que un grupo inexistente sigue dando 404.
+    return (
+        <EntityErrorBoundary label="grupo" backHref="/hub" backLabel="Volver al Hub de comunidades">
+            <GrupoPageContent />
+        </EntityErrorBoundary>
+    );
+}
+
+function GrupoPageContent() {
     const params = useParams();
     const slug = Array.isArray(params?.slug) ? params.slug[0] : (params?.slug ?? "");
     const slugStr = String(slug);
@@ -261,11 +274,15 @@ export default function GrupoPage() {
                         <Info className="h-5 w-5" />
                         <h2 className="font-headline text-lg font-semibold">Acerca del grupo</h2>
                     </div>
-                    <p className="leading-relaxed text-foreground/90">{group.description}</p>
+                    <p className="leading-relaxed text-foreground/90">
+                        {group.description?.trim()
+                            ? group.description
+                            : "Este grupo todavía no ha añadido una descripción."}
+                    </p>
                 </GlassCard>
             ),
         });
-        list.push({ id: "members", label: "Miembros", node: <MemberAvatars system="politico" total={group.memberCount} accent={accentForTabs} seed={group.id} /> });
+        list.push({ id: "members", label: "Miembros", node: <MemberAvatars system="politico" total={group.memberCount ?? 0} accent={accentForTabs} seed={group.slug ?? group.id ?? ""} /> });
         list.push({
             id: "agenda",
             label: "Agenda",
@@ -389,6 +406,16 @@ export default function GrupoPage() {
     const accent = accentForTabs;
     const isAssembly = group.kind === "asamblea";
     const effectiveCover = layout.coverUrl || group.coverUrl;
+    // Defensa en profundidad (Adenda 76 · G3): `normalizeGroup` ya reduce
+    // null→0/""/kind por defecto, pero blindamos también la vista para que
+    // NINGÚN objeto de grupo crudo/legacy (no normalizado) haga saltar
+    // `.toLocaleString()` u otros accesos. Cero cambio visual con datos sanos.
+    const safeMemberCount =
+        typeof group.memberCount === "number" && Number.isFinite(group.memberCount)
+            ? group.memberCount
+            : 0;
+    const groupName = group.name?.trim() ? group.name : "Grupo";
+    const groupKindLabel = group.kind || "colectivo";
 
     return (
         <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6">
@@ -433,7 +460,7 @@ export default function GrupoPage() {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                             src={effectiveCover}
-                            alt={group.name}
+                            alt={groupName}
                             onError={onImgError}
                             className="absolute inset-0 h-full w-full object-cover"
                         />
@@ -451,7 +478,7 @@ export default function GrupoPage() {
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                     src={group.avatarUrl}
-                                    alt={group.name}
+                                    alt={groupName}
                                     onError={onImgError}
                                     className="h-full w-full object-cover"
                                 />
@@ -466,18 +493,18 @@ export default function GrupoPage() {
                                 className="mb-2 w-fit capitalize"
                                 style={{ borderColor: `${accent}55`, color: accent }}
                             >
-                                {group.kind}
+                                {groupKindLabel}
                             </Badge>
                             <h1
                                 className="font-headline text-[clamp(1.5rem,5vw,2.5rem)] font-bold leading-tight"
                                 style={{ fontFamily: "var(--font-headline, 'Fraunces', serif)" }}
                             >
-                                {group.name}
+                                {groupName}
                             </h1>
                             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                                 <span className="flex items-center gap-1.5">
                                     <UsersRound className="h-4 w-4" />
-                                    {group.memberCount.toLocaleString("es-ES")} miembros
+                                    {safeMemberCount.toLocaleString("es-ES")} miembros
                                 </span>
                             </div>
                         </div>
@@ -485,7 +512,7 @@ export default function GrupoPage() {
                             <JoinButton
                                 groupSlug={group.slug}
                                 accent={accent}
-                                count={group.memberCount}
+                                count={safeMemberCount}
                                 isAssembly={isAssembly}
                             />
                             {isOwner && (
@@ -512,7 +539,7 @@ export default function GrupoPage() {
                                     Personalizar
                                 </Button>
                             )}
-                            <ShareButton title={group.name} accent={accent} />
+                            <ShareButton title={groupName} accent={accent} />
                         </div>
                     </div>
                 </div>
@@ -526,7 +553,7 @@ export default function GrupoPage() {
                     items={visibleTabs.map((t) => ({ value: t.id, label: t.label }))}
                     value={activeTab}
                     onValueChange={setActiveTab}
-                    ariaLabel={`Secciones de ${group.name}`}
+                    ariaLabel={`Secciones de ${groupName}`}
                 />
 
                 {visibleTabs.map((t) => (

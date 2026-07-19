@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { fetchMyConnectionIds, fetchNetworkFeed, enrichAuthors, type FeedPost } from '@/lib/feed/network-feed';
+import { ConnectionsHub } from '@/components/hub/connections-hub';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Datos REALES en vivo de la Red (contadores + pulso del feed).
@@ -372,6 +373,12 @@ export function HubRedSection() {
                         )}
                     </CardContent>
                 </Card>
+            </div>
+
+            {/* ── Conexiones de la Red (Adenda 76 · G3): explorador social enriquecido
+                — tarjetas por sistema/tipo, filtros, buscador y "Mis conexiones". ── */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.015] p-4 sm:p-5 shadow-inner">
+                <ConnectionsHub />
             </div>
 
             {/* ── Nodos temáticos: Panorama, Política, Educación, Cultura ── */}

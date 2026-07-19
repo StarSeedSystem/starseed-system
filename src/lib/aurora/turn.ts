@@ -65,6 +65,7 @@ import {
 import type { ChatConfig } from "@/components/aurora/chat-config-menu";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { buildAttachmentsContext, type UniversalAttachment } from "@/lib/aurora/attachments";
+import { workspaceSystemExtra } from "@/lib/workspaces/workspaces";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -254,6 +255,13 @@ export async function composeAuroraSystem(opts: {
       if (persona) pieces.push(compilePersonalityPrompt(persona.profile));
     } catch { /* sin personalidad: sigue igual */ }
   }
+
+  // 0.5) Instrucciones del ESPACIO DE TRABAJO del chat (Adenda 76). Síncrono y
+  // barato (lee la caché local). Si el chat no está en un espacio, devuelve "".
+  try {
+    const wx = workspaceSystemExtra(opts.convId);
+    if (wx) pieces.push(wx);
+  } catch { /* sin espacio: prompt idéntico */ }
 
   // 1) Acciones del OS (control real). Determinista y barato.
   try { pieces.push(actionsSystemPromptSection()); } catch { /* */ }

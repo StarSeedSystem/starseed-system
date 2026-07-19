@@ -114,7 +114,6 @@ import nextDynamic from "next/dynamic";
 import { SensesPanel } from "@/components/hermes/senses-panel";
 import { McpPanel } from "@/components/hermes/mcp-panel";
 import { QuickOptionsGrid } from "@/components/hermes/quick-options-grid";
-import { AiStudioDashboard } from "@/components/hermes/ai-studio-dashboard";
 
 const MemoryBrain3D = nextDynamic(() => import("@/components/exocortex/memory-brain-3d").then(m => m.MemoryBrain3D), { ssr: false });
 const CanvasBoard = nextDynamic(() => import("@/components/canvas/canvas-board"), { ssr: false });
@@ -123,6 +122,21 @@ const AiAppGenerator = nextDynamic(() => import("@/components/appgen/ai-app-gene
 import { TelegramSpacesPanel } from "@/components/exocortex/telegram-spaces-panel";
 import { ChatNeuralSidebar } from "@/components/agent/chat-neural-sidebar";
 import { NexusWorkspaces } from "@/components/agent/nexus-workspaces";
+// Adenda 76 · G1: cuerpo de chat compartido + panel de uso Nexus.
+import { ChatSurface } from "@/components/agent/chat-surface";
+import { AstrauraUsagePanel } from "@/components/agent/usage-panel";
+// «Espacios de trabajo» — página de gestión (Agente G2). Dynamic + placeholder.
+const WorkspacesSection = nextDynamic(
+  () => import("@/components/workspaces/workspaces-section").then((m) => m.WorkspacesSection),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center text-sm text-white/50">
+        Cargando gestión de espacios de trabajo…
+      </div>
+    ),
+  },
+);
 import { MemoryHub } from "@/components/exocortex/memory-hub";
 import { AgentRuntimePanel } from "@/components/agent/agent-runtime-panel";
 import { VaultsPanel } from "@/components/exocortex/vaults-panel";
@@ -161,18 +175,32 @@ type StudioSection = {
 };
 
 const STUDIO_SECTIONS: StudioSection[] = [
+  // Adenda 76 · G1: «Chats», «Nexus» y «Espacios de trabajo» pasan a ser
+  // ENTRADAS DE PRIMER NIVEL del menú (antes eran sub-pestañas dentro de
+  // «Inicio»). Cada una es una sección de un solo ítem → sin sub-toggle.
   {
-    id: "inicio",
-    label: "Inicio",
-    icon: LayoutDashboard,
+    id: "chats",
+    label: "Chats",
+    icon: Bot,
     accent: "text-primary",
-    hint: "Tus chats con la IA y el Portal Nexus de espacios de trabajo.",
-    items: [
-      // «Chats» = la vista de chats (pestaña PRINCIPAL/por defecto).
-      { value: "chat", label: "Chats", icon: Bot },
-      // «Nexus» = el Portal Nexus (espacios de trabajo) + panel de estado.
-      { value: "overview", label: "Nexus", icon: Network },
-    ],
+    hint: "Conversa con Astraura IA — el mismo hilo que el orbe y el Exocórtex.",
+    items: [{ value: "chat", label: "Chats", icon: Bot }],
+  },
+  {
+    id: "nexus",
+    label: "Nexus",
+    icon: Activity,
+    accent: "text-cyan-300",
+    hint: "Panel gráfico de uso del sistema Astraura, por perfil.",
+    items: [{ value: "overview", label: "Nexus", icon: Activity }],
+  },
+  {
+    id: "espacios",
+    label: "Espacios de trabajo",
+    icon: Layers,
+    accent: "text-fuchsia-300",
+    hint: "Tus espacios (carpetas) de trabajo y su gestión completa.",
+    items: [{ value: "espacios", label: "Espacios de trabajo", icon: Layers }],
   },
   {
     id: "cerebro",
@@ -309,6 +337,9 @@ const TAB_ALIASES: Record<string, string> = {
   chats: "chat",
   nexus: "overview",
   resumen: "overview",
+  // Adenda 76 · G1: nueva pestaña de primer nivel «Espacios de trabajo».
+  espacios: "espacios",
+  workspaces: "espacios",
 };
 function normalizeTab(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -416,7 +447,7 @@ function AgentPageInner() {
   // Sección de configuración activa (derivada del tab activo, pero conmutable
   // de forma independiente por el rail lateral / la tira móvil).
   const [activeSection, setActiveSection] = useState<string>(
-    () => VALUE_TO_SECTION[initialTab] ?? 'inicio'
+    () => VALUE_TO_SECTION[initialTab] ?? 'chats'
   );
   const currentSection = STUDIO_SECTIONS.find(s => s.id === activeSection) ?? STUDIO_SECTIONS[0];
 
@@ -895,12 +926,17 @@ function AgentPageInner() {
             )}
           </div>
 
-        {/* --- TAB: NEXUS (Portal Nexus · espacios de trabajo + estado) --- */}
+        {/* --- TAB: NEXUS (panel gráfico de uso del sistema Astraura, por perfil) --- */}
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto">
+          <AstrauraUsagePanel />
+        </TabsContent>
+
+        {/* --- TAB: ESPACIOS DE TRABAJO (Portal Nexus + gestión de espacios · G2) --- */}
+        <TabsContent value="espacios" className="flex-1 min-h-0 overflow-y-auto">
           <div className="space-y-6">
-            {/* El Portal Nexus (espacios de trabajo = carpetas reales) vive aquí. */}
+            {/* El Portal Nexus (espacios = carpetas reales) vive aquí como bloque superior. */}
             <NexusWorkspaces onOpenTab={(t) => setActiveTab(t)} />
-            <AiStudioDashboard />
+            <WorkspacesSection />
           </div>
         </TabsContent>
 
@@ -916,183 +952,9 @@ function AgentPageInner() {
           <ServerRegistryPanel />
         </TabsContent>
 
-        {/* --- TAB: CHAT --- */}
-        <TabsContent value="chat" className="flex-1 data-[state=active]:flex flex-col md:flex-row gap-4 md:gap-6 min-h-0 w-full max-w-full box-border">
-          <ChatNeuralSidebar />
-          {/* Chat Interface */}
-          <div className="flex-1 flex flex-col rounded-xl border bg-background/50 overflow-hidden shadow-sm relative min-w-0 w-full max-w-full box-border">
-            <div className="absolute top-3 right-3 left-3 sm:left-auto z-10 flex flex-wrap justify-end gap-2 max-w-[calc(100%-1.5rem)]">
-              {/* Selector de CONVERSACIÓN — el mismo hilo que el orbe de Aurora
-                  (Adenda 69 · I-1). En pantallas pequeñas sustituye a la barra
-                  lateral, que está oculta bajo `lg`. */}
-              {conv.conversations.length > 0 && (
-                <Select
-                  value={conv.activeId ?? undefined}
-                  onValueChange={(v) => conv.setActive(v)}
-                >
-                  <SelectTrigger className="w-[190px] max-w-[44vw] bg-card/60 backdrop-blur border-border/50 lg:hidden">
-                    <SelectValue placeholder="Conversación" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {conv.conversations.map(c => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.kind === 'astraura' || c.surface === 'agent' ? '🤖 ' : '🔵 '}{c.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0 bg-card/60 backdrop-blur border-border/50 cursor-pointer lg:hidden"
-                title="Nueva conversación"
-                onClick={() => void conv.create({ kind: 'aurora', surface: 'agent' })}
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-              {/* Ir a la pestaña Nexus (Portal Nexus · espacios de trabajo). */}
-              <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0 bg-card/60 backdrop-blur border-border/50 cursor-pointer"
-                title="Espacios de trabajo · Portal Nexus"
-                aria-label="Ir a la pestaña Nexus (Portal Nexus · espacios de trabajo)"
-                onClick={() => setActiveTab('overview')}
-              >
-                <LayoutDashboard className="w-4 h-4" />
-              </Button>
-              {activePersona && (
-                <span
-                  className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-2.5 py-1 text-[11px] font-medium text-fuchsia-100"
-                  title="Personalidad activa de Astraura en este chat"
-                >
-                  <Sparkles className="h-3 w-3 text-fuchsia-300" /> {activePersona.name}
-                </span>
-              )}
-              <ChatHeaderOptions context="astraura" convId={conv.activeId ?? null} />
-            </div>
-
-            <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-              <div className="flex flex-col gap-4 max-w-3xl mx-auto pt-16 sm:pt-12">
-                {!conv.activeId ? (
-                  // El Portal Nexus (espacios de trabajo) ahora vive en la pestaña
-                  // «Nexus». Aquí, sin conversación activa, invitamos a empezar un
-                  // chat o a abrir ese portal — sin re-montar el árbol.
-                  <div className="flex flex-col items-center justify-center text-center gap-4 py-14">
-                    <span className="grid place-items-center h-14 w-14 rounded-2xl bg-gradient-to-tr from-primary/25 to-fuchsia-500/25 border border-white/10">
-                      <Bot className="w-7 h-7 text-primary" />
-                    </span>
-                    <div className="space-y-1">
-                      <h3 className="text-base font-semibold text-white">Sin conversación activa</h3>
-                      <p className="max-w-md text-sm text-white/50">
-                        Escribe abajo para empezar un chat nuevo con Astraura, o abre el Portal Nexus
-                        para elegir un espacio de trabajo (tus carpetas de chat).
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      className="gap-2 border-white/15 bg-white/[0.03] cursor-pointer"
-                      onClick={() => setActiveTab('overview')}
-                    >
-                      <LayoutDashboard className="w-4 h-4" /> Abrir Portal Nexus
-                    </Button>
-                  </div>
-                ) : messages.map((msg, i) => (
-                  msg.configChange ? (
-                    <ConfigChangeNotice key={msg.id ?? i} text={msg.content} />
-                  ) : (
-                  <div key={msg.id ?? i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                    <Avatar className="w-8 h-8 border border-white/10">
-                      {msg.role === 'agent' ? (
-                        <AvatarFallback className="bg-primary/20 text-primary"><Bot className="w-4 h-4" /></AvatarFallback>
-                      ) : (
-                        <AvatarFallback className="bg-muted/40 text-xs">Tú</AvatarFallback>
-                      )}
-                    </Avatar>
-                    <div className={`group relative p-3 rounded-2xl max-w-[80%] text-sm shadow-sm ${msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground rounded-tr-none'
-                      : 'bg-card border rounded-tl-none'
-                      }`}>
-                      <MessageRenderer text={msg.content} compact={msg.role === 'user'} />
-                      <MessageAttachmentChips attachments={msg.attachments} />
-                      {msg.pending && <span className="inline-block w-2 h-4 ml-1 bg-primary/70 animate-pulse align-middle" />}
-                      {!msg.pending && msg.meta && (
-                        <MessageActionBar
-                          payload={{
-                            role: msg.role === 'user' ? 'user' : 'aurora',
-                            text: msg.content,
-                            ts: msg.ts ?? Date.now(),
-                            meta: msg.meta,
-                            history: [],
-                          }}
-                          onViewProcess={(meta) => setProcess({ open: true, meta })}
-                        />
-                      )}
-                    </div>
-                  </div>
-                  )
-                ))}
-
-              </div>
-              <MessageProcessModal
-                open={process.open}
-                meta={process.meta as any}
-                onOpenChange={(o) => setProcess(p => ({ ...p, open: o }))}
-              />
-
-            </ScrollArea>
-
-            <div className="p-4 border-t bg-background/40 backdrop-blur-md space-y-2">
-              {activeProviderConfig?.encryptedKey && (
-                <div className="flex gap-2 max-w-3xl mx-auto items-center">
-                  <Lock className="w-3 h-3 text-amber-400 shrink-0" />
-                  <Input
-                    type="password"
-                    placeholder="Frase de paso (descifra tu clave de API)"
-                    className="flex-1 bg-background/50 text-xs h-8"
-                    value={passphrase}
-                    onChange={(e) => setPassphrase(e.target.value)}
-                  />
-                </div>
-              )}
-              {pendingAttachments.length > 0 && (
-                <div className="max-w-3xl mx-auto">
-                  <PendingAttachmentChips items={pendingAttachments} onRemove={removeAttachment} />
-                </div>
-              )}
-              <div className="flex gap-2 max-w-3xl mx-auto items-center">
-                <ChatAttachButton
-                  onPick={(picked) => setPendingAttachments((prev) => [...prev, ...picked])}
-                  folder="aurora"
-                  className="shrink-0 size-9 rounded-full border border-white/12 bg-white/[0.03] text-white/70 hover:border-white/25 hover:text-white"
-                />
-                <ChatVoiceButtons
-                  convId={conv.activeId ?? null}
-                  onInterim={(t) => setInputValue(t)}
-                  onFinal={(t) => { setInputValue(""); void handleSend(t); }}
-                  className="shrink-0"
-                />
-                <Input
-                  placeholder={`Conversando con ${activeAgent.name}${activeProviderConfig ? ` vía ${activeProviderConfig.label}` : ""}...`}
-                  className="flex-1 bg-background/50"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !streaming && handleSend()}
-                  disabled={streaming}
-                />
-                {streaming ? (
-                  <Button onClick={handleStop} variant="destructive" className="shrink-0 gap-2">
-                    <Square className="w-4 h-4" /> Detener
-                  </Button>
-                ) : (
-                  <Button onClick={() => handleSend()} className="shrink-0 gap-2" disabled={!inputValue.trim() && pendingAttachments.length === 0}>
-                    <Send className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
+        {/* --- TAB: CHAT (cuerpo extraído a ChatSurface · Adenda 76 · G1) --- */}
+        <TabsContent value="chat" className="flex-1 min-h-0 w-full max-w-full box-border data-[state=active]:flex">
+          <ChatSurface />
         </TabsContent>
 
         {/* --- TAB: FOUNDRY (AGENT BUILDER) --- */}

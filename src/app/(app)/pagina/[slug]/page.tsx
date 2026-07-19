@@ -42,6 +42,7 @@ import { EntityLayoutEditor } from "@/components/social/entity-layout-editor";
 import { useEntityThemeScope } from "@/lib/design/entity-theme-scope";
 import { FreeSectionsBlock } from "@/components/social/free-sections-block";
 import { EntityGalleryBlock } from "@/components/social/entity-gallery-block";
+import { EntityErrorBoundary } from "@/components/social/entity-error-boundary";
 import { GroupEducationPanel } from "@/components/education/group-education-panel";
 import { DecisionesSection } from "@/components/governance/decisiones-section";
 import {
@@ -229,6 +230,17 @@ function PageFeed({ slug, accent }: { slug: string; accent: string }) {
 }
 
 export default function PaginaPage() {
+    // Límite de error LOCAL (Adenda 76 · G3): mismo endurecimiento que grupo —
+    // ningún dato raro de la nube tira la app entera; `notFound()` se re-lanza
+    // dentro del boundary, así que una página inexistente sigue dando 404.
+    return (
+        <EntityErrorBoundary label="página" backHref="/network" backLabel="Volver a la Red">
+            <PaginaPageContent />
+        </EntityErrorBoundary>
+    );
+}
+
+function PaginaPageContent() {
     const params = useParams();
     const slug = Array.isArray(params?.slug) ? params.slug[0] : (params?.slug ?? "");
     const slugStr = String(slug);
@@ -293,7 +305,7 @@ export default function PaginaPage() {
                 </div>
             ),
         });
-        list.push({ id: "members", label: "Miembros", node: <MemberAvatars system="politico" total={page.memberCount} accent={accentForTabs} seed={page.id} /> });
+        list.push({ id: "members", label: "Miembros", node: <MemberAvatars system="politico" total={page.memberCount ?? 0} accent={accentForTabs} seed={page.slug ?? page.id ?? ""} /> });
         list.push({
             id: "events",
             label: "Eventos",
@@ -463,6 +475,11 @@ export default function PaginaPage() {
     const accent = accentForTabs;
     const isCommunity = page.kind === "comunidad";
     const effectiveCover = layout.coverUrl || page.coverUrl;
+    // Defensa en profundidad (Adenda 76 · G3): recuento crudo/legacy null/NaN → 0.
+    const safeMemberCount =
+        typeof page.memberCount === "number" && Number.isFinite(page.memberCount)
+            ? page.memberCount
+            : 0;
 
     return (
         <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6">
@@ -509,7 +526,7 @@ export default function PaginaPage() {
                     name: page.name,
                     description: page.description ?? "",
                     coverUrl: effectiveCover ?? "",
-                    memberCount: page.memberCount,
+                    memberCount: safeMemberCount,
                     accent: accent
                 }}
                 isOwner={isOwner}
@@ -541,7 +558,7 @@ export default function PaginaPage() {
                     <div className="min-w-0 lg:col-span-1 mt-14">
                         <GlassCard className="p-4">
                             <h3 className="font-headline text-lg font-semibold mb-3">Red</h3>
-                            <MemberAvatars system={(page as { system?: SystemKey }).system ?? "politico"} total={page.memberCount} accent={accent} seed={page.id} />
+                            <MemberAvatars system={(page as { system?: SystemKey }).system ?? "politico"} total={safeMemberCount} accent={accent} seed={page.slug ?? page.id ?? ""} />
                         </GlassCard>
                     </div>
                 )}

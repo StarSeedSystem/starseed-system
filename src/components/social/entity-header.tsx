@@ -52,7 +52,13 @@ export function EntityHeader({ entity, isOwner, isCommunity, onEdit, onCustomize
         : isCommunity
           ? "Unirme"
           : "Seguir";
-    const displayCount = entity.memberCount + (followState.active ? 1 : 0);
+    // Defensa (Adenda 76 · G3): recuento crudo/legacy puede llegar null/NaN;
+    // lo reducimos a 0 para que `.toLocaleString()` nunca lance ni muestre "NaN".
+    const safeMemberCount =
+        typeof entity.memberCount === "number" && Number.isFinite(entity.memberCount)
+            ? entity.memberCount
+            : 0;
+    const displayCount = safeMemberCount + (followState.active ? 1 : 0);
 
     const handleFollowClick = async () => {
         const res = await followState.toggle();

@@ -843,6 +843,133 @@ export async function newConversation(opts: CreateConversationOptions = {}): Pro
   return createConversation({ title: "Nueva conversación", ...opts });
 }
 
+// ── Helpers de menú contextual (Adenda 76 · duplicar/ramificar/mover/fijar) ───
+
+/** ¿Está fijada la conversación? (meta.config.pinned). Síncrono. */
+export function isConversationPinned(conv: AiConversation | null | undefined): boolean {
+  const cfg = (conv?.meta as { config?: { pinned?: boolean } } | null | undefined)?.config;
+  return !!cfg?.pinned;
+}
+
+/** Compara para ordenar: fijadas arriba, luego por updatedAt desc. */
+export function pinnedThenRecent(a: AiConversation, b: AiConversation): number {
+  const pa = isConversationPinned(a) ? 1 : 0;
+  const pb = isConversationPinned(b) ? 1 : 0;
+  if (pa !== pb) return pb - pa;
+  return b.updatedAt - a.updatedAt;
+}
+
+/** Escribe `meta.config` de una conversación (nube + caché + señal). Best-effort. */
+async function writeConversationConfig(convId: string, config: Record<string, unknown>): Promise<void> {
+  patchCachedConversationConfig(convId, config); // optimista, síncrono
+  const uid = await currentUserId();
+  if (!uid) return;
+  try {
+    const supabase = createClient();
+    const { data } = await supabase.from("aurora_conversations").select("meta").eq("id", convId).maybeSingle();
+    const meta = ((data?.meta as Record<string, unknown>) || {}) as Record<string, unknown>;
+    meta.config = config;
+    await supabase.from("aurora_conversations").update({ meta }).eq("id", convId).eq("user_id", uid);
+    void emitChange(AI_CHATS_TOPIC, { id: convId, data: { convId, kind: "conversation" } });
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Fija/desfija una conversación (meta.config.pinned) — ordena arriba en su folder. */
+export async function setConversationPinned(convId: string, pinned: boolean): Promise<void> {
+  if (!convId) return;
+  const conv = readCache().convs.find((c) => c.id === convId);
+  const prevCfg = ((conv?.meta as { config?: Record<string, unknown> } | null)?.config) || {};
+  await writeConversationConfig(convId, { ...prevCfg, pinned });
+}
+
+/** Mueve una conversación a una carpeta (o null = sin carpeta). Nube + caché + señal. */
+export async function moveConversationToFolder(convId: string, folder: string | null): Promise<void> {
+  if (!convId) return;
+  const cache = readCache();
+  const i = cache.convs.findIndex((c) => c.id === convId);
+  if (i >= 0) {
+    cache.convs[i] = { ...cache.convs[i], folder: folder ?? null };
+    writeCache(cache);
+    emit(AI_CONV_CHANGE_EVENT);
+  }
+  const uid = await currentUserId();
+  if (!uid) return;
+  try {
+    const supabase = createClient();
+    await supabase.from("aurora_conversations").update({ folder: folder ?? null }).eq("id", convId).eq("user_id", uid);
+    void emitChange(AI_CHATS_TOPIC, { id: convId, data: { convId, kind: "conversation" } });
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Exporta una conversación a Markdown (para "Copiar" al portapapeles). */
+export function conversationMarkdown(convId: string): string {
+  try {
+    const conv = readCache().convs.find((c) => c.id === convId);
+    const msgs = cachedMessages(convId).filter((m) => m.role !== "system" && m.text?.trim());
+    const lines: string[] = [`# ${conv?.title ?? "Conversación"}`, ""];
+    for (const m of msgs) {
+      const who = m.role === "user" ? "Tú" : "Astraura";
+      lines.push(`**${who}:** ${m.text.trim()}`, "");
+    }
+    return lines.join("\n").trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Duplica o RAMIFICA una conversación: crea una nueva copiando el historial
+ * hasta ahora (mensajes no-system). `branch` solo cambia el título por defecto y
+ * mantiene la referencia al origen en meta.config.branchedFrom.
+ */
+export async function forkConversation(
+  convId: string,
+  opts: { branch?: boolean; title?: string; surface?: AiSurface } = {},
+): Promise<AiConversation | null> {
+  if (!convId) return null;
+  const src = readCache().convs.find((c) => c.id === convId);
+  if (!src) return null;
+  const baseTitle = src.title || "Conversación";
+  const title = opts.title || (opts.branch ? `Rama de ${baseTitle}` : `Copia de ${baseTitle}`);
+  const created = await createConversation({
+    title,
+    kind: src.kind || "aurora",
+    surface: opts.surface ?? (src.surface as AiSurface) ?? "agent",
+    persona: src.persona ?? null,
+    folder: src.folder ?? null,
+  });
+  // Copia el historial (respeta el orden temporal). Idempotente por client_id.
+  const history = cachedMessages(convId).filter((m) => m.role !== "system" && m.text?.trim());
+  for (const m of history) {
+    // eslint-disable-next-line no-await-in-loop
+    await appendMessage({ role: m.role, text: m.text, ts: m.ts, convId: created.id, meta: m.meta ?? null });
+  }
+  // Hereda la config del chat (personalidad/proveedor/sentidos…) + marca de origen.
+  const srcCfg = ((src.meta as { config?: Record<string, unknown> } | null)?.config) || {};
+  await writeConversationConfig(created.id, {
+    ...srcCfg,
+    pinned: false,
+    sharedWith: undefined,
+    sharedSpaceId: undefined,
+    branchedFrom: opts.branch ? convId : undefined,
+  });
+  return created;
+}
+
+/** Duplica una conversación (copia completa del historial). */
+export async function duplicateConversation(convId: string, surface?: AiSurface): Promise<AiConversation | null> {
+  return forkConversation(convId, { branch: false, surface });
+}
+
+/** Ramifica una conversación (nueva rama a partir del historial actual). */
+export async function branchConversation(convId: string, surface?: AiSurface): Promise<AiConversation | null> {
+  return forkConversation(convId, { branch: true, surface });
+}
+
 // ── Migración del historial legado (`starseed.aurora.chatlog.v1`) ────────────
 /**
  * Sube UNA VEZ el registro local de Aurora a la nube, agrupado por día (que es

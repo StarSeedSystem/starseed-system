@@ -34,7 +34,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
-  AlertTriangle, Bot, Brain as BrainIcon, Check, ChevronDown, ChevronRight, Compass,
+  AlertTriangle, Bot, Boxes, Brain as BrainIcon, Check, ChevronDown, ChevronRight, Compass,
   Drama, ExternalLink, Eye, FileJson, FileText, FolderOpen, FolderTree,
   History, Layers, Maximize2, Minimize2, MessageSquare, Mic, MicOff,
   Orbit, Plus, RefreshCw, ScrollText, Search, Send,
@@ -54,6 +54,8 @@ import { summarizeAttachments, type UniversalAttachment } from "@/lib/aurora/att
 // Carpetas de chat en tiempo real + selector de cerebro por contexto.
 import { useChatFolders } from "@/lib/aurora/chat-folders-store";
 import { groupConversationsByPersonality } from "@/lib/aurora/chat-grouping";
+import { useChatContextMenu } from "@/components/aurora/chat-context-menu";
+import { WorkspacesCompactList } from "@/components/workspaces/workspaces-section";
 import { listBrains, getSelection, selectBrainForContext, type Brain } from "@/lib/brains/brains";
 import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
 import { AuroraAlwaysOn } from "@/components/exocortex/aurora-always-on";
@@ -102,7 +104,7 @@ import {
 // ── Tipos locales ────────────────────────────────────────────────────────────
 // (Adenda 71-ter · I3) Se quitaron "chats" (multichat, integrado en Folders) y
 // "voz" (sus ajustes viven en Personalidades). Se añadió "sentidos" (panel real).
-type Tab = "folder" | "chat" | "control" | "personalidad" | "sentidos" | "registro";
+type Tab = "folder" | "chat" | "espacios" | "control" | "personalidad" | "sentidos" | "registro";
 
 /** El puente v4 añade voiceUnavailable a la instantánea (aditivo). */
 type SnapshotPlus = AuroraStateSnapshot & { voiceUnavailable?: boolean };
@@ -600,6 +602,8 @@ function BrainSelector() {
 function FoldersBrowser({ activeId, onOpen }: { activeId: string | null; onOpen: (id: string) => void }) {
   const { conversations } = useAiConversations();
   const { folders } = useChatFolders();
+  // Menú contextual (clic derecho + pulsación larga) de chats y carpetas (Adenda 76).
+  const { bind: ctxBind, menu: ctxMenu } = useChatContextMenu({ surface: "exocortex", onOpenChat: onOpen });
   const [q, setQ] = useState("");
   // (Agente B1) Eje de agrupación: por Folders (carpeta) o por Personalidad.
   const [groupBy, setGroupBy] = useState<"folder" | "personality">("folder");
@@ -665,9 +669,14 @@ function FoldersBrowser({ activeId, onOpen }: { activeId: string | null; onOpen:
             {query ? "Ningún chat coincide con tu búsqueda." : "Aún no hay chats en carpetas. Crea un chat nuevo y se organizará aquí."}
           </div>
         ) : (
-          groups.map((g) => (
+          groups.map((g) => {
+            const folderMeta = groupBy === "folder" && g.name !== "Sin folder" ? folders.find((f) => f.name === g.name) : undefined;
+            return (
             <div key={g.name} className="axc-card overflow-hidden">
-              <div className="flex items-center gap-1.5 border-b border-white/5 px-3 py-2 text-[10px] uppercase tracking-wider text-white/40">
+              <div
+                {...(folderMeta ? ctxBind({ kind: "folder", id: g.name, name: g.name, folderId: folderMeta.id }) : {})}
+                className="flex items-center gap-1.5 border-b border-white/5 px-3 py-2 text-[10px] uppercase tracking-wider text-white/40"
+              >
                 <GroupIcon className="h-3 w-3 text-[#FFBF00]" /> {g.name}
                 <span className="ml-auto rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/50">{g.items.length}</span>
               </div>
@@ -676,6 +685,7 @@ function FoldersBrowser({ activeId, onOpen }: { activeId: string | null; onOpen:
                   <button
                     key={c.id}
                     onClick={() => onOpen(c.id)}
+                    {...ctxBind({ kind: "chat", id: c.id, name: c.title, folder: c.folder ?? null })}
                     className={cn(
                       "flex min-h-[44px] w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs transition",
                       c.id === activeId ? "bg-[#39FF14]/10 text-white ring-1 ring-[#39FF14]/30" : "text-white/70 hover:bg-white/5",
@@ -690,9 +700,11 @@ function FoldersBrowser({ activeId, onOpen }: { activeId: string | null; onOpen:
                 ))}
               </div>
             </div>
-          ))
+          );
+          })
         )}
       </div>
+      {ctxMenu}
     </div>
   );
 }
@@ -1281,6 +1293,19 @@ export function AuroraChatSection({ className }: { className?: string }) {
         <BrainSelector />
         <ChatHeaderOptions context="astraura" convId={aiChats.activeId} />
         <div className="ml-auto flex items-center gap-1.5">
+          {/* Abrir el chat activo a PANTALLA COMPLETA en Astraura IA (Adenda 76). */}
+          <button
+            className="axc-toolico"
+            onClick={() => {
+              if (typeof window === "undefined") return;
+              const id = aiChats.activeId;
+              window.location.href = id ? `/agent/chat?id=${encodeURIComponent(id)}` : "/agent";
+            }}
+            title="Abrir el chat en pantalla completa (Astraura IA)"
+            aria-label="Abrir el chat en pantalla completa"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </button>
           <button
             className="axc-toolico"
             onClick={() => { if (typeof window !== "undefined") window.location.href = "/memorias-3d"; }}
@@ -1315,6 +1340,7 @@ export function AuroraChatSection({ className }: { className?: string }) {
         {([
           { id: "folder", label: "Folders", Icon: FolderTree },
           { id: "chat", label: "Chat", Icon: MessageSquare },
+          { id: "espacios", label: "Espacios", Icon: Boxes },
           { id: "control", label: "Control", Icon: SlidersHorizontal },
           { id: "personalidad", label: "Personalidades", Icon: Drama },
           { id: "sentidos", label: "Sentidos", Icon: Eye },
@@ -1352,6 +1378,12 @@ export function AuroraChatSection({ className }: { className?: string }) {
             onAskAurora={(t) => doSend(t)}
             onOpenChat={openCatalogChat}
           />
+        </div>
+      ) : tab === "espacios" ? (
+        /* Espacios de trabajo del perfil (Adenda 76): lista compacta con datos y
+           accesos directos a Astraura IA / pantalla completa del chat activo. */
+        <div className="axc-scroll relative z-[1] max-h-[62dvh] overflow-y-auto overscroll-contain pr-1">
+          <WorkspacesCompactList activeConvId={aiChats.activeId} />
         </div>
       ) : tab === "control" ? (
         /* Sentidos de Aurora (panel real) + modo "siempre encendida" (wake-word). */

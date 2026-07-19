@@ -29,10 +29,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TelegramChatsFolder } from "@/components/exocortex/telegram-chats-folder";
-import { useAiConversations, type AiConversation } from "@/lib/aurora/conversations";
+import { useAiConversations, pinnedThenRecent, type AiConversation } from "@/lib/aurora/conversations";
 import { useChatFolders } from "@/lib/aurora/chat-folders-store";
 import { ChatFolders } from "@/components/aurora/chat-folders";
 import { groupConversationsByPersonality } from "@/lib/aurora/chat-grouping";
+import { useChatContextMenu } from "@/components/aurora/chat-context-menu";
 
 function whenLabel(ts: number): string {
   try {
@@ -54,12 +55,27 @@ function groupOf(c: AiConversation): "aurora" | "astraura" {
   return c.kind === "astraura" || c.surface === "agent" ? "astraura" : "aurora";
 }
 
-export function ChatNeuralSidebar() {
+export function ChatNeuralSidebar({
+  variant = "sidebar",
+  onPick,
+}: {
+  /** `sidebar` = barra fija (oculta bajo lg). `panel` = ancho completo para el
+   *  drawer móvil y la barra colapsable de la página a pantalla completa. */
+  variant?: "sidebar" | "panel";
+  /** Se llama al abrir una conversación (para cerrar el drawer, p.ej.). */
+  onPick?: () => void;
+} = {}) {
   const { conversations, activeId, setActive, create, rename, remove } = useAiConversations();
+  const pick = (id: string) => {
+    setActive(id);
+    onPick?.();
+  };
   // Carpetas EN VIVO (Adenda 71-ter · I1): las conversaciones se agrupan por su
   // carpeta (aurora_conversations.folder), no por origen. Orden estable por la
   // posición de la tabla de carpetas; "Sin carpeta" al final.
   const { folders } = useChatFolders();
+  // Menú contextual (clic derecho + pulsación larga) de chats y carpetas (Adenda 76).
+  const { bind: ctxBind, menu: ctxMenu } = useChatContextMenu({ surface: "agent", onOpenChat: setActive });
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -96,7 +112,10 @@ export function ChatNeuralSidebar() {
   const groups: Group[] = groupBy === "personality" ? personalityGroups : folderGroups;
 
   return (
-    <div className="hidden lg:flex w-64 shrink-0 flex-col rounded-xl border bg-background/40 overflow-hidden">
+    <div className={cn(
+      "flex flex-col rounded-xl border bg-background/40 overflow-hidden",
+      variant === "panel" ? "w-full h-full min-h-0" : "hidden lg:flex w-64 shrink-0",
+    )}>
       <div className="px-3 py-3 border-b flex items-center gap-2 text-sm font-semibold text-cyan-100">
         <Network className="w-4 h-4 text-cyan-400" />
         <span className="flex-1 min-w-0 truncate">Conversaciones</span>
@@ -162,11 +181,14 @@ export function ChatNeuralSidebar() {
           </p>
         )}
 
-        {groups.map((g) =>
-          g.items.length === 0 ? null : (
+        {groups.map((g) => {
+          const folderMeta =
+            groupBy === "folder" && g.id.startsWith("f:") ? folders.find((f) => f.name === g.name) : undefined;
+          return g.items.length === 0 ? null : (
             <div key={g.id} className="space-y-0.5">
               <button
                 onClick={() => setOpen((o) => ({ ...o, [g.id]: o[g.id] === false ? true : false }))}
+                {...(folderMeta ? ctxBind({ kind: "folder", id: g.name, name: g.name, folderId: folderMeta.id }) : {})}
                 className="flex w-full cursor-pointer items-center px-2 py-1.5 text-xs font-semibold text-cyan-300/80 transition-colors duration-150 hover:text-cyan-200"
               >
                 {open[g.id] !== false ? (
@@ -181,9 +203,10 @@ export function ChatNeuralSidebar() {
 
               {open[g.id] !== false && (
                 <div className="ml-2 space-y-0.5 border-l border-cyan-500/10 pl-2">
-                  {g.items.map((c) => (
+                  {[...g.items].sort(pinnedThenRecent).map((c) => (
                     <div
                       key={c.id}
+                      {...ctxBind({ kind: "chat", id: c.id, name: c.title, folder: c.folder ?? null })}
                       className={cn(
                         "group flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors duration-150",
                         c.id === activeId
@@ -227,7 +250,7 @@ export function ChatNeuralSidebar() {
                       ) : (
                         <>
                           <button
-                            onClick={() => setActive(c.id)}
+                            onClick={() => pick(c.id)}
                             className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
                             title={`Abrir «${c.title}»`}
                           >
@@ -261,13 +284,14 @@ export function ChatNeuralSidebar() {
                 </div>
               )}
             </div>
-          ),
-        )}
+          );
+        })}
 
         <div className="mt-2 border-t border-cyan-500/10 pt-2">
           <TelegramChatsFolder defaultOpen={false} />
         </div>
       </div>
+      {ctxMenu}
     </div>
   );
 }

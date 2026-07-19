@@ -32,10 +32,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion, type PanInfo } from "framer-motion";
 import {
   Sparkles, X, Play, Pause, Square, SkipForward, SkipBack,
-  Mic, MicOff, MessageSquare, ChevronUp, Maximize2, History,
+  Mic, MicOff, MessageSquare, ChevronUp, Maximize2, History, Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
@@ -58,6 +59,7 @@ import { Settings, FolderOpen, Paperclip } from "lucide-react";
 import { summarizeAttachments, type UniversalAttachment } from "@/lib/aurora/attachments";
 import { ChatAttachButton, MessageAttachmentChips } from "@/components/aurora/chat-attach-button";
 import { ChatVoiceButtons } from "@/components/aurora/chat-voice-buttons";
+import { UsageSummaryMini } from "@/components/agent/usage-panel";
 
 /** Inactividad tras la cual el reproductor resumido se retira solo. */
 const AUTOHIDE_MS = 10_000;
@@ -117,6 +119,7 @@ export function AuroraMiniPlayer({
 }: AuroraMiniPlayerProps) {
   const aurora = useAurora();
   const reduce = useReducedMotion();
+  const router = useRouter();
 
   const [expanded, setExpanded] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -127,6 +130,8 @@ export function AuroraMiniPlayer({
   const [optsOpen, setOptsOpen] = useState(false);
   // Selector compacto de chats/carpetas + cerebros + nuevo chat (Adenda 71-ter).
   const [openMenuOpen, setOpenMenuOpen] = useState(false);
+  // Popover compacto de uso del sistema (Nexus), en el pie (Adenda 76 · G1).
+  const [nexusOpen, setNexusOpen] = useState(false);
   const personalities = useMemo(() => listPersonalityProfiles(), []);
   // Personalidad activa: fuente de verdad = PersonalityProfile (localStorage),
   // que es lo que usa el puente Hermione. Reacciona al cambio en tiempo real.
@@ -211,16 +216,11 @@ export function AuroraMiniPlayer({
   }, []);
 
   useEffect(() => {
+    // Adenda 76 · G1: el orbe NO se auto-oculta por inactividad. Solo se cierra
+    // con su botón de cerrar (onDismiss se dispara únicamente por acción del
+    // usuario). Mantenemos clearAutohide por si quedara algún temporizador vivo.
     clearAutohide();
-    if (!active) return;
-    // Mientras haya actividad viva, o el panel esté expandido (el usuario lo
-    // está mirando), no arrancamos el temporizador de auto-ocultado.
-    if (live || expanded) return;
-    autohideRef.current = setTimeout(() => {
-      onDismiss?.();
-    }, AUTOHIDE_MS);
-    return clearAutohide;
-  }, [active, live, expanded, clearAutohide, onDismiss]);
+  }, [active, live, expanded, clearAutohide]);
 
   useEffect(() => () => clearAutohide(), [clearAutohide]);
 
@@ -685,14 +685,32 @@ export function AuroraMiniPlayer({
 
           <button
             type="button"
-            onClick={openExocortex}
-            title="Abrir la ventana completa de Astraura IA en el Exocórtex"
-            aria-label="Abrir en Exocórtex"
-            className={cn(styles.footBtn, styles.footBtnPrimary, "ml-auto")}
+            onClick={() => router.push(`/agent/chat${conv.activeId ? `?id=${conv.activeId}` : ""}`)}
+            title="Abrir el chat actual en pantalla completa"
+            aria-label="Abrir en pantalla completa"
+            className={cn(styles.footBtn, styles.footBtnGhost, "ml-auto")}
           >
-            <MessageSquare className="h-3.5 w-3.5" />
-            <span className="text-[10px] font-semibold">Exocórtex</span>
+            <Maximize2 className="h-3.5 w-3.5" />
           </button>
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setNexusOpen((v) => !v)}
+              title="Nexus — resumen gráfico del uso del sistema Astraura"
+              aria-label="Nexus · resumen de uso"
+              className={cn(styles.footBtn, styles.footBtnPrimary)}
+            >
+              <Gauge className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-semibold">Nexus</span>
+            </button>
+            {nexusOpen && typeof document !== "undefined" && createPortal(
+              <div className="fixed bottom-24 right-4 z-[9999] max-w-[92vw]">
+                <UsageSummaryMini onNavigate={() => setNexusOpen(false)} />
+              </div>,
+              document.body,
+            )}
+          </div>
         </div>
       </motion.div>
       </motion.div>

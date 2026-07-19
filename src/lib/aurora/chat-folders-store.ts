@@ -138,6 +138,26 @@ export async function renameFolder(id: string, name: string): Promise<void> {
   } catch { /* */ }
 }
 
+/**
+ * Fija una carpeta arriba (Adenda 76): le da la posición mínima − 1, así queda
+ * por encima del resto (el orden global es por `position` ascendente). Nube +
+ * caché + señal. Reversible fijando otra carpeta. Best-effort.
+ */
+export async function pinFolderTop(id: string): Promise<void> {
+  if (!id) return;
+  const list = cachedFolders();
+  const minPos = list.reduce((m, f) => Math.min(m, f.position), 0);
+  const top = minPos - 1;
+  writeCache(list.map((f) => (f.id === id ? { ...f, position: top } : f)));
+  const uid = await currentUserId();
+  if (!uid) return;
+  try {
+    const sb = createClient();
+    await sb.from("aurora_chat_folders").update({ position: top }).eq("id", id).eq("user_id", uid);
+    void emitChange(AI_FOLDERS_TOPIC, { id, data: { kind: "folder" } });
+  } catch { /* */ }
+}
+
 /** Borra una carpeta (nube + caché + señal). No toca las conversaciones. */
 export async function deleteFolder(id: string): Promise<void> {
   if (!id) return;

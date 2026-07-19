@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { FolderPlus, Folder, Check, Pencil, Trash2, X } from "lucide-react";
 import { useChatFolders } from "@/lib/aurora/chat-folders-store";
+import { useChatContextMenu } from "@/components/aurora/chat-context-menu";
 
 export function ChatFolders({
   activeConvId,
@@ -28,6 +29,8 @@ export function ChatFolders({
   // (Agente B1) Ahora también RENOMBRAR y BORRAR folders (nube primero), con
   // storage degradado tolerado por el almacén (safe-storage bajo el caché).
   const { folders: folderObjs, create: createFolder, rename: renameFolder, remove: removeFolder } = useChatFolders();
+  // Menú contextual (clic derecho + pulsación larga) sobre las carpetas (Adenda 76).
+  const { bind: ctxBind, menu: ctxMenu } = useChatContextMenu({ surface: "agent" });
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -101,6 +104,7 @@ export function ChatFolders({
         ) : (
           <span
             key={fo.id}
+            {...ctxBind({ kind: "folder", id: fo.name, name: fo.name, folderId: fo.id })}
             className={cn(
               "group text-[11px] px-2 py-1 rounded-full border transition flex items-center gap-1",
               folder === fo.name ? "border-fuchsia-400/50 bg-fuchsia-500/15 text-fuchsia-100" : "border-white/10 text-white/50 hover:border-white/30",
@@ -147,6 +151,7 @@ export function ChatFolders({
           <FolderPlus className="w-3 h-3 inline mr-1" /> Folder
         </button>
       )}
+      {ctxMenu}
     </div>
   );
 }
