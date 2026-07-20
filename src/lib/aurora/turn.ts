@@ -66,6 +66,7 @@ import type { ChatConfig } from "@/components/aurora/chat-config-menu";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { buildAttachmentsContext, type UniversalAttachment } from "@/lib/aurora/attachments";
 import { workspaceSystemExtra } from "@/lib/workspaces/workspaces";
+import { describeUserVoiceEmotionForPrompt } from "@/lib/aurora/audio-emotion";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -262,6 +263,14 @@ export async function composeAuroraSystem(opts: {
     const wx = workspaceSystemExtra(opts.convId);
     if (wx) pieces.push(wx);
   } catch { /* sin espacio: prompt idéntico */ }
+
+  // 0.7) OÍDO EMOCIONAL (Adenda 77-voz): si el sentido está activo y la voz del
+  // usuario trae un tono claro (alegre/tenso/triste…), se lo susurramos a
+  // Astraura para que responda con tacto. Devuelve "" si es neutro o dudoso.
+  try {
+    const emo = describeUserVoiceEmotionForPrompt();
+    if (emo) pieces.push(emo);
+  } catch { /* sin oído emocional: prompt idéntico */ }
 
   // 1) Acciones del OS (control real). Determinista y barato.
   try { pieces.push(actionsSystemPromptSection()); } catch { /* */ }

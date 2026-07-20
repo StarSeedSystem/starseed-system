@@ -55,6 +55,17 @@ const HANDSHAKE_TTL_MS = 30_000;
 const HANDSHAKE_TIMEOUT_MS = 2_500;
 /** Presupuesto de la síntesis LOCAL (`POST /tts`). */
 const LOCAL_TTS_TIMEOUT_MS = 30_000;
+/**
+ * CORTACIRCUITO ADAPTATIVO (equipos modestos): si una síntesis local agota su
+ * presupuesto, durante un rato preferimos la nube y a lo local solo le damos
+ * una sonda BREVE (los aciertos de caché del daemon responden en <1s). El
+ * daemon TERMINA la síntesis abortada en segundo plano y la cachea, así que
+ * las frases repetidas vuelven a ser locales e instantáneas — lo local se
+ * recupera solo, sin configuración.
+ */
+const LOCAL_PROBE_TIMEOUT_MS = 3_000;
+const LOCAL_SLOW_COOLDOWN_MS = 10 * 60_000;
+let localSlowUntil = 0;
 /** Presupuesto GENEROSO de la nube (los Spaces despiertan lento). */
 const CLOUD_TIMEOUT_MS = 60_000;
 /** Sub-timeout del PASO 1 (enviar la petición y recibir el event_id): rápido. */
@@ -334,8 +345,9 @@ async function synthLocal(
   omni: AstrauraVoiceConfig,
   langName: string,
   signal?: AbortSignal,
-): Promise<Blob | null> {
-  if (typeof window === "undefined") return null;
+  timeoutMs: number = LOCAL_TTS_TIMEOUT_MS,
+): Promise<{ blob: Blob | null; timedOut: boolean }> {
+  if (typeof window === "undefined") return { blob: null, timedOut: false };
   const pb = omni.playback_parameters;
   const body: Record<string, unknown> = {
     text: applyNonVerbalPolicy(text, pb.allow_non_verbal_symbols),
@@ -356,6 +368,7 @@ async function synthLocal(
   }
 
   const controller = new AbortController();
+  let timedOut = false;
   const onAbort = () => {
     try {
       controller.abort();
@@ -364,10 +377,13 @@ async function synthLocal(
     }
   };
   if (signal) {
-    if (signal.aborted) return null;
+    if (signal.aborted) return { blob: null, timedOut: false };
     signal.addEventListener("abort", onAbort, { once: true });
   }
-  const killer = setTimeout(onAbort, LOCAL_TTS_TIMEOUT_MS);
+  const killer = setTimeout(() => {
+    timedOut = true;
+    onAbort();
+  }, timeoutMs);
   try {
     const res = await fetch(`${OMNI_LOCAL_BASE}/tts`, {
       method: "POST",
@@ -375,13 +391,13 @@ async function synthLocal(
       body: JSON.stringify(body),
       signal: controller.signal,
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { blob: null, timedOut: false };
     const buf = new Uint8Array(await res.arrayBuffer());
-    if (!looksLikeAudio(buf)) return null;
+    if (!looksLikeAudio(buf)) return { blob: null, timedOut: false };
     const type = (res.headers.get("content-type") || "audio/wav").split(";")[0];
-    return new Blob([buf], { type });
+    return { blob: new Blob([buf], { type }), timedOut: false };
   } catch {
-    return null;
+    return { blob: null, timedOut };
   } finally {
     clearTimeout(killer);
     if (signal) signal.removeEventListener("abort", onAbort);
@@ -691,15 +707,30 @@ export async function synthesizeOmniVoiceHybrid(
   if (privacy !== "cloud_only") {
     const hs = await omniHandshake({ signal: opts.signal });
     if (hs && hs.ready) {
+      const slowMode = Date.now() < localSlowUntil;
       try {
-        opts.onStatus?.("Voz local activa ⚡");
+        opts.onStatus?.(slowMode ? "Sondeando la caché local…" : "Voz local activa ⚡");
       } catch {
         /* */
       }
-      const local = await synthLocal(clean, omni, langName, opts.signal).catch(() => null);
-      if (local) {
+      const budget = slowMode ? LOCAL_PROBE_TIMEOUT_MS : LOCAL_TTS_TIMEOUT_MS;
+      const local = await synthLocal(clean, omni, langName, opts.signal, budget).catch(
+        () => ({ blob: null as Blob | null, timedOut: false }),
+      );
+      if (local.blob) {
+        localSlowUntil = 0; // lo local respondió: se acabó el modo lento
         lastRoute = "local";
-        return local;
+        return local.blob;
+      }
+      if (local.timedOut) {
+        // Este equipo tarda: nube-primero un rato; el daemon sigue sintetizando
+        // en segundo plano y cachea, así que lo local vuelve solo.
+        localSlowUntil = Date.now() + LOCAL_SLOW_COOLDOWN_MS;
+        try {
+          opts.onStatus?.("La voz local va lenta en este equipo; uso la nube mientras calienta su caché…");
+        } catch {
+          /* */
+        }
       }
     } else if (hs && !hs.ready) {
       try {
