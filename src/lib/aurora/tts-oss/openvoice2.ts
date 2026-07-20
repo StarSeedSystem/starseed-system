@@ -1182,6 +1182,12 @@ export interface OpenVoice2Options {
   signal?: AbortSignal;
   /** Estado legible en vivo para la UI. */
   onStatus?: (message: string) => void;
+  /**
+   * TOPE de presupuesto por intento (Adenda 85): el habla troceada acota el
+   * PRIMER trozo (~35 s) para que la cadena nunca se quede muda esperando a un
+   * Space lento — los trozos siguientes pueden respirar más (ya hay audio).
+   */
+  budgetCapMs?: number;
 }
 
 /**
@@ -1222,10 +1228,19 @@ export async function synthesizeOpenVoice2(
   // 10 min dejamos pasar UNA expedición de resurrección para ver si sanaron.
   const allBenched = endpoints.length > 0 && endpoints.every((e) => isOpenVoiceEndpointBad(e.id));
   if (allBenched) {
+    // El HABLA nunca espera a endpoints apartados: declina AL INSTANTE (la
+    // cadena sigue con OmniVoice/Kokoro) y la expedición de resurrección corre
+    // EN SEGUNDO PLANO cada 10 min con una frase mínima — si sana, la memoria
+    // de salud lo recuerda y el siguiente turno vuelve a OpenVoice solo.
     const now = Date.now();
-    if (now - lastResurrectionAt < RESURRECTION_EVERY_MS) return null;
-    lastResurrectionAt = now;
-    endpoints = endpoints.slice(0, 1); // una sonda, no tres
+    if (now - lastResurrectionAt >= RESURRECTION_EVERY_MS) {
+      lastResurrectionAt = now;
+      const scout = endpoints[0];
+      setTimeout(() => {
+        void synthesizeScout(scout).catch(() => null);
+      }, 10);
+    }
+    return null;
   }
   const mood = liveUserMood();
 
@@ -1257,7 +1272,8 @@ export async function synthesizeOpenVoice2(
     for (let attempt = 0; attempt < 2; attempt++) {
       if (opts.signal?.aborted) return null;
       if (!reference) break; // la resubida falló: siguiente endpoint
-      const budget = warmedUp ? QUEUE_TIMEOUT_WARM_MS : QUEUE_TIMEOUT_FIRST_MS;
+      let budget = warmedUp ? QUEUE_TIMEOUT_WARM_MS : QUEUE_TIMEOUT_FIRST_MS;
+      if (opts.budgetCapMs && opts.budgetCapMs > 0) budget = Math.min(budget, opts.budgetCapMs);
 
       let res: QueueResult;
       if (ep.kind === "v1-predict") {
@@ -1353,5 +1369,33 @@ export async function warmOpenVoice2(personalityId?: string): Promise<OpenVoice2
     return lastState;
   } catch {
     return lastState;
+  }
+}
+
+
+/**
+ * Expedición de resurrección EN SEGUNDO PLANO (Adenda 85): intenta una frase
+ * mínima contra UN endpoint apartado y registra el resultado en la memoria de
+ * salud. Jamás bloquea el habla (se llama con setTimeout desde el bucle).
+ */
+async function synthesizeScout(ep: OpenVoiceEndpoint): Promise<void> {
+  try {
+    if (typeof window === "undefined") return;
+    const refOpts: ReferenceOptions = { useSeed: true, personalityId: "preset-aurora", base: ep.base };
+    const reference = await resolveReference(refOpts).catch(() => null);
+    if (!reference) return;
+    let res: QueueResult;
+    if (ep.kind === "v1-predict") {
+      res = await runQueueSSE("Hola.", "default", reference.name, ep, { budgetMs: 60_000 });
+    } else {
+      res = await runQueue("Hola.", "es_default", reference, {
+        budgetMs: 60_000,
+        base: ep.base,
+        fnIndex: ep.fnIndex,
+      });
+    }
+    markOpenVoiceEndpointResult(ep.id, !!(res.ok && res.blob));
+  } catch {
+    /* la salud queda como estaba */
   }
 }

@@ -493,7 +493,12 @@ function buildBody(
 export async function neuralSynthesize(
   engine: NeuralVoiceEngine,
   text: string,
-  opts: { settings?: NeuralEngineSettings; onError?: (message: string) => void } = {},
+  opts: {
+    settings?: NeuralEngineSettings;
+    onError?: (message: string) => void;
+    /** Tope de presupuesto por llamada (habla troceada · Adenda 85). */
+    budgetCapMs?: number;
+  } = {},
 ): Promise<Blob | null> {
   const clean = (text || "").trim();
   if (clean.length === 0) return null;
@@ -503,7 +508,7 @@ export async function neuralSynthesize(
   // OmniVoice) — no es un endpoint del usuario. Se delega SIEMPRE a su cliente,
   // que gestiona la cola del Space, la semilla de identidad y el fallback honesto.
   if (engine === "openvoice2") {
-    return await delegateOpenVoice2(clean, s, opts.onError);
+    return await delegateOpenVoice2(clean, s, opts.onError, opts.budgetCapMs);
   }
 
   const endpoint = normalizeEndpoint(s.endpoint);
@@ -990,14 +995,20 @@ async function neuralSpeakChunked(
 ): Promise<HTMLAudioElement | null> {
   const myGen = ++chunkGeneration;
   const alive = () => myGen === chunkGeneration;
-  const synth = (t: string) =>
-    neuralSynthesize(engine, t, { settings: opts.settings }).catch(() => null);
+  // Presupuesto TOPE por trozo (Adenda 85): el PRIMERO corto (35 s) para que la
+  // cadena nunca se quede muda esperando; los siguientes respiran más (90 s)
+  // porque ya hay audio sonando que cubre la espera.
+  const synth = (t: string, i: number) =>
+    neuralSynthesize(engine, t, {
+      settings: opts.settings,
+      budgetCapMs: i === 0 ? 35_000 : 90_000,
+    }).catch(() => null);
 
-  const first = await synth(chunks[0]);
+  const first = await synth(chunks[0], 0);
   if (!first || !alive()) return null;
 
   let firstAudio: HTMLAudioElement | null = null;
-  let next: Promise<Blob | null> = chunks.length > 1 ? synth(chunks[1]) : Promise.resolve(null);
+  let next: Promise<Blob | null> = chunks.length > 1 ? synth(chunks[1], 1) : Promise.resolve(null);
 
   for (let i = 0; i < chunks.length; i++) {
     if (!alive()) break;
@@ -1005,7 +1016,7 @@ async function neuralSpeakChunked(
     if (!alive()) break;
     if (!blob) break; // trozo intermedio falló: cerramos con lo ya hablado
     // Prefetch del siguiente MIENTRAS suena este.
-    next = i + 1 < chunks.length ? synth(chunks[i + 1]) : Promise.resolve(null);
+    next = i + 1 < chunks.length ? synth(chunks[i + 1], i + 1) : Promise.resolve(null);
     const audio = await playNeuralBlob(blob, {
       onStart: i === 0 ? opts.onStart : undefined,
       onError: i === 0 ? opts.onError : undefined,
@@ -1270,6 +1281,7 @@ async function delegateOpenVoice2(
   text: string,
   s: NeuralEngineSettings,
   onError?: (message: string) => void,
+  budgetCapMs?: number,
 ): Promise<Blob | null> {
   try {
     const [{ synthesizeOpenVoice2 }, hybrid] = await Promise.all([
@@ -1309,6 +1321,7 @@ async function delegateOpenVoice2(
       useSeed: ov?.use_seed,
       seedVersion: ov?.seed_version,
       seedAttrs,
+      budgetCapMs,
     }).catch(() => null);
 
     if (!blob) {
