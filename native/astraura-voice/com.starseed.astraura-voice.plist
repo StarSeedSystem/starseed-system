@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  StarSeed OS — Astraura Voice Daemon · plantilla launchd (macOS)
+  ============================================================================
+  Agente de usuario (LaunchAgent) que arranca el daemon al iniciar sesión y lo
+  mantiene vivo (KeepAlive). install.mjs sustituye los marcadores __NODE__,
+  __DAEMON__, __WORKDIR__, __STDOUT_LOG__ y __STDERR_LOG__ por rutas reales y
+  copia el resultado a ~/Library/LaunchAgents/com.starseed.astraura-voice.plist,
+  luego lo carga con `launchctl load -w`.
+
+  Carga/descarga manual:
+    launchctl load  -w ~/Library/LaunchAgents/com.starseed.astraura-voice.plist
+    launchctl unload   ~/Library/LaunchAgents/com.starseed.astraura-voice.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.starseed.astraura-voice</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__NODE__</string>
+        <string>__DAEMON__</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__WORKDIR__</string>
+
+    <!-- Arranca al cargar (login) y se re-lanza si muere. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Reinicio no demasiado agresivo si entra en bucle de fallo. -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>__STDOUT_LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__STDERR_LOG__</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

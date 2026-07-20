@@ -40,7 +40,21 @@ import {
   XCircle,
   HelpCircle,
   ExternalLink,
+  Ear,
+  Waves,
 } from "lucide-react";
+// (Adenda 77-voz) Oído emocional: prosodia local en vivo + toggle beta de sonidos.
+import {
+  EMOTIONAL_HEARING_SENSE_ID,
+  MOOD_LABEL,
+  subscribeUserVoiceEmotion,
+  getLastUserVoiceEmotion,
+  startUserVoiceEmotion,
+  stopUserVoiceEmotion,
+  installUserVoiceEmotionAutostart,
+  type UserVoiceEmotion,
+} from "@/lib/aurora/audio-emotion";
+import { getOmniConfig, setOmniConfig } from "@/lib/aurora/tts-oss/voice-config";
 
 type PermState = SenseTestResult["state"];
 
@@ -61,6 +75,40 @@ export default function SensesPanel() {
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // ── Oído emocional (Adenda 77-voz) ──
+  const [emotion, setEmotion] = useState<UserVoiceEmotion>(() => getLastUserVoiceEmotion());
+  const [previewing, setPreviewing] = useState(false);
+  const [deepSound, setDeepSound] = useState(false);
+
+  // Instala el arranque automático del oído emocional (atado a la escucha de
+  // Aurora, no invasivo) y escucha la emoción en vivo. Lee el flag beta.
+  useEffect(() => {
+    installUserVoiceEmotionAutostart();
+    setDeepSound(getOmniConfig().deep_sound_understanding === true);
+    const off = subscribeUserVoiceEmotion((e) => setEmotion(e));
+    return off;
+  }, []);
+
+  // Prueba en vivo del oído emocional: arranca el analizador ~6 s (gesto explícito).
+  const onPreviewHearing = async () => {
+    if (previewing) return;
+    setPreviewing(true);
+    const ok = await startUserVoiceEmotion({ force: true });
+    if (!ok) {
+      setPreviewing(false);
+      toast.message("Oído emocional no disponible aquí (¿móvil o sin permiso de micrófono?).");
+      return;
+    }
+    window.setTimeout(() => {
+      stopUserVoiceEmotion();
+      setPreviewing(false);
+    }, 6000);
+  };
+
+  const onToggleDeepSound = (v: boolean) => {
+    setDeepSound(v);
+    try { setOmniConfig({ deep_sound_understanding: v }); } catch { /* */ }
+  };
 
   // Carga inicial del config + estado de permisos (SSR-safe: dentro de efecto).
   useEffect(() => {
@@ -213,6 +261,54 @@ export default function SensesPanel() {
                       </Badge>
                     </div>
                     <p className="mt-1 text-xs text-white/55">{s.blurb}</p>
+
+                    {/* Oído emocional (Adenda 77-voz): chip vivo + prueba + beta */}
+                    {s.id === EMOTIONAL_HEARING_SENSE_ID && masterOn && (
+                      <div className="mt-2 space-y-2 rounded-lg border border-[#7fb8ff]/20 bg-[#7fb8ff]/[0.05] p-2.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Waves className="w-3.5 h-3.5 text-[#7fb8ff]" />
+                          <span className="text-[11px] text-white/70">Tono percibido:</span>
+                          {emotion.confidence >= 0.35 && emotion.mood !== "neutral" ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-[#7fb8ff]/40 bg-[#7fb8ff]/10 px-2 py-0.5 text-[11px] text-[#bcd8ff]">
+                              {MOOD_LABEL[emotion.mood].label} {MOOD_LABEL[emotion.mood].glyph}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-white/40">
+                              {previewing ? "escuchando…" : "en silencio"}
+                            </span>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="ml-auto h-6 gap-1.5 text-[11px]"
+                            disabled={previewing}
+                            onClick={onPreviewHearing}
+                          >
+                            {previewing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Ear className="w-3 h-3" />}
+                            Probar oído
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-white/40">
+                          Analiza energía, brillo y ritmo de tu voz en LOCAL mientras Aurora
+                          escucha. Nada sale del dispositivo. En móvil queda inactivo.
+                        </p>
+                        {/* Comprensión profunda de sonidos (BETA) */}
+                        <label className="flex items-start gap-2 text-[11px] text-white/70">
+                          <Switch checked={deepSound} onCheckedChange={onToggleDeepSound} className="mt-0.5" />
+                          <span>
+                            Comprensión profunda de sonidos{" "}
+                            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-300">
+                              beta
+                            </span>
+                            <span className="mt-0.5 block text-[10px] text-white/40">
+                              Requiere motor multimodal (próximamente): subir un fragmento de
+                              audio a un modelo que entienda sonidos. Hoy el router de Aurora
+                              solo acepta texto.
+                            </span>
+                          </span>
+                        </label>
+                      </div>
+                    )}
 
                     {/* Sub-toggles por IA */}
                     <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">

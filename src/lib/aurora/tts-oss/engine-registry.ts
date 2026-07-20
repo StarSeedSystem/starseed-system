@@ -301,6 +301,11 @@ export interface VoiceEngineStatus {
 
 /** Lee, sin red, si un motor está configurado (endpoint + requisitos duros). */
 function endpointEngineConfigured(id: NeuralVoiceEngine, cfg: AuroraVoiceConfig): boolean {
+  // OmniVoice HÍBRIDO (Adenda 77-voz): motor integrado con CERO configuración —
+  // habla por el daemon local (127.0.0.1:4444) o por la nube gratis (HF Space).
+  // Está SIEMPRE "configurado", así que entra en la cadena AUTO aunque el usuario
+  // no haya puesto ningún endpoint: instalación cero → Aurora ya habla con OmniVoice.
+  if (id === "omnivoice") return true;
   const s = cfg.engines?.[id];
   if (!s?.endpoint || !s.endpoint.trim()) return false;
   // Voicebox exige perfil de voz: sin él su API responde 404 (no es "configurado").
@@ -332,6 +337,9 @@ function availabilityOffline(
       return cfg.autoDownload ? "configured" : "needs-download";
     }
     if (isNeuralEngine(id)) {
+      // OmniVoice híbrido: integrado (nube gratis + daemon local) → SIEMPRE usable
+      // aunque no haya endpoint manual. El estado "listo/local" se afina online.
+      if (id === "omnivoice") return "configured";
       const s = cfg.engines?.[id];
       if (!s?.endpoint || !s.endpoint.trim()) return "needs-endpoint";
       if (id === "voicebox" && !(s.profileId || s.voice)) return "needs-profile";
@@ -453,6 +461,10 @@ export function buildVoiceChain(
 
     // 3) AUTO — el mejor motor CONFIGURADO por realismo (VoxCPM primero).
     //    Encendido por defecto: si aparece un endpoint VoxCPM, Aurora lo usa sola.
+    //    OmniVoice va SIEMPRE aquí (híbrido integrado: nube gratis + daemon local),
+    //    así que en instalación CERO la cadena ya trae [omnivoice] → Aurora habla
+    //    con OmniVoice sin configurar nada. Si el daemon local está vivo, el propio
+    //    híbrido usa local; si no, la nube. Ver omnivoice-hybrid.ts.
     if (cfg.auto !== false) {
       for (const id of AUTO_ENDPOINT_ORDER) {
         if (endpointEngineConfigured(id, cfg)) push(id);
@@ -562,6 +574,18 @@ export async function listVoiceEnginesWithStatus(
     await Promise.all(
       base.map(async (row) => {
         if (!isNeuralEngine(row.meta.id)) return;
+        // OmniVoice híbrido: su disponibilidad NO es un endpoint. Si el daemon
+        // local responde "ready" → listo (local); si no, sigue usable por la nube.
+        if (row.meta.id === "omnivoice") {
+          try {
+            const { omniHandshake } = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
+            const hs = await omniHandshake();
+            row.availability = hs && hs.ready ? "ready" : "configured";
+          } catch {
+            row.availability = "configured";
+          }
+          return;
+        }
         if (row.availability !== "configured") return; // sin endpoint: nada que pingar
         const state = await pingNeuralEngine(row.meta.id as NeuralVoiceEngine);
         row.availability = state === "ok" ? "ready" : state === "no-endpoint" ? "needs-endpoint" : "unreachable";

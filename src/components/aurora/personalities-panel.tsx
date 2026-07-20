@@ -86,6 +86,22 @@ import { currentUserRef } from "@/lib/sync/entity-state";
 // (Adenda 71-ter · I3) La función «Probar voz» de la antigua pestaña «Voz» del
 // Exocórtex se trasladó AQUÍ: cada personalidad prueba su propio estilo de voz.
 import { speakAurora } from "@/lib/aurora/open-aurora";
+// (Adenda 77-voz) Editor de VOZ OMNIVOICE por personalidad (motor híbrido).
+import {
+  DEFAULT_ASTRAURA_VOICE,
+  OMNI_GENDER_OPTIONS,
+  OMNI_AGE_OPTIONS,
+  OMNI_PITCH_OPTIONS,
+  OMNI_STYLE_OPTIONS,
+  OMNI_ACCENT_OPTIONS,
+  type AstrauraVoiceConfig,
+  type AstrauraDesignAttributes,
+} from "@/lib/aurora/tts-oss/voice-config";
+import {
+  synthesizeOmniVoiceHybrid,
+  getOmniVoiceRouteState,
+  type OmniRoute,
+} from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 
 /* ── Opciones curadas para los selects (el valor actual se añade si falta) ── */
 
@@ -668,6 +684,106 @@ function PersonalityEditor({
   const inputCls = "h-8 rounded-xl border-white/10 bg-white/[0.05] text-xs";
   const areaCls = "min-h-[64px] rounded-xl border-white/10 bg-white/[0.05] text-xs";
 
+  // ── Voz OmniVoice (motor híbrido) por personalidad ──────────────────────────
+  const [omniTesting, setOmniTesting] = useState(false);
+  const [omniStatus, setOmniStatus] = useState<string>("");
+  const [omniRoute, setOmniRoute] = useState<OmniRoute>("off");
+  const omniAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const omni = draft.voiceStyle.omni ?? {};
+  const omniDesign: AstrauraDesignAttributes =
+    omni.voice_design_attributes ?? DEFAULT_ASTRAURA_VOICE.voice_design_attributes;
+  const omniPlayback = omni.playback_parameters ?? DEFAULT_ASTRAURA_VOICE.playback_parameters;
+  const omniCloning = omni.voice_cloning ?? { enabled: false };
+  const omniMode = omni.generation_mode ?? "voice_design";
+  const omniPrivacy = omni.privacy_mode ?? "hybrid_allow_cloud";
+
+  const setOmni = useCallback(
+    (patch: Partial<AstrauraVoiceConfig>) => {
+      setDraft((d) => ({
+        ...d,
+        voiceStyle: { ...d.voiceStyle, omni: { ...(d.voiceStyle.omni ?? {}), ...patch } },
+      }));
+    },
+    [],
+  );
+  const setOmniDesign = useCallback(
+    (patch: Partial<AstrauraDesignAttributes>) => {
+      setDraft((d) => {
+        const cur = d.voiceStyle.omni ?? {};
+        const base = cur.voice_design_attributes ?? DEFAULT_ASTRAURA_VOICE.voice_design_attributes;
+        return {
+          ...d,
+          voiceStyle: {
+            ...d.voiceStyle,
+            omni: { ...cur, voice_design_attributes: { ...base, ...patch } },
+          },
+        };
+      });
+    },
+    [],
+  );
+  const setOmniPlayback = useCallback(
+    (patch: Partial<AstrauraVoiceConfig["playback_parameters"]>) => {
+      setDraft((d) => {
+        const cur = d.voiceStyle.omni ?? {};
+        const base = cur.playback_parameters ?? DEFAULT_ASTRAURA_VOICE.playback_parameters;
+        return {
+          ...d,
+          voiceStyle: { ...d.voiceStyle, omni: { ...cur, playback_parameters: { ...base, ...patch } } },
+        };
+      });
+    },
+    [],
+  );
+  const setOmniCloning = useCallback(
+    (patch: Partial<AstrauraVoiceConfig["voice_cloning"]>) => {
+      setDraft((d) => {
+        const cur = d.voiceStyle.omni ?? {};
+        const base = cur.voice_cloning ?? { enabled: false };
+        return {
+          ...d,
+          voiceStyle: { ...d.voiceStyle, omni: { ...cur, voice_cloning: { ...base, ...patch } } },
+        };
+      });
+    },
+    [],
+  );
+
+  const probarVozOmni = useCallback(async () => {
+    if (omniTesting) return;
+    setOmniTesting(true);
+    setOmniStatus("Preparando la voz…");
+    try {
+      const phrase = `Hola, soy ${draft.name || "tu Exocórtex"}. Así suena mi voz con OmniVoice.`;
+      const blob = await synthesizeOmniVoiceHybrid(phrase, {
+        omni: draft.voiceStyle.omni,
+        onStatus: (m) => setOmniStatus(m),
+      });
+      const route = getOmniVoiceRouteState();
+      setOmniRoute(route);
+      if (blob) {
+        try {
+          omniAudioRef.current?.pause();
+        } catch { /* */ }
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        omniAudioRef.current = audio;
+        audio.onended = () => {
+          try { URL.revokeObjectURL(url); } catch { /* */ }
+        };
+        await audio.play().catch(() => {});
+        setOmniStatus(route === "local" ? "Voz local activa ⚡" : "Sonando desde la nube gratis");
+      } else {
+        setOmniStatus("No se pudo sintetizar por OmniVoice (se usará el respaldo del navegador).");
+      }
+    } catch {
+      setOmniStatus("No se pudo probar la voz OmniVoice.");
+    } finally {
+      setOmniTesting(false);
+    }
+  }, [draft.name, draft.voiceStyle.omni, omniTesting]);
+
   return (
     <div className={cn(card, "flex flex-col gap-3 px-3.5 py-3")}>
       <div className="flex items-center gap-2">
@@ -1054,6 +1170,170 @@ function PersonalityEditor({
             >
               <ProfileIcon name="Volume2" className="h-3.5 w-3.5" /> Probar voz
             </button>
+
+            {/* ── VOZ OMNIVOICE · motor híbrido (Adenda 77-voz) ─────────────── */}
+            <div className="mt-1 rounded-xl border border-[#7fb8ff]/20 bg-[#7fb8ff]/[0.04] p-3">
+              <div className="flex items-center gap-2">
+                <ProfileIcon name="Waves" className="h-3.5 w-3.5 text-[#7fb8ff]" />
+                <span className="text-xs font-medium text-white/85">Voz OmniVoice</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/50">
+                  motor híbrido · nube gratis o local
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-white/45">
+                Diseña la voz de esta personalidad con palabras. Habla por el daemon
+                local si está vivo, o por la nube gratis. Cero configuración.
+              </p>
+
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="flex flex-col gap-1">
+                  <span className={labelCls}>Modo</span>
+                  <Select
+                    value={omniMode}
+                    onValueChange={(v) => setOmni({ generation_mode: v as AstrauraVoiceConfig["generation_mode"] })}
+                  >
+                    <SelectTrigger className={selectCls}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="voice_design">Diseño de voz</SelectItem>
+                      <SelectItem value="voice_cloning">Clonación</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={labelCls}>Privacidad</span>
+                  <Select
+                    value={omniPrivacy}
+                    onValueChange={(v) => setOmni({ privacy_mode: v as AstrauraVoiceConfig["privacy_mode"] })}
+                  >
+                    <SelectTrigger className={selectCls}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hybrid_allow_cloud">Híbrido (local o nube)</SelectItem>
+                      <SelectItem value="local_only">Solo local</SelectItem>
+                      <SelectItem value="cloud_only">Solo nube</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Atributos de diseño de voz */}
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {([
+                  { label: "Género", value: omniDesign.gender, opts: OMNI_GENDER_OPTIONS, key: "gender" as const },
+                  { label: "Edad", value: omniDesign.age, opts: OMNI_AGE_OPTIONS, key: "age" as const },
+                  { label: "Tono", value: omniDesign.pitch, opts: OMNI_PITCH_OPTIONS, key: "pitch" as const },
+                  { label: "Estilo", value: omniDesign.style, opts: OMNI_STYLE_OPTIONS, key: "style" as const },
+                  { label: "Acento", value: omniDesign.accent, opts: OMNI_ACCENT_OPTIONS, key: "accent" as const },
+                ]).map((f) => (
+                  <div key={f.key} className="flex flex-col gap-1">
+                    <span className={labelCls}>{f.label}</span>
+                    <Select
+                      value={f.value}
+                      onValueChange={(v) => setOmniDesign({ [f.key]: v } as Partial<AstrauraDesignAttributes>)}
+                    >
+                      <SelectTrigger className={selectCls}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {f.opts.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+
+              {/* Velocidad de reproducción (0.5–1.5) */}
+              <div className="mt-2 flex flex-col gap-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-white/70">Velocidad</span>
+                  <span className="tabular-nums text-white/40">{omniPlayback.speed.toFixed(2)}</span>
+                </div>
+                <Slider
+                  value={[omniPlayback.speed]}
+                  min={0.5}
+                  max={1.5}
+                  step={0.05}
+                  onValueChange={(vals) => setOmniPlayback({ speed: vals[0] ?? omniPlayback.speed })}
+                  aria-label="Velocidad OmniVoice"
+                />
+              </div>
+
+              {/* Reproducción */}
+              <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
+                <label className="flex items-center gap-2 text-[11px] text-white/70">
+                  <Switch
+                    checked={omniPlayback.normalize_text !== false}
+                    onCheckedChange={(v) => setOmniPlayback({ normalize_text: v })}
+                  />
+                  Normalizar texto
+                </label>
+                <label className="flex items-center gap-2 text-[11px] text-white/70">
+                  <Switch
+                    checked={omniPlayback.allow_non_verbal_symbols !== false}
+                    onCheckedChange={(v) => setOmniPlayback({ allow_non_verbal_symbols: v })}
+                  />
+                  Símbolos no verbales ([risas], [suspiro])
+                </label>
+              </div>
+
+              {/* Clonación (visible en modo clonación) */}
+              {omniMode === "voice_cloning" && (
+                <div className="mt-2 flex flex-col gap-2 rounded-lg border border-white/10 bg-black/20 p-2">
+                  <label className="flex items-center gap-2 text-[11px] text-white/70">
+                    <Switch
+                      checked={omniCloning.enabled === true}
+                      onCheckedChange={(v) => setOmniCloning({ enabled: v })}
+                    />
+                    Activar clonación
+                  </label>
+                  <div className="flex flex-col gap-1">
+                    <span className={labelCls}>Referencia (ruta local o URL del audio)</span>
+                    <Input
+                      className={inputCls}
+                      placeholder="refs/mi-voz.wav  ·  https://…/muestra.wav"
+                      value={omniCloning.reference_prompt_path ?? ""}
+                      onChange={(e) => setOmniCloning({ reference_prompt_path: e.target.value })}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className={labelCls}>Transcripción de la referencia</span>
+                    <Input
+                      className={inputCls}
+                      placeholder="Lo que dice el audio de referencia"
+                      value={omniCloning.reference_transcript ?? ""}
+                      onChange={(e) => setOmniCloning({ reference_transcript: e.target.value })}
+                    />
+                  </div>
+                  <p className="text-[10px] text-amber-300/80">
+                    Clonación LOCAL (daemon): usa la ruta tal cual. Clonación en la NUBE:
+                    beta — solo con una URL pública del audio.
+                  </p>
+                </div>
+              )}
+
+              {/* Probar + indicador de ruta */}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className={cn(btnAzure, "min-h-[36px]")}
+                  disabled={omniTesting}
+                  onClick={probarVozOmni}
+                >
+                  <ProfileIcon name={omniTesting ? "Loader2" : "Volume2"} className={cn("h-3.5 w-3.5", omniTesting && "animate-spin")} />
+                  Probar voz OmniVoice
+                </button>
+                {omniRoute === "local" && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">
+                    <ProfileIcon name="Zap" className="h-3 w-3" /> Voz local activa
+                  </span>
+                )}
+                {omniRoute === "cloud" && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-300">
+                    <ProfileIcon name="Cloud" className="h-3 w-3" /> Voz en la nube
+                  </span>
+                )}
+              </div>
+              {omniStatus && <p className="mt-1 text-[11px] text-white/55">{omniStatus}</p>}
+            </div>
           </AccordionContent>
         </AccordionItem>
 

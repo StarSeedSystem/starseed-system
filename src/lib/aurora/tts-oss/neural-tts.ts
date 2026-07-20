@@ -486,6 +486,10 @@ export async function neuralSynthesize(
   const s = opts.settings ?? getEngineSettings(engine);
   const endpoint = normalizeEndpoint(s.endpoint);
   if (!endpoint) {
+    // OmniVoice sin endpoint manual = MODO HÍBRIDO INTEGRADO (daemon local ↔ nube).
+    if (engine === "omnivoice") {
+      return await delegateOmniHybrid(clean, s);
+    }
     try {
       opts.onError?.(`El motor ${NEURAL_ENGINE_META[engine].label} no tiene endpoint configurado.`);
     } catch { /* */ }
@@ -572,6 +576,13 @@ export async function neuralSynthesize(
         controller.signal,
       ).catch(() => null);
       if (viaGradio) return viaGradio;
+    }
+
+    // OmniVoice: si el endpoint MANUAL del usuario no dio audio, cae al HÍBRIDO
+    // integrado (daemon local ↔ nube gratis) antes de rendirse. Aurora igual habla.
+    if (engine === "omnivoice") {
+      const viaHybrid = await delegateOmniHybrid(clean, s);
+      if (viaHybrid) return viaHybrid;
     }
 
     try {
@@ -951,12 +962,33 @@ export async function pingNeuralEngine(
  */
 export function neuralEngineConfigured(engine: NeuralVoiceEngine): boolean {
   try {
+    // OmniVoice HÍBRIDO (Adenda 77-voz): motor integrado con CERO config — habla
+    // por el daemon local (127.0.0.1:4444) o por la nube gratis (HF Space). Está
+    // SIEMPRE "configurado", tenga o no un endpoint manual el usuario.
+    if (engine === "omnivoice") return true;
     const s = getEngineSettings(engine);
     if (!normalizeEndpoint(s.endpoint)) return false;
     if (engine === "voicebox" && !(s.profileId || s.voice)) return false;
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Delega en el MOTOR HÍBRIDO OmniVoice (daemon local ↔ nube gratis). Se usa
+ * cuando el usuario no puso un endpoint OmniVoice propio (CERO config) o cuando
+ * su endpoint no devolvió audio. NUNCA lanza.
+ */
+async function delegateOmniHybrid(
+  text: string,
+  s: NeuralEngineSettings,
+): Promise<Blob | null> {
+  try {
+    const { synthesizeOmniVoiceHybrid } = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
+    return await synthesizeOmniVoiceHybrid(text, { lang: s.lang }).catch(() => null);
+  } catch {
+    return null;
   }
 }
 

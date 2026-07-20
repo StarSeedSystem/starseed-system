@@ -1,0 +1,31 @@
+# StarSeed OS — Astraura Voice Daemon · plantilla systemd (Linux, --user)
+# ============================================================================
+# Unidad de usuario que arranca el daemon con la sesión y lo reinicia si falla.
+# install.mjs sustituye __NODE__, __DAEMON__, __WORKDIR__, __STDOUT_LOG__ y
+# __STDERR_LOG__ por rutas reales y copia el resultado a
+#   ~/.config/systemd/user/astraura-voice.service
+# luego:  systemctl --user daemon-reload && systemctl --user enable --now astraura-voice
+#
+# Comandos útiles:
+#   systemctl --user status  astraura-voice
+#   systemctl --user restart astraura-voice
+#   journalctl --user -u astraura-voice -f
+#
+# (Para que el servicio siga vivo sin sesión iniciada:  loginctl enable-linger $USER)
+
+[Unit]
+Description=Astraura Voice Daemon (StarSeed OS) — motor de voz local OmniVoice
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=__NODE__ __DAEMON__
+WorkingDirectory=__WORKDIR__
+Restart=on-failure
+RestartSec=5
+# Deja que el daemon gestione su propio log; systemd además guarda estos:
+StandardOutput=append:__STDOUT_LOG__
+StandardError=append:__STDERR_LOG__
+
+[Install]
+WantedBy=default.target

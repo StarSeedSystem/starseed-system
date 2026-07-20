@@ -42,6 +42,14 @@ import {
 // (Adenda 71-bis) Router adaptativo unificado: resuelve el pin "auto" de
 // personalidad por área con el mejor motor :free del ecosistema disponible.
 import { resolveAutoModel } from "@/ai/astraura/unified-intelligence";
+// (Adenda 77-voz) Diseño de voz OmniVoice por personalidad. voice-config NO
+// importa personalities → sin ciclo (arista de una dirección).
+import {
+  sanitizeAstrauraVoicePartial,
+  type AstrauraVoiceConfig,
+  type AstrauraDesignAttributes,
+  type OmniPitch,
+} from "@/lib/aurora/tts-oss/voice-config";
 // Adenda 70: el id del preset Hermione se fija al id estable de la cuenta
 // (aurora_personalities + neurona servidor). Se usa el literal para EVITAR un
 // import circular con hermione-bridge.ts (que ya exporta HERMIONE_PERSONALITY_ID
@@ -602,6 +610,13 @@ export interface PersonalityVoiceStyle {
   pitch: number;
   /** Energía 0–100. */
   energy: number;
+  /**
+   * MOTOR HÍBRIDO OMNIVOICE (Adenda 77-voz): diseño de voz por defecto de ESTA
+   * personalidad (atributos, modo, clonación, reproducción, privacidad). Partial
+   * — solo lo que la personalidad define; el resto lo pone la config de cuenta.
+   * Presente = el usuario o el preset lo personalizó (no se pisa al normalizar).
+   */
+  omni?: Partial<AstrauraVoiceConfig>;
 }
 
 /** Personalidad de Aurora como ARCHIVO de configuración (JSON serializable). */
@@ -762,7 +777,25 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
       extra: "",
     },
     personaje: "Guía",
-    voiceStyle: { tone: "cálido", emotion: "serenidad luminosa", rate: 1, pitch: 1, energy: 55 },
+    voiceStyle: {
+      tone: "cálido",
+      emotion: "serenidad luminosa",
+      rate: 1,
+      pitch: 1,
+      energy: 55,
+      // OmniVoice (Adenda 77-voz): voz cálida serena por defecto de AURORA.
+      omni: {
+        generation_mode: "voice_design",
+        voice_design_attributes: {
+          gender: "Female / 女",
+          age: "Young Adult / 青年",
+          pitch: "Moderate Pitch / 中音调",
+          style: "Auto",
+          accent: "Auto",
+        },
+        instruct: "voz cálida, cercana y serena, con brillo suave",
+      },
+    },
   }),
   baseProfile({
     id: "preset-mentora-sabia",
@@ -946,7 +979,25 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
     cultura: "Ciberdélica",
     filosofia: "Ontocracia",
     responseStyle: { longitud: "equilibrada", formato: "adaptativo", recomendaciones: "proactivas" },
-    voiceStyle: { tone: "resolutivo", emotion: "enfoque", rate: 1.0, pitch: 1.02, energy: 60 },
+    voiceStyle: {
+      tone: "resolutivo",
+      emotion: "enfoque",
+      rate: 1.0,
+      pitch: 1.02,
+      energy: 60,
+      // OmniVoice (Adenda 77-voz): voz lista y chispeante, con acento británico.
+      omni: {
+        generation_mode: "voice_design",
+        voice_design_attributes: {
+          gender: "Female / 女",
+          age: "Young Adult / 青年",
+          pitch: "High Pitch / 高音调",
+          style: "Auto",
+          accent: "British Accent / 英国口音",
+        },
+        instruct: "voz lista y chispeante, articulada, con energía amable",
+      },
+    },
     // Pin de inteligencia: OpenRouter :free (créditos GRATIS). modo "fija" pero
     // el router cae a la cadena automática si el :free falla (no es exclusivo).
     intelligence: {
@@ -1045,6 +1096,9 @@ export function normalizePersonalityProfile(raw: Partial<PersonalityProfile> | n
       rate: clamp(r.voiceStyle?.rate, 0.5, 2, 1),
       pitch: clamp(r.voiceStyle?.pitch, 0.5, 2, 1),
       energy: Math.round(clamp(r.voiceStyle?.energy, 0, 100, 55)),
+      // OmniVoice: se conserva el diseño de voz personalizado (o del preset) tal
+      // cual, saneado. Ausente = la personalidad usa el diseño de la cuenta.
+      omni: sanitizeAstrauraVoicePartial((r.voiceStyle as { omni?: unknown } | undefined)?.omni),
     },
     intelligence: normalizeIntelligence(r.intelligence),
     knowledge: cleanStrArray(r.knowledge, 24, 120),
@@ -1561,6 +1615,50 @@ export function emitVoiceStyleForProfile(p: PersonalityProfile): void {
   try {
     window.dispatchEvent(new CustomEvent(AURORA_VOICE_STYLE_EVENT, { detail: deriveVoiceStyle(p) }));
   } catch { /* noop */ }
+}
+
+// ── OmniVoice: diseño de voz por personalidad (Adenda 77-voz) ────────────────
+
+/**
+ * MAPEO de un perfil a ATRIBUTOS DE DISEÑO OmniVoice (literales exactos del
+ * Space). Deriva el género del `generoVoz` y el tono (pitch) del `voiceStyle`.
+ * Es un punto de partida sensato para cualquier personalidad que no traiga un
+ * diseño explícito; la edad/estilo/acento quedan en "Auto" (los decide el modelo).
+ */
+export function mapPersonalityToDesign(p: PersonalityProfile): AstrauraDesignAttributes {
+  const gender: AstrauraDesignAttributes["gender"] =
+    p.generoVoz === "masculina" ? "Male / 男" : p.generoVoz === "femenina" ? "Female / 女" : "Auto";
+  const pv = p.voiceStyle?.pitch ?? 1;
+  const pitch: OmniPitch =
+    pv >= 1.12
+      ? "Very High Pitch / 极高音调"
+      : pv >= 1.04
+        ? "High Pitch / 高音调"
+        : pv <= 0.88
+          ? "Very Low Pitch / 极低音调"
+          : pv <= 0.96
+            ? "Low Pitch / 低音调"
+            : "Moderate Pitch / 中音调";
+  return { gender, age: "Auto", pitch, style: "Auto", accent: "Auto" };
+}
+
+/**
+ * OVERRIDE OmniVoice de la personalidad activa, para el enrutado por-turno del
+ * motor híbrido (`omnivoice-hybrid.ts::resolveActiveOmni`). Devuelve el diseño
+ * EXPLÍCITO de la personalidad (preset o edición del usuario) saneado, o
+ * undefined si no definió ninguno (entonces manda el diseño de la CUENTA).
+ * No deriva a la fuerza: así el diseño global sigue teniendo sentido cuando la
+ * personalidad no aporta el suyo. Nunca lanza.
+ */
+export function personalityOmniOverride(
+  p: PersonalityProfile | null | undefined,
+): Partial<AstrauraVoiceConfig> | undefined {
+  if (!p) return undefined;
+  try {
+    return sanitizeAstrauraVoicePartial(p.voiceStyle?.omni);
+  } catch {
+    return undefined;
+  }
 }
 
 // ── Compilador: perfil → bloque de system prompt en español ─────────────────

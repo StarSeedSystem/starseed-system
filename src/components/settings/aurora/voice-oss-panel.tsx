@@ -55,6 +55,9 @@ import {
   SlidersHorizontal,
   Drama,
   Link2,
+  Cloud,
+  Zap,
+  Waves,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -74,11 +77,20 @@ import {
   VOICE_PRESETS,
   AURORA_ORGANIC_PRESET_ID,
   applyVoicePreset,
+  getOmniConfig,
+  setOmniConfig,
   type AuroraVoiceEngine,
   type AuroraVoiceEmotion,
   type NeuralVoiceEngine,
   type NeuralEngineSettings,
+  type AstrauraVoiceConfig,
 } from "@/lib/aurora/tts-oss/voice-config";
+import {
+  synthesizeOmniVoiceHybrid,
+  getOmniVoiceRouteState,
+  refreshOmniRoute,
+  type OmniRoute,
+} from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 import {
   VOICE_EMOTIONS,
   emitVoiceStyle,
@@ -161,7 +173,71 @@ export function VoiceOssPanel({ className }: { className?: string }) {
   const [styleEnergy, setStyleEnergy] = useState<number>(50);
   const [styleEmotion, setStyleEmotion] = useState<AuroraVoiceEmotion | undefined>(undefined);
 
+  // ── OmniVoice híbrido (Adenda 77-voz): config de cuenta + estado de ruta ──
+  const [omni, setOmni] = useState<AstrauraVoiceConfig>(() => getOmniConfig());
+  const [omniRoute, setOmniRoute] = useState<OmniRoute>("off");
+  const [omniTesting, setOmniTesting] = useState(false);
+  const [omniStatus, setOmniStatus] = useState<string>("");
+
   const mountedRef = useRef(true);
+
+  // Refresca la RUTA de OmniVoice (local ↔ nube) al montar y tras probar.
+  useEffect(() => {
+    let alive = true;
+    void refreshOmniRoute().then((r) => {
+      if (alive) setOmniRoute(r);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const patchOmni = useCallback((patch: Partial<AstrauraVoiceConfig>) => {
+    setOmni((prev) => {
+      const next = { ...prev, ...patch } as AstrauraVoiceConfig;
+      setOmniConfig(patch);
+      return next;
+    });
+  }, []);
+  const patchOmniPlayback = useCallback(
+    (patch: Partial<AstrauraVoiceConfig["playback_parameters"]>) => {
+      setOmni((prev) => {
+        const playback = { ...prev.playback_parameters, ...patch };
+        setOmniConfig({ playback_parameters: playback });
+        return { ...prev, playback_parameters: playback };
+      });
+    },
+    [],
+  );
+
+  const probarOmni = useCallback(async () => {
+    if (omniTesting) return;
+    setOmniTesting(true);
+    setOmniStatus("Preparando la voz…");
+    try {
+      const blob = await synthesizeOmniVoiceHybrid(
+        "Hola, soy Aurora. Esta es mi voz OmniVoice, gratuita e híbrida.",
+        { onStatus: (m) => setOmniStatus(m) },
+      );
+      const route = getOmniVoiceRouteState();
+      setOmniRoute(route);
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => {
+          try { URL.revokeObjectURL(url); } catch { /* */ }
+        };
+        await audio.play().catch(() => {});
+        setOmniStatus(route === "local" ? "Voz local activa ⚡" : "Sonando desde la nube gratis");
+      } else {
+        setOmniStatus("OmniVoice no respondió; Aurora usará el respaldo del navegador.");
+      }
+    } catch {
+      setOmniStatus("No se pudo probar OmniVoice.");
+    } finally {
+      setOmniTesting(false);
+    }
+  }, [omniTesting]);
 
   // Estado inicial + suscripción a la config (SSR-safe). También refleja cambios
   // que lleguen por sincronización de cuenta (otra pestaña / otro dispositivo),
@@ -622,6 +698,105 @@ export function VoiceOssPanel({ className }: { className?: string }) {
           </span>
         </li>
       </ul>
+
+      {/* ── OmniVoice · voz por defecto (motor híbrido · CERO config) ───────── */}
+      <div className="rounded-xl border border-[#7fb8ff]/25 bg-[#7fb8ff]/[0.05] p-3 space-y-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Waves className="w-4 h-4 text-[#7fb8ff]" />
+          <span className="text-sm font-medium text-foreground/90">OmniVoice</span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">
+            voz por defecto · nube gratis o local
+          </span>
+          {/* Chip de RUTA (Adenda 77-voz · getOmniVoiceRouteState) */}
+          {omniRoute === "local" ? (
+            <span className="ml-auto inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">
+              <Zap className="w-3 h-3" /> Voz local activa
+            </span>
+          ) : (
+            <span className="ml-auto inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-300">
+              <Cloud className="w-3 h-3" /> Voz en la nube
+            </span>
+          )}
+        </div>
+
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          Aurora ya habla con OmniVoice sin configurar nada: usa la nube gratis y,
+          si instalas el <span className="text-foreground/80">motor local</span>,
+          salta solo a él (más rápido y 100% privado).
+        </p>
+
+        {omniRoute !== "local" && (
+          <div className="flex items-start gap-2 rounded-lg border border-sky-500/25 bg-sky-500/[0.06] p-2 text-[11px] text-sky-100/90">
+            <Cloud className="w-3.5 h-3.5 mt-0.5 shrink-0 text-sky-300" />
+            <span>
+              Voz en la nube · instala el motor local para latencia y privacidad.
+              Ejecuta <code className="rounded bg-black/30 px-1">native/astraura-voice/Motor de Voz Astraura (StarSeed).command</code>{" "}
+              (guía en <code className="rounded bg-black/30 px-1">native/astraura-voice/README.md</code>).
+            </span>
+          </div>
+        )}
+
+        {/* Privacidad + reproducción (config de CUENTA; el diseño va por personalidad) */}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Privacidad</span>
+            <select
+              className="h-8 rounded-lg border border-white/10 bg-white/[0.05] px-2 text-xs text-foreground/90"
+              value={omni.privacy_mode}
+              onChange={(e) => patchOmni({ privacy_mode: e.target.value as AstrauraVoiceConfig["privacy_mode"] })}
+            >
+              <option value="hybrid_allow_cloud">Híbrido (local o nube)</option>
+              <option value="local_only">Solo local</option>
+              <option value="cloud_only">Solo nube</option>
+            </select>
+          </label>
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              Velocidad · {omni.playback_parameters.speed.toFixed(2)}
+            </span>
+            <Slider
+              value={[omni.playback_parameters.speed]}
+              min={0.5}
+              max={1.5}
+              step={0.05}
+              onValueChange={(vals) => patchOmniPlayback({ speed: vals[0] ?? omni.playback_parameters.speed })}
+              aria-label="Velocidad OmniVoice"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <label className="flex items-center gap-2 text-[11px] text-foreground/75 cursor-pointer">
+            <input
+              type="checkbox"
+              className="accent-[#7fb8ff]"
+              checked={omni.playback_parameters.normalize_text !== false}
+              onChange={(e) => patchOmniPlayback({ normalize_text: e.target.checked })}
+            />
+            Normalizar texto
+          </label>
+          <label className="flex items-center gap-2 text-[11px] text-foreground/75 cursor-pointer">
+            <input
+              type="checkbox"
+              className="accent-[#7fb8ff]"
+              checked={omni.playback_parameters.allow_non_verbal_symbols !== false}
+              onChange={(e) => patchOmniPlayback({ allow_non_verbal_symbols: e.target.checked })}
+            />
+            Símbolos no verbales
+          </label>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={omniTesting} onClick={probarOmni}>
+            {omniTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+            Probar OmniVoice
+          </Button>
+          <span className="text-[11px] text-muted-foreground">
+            El diseño de voz (género, edad, tono…) se ajusta por personalidad.
+          </span>
+        </div>
+        {omniStatus && <p className="text-[11px] text-foreground/60">{omniStatus}</p>}
+      </div>
 
       {/* Selector de motor (con estado de disponibilidad) */}
       <div className="space-y-1.5">

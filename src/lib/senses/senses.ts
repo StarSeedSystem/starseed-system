@@ -24,6 +24,7 @@ import {
   ClipboardList,
   FileUp,
   Bell,
+  HeartPulse,
 } from "lucide-react";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
@@ -76,6 +77,18 @@ export const SENSES: Sense[] = [
     blurb:
       "Escucha por voz (STT). Aurora ya lo usa para reconocer tus comandos hablados.",
     icon: Mic,
+    permission: "getUserMedia-audio",
+  },
+  {
+    // Adenda 77-voz — reutiliza el MISMO micrófono (analizador compartido del
+    // orbe). Estima el TONO/EMOCIÓN de tu voz en local, sin reconocer palabras y
+    // sin enviar nada. OFF por defecto (y en móvil el guard del orbe lo mantiene
+    // inactivo: el micrófono del móvil tiene un solo dueño).
+    id: "oido-emocional",
+    label: "Oído emocional",
+    blurb:
+      "Percibe el tono y la emoción de tu voz (energía, brillo, ritmo) mientras Aurora escucha. 100% local; nada sale del dispositivo.",
+    icon: HeartPulse,
     permission: "getUserMedia-audio",
   },
   {

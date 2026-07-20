@@ -256,6 +256,11 @@ export interface AuroraVoiceConfig {
    * permite que el panel marque cuál está activo. El estado real es `style`.
    */
   presetId?: string;
+  /**
+   * MOTOR HÍBRIDO OMNIVOICE (Adenda 77-voz). Config del enrutado local↔nube +
+   * diseño de voz por defecto de la cuenta. Siempre presente (CERO config).
+   */
+  omni?: AstrauraVoiceConfig;
 }
 
 /**
@@ -431,6 +436,9 @@ export const DEFAULT_VOICE_CONFIG: AuroraVoiceConfig = {
   auto: true,
   style: { ...DEFAULT_VOICE_STYLE },
   presetId: AURORA_ORGANIC_PRESET_ID,
+  // `omni` se rellena SIEMPRE a `DEFAULT_ASTRAURA_VOICE` en getVoiceConfig()/
+  // getOmniConfig() (sanitizeAstrauraVoice(undefined) → defaults), así que no se
+  // fija aquí para no depender del orden de declaración del bloque OmniVoice.
 };
 
 const VALID_ENGINES: readonly AuroraVoiceEngine[] = [
@@ -530,6 +538,316 @@ function sanitizeEngineSettings(raw: unknown): NeuralEngineSettings | undefined 
   return Object.keys(out).length ? out : undefined;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MOTOR DE VOZ HÍBRIDO OMNIVOICE (Adenda 77-voz) — esquema `astraura_voice_config`
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * OmniVoice (k2-fsa) es el motor por DEFECTO de Aurora con CERO configuración:
+ * habla por el DAEMON LOCAL (127.0.0.1:4444, si está vivo) o por la NUBE GRATIS
+ * (HF Space `k2-fsa/OmniVoice`, Gradio 5) — ver `omnivoice-hybrid.ts`. Este
+ * bloque es su PREFERENCIA persistida, tipada y saneada, y viaja DENTRO de la
+ * MISMA clave `starseed.aurora.voice.v1` (SYNCED_KEYS) → misma voz en cualquier
+ * dispositivo de la cuenta, sin claves nuevas.
+ *
+ * Los VALORES de diseño de voz son los LITERALES EXACTOS que exige el Space
+ * (con su parte china incluida): así el mapeo a los parámetros posicionales de
+ * `/_design_fn` es directo y sin ambigüedad (`mapDesignAttrsToSpace`).
+ */
+
+/** Género del diseño de voz (literal exacto del Space). */
+export type OmniGender = "Auto" | "Male / 男" | "Female / 女";
+/** Edad del diseño de voz (literal exacto del Space). */
+export type OmniAge =
+  | "Auto"
+  | "Child / 儿童"
+  | "Teenager / 少年"
+  | "Young Adult / 青年"
+  | "Middle-aged / 中年"
+  | "Elderly / 老年";
+/** Tono del diseño de voz (literal exacto del Space). */
+export type OmniPitch =
+  | "Auto"
+  | "Very Low Pitch / 极低音调"
+  | "Low Pitch / 低音调"
+  | "Moderate Pitch / 中音调"
+  | "High Pitch / 高音调"
+  | "Very High Pitch / 极高音调";
+/** Estilo del diseño de voz (literal exacto del Space). */
+export type OmniStyle = "Auto" | "Whisper / 耳语";
+/**
+ * Acento inglés del diseño de voz (literal EXACTO del Space `english_accent`).
+ * ⚠️ VERIFICADO EN VIVO (2026-07-20) contra `k2-fsa-omnivoice.hf.space`
+ * `/gradio_api/info`: los literales llevan " Accent / <中文>" (no la palabra sola).
+ */
+export type OmniAccent =
+  | "Auto"
+  | "American Accent / 美式口音"
+  | "Australian Accent / 澳大利亚口音"
+  | "British Accent / 英国口音"
+  | "Chinese Accent / 中国口音"
+  | "Canadian Accent / 加拿大口音"
+  | "Indian Accent / 印度口音"
+  | "Korean Accent / 韩国口音"
+  | "Portuguese Accent / 葡萄牙口音"
+  | "Russian Accent / 俄罗斯口音"
+  | "Japanese Accent / 日本口音";
+
+/** Opciones para la UI (etiqueta en español → literal EXACTO del Space). */
+export const OMNI_GENDER_OPTIONS: ReadonlyArray<{ value: OmniGender; label: string }> = [
+  { value: "Auto", label: "Automático" },
+  { value: "Female / 女", label: "Femenina" },
+  { value: "Male / 男", label: "Masculina" },
+];
+export const OMNI_AGE_OPTIONS: ReadonlyArray<{ value: OmniAge; label: string }> = [
+  { value: "Auto", label: "Automática" },
+  { value: "Child / 儿童", label: "Infantil" },
+  { value: "Teenager / 少年", label: "Adolescente" },
+  { value: "Young Adult / 青年", label: "Joven adulta" },
+  { value: "Middle-aged / 中年", label: "Adulta" },
+  { value: "Elderly / 老年", label: "Mayor" },
+];
+export const OMNI_PITCH_OPTIONS: ReadonlyArray<{ value: OmniPitch; label: string }> = [
+  { value: "Auto", label: "Automático" },
+  { value: "Very Low Pitch / 极低音调", label: "Muy grave" },
+  { value: "Low Pitch / 低音调", label: "Grave" },
+  { value: "Moderate Pitch / 中音调", label: "Medio" },
+  { value: "High Pitch / 高音调", label: "Agudo" },
+  { value: "Very High Pitch / 极高音调", label: "Muy agudo" },
+];
+export const OMNI_STYLE_OPTIONS: ReadonlyArray<{ value: OmniStyle; label: string }> = [
+  { value: "Auto", label: "Natural" },
+  { value: "Whisper / 耳语", label: "Susurro" },
+];
+export const OMNI_ACCENT_OPTIONS: ReadonlyArray<{ value: OmniAccent; label: string }> = [
+  { value: "Auto", label: "Automático" },
+  { value: "American Accent / 美式口音", label: "Americano" },
+  { value: "British Accent / 英国口音", label: "Británico" },
+  { value: "Australian Accent / 澳大利亚口音", label: "Australiano" },
+  { value: "Canadian Accent / 加拿大口音", label: "Canadiense" },
+  { value: "Indian Accent / 印度口音", label: "Indio" },
+  { value: "Chinese Accent / 中国口音", label: "Chino" },
+  { value: "Korean Accent / 韩国口音", label: "Coreano" },
+  { value: "Japanese Accent / 日本口音", label: "Japonés" },
+  { value: "Portuguese Accent / 葡萄牙口音", label: "Portugués" },
+  { value: "Russian Accent / 俄罗斯口音", label: "Ruso" },
+];
+
+const OMNI_GENDERS = OMNI_GENDER_OPTIONS.map((o) => o.value);
+const OMNI_AGES = OMNI_AGE_OPTIONS.map((o) => o.value);
+const OMNI_PITCHES = OMNI_PITCH_OPTIONS.map((o) => o.value);
+const OMNI_STYLES = OMNI_STYLE_OPTIONS.map((o) => o.value);
+const OMNI_ACCENTS = OMNI_ACCENT_OPTIONS.map((o) => o.value);
+
+/** Atributos de DISEÑO de voz (literales exactos del Space). */
+export interface AstrauraDesignAttributes {
+  gender: OmniGender;
+  age: OmniAge;
+  pitch: OmniPitch;
+  style: OmniStyle;
+  /** `english_accent` en el Space. */
+  accent: OmniAccent;
+}
+
+/** Modo de privacidad del enrutado híbrido (local ↔ nube). */
+export type OmniPrivacyMode = "hybrid_allow_cloud" | "local_only" | "cloud_only";
+
+/**
+ * `astraura_voice_config` — configuración COMPLETA del motor híbrido OmniVoice.
+ * Vive como `AuroraVoiceConfig.omni` (ámbito CUENTA) y también, en forma
+ * Partial, como override por personalidad (`PersonalityVoiceStyle.omni`).
+ */
+export interface AstrauraVoiceConfig {
+  /** Diseño de voz (por defecto) o clonación. */
+  generation_mode: "voice_design" | "voice_cloning";
+  /** Atributos del DISEÑO de voz. */
+  voice_design_attributes: AstrauraDesignAttributes;
+  /** Clonación de voz (referencia + transcripción). */
+  voice_cloning: {
+    enabled: boolean;
+    /** Ruta/URL del audio de referencia (el daemon local la usa tal cual). */
+    reference_prompt_path?: string;
+    /** Transcripción del audio de referencia. */
+    reference_transcript?: string;
+  };
+  /** Parámetros de reproducción/entrega. */
+  playback_parameters: {
+    /** Velocidad 0.5–1.5. */
+    speed: number;
+    /** Normalizar el texto antes de sintetizar. */
+    normalize_text: boolean;
+    /** Permitir símbolos no verbales ([risas], [suspiro]…) — passthrough. */
+    allow_non_verbal_symbols: boolean;
+  };
+  /** Enrutado híbrido: local+nube · solo local · solo nube. */
+  privacy_mode: OmniPrivacyMode;
+  /**
+   * Instrucción de ENTREGA en lenguaje natural ("voz cálida y serena"). El daemon
+   * local y la clonación en nube la reciben; el diseño en nube la usa como guía.
+   */
+  instruct?: string;
+  /**
+   * BETA: comprensión profunda de sonidos (subir audio a un modelo multimodal
+   * gratis). Off por defecto. Ver `audio-emotion.ts` / senses-panel.
+   */
+  deep_sound_understanding?: boolean;
+}
+
+/**
+ * DEFAULT del motor híbrido — la voz de AURORA de fábrica: femenina, joven,
+ * tono medio, cálida y serena, con reproducción normalizada y símbolos no
+ * verbales permitidos. Enrutado híbrido (local si está, si no nube gratis).
+ */
+export const DEFAULT_ASTRAURA_VOICE: AstrauraVoiceConfig = {
+  generation_mode: "voice_design",
+  voice_design_attributes: {
+    gender: "Female / 女",
+    age: "Young Adult / 青年",
+    pitch: "Moderate Pitch / 中音调",
+    style: "Auto",
+    accent: "Auto",
+  },
+  voice_cloning: { enabled: false },
+  playback_parameters: { speed: 1.0, normalize_text: true, allow_non_verbal_symbols: true },
+  privacy_mode: "hybrid_allow_cloud",
+  instruct: "voz cálida, cercana y serena, con brillo suave",
+};
+
+function inSet<T extends string>(v: unknown, set: readonly T[], fallback: T): T {
+  return typeof v === "string" && (set as readonly string[]).includes(v) ? (v as T) : fallback;
+}
+
+/** Sanea atributos de diseño (cualquier basura → literal válido o "Auto"). */
+export function sanitizeDesignAttributes(raw: unknown): AstrauraDesignAttributes {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  return {
+    gender: inSet(r.gender, OMNI_GENDERS, "Auto"),
+    age: inSet(r.age, OMNI_AGES, "Auto"),
+    pitch: inSet(r.pitch, OMNI_PITCHES, "Auto"),
+    style: inSet(r.style, OMNI_STYLES, "Auto"),
+    accent: inSet(r.accent, OMNI_ACCENTS, "Auto"),
+  };
+}
+
+/**
+ * Sanea la config COMPLETA del motor híbrido (rellena defaults). Nunca lanza.
+ * Úsalo para el ámbito CUENTA (`AuroraVoiceConfig.omni`).
+ */
+export function sanitizeAstrauraVoice(raw: unknown): AstrauraVoiceConfig {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const clone = (r.voice_cloning && typeof r.voice_cloning === "object"
+    ? r.voice_cloning
+    : {}) as Record<string, unknown>;
+  const pb = (r.playback_parameters && typeof r.playback_parameters === "object"
+    ? r.playback_parameters
+    : {}) as Record<string, unknown>;
+  const out: AstrauraVoiceConfig = {
+    generation_mode: r.generation_mode === "voice_cloning" ? "voice_cloning" : "voice_design",
+    voice_design_attributes: sanitizeDesignAttributes(r.voice_design_attributes),
+    voice_cloning: {
+      enabled: clone.enabled === true,
+      reference_prompt_path:
+        typeof clone.reference_prompt_path === "string" && clone.reference_prompt_path.trim()
+          ? clone.reference_prompt_path.trim().slice(0, 2048)
+          : undefined,
+      reference_transcript:
+        typeof clone.reference_transcript === "string" && clone.reference_transcript.trim()
+          ? clone.reference_transcript.trim().slice(0, 2000)
+          : undefined,
+    },
+    playback_parameters: {
+      speed: num(pb.speed, 0.5, 1.5) ?? 1.0,
+      normalize_text: pb.normalize_text !== false,
+      allow_non_verbal_symbols: pb.allow_non_verbal_symbols !== false,
+    },
+    privacy_mode:
+      r.privacy_mode === "local_only"
+        ? "local_only"
+        : r.privacy_mode === "cloud_only"
+          ? "cloud_only"
+          : "hybrid_allow_cloud",
+    deep_sound_understanding: r.deep_sound_understanding === true,
+  };
+  if (typeof r.instruct === "string" && r.instruct.trim()) {
+    out.instruct = r.instruct.trim().slice(0, 500);
+  }
+  return out;
+}
+
+/**
+ * Sanea un OVERRIDE parcial (por personalidad): solo devuelve los campos
+ * presentes, para poder fusionarlo sobre la config de cuenta sin pisar el resto.
+ * Nunca lanza; undefined si no hay nada útil.
+ */
+export function sanitizeAstrauraVoicePartial(raw: unknown): Partial<AstrauraVoiceConfig> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const out: Partial<AstrauraVoiceConfig> = {};
+  if (r.generation_mode === "voice_design" || r.generation_mode === "voice_cloning") {
+    out.generation_mode = r.generation_mode;
+  }
+  if (r.voice_design_attributes && typeof r.voice_design_attributes === "object") {
+    out.voice_design_attributes = sanitizeDesignAttributes(r.voice_design_attributes);
+  }
+  if (r.voice_cloning && typeof r.voice_cloning === "object") {
+    const full = sanitizeAstrauraVoice({ voice_cloning: r.voice_cloning });
+    out.voice_cloning = full.voice_cloning;
+  }
+  if (r.playback_parameters && typeof r.playback_parameters === "object") {
+    const full = sanitizeAstrauraVoice({ playback_parameters: r.playback_parameters });
+    out.playback_parameters = full.playback_parameters;
+  }
+  if (r.privacy_mode === "local_only" || r.privacy_mode === "cloud_only" || r.privacy_mode === "hybrid_allow_cloud") {
+    out.privacy_mode = r.privacy_mode;
+  }
+  if (typeof r.instruct === "string" && r.instruct.trim()) out.instruct = r.instruct.trim().slice(0, 500);
+  if (r.deep_sound_understanding === true || r.deep_sound_understanding === false) {
+    out.deep_sound_understanding = r.deep_sound_understanding;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Fusiona un override (personalidad) sobre una base (cuenta). Nunca lanza. */
+export function mergeAstrauraVoice(
+  base: AstrauraVoiceConfig,
+  over?: Partial<AstrauraVoiceConfig> | null,
+): AstrauraVoiceConfig {
+  if (!over) return base;
+  return {
+    generation_mode: over.generation_mode ?? base.generation_mode,
+    voice_design_attributes: over.voice_design_attributes ?? base.voice_design_attributes,
+    voice_cloning: over.voice_cloning ?? base.voice_cloning,
+    playback_parameters: over.playback_parameters ?? base.playback_parameters,
+    privacy_mode: over.privacy_mode ?? base.privacy_mode,
+    instruct: over.instruct ?? base.instruct,
+    deep_sound_understanding: over.deep_sound_understanding ?? base.deep_sound_understanding,
+  };
+}
+
+/**
+ * mapDesignAttrsToSpace — traduce los atributos de diseño a los 6 parámetros de
+ * ENUM que el Space coloca en `/_design_fn` (posiciones 9–14), garantizando
+ * LITERALES EXACTOS (con su parte china) y "Auto" ante cualquier valor inválido.
+ * `chinese_dialect` se deja en "Auto" (no lo exponemos en la UI). Nunca lanza.
+ */
+export function mapDesignAttrsToSpace(attrs: Partial<AstrauraDesignAttributes> | undefined): {
+  gender: OmniGender;
+  age: OmniAge;
+  pitch: OmniPitch;
+  style: OmniStyle;
+  english_accent: OmniAccent;
+  chinese_dialect: "Auto";
+} {
+  const a = sanitizeDesignAttributes(attrs);
+  return {
+    gender: a.gender,
+    age: a.age,
+    pitch: a.pitch,
+    style: a.style,
+    english_accent: a.accent,
+    chinese_dialect: "Auto",
+  };
+}
+
 function sanitizeEngines(
   raw: unknown,
 ): Partial<Record<NeuralVoiceEngine, NeuralEngineSettings>> | undefined {
@@ -580,6 +898,8 @@ export function getVoiceConfig(): AuroraVoiceConfig {
       // `auto` por defecto TRUE (configs viejas no lo traen: solo `false` lo apaga).
       const auto = parsed?.auto !== false;
       const presetId = typeof parsed?.presetId === "string" ? parsed.presetId : undefined;
+      // OmniVoice híbrido: SIEMPRE presente y saneado (rellena defaults). CERO config.
+      const omni = sanitizeAstrauraVoice(parsed?.omni);
       return {
         engine,
         voice,
@@ -590,6 +910,7 @@ export function getVoiceConfig(): AuroraVoiceConfig {
         symbiotic,
         auto,
         presetId,
+        omni,
       };
     }
     // Sin config unificada: honra el opt-in histórico de Kokoro si estaba ON.
@@ -650,6 +971,14 @@ export function setVoiceConfig(patch: Partial<AuroraVoiceConfig>): void {
       "presetId" in patch
         ? (typeof patch.presetId === "string" && patch.presetId ? patch.presetId : undefined)
         : current.presetId,
+    // OmniVoice híbrido: fusión profunda (parche parcial) sobre la config actual.
+    omni:
+      "omni" in patch
+        ? sanitizeAstrauraVoice({
+            ...(current.omni ?? DEFAULT_ASTRAURA_VOICE),
+            ...(patch.omni ?? {}),
+          })
+        : (current.omni ?? DEFAULT_ASTRAURA_VOICE),
   };
 
   if (ls) {
@@ -701,6 +1030,20 @@ export function setEngineSettings(
 ): void {
   const current = getEngineSettings(id);
   setVoiceConfig({ engines: { [id]: { ...current, ...patch } } });
+}
+
+/** Config del motor híbrido OmniVoice (cuenta), siempre saneada. Nunca lanza. */
+export function getOmniConfig(): AstrauraVoiceConfig {
+  try {
+    return sanitizeAstrauraVoice(getVoiceConfig().omni);
+  } catch {
+    return { ...DEFAULT_ASTRAURA_VOICE };
+  }
+}
+
+/** Fusiona un parche en la config OmniVoice de cuenta y persiste. Nunca lanza. */
+export function setOmniConfig(patch: Partial<AstrauraVoiceConfig>): void {
+  setVoiceConfig({ omni: patch as AstrauraVoiceConfig });
 }
 
 /** Estilo de voz actual (persistido). Nunca lanza. */
