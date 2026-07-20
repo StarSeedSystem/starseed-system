@@ -56,6 +56,7 @@ const OPT = {
   reinstall: FLAGS.has("--reinstall"),
   cpuOnly: FLAGS.has("--cpu-only"),
   noService: FLAGS.has("--no-service"),
+  uninstall: FLAGS.has("--uninstall"),
 };
 
 // ── Salida con estilo StarSeed ───────────────────────────────────────────────
@@ -349,7 +350,44 @@ async function nohupFallback() {
 }
 
 // ── Orquestación ─────────────────────────────────────────────────────────────
+/**
+ * DESINSTALACIÓN limpia (--uninstall): descarga el servicio del sistema y
+ * borra ~/.starseed/astraura-voice (modelos, caché, logs). No toca nada más.
+ */
+async function uninstall() {
+  say("");
+  say("  🌌  ASTRAURA · Desinstalando el Motor de Voz local…");
+  try {
+    if (process.platform === "darwin") {
+      const plist = path.join(
+        os.homedir(),
+        "Library/LaunchAgents/com.starseed.astraura-voice.plist",
+      );
+      if (fs.existsSync(plist)) {
+        await runStreaming("launchctl", ["unload", plist], { quiet: true });
+        fs.rmSync(plist, { force: true });
+        ok("servicio launchd retirado");
+      }
+    } else if (process.platform === "linux") {
+      await runStreaming("systemctl", ["--user", "disable", "--now", "astraura-voice.service"], { quiet: true });
+      const unit = path.join(os.homedir(), ".config/systemd/user/astraura-voice.service");
+      if (fs.existsSync(unit)) fs.rmSync(unit, { force: true });
+      ok("servicio systemd retirado");
+    }
+  } catch {
+    warn("no pude retirar el servicio (quizá no estaba instalado); sigo…");
+  }
+  try {
+    fs.rmSync(PATHS.root, { recursive: true, force: true });
+    ok(`borrado ${PATHS.root}`);
+  } catch (e) {
+    err(`no pude borrar ${PATHS.root}: ${e.message}`);
+  }
+  say("\n  ✓ Motor de voz desinstalado. La web seguirá hablando por la nube gratis.\n");
+}
+
 async function main() {
+  if (OPT.uninstall) return uninstall();
   say("");
   say("  🌌  ASTRAURA · Instalador del Motor de Voz local (StarSeed OS)");
   say("  ══════════════════════════════════════════════════════════════");

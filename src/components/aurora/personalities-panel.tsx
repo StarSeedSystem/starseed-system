@@ -1156,6 +1156,32 @@ function PersonalityEditor({
             </span>
           </AccordionTrigger>
           <AccordionContent className="flex flex-col gap-3 pb-3">
+            {/* Motor de voz PREDETERMINADO de esta personalidad (Adenda 80).
+                Va primero en su cadena; si no responde, el resto sigue detrás. */}
+            <div className="flex flex-col gap-1">
+              <span className={labelCls}>Motor de voz preferido</span>
+              <Select
+                value={draft.voiceStyle.engine ?? "auto"}
+                onValueChange={(v) =>
+                  set("voiceStyle", {
+                    ...draft.voiceStyle,
+                    engine: v === "auto" ? undefined : v,
+                  })
+                }
+              >
+                <SelectTrigger className={selectCls}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Automático (mejor disponible)</SelectItem>
+                  <SelectItem value="openvoice2">OpenVoice · web gratis + emociones (recomendado)</SelectItem>
+                  <SelectItem value="omnivoice">OmniVoice · híbrido local ↔ nube</SelectItem>
+                  <SelectItem value="kokoro">Kokoro · local en el navegador</SelectItem>
+                  <SelectItem value="browser">Voz del navegador</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-[10px] text-white/35">
+                Aurora y Hermione traen OpenVoice de fábrica; nunca es exclusivo — si el motor no responde, la voz sigue con el resto de la cadena.
+              </span>
+            </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="flex flex-col gap-1">
                 <span className={labelCls}>Tono</span>

@@ -436,17 +436,25 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
     const mod = await import("@/lib/aurora/personalities");
     const profile = mod.getActivePersonality();
     const intel = profile?.intelligence;
-    if (!intel || intel.modo !== "fija") {
-      cachedPin = null;
-      return null;
+    // 1) Pin DURO de inteligencia (modo "fija" + motorVoz / porSentido.voz).
+    if (intel && intel.modo === "fija") {
+      const direct = (intel as { motorVoz?: unknown }).motorVoz;
+      if (isVoiceEngineId(direct)) {
+        cachedPin = direct;
+        return cachedPin;
+      }
+      const bySense = intel.porSentido?.voz?.fuente;
+      if (isVoiceEngineId(bySense)) {
+        cachedPin = bySense;
+        return cachedPin;
+      }
     }
-    const direct = (intel as { motorVoz?: unknown }).motorVoz;
-    if (isVoiceEngineId(direct)) {
-      cachedPin = direct;
-      return cachedPin;
-    }
-    const bySense = intel.porSentido?.voz?.fuente;
-    cachedPin = isVoiceEngineId(bySense) ? bySense : null;
+    // 2) MOTOR PREFERIDO de la personalidad (Adenda 80): el predeterminado
+    //    configurable (Aurora/Hermione traen "openvoice2" de fábrica). Aplica
+    //    en cualquier modo de inteligencia y NUNCA es exclusivo: va primero en
+    //    la cadena y, si no responde, los demás eslabones siguen detrás.
+    const preferred = (profile?.voiceStyle as { engine?: unknown } | undefined)?.engine;
+    cachedPin = isVoiceEngineId(preferred) ? preferred : null;
     return cachedPin;
   } catch {
     cachedPin = null;

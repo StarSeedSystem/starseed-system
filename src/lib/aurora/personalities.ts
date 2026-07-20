@@ -619,6 +619,27 @@ export interface VoicePersona {
 }
 
 /** Sanea un VoicePersona parcial (o basura) → objeto válido, o undefined. */
+/**
+ * Sanea el id del MOTOR DE VOZ preferido de una personalidad (Adenda 80).
+ * Solo ids conocidos; cualquier otra cosa → undefined (= automático).
+ */
+export function sanitizeVoiceEngineId(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const v = raw.trim().toLowerCase();
+  const known = [
+    "openvoice2",
+    "omnivoice",
+    "voxcpm",
+    "voicebox",
+    "gpt-sovits",
+    "bark",
+    "kokoro",
+    "kitten",
+    "browser",
+  ];
+  return known.includes(v) ? v : undefined;
+}
+
 export function sanitizeVoicePersona(raw: unknown): VoicePersona | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const r = raw as Record<string, unknown>;
@@ -664,6 +685,15 @@ export interface PersonalityVoiceStyle {
    * aprendizaje por personalidad. Opcional (defaults al leer).
    */
   voicePersona?: VoicePersona;
+  /**
+   * MOTOR DE VOZ PREFERIDO de esta personalidad (Adenda 80): id de
+   * `AuroraVoiceEngine` ("openvoice2" · "omnivoice" · "kokoro" · "browser"…).
+   * Es el PREDETERMINADO configurable que pidió Alex: va PRIMERO en la cadena
+   * de esta personalidad SIN tocar su modo de inteligencia, y NO es exclusivo
+   * (si el motor no responde, la cadena sigue — Aurora nunca calla).
+   * Aurora y Hermione traen "openvoice2" de fábrica; el editor lo puede cambiar.
+   */
+  engine?: string;
 }
 
 /** Personalidad de Aurora como ARCHIVO de configuración (JSON serializable). */
@@ -854,6 +884,9 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
         velocidadBase: 1.0,
         toneShift: 0.05,
       },
+      // Motor PREDETERMINADO configurable (Adenda 80): OpenVoice primero para
+      // Aurora; si no responde, la cadena sigue (omnivoice → kokoro → navegador).
+      engine: "openvoice2",
     },
   }),
   baseProfile({
@@ -1070,6 +1103,9 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
         velocidadBase: 1.08,
         toneShift: 0.08,
       },
+      // Motor PREDETERMINADO configurable (Adenda 80): OpenVoice primero también
+      // para Hermione (acento británico del contrato + semilla de identidad).
+      engine: "openvoice2",
     },
     // Pin de inteligencia: OpenRouter :free (créditos GRATIS). modo "fija" pero
     // el router cae a la cadena automática si el :free falla (no es exclusivo).
@@ -1175,6 +1211,10 @@ export function normalizePersonalityProfile(raw: Partial<PersonalityProfile> | n
       // Carácter de voz (Adenda V2-VOZ): saneado, ausente = defaults de fábrica.
       voicePersona: sanitizeVoicePersona(
         (r.voiceStyle as { voicePersona?: unknown } | undefined)?.voicePersona,
+      ),
+      // Motor de voz preferido (Adenda 80): string corto saneado; ausente = auto.
+      engine: sanitizeVoiceEngineId(
+        (r.voiceStyle as { engine?: unknown } | undefined)?.engine,
       ),
     },
     intelligence: normalizeIntelligence(r.intelligence),
