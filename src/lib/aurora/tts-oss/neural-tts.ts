@@ -861,7 +861,7 @@ export interface NeuralSpeakOptions {
  * finales de frase acumulando hasta ~maxLen; una frase kilométrica se parte por
  * comas/espacios. PURO y testeable. Nunca devuelve trozos vacíos.
  */
-export function splitTextForVoice(text: string, maxLen = 260): string[] {
+export function splitTextForVoice(text: string, maxLen = 220): string[] {
   const clean = (text || "").replace(/\s+/g, " ").trim();
   if (!clean) return [];
   if (clean.length <= maxLen) return [clean];
@@ -1039,7 +1039,10 @@ export async function neuralSpeak(
   // RESPUESTAS LARGAS por OpenVoice → habla TROCEADA (Adenda 82): los Spaces
   // gratis (CPU) no pueden sintetizar 2.000 caracteres de una pieza dentro del
   // presupuesto; frase a frase sí — y el primer sonido llega en segundos.
-  if (engine === "openvoice2") {
+  // Trocear también OMNIVOICE (Adenda 85): el daemon local sintetiza una FRASE
+  // en segundos (y cachea), pero un parrafón agota su presupuesto y la nube
+  // gratis igual. Frase a frase, el motor local por fin puede con turnos reales.
+  if (engine === "openvoice2" || engine === "omnivoice") {
     const chunks = splitTextForVoice(text);
     if (chunks.length > 1) {
       stopNeural(); // una voz a la vez (invalida troceos previos)

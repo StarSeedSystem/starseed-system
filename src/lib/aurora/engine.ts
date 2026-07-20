@@ -641,12 +641,21 @@ export function useAuroraEngine(): AuroraEngine {
   //      navegador (speakWithBrowser) — comportamiento histórico intacto.
   const speak = useCallback((text: string, forcePersonality?: any) => {
     if (typeof window === "undefined") return;
-    let clean = (text || "").replace(/\[\[goto:[^\]]+\]\]/gi, "");
-    // Limpia caracteres según el usuario para una voz fluida.
-    clean = clean.replace(/[*_~`´#|><.,;:\-\[\](){}\\\/"—–]/g, " ");
-    clean = clean.replace(/\s+/g, " ");
-    clean = clean.trim();
-    if (!clean) return;
+    const sinDirectivas = (text || "").replace(/\[\[goto:[^\]]+\]\]/gi, "");
+    // DOS limpiezas (Adenda 85):
+    //  · Para el NAVEGADOR (histórica): quita también la puntuación — la Web
+    //    Speech API la lee mal ("punto", pausas raras) en algunas voces.
+    //  · Para la CADENA NEURAL: quita markdown/símbolos pero CONSERVA la
+    //    puntuación de frase (. , ; : ! ? …) — es la que marca la prosodia y la
+    //    que usa el troceo por frases (splitTextForVoice) para que OpenVoice y
+    //    el OmniVoice local hablen los turnos largos frase a frase.
+    let clean = sinDirectivas.replace(/[*_~`´#|><.,;:\-\[\](){}\\\/"—–]/g, " ");
+    clean = clean.replace(/\s+/g, " ").trim();
+    let cleanChain = sinDirectivas.replace(/[*_~`´#|><\[\](){}\\\/"]/g, " ");
+    cleanChain = cleanChain.replace(/\s+/g, " ").trim();
+    if (!clean && !cleanChain) return;
+    if (!cleanChain) cleanChain = clean;
+    if (!clean) clean = cleanChain;
     const p = forcePersonality || activeRef.current;
 
     const runBrowser = () => speakWithBrowser(clean, p);
@@ -668,7 +677,7 @@ export function useAuroraEngine(): AuroraEngine {
 
       try {
         const { speakWithConfiguredEngine } = await import("@/lib/aurora/tts-oss/speak-router");
-        const spoke = await speakWithConfiguredEngine(clean, {
+        const spoke = await speakWithConfiguredEngine(cleanChain, {
           onStart: () => {
             handedOff = true;
             // Corta cualquier voz nativa por si acaso (una sola voz a la vez).
@@ -682,9 +691,12 @@ export function useAuroraEngine(): AuroraEngine {
             // Impulsa el latido del orbe ~cada 240ms mientras dura el audio.
             clearBoundary();
             boundaryTimer = setInterval(() => emitAuroraSpeak("boundary"), 240);
-            // Watchdog de seguridad (misma heurística que el navegador).
+            // Watchdog de seguridad. Con el habla TROCEADA (Adenda 85) un turno
+            // largo dura minutos DE VERDAD: el tope pasa de 45 s a 4 min para no
+            // cortar a Aurora a mitad de párrafo (sigue protegiendo de audios
+            // que jamás terminan; onEnd lo limpia siempre).
             clearOssWatchdog();
-            const estMs = Math.min(45000, 2000 + clean.length * 90);
+            const estMs = Math.min(240000, 8000 + cleanChain.length * 95);
             ossWatchdog = setTimeout(() => { clearBoundary(); finishTts(); }, estMs);
           },
           onEnd: () => {
