@@ -58,6 +58,24 @@ import {
   type AuroraVoiceConfig,
 } from "@/lib/aurora/tts-oss/voice-config";
 
+/**
+ * Evento global de PROCESAMIENTO DE VOZ (Adenda V2-VOZ). Lo pinta el
+ * `VoiceProcessingIndicator` sobre cada chat: 'start' antes de intentar la cadena,
+ * 'end' cuando el audio EMPIEZA a sonar o cuando la cadena se rinde.
+ */
+const VOICE_PROCESSING_EVENT = "starseed:voice-processing";
+
+function emitVoiceProcessing(state: "start" | "end", engine?: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(
+      new CustomEvent(VOICE_PROCESSING_EVENT, { detail: { state, engine } }),
+    );
+  } catch {
+    /* */
+  }
+}
+
 export interface ConfiguredSpeakOptions {
   /** Antes de reproducir (el engine enciende el glow y el anti-eco aquí). */
   onStart?: () => void;
@@ -218,22 +236,57 @@ export async function speakWithConfiguredEngine(
   // así una personalidad que fija "VoxCPM para la voz" manda desde la 1ª frase.
   const pin = await refreshPersonalityVoicePin().catch(() => null);
 
-  const chain = buildVoiceChain(cfg, pin);
-  if (!chain.length) return false; // suelo: navegador
-  for (const link of chain) {
-    // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
-    const outcome = await Promise.resolve()
-      .then(() => runLink(link, clean, cfg, opts))
-      .catch((): LinkOutcome => "declined");
-    if (outcome === "spoke") return true;
-    if (outcome === "started") {
-      // Llegó a sonar y se cortó: el turno YA se consumió; re-hablar el mismo
-      // texto con otro motor duplicaría la locución. Turno cerrado con dignidad.
-      return true;
-    }
-    // "declined" → siguiente eslabón de la cadena.
+  // INDICADOR DE PROCESAMIENTO DE VOZ (Adenda V2-VOZ): 'start' antes de intentar
+  // la cadena; 'end' en cuanto el audio EMPIEZA a sonar o al rendirse. El motor
+  // (para el detalle del evento) es el que Aurora usaría ahora mismo.
+  let engineForEvent: string | undefined;
+  try {
+    engineForEvent = resolveActiveVoiceEngine(cfg);
+  } catch {
+    /* */
   }
-  return false; // suelo garantizado: voz del navegador (mejor rankeada).
+  emitVoiceProcessing("start", engineForEvent);
+  let processingEnded = false;
+  const endProcessing = () => {
+    if (processingEnded) return;
+    processingEnded = true;
+    emitVoiceProcessing("end", engineForEvent);
+  };
+  // El indicador es para el PROCESO (síntesis), no para la reproducción: en cuanto
+  // un eslabón empieza a sonar, cerramos el indicador (ya no "procesa", ya "habla").
+  const wrappedOpts: ConfiguredSpeakOptions = {
+    ...opts,
+    onStart: () => {
+      endProcessing();
+      try {
+        opts.onStart?.();
+      } catch {
+        /* */
+      }
+    },
+  };
+
+  try {
+    const chain = buildVoiceChain(cfg, pin);
+    if (!chain.length) return false; // suelo: navegador
+    for (const link of chain) {
+      // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
+      const outcome = await Promise.resolve()
+        .then(() => runLink(link, clean, cfg, wrappedOpts))
+        .catch((): LinkOutcome => "declined");
+      if (outcome === "spoke") return true;
+      if (outcome === "started") {
+        // Llegó a sonar y se cortó: el turno YA se consumió; re-hablar el mismo
+        // texto con otro motor duplicaría la locución. Turno cerrado con dignidad.
+        return true;
+      }
+      // "declined" → siguiente eslabón de la cadena.
+    }
+    return false; // suelo garantizado: voz del navegador (mejor rankeada).
+  } finally {
+    // Red de seguridad: nunca dejar el indicador colgado (try/finally).
+    endProcessing();
+  }
 }
 
 /** Corta cualquier reproducción OSS/neural en curso. NUNCA lanza. */

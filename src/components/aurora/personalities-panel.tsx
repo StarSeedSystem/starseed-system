@@ -102,6 +102,13 @@ import {
   getOmniVoiceRouteState,
   type OmniRoute,
 } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
+import {
+  synthesizeOpenVoice2,
+  getOpenVoice2State,
+  OPENVOICE2_STYLES,
+  OPENVOICE2_STYLE_LABELS,
+  type OpenVoice2State,
+} from "@/lib/aurora/tts-oss/openvoice2";
 
 /* ── Opciones curadas para los selects (el valor actual se añade si falta) ── */
 
@@ -690,6 +697,13 @@ function PersonalityEditor({
   const [omniRoute, setOmniRoute] = useState<OmniRoute>("off");
   const omniAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  // ── Voz OpenVoice V2 (web, sin instalar) por personalidad ───────────────────
+  const [ov2Testing, setOv2Testing] = useState(false);
+  const [ov2Status, setOv2Status] = useState<string>("");
+  const [ov2State, setOv2State] = useState<OpenVoice2State>("dormido");
+  const [ov2RefName, setOv2RefName] = useState<string>("");
+  const ov2RefRef = useRef<Blob | null>(null);
+
   const omni = draft.voiceStyle.omni ?? {};
   const omniDesign: AstrauraDesignAttributes =
     omni.voice_design_attributes ?? DEFAULT_ASTRAURA_VOICE.voice_design_attributes;
@@ -783,6 +797,50 @@ function PersonalityEditor({
       setOmniTesting(false);
     }
   }, [draft.name, draft.voiceStyle.omni, omniTesting]);
+
+  const probarOpenVoice2 = useCallback(async () => {
+    if (ov2Testing) return;
+    setOv2Testing(true);
+    setOv2Status("Despertando OpenVoice V2 en la web…");
+    try {
+      const ovCfg = (draft.voiceStyle.omni?.openvoice ?? {}) as {
+        style?: string;
+        use_seed?: boolean;
+        seed_version?: number;
+      };
+      const phrase = `Hola, soy ${draft.name || "tu Exocórtex"}. Esta es mi voz OpenVoice versión dos, en la web.`;
+      const blob = await synthesizeOpenVoice2(phrase, {
+        lang: draft.idioma || "es",
+        personalityId: draft.id,
+        styleHint: ovCfg.style,
+        useSeed: ovCfg.use_seed,
+        seedVersion: ovCfg.seed_version,
+        refBlob: ov2RefRef.current ?? undefined,
+        onStatus: (m) => setOv2Status(m),
+      });
+      const st = getOpenVoice2State();
+      setOv2State(st);
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => {
+          try { URL.revokeObjectURL(url); } catch { /* */ }
+        };
+        await audio.play().catch(() => {});
+        setOv2Status("Sonando desde la web (OpenVoice V2).");
+      } else {
+        setOv2Status(
+          st === "fuera"
+            ? "El Space de OpenVoice V2 no responde ahora; la cadena sigue con el respaldo."
+            : "Despertando o sin semilla todavía; se usa el respaldo mientras tanto.",
+        );
+      }
+    } catch {
+      setOv2Status("No se pudo probar OpenVoice V2.");
+    } finally {
+      setOv2Testing(false);
+    }
+  }, [ov2Testing, draft.name, draft.id, draft.idioma, draft.voiceStyle.omni]);
 
   return (
     <div className={cn(card, "flex flex-col gap-3 px-3.5 py-3")}>
@@ -1333,6 +1391,134 @@ function PersonalityEditor({
                 )}
               </div>
               {omniStatus && <p className="mt-1 text-[11px] text-white/55">{omniStatus}</p>}
+            </div>
+
+            {/* ── OPENVOICE V2 · voz de nube web (sin instalar · Adenda V2-VOZ) ── */}
+            <div className="mt-2 rounded-xl border border-sky-400/20 bg-sky-400/[0.04] p-3">
+              <div className="flex items-center gap-2">
+                <ProfileIcon name="Cloud" className="h-3.5 w-3.5 text-sky-300" />
+                <span className="text-xs font-medium text-white/85">OpenVoice V2 (web, sin instalar)</span>
+                <span
+                  className={cn(
+                    "ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                    ov2State === "listo"
+                      ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                      : ov2State === "fuera"
+                        ? "border-amber-400/30 bg-amber-500/10 text-amber-200"
+                        : "border-sky-400/30 bg-sky-500/10 text-sky-200",
+                  )}
+                >
+                  <ProfileIcon
+                    name={ov2State === "listo" ? "CheckCircle2" : ov2State === "fuera" ? "WifiOff" : "Waves"}
+                    className="h-3 w-3"
+                  />
+                  {ov2State === "listo" ? "Lista" : ov2State === "fuera" ? "Dormida/fuera" : "Dormida"}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-white/45">
+                Voz de nube gratis, sin instalar nada. Clona el timbre desde una semilla de
+                identidad sintética (inspirada en el arquetipo, nunca audio real) o desde tu propio
+                audio. Si el Space duerme o falla, la cadena sigue (Aurora nunca calla).
+              </p>
+
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-white/60">Estilo (acento base)</span>
+                  <select
+                    className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs text-white/85 outline-none focus:border-sky-400/40"
+                    value={omni.openvoice?.style ?? ""}
+                    onChange={(e) =>
+                      setOmni({
+                        openvoice: { ...(omni.openvoice ?? {}), style: e.target.value || undefined },
+                      })
+                    }
+                  >
+                    <option value="">Automático (por idioma/personaje)</option>
+                    {OPENVOICE2_STYLES.map((s) => (
+                      <option key={s} value={s}>
+                        {OPENVOICE2_STYLE_LABELS[s]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5">
+                  <span className="text-[11px] text-white/60">Usar semilla de identidad</span>
+                  <Switch
+                    checked={omni.openvoice?.use_seed !== false}
+                    onCheckedChange={(v) =>
+                      setOmni({ openvoice: { ...(omni.openvoice ?? {}), use_seed: v } })
+                    }
+                    aria-label="Usar semilla de identidad de OpenVoice V2"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-2 flex flex-col gap-1">
+                <span className="text-[11px] text-white/60">
+                  Clonar desde tu propio audio (opcional; solo tu voz, nunca clips ajenos)
+                </span>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="text-[11px] text-white/70 file:mr-2 file:rounded-md file:border file:border-white/10 file:bg-white/[0.05] file:px-2 file:py-1 file:text-[11px] file:text-white/80 hover:file:bg-white/10"
+                  onChange={(e) => {
+                    const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                    ov2RefRef.current = f;
+                    setOv2RefName(f ? f.name : "");
+                  }}
+                />
+                {ov2RefName && (
+                  <span className="text-[10px] text-sky-200/80">Referencia: {ov2RefName}</span>
+                )}
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className={cn(btnAzure, "min-h-[36px]")}
+                  disabled={ov2Testing}
+                  onClick={probarOpenVoice2}
+                >
+                  <ProfileIcon
+                    name={ov2Testing ? "Loader2" : "Play"}
+                    className={cn("h-3.5 w-3.5", ov2Testing && "animate-spin")}
+                  />
+                  Probar OpenVoice V2
+                </button>
+                {ov2Testing && (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] text-sky-200">
+                    <span className="ov2-eq" aria-hidden>
+                      <i /><i /><i /><i /><i />
+                    </span>
+                    dando voz…
+                  </span>
+                )}
+              </div>
+              {ov2Status && <p className="mt-1 text-[11px] text-white/55">{ov2Status}</p>}
+
+              <style jsx>{`
+                .ov2-eq {
+                  display: inline-flex;
+                  align-items: center;
+                  gap: 2px;
+                  height: 14px;
+                }
+                .ov2-eq i {
+                  width: 2.5px;
+                  height: 40%;
+                  border-radius: 2px;
+                  background: linear-gradient(180deg, rgba(150, 220, 255, 0.98), rgba(0, 127, 255, 0.85));
+                  animation: ov2bounce 0.95s ease-in-out infinite;
+                }
+                .ov2-eq i:nth-child(2) { animation-delay: 0.1s; }
+                .ov2-eq i:nth-child(3) { animation-delay: 0.2s; }
+                .ov2-eq i:nth-child(4) { animation-delay: 0.3s; }
+                .ov2-eq i:nth-child(5) { animation-delay: 0.4s; }
+                @keyframes ov2bounce {
+                  0%, 100% { height: 28%; opacity: 0.7; }
+                  50% { height: 100%; opacity: 1; }
+                }
+              `}</style>
             </div>
           </AccordionContent>
         </AccordionItem>

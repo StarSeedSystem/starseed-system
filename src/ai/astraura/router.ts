@@ -831,7 +831,22 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // ── Cadena de failover ────────────────────────────────────────────────────
   // Saltamos fuentes en cooldown (cuota agotada / 429 reciente): así Aurora
   // SIEMPRE sigue funcionando con la siguiente mejor opción disponible.
-  let chain = candidates.filter((c) => !isCoolingDown(c.source.id)).slice(0, 8);
+  //
+  // DIVERSIDAD DE FUENTES (fix "11 intentos, 8 en la misma fuente muerta"):
+  // como máximo 2 modelos por fuente en la cadena principal. Si una fuente está
+  // rota (p.ej. clave inválida → 401 en TODOS sus modelos), antes monopolizaba
+  // 8 eslabones y dejaba solo 3 huecos para alternativas REALES; ahora la
+  // cadena siempre mezcla proveedores distintos.
+  const perSource: Record<string, number> = {};
+  let chain = candidates
+    .filter((c) => !isCoolingDown(c.source.id))
+    .filter((c) => {
+      const n = perSource[c.source.id] ?? 0;
+      if (n >= 2) return false;
+      perSource[c.source.id] = n + 1;
+      return true;
+    })
+    .slice(0, 8);
   // Si TODO estaba en cooldown, reintenta igualmente con la mejor (por si ya pasó).
   if (!chain.length && candidates.length) chain.push(candidates[0]);
 
@@ -891,7 +906,13 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     );
   }
 
+  // Fuentes declaradas MUERTAS durante ESTA petición (fallo de autenticación:
+  // 401/403/clave inválida). Un fallo de clave es DETERMINISTA — si un modelo
+  // de la fuente lo da, lo darán todos — así que no se reintenta ni una vez más.
+  const deadSources = new Set<string>();
+
   for (const c of chain) {
+    if (deadSources.has(c.source.id)) continue; // clave rota: ni lo intentamos
     const t0 = Date.now();
     try {
       req.onStatus?.(`Usando ${c.source.label} · ${c.model.label}…`);
@@ -944,6 +965,16 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       // para que el failover no la reintente y pase a la siguiente gratuita.
       if (/\b429\b|rate.?limit|quota|exhaust|insufficient|too many/i.test(msg)) {
         try { markCooldown(c.source.id); } catch { /* */ }
+      }
+      // CLAVE INVÁLIDA (401/403/unauthorized): fallo DETERMINISTA de toda la
+      // fuente. La declaramos muerta para esta petición (no quemamos más
+      // eslabones en ella) y la enfriamos 30 min para los próximos turnos —
+      // así el primer mensaje falla UNA vez por fuente rota y los siguientes
+      // van directos a las alternativas vivas. El aviso de la clave sigue
+      // visible en el registro de rutas y en la respuesta honesta.
+      if (/\b401\b|\b403\b|unauthorized|forbidden|clave no válida|invalid.{0,12}key|api.?key/i.test(msg)) {
+        deadSources.add(c.source.id);
+        try { markCooldown(c.source.id, 30); } catch { /* */ }
       }
       failovers.push({ sourceId: c.source.id, error: msg.slice(0, 200) });
     }

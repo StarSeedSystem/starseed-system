@@ -204,6 +204,26 @@ export const VOICE_ENGINE_REGISTRY: Record<AuroraVoiceEngine, VoiceEngineMeta> =
     repo: "https://github.com/k2-fsa/OmniVoice",
     requirements: ["Servidor OmniVoice con su URL configurada."],
   },
+  openvoice2: {
+    id: "openvoice2",
+    label: "OpenVoice V2 (web)",
+    hint: "Voz de nube gratis, sin instalar nada: clona el timbre desde una semilla de identidad o tu propio audio.",
+    // Integrado como la nube de OmniVoice (Space público): no es un endpoint del
+    // usuario, así que no requiere ni URL ni descargas — funciona en la web.
+    kind: "endpoint",
+    realism: 4,
+    requiresEndpoint: false,
+    requiresDownload: false,
+    free: true,
+    langs: "en · es · fr · ja · zh · ko (estilos base)",
+    spanish: true,
+    emotions: false, // el color emocional lo aporta la semilla/entonación, no un parámetro
+    cloning: true, // clona timbre desde una referencia (semilla sintética o audio propio)
+    latency: "~3-8 s (nube, cola)",
+    license: "MIT (código) · CC-BY-NC (checkpoints)",
+    repo: "https://github.com/myshell-ai/OpenVoice",
+    requirements: ["Ninguno: funciona en la web. Usa una semilla de identidad sintética o tu propio audio."],
+  },
   kokoro: {
     id: "kokoro",
     label: "Kokoro",
@@ -270,6 +290,9 @@ export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
   "gpt-sovits",
   "bark",
   "omnivoice",
+  // OpenVoice V2 va SIEMPRE justo detrás del híbrido OmniVoice (Adenda V2-VOZ):
+  // en instalación CERO la cadena queda [omnivoice → openvoice2 → kokoro].
+  "openvoice2",
 ];
 
 /** El motor PRINCIPAL recomendado del sistema (cuando tiene endpoint). */
@@ -306,6 +329,9 @@ function endpointEngineConfigured(id: NeuralVoiceEngine, cfg: AuroraVoiceConfig)
   // Está SIEMPRE "configurado", así que entra en la cadena AUTO aunque el usuario
   // no haya puesto ningún endpoint: instalación cero → Aurora ya habla con OmniVoice.
   if (id === "omnivoice") return true;
+  // OpenVoice V2 (web): Space integrado, CERO config → SIEMPRE en la cadena AUTO,
+  // justo detrás de OmniVoice. Ver openvoice2.ts.
+  if (id === "openvoice2") return true;
   const s = cfg.engines?.[id];
   if (!s?.endpoint || !s.endpoint.trim()) return false;
   // Voicebox exige perfil de voz: sin él su API responde 404 (no es "configurado").
@@ -340,6 +366,8 @@ function availabilityOffline(
       // OmniVoice híbrido: integrado (nube gratis + daemon local) → SIEMPRE usable
       // aunque no haya endpoint manual. El estado "listo/local" se afina online.
       if (id === "omnivoice") return "configured";
+      // OpenVoice V2 (web): Space integrado → SIEMPRE usable, sin endpoint manual.
+      if (id === "openvoice2") return "configured";
       const s = cfg.engines?.[id];
       if (!s?.endpoint || !s.endpoint.trim()) return "needs-endpoint";
       if (id === "voicebox" && !(s.profileId || s.voice)) return "needs-profile";
@@ -581,6 +609,18 @@ export async function listVoiceEnginesWithStatus(
             const { omniHandshake } = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
             const hs = await omniHandshake();
             row.availability = hs && hs.ready ? "ready" : "configured";
+          } catch {
+            row.availability = "configured";
+          }
+          return;
+        }
+        // OpenVoice V2 (web): su disponibilidad la refleja el estado del cliente
+        // ('listo' tras hablar · 'dormido' cold start · 'fuera' si el Space falla).
+        if (row.meta.id === "openvoice2") {
+          try {
+            const { getOpenVoice2State } = await import("@/lib/aurora/tts-oss/openvoice2");
+            const st = getOpenVoice2State();
+            row.availability = st === "listo" ? "ready" : st === "fuera" ? "unreachable" : "configured";
           } catch {
             row.availability = "configured";
           }

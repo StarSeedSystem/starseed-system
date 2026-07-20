@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
 import { MessageRenderer } from "./message-renderer";
+import VoiceProcessingIndicator from "./voice-processing-indicator";
 import { RouteChip } from "./route-chip";
 import {
   listPersonalityProfiles,
@@ -370,6 +371,8 @@ export function AuroraMiniPlayer({
       >
         {/* Filo de luz aurora superior (reactivo al turno). */}
         <span aria-hidden className={cn(styles.edge, live && styles.edgeLive)} />
+        {/* Indicador ANIMADO de procesamiento de voz (Adenda V2-VOZ). */}
+        <VoiceProcessingIndicator variant="float" label="Dando voz…" />
 
         {/* Asa de deslizar (grabber) — pista visual de que se puede subir/bajar. */}
         <button

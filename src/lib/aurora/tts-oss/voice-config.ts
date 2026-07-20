@@ -92,7 +92,8 @@ export type AuroraVoiceEngine =
   | "voicebox"
   | "bark"
   | "gpt-sovits"
-  | "omnivoice";
+  | "omnivoice"
+  | "openvoice2";
 
 /** Motores NEURALES por endpoint (servidores Python: neurona/CasaOS u hospedados). */
 export type NeuralVoiceEngine =
@@ -100,7 +101,10 @@ export type NeuralVoiceEngine =
   | "voicebox"
   | "bark"
   | "gpt-sovits"
-  | "omnivoice";
+  | "omnivoice"
+  // OpenVoice V2 (web, sin instalar): Space público integrado (Adenda V2-VOZ).
+  // No es un endpoint del usuario — habla por la nube gratis como OmniVoice.
+  | "openvoice2";
 
 /**
  * Lista canónica de motores por endpoint (para iterar en UI/router), ORDENADA
@@ -113,6 +117,7 @@ export const NEURAL_VOICE_ENGINES: readonly NeuralVoiceEngine[] = [
   "bark",
   "gpt-sovits",
   "omnivoice",
+  "openvoice2",
 ];
 
 /** ¿Es un motor por endpoint? */
@@ -122,7 +127,8 @@ export function isNeuralEngine(e: unknown): e is NeuralVoiceEngine {
     e === "voicebox" ||
     e === "bark" ||
     e === "gpt-sovits" ||
-    e === "omnivoice"
+    e === "omnivoice" ||
+    e === "openvoice2"
   );
 }
 
@@ -450,6 +456,7 @@ const VALID_ENGINES: readonly AuroraVoiceEngine[] = [
   "bark",
   "gpt-sovits",
   "omnivoice",
+  "openvoice2",
 ];
 
 /** ¿Es un id de motor de voz válido? (Útil para pins de personalidad.) */
@@ -690,6 +697,18 @@ export interface AstrauraVoiceConfig {
    * gratis). Off por defecto. Ver `audio-emotion.ts` / senses-panel.
    */
   deep_sound_understanding?: boolean;
+  /**
+   * OPENVOICE V2 (web, sin instalar) — Adenda V2-VOZ. Ajustes del motor de nube
+   * `openvoice2.ts`. Todos opcionales (migración suave: al leer se aplican
+   * defaults). `style` = un id de `OPENVOICE2_STYLES` (en_br, es_default…);
+   * `use_seed` = usar la semilla sintética de identidad (por defecto true);
+   * `seed_version` = versión de la semilla cacheada.
+   */
+  openvoice?: {
+    style?: string;
+    seed_version?: number;
+    use_seed?: boolean;
+  };
 }
 
 /**
@@ -714,6 +733,41 @@ export const DEFAULT_ASTRAURA_VOICE: AstrauraVoiceConfig = {
 
 function inSet<T extends string>(v: unknown, set: readonly T[], fallback: T): T {
   return typeof v === "string" && (set as readonly string[]).includes(v) ? (v as T) : fallback;
+}
+
+/** Estilos EXACTOS del Space OpenVoiceV2 (duplicados aquí para evitar ciclos). */
+const OPENVOICE2_STYLE_VALUES: readonly string[] = [
+  "en_default",
+  "en_us",
+  "en_br",
+  "en_au",
+  "en_in",
+  "es_default",
+  "fr_default",
+  "jp_default",
+  "zh_default",
+  "kr_default",
+];
+
+/**
+ * Sanea el sub-esquema `openvoice` (Adenda V2-VOZ). Campos opcionales: devuelve
+ * solo los presentes y válidos (migración suave). undefined si no hay nada útil.
+ * Nunca lanza. PURO (testeable sin red).
+ */
+export function sanitizeOpenVoiceConfig(
+  raw: unknown,
+): { style?: string; seed_version?: number; use_seed?: boolean } | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const out: { style?: string; seed_version?: number; use_seed?: boolean } = {};
+  if (typeof r.style === "string" && OPENVOICE2_STYLE_VALUES.includes(r.style)) {
+    out.style = r.style;
+  }
+  if (typeof r.seed_version === "number" && Number.isFinite(r.seed_version) && r.seed_version >= 0) {
+    out.seed_version = Math.floor(r.seed_version);
+  }
+  if (typeof r.use_seed === "boolean") out.use_seed = r.use_seed;
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** Sanea atributos de diseño (cualquier basura → literal válido o "Auto"). */
@@ -770,6 +824,8 @@ export function sanitizeAstrauraVoice(raw: unknown): AstrauraVoiceConfig {
   if (typeof r.instruct === "string" && r.instruct.trim()) {
     out.instruct = r.instruct.trim().slice(0, 500);
   }
+  const ov = sanitizeOpenVoiceConfig(r.openvoice);
+  if (ov) out.openvoice = ov;
   return out;
 }
 
@@ -803,6 +859,8 @@ export function sanitizeAstrauraVoicePartial(raw: unknown): Partial<AstrauraVoic
   if (r.deep_sound_understanding === true || r.deep_sound_understanding === false) {
     out.deep_sound_understanding = r.deep_sound_understanding;
   }
+  const ov = sanitizeOpenVoiceConfig(r.openvoice);
+  if (ov) out.openvoice = ov;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -820,6 +878,11 @@ export function mergeAstrauraVoice(
     privacy_mode: over.privacy_mode ?? base.privacy_mode,
     instruct: over.instruct ?? base.instruct,
     deep_sound_understanding: over.deep_sound_understanding ?? base.deep_sound_understanding,
+    // OpenVoice V2: fusiona campo a campo (el override de la personalidad gana).
+    openvoice:
+      over.openvoice || base.openvoice
+        ? { ...(base.openvoice ?? {}), ...(over.openvoice ?? {}) }
+        : undefined,
   };
 }
 

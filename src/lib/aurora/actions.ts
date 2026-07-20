@@ -24,6 +24,7 @@ import { createClient } from "@/utils/supabase/client";
 import { getApp } from "@/components/dashboard/apps/app-catalog";
 import { newCanvas, saveCanvas } from "@/lib/canvas/canvas";
 import type { AuroraUndoInfo } from "@/lib/aurora/undo";
+import type { PersonalityProfile } from "@/lib/aurora/personalities";
 
 /**
  * Aurora tiene CONTROL TOTAL del OS. Por defecto, TODOS los accesos están
@@ -519,6 +520,114 @@ function applySetting(clave: string, valor: unknown): { ok: boolean; previousVal
 
 // ── Registro de acciones ─────────────────────────────────────────────────────
 
+// ── Ajuste de VOZ por chat (Adenda V2-VOZ) ───────────────────────────────────
+// Diccionarios español → LITERAL EXACTO de los enums OmniVoice (con su parte
+// china). Las claves están SIN acentos (norm() los quita). Sinónimos incluidos.
+
+const VOZ_GENERO: Record<string, string> = {
+  femenina: "Female / 女", femenino: "Female / 女", mujer: "Female / 女", chica: "Female / 女", female: "Female / 女",
+  masculina: "Male / 男", masculino: "Male / 男", hombre: "Male / 男", chico: "Male / 男", male: "Male / 男",
+  neutra: "Auto", neutro: "Auto", androgina: "Auto", auto: "Auto",
+};
+const VOZ_EDAD: Record<string, string> = {
+  infantil: "Child / 儿童", nina: "Child / 儿童", nino: "Child / 儿童", child: "Child / 儿童",
+  adolescente: "Teenager / 少年", teen: "Teenager / 少年", joven: "Young Adult / 青年", jovena: "Young Adult / 青年", young: "Young Adult / 青年",
+  adulta: "Middle-aged / 中年", adulto: "Middle-aged / 中年", madura: "Middle-aged / 中年",
+  mayor: "Elderly / 老年", anciana: "Elderly / 老年", anciano: "Elderly / 老年", elderly: "Elderly / 老年",
+};
+const VOZ_TONO: Record<string, string> = {
+  "muy grave": "Very Low Pitch / 极低音调", gravisimo: "Very Low Pitch / 极低音调",
+  grave: "Low Pitch / 低音调", bajo: "Low Pitch / 低音调",
+  medio: "Moderate Pitch / 中音调", media: "Moderate Pitch / 中音调", normal: "Moderate Pitch / 中音调",
+  agudo: "High Pitch / 高音调", alto: "High Pitch / 高音调",
+  "muy agudo": "Very High Pitch / 极高音调",
+};
+const VOZ_ESTILO: Record<string, string> = {
+  natural: "Auto", normal: "Auto", auto: "Auto",
+  susurro: "Whisper / 耳语", susurrar: "Whisper / 耳语", susurrado: "Whisper / 耳语", whisper: "Whisper / 耳语",
+};
+const VOZ_ACENTO: Record<string, string> = {
+  neutro: "Auto", neutra: "Auto", auto: "Auto", automatico: "Auto",
+  americano: "American Accent / 美式口音", americana: "American Accent / 美式口音", estadounidense: "American Accent / 美式口音", us: "American Accent / 美式口音",
+  britanico: "British Accent / 英国口音", britanica: "British Accent / 英国口音", ingles: "British Accent / 英国口音", uk: "British Accent / 英国口音",
+  australiano: "Australian Accent / 澳大利亚口音", australiana: "Australian Accent / 澳大利亚口音",
+  canadiense: "Canadian Accent / 加拿大口音",
+  indio: "Indian Accent / 印度口音", india: "Indian Accent / 印度口音",
+  chino: "Chinese Accent / 中国口音", china: "Chinese Accent / 中国口音",
+  coreano: "Korean Accent / 韩国口音", coreana: "Korean Accent / 韩国口音",
+  japones: "Japanese Accent / 日本口音", japonesa: "Japanese Accent / 日本口音",
+  portugues: "Portuguese Accent / 葡萄牙口音", portuguesa: "Portuguese Accent / 葡萄牙口音",
+};
+
+/** Mapea una palabra española (o frase) al literal del enum, con sinónimos. */
+function mapVoz(dict: Record<string, string>, input: string): string | undefined {
+  const n = norm(input);
+  if (!n) return undefined;
+  if (dict[n]) return dict[n];
+  for (const k of Object.keys(dict)) {
+    if (n === k) return dict[k];
+    if (n.includes(k) || k.includes(n)) return dict[k];
+  }
+  return undefined;
+}
+
+/** Estilos EXACTOS del Space OpenVoiceV2 (para validar {openvoice_estilo}). */
+const OPENVOICE2_STYLE_IDS: readonly string[] = [
+  "en_default", "en_us", "en_br", "en_au", "en_in",
+  "es_default", "fr_default", "jp_default", "zh_default", "kr_default",
+];
+
+/**
+ * Habla UNA locución puntual con un diseño de voz ad-hoc, SIN tocar la config
+ * persistente. Emite el indicador de procesamiento y garantiza voz (fallback al
+ * navegador). Nunca lanza.
+ */
+async function speakOnceAdHoc(
+  texto: string,
+  omniOverride: Record<string, unknown>,
+): Promise<boolean> {
+  if (!isClient()) return false;
+  const emit = (state: "start" | "end", engine?: string) => {
+    try {
+      window.dispatchEvent(
+        new CustomEvent("starseed:voice-processing", { detail: { state, engine } }),
+      );
+    } catch { /* */ }
+  };
+  emit("start", "omnivoice");
+  let ended = false;
+  const end = () => {
+    if (ended) return;
+    ended = true;
+    emit("end", "omnivoice");
+  };
+  try {
+    const { synthesizeOmniVoiceHybrid } = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
+    const blob = await synthesizeOmniVoiceHybrid(texto, {
+      omni: omniOverride as never,
+    }).catch(() => null);
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      end();
+      audio.onended = () => {
+        try { URL.revokeObjectURL(url); } catch { /* */ }
+      };
+      await audio.play().catch(() => { /* */ });
+      return true;
+    }
+  } catch { /* */ }
+  end();
+  // Suelo garantizado: Aurora SIEMPRE habla.
+  try {
+    const u = new SpeechSynthesisUtterance(texto);
+    window.speechSynthesis?.speak(u);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const AURORA_ACTIONS: AuroraActionDef[] = [
   {
     name: "navegar",
@@ -818,6 +927,185 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
       const nombre = str(args, "nombre", "skill", "habilidad", "name", "id");
       const sub = (args["args"] && typeof args["args"] === "object") ? (args["args"] as Record<string, unknown>) : args;
       return dispatchAgentOrSkill("skill", nombre, sub, ctx);
+    },
+  },
+  {
+    name: "voz_ajustar",
+    describe:
+      "Cambia la VOZ PREDETERMINADA (persistente) cuando el usuario lo pide hablando/escribiendo. Args opcionales: {personalidad} (nombre; por defecto la activa), {genero} (femenina|masculina|neutra), {edad} (infantil|adolescente|joven|adulta|mayor), {tono} (muy grave|grave|medio|agudo|muy agudo), {estilo} (natural|susurro), {acento} (americano|britanico|australiano|neutro…), {velocidad} (0.5-1.5), {openvoice_estilo} (en_br|es_default…), {instruccion} (texto libre del carácter), {persistir} (true por defecto). Ajusta el diseño OmniVoice/OpenVoice de esa personalidad y lo persiste.",
+    example: '[[ACCION: voz_ajustar {"personalidad":"Hermione","tono":"agudo","acento":"britanico","velocidad":1.1}]]',
+    handler: async (args, ctx) => {
+      const nombre = str(args, "personalidad", "personality", "perfil", "voz");
+      const design: Record<string, string> = {};
+      const g = mapVoz(VOZ_GENERO, str(args, "genero", "género", "gender", "sexo"));
+      if (g) design.gender = g;
+      const e = mapVoz(VOZ_EDAD, str(args, "edad", "age"));
+      if (e) design.age = e;
+      const t = mapVoz(VOZ_TONO, str(args, "tono", "pitch", "altura"));
+      if (t) design.pitch = t;
+      const stl = mapVoz(VOZ_ESTILO, str(args, "estilo", "style"));
+      if (stl) design.style = stl;
+      const ac = mapVoz(VOZ_ACENTO, str(args, "acento", "accent"));
+      if (ac) design.accent = ac;
+      let speed: number | undefined;
+      const velRaw = str(args, "velocidad", "speed", "rate");
+      if (velRaw) {
+        const v = parseFloat(velRaw.replace(",", "."));
+        if (Number.isFinite(v)) speed = Math.max(0.5, Math.min(1.5, v));
+      }
+      const instruct = str(args, "instruccion", "instruct", "descripcion", "descripción", "caracter", "carácter");
+      const ovRaw = norm(str(args, "openvoice_estilo", "openvoice", "estilo_openvoice"));
+      const ovEstilo = OPENVOICE2_STYLE_IDS.includes(ovRaw) ? ovRaw : undefined;
+
+      if (!Object.keys(design).length && speed === undefined && !instruct && !ovEstilo) {
+        ctx.onStatus?.("Abriendo ajustes de voz…");
+        try { ctx.router.push("/proveedor"); } catch { /* noop */ }
+        return {
+          ok: false,
+          message: "¿Qué quieres cambiar de mi voz? Dime género, edad, tono, estilo, acento, velocidad o acento OpenVoice.",
+        };
+      }
+
+      const status = "Ajustando la voz…";
+      ctx.onStatus?.(status);
+      try {
+        const [mod, vc] = await Promise.all([
+          import("@/lib/aurora/personalities"),
+          import("@/lib/aurora/tts-oss/voice-config"),
+        ]);
+        let target: PersonalityProfile | null = null;
+        if (nombre) {
+          const list = mod.listPersonalityProfiles?.() ?? [];
+          target =
+            list.find((p) => norm(p.name) === norm(nombre)) ||
+            list.find((p) => norm(p.name).includes(norm(nombre))) ||
+            null;
+        } else {
+          target = mod.getActivePersonality?.() ?? null;
+        }
+
+        const defaults = vc.DEFAULT_ASTRAURA_VOICE;
+        const buildOmni = (curOmni: Record<string, unknown>): Record<string, unknown> => {
+          const next: Record<string, unknown> = { ...curOmni };
+          if (Object.keys(design).length) {
+            const base = (curOmni.voice_design_attributes as Record<string, unknown>) ?? defaults.voice_design_attributes;
+            next.voice_design_attributes = { ...base, ...design };
+          }
+          if (speed !== undefined) {
+            const base = (curOmni.playback_parameters as Record<string, unknown>) ?? defaults.playback_parameters;
+            next.playback_parameters = { ...base, speed };
+          }
+          if (instruct) next.instruct = instruct;
+          if (ovEstilo) {
+            const base = (curOmni.openvoice as Record<string, unknown>) ?? {};
+            next.openvoice = { ...base, style: ovEstilo };
+          }
+          return next;
+        };
+
+        if (target && typeof mod.savePersonalityProfile === "function") {
+          const curOmni = (target.voiceStyle?.omni ?? {}) as unknown as Record<string, unknown>;
+          mod.savePersonalityProfile({
+            ...target,
+            voiceStyle: { ...target.voiceStyle, omni: buildOmni(curOmni) },
+          } as unknown as PersonalityProfile);
+          return {
+            ok: true,
+            message: `Listo, ajusté la voz de ${target.name}. La usaré así a partir de ahora.`,
+            status,
+          };
+        }
+        // Sin personalidad concreta → cambia mi voz predeterminada (cuenta).
+        const curOmni = (vc.getOmniConfig?.() ?? {}) as unknown as Record<string, unknown>;
+        vc.setOmniConfig(buildOmni(curOmni) as never);
+        return { ok: true, message: "Listo, ajusté mi voz predeterminada. La usaré así a partir de ahora.", status };
+      } catch {
+        return { ok: false, message: "No pude ajustar la voz ahora mismo." };
+      }
+    },
+  },
+  {
+    name: "voz_unica",
+    describe:
+      "Hace UNA locución/voz/sonido PUNTUAL con un diseño ad-hoc, SIN cambiar la personalidad ni la voz predeterminada. Args: {descripcion} (cómo debe sonar: «voz robótica y grave», «susurro misterioso»…) y opcional {texto} (qué decir).",
+    example: '[[ACCION: voz_unica {"descripcion":"voz grave y robótica","texto":"Sistema en línea."}]]',
+    handler: async (args, ctx) => {
+      const desc = str(args, "descripcion", "descripción", "voz", "estilo", "sonido", "caracter", "carácter");
+      const textoArg = str(args, "texto", "text", "frase", "dice", "di");
+      const texto = textoArg || "Escucha: así sueno con esta voz puntual.";
+      if (!desc && !textoArg) {
+        return {
+          ok: false,
+          message: "Descríbeme la voz o el sonido puntual que quieres que haga (p. ej. «voz robótica y grave»).",
+        };
+      }
+      const status = "Creando una voz única…";
+      ctx.onStatus?.(status);
+      const design: Record<string, string> = {};
+      const g = mapVoz(VOZ_GENERO, desc);
+      if (g) design.gender = g;
+      const t = mapVoz(VOZ_TONO, desc);
+      if (t) design.pitch = t;
+      const stl = mapVoz(VOZ_ESTILO, desc);
+      if (stl) design.style = stl;
+      const ac = mapVoz(VOZ_ACENTO, desc);
+      if (ac) design.accent = ac;
+      const override: Record<string, unknown> = {
+        generation_mode: "voice_design",
+        instruct: desc || "voz expresiva y clara",
+      };
+      if (Object.keys(design).length) override.voice_design_attributes = design;
+      const ok = await speakOnceAdHoc(texto, override);
+      return {
+        ok,
+        message: ok
+          ? `Hecho: dije «${texto}» con esa voz puntual, sin tocar mi personalidad.`
+          : "No pude generar esa voz puntual ahora mismo.",
+        status,
+      };
+    },
+  },
+  {
+    name: "voz_restablecer",
+    describe:
+      "Restablece la VOZ a los valores por defecto del personaje (deshace ajustes de voz). Args opcional {personalidad} (nombre; por defecto la activa).",
+    example: '[[ACCION: voz_restablecer {}]]',
+    handler: async (args, ctx) => {
+      const nombre = str(args, "personalidad", "personality", "perfil", "voz");
+      const status = "Restableciendo la voz…";
+      ctx.onStatus?.(status);
+      try {
+        const [mod, vc] = await Promise.all([
+          import("@/lib/aurora/personalities"),
+          import("@/lib/aurora/tts-oss/voice-config"),
+        ]);
+        try { vc.resetVoiceStyle?.(); } catch { /* */ }
+        let target: PersonalityProfile | null = null;
+        if (nombre) {
+          const list = mod.listPersonalityProfiles?.() ?? [];
+          target =
+            list.find((p) => norm(p.name) === norm(nombre)) ||
+            list.find((p) => norm(p.name).includes(norm(nombre))) ||
+            null;
+        } else {
+          target = mod.getActivePersonality?.() ?? null;
+        }
+        if (!target || typeof mod.savePersonalityProfile !== "function") {
+          return { ok: true, message: "Restablecí mi voz a la de fábrica.", status };
+        }
+        const preset = (mod.PERSONALITY_PRESETS ?? []).find((p) => p.id === target!.id);
+        if (preset) {
+          mod.savePersonalityProfile({ ...target, voiceStyle: preset.voiceStyle });
+          return { ok: true, message: `Restablecí la voz de ${target.name} a su carácter original.`, status };
+        }
+        const cleared = { ...target.voiceStyle };
+        delete cleared.omni;
+        delete cleared.voicePersona;
+        mod.savePersonalityProfile({ ...target, voiceStyle: cleared });
+        return { ok: true, message: `Restablecí la voz de ${target.name} a los valores por defecto.`, status };
+      } catch {
+        return { ok: false, message: "No pude restablecer la voz." };
+      }
     },
   },
 ];

@@ -599,6 +599,47 @@ export interface PersonalityMemoryPolicy {
   cerebrosPermitidos: string[] | "todos";
 }
 
+/**
+ * CARÁCTER de la voz (Adenda V2-VOZ). Rasgos de PERSONALIDAD de la voz que
+ * modulan la entrega además del diseño OmniVoice/OpenVoice. Cada personalidad
+ * tiene el suyo (actitud y aprendizaje INDEPENDIENTE), pero todas leen la emoción
+ * percibida COMPARTIDA (getLastUserVoiceEmotion) para modular tono/volumen/
+ * velocidad en la reproducción (interconexión). Opcional: al leer se aplican
+ * defaults, así que no rompe migraciones.
+ */
+export interface VoicePersona {
+  /** Descripción del carácter ("brillante, rápida, precisa, calidez mandona"…). */
+  carácter: string;
+  /** Energía base de la entrega. */
+  energía: "serena" | "alegre" | "intensa";
+  /** Velocidad base 0.5–2 (punto de partida antes de modular por emoción). */
+  velocidadBase: number;
+  /** Desplazamiento de tono -1..1 (matiz sutil sobre el pitch del diseño). */
+  toneShift: number;
+}
+
+/** Sanea un VoicePersona parcial (o basura) → objeto válido, o undefined. */
+export function sanitizeVoicePersona(raw: unknown): VoicePersona | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const car = typeof r["carácter"] === "string" ? (r["carácter"] as string).trim().slice(0, 200) : "";
+  const en = r["energía"];
+  const energía: VoicePersona["energía"] =
+    en === "serena" || en === "alegre" || en === "intensa" ? en : "alegre";
+  const vb =
+    typeof r["velocidadBase"] === "number" && Number.isFinite(r["velocidadBase"] as number)
+      ? Math.max(0.5, Math.min(2, r["velocidadBase"] as number))
+      : 1;
+  const ts =
+    typeof r["toneShift"] === "number" && Number.isFinite(r["toneShift"] as number)
+      ? Math.max(-1, Math.min(1, r["toneShift"] as number))
+      : 0;
+  if (!car && en === undefined && r["velocidadBase"] === undefined && r["toneShift"] === undefined) {
+    return undefined;
+  }
+  return { carácter: car, energía, velocidadBase: vb, toneShift: ts };
+}
+
 export interface PersonalityVoiceStyle {
   /** Tono base ("cálido", "sereno", "vivaz"…). */
   tone: string;
@@ -615,8 +656,14 @@ export interface PersonalityVoiceStyle {
    * personalidad (atributos, modo, clonación, reproducción, privacidad). Partial
    * — solo lo que la personalidad define; el resto lo pone la config de cuenta.
    * Presente = el usuario o el preset lo personalizó (no se pisa al normalizar).
+   * Incluye el sub-esquema `openvoice` (estilo del Space V2, semilla…).
    */
   omni?: Partial<AstrauraVoiceConfig>;
+  /**
+   * CARÁCTER de voz (Adenda V2-VOZ): actitud/energía de la entrega, con
+   * aprendizaje por personalidad. Opcional (defaults al leer).
+   */
+  voicePersona?: VoicePersona;
 }
 
 /** Personalidad de Aurora como ARCHIVO de configuración (JSON serializable). */
@@ -781,9 +828,10 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
       tone: "cálido",
       emotion: "serenidad luminosa",
       rate: 1,
-      pitch: 1,
-      energy: 55,
-      // OmniVoice (Adenda 77-voz): voz cálida serena por defecto de AURORA.
+      pitch: 1.02,
+      energy: 60,
+      // Voz por defecto de AURORA: FEMENINA con carácter, arquetipo Alita —
+      // juvenil, cálida, sincera y determinada; suave pero decidida.
       omni: {
         generation_mode: "voice_design",
         voice_design_attributes: {
@@ -793,7 +841,18 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
           style: "Auto",
           accent: "Auto",
         },
-        instruct: "voz cálida, cercana y serena, con brillo suave",
+        instruct:
+          "voz femenina joven, cálida, sincera y determinada, suave pero decidida, con brillo cercano",
+        // OpenVoice V2 (web, sin instalar): estilo español base + semilla de
+        // identidad sintética (timbre INSPIRADO en el arquetipo, nunca real).
+        openvoice: { style: "es_default", use_seed: true, seed_version: 1 },
+      },
+      // Carácter de voz (Adenda V2-VOZ): actitud juvenil cálida y determinada.
+      voicePersona: {
+        carácter: "juvenil, cálida, sincera y determinada; suave pero decidida (arquetipo Alita)",
+        energía: "alegre",
+        velocidadBase: 1.0,
+        toneShift: 0.05,
       },
     },
   }),
@@ -982,10 +1041,12 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
     voiceStyle: {
       tone: "resolutivo",
       emotion: "enfoque",
-      rate: 1.0,
-      pitch: 1.02,
-      energy: 60,
-      // OmniVoice (Adenda 77-voz): voz lista y chispeante, con acento británico.
+      rate: 1.08,
+      pitch: 1.06,
+      energy: 68,
+      // Voz por defecto de HERMIONE: FEMENINA con carácter, arquetipo Hermione
+      // Granger — brillante, rápida, precisa, acento británico, calidez mandona
+      // y juguetona.
       omni: {
         generation_mode: "voice_design",
         voice_design_attributes: {
@@ -995,7 +1056,19 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
           style: "Auto",
           accent: "British Accent / 英国口音",
         },
-        instruct: "voz lista y chispeante, articulada, con energía amable",
+        instruct:
+          "voz femenina joven brillante, rápida y precisa, muy articulada, con calidez mandona y juguetona",
+        // OpenVoice V2 (web): estilo inglés británico + semilla de identidad
+        // sintética (timbre INSPIRADO en el arquetipo, nunca audio real).
+        openvoice: { style: "en_br", use_seed: true, seed_version: 1 },
+      },
+      // Carácter de voz (Adenda V2-VOZ): brillante, veloz, precisa, mandona-juguetona.
+      voicePersona: {
+        carácter:
+          "brillante, rápida, precisa, articulada; acento británico; calidez mandona y juguetona (arquetipo Hermione Granger)",
+        energía: "intensa",
+        velocidadBase: 1.08,
+        toneShift: 0.08,
       },
     },
     // Pin de inteligencia: OpenRouter :free (créditos GRATIS). modo "fija" pero
@@ -1099,6 +1172,10 @@ export function normalizePersonalityProfile(raw: Partial<PersonalityProfile> | n
       // OmniVoice: se conserva el diseño de voz personalizado (o del preset) tal
       // cual, saneado. Ausente = la personalidad usa el diseño de la cuenta.
       omni: sanitizeAstrauraVoicePartial((r.voiceStyle as { omni?: unknown } | undefined)?.omni),
+      // Carácter de voz (Adenda V2-VOZ): saneado, ausente = defaults de fábrica.
+      voicePersona: sanitizeVoicePersona(
+        (r.voiceStyle as { voicePersona?: unknown } | undefined)?.voicePersona,
+      ),
     },
     intelligence: normalizeIntelligence(r.intelligence),
     knowledge: cleanStrArray(r.knowledge, 24, 120),

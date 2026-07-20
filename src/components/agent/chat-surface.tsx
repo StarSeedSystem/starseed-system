@@ -28,6 +28,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import VoiceProcessingIndicator from "@/components/aurora/voice-processing-indicator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -370,6 +371,9 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
   // ── Interfaz del chat (idéntica en ambas variantes) ──
   const chatColumn = (
     <div className="flex-1 flex flex-col rounded-xl border bg-background/50 overflow-hidden shadow-sm relative min-w-0 w-full max-w-full box-border">
+      {/* Indicador ANIMADO de procesamiento de voz (Adenda V2-VOZ): flota sobre el
+          hilo mientras el sistema de voz da voz a la respuesta. */}
+      <VoiceProcessingIndicator variant="float" />
       <div className="absolute top-3 right-3 left-3 sm:left-auto z-10 flex flex-wrap justify-end gap-2 max-w-[calc(100%-1.5rem)]">
         {fullscreen ? (
           <>

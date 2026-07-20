@@ -73,6 +73,7 @@ const AURORA_ENGINE_LABEL: Record<AuroraVoiceEngine, string> = {
     bark: "Bark (neuronal)",
     "gpt-sovits": "GPT-SoVITS (clonación)",
     omnivoice: "OmniVoice (multilingüe)",
+    openvoice2: "OpenVoice V2 (web)",
 };
 
 const PERF_OPTIONS: Array<{ id: PerfMode; label: string; Icon: React.ComponentType<{ className?: string }> }> = [

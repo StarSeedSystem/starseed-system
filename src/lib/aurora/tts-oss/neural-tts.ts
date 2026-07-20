@@ -93,6 +93,7 @@ import {
   type NeuralEngineSettings,
   type NeuralVoiceEngine,
 } from "@/lib/aurora/tts-oss/voice-config";
+import type { OpenVoice2SeedSpec } from "@/lib/aurora/tts-oss/openvoice2";
 import {
   decorateTextForBark,
   decorateTextForVoxCPM,
@@ -121,6 +122,9 @@ export const ENGINE_TIMEOUT_MS: Record<NeuralVoiceEngine, number> = {
   bark: 20_000,
   "gpt-sovits": 20_000,
   omnivoice: 20_000,
+  // OpenVoice V2 gestiona sus propios presupuestos dentro de su cliente (cola +
+  // cold start del Space); este valor es un techo nominal (no se usa: se delega).
+  openvoice2: 120_000,
 };
 
 /** TTL de la caché de disponibilidad (ping), en ms. */
@@ -137,6 +141,9 @@ const ENGINE_PATHS: Record<NeuralVoiceEngine, string[]> = {
   bark: ["/generate", "/tts", "/api/tts"],
   "gpt-sovits": ["/tts", "/", "/api/tts"],
   omnivoice: ["/tts", "/generate", "/api/tts"],
+  // OpenVoice V2 no usa POST JSON directo: habla por el protocolo de cola de su
+  // Space (openvoice2.ts). Sin rutas → nunca entra en el bucle de candidateUrls.
+  openvoice2: [],
 };
 
 /**
@@ -192,6 +199,13 @@ export const NEURAL_ENGINE_META: Record<
     voicePlaceholder: "sid o nombre de voz",
     defaultVoice: "", // el servidor elige su voz por defecto si no se indica
     repo: "https://github.com/k2-fsa/OmniVoice",
+  },
+  openvoice2: {
+    label: "OpenVoice V2 (web, sin instalar)",
+    hint: "Voz de nube gratis (Space de MyShell): clona timbre a partir de una semilla o de tu audio",
+    voicePlaceholder: "estilo (en_br, es_default…)",
+    defaultVoice: "", // el estilo/semilla los resuelve el cliente openvoice2.ts
+    repo: "https://github.com/myshell-ai/OpenVoice",
   },
 };
 
@@ -484,6 +498,14 @@ export async function neuralSynthesize(
   const clean = (text || "").trim();
   if (clean.length === 0) return null;
   const s = opts.settings ?? getEngineSettings(engine);
+
+  // OpenVoice V2 (web, sin instalar): motor de NUBE integrado (como el híbrido
+  // OmniVoice) — no es un endpoint del usuario. Se delega SIEMPRE a su cliente,
+  // que gestiona la cola del Space, la semilla de identidad y el fallback honesto.
+  if (engine === "openvoice2") {
+    return await delegateOpenVoice2(clean, s, opts.onError);
+  }
+
   const endpoint = normalizeEndpoint(s.endpoint);
   if (!endpoint) {
     // OmniVoice sin endpoint manual = MODO HÍBRIDO INTEGRADO (daemon local ↔ nube).
@@ -770,6 +792,57 @@ async function tryGradioVoxCPM(
 let currentAudio: HTMLAudioElement | null = null;
 let currentUrl: string | null = null;
 
+/**
+ * MODULACIÓN SUTIL de la reproducción por la EMOCIÓN PERCIBIDA del usuario
+ * (Adenda V2-VOZ). Lee la instantánea compartida que mantiene `audio-emotion.ts`
+ * en `window.STARSEED_userVoiceEmotion` (sin acoplar el módulo) y devuelve
+ * multiplicadores de velocidad/volumen dentro de los límites del contrato
+ * (±8% velocidad · ±15% volumen). Interconexión viva entre Aurora y Hermione:
+ * ambas leen la MISMA emoción compartida. Con guardas; null = sin cambios.
+ */
+function emotionPlaybackMod(): { rate: number; volume: number } | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const e = (
+      window as unknown as {
+        STARSEED_userVoiceEmotion?: { mood?: string; confidence?: number };
+      }
+    ).STARSEED_userVoiceEmotion;
+    if (!e || typeof e.confidence !== "number" || e.confidence < 0.35) return null;
+    let rate = 1;
+    let volume = 1;
+    switch (e.mood) {
+      case "alegre":
+        rate = 1.06;
+        volume = 1.12;
+        break;
+      case "enérgico":
+        rate = 1.08;
+        volume = 1.15;
+        break;
+      case "tenso":
+        rate = 1.04;
+        volume = 1.06;
+        break;
+      case "triste":
+        rate = 0.93;
+        volume = 0.88;
+        break;
+      case "sereno":
+        rate = 0.96;
+        volume = 0.95;
+        break;
+      default:
+        return null; // neutral → sin modulación
+    }
+    rate = Math.max(0.92, Math.min(1.08, rate));
+    volume = Math.max(0.85, Math.min(1.15, volume));
+    return { rate, volume };
+  } catch {
+    return null;
+  }
+}
+
 export interface NeuralSpeakOptions {
   /** Config del motor (por defecto, la persistida en la clave unificada). */
   settings?: NeuralEngineSettings;
@@ -845,6 +918,19 @@ export async function neuralSpeak(
         fail("Fallo al reproducir el audio del motor neural.");
         settle(null);
       };
+
+      // Modulación SUTIL por la emoción percibida del usuario (V2-VOZ).
+      try {
+        const mod = emotionPlaybackMod();
+        if (mod) {
+          audio.playbackRate = mod.rate;
+          // Dejar que el tono acompañe la velocidad (matiz expresivo, sutil).
+          try {
+            (audio as unknown as { preservesPitch?: boolean }).preservesPitch = false;
+          } catch { /* */ }
+          audio.volume = mod.volume;
+        }
+      } catch { /* */ }
 
       try { opts.onStart?.(); } catch { /* */ }
 
@@ -966,6 +1052,8 @@ export function neuralEngineConfigured(engine: NeuralVoiceEngine): boolean {
     // por el daemon local (127.0.0.1:4444) o por la nube gratis (HF Space). Está
     // SIEMPRE "configurado", tenga o no un endpoint manual el usuario.
     if (engine === "omnivoice") return true;
+    // OpenVoice V2 (web): Space integrado, CERO config → siempre "configurado".
+    if (engine === "openvoice2") return true;
     const s = getEngineSettings(engine);
     if (!normalizeEndpoint(s.endpoint)) return false;
     if (engine === "voicebox" && !(s.profileId || s.voice)) return false;
@@ -987,6 +1075,72 @@ async function delegateOmniHybrid(
   try {
     const { synthesizeOmniVoiceHybrid } = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
     return await synthesizeOmniVoiceHybrid(text, { lang: s.lang }).catch(() => null);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Delega en el cliente OPENVOICE V2 (Space web, sin instalar). Resuelve la config
+ * EFECTIVA de OmniVoice (cuenta + personalidad → sub-esquema `openvoice`) y la
+ * personalidad activa (para la semilla de identidad, el estilo y el aprendizaje
+ * por voz). NUNCA lanza; null ⇒ la cadena de voz sigue.
+ */
+async function delegateOpenVoice2(
+  text: string,
+  s: NeuralEngineSettings,
+  onError?: (message: string) => void,
+): Promise<Blob | null> {
+  try {
+    const [{ synthesizeOpenVoice2 }, hybrid] = await Promise.all([
+      import("@/lib/aurora/tts-oss/openvoice2"),
+      import("@/lib/aurora/tts-oss/omnivoice-hybrid"),
+    ]);
+    const omni = await hybrid.resolveActiveOmni().catch(() => null);
+    const ov = omni?.openvoice;
+
+    let personalityId: string | undefined;
+    let seedAttrs: OpenVoice2SeedSpec | undefined;
+    try {
+      const mod = await import("@/lib/aurora/personalities");
+      const profile = mod.getActivePersonality?.();
+      personalityId = profile?.id;
+      // Semilla ad-hoc (para personalidades sin semilla curada): usa SU diseño de
+      // voz, INSPIRADO en su arquetipo — jamás audio real de nadie.
+      if (profile && typeof mod.mapPersonalityToDesign === "function") {
+        seedAttrs = {
+          attrs: mod.mapPersonalityToDesign(profile),
+          instruct:
+            (profile.voiceStyle?.omni?.instruct as string | undefined) ||
+            profile.voiceStyle?.tone ||
+            "",
+          lang: profile.idioma || s.lang || "es",
+          text: "",
+        };
+      }
+    } catch {
+      /* sin personalidades → manda la cuenta */
+    }
+
+    const blob = await synthesizeOpenVoice2(text, {
+      lang: s.lang,
+      personalityId,
+      styleHint: ov?.style,
+      useSeed: ov?.use_seed,
+      seedVersion: ov?.seed_version,
+      seedAttrs,
+    }).catch(() => null);
+
+    if (!blob) {
+      try {
+        onError?.(
+          "OpenVoice V2 no devolvió audio (Space dormido o fuera de servicio); la cadena de voz sigue.",
+        );
+      } catch {
+        /* */
+      }
+    }
+    return blob;
   } catch {
     return null;
   }

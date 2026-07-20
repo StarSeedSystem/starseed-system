@@ -92,6 +92,12 @@ import {
   type OmniRoute,
 } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 import {
+  synthesizeOpenVoice2,
+  getOpenVoice2State,
+  OPENVOICE2_SPACE,
+  type OpenVoice2State,
+} from "@/lib/aurora/tts-oss/openvoice2";
+import {
   VOICE_EMOTIONS,
   emitVoiceStyle,
   resolveVoiceParams,
@@ -179,7 +185,51 @@ export function VoiceOssPanel({ className }: { className?: string }) {
   const [omniTesting, setOmniTesting] = useState(false);
   const [omniStatus, setOmniStatus] = useState<string>("");
 
+  // ── OpenVoice V2 (web, sin instalar): estado del Space + prueba honesta ──
+  const [ov2State, setOv2State] = useState<OpenVoice2State>(() => {
+    try {
+      return getOpenVoice2State();
+    } catch {
+      return "dormido";
+    }
+  });
+  const [ov2Testing, setOv2Testing] = useState(false);
+  const [ov2Status, setOv2Status] = useState<string>("");
+
   const mountedRef = useRef(true);
+
+  const probarOpenVoice2 = useCallback(async () => {
+    if (ov2Testing) return;
+    setOv2Testing(true);
+    setOv2Status("Despertando OpenVoice V2 en la web…");
+    try {
+      const blob = await synthesizeOpenVoice2(
+        "Hola, soy Aurora. Esta es mi voz OpenVoice versión dos, en la web y sin instalar nada.",
+        { lang: "es", personalityId: "preset-aurora", onStatus: (m) => setOv2Status(m) },
+      );
+      const st = getOpenVoice2State();
+      setOv2State(st);
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => {
+          try { URL.revokeObjectURL(url); } catch { /* */ }
+        };
+        await audio.play().catch(() => {});
+        setOv2Status("Sonando desde la nube gratis (OpenVoice V2).");
+      } else {
+        setOv2Status(
+          st === "fuera"
+            ? "El Space de OpenVoice V2 no responde ahora mismo; Aurora usa el respaldo (la cadena sigue)."
+            : "OpenVoice V2 está despertando o sin semilla; Aurora usa el respaldo mientras tanto.",
+        );
+      }
+    } catch {
+      setOv2Status("No se pudo probar OpenVoice V2.");
+    } finally {
+      setOv2Testing(false);
+    }
+  }, [ov2Testing]);
 
   // Refresca la RUTA de OmniVoice (local ↔ nube) al montar y tras probar.
   useEffect(() => {
@@ -355,6 +405,18 @@ export function VoiceOssPanel({ className }: { className?: string }) {
       const meta = NEURAL_ENGINE_META[id];
       let hint = meta.hint;
       let dot: EngineOption["dot"];
+      // OpenVoice V2 (web, sin instalar): no es un endpoint. Su estado viene del
+      // cliente ('listo' | 'dormido' | 'fuera'), no de un ping a un servidor.
+      if (id === "openvoice2") {
+        hint =
+          ov2State === "listo"
+            ? "Web · lista, sin instalar nada"
+            : ov2State === "fuera"
+              ? "Web · el Space no responde ahora · hablará el respaldo"
+              : "Web · sin instalar (semilla de identidad sintética)";
+        dot = ov2State === "listo" ? "ok" : ov2State === "fuera" ? "bad" : "warn";
+        return { id, label: meta.label, hint, dot };
+      }
       if (ping === "ok") {
         hint = "Endpoint conectado · " + meta.hint;
         dot = "ok";
@@ -796,6 +858,102 @@ export function VoiceOssPanel({ className }: { className?: string }) {
           </span>
         </div>
         {omniStatus && <p className="text-[11px] text-foreground/60">{omniStatus}</p>}
+      </div>
+
+      {/* ── OpenVoice V2 · voz de nube (web, sin instalar · Adenda V2-VOZ) ────── */}
+      <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.02] p-3">
+        <div className="flex items-center gap-2">
+          <Cloud className="w-4 h-4 text-sky-300" />
+          <span className="text-sm font-medium text-foreground/90">OpenVoice V2 (web)</span>
+          {/* Chip de estado honesto del Space */}
+          <span
+            className={cn(
+              "ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+              ov2State === "listo"
+                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                : ov2State === "fuera"
+                  ? "border-amber-400/30 bg-amber-500/10 text-amber-200"
+                  : "border-sky-400/30 bg-sky-500/10 text-sky-200",
+            )}
+          >
+            {ov2State === "listo" ? (
+              <CheckCircle2 className="w-3 h-3" />
+            ) : ov2State === "fuera" ? (
+              <WifiOff className="w-3 h-3" />
+            ) : (
+              <Waves className="w-3 h-3" />
+            )}
+            {ov2State === "listo" ? "Lista" : ov2State === "fuera" ? "Fuera de servicio" : "Dormida"}
+          </span>
+        </div>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          Voz de nube gratis, sin instalar nada. Clona el <b className="text-foreground/80">timbre</b>{" "}
+          desde una semilla de identidad sintética (inspirada en el arquetipo del personaje, nunca
+          audio real) o desde tu propio audio. Va justo detrás de OmniVoice: si el Space duerme o
+          falla, la cadena sigue y Aurora nunca calla.
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-8 gap-1.5"
+            onClick={probarOpenVoice2}
+            disabled={ov2Testing}
+          >
+            {ov2Testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+            Probar OpenVoice V2
+          </Button>
+          {ov2Testing && (
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-sky-200">
+              <span className="ssvp-mini-eq" aria-hidden>
+                <i /><i /><i />
+              </span>
+              procesando…
+            </span>
+          )}
+          <a
+            href={OPENVOICE2_SPACE}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[11px] text-sky-300/80 hover:text-sky-200 underline underline-offset-2"
+          >
+            Ver el Space
+          </a>
+        </div>
+        {ov2Status && <p className="text-[11px] text-foreground/60">{ov2Status}</p>}
+        <style jsx>{`
+          .ssvp-mini-eq {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            height: 12px;
+          }
+          .ssvp-mini-eq i {
+            width: 2.5px;
+            height: 40%;
+            border-radius: 2px;
+            background: linear-gradient(180deg, rgba(150, 220, 255, 0.95), rgba(0, 127, 255, 0.85));
+            animation: ssvp-mini 0.9s ease-in-out infinite;
+          }
+          .ssvp-mini-eq i:nth-child(2) {
+            animation-delay: 0.15s;
+          }
+          .ssvp-mini-eq i:nth-child(3) {
+            animation-delay: 0.3s;
+          }
+          @keyframes ssvp-mini {
+            0%,
+            100% {
+              height: 30%;
+              opacity: 0.7;
+            }
+            50% {
+              height: 100%;
+              opacity: 1;
+            }
+          }
+        `}</style>
       </div>
 
       {/* Selector de motor (con estado de disponibilidad) */}
