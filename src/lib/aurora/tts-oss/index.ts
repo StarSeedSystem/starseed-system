@@ -196,6 +196,20 @@ export {
 } from "@/lib/aurora/tts-oss/neural-tts";
 
 export {
+  // OpenVoice (web gratis, automática — Adendas 78-82): estado para reportes.
+  getOpenVoice2State,
+  warmOpenVoice2,
+  type OpenVoice2State,
+} from "@/lib/aurora/tts-oss/openvoice2";
+
+export {
+  // OmniVoice HÍBRIDO (nube gratis ↔ daemon local): ruta viva para reportes.
+  getOmniVoiceRouteState,
+  refreshOmniRoute,
+  type OmniRoute,
+} from "@/lib/aurora/tts-oss/omnivoice-hybrid";
+
+export {
   // Motor Kokoro (fachada de alto nivel: reproduce por <audio> desde blob)
   kokoroAvailable,
   kokoroModelReady,

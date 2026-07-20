@@ -146,13 +146,63 @@ export function LocalEngineInstaller({ installed = false }: { installed?: boolea
           arranque.
         </p>
       )}
-      {(det.os === "android" || det.os === "ios") && (
-        <p className="leading-snug text-sky-100/60">
-          En {det.label} todavía no hay instalación nativa: la voz funciona igualmente con la
-          nube gratis automática, y este equipo puede usar el motor de otra neurona tuya
-          cuando esté en línea.
-        </p>
-      )}
+      {(det.os === "android" || det.os === "ios") && <MobileOneTapInstall label={det.label} />}
+    </div>
+  );
+}
+
+/**
+ * INSTALACIÓN AUTOMÁTICA SIN TERMINAL para Android/iOS (Adenda 84): un toque
+ * descarga la voz local del navegador (Kokoro, ~80 MB) DENTRO de la app — sin
+ * comandos ni permisos del sistema. Queda para siempre (caché del navegador) y
+ * habla sin internet. La nube gratis sigue siendo la primera opción automática.
+ */
+function MobileOneTapInstall({ label }: { label: string }) {
+  const [phase, setPhase] = useState<"idle" | "descargando" | "lista" | "error">("idle");
+  const [pct, setPct] = useState(0);
+
+  const instalar = async () => {
+    if (phase === "descargando") return;
+    setPhase("descargando");
+    setPct(0);
+    try {
+      const m = await import("@/lib/aurora/tts-oss");
+      const ok = await m.kokoroPreload((p: { progress?: number }) => {
+        if (typeof p?.progress === "number") setPct(Math.round(p.progress * 100));
+      });
+      setPhase(ok ? "lista" : "error");
+    } catch {
+      setPhase("error");
+    }
+  };
+
+  if (phase === "lista") {
+    return (
+      <p className="leading-snug text-emerald-200/90">
+        ✅ Voz local instalada en este {label}: habla sin internet y con privacidad total.
+        La nube gratis sigue de primera; esta queda de respaldo instantáneo.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        className="h-9 w-full cursor-pointer justify-center gap-2 bg-emerald-500/12 text-[11.5px] text-emerald-100 hover:bg-emerald-500/22"
+        disabled={phase === "descargando"}
+        onClick={() => void instalar()}
+      >
+        <Zap className="h-3.5 w-3.5 text-emerald-300" />
+        {phase === "descargando"
+          ? `Instalando voz local… ${pct > 0 ? pct + "%" : ""}`
+          : `Instalar voz local en este ${label} (~80 MB, sin terminal)`}
+      </Button>
+      <p className="leading-snug text-sky-100/50">
+        Un toque: se descarga dentro de la app y queda instalada (funciona sin internet).
+        {phase === "error" ? " No se pudo completar ahora — la nube gratis sigue hablando; reintenta cuando quieras." : ""}
+      </p>
     </div>
   );
 }

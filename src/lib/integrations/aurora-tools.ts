@@ -1084,9 +1084,9 @@ async function runVoiceControl(
   }
 }
 
-/** Motor de voz desde un alias hablado ("navegador", "bark", "sovits"…). */
+/** Motor de voz desde un alias hablado ("navegador", "openvoice", "bark"…). */
 function normalizeEngineAlias(v: unknown):
-  | "browser" | "kokoro" | "kitten" | "bark" | "gpt-sovits" | "omnivoice" | undefined {
+  | "browser" | "kokoro" | "kitten" | "bark" | "gpt-sovits" | "omnivoice" | "openvoice2" | undefined {
   const n = String(v ?? "")
     .toLowerCase()
     .normalize("NFD")
@@ -1094,6 +1094,7 @@ function normalizeEngineAlias(v: unknown):
     .trim();
   if (!n) return undefined;
   if (["navegador", "browser", "nativa", "sistema"].includes(n)) return "browser";
+  if (n.includes("openvoice") || n.includes("open voice")) return "openvoice2";
   if (n.includes("kokoro")) return "kokoro";
   if (n.includes("kitten")) return "kitten";
   if (n.includes("bark")) return "bark";
@@ -1248,31 +1249,82 @@ export const AURORA_VOICE_TOOLS: AuroraVoiceTool[] = [
     kind: "voice",
     run: () =>
       runVoiceControl(async (m) => {
+        // ESTADO REAL (Adenda 84): la voz es AUTOMÁTICA por defecto — OpenVoice
+        // (web gratis) primero para toda personalidad, OmniVoice híbrido detrás
+        // (nube gratis o daemon local), Kokoro instalable y el navegador como
+        // suelo. Este reporte cuenta la CADENA VIVA, no los endpoints manuales
+        // (esos son opcionales y solo se listan si el usuario los configuró).
+        await m.refreshPersonalityVoicePin().catch(() => null);
         const cfg = m.getVoiceConfig();
+        const chain = m.buildVoiceChain(cfg);
+        const activo = m.resolveActiveVoiceEngine(cfg);
+        const NOMBRES: Record<string, string> = {
+          openvoice2: "OpenVoice (web gratis, automática)",
+          omnivoice: "OmniVoice híbrida (nube gratis ↔ motor local)",
+          kokoro: "Kokoro (local en este dispositivo)",
+          voxcpm: "VoxCPM",
+          voicebox: "Voicebox",
+          bark: "Bark",
+          "gpt-sovits": "GPT-SoVITS",
+          kitten: "Kitten",
+          browser: "Voz del navegador",
+        };
+        const parts: string[] = [
+          `Mi voz funciona AUTOMÁTICAMENTE, sin configurar nada. Motor activo ahora: ${NOMBRES[activo] ?? activo}.`,
+          `Cadena de voz (si un motor no responde, sigue el siguiente): ${
+            [...chain.map((c) => NOMBRES[c] ?? c), "Voz del navegador (suelo garantizado)"].join(" → ")
+          }.`,
+        ];
+        // Estados vivos de los motores automáticos.
+        try {
+          const ov = m.getOpenVoice2State();
+          parts.push(
+            `OpenVoice: ${
+              ov === "listo"
+                ? "✅ lista (endpoint gratuito de Hugging Face verificado)"
+                : ov === "fuera"
+                  ? "⏳ sus endpoints gratuitos están descansando; vuelven solos (mientras, habla el siguiente motor)"
+                  : "🌥 en la nube gratis, despierta al primer uso"
+            }.`,
+          );
+        } catch { /* */ }
+        try {
+          const ruta = m.getOmniVoiceRouteState();
+          parts.push(
+            `OmniVoice: ${
+              ruta === "local"
+                ? "⚡ motor LOCAL instalado y activo en este equipo (privado y rápido)"
+                : "🌥 nube gratis automática (instala el motor local desde el editor de voz para privacidad total)"
+            }.`,
+          );
+        } catch { /* */ }
+        try {
+          parts.push(
+            m.kokoroModelReady()
+              ? "Kokoro: ✅ instalada en este dispositivo (funciona sin internet)."
+              : "Kokoro: instalable con un toque (~80 MB, sin terminal — también en Android/iOS).",
+          );
+        } catch { /* */ }
+        // Estilo actual.
         const style = m.getVoiceStyle();
-        const parts: string[] = [`Motor activo: ${cfg.engine}.`];
         const styleBits: string[] = [];
         if (style.emotion) styleBits.push(`emoción ${style.emotion}`);
         if (style.rate !== undefined) styleBits.push(`velocidad ${style.rate.toFixed(2)}`);
         if (style.pitch !== undefined) styleBits.push(`tono ${style.pitch.toFixed(2)}`);
         if (style.energy !== undefined) styleBits.push(`energía ${Math.round(style.energy)}`);
         if (styleBits.length) parts.push(`Estilo: ${styleBits.join(", ")}.`);
+        // Endpoints MANUALES (opcionales): solo se mencionan los configurados.
+        const manuales: string[] = [];
         for (const id of m.NEURAL_VOICE_ENGINES) {
+          if (id === "openvoice2" || id === "omnivoice") continue; // automáticos
           const s = m.getEngineSettings(id);
-          if (!s.endpoint) {
-            parts.push(`${id}: sin endpoint.`);
-            continue;
-          }
+          if (!s.endpoint) continue;
           const ping = await m.pingNeuralEngine(id).catch(() => "unreachable" as const);
-          parts.push(`${id}: ${ping === "ok" ? "disponible" : "endpoint configurado pero no responde"}.`);
+          manuales.push(`${id} (${ping === "ok" ? "disponible" : "configurado, no responde"})`);
         }
+        if (manuales.length) parts.push(`Endpoints manuales: ${manuales.join(" · ")}.`);
         if (cfg.symbiotic) parts.push("Modo simbiótico Bark+SoVITS activado.");
-        parts.push(
-          cfg.browserVoiceURI
-            ? "Voz del navegador: fijada por ti."
-            : "Voz del navegador: automática (la mejor rankeada).",
-        );
-        return { ok: true, message: parts.join(" "), data: { motor: cfg.engine } };
+        return { ok: true, message: parts.join(" "), data: { motor: activo, cadena: chain } };
       }),
   },
 ];
