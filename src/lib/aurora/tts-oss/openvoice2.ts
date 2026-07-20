@@ -181,6 +181,9 @@ export const OPENVOICE2_SEED_SPECS: Record<"aurora" | "hermione", OpenVoice2Seed
 /** Estado del motor OpenVoice V2 para pintar chips honestos. */
 export type OpenVoice2State = "listo" | "dormido" | "fuera";
 let lastState: OpenVoice2State = "dormido";
+/** Última expedición de resurrección con todos los endpoints apartados. */
+let lastResurrectionAt = 0;
+const RESURRECTION_EVERY_MS = 10 * 60_000;
 /** Última vez que el Space respondió algo (para saber si está "calentito"). */
 let warmedUp = false;
 
@@ -1212,7 +1215,18 @@ export async function synthesizeOpenVoice2(
   // endpoint (cacheada por sesión). Un fallo de inferencia aparta el endpoint
   // 6 h y se pasa al siguiente AUTOMÁTICAMENTE. Aurora nunca calla: si todos
   // fallan, devolvemos null y la cadena sigue (Kokoro/navegador).
-  const endpoints = orderedOpenVoiceEndpoints().slice(0, 3);
+  let endpoints = orderedOpenVoiceEndpoints().slice(0, 3);
+  // CORTAFUEGOS ANTI-ATASCO (Adenda 81): si TODOS los endpoints están apartados
+  // por fallos recientes, no gastamos el turno de voz en ellos en cada frase —
+  // declinamos AL INSTANTE (la cadena sigue con OmniVoice/Kokoro) y solo cada
+  // 10 min dejamos pasar UNA expedición de resurrección para ver si sanaron.
+  const allBenched = endpoints.length > 0 && endpoints.every((e) => isOpenVoiceEndpointBad(e.id));
+  if (allBenched) {
+    const now = Date.now();
+    if (now - lastResurrectionAt < RESURRECTION_EVERY_MS) return null;
+    lastResurrectionAt = now;
+    endpoints = endpoints.slice(0, 1); // una sonda, no tres
+  }
   const mood = liveUserMood();
 
   for (const ep of endpoints) {

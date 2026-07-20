@@ -185,6 +185,7 @@ const btnAzure =
 const labelCls = "text-[10px] uppercase tracking-wide text-white/45";
 
 import { getBrain, saveBrain } from "@/lib/brains/brains";
+import { LocalEngineInstaller } from "@/components/settings/aurora/local-engine-installer";
 
 /* ═══════════════════════════════ Panel ═══════════════════════════════ */
 
@@ -1521,6 +1522,12 @@ function PersonalityEditor({
                 )}
               </div>
               {ov2Status && <p className="mt-1 text-[11px] text-white/55">{ov2Status}</p>}
+
+              {/* Instalación del motor LOCAL, visible también aquí (Adenda 81):
+                  detección de SO/capacidades + una línea + permisos claros. */}
+              <div className="mt-2">
+                <LocalEngineInstaller installed={getOmniVoiceRouteState() === "local"} />
+              </div>
 
               <style jsx>{`
                 .ov2-eq {

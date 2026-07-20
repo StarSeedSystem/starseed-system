@@ -63,15 +63,40 @@ function appIdentity(): { referer: string; title: string } {
   return { referer, title: "StarSeed OS · Aurora" };
 }
 
+/**
+ * ¿Modelo de coste 0? El PROXY COMUNITARIO (Adenda 81) solo admite estos.
+ */
+function isFreeModelId(model: string): boolean {
+  return model === "openrouter/free" || model.endsWith(":free");
+}
+
 async function chat(
   config: DecryptedProviderConfig,
   messages: ChatMessage[],
   options: ChatOptions
 ): Promise<ChatResponse> {
   const baseUrl = (config.baseUrl || info.defaultBaseUrl).replace(/\/$/, "");
-  const model = options.model || config.defaultModel || info.defaultModels[0];
+  let model = options.model || config.defaultModel || info.defaultModels[0];
   const stream = Boolean(options.onChunk);
   const { referer, title } = appIdentity();
+
+  // ── ACCESO COMUNITARIO (Adenda 81) ────────────────────────────────────────
+  // Sin clave personal → los modelos :free van por el PROXY del servidor
+  // (/api/ai/openrouter), donde vive la clave compartida de la comunidad
+  // (OPENROUTER_SHARED_KEY). La clave jamás toca el navegador. Con clave
+  // personal, la petición va DIRECTA a OpenRouter como siempre (y si esa clave
+  // resulta inválida, reintentamos UNA vez por el proxy para no dejar a nadie
+  // sin los :free por una clave caducada).
+  const hasUserKey = typeof config.apiKey === "string" && config.apiKey.trim().length > 8;
+  const canUseSharedProxy =
+    typeof window !== "undefined" && isFreeModelId(model);
+  if (!hasUserKey && !canUseSharedProxy) {
+    throw new Error(
+      "OpenRouter: sin clave personal solo están disponibles los modelos :free (vía acceso comunitario)."
+    );
+  }
+  const useProxy = !hasUserKey && canUseSharedProxy;
+  if (useProxy && !isFreeModelId(model)) model = "openrouter/free";
 
   const body: Record<string, unknown> = {
     model,
@@ -81,22 +106,43 @@ async function chat(
   };
   if (options.maxTokens) body.max_tokens = options.maxTokens;
 
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.apiKey}`,
-      // Cabeceras propias de OpenRouter (permitidas por su CORS).
-      "HTTP-Referer": referer,
-      "X-Title": title,
-    },
-    body: JSON.stringify(body),
-    signal: options.signal,
-  });
+  const doFetch = (viaProxy: boolean): Promise<Response> =>
+    fetch(viaProxy ? "/api/ai/openrouter" : `${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // El proxy pone la clave compartida EN EL SERVIDOR; directo → la del usuario.
+        ...(viaProxy ? {} : { Authorization: `Bearer ${config.apiKey}` }),
+        // Cabeceras propias de OpenRouter (permitidas por su CORS; inofensivas same-origin).
+        "HTTP-Referer": referer,
+        "X-Title": title,
+      },
+      body: JSON.stringify(body),
+      signal: options.signal,
+    });
+
+  let res = await doFetch(useProxy);
+
+  // Clave personal inválida y el modelo es :free → segunda oportunidad por el
+  // proxy comunitario antes de rendirnos (el usuario oye a Aurora igualmente y
+  // el registro de rutas le sigue avisando de que su clave está caducada).
+  if (!res.ok && (res.status === 401 || res.status === 403) && !useProxy && canUseSharedProxy) {
+    try {
+      const retry = await doFetch(true);
+      if (retry.ok) res = retry;
+    } catch {
+      /* seguimos con el error original */
+    }
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     // Mensajes accionables: el router los usa para decidir cooldown vs failover.
+    if (res.status === 503 && useProxy) {
+      throw new Error(
+        "OpenRouter comunitario aún no configurado en este despliegue (OPENROUTER_SHARED_KEY); Aurora sigue con las demás fuentes gratis."
+      );
+    }
     if (res.status === 401 || res.status === 403) {
       throw new Error(
         `OpenRouter ${res.status}: clave no válida o sin permisos. Revisa tu clave gratuita en https://openrouter.ai/keys`

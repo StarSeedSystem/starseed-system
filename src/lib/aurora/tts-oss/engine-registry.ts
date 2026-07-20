@@ -450,11 +450,18 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
       }
     }
     // 2) MOTOR PREFERIDO de la personalidad (Adenda 80): el predeterminado
-    //    configurable (Aurora/Hermione traen "openvoice2" de fábrica). Aplica
-    //    en cualquier modo de inteligencia y NUNCA es exclusivo: va primero en
-    //    la cadena y, si no responde, los demás eslabones siguen detrás.
+    //    configurable. Aplica en cualquier modo de inteligencia y NUNCA es
+    //    exclusivo: va primero en la cadena y, si no responde, el resto sigue.
     const preferred = (profile?.voiceStyle as { engine?: unknown } | undefined)?.engine;
-    cachedPin = isVoiceEngineId(preferred) ? preferred : null;
+    if (isVoiceEngineId(preferred)) {
+      cachedPin = preferred;
+      return cachedPin;
+    }
+    // 3) PREDETERMINADO GLOBAL (Adenda 81, pedido por Alex): TODA personalidad
+    //    sin motor propio habla con OpenVoice primero — también las creadas por
+    //    el usuario y las heredadas. Configurable por personalidad en su editor
+    //    («Motor de voz preferido»); jamás exclusivo (la cadena sigue detrás).
+    cachedPin = "openvoice2";
     return cachedPin;
   } catch {
     cachedPin = null;
