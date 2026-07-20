@@ -40,6 +40,8 @@ import { toast } from "sonner";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { MessageActionBar } from "@/components/aurora/message-action-bar";
 import { MessageProcessModal } from "@/components/aurora/message-process-modal";
+import { VoiceNoteBar } from "@/components/aurora/voice-note-bar";
+import { initVoiceNotesCapture } from "@/lib/aurora/voice-notes";
 import { useAurora } from "@/components/aurora/aurora-provider";
 import { ChatHeaderOptions } from "@/components/aurora/chat-header-options";
 import { ChatAttachButton, PendingAttachmentChips, MessageAttachmentChips } from "@/components/aurora/chat-attach-button";
@@ -140,6 +142,14 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
   useEffect(() => {
     setConfigs(loadConfigs());
     setActiveProviderIdState(getActiveProviderId());
+  }, []);
+
+  // Captura de NOTAS DE VOZ (Adenda 87): instala UNA sola vez el oyente que guarda
+  // el audio neural generado (evento `starseed:voice-note`) para adjuntarlo a cada
+  // mensaje. Idempotente (guard interno): se queda vivo toda la sesión aunque se
+  // navegue entre el chat embebido y el de pantalla completa (no se desinstala).
+  useEffect(() => {
+    initVoiceNotesCapture();
   }, []);
 
   // Deep-link `/agent/chat?id=…`: activa la conversación indicada al montar.
@@ -485,6 +495,11 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
                       }}
                       onViewProcess={(meta) => setProcess({ open: true, meta })}
                     />
+                  )}
+                  {/* Nota de voz (Adenda 87): mini reproductor del audio que sonó +
+                      «Regenerar voz». Solo en respuestas de Astraura con contenido. */}
+                  {!msg.pending && msg.role === "agent" && msg.content.trim() && (
+                    <VoiceNoteBar text={msg.content} />
                   )}
                 </div>
               </div>

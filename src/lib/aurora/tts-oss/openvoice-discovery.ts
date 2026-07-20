@@ -27,6 +27,11 @@
  *  · naveenk-ai/openvoice_voicecloning_win (v1-predict) FUNCIONA HOY: clonación
  *    real con estilos de emoción ("Voice cloning completed successfully").
  *
+ * Referencia de Alex (filtro humano equivalente al nuestro):
+ *   https://huggingface.co/spaces?q=openvoice&includeNonRunning=false
+ * (includeNonRunning=false ≡ filtrar por stage RUNNING; nosotros lo verificamos
+ * por-espacio sondeando /config + /info de cada Space vía la API pública.)
+ *
  * SSR-safe, cero dependencias, nunca lanza.
  */
 
@@ -68,7 +73,7 @@ const LS_HEALTH = "starseed.aurora.openvoice.health.v1";
 const SNAPSHOT_TTL_MS = 12 * 60 * 60_000; // 12 h
 const BAD_ENDPOINT_MS = 2 * 60 * 60_000; // 2 h apartado tras fallo de inferencia (los Spaces gratis se rate-limitan y VUELVEN; la resurrección cada 10 min ya sondea antes)
 const PROBE_TIMEOUT_MS = 9_000;
-const MAX_PROBES = 8; // Spaces a sondear por descubrimiento (los más relevantes)
+const MAX_PROBES = 10; // Spaces a sondear por descubrimiento (los más relevantes)
 
 /** Repo oficial de MODELOS (versión canónica de la última OpenVoice). */
 export const OPENVOICE_MODEL_REPO = "myshell-ai/OpenVoiceV2";
@@ -274,7 +279,7 @@ export async function discoverOpenVoiceEndpoints(opts: {
   if (!opts.force && cached && now() - cached.at < SNAPSHOT_TTL_MS) return cached;
 
   const found = new Map<string, HfSpaceListing>();
-  for (const q of ["openvoice", "OpenVoiceV2", "openvoice v2"]) {
+  for (const q of ["openvoice", "OpenVoiceV2", "openvoice v2", "openvoice v2 tts"]) {
     const list = (await fetchJson(
       `https://huggingface.co/api/spaces?search=${encodeURIComponent(q)}&limit=60`,
       PROBE_TIMEOUT_MS,

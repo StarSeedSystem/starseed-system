@@ -100,6 +100,7 @@ import {
 import {
   synthesizeOmniVoiceHybrid,
   getOmniVoiceRouteState,
+  refreshOmniRoute,
   type OmniRoute,
 } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 import {
@@ -705,6 +706,29 @@ function PersonalityEditor({
   const [ov2RefName, setOv2RefName] = useState<string>("");
   const ov2RefRef = useRef<Blob | null>(null);
 
+  // Mini ESTADO en vivo del motor actual (Adenda 87): snapshot al montar (sin red)
+  // + refresco de la ruta OmniVoice (local ↔ nube). Solo informativo, junto al
+  // selector de motor preferido.
+  useEffect(() => {
+    let alive = true;
+    try {
+      setOmniRoute(getOmniVoiceRouteState());
+      setOv2State(getOpenVoice2State());
+    } catch {
+      /* */
+    }
+    void refreshOmniRoute()
+      .then((r) => {
+        if (alive) setOmniRoute(r);
+      })
+      .catch(() => {
+        /* */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const omni = draft.voiceStyle.omni ?? {};
   const omniDesign: AstrauraDesignAttributes =
     omni.voice_design_attributes ?? DEFAULT_ASTRAURA_VOICE.voice_design_attributes;
@@ -1182,6 +1206,26 @@ function PersonalityEditor({
               <span className="text-[10px] text-white/35">
                 Aurora y Hermione traen OpenVoice de fábrica; nunca es exclusivo — si el motor no responde, la voz sigue con el resto de la cadena.
               </span>
+              {/* Mini estado EN VIVO del motor actual (Adenda 87). */}
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px]">
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/55">
+                  <ProfileIcon
+                    name={ov2State === "listo" ? "CheckCircle2" : ov2State === "fuera" ? "WifiOff" : "Waves"}
+                    className={cn(
+                      "h-3 w-3",
+                      ov2State === "listo" ? "text-emerald-300" : ov2State === "fuera" ? "text-amber-300" : "text-white/50",
+                    )}
+                  />
+                  OpenVoice: {ov2State === "listo" ? "lista" : ov2State === "fuera" ? "dormida/fuera" : "dormida"}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/55">
+                  <ProfileIcon
+                    name={omniRoute === "local" ? "Zap" : "Cloud"}
+                    className={cn("h-3 w-3", omniRoute === "local" ? "text-emerald-300" : "text-sky-300")}
+                  />
+                  OmniVoice: {omniRoute === "local" ? "local activa" : omniRoute === "cloud" ? "nube gratis" : "en espera"}
+                </span>
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="flex flex-col gap-1">

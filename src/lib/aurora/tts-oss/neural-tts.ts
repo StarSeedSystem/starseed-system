@@ -909,6 +909,32 @@ export function splitTextForVoice(text: string, maxLen = 220): string[] {
   return out.filter(Boolean);
 }
 
+
+/** Hash djb2 corto y estable del texto COMPLETO hablado (liga audio ↔ mensaje). */
+export function voiceTextHash(text: string): string {
+  let h = 5381;
+  const t = (text || "").replace(/\s+/g, " ").trim();
+  for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) >>> 0;
+  return h.toString(36) + ":" + t.length.toString(36);
+}
+
+/** Evento vivo: un trozo de VOZ GENERADA (para guardarla y adjuntarla al mensaje). */
+export const VOICE_NOTE_EVENT = "starseed:voice-note";
+
+function emitVoiceNote(detail: {
+  textHash: string;
+  chunkIndex: number;
+  chunkCount: number;
+  engine: string;
+  blob: Blob;
+}): void {
+  try {
+    window.dispatchEvent(new CustomEvent(VOICE_NOTE_EVENT, { detail }));
+  } catch {
+    /* */
+  }
+}
+
 /** Generación de reproducción troceada en curso (stopNeural la invalida). */
 let chunkGeneration = 0;
 
@@ -995,6 +1021,7 @@ async function neuralSpeakChunked(
 ): Promise<HTMLAudioElement | null> {
   const myGen = ++chunkGeneration;
   const alive = () => myGen === chunkGeneration;
+  const fullHash = voiceTextHash(chunks.join(" "));
   // Presupuesto TOPE por trozo (Adenda 85): el PRIMERO corto (35 s) para que la
   // cadena nunca se quede muda esperando; los siguientes respiran más (90 s)
   // porque ya hay audio sonando que cubre la espera.
@@ -1015,6 +1042,7 @@ async function neuralSpeakChunked(
     const blob = i === 0 ? first : await next;
     if (!alive()) break;
     if (!blob) break; // trozo intermedio falló: cerramos con lo ya hablado
+    emitVoiceNote({ textHash: fullHash, chunkIndex: i, chunkCount: chunks.length, engine, blob });
     // Prefetch del siguiente MIENTRAS suena este.
     next = i + 1 < chunks.length ? synth(chunks[i + 1], i + 1) : Promise.resolve(null);
     const audio = await playNeuralBlob(blob, {
@@ -1069,6 +1097,7 @@ export async function neuralSpeak(
     fireEnd();
     return null;
   }
+  emitVoiceNote({ textHash: voiceTextHash(text), chunkIndex: 0, chunkCount: 1, engine, blob });
 
   stopNeural(); // una voz a la vez
 
@@ -1264,8 +1293,19 @@ async function delegateOmniHybrid(
   s: NeuralEngineSettings,
 ): Promise<Blob | null> {
   try {
-    const { synthesizeOmniVoiceHybrid } = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
-    return await synthesizeOmniVoiceHybrid(text, { lang: s.lang }).catch(() => null);
+    const hybrid = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
+    // IDENTIDAD FEMENINA POR PERSONALIDAD (Adenda 87): resuelve la personalidad
+    // activa, publica su "kind" para que el cuerpo local viaje con `personality`
+    // (el daemon clona refs/<kind>.wav o fija su --seed estable) y sube la
+    // semilla al daemon UNA vez (fire-and-forget). Nunca bloquea ni lanza.
+    try {
+      const mod = await import("@/lib/aurora/personalities");
+      const profile = mod.getActivePersonality?.();
+      void hybrid.ensureLocalIdentity(profile?.id);
+    } catch {
+      void hybrid.ensureLocalIdentity(undefined);
+    }
+    return await hybrid.synthesizeOmniVoiceHybrid(text, { lang: s.lang }).catch(() => null);
   } catch {
     return null;
   }

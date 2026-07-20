@@ -177,10 +177,15 @@ function ramCachePut(hash, buf) {
  * Clonación opcional con --ref-wav / --ref-text. Devuelve { ok, buffer|error }.
  * NUNCA lanza (los errores viajan en el objeto de retorno).
  */
-function runTts({ ttsBin, repoDir, modelFile, codecFile, langName, text, refWav, refTextFile }) {
+function runTts({ ttsBin, repoDir, modelFile, codecFile, langName, text, refWav, refTextFile, instruct, seed }) {
   return new Promise((resolve) => {
     const outWav = path.join(PATHS.tmpDir, `astraura-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.wav`);
     const args = ["--model", modelFile, "--codec", codecFile, "--lang", langName, "-o", outWav];
+    // IDENTIDAD (Adenda 87): el CLI real SÍ soporta --instruct (estilo) y
+    // --seed (muestreo determinista → mismo timbre siempre). Verificado con
+    // omnivoice-tts --help f39cc4a: "--instruct <str>", "--seed <int>".
+    if (instruct) args.push("--instruct", String(instruct).slice(0, 300));
+    if (Number.isFinite(seed)) args.push("--seed", String(Math.trunc(seed)));
     // CLONACIÓN: el ejemplo del CLI usa `--ref-wav ref.wav --ref-text ref.txt`
     // (ref-text es un FICHERO con la transcripción, no la cadena).
     if (refWav) args.push("--ref-wav", refWav);
@@ -315,26 +320,63 @@ async function handleTts(req, res, cors) {
   const speed = Number.isFinite(body.speed) ? body.speed : 1;
 
   // Clonación de voz: ref_wav_path (o voice_clone_prompt como ruta a WAV) + ref_text.
-  const refWav =
+  let refWav =
     (typeof body.ref_wav_path === "string" && body.ref_wav_path) ||
     (typeof body.voice_clone_prompt === "string" && body.voice_clone_prompt.endsWith(".wav") && body.voice_clone_prompt) ||
     "";
-  const refTextFile = refWav ? resolveRefTextFile(body.ref_text) : "";
+  let refTextFile = refWav ? resolveRefTextFile(body.ref_text) : "";
 
-  // Campos que este CLI (omnivoice.cpp, estilo k2-fsa) NO expone como flags:
-  // los aceptamos por compatibilidad de contrato pero los IGNORAMOS con nota
-  // honesta en la cabecera de respuesta (verificar en el Mac si el CLI los añade).
+  // IDENTIDAD POR PERSONALIDAD (Adenda 87): si el cuerpo trae `personality`
+  // ("aurora" · "hermione" · id) y hay una referencia guardada en refs/<id>.wav
+  // (subida una vez vía POST /identity), se CLONA automáticamente esa identidad
+  // — voz FEMENINA consistente y continua en TODAS las síntesis locales.
+  const personality = typeof body.personality === "string"
+    ? body.personality.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40)
+    : "";
+  if (!refWav && personality) {
+    const idWav = path.join(PATHS.refsDir, `${personality}.wav`);
+    const idTxt = path.join(PATHS.refsDir, `${personality}.txt`);
+    try {
+      if (fs.existsSync(idWav)) {
+        refWav = idWav;
+        if (fs.existsSync(idTxt)) refTextFile = idTxt;
+      }
+    } catch { /* sin identidad guardada: sigue */ }
+  }
+
+  // ESTILO real (--instruct) + SEMILLA determinista (--seed) por personalidad:
+  // mismo timbre SIEMPRE aunque no haya referencia (el seed fija el muestreo).
+  let instruct = typeof body.instruct === "string" ? body.instruct : "";
+  // Sin instruct explícito, las voces insignia hablan FEMENINO por defecto
+  // (Adenda 87 — en inglés: es el idioma en que el modelo sigue mejor el estilo).
+  if (!instruct) {
+    if (personality === "hermione") {
+      instruct = "young bright female voice, quick, precise and articulate, playful warmth, British accent";
+    } else if (personality === "aurora" || !personality) {
+      instruct = "young warm female voice, sincere and determined, soft but confident";
+    }
+  }
+  let seed = Number.isFinite(body.seed) ? Number(body.seed) : NaN;
+  const seedBasis = personality || "aurora"; // sin personalidad: identidad Aurora
+  if (!Number.isFinite(seed) && seedBasis) {
+    // Semilla estable derivada del id (determinista entre reinicios).
+    let h = 0;
+    for (const ch of seedBasis) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    seed = 700000 + (h % 90000);
+  }
+
+  // Campos aceptados por compatibilidad pero sin flag en el CLI.
   const ignored = [];
-  for (const k of ["instruct", "voice_design", "normalize", "allow_non_verbal"]) {
+  for (const k of ["voice_design", "normalize", "allow_non_verbal"]) {
     if (body[k] !== undefined && body[k] !== null && body[k] !== "") ignored.push(k);
   }
 
-  // Marca actividad (mantiene "caliente") y clave de caché.
+  // Marca actividad (mantiene "caliente") y clave de caché (incluye identidad).
   lastReq = Date.now();
   warm = true;
   const cfg = state.cfg || {};
   const variantTag = cfg?.variant?.quant || "";
-  const key = sha256([text, langName, refWav, refTextFile, speed, variantTag].join("|"));
+  const key = sha256([text, langName, refWav, refTextFile, speed, variantTag, instruct, String(seed || "")].join("|"));
 
   const extraHeaders = {
     "X-Astraura-Engine": "omnivoice.cpp",
@@ -422,6 +464,50 @@ function sendWav(res, cors, buf, extra) {
   res.end(buf);
 }
 
+// ── /identity — guarda la IDENTIDAD de voz de una personalidad (Adenda 87) ──
+//
+// POST { personality: "aurora", wav_b64: "<base64 WAV ≤ 2 MB>", text: "transcripción" }
+// La referencia queda en refs/<id>.wav (+ .txt) y TODAS las síntesis locales de
+// esa personalidad la clonan automáticamente → voz femenina consistente y
+// continua. Idempotente (sobrescribe). Mismo CORS estricto que /tts.
+async function handleIdentity(req, res, cors) {
+  const raw = await readBody(req);
+  if (raw === null) return sendJson(res, 413, cors, { ok: false, error: "cuerpo demasiado grande" });
+  let body;
+  try {
+    body = JSON.parse(raw || "{}");
+  } catch {
+    return sendJson(res, 400, cors, { ok: false, error: "JSON inválido" });
+  }
+  const id = typeof body.personality === "string"
+    ? body.personality.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40)
+    : "";
+  if (!id) return sendJson(res, 400, cors, { ok: false, error: "falta 'personality'" });
+  const b64 = typeof body.wav_b64 === "string" ? body.wav_b64.replace(/^data:[^;]+;base64,/, "") : "";
+  if (!b64) return sendJson(res, 400, cors, { ok: false, error: "falta 'wav_b64'" });
+  let buf;
+  try {
+    buf = Buffer.from(b64, "base64");
+  } catch {
+    return sendJson(res, 400, cors, { ok: false, error: "base64 inválido" });
+  }
+  if (buf.length < 1000 || buf.length > 2 * 1024 * 1024) {
+    return sendJson(res, 400, cors, { ok: false, error: "WAV fuera de rango (1 KB – 2 MB)" });
+  }
+  if (!isWav(buf)) return sendJson(res, 400, cors, { ok: false, error: "no es un WAV" });
+  try {
+    fs.mkdirSync(PATHS.refsDir, { recursive: true });
+    fs.writeFileSync(path.join(PATHS.refsDir, `${id}.wav`), buf);
+    if (typeof body.text === "string" && body.text.trim()) {
+      fs.writeFileSync(path.join(PATHS.refsDir, `${id}.txt`), body.text.trim().slice(0, 500));
+    }
+    log("daemon", `identidad de voz guardada: ${id} (${buf.length} B)`);
+    return sendJson(res, 200, cors, { ok: true, personality: id, bytes: buf.length });
+  } catch (e) {
+    return sendJson(res, 500, cors, { ok: false, error: `no pude guardar: ${e.message}` });
+  }
+}
+
 // ── /status ──────────────────────────────────────────────────────────────────
 
 function handleStatus(res, cors) {
@@ -487,11 +573,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && (url === "/status" || url === "/")) {
       return handleStatus(res, cors);
     }
+    if (req.method === "POST" && url === "/identity") {
+      return handleIdentity(req, res, cors);
+    }
     if (req.method === "POST" && url === "/tts") {
       return await handleTts(req, res, cors);
     }
 
-    return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts"] });
+    return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity"] });
   } catch (e) {
     // Blindaje total: ninguna petición mala tumba el daemon.
     try {

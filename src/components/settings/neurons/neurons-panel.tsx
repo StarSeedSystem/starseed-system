@@ -32,6 +32,8 @@ import {
 // montado en Ajustes → sección "Seguridad" (/cuenta, página congelada), así
 // que el escáner de datos sensibles se ancla aquí — modo menos intrusivo.
 import { SecurityScanPanel } from "@/components/security/security-scan-panel";
+// Voz por neurona (Adenda 87): elección nube/local POR DISPOSITIVO + instalador.
+import { NeuronVoiceChoice } from "@/components/settings/aurora/neuron-voice-choice";
 
 /* ── Icono por tipo de dispositivo ── */
 const KIND_ICONS: Record<NeuronKind, typeof Monitor> = {
@@ -181,6 +183,10 @@ export function NeuronsPanel() {
           </div>
         </CardHeader>
       </Card>
+
+      {/* Voz de ESTA neurona (Adenda 87): elección nube/local por dispositivo,
+          que ordena la cadena de voz de este equipo, con el instalador local. */}
+      <NeuronVoiceChoice />
 
       {/* Aviso suave: sin sesión solo se ve este dispositivo */}
       {hasSession === false && (

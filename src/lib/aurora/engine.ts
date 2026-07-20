@@ -651,6 +651,10 @@ export function useAuroraEngine(): AuroraEngine {
     //    el OmniVoice local hablen los turnos largos frase a frase.
     let clean = sinDirectivas.replace(/[*_~`´#|><.,;:\-\[\](){}\\\/"—–]/g, " ");
     clean = clean.replace(/\s+/g, " ").trim();
+    // ⚠️ Esta limpieza (rama `cleanChain`) está REPLICADA en voice-notes.ts
+    // (`cleanTextForVoiceChain`) para hashear la nota de voz con el MISMO texto que
+    // suena. Si cambias la regex aquí, cámbiala también allí o las notas de voz
+    // dejarán de casar con su mensaje (Adenda 87).
     let cleanChain = sinDirectivas.replace(/[*_~`´#|><\[\](){}\\\/"]/g, " ");
     cleanChain = cleanChain.replace(/\s+/g, " ").trim();
     if (!clean && !cleanChain) return;

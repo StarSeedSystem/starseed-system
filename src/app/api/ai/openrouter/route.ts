@@ -37,8 +37,24 @@ function isFreeModel(model: unknown): model is string {
   );
 }
 
+/** Claves compartidas (rotación · Adenda 87): OPENROUTER_SHARED_KEY, _2, _3… */
+function sharedKeys(): string[] {
+  const keys: string[] = [];
+  const base = process.env.OPENROUTER_SHARED_KEY;
+  if (base) keys.push(...base.split(",").map((k) => k.trim()).filter(Boolean));
+  for (const suf of ["_2", "_3", "_4"]) {
+    const k = process.env[`OPENROUTER_SHARED_KEY${suf}`];
+    if (k) keys.push(k.trim());
+  }
+  return keys;
+}
+
+/** Índice rotatorio en memoria del proceso (se resetea al redeploy: da igual). */
+let keyCursor = 0;
+
 export async function POST(req: NextRequest): Promise<Response> {
-  const key = process.env.OPENROUTER_SHARED_KEY;
+  const keys = sharedKeys();
+  const key = keys[0];
   if (!key) {
     return Response.json(
       {
@@ -92,23 +108,42 @@ export async function POST(req: NextRequest): Promise<Response> {
     forward.max_tokens = Math.min(body.max_tokens, 8192);
   }
 
-  let upstream: Response;
-  try {
-    upstream = await fetch(UPSTREAM, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-        "HTTP-Referer": "https://starseed-os.vercel.app",
-        "X-Title": "StarSeed OS · Aurora (acceso comunitario :free)",
-      },
-      body: JSON.stringify(forward),
-      // El route handler corre en el servidor: sin CORS que valga aquí.
-      signal: AbortSignal.timeout(120_000),
-    });
-  } catch (e) {
+  // ROTACIÓN (Adenda 87): si una clave agota su cupo diario de :free (429
+  // "free-models-per-day"), se prueba la siguiente del anillo — el free tier de
+  // OpenRouter es de ~50 peticiones/día POR CLAVE; con N claves, N×50 (y una
+  // recarga única de $10 en cualquiera la sube a 1.000/día).
+  let upstream: Response | null = null;
+  let lastErr = "";
+  for (let i = 0; i < Math.max(1, keys.length); i++) {
+    const k = keys[(keyCursor + i) % keys.length];
+    try {
+      const res = await fetch(UPSTREAM, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${k}`,
+          "HTTP-Referer": "https://starseed-os.vercel.app",
+          "X-Title": "StarSeed OS · Aurora (acceso comunitario :free)",
+        },
+        body: JSON.stringify(forward),
+        // El route handler corre en el servidor: sin CORS que valga aquí.
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (res.status === 429 && i + 1 < keys.length) {
+        // Cupo de ESTA clave agotado → rota y reintenta con la siguiente.
+        try { await res.text(); } catch { /* drena */ }
+        continue;
+      }
+      keyCursor = (keyCursor + i) % keys.length; // la que respondió queda primera
+      upstream = res;
+      break;
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : "error de red";
+    }
+  }
+  if (!upstream) {
     return Response.json(
-      { error: `No se pudo alcanzar OpenRouter: ${e instanceof Error ? e.message : "error de red"}` },
+      { error: `No se pudo alcanzar OpenRouter: ${lastErr || "error de red"}` },
       { status: 502 },
     );
   }

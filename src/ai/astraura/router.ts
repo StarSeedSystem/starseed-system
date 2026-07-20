@@ -961,10 +961,25 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       return { ...res, route: rec };
     } catch (e: any) {
       const msg = String(e?.message ?? e);
-      // Cuota agotada / límite (429) o "insufficient" → enfría la fuente un rato
-      // para que el failover no la reintente y pase a la siguiente gratuita.
+      // Cuota agotada / límite (429) o "insufficient" → enfría la fuente. Si el
+      // proveedor DICE cuánto ("Retry after 4851 seconds" · "retry in 2h"), le
+      // hacemos caso EXACTO (Adenda 87) — ni martillear antes de tiempo ni
+      // castigar de más una fuente que vuelve en minutos.
       if (/\b429\b|rate.?limit|quota|exhaust|insufficient|too many/i.test(msg)) {
-        try { markCooldown(c.source.id); } catch { /* */ }
+        let mins: number | undefined;
+        const mSec = msg.match(/retry(?:\s+it)?\s+(?:after|in)\s+(\d+)\s*s/i);
+        const mMin = msg.match(/retry(?:\s+it)?\s+(?:after|in)\s+(\d+)\s*m/i);
+        const mHor = msg.match(/retry(?:\s+it)?\s+(?:after|in)\s+(\d+)\s*h/i);
+        if (mSec) mins = Math.max(1, Math.ceil(Number(mSec[1]) / 60));
+        else if (mMin) mins = Math.max(1, Number(mMin[1]));
+        else if (mHor) mins = Math.max(1, Number(mHor[1]) * 60);
+        // "free-models-per-day" = cupo DIARIO agotado → hasta ~medianoche UTC.
+        if (!mins && /per.?day|daily/i.test(msg)) {
+          const now = new Date();
+          const midnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+          mins = Math.max(10, Math.ceil((midnightUtc - now.getTime()) / 60_000));
+        }
+        try { markCooldown(c.source.id, mins); } catch { /* */ }
       }
       // CLAVE INVÁLIDA (401/403/unauthorized): fallo DETERMINISTA de toda la
       // fuente. La declaramos muerta para esta petición (no quemamos más

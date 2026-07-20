@@ -338,6 +338,60 @@ export async function omniHandshake(
   return state;
 }
 
+// ── Identidad local por personalidad (Adenda 87) ────────────────────────────
+
+/** "aurora" · "hermione" · id saneado de la personalidad activa (o ""). */
+function activePersonalityKind(): string {
+  try {
+    if (typeof window === "undefined") return "";
+    // Import perezoso NO circular en runtime (personalities no importa este módulo).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    const cached = w.__astrauraActivePersonaKind;
+    if (typeof cached === "string") return cached;
+  } catch { /* */ }
+  return "";
+}
+
+/**
+ * Sube UNA vez (por versión de semilla) la identidad de la personalidad al
+ * daemon local (POST /identity) para que TODAS las síntesis locales la clonen.
+ * Fire-and-forget: nunca bloquea ni lanza. La semilla es 100 % sintética.
+ */
+export async function ensureLocalIdentity(personalityId?: string): Promise<void> {
+  try {
+    if (typeof window === "undefined") return;
+    const mod = await import("@/lib/aurora/tts-oss/openvoice2");
+    const kind = mod.seedKindFor(personalityId) || "";
+    if (!kind) return;
+    try {
+      (window as unknown as { __astrauraActivePersonaKind?: string }).__astrauraActivePersonaKind = kind;
+    } catch { /* */ }
+    const flagKey = `starseed.omni.identity.${kind}.v${mod.OPENVOICE2_SEED_VERSION}`;
+    try {
+      if (window.localStorage.getItem(flagKey)) return; // ya subida
+    } catch { /* */ }
+    const blob = mod.readCachedSeedBlob(kind);
+    if (!blob) return; // sin semilla aún: se subirá cuando exista
+    const b64 = await blob.arrayBuffer().then((ab) => {
+      const u = new Uint8Array(ab);
+      let bin = "";
+      for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode(...Array.from(u.subarray(i, i + 0x8000)));
+      return btoa(bin);
+    });
+    const spec = mod.OPENVOICE2_SEED_SPECS[kind as "aurora" | "hermione"];
+    const r = await fetch(`${OMNI_LOCAL_BASE}/identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ personality: kind, wav_b64: b64, text: spec?.text || "" }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (r.ok) {
+      try { window.localStorage.setItem(flagKey, String(Date.now())); } catch { /* */ }
+    }
+  } catch { /* sin daemon o sin semilla: nada que hacer */ }
+}
+
 // ── Síntesis LOCAL (POST /tts) ───────────────────────────────────────────────
 
 async function synthLocal(
@@ -353,10 +407,14 @@ async function synthLocal(
     text: applyNonVerbalPolicy(text, pb.allow_non_verbal_symbols),
     lang: langName,
     instruct: omni.instruct || undefined,
-    voice_design: omni.voice_design_attributes, // el daemon lo acepta (lo ignora hoy)
+    voice_design: omni.voice_design_attributes,
     speed: clampNum(pb.speed, 0.5, 1.5),
     normalize: pb.normalize_text !== false,
     allow_non_verbal: pb.allow_non_verbal_symbols !== false,
+    // IDENTIDAD (Adenda 87): el daemon clona refs/<personalidad>.wav si existe
+    // (subida una vez vía ensureLocalIdentity) y, si no, fija --seed estable por
+    // personalidad → voz FEMENINA consistente también en local.
+    personality: activePersonalityKind(),
   };
   if (
     omni.generation_mode === "voice_cloning" &&

@@ -802,6 +802,18 @@ async function getOrCreateSeedRefPath(
   return path;
 }
 
+/**
+ * Blob de la SEMILLA cacheada de una personalidad insignia (o null). Para que
+ * el híbrido local suba la identidad al daemon (Adenda 87). Nunca lanza.
+ */
+export function readCachedSeedBlob(kind: string): Blob | null {
+  try {
+    return readSeedBlob(kind, OPENVOICE2_SEED_VERSION);
+  } catch {
+    return null;
+  }
+}
+
 /** Resuelve la referencia a pasar al Space (o null si no hay ninguna usable). */
 async function resolveReference(opts: ReferenceOptions): Promise<GradioFileRef | null> {
   // 1) Ruta ya subida (reutilización best-effort entre llamadas).

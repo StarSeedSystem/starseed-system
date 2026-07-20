@@ -28,18 +28,24 @@ import { safeGet, safeSet } from "@/lib/safe-storage";
 // v2 (Adenda 86): el ajuste de preferencia CAMBIÓ (ahora ordena la cadena de
 // voz de la neurona), así que la ventana se RELANZA una vez para todos — aun
 // para quienes ya habían elegido en v1.
-const LS_KEY = "starseed.voz.neurona.v2";
+/** Clave localStorage de la elección de voz POR DISPOSITIVO (no viaja con la cuenta). */
+export const NEURON_VOICE_LS_KEY = "starseed.voz.neurona.v2";
+/** Evento para reabrir la ventana de elección sin recargar la página. */
+export const NEURON_VOICE_REOPEN_EVENT = "starseed:voz-neurona-reopen";
 const LATER_RETRY_MS = 24 * 60 * 60_000;
 const DAEMON_STATUS = "http://127.0.0.1:4444/status";
 
-interface NeuronVoiceChoice {
-  mode: "cloud" | "local" | "later";
+export type NeuronVoiceMode = "cloud" | "local" | "later";
+
+export interface NeuronVoiceChoice {
+  mode: NeuronVoiceMode;
   at: number;
 }
 
-function readChoice(): NeuronVoiceChoice | null {
+/** Lee la elección de voz de ESTA neurona (o null si aún no eligió). Nunca lanza. */
+export function readNeuronVoiceChoice(): NeuronVoiceChoice | null {
   try {
-    const raw = safeGet(LS_KEY);
+    const raw = safeGet(NEURON_VOICE_LS_KEY);
     if (!raw) return null;
     const j = JSON.parse(raw) as NeuronVoiceChoice;
     return j && (j.mode === "cloud" || j.mode === "local" || j.mode === "later") ? j : null;
@@ -48,16 +54,37 @@ function readChoice(): NeuronVoiceChoice | null {
   }
 }
 
-function writeChoice(mode: NeuronVoiceChoice["mode"]): void {
+/** Persiste la elección de voz de esta neurona (+ notifica a la UI). Nunca lanza. */
+export function writeNeuronVoiceChoice(mode: NeuronVoiceMode): void {
   try {
-    safeSet(LS_KEY, JSON.stringify({ mode, at: Date.now() } satisfies NeuronVoiceChoice));
+    safeSet(NEURON_VOICE_LS_KEY, JSON.stringify({ mode, at: Date.now() } satisfies NeuronVoiceChoice));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(NEURON_VOICE_REOPEN_EVENT, { detail: { silent: true } }));
+    }
+  } catch {
+    /* */
+  }
+}
+
+/**
+ * Reabre la ventana de elección de voz de la neurona: borra la elección y avisa a
+ * la ventana global (montada en el layout) para que vuelva a preguntar SIN recargar
+ * la página. Si por algún motivo no hay ventana montada, la próxima navegación la
+ * mostrará igualmente. Nunca lanza.
+ */
+export function forceReopenNeuronVoiceWindow(): void {
+  try {
+    safeSet(NEURON_VOICE_LS_KEY, "");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(NEURON_VOICE_REOPEN_EVENT, { detail: { reopen: true } }));
+    }
   } catch {
     /* */
   }
 }
 
 /** ¿Está el daemon local vivo y listo? Sonda corta; nunca lanza. */
-async function probeLocalDaemon(): Promise<boolean> {
+export async function probeLocalDaemon(): Promise<boolean> {
   try {
     const r = await fetch(DAEMON_STATUS, { signal: AbortSignal.timeout(2500) });
     if (!r.ok) return false;
@@ -78,7 +105,7 @@ export function VoiceNeuronOnboarding() {
   useEffect(() => {
     let alive = true;
     const t = setTimeout(async () => {
-      const choice = readChoice();
+      const choice = readNeuronVoiceChoice();
       if (choice && choice.mode !== "later") return; // ya elegido EN V2: no molestar
       if (choice?.mode === "later" && Date.now() - choice.at < LATER_RETRY_MS) return;
       // Reoferta v2: la ventana se muestra UNA vez aunque hubiera elección v1
@@ -95,10 +122,27 @@ export function VoiceNeuronOnboarding() {
     };
   }, []);
 
+  // Reapertura a demanda (desde los Ajustes: «cambiar la voz de esta neurona»).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onReopen = (e: Event) => {
+      const detail = (e as CustomEvent<{ reopen?: boolean }>).detail;
+      if (!detail?.reopen) return; // los avisos "silent" (guardado inline) no abren
+      void probeLocalDaemon().then((local) => {
+        setLocalVivo(local);
+        setInstalling(false);
+        setCheckMsg("");
+        setOpen(true);
+      });
+    };
+    window.addEventListener(NEURON_VOICE_REOPEN_EVENT, onReopen as EventListener);
+    return () => window.removeEventListener(NEURON_VOICE_REOPEN_EVENT, onReopen as EventListener);
+  }, []);
+
   if (!open || typeof document === "undefined") return null;
 
-  const choose = (mode: NeuronVoiceChoice["mode"]) => {
-    writeChoice(mode);
+  const choose = (mode: NeuronVoiceMode) => {
+    writeNeuronVoiceChoice(mode);
     setOpen(false);
   };
 

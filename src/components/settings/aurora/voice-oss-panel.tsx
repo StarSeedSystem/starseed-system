@@ -62,6 +62,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LocalEngineInstaller } from "@/components/settings/aurora/local-engine-installer";
+import { NeuronVoiceChoice } from "@/components/settings/aurora/neuron-voice-choice";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -814,6 +815,10 @@ export function VoiceOssPanel({ className }: { className?: string }) {
           </span>
         </li>
       </ul>
+
+      {/* Voz por NEURONA (Adenda 87): elección nube/local de ESTE dispositivo.
+          Equivalente a la tarjeta de la sección de Neuronas — misma lógica. */}
+      <NeuronVoiceChoice />
 
       {/* ── OmniVoice · voz por defecto (motor híbrido · CERO config) ───────── */}
       <div className="rounded-xl border border-[#7fb8ff]/25 bg-[#7fb8ff]/[0.05] p-3 space-y-2.5">

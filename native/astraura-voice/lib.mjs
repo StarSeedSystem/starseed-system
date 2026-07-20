@@ -33,6 +33,7 @@ export const PATHS = {
   logsDir: path.join(ROOT, "logs"),
   cacheDir: path.join(ROOT, "cache"), // WAV cacheados por hash
   tmpDir: path.join(ROOT, "tmp"), // WAV temporales de síntesis
+  refsDir: path.join(ROOT, "refs"), // identidades de voz por personalidad (Adenda 87)
   configFile: path.join(ROOT, "config.json"),
   versionsFile: path.join(ROOT, "versions.json"), // ETag/SHA de cada GGUF
   lockFile: path.join(ROOT, "autosync.lock"), // lock del autosync
