@@ -856,6 +856,170 @@ export interface NeuralSpeakOptions {
  * terminar. Devuelve el HTMLAudioElement o null si no se pudo (el llamador cae
  * al siguiente eslabón de la cadena). NUNCA lanza.
  */
+/**
+ * Trocea un texto largo en LOCUCIONES de tamaño hablable (Adenda 82): corta por
+ * finales de frase acumulando hasta ~maxLen; una frase kilométrica se parte por
+ * comas/espacios. PURO y testeable. Nunca devuelve trozos vacíos.
+ */
+export function splitTextForVoice(text: string, maxLen = 260): string[] {
+  const clean = (text || "").replace(/\s+/g, " ").trim();
+  if (!clean) return [];
+  if (clean.length <= maxLen) return [clean];
+  const sentences = clean.match(/[^.!?…]+[.!?…]+["»”)]?\s*|[^.!?…]+$/g) ?? [clean];
+  const out: string[] = [];
+  let cur = "";
+  const push = () => {
+    const t = cur.trim();
+    if (t) out.push(t);
+    cur = "";
+  };
+  for (const s of sentences) {
+    if ((cur + s).length <= maxLen) {
+      cur += s;
+      continue;
+    }
+    push();
+    if (s.length <= maxLen) {
+      cur = s;
+      continue;
+    }
+    // Frase gigante: parte por comas; si aún excede, por palabras a lo bruto.
+    let piece = "";
+    for (const frag of s.split(/(?<=,)\s*/)) {
+      if ((piece + frag).length <= maxLen) {
+        piece += frag + " ";
+        continue;
+      }
+      if (piece.trim()) out.push(piece.trim());
+      piece = "";
+      if (frag.length <= maxLen) {
+        piece = frag + " ";
+      } else {
+        for (let i = 0; i < frag.length; i += maxLen) out.push(frag.slice(i, i + maxLen).trim());
+      }
+    }
+    if (piece.trim()) cur = piece;
+  }
+  push();
+  return out.filter(Boolean);
+}
+
+/** Generación de reproducción troceada en curso (stopNeural la invalida). */
+let chunkGeneration = 0;
+
+/**
+ * Reproduce UN Blob neural (con la modulación emocional sutil de V2-VOZ) y,
+ * si `waitEnd`, espera a que termine. Registra el audio como el actual para
+ * que stopNeural() lo corte. Devuelve el elemento (o null si el navegador
+ * bloqueó la reproducción). Nunca lanza.
+ */
+function playNeuralBlob(
+  blob: Blob,
+  opts: { onStart?: () => void; onError?: (m: string) => void; waitEnd?: boolean },
+): Promise<HTMLAudioElement | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let url: string | null = null;
+    let audio: HTMLAudioElement | null = null;
+    const cleanup = () => {
+      if (url) {
+        try { URL.revokeObjectURL(url); } catch { /* */ }
+      }
+      if (currentAudio === audio) {
+        currentAudio = null;
+        currentUrl = null;
+      }
+    };
+    const settle = (v: HTMLAudioElement | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(v);
+    };
+    try {
+      url = URL.createObjectURL(blob);
+      audio = new Audio(url);
+      currentAudio = audio;
+      currentUrl = url;
+      audio.onended = () => {
+        cleanup();
+        settle(audio);
+      };
+      audio.onerror = () => {
+        cleanup();
+        try { opts.onError?.("Fallo al reproducir el audio del motor neural."); } catch { /* */ }
+        settle(null);
+      };
+      try {
+        const mod = emotionPlaybackMod();
+        if (mod) {
+          audio.playbackRate = mod.rate;
+          try {
+            (audio as unknown as { preservesPitch?: boolean }).preservesPitch = false;
+          } catch { /* */ }
+          audio.volume = mod.volume;
+        }
+      } catch { /* */ }
+      try { opts.onStart?.(); } catch { /* */ }
+      const p = audio.play();
+      if (p && typeof (p as Promise<void>).catch === "function") {
+        (p as Promise<void>).catch(() => {
+          cleanup();
+          try { opts.onError?.("El navegador bloqueó la reproducción (requiere gesto)."); } catch { /* */ }
+          settle(null);
+        });
+      }
+      if (!opts.waitEnd) settle(audio);
+    } catch {
+      cleanup();
+      settle(null);
+    }
+  });
+}
+
+/**
+ * Habla TROCEADA (Adenda 82): sintetiza y reproduce frase a frase, prefetching
+ * el siguiente trozo MIENTRAS suena el actual — así una respuesta larga empieza
+ * a oírse con la latencia de UNA frase y los Spaces CPU pueden con todo.
+ * Si el PRIMER trozo no sale → null (la cadena de voz sigue con el texto entero).
+ * Si un trozo intermedio falla, termina con dignidad (lo dicho, dicho está).
+ */
+async function neuralSpeakChunked(
+  engine: NeuralVoiceEngine,
+  chunks: string[],
+  opts: NeuralSpeakOptions,
+): Promise<HTMLAudioElement | null> {
+  const myGen = ++chunkGeneration;
+  const alive = () => myGen === chunkGeneration;
+  const synth = (t: string) =>
+    neuralSynthesize(engine, t, { settings: opts.settings }).catch(() => null);
+
+  const first = await synth(chunks[0]);
+  if (!first || !alive()) return null;
+
+  let firstAudio: HTMLAudioElement | null = null;
+  let next: Promise<Blob | null> = chunks.length > 1 ? synth(chunks[1]) : Promise.resolve(null);
+
+  for (let i = 0; i < chunks.length; i++) {
+    if (!alive()) break;
+    const blob = i === 0 ? first : await next;
+    if (!alive()) break;
+    if (!blob) break; // trozo intermedio falló: cerramos con lo ya hablado
+    // Prefetch del siguiente MIENTRAS suena este.
+    next = i + 1 < chunks.length ? synth(chunks[i + 1]) : Promise.resolve(null);
+    const audio = await playNeuralBlob(blob, {
+      onStart: i === 0 ? opts.onStart : undefined,
+      onError: i === 0 ? opts.onError : undefined,
+      waitEnd: true,
+    });
+    if (i === 0) {
+      if (!audio) return null; // el navegador bloqueó la reproducción
+      firstAudio = audio;
+    }
+  }
+  try { opts.onEnd?.(); } catch { /* */ }
+  return firstAudio;
+}
+
 export async function neuralSpeak(
   engine: NeuralVoiceEngine,
   text: string,
@@ -871,6 +1035,18 @@ export async function neuralSpeak(
   };
 
   if (typeof window === "undefined") return null;
+
+  // RESPUESTAS LARGAS por OpenVoice → habla TROCEADA (Adenda 82): los Spaces
+  // gratis (CPU) no pueden sintetizar 2.000 caracteres de una pieza dentro del
+  // presupuesto; frase a frase sí — y el primer sonido llega en segundos.
+  if (engine === "openvoice2") {
+    const chunks = splitTextForVoice(text);
+    if (chunks.length > 1) {
+      stopNeural(); // una voz a la vez (invalida troceos previos)
+      return await neuralSpeakChunked(engine, chunks, opts);
+    }
+  }
+
   const blob = await neuralSynthesize(engine, text, {
     settings: opts.settings,
     onError: opts.onError,
@@ -952,6 +1128,7 @@ export async function neuralSpeak(
 
 /** Detiene la reproducción neural en curso (si la hay). Idempotente. Nunca lanza. */
 export function stopNeural(): void {
+  chunkGeneration++; // invalida cualquier habla troceada en curso (Adenda 82)
   try {
     if (currentAudio) {
       try {

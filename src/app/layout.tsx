@@ -10,6 +10,7 @@ import { LiquidGlass } from "@/components/ui/liquid-glass";
 import { WebGLBackground } from "@/components/ui/backgrounds/webgl-background";
 import { SplineDefaultBackground } from "@/components/ui/backgrounds/spline-default-background";
 import { SplineWatermarkCover } from "@/components/ui/SplineWatermarkCover";
+import { VoiceNeuronOnboarding } from "@/components/aurora/voice-neuron-onboarding";
 import { LiquidPsychedelicBackground } from "@/components/ui/backgrounds/liquid-psychedelic-background";
 import { MateriaVivaBackgroundHost } from "@/components/backgrounds/materia-viva-background";
 import { LivingBackground } from "@/components/ui/backgrounds/living-background";
@@ -226,6 +227,11 @@ export default function RootLayout({
                         {/* Editor Universal global (escucha 'starseed:open-editor' desde el Centro de Creación). */}
                         <GlobalEditorHost />
                         <SplineWatermarkCover />
+                        {/* Voz por neurona (Adenda 82): si este dispositivo aún no
+                            eligió su modo de voz, la ventana se abre sola (una vez,
+                            con inteligencia: si el motor local ya vive, se marca
+                            en silencio y no molesta). */}
+                        <VoiceNeuronOnboarding />
                         <PerimeterInterface />
                         {/* Trinity Móvil · Bloque 4 — asas de borde + deslizar desde
                             cada orilla para abrir los menús cardinales en táctil.
