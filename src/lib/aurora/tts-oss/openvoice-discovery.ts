@@ -66,7 +66,7 @@ export interface OpenVoiceDiscoverySnapshot {
 const LS_SNAPSHOT = "starseed.aurora.openvoice.discovery.v1";
 const LS_HEALTH = "starseed.aurora.openvoice.health.v1";
 const SNAPSHOT_TTL_MS = 12 * 60 * 60_000; // 12 h
-const BAD_ENDPOINT_MS = 6 * 60 * 60_000; // 6 h apartado tras fallo de inferencia
+const BAD_ENDPOINT_MS = 2 * 60 * 60_000; // 2 h apartado tras fallo de inferencia (los Spaces gratis se rate-limitan y VUELVEN; la resurrección cada 10 min ya sondea antes)
 const PROBE_TIMEOUT_MS = 9_000;
 const MAX_PROBES = 8; // Spaces a sondear por descubrimiento (los más relevantes)
 
