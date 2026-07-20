@@ -602,21 +602,34 @@ async function designSeedBlob(
     } catch {
       /* */
     }
-    const out = await callGradioSpace(OMNI_SPACE_BASE, OMNI_DESIGN_FN, data, {
-      signal,
-      budgetMs: QUEUE_TIMEOUT_FIRST_MS,
-      onStatus,
-    });
-    if (out) {
+    // CARRERA local ↔ nube (Adenda 79-bis): el daemon nativo (si está vivo en
+    // 127.0.0.1:4444) y el Space de OmniVoice diseñan la semilla EN PARALELO y
+    // gana la primera que llegue — en un equipo con motor local la identidad
+    // nace en segundos aunque la nube esté degradada, y sin motor local la
+    // nube sigue cubriendo. Ambas son 100 % sintéticas.
+    const cloud = (async (): Promise<Blob | null> => {
+      const out = await callGradioSpace(OMNI_SPACE_BASE, OMNI_DESIGN_FN, data, {
+        signal,
+        budgetMs: QUEUE_TIMEOUT_FIRST_MS,
+        onStatus,
+      });
+      if (!out) return null;
       for (const item of out) {
         const blob = await gradioItemToBlob(item, OMNI_SPACE_BASE, signal);
         if (blob) return blob;
       }
-    }
-    // RESPALDO (Adenda 79): si la nube de OmniVoice tose, el DAEMON LOCAL (si
-    // está instalado y vivo en 127.0.0.1:4444) genera la semilla — 100 %
-    // sintética igualmente. Así la identidad V2 nace incluso sin nube.
-    return await designSeedViaLocalDaemon(spec, signal, onStatus);
+      return null;
+    })().catch(() => null);
+    const local = designSeedViaLocalDaemon(spec, signal, onStatus).catch(() => null);
+
+    const first = await Promise.race([
+      local.then((b) => (b ? { who: "local" as const, b } : null)),
+      cloud.then((b) => (b ? { who: "nube" as const, b } : null)),
+    ]).catch(() => null);
+    if (first?.b) return first.b;
+    // La ganadora de la carrera fue null → espera a la otra (sin perder nada).
+    const [l, c] = await Promise.all([local, cloud]);
+    return l || c || null;
   } catch {
     return null;
   }
