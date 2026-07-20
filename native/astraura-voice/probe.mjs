@@ -234,6 +234,13 @@ export function selectModelVariant(probe) {
   if (accel === "cpu") {
     tier = "baja";
     reason = "CPU puro (sin aceleración de GPU detectada)";
+  } else if (accel === "metal" && accelMem < 12) {
+    // LECCIÓN REAL (Adenda 85, M1 8 GB): la memoria UNIFICADA se comparte con
+    // el navegador y el sistema — con 8 GB, Q8_0 entra en swap y una frase
+    // agota los 180 s. En Metal, la gama MEDIA exige ≥12 GB; por debajo,
+    // Q4_K_M (la mitad de memoria, ~2× más rápida) suena igual de digna.
+    tier = "baja";
+    reason = `Apple Silicon con ${accelMem} GB unificados (<12): Q4_K_M para no pelear con el navegador por la RAM`;
   } else if (accelMem <= 4) {
     tier = "baja";
     reason = `Memoria de aceleración baja (~${accelMem} GB ≤ 4 GB)`;
