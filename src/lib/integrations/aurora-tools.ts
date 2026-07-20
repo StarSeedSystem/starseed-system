@@ -1255,6 +1255,8 @@ export const AURORA_VOICE_TOOLS: AuroraVoiceTool[] = [
         // suelo. Este reporte cuenta la CADENA VIVA, no los endpoints manuales
         // (esos son opcionales y solo se listan si el usuario los configuró).
         await m.refreshPersonalityVoicePin().catch(() => null);
+        // Sondea la ruta REAL del híbrido (¿daemon local vivo?) antes de contar.
+        await m.refreshOmniRoute().catch(() => null);
         const cfg = m.getVoiceConfig();
         const chain = m.buildVoiceChain(cfg);
         const activo = m.resolveActiveVoiceEngine(cfg);
