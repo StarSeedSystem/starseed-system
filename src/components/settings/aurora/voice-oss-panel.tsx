@@ -195,8 +195,60 @@ export function VoiceOssPanel({ className }: { className?: string }) {
   });
   const [ov2Testing, setOv2Testing] = useState(false);
   const [ov2Status, setOv2Status] = useState<string>("");
+  const [ov2Buscando, setOv2Buscando] = useState(false);
+  const [ov2Descubierto, setOv2Descubierto] = useState<string>("");
 
   const mountedRef = useRef(true);
+
+  /**
+   * BUSCAR ACTUALIZACIÓN (Adenda 79): fuerza el descubrimiento en Hugging Face
+   * (Spaces con API OpenVoice gratis + versión del repo oficial de modelos) y
+   * registra los recursos en Hugging Bay — la red de la Librería del OS — para
+   * que aparezcan como candidatos versionados. La versión INSTALADA (daemon
+   * nativo) se actualiza con su autosync inteligente de 7 días.
+   */
+  const buscarActualizacionOpenVoice = useCallback(async () => {
+    if (ov2Buscando) return;
+    setOv2Buscando(true);
+    setOv2Descubierto("Buscando Spaces, modelos y datasets de OpenVoice en Hugging Face…");
+    try {
+      const disc = await import("@/lib/aurora/tts-oss/openvoice-discovery");
+      const snap = await disc.discoverOpenVoiceEndpoints({ force: true });
+      const info = disc.getOpenVoiceDiscoveryInfo();
+      // Registro en la red de la Librería (Hugging Bay) — idempotente por id.
+      try {
+        const bay = await import("@/ai/astraura/installed-models");
+        bay.registerHuggingBayCandidate({
+          id: "openvoice-v2-modelos",
+          name: "OpenVoice V2 · modelos oficiales",
+          repo: disc.OPENVOICE_MODEL_REPO,
+          tool: "openvoice",
+          command: `huggingface-cli download ${disc.OPENVOICE_MODEL_REPO}`,
+        });
+        for (const ep of snap.endpoints) {
+          bay.registerHuggingBayCandidate({
+            id: `openvoice-space-${ep.id.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+            name: `OpenVoice · API web gratis (${ep.kind === "v2-design" ? "V2" : "V1 emociones"})`,
+            repo: ep.id,
+            tool: "space",
+            command: ep.base,
+          });
+        }
+      } catch {
+        /* la Librería no está disponible aquí: el descubrimiento sigue valiendo */
+      }
+      const fecha = snap.modelUpdatedAt ? new Date(snap.modelUpdatedAt).toLocaleDateString() : "—";
+      setOv2Descubierto(
+        `${snap.endpoints.length} endpoints (${info.healthy} sanos) · modelos ${disc.OPENVOICE_MODEL_REPO}` +
+          (snap.modelSha ? ` @ ${snap.modelSha.slice(0, 7)} (${fecha})` : ""),
+      );
+      setOv2State(getOpenVoice2State());
+    } catch {
+      setOv2Descubierto("No se pudo completar la búsqueda ahora mismo (la caché anterior sigue activa).");
+    } finally {
+      setOv2Buscando(false);
+    }
+  }, [ov2Buscando]);
 
   const probarOpenVoice2 = useCallback(async () => {
     if (ov2Testing) return;
@@ -912,6 +964,17 @@ export function VoiceOssPanel({ className }: { className?: string }) {
               procesando…
             </span>
           )}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 cursor-pointer text-[11px]"
+            disabled={ov2Buscando}
+            onClick={buscarActualizacionOpenVoice}
+          >
+            <RefreshCw className={cn("mr-1 h-3.5 w-3.5", ov2Buscando && "animate-spin")} />
+            Buscar actualización
+          </Button>
           <a
             href={OPENVOICE2_SPACE}
             target="_blank"
@@ -922,6 +985,14 @@ export function VoiceOssPanel({ className }: { className?: string }) {
           </a>
         </div>
         {ov2Status && <p className="text-[11px] text-foreground/60">{ov2Status}</p>}
+        {ov2Descubierto && (
+          <p className="text-[11px] text-foreground/50">
+            {ov2Descubierto}
+            <span className="ml-1 text-foreground/35">
+              · la versión instalada (daemon nativo) se actualiza sola cada 7 días con la red de la Librería
+            </span>
+          </p>
+        )}
         <style jsx>{`
           .ssvp-mini-eq {
             display: inline-flex;

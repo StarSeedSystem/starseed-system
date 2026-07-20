@@ -323,6 +323,34 @@ export interface VoiceEngineStatus {
 }
 
 /** Lee, sin red, si un motor está configurado (endpoint + requisitos duros). */
+/**
+ * Estado de OpenVoice SIN red ni imports asíncronos (buildVoiceChain es
+ * síncrono): lee la memoria de salud del descubrimiento (localStorage).
+ * 'listo' ⇔ algún endpoint con éxito real en <24 h y no apartado. Nunca lanza.
+ */
+function openVoiceStateSync(): "listo" | "nuevo" | "dormido" {
+  try {
+    if (typeof window === "undefined") return "dormido";
+    const raw = window.localStorage.getItem("starseed.aurora.openvoice.health.v1");
+    // Sin historial: NUNCA se ha probado en este navegador → merece ir primera
+    // UNA vez (si falla, la memoria de salud la aparta sola 6 h y este chequeo
+    // pasa a 'dormido' — autocorrección sin configurar nada).
+    if (!raw) return "nuevo";
+    const h = JSON.parse(raw) as Record<string, { lastOkAt?: number; badUntil?: number }>;
+    const now = Date.now();
+    let sawAny = false;
+    for (const k of Object.keys(h || {})) {
+      sawAny = true;
+      const e = h[k];
+      if (e?.badUntil && e.badUntil > now) continue;
+      if (e?.lastOkAt && now - e.lastOkAt < 24 * 60 * 60_000) return "listo";
+    }
+    return sawAny ? "dormido" : "nuevo";
+  } catch {
+    return "dormido";
+  }
+}
+
 function endpointEngineConfigured(id: NeuralVoiceEngine, cfg: AuroraVoiceConfig): boolean {
   // OmniVoice HÍBRIDO (Adenda 77-voz): motor integrado con CERO configuración —
   // habla por el daemon local (127.0.0.1:4444) o por la nube gratis (HF Space).
@@ -494,7 +522,26 @@ export function buildVoiceChain(
     //    con OmniVoice sin configurar nada. Si el daemon local está vivo, el propio
     //    híbrido usa local; si no, la nube. Ver omnivoice-hybrid.ts.
     if (cfg.auto !== false) {
-      for (const id of AUTO_ENDPOINT_ORDER) {
+      // ASCENSO DINÁMICO (Adenda 79): si OpenVoice tiene un endpoint SANO (algún
+      // éxito real reciente en la memoria de salud del descubrimiento), va POR
+      // DELANTE de OmniVoice — así la voz nueva realista de cada personalidad
+      // SUENA de verdad en la web sin instalar nada. Si no está sano, el orden
+      // clásico manda y OmniVoice sigue primero. Chequeo síncrono y barato
+      // (lee localStorage); jamás lanza.
+      let order: readonly NeuralVoiceEngine[] = AUTO_ENDPOINT_ORDER;
+      try {
+        const st = openVoiceStateSync();
+        if (st === "listo" || st === "nuevo") {
+          const rest = AUTO_ENDPOINT_ORDER.filter((e) => e !== "openvoice2");
+          const at = rest.indexOf("omnivoice");
+          order = at >= 0
+            ? [...rest.slice(0, at), "openvoice2", ...rest.slice(at)]
+            : ["openvoice2", ...rest];
+        }
+      } catch {
+        /* orden clásico */
+      }
+      for (const id of order) {
         if (endpointEngineConfigured(id, cfg)) push(id);
       }
     }

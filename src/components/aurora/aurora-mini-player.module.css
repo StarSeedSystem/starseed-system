@@ -286,19 +286,30 @@
 .footBtn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  gap: 4px;
   height: 28px;
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: 10px;
   cursor: pointer;
   border: 1px solid transparent;
   white-space: nowrap;
-  flex-shrink: 0;
+  /* Los botones del pie COMPARTEN el ancho de la orbe: pueden encogerse y su
+     etiqueta se recorta con elipsis antes que desbordar la ventana (fix del
+     botón Nexus saliéndose del borde en pantallas estrechas). */
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
   transition:
     background 160ms ease,
     color 160ms ease,
     box-shadow 160ms ease,
     transform 160ms ease;
+}
+.footBtn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .footBtn:hover {
   transform: translateY(-1px);

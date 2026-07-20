@@ -22,6 +22,14 @@ import {
   OPENVOICE2_SEED_SPECS,
 } from "@/lib/aurora/tts-oss/openvoice2";
 import { sanitizeOpenVoiceConfig, sanitizeAstrauraVoice } from "@/lib/aurora/tts-oss/voice-config";
+import { emotionStyleFor } from "@/lib/aurora/tts-oss/openvoice2";
+import {
+  spaceIdToHost,
+  looksLikeV2Design,
+  looksLikeV1Predict,
+  emotionsFromLiteral,
+  OPENVOICE_BUILTIN_ENDPOINTS,
+} from "@/lib/aurora/tts-oss/openvoice-discovery";
 
 let passed = 0;
 let failed = 0;
@@ -206,6 +214,61 @@ console.log("\n[6] validateOpenVoice2Contract → detecta cambios de contrato");
 
   ok("forma desconocida → true (optimista, no degradar)", validateOpenVoice2Contract({}) === true);
   ok("null → true (optimista)", validateOpenVoice2Contract(null) === true);
+}
+
+// ── DESCUBRIMIENTO (Adenda 79): clasificadores y emociones — puros, sin red ──
+{
+  ok("spaceIdToHost oficial", spaceIdToHost("myshell-ai/OpenVoiceV2") === "myshell-ai-openvoicev2");
+  ok(
+    "spaceIdToHost con guiones bajos",
+    spaceIdToHost("naveenk-ai/openvoice_voicecloning_win") === "naveenk-ai-openvoice-voicecloning-win",
+  );
+
+  const v2ep = {
+    parameters: [
+      { label: "Text Prompt", python_type: { type: "str" }, component: "Textbox" },
+      { label: "Style", python_type: { type: "Option from: [('en_default', 'en_default'), ('es_default', 'es_default')]" }, component: "Dropdown" },
+      { label: "Reference Audio", python_type: { type: "str" }, component: "Audio" },
+      { label: "Agree", python_type: { type: "bool" }, component: "Checkbox" },
+    ],
+  };
+  ok("looksLikeV2Design acepta el contrato oficial", looksLikeV2Design(v2ep) === true);
+  ok("looksLikeV2Design rechaza 3 params", looksLikeV2Design({ parameters: v2ep.parameters.slice(0, 3) }) === false);
+
+  const v1ep = {
+    parameters: [
+      { label: "Text to speak", python_type: { type: "str" } },
+      { label: "Style", python_type: { type: "Literal['default', 'whispering', 'cheerful', 'terrified', 'angry', 'sad', 'friendly']" } },
+      { label: "Reference Audio", python_type: { type: "filepath" } },
+      { label: "Tau", python_type: { type: "float" } },
+    ],
+  };
+  ok("looksLikeV1Predict acepta el contrato de emociones", looksLikeV1Predict(v1ep) === true);
+  ok("looksLikeV1Predict rechaza el V2", looksLikeV1Predict(v2ep) === false);
+
+  const ems = emotionsFromLiteral("Literal['default', 'cheerful', 'sad']");
+  ok("emotionsFromLiteral extrae 3", ems.length === 3 && ems.includes("cheerful"));
+
+  ok("builtins ≥ 3 (oficial + duplicado + v1 vivo)", OPENVOICE_BUILTIN_ENDPOINTS.length >= 3);
+  ok(
+    "builtin v1 con emociones",
+    OPENVOICE_BUILTIN_ENDPOINTS.some((e) => e.kind === "v1-predict" && (e.emotions?.length ?? 0) >= 5),
+  );
+
+  // Emoción por carácter + emoción viva del usuario.
+  ok("Hermione → cheerful", emotionStyleFor({ personalityId: "preset-hermione" }) === "cheerful");
+  ok("Aurora → friendly", emotionStyleFor({ personalityId: "preset-aurora" }) === "friendly");
+  ok("mood triste manda → sad", emotionStyleFor({ personalityId: "preset-aurora", mood: "triste" }) === "sad");
+  ok("mood alegre → cheerful", emotionStyleFor({ personalityId: "x", mood: "alegre" }) === "cheerful");
+  ok("tenso JAMÁS angry", emotionStyleFor({ personalityId: "x", mood: "tenso" }) !== "angry");
+  ok(
+    "styleHint válido manda",
+    emotionStyleFor({ personalityId: "preset-aurora", styleHint: "whispering" }) === "whispering",
+  );
+  ok(
+    "available restringe",
+    emotionStyleFor({ personalityId: "preset-hermione", available: ["default", "sad"] }) === "default",
+  );
 }
 
 // ── Resumen ──────────────────────────────────────────────────────────────────

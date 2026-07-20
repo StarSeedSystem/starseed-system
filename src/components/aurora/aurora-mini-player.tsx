@@ -641,20 +641,20 @@ export function AuroraMiniPlayer({
             onClick={() => setExpanded((v) => !v)}
             title={expanded ? "Colapsar" : "Ver historial de la sesión"}
             aria-label={expanded ? "Colapsar historial" : "Expandir historial"}
-            className={cn(styles.footBtn, styles.footBtnGhost)}
+            className={cn(styles.footBtn, styles.footBtnGhost, "min-w-0 flex-1")}
           >
-            <ChevronUp className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")} />
+            <ChevronUp className={cn("h-3.5 w-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
             <span className="text-[10px] font-medium">{expanded ? "Menos" : "Historial"}</span>
           </button>
 
           {/* Abrir cualquier chat de cualquier carpeta · cerebros · nuevo chat. */}
-          <div className="relative">
+          <div className="relative min-w-0 flex-1">
             <button
               type="button"
               onClick={() => setOpenMenuOpen((v) => !v)}
               title="Abrir chats, elegir cerebro o crear un chat nuevo"
               aria-label="Chats y cerebros"
-              className={cn(styles.footBtn, styles.footBtnGhost)}
+              className={cn(styles.footBtn, styles.footBtnGhost, "w-full")}
             >
               <FolderOpen className="h-3.5 w-3.5" />
               <span className="text-[10px] font-medium">Chats</span>
@@ -667,13 +667,13 @@ export function AuroraMiniPlayer({
             )}
           </div>
 
-          <div className="relative">
+          <div className="relative min-w-0 flex-1">
             <button
               type="button"
               onClick={() => setOptsOpen((v) => !v)}
               title="Opciones de configuración del chat (Astraura)"
               aria-label="Opciones de configuración del chat"
-              className={cn(styles.footBtn, styles.footBtnGhost)}
+              className={cn(styles.footBtn, styles.footBtnGhost, "w-full")}
             >
               <Settings className="h-3.5 w-3.5" />
               <span className="text-[10px] font-medium">Opciones</span>
@@ -691,20 +691,20 @@ export function AuroraMiniPlayer({
             onClick={() => router.push(`/agent/chat${conv.activeId ? `?id=${conv.activeId}` : ""}`)}
             title="Abrir el chat actual en pantalla completa"
             aria-label="Abrir en pantalla completa"
-            className={cn(styles.footBtn, styles.footBtnGhost, "ml-auto")}
+            className={cn(styles.footBtn, styles.footBtnGhost, "shrink-0")}
           >
             <Maximize2 className="h-3.5 w-3.5" />
           </button>
 
-          <div className="relative">
+          <div className="relative min-w-0 flex-1">
             <button
               type="button"
               onClick={() => setNexusOpen((v) => !v)}
               title="Nexus — resumen gráfico del uso del sistema Astraura"
               aria-label="Nexus · resumen de uso"
-              className={cn(styles.footBtn, styles.footBtnPrimary)}
+              className={cn(styles.footBtn, styles.footBtnPrimary, "w-full")}
             >
-              <Gauge className="h-3.5 w-3.5" />
+              <Gauge className="h-3.5 w-3.5 shrink-0" />
               <span className="text-[10px] font-semibold">Nexus</span>
             </button>
             {nexusOpen && typeof document !== "undefined" && createPortal(

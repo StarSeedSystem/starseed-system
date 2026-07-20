@@ -54,6 +54,16 @@ import {
   type AstrauraDesignAttributes,
   type AstrauraVoiceConfig,
 } from "@/lib/aurora/tts-oss/voice-config";
+import {
+  ensureDiscoveryFresh,
+  getOpenVoiceDiscoveryInfo,
+  isOpenVoiceEndpointBad,
+  markOpenVoiceEndpointResult,
+  orderedOpenVoiceEndpoints,
+  OPENVOICE_V1_EMOTIONS,
+  type OpenVoiceEndpoint,
+} from "@/lib/aurora/tts-oss/openvoice-discovery";
+import { getLastUserVoiceEmotion } from "@/lib/aurora/audio-emotion";
 
 // ── Constantes del Space ─────────────────────────────────────────────────────
 
@@ -176,7 +186,32 @@ let warmedUp = false;
 
 /** Estado actual del motor ('listo' | 'dormido' | 'fuera'). Para la UI. */
 export function getOpenVoice2State(): OpenVoice2State {
+  // La MEMORIA DE SALUD del descubrimiento manda: si algún endpoint OpenVoice
+  // sintetizó con éxito en las últimas 24 h (aunque esta pestaña sea nueva),
+  // el motor está LISTO — así la cadena lo antepone y la voz nueva SUENA.
+  try {
+    const info = getOpenVoiceDiscoveryInfo();
+    if (info.endpoints.some((e) => !isOpenVoiceEndpointBad(e.id) && endpointKnownGood(e.id))) {
+      return "listo";
+    }
+    if (info.healthy === 0) return "fuera";
+  } catch {
+    /* caemos al estado vivo */
+  }
   return lastState;
+}
+
+/** ¿Este endpoint tuvo un éxito real reciente (<24 h)? Sin red. */
+function endpointKnownGood(id: string): boolean {
+  try {
+    const raw = safeLS()?.getItem("starseed.aurora.openvoice.health.v1");
+    if (!raw) return false;
+    const h = JSON.parse(raw) as Record<string, { lastOkAt?: number }>;
+    const ok = h?.[id]?.lastOkAt;
+    return !!(ok && Date.now() - ok < 24 * 60 * 60_000);
+  } catch {
+    return false;
+  }
 }
 
 // ── Utilidades SSR-safe ──────────────────────────────────────────────────────
@@ -480,8 +515,8 @@ interface GradioFileRef {
 /** Rutas /tmp ya subidas en ESTA sesión (el Space borra /tmp al reiniciar). */
 const sessionRefPaths = new Map<string, string>();
 
-/** Sube un Blob de audio a /upload y devuelve su ruta /tmp del server (o null). */
-async function uploadReference(blob: Blob, signal?: AbortSignal): Promise<string | null> {
+/** Sube un Blob de audio a /upload del Space indicado y devuelve su ruta /tmp (o null). */
+async function uploadReference(blob: Blob, base: string, signal?: AbortSignal): Promise<string | null> {
   if (typeof window === "undefined") return null;
   const ctrl = new AbortController();
   const onAbort = () => {
@@ -499,7 +534,7 @@ async function uploadReference(blob: Blob, signal?: AbortSignal): Promise<string
   try {
     const fd = new FormData();
     fd.append("files", blob, "reference.wav");
-    const res = await fetch(`${OPENVOICE2_SPACE}/upload`, {
+    const res = await fetch(`${base}/upload`, {
       method: "POST",
       body: fd,
       signal: ctrl.signal,
@@ -572,14 +607,62 @@ async function designSeedBlob(
       budgetMs: QUEUE_TIMEOUT_FIRST_MS,
       onStatus,
     });
-    if (!out) return null;
-    for (const item of out) {
-      const blob = await gradioItemToBlob(item, OMNI_SPACE_BASE, signal);
-      if (blob) return blob;
+    if (out) {
+      for (const item of out) {
+        const blob = await gradioItemToBlob(item, OMNI_SPACE_BASE, signal);
+        if (blob) return blob;
+      }
     }
-    return null;
+    // RESPALDO (Adenda 79): si la nube de OmniVoice tose, el DAEMON LOCAL (si
+    // está instalado y vivo en 127.0.0.1:4444) genera la semilla — 100 %
+    // sintética igualmente. Así la identidad V2 nace incluso sin nube.
+    return await designSeedViaLocalDaemon(spec, signal, onStatus);
   } catch {
     return null;
+  }
+}
+
+/** Semilla vía daemon nativo local (POST /tts). Nunca lanza; null si no hay daemon. */
+async function designSeedViaLocalDaemon(
+  spec: OpenVoice2SeedSpec,
+  signal?: AbortSignal,
+  onStatus?: (m: string) => void,
+): Promise<Blob | null> {
+  if (typeof window === "undefined") return null;
+  const ctrl = new AbortController();
+  const onAbort = () => {
+    try {
+      ctrl.abort();
+    } catch {
+      /* */
+    }
+  };
+  if (signal) {
+    if (signal.aborted) return null;
+    signal.addEventListener("abort", onAbort, { once: true });
+  }
+  const killer = setTimeout(onAbort, 45_000);
+  try {
+    try {
+      onStatus?.("creando la semilla con el motor local…");
+    } catch {
+      /* */
+    }
+    const res = await fetch("http://127.0.0.1:4444/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: spec.text || DEFAULT_SEED_TEXT, lang: spec.lang || "es" }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return null;
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (!looksLikeAudio(buf)) return null;
+    return new Blob([buf], { type: "audio/wav" });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(killer);
+    if (signal) signal.removeEventListener("abort", onAbort);
   }
 }
 
@@ -644,6 +727,8 @@ interface ReferenceOptions {
   signal?: AbortSignal;
   onStatus?: (m: string) => void;
   forceReupload?: boolean;
+  /** Base del Space DESTINO (cada endpoint tiene su /tmp propio). */
+  base?: string;
 }
 
 function seedSpecFor(
@@ -680,7 +765,8 @@ async function getOrCreateSeedRefPath(
   const resolved = seedSpecFor(kind, opts);
   if (!resolved) return null;
   const version = opts.seedVersion ?? OPENVOICE2_SEED_VERSION;
-  const sessionKey = `seed:${resolved.cacheId}:v${version}`;
+  const base = opts.base || OPENVOICE2_SPACE;
+  const sessionKey = `${base}::seed:${resolved.cacheId}:v${version}`;
 
   if (!opts.forceReupload) {
     const cachedPath = sessionRefPaths.get(sessionKey);
@@ -695,7 +781,7 @@ async function getOrCreateSeedRefPath(
   }
   if (!seed) return null;
 
-  const path = await uploadReference(seed, opts.signal);
+  const path = await uploadReference(seed, base, opts.signal);
   if (path) sessionRefPaths.set(sessionKey, path);
   return path;
 }
@@ -708,12 +794,12 @@ async function resolveReference(opts: ReferenceOptions): Promise<GradioFileRef |
   }
   // 2) Muestra REAL subida por el usuario (clonación permitida solo aquí).
   if (opts.refBlob) {
-    const key = "user:current";
+    const key = `${opts.base || OPENVOICE2_SPACE}::user:current`;
     if (!opts.forceReupload) {
       const cached = sessionRefPaths.get(key);
       if (cached) return { name: cached, data: null, is_file: true };
     }
-    const path = await uploadReference(opts.refBlob, opts.signal);
+    const path = await uploadReference(opts.refBlob, opts.base || OPENVOICE2_SPACE, opts.signal);
     if (path) {
       sessionRefPaths.set(key, path);
       return { name: path, data: null, is_file: true };
@@ -749,7 +835,14 @@ function runQueue(
   text: string,
   style: OpenVoice2Style,
   reference: GradioFileRef | null,
-  opts: { signal?: AbortSignal; onStatus?: (m: string) => void; budgetMs: number },
+  opts: {
+    signal?: AbortSignal;
+    onStatus?: (m: string) => void;
+    budgetMs: number;
+    /** Endpoint destino (base + fn_index). Por defecto, el Space oficial. */
+    base?: string;
+    fnIndex?: number;
+  },
 ): Promise<QueueResult> {
   return new Promise<QueueResult>((resolve) => {
     if (typeof window === "undefined" || typeof WebSocket === "undefined") {
@@ -793,8 +886,10 @@ function runQueue(
       opts.signal.addEventListener("abort", onAbort, { once: true });
     }
 
+    const wsBase = (opts.base || OPENVOICE2_SPACE).replace(/^http/i, "ws");
+    const fnIndex = opts.fnIndex ?? OPENVOICE2_FN_INDEX;
     try {
-      ws = new WebSocket(OPENVOICE2_WS);
+      ws = new WebSocket(`${wsBase}/queue/join`);
     } catch {
       done({ ok: false, reason: "ws", completed });
       return;
@@ -816,7 +911,7 @@ function runQueue(
       switch (m.kind) {
         case "send_hash":
           try {
-            socket.send(JSON.stringify({ fn_index: OPENVOICE2_FN_INDEX, session_hash }));
+            socket.send(JSON.stringify({ fn_index: fnIndex, session_hash }));
           } catch {
             /* */
           }
@@ -840,7 +935,7 @@ function runQueue(
             socket.send(
               JSON.stringify({
                 data: [text, style, reference ?? null, true],
-                fn_index: OPENVOICE2_FN_INDEX,
+                fn_index: fnIndex,
                 session_hash,
               }),
             );
@@ -857,7 +952,7 @@ function runQueue(
             done({ ok: false, reason: "space-error", completed });
             break;
           }
-          void resolveAudioBlob(m.output, opts.signal)
+          void resolveAudioBlob(m.output, opts.signal, opts.base)
             .then((blob) => {
               if (blob) done({ ok: true, blob, reason: "ok", completed });
               else done({ ok: false, reason: "no-audio", completed });
@@ -873,7 +968,11 @@ function runQueue(
 }
 
 /** Extrae el Blob de audio del `output.data` del process_completed. Nunca lanza. */
-async function resolveAudioBlob(output: unknown, signal?: AbortSignal): Promise<Blob | null> {
+async function resolveAudioBlob(
+  output: unknown,
+  signal?: AbortSignal,
+  base: string = OPENVOICE2_SPACE,
+): Promise<Blob | null> {
   try {
     if (!output || typeof output !== "object") return null;
     const data = (output as { data?: unknown }).data;
@@ -888,18 +987,155 @@ async function resolveAudioBlob(output: unknown, signal?: AbortSignal): Promise<
           const viaUrl = await fetchAudioBlob(d, signal);
           if (viaUrl) return viaUrl;
         }
-        const viaFile = await fetchAudioBlob(`${OPENVOICE2_SPACE}/file=${encodeURI(d)}`, signal);
+        const viaFile = await fetchAudioBlob(`${base}/file=${encodeURI(d)}`, signal);
         if (viaFile) return viaFile;
         continue;
       }
       if (typeof d === "object") {
-        const viaItem = await gradioItemToBlob(d, OPENVOICE2_SPACE, signal);
+        const viaItem = await gradioItemToBlob(d, base, signal);
         if (viaItem) return viaItem;
       }
     }
     return null;
   } catch {
     return null;
+  }
+}
+
+// ── Adaptador V1-PREDICT (Gradio 4 · cola por SSE) — el que HOY funciona ─────
+
+/**
+ * Emoción del contrato v1 para esta locución: parte del CARÁCTER de la
+ * personalidad (Aurora→friendly, Hermione→cheerful) y la emoción VIVA percibida
+ * del usuario la matiza (alegre→cheerful, triste→sad, …). Pura y testeable.
+ */
+export function emotionStyleFor(opts: {
+  personalityId?: string;
+  mood?: string;
+  styleHint?: string;
+  available?: string[];
+}): string {
+  const avail = opts.available?.length ? opts.available : [...OPENVOICE_V1_EMOTIONS];
+  const pick = (want: string, fallback = "default"): string =>
+    avail.includes(want) ? want : avail.includes(fallback) ? fallback : avail[0];
+  // Una pista explícita del editor manda (si es una emoción del contrato v1).
+  if (opts.styleHint && avail.includes(opts.styleHint)) return opts.styleHint;
+  const mood = (opts.mood || "").toLowerCase();
+  if (mood === "alegre" || mood === "enérgico" || mood === "energico") return pick("cheerful");
+  if (mood === "triste") return pick("sad");
+  if (mood === "sereno") return pick("default");
+  // Tenso → tono empático y calmado (jamás "angry" de vuelta al usuario).
+  if (mood === "tenso") return pick("friendly");
+  const kind = seedKindFor(opts.personalityId);
+  if (kind === "hermione") return pick("cheerful", "friendly");
+  if (kind === "aurora") return pick("friendly");
+  return pick("default");
+}
+
+/** Emoción percibida AHORA del oído emocional (si el sentido está activo). */
+function liveUserMood(): string | undefined {
+  try {
+    const e = getLastUserVoiceEmotion();
+    if (e && (e.confidence ?? 0) >= 0.35) return e.mood;
+  } catch {
+    /* sin oído emocional */
+  }
+  return undefined;
+}
+
+/**
+ * Corre la cola de Gradio 4 (POST /queue/join → SSE /queue/data) del contrato
+ * v1-predict: data = [texto, emoción, FileData(path), tau]. Nunca lanza.
+ */
+async function runQueueSSE(
+  text: string,
+  emotion: string,
+  refPath: string,
+  endpoint: OpenVoiceEndpoint,
+  opts: { signal?: AbortSignal; onStatus?: (m: string) => void; budgetMs: number },
+): Promise<QueueResult> {
+  if (typeof window === "undefined") return { ok: false, reason: "ws", completed: false };
+  const session_hash = randHash();
+  const ctrl = new AbortController();
+  const onAbort = () => {
+    try {
+      ctrl.abort();
+    } catch {
+      /* */
+    }
+  };
+  if (opts.signal) {
+    if (opts.signal.aborted) return { ok: false, reason: "ws", completed: false };
+    opts.signal.addEventListener("abort", onAbort, { once: true });
+  }
+  const killer = setTimeout(onAbort, opts.budgetMs);
+  try {
+    const fileData = {
+      path: refPath,
+      url: `${endpoint.base}/file=${encodeURI(refPath)}`,
+      orig_name: "reference.wav",
+      meta: { _type: "gradio.FileData" },
+    };
+    const join = (await fetch(`${endpoint.base}/queue/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        data: [text, emotion, fileData, 0.7],
+        fn_index: endpoint.fnIndex,
+        session_hash,
+        event_data: null,
+        trigger_id: null,
+      }),
+      signal: ctrl.signal,
+    }).then((r) => (r.ok ? r.json() : null)).catch(() => null)) as { event_id?: string } | null;
+    if (!join?.event_id) return { ok: false, reason: "ws", completed: false };
+
+    try {
+      opts.onStatus?.("en cola, dando voz a la respuesta…");
+    } catch {
+      /* */
+    }
+
+    const res = await fetch(`${endpoint.base}/queue/data?session_hash=${session_hash}`, {
+      signal: ctrl.signal,
+    }).catch(() => null);
+    if (!res || !res.ok || !res.body) return { ok: false, reason: "ws", completed: false };
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    // Leemos el stream SSE línea a línea hasta process_completed.
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data:")) continue;
+        let msg: { msg?: string; success?: boolean; output?: unknown } | null = null;
+        try {
+          msg = JSON.parse(line.slice(5));
+        } catch {
+          continue;
+        }
+        if (!msg) continue;
+        if (msg.msg === "process_completed") {
+          if (!msg.success) return { ok: false, reason: "space-error", completed: true };
+          const blob = await resolveAudioBlob(msg.output, opts.signal, endpoint.base);
+          return blob
+            ? { ok: true, blob, reason: "ok", completed: true }
+            : { ok: false, reason: "no-audio", completed: true };
+        }
+        if (msg.msg === "queue_full") return { ok: false, reason: "timeout", completed: false };
+      }
+    }
+    return { ok: false, reason: "timeout", completed: false };
+  } catch {
+    return { ok: false, reason: "ws", completed: false };
+  } finally {
+    clearTimeout(killer);
+    if (opts.signal) opts.signal.removeEventListener("abort", onAbort);
   }
 }
 
@@ -946,12 +1182,11 @@ export async function synthesizeOpenVoice2(
   const clean = (text || "").trim();
   if (!clean || typeof window === "undefined") return null;
 
-  // Autoactualización del contrato (best-effort). Si CAMBIÓ, degradamos.
-  const contractOk = await ensureContractFresh(opts.signal).catch(() => true);
-  if (contractOk === false) {
-    lastState = "fuera";
-    return null;
-  }
+  // Autoactualización: refresco de DESCUBRIMIENTO en segundo plano (si caducó)
+  // + contrato del Space oficial (best-effort; si cambió, ese endpoint degrada
+  // pero el bucle multi-endpoint sigue con los demás).
+  ensureDiscoveryFresh();
+  await ensureContractFresh(opts.signal).catch(() => true);
 
   const style = resolveOpenVoice2Style({
     styleHint: opts.styleHint,
@@ -959,54 +1194,114 @@ export async function synthesizeOpenVoice2(
     personalityId: opts.personalityId,
   });
 
-  const refOpts: ReferenceOptions = {
-    personalityId: opts.personalityId,
-    refBlob: opts.refBlob,
-    refPathCache: opts.refPathCache,
-    useSeed: opts.useSeed,
-    seedVersion: opts.seedVersion,
-    seedAttrs: opts.seedAttrs,
-    lang: opts.lang,
-    signal: opts.signal,
-    onStatus: opts.onStatus,
-  };
+  // BUCLE MULTI-ENDPOINT (Adenda 79): recorre los endpoints descubiertos por
+  // salud/orden. Cada uno tiene su propio /tmp → la referencia se sube por
+  // endpoint (cacheada por sesión). Un fallo de inferencia aparta el endpoint
+  // 6 h y se pasa al siguiente AUTOMÁTICAMENTE. Aurora nunca calla: si todos
+  // fallan, devolvemos null y la cadena sigue (Kokoro/navegador).
+  const endpoints = orderedOpenVoiceEndpoints().slice(0, 3);
+  const mood = liveUserMood();
 
-  let reference = await resolveReference(refOpts).catch(() => null);
-  let reusedCachedPath = !!(opts.refPathCache && reference);
+  for (const ep of endpoints) {
+    if (opts.signal?.aborted) return null;
 
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const budget = warmedUp ? QUEUE_TIMEOUT_WARM_MS : QUEUE_TIMEOUT_FIRST_MS;
-    const res = await runQueue(clean, style, reference, {
+    const refOpts: ReferenceOptions = {
+      personalityId: opts.personalityId,
+      refBlob: opts.refBlob,
+      refPathCache: undefined, // la ruta cacheada externa solo vale para el oficial
+      useSeed: opts.useSeed,
+      seedVersion: opts.seedVersion,
+      seedAttrs: opts.seedAttrs,
+      lang: opts.lang,
       signal: opts.signal,
       onStatus: opts.onStatus,
-      budgetMs: budget,
-    }).catch((): QueueResult => ({ ok: false, reason: "ws", completed: false }));
-
-    if (res.completed) warmedUp = true;
-
-    if (res.ok && res.blob) {
-      lastState = "listo";
-      return res.blob;
+      base: ep.base,
+    };
+    if (ep.base === OPENVOICE2_SPACE && opts.refPathCache) {
+      refOpts.refPathCache = opts.refPathCache;
     }
 
-    // Ruta /tmp reutilizada que ya no existe (Space reiniciado) → resube y reintenta.
-    if (attempt === 0 && (reusedCachedPath || res.reason === "no-audio") && reference) {
-      invalidateSessionRefs();
-      reference = await resolveReference({ ...refOpts, forceReupload: true }).catch(() => null);
-      reusedCachedPath = false;
-      if (reference) continue;
+    let reference = await resolveReference(refOpts).catch(() => null);
+    if (!reference) continue; // sin referencia usable en este endpoint → siguiente
+
+    let epFailedInference = false;
+    let epTimedOut = false;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (opts.signal?.aborted) return null;
+      if (!reference) break; // la resubida falló: siguiente endpoint
+      const budget = warmedUp ? QUEUE_TIMEOUT_WARM_MS : QUEUE_TIMEOUT_FIRST_MS;
+
+      let res: QueueResult;
+      if (ep.kind === "v1-predict") {
+        const emotion = emotionStyleFor({
+          personalityId: opts.personalityId,
+          mood,
+          styleHint: opts.styleHint,
+          available: ep.emotions,
+        });
+        res = await runQueueSSE(clean, emotion, reference.name, ep, {
+          signal: opts.signal,
+          onStatus: opts.onStatus,
+          budgetMs: budget,
+        }).catch((): QueueResult => ({ ok: false, reason: "ws", completed: false }));
+      } else {
+        res = await runQueue(clean, style, reference, {
+          signal: opts.signal,
+          onStatus: opts.onStatus,
+          budgetMs: budget,
+          base: ep.base,
+          fnIndex: ep.fnIndex,
+        }).catch((): QueueResult => ({ ok: false, reason: "ws", completed: false }));
+      }
+
+      if (res.completed) warmedUp = true;
+
+      if (res.ok && res.blob) {
+        lastState = "listo";
+        try {
+          markOpenVoiceEndpointResult(ep.id, true);
+        } catch {
+          /* */
+        }
+        return res.blob;
+      }
+
+      // Ruta /tmp caducada (Space reiniciado) → resube UNA vez en este endpoint.
+      if (attempt === 0 && res.reason === "no-audio") {
+        invalidateSessionRefs();
+        reference = await resolveReference({ ...refOpts, forceReupload: true }).catch(() => null);
+        if (reference) continue;
+      }
+
+      if (res.reason === "space-error") {
+        // Inferencia rota en ESTE endpoint (p.ej. cpu-basic): apartarlo y seguir.
+        epFailedInference = true;
+        break;
+      }
+      if ((res.reason === "timeout" || res.reason === "ws") && attempt === 0) {
+        lastState = "dormido";
+        continue; // cold start → un reintento en el mismo endpoint
+      }
+      if (res.reason === "timeout" || res.reason === "ws") epTimedOut = true;
+      break;
     }
 
-    if (res.reason === "space-error") {
-      // El Space respondió pero falló la inferencia (hoy: hardware cpu-basic).
-      lastState = "fuera";
-      return null;
+    if (epFailedInference || epTimedOut) {
+      try {
+        // Inferencia rota → 6 h apartado. Solo timeout/red → bad SUAVE (15 min):
+        // puede ser un Space dormido despertando; volveremos a darle su turno
+        // pronto, pero mientras tanto la cadena no se atasca en él.
+        markOpenVoiceEndpointResult(ep.id, false, epFailedInference ? undefined : 15);
+      } catch {
+        /* */
+      }
+      try {
+        opts.onStatus?.(`«${ep.id}» no respondió; probando la siguiente fuente OpenVoice…`);
+      } catch {
+        /* */
+      }
     }
-    if ((res.reason === "timeout" || res.reason === "ws") && attempt === 0) {
-      lastState = "dormido";
-      continue; // cold start / corte transitorio → un reintento
-    }
-    break;
   }
 
   if (lastState === "listo") lastState = "dormido";
