@@ -33,9 +33,11 @@ import { createEgoForContext } from "@/lib/aurora/ego";
 import { HubRedSection } from "./red-section";
 import { HubDiscoverSection } from "./discover-section";
 import { UserDirectoryResults, GroupDirectoryResults, UserRecommendationsStrip } from "@/components/hub/user-directory-results";
+// ── Adenda 77 · Agente H2 · PACK 2 cultural (import + pestaña añadidos al final, sin reordenar) ──
+import { CulturaVivaSection, CULTURA_VIVA_TAB_ITEM, CULTURA_VIVA_TAB_VALUE } from "./cultura-viva-section";
 
 // Pestañas válidas del Hub (para deep-linking `?tab=` desde el dock / enlaces).
-const HUB_TABS = ["buscador", "contributions", "red", "my-pages", "groups", "calendar", "parties", "vote-management"] as const;
+const HUB_TABS = ["buscador", "contributions", "red", "my-pages", "groups", "calendar", "parties", "vote-management", CULTURA_VIVA_TAB_VALUE] as const;
 
 // Menú unificado del Hub (Adenda 66 §10): mismo componente `SectionTabs` en todo
 // el OS. «Red» va primero por ser la sección principal (Adenda 66 §8). El Mapa
@@ -50,6 +52,8 @@ const HUB_TAB_ITEMS: SectionTabItem[] = [
     { href: "/hub/mapa", label: "Mapa", icon: MapIcon, title: "Mapa de la Red (OpenStreetMap soberano)" },
     { value: "parties", label: "Partidos", icon: Flame },
     { value: "vote-management", label: "Votos", icon: Vote },
+    // Adenda 77 · H2 · añadido al FINAL (sin reordenar, para no chocar con H1):
+    CULTURA_VIVA_TAB_ITEM,
 ];
 
 // ── TYPES & MOCK DATA FOR CONTRIBUTIONS ──
@@ -1909,6 +1913,11 @@ export default function HubPage() {
                             </Card>
                         ))}
                     </div>
+                </TabsContent>
+
+                {/* ── CULTURA VIVA (Adenda 77 · H2 · PACK 2 cultural) ── */}
+                <TabsContent value={CULTURA_VIVA_TAB_VALUE} className="mt-6 animate-in fade-in-50 duration-500">
+                    <CulturaVivaSection />
                 </TabsContent>
             </Tabs>
         </div>

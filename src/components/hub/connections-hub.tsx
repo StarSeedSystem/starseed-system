@@ -41,6 +41,11 @@ import { createClient } from "@/utils/supabase/client";
 import { listFederativeEntities, listPartidos } from "@/data/sample-governance";
 import { entityKindMeta, type SystemKey } from "@/lib/entity-kinds";
 import { pageHref, groupHref, eventHref } from "@/lib/entity-links";
+import { useEntityMeta, resolvePhase, resolveOikos, PHASE_META, PHASES, type Phase, type EntityDecl } from "@/lib/hub-social/phase-oikos";
+import { ConnectionStoryPopover } from "@/components/hub/connection-story-popover";
+import { EntityPhaseEditor } from "@/components/hub/entity-phase-editor";
+import type { GraphNode, GraphBond } from "@/lib/hub-social/graph";
+import { Sprout } from "lucide-react";
 
 const GOLD = "#E9C46A";
 
@@ -82,6 +87,8 @@ interface ConnItem {
     name: string;
     href: string;
     accent: string;
+    /** Etiquetas públicas (para fase/oikos e historias). */
+    tags: string[];
     /** Contador principal (miembros/ciudadanos/asistentes). */
     count: number;
     countLabel: string;
@@ -280,13 +287,43 @@ function QuickShareButton({ item }: { item: ConnItem }) {
     );
 }
 
+// Construye un GraphNode REAL (con vínculos y fecha de inicio si se conoce) a
+// partir de un ConnItem + los sets de "mis conexiones" + el grafo del orquestador.
+function itemToGraphNode(item: ConnItem, myConn: MyConnections, graphBySlug: Map<string, GraphNode>): GraphNode {
+    const real = graphBySlug.get(item.slug);
+    const bonds: GraphBond[] = [];
+    if (item.followSlug ? myConn.followPageSlugs.has(item.followSlug) : false) bonds.push("follow");
+    if (item.joinSlug ? myConn.memberGroupSlugs.has(item.joinSlug) : false) bonds.push("member");
+    if (myConn.adminSlugs.has(item.slug)) bonds.push("admin");
+    return {
+        slug: item.slug, name: item.name, type: item.type, system: item.system, accent: item.accent,
+        tags: item.tags, count: item.count, countLabel: item.countLabel, href: item.href,
+        bonds: real && real.bonds.length ? real.bonds : bonds,
+        since: real?.since,
+    };
+}
+
+interface ConnCardProps {
+    item: ConnItem;
+    myConn: MyConnections;
+    onChanged: () => void;
+    phase: Phase | null;
+    oikos: string | null;
+    decl: EntityDecl;
+    onDeclare: (slug: string, patch: EntityDecl, type: ConnType) => Promise<void>;
+    storyNode: GraphNode;
+    mineNodes: GraphNode[];
+}
+
 // ── Tarjeta de conexión enriquecida ──────────────────────────────────────────
-function ConnCard({ item, myConn, onChanged }: { item: ConnItem; myConn: MyConnections; onChanged: () => void }) {
+function ConnCard({ item, myConn, onChanged, phase, oikos, decl, onDeclare, storyNode, mineNodes }: ConnCardProps) {
     const sys = SYSTEM_META[item.system];
     const typeMeta = TYPE_META[item.type];
     const isFollowing = item.followSlug ? myConn.followPageSlugs.has(item.followSlug) : false;
     const isMember = item.joinSlug ? myConn.memberGroupSlugs.has(item.joinSlug) : false;
+    const isAdmin = myConn.adminSlugs.has(item.slug);
     const canAct = item.type === "grupo" || typeMeta.action === "follow";
+    const PhaseIcon = phase ? PHASE_META[phase].icon : null;
 
     return (
         <Card
@@ -331,10 +368,20 @@ function ConnCard({ item, myConn, onChanged }: { item: ConnItem; myConn: MyConne
                             <MapPin className="h-3 w-3" /> {item.meta}
                         </span>
                     )}
+                    {phase && PhaseIcon && (
+                        <span className="inline-flex items-center gap-1 font-semibold" style={{ color: PHASE_META[phase].color }}>
+                            <PhaseIcon className="h-3 w-3" /> {PHASE_META[phase].label}
+                        </span>
+                    )}
+                    {oikos && (
+                        <span className="inline-flex items-center gap-1 text-muted-foreground/80">
+                            <Globe className="h-3 w-3" /> {oikos}
+                        </span>
+                    )}
                 </div>
 
                 {/* Acciones rápidas */}
-                <div className="mt-auto flex items-center gap-2 pt-1">
+                <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
                     {canAct && (
                         <QuickJoinButton item={item} initialActive={item.type === "grupo" ? isMember : isFollowing} onChanged={onChanged} />
                     )}
@@ -345,6 +392,8 @@ function ConnCard({ item, myConn, onChanged }: { item: ConnItem; myConn: MyConne
                     >
                         Abrir <ArrowUpRight className="h-3.5 w-3.5" />
                     </Link>
+                    <ConnectionStoryPopover node={storyNode} mine={mineNodes} />
+                    {isAdmin && <EntityPhaseEditor slug={item.slug} type={item.type} current={decl} onSave={onDeclare} />}
                     <QuickShareButton item={item} />
                 </div>
             </CardContent>
@@ -375,15 +424,25 @@ function MiniConnRow({ item }: { item: ConnItem }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Componente principal
 // ─────────────────────────────────────────────────────────────────────────────
-export function ConnectionsHub() {
+export function ConnectionsHub({ graphMine }: { graphMine?: GraphNode[] } = {}) {
     const { data: pages } = useOsPages();
     const { data: groups } = useOsGroups();
     const { data: events } = useOsEvents();
     const myConn = useMyConnections();
+    const { meta: entityMeta, declare } = useEntityMeta();
 
     const [query, setQuery] = useState("");
     const [systemFilter, setSystemFilter] = useState<SystemKey | "all">("all");
     const [typeFilter, setTypeFilter] = useState<ConnType | "all">("all");
+    const [phaseFilter, setPhaseFilter] = useState<Phase | "all" | "none">("all");
+    const [oikosFilter, setOikosFilter] = useState<string>("all");
+
+    // Mapa slug → nodo REAL del grafo (para historias con fecha de inicio).
+    const graphBySlug = useMemo(() => {
+        const m = new Map<string, GraphNode>();
+        for (const n of graphMine ?? []) m.set(n.slug, n);
+        return m;
+    }, [graphMine]);
 
     // Construye la lista unificada de conexiones desde todas las fuentes reales.
     const allItems = useMemo<ConnItem[]>(() => {
@@ -393,6 +452,7 @@ export function ConnectionsHub() {
             items.push({
                 key: `page:${p.slug}`, type: "pagina", system: sys, slug: p.slug, name: p.name || p.slug,
                 href: pageHref({ id: p.slug, title: p.name || p.slug }), accent: p.accent || sys && SYSTEM_META[sys].color || GOLD,
+                tags: Array.isArray(p.tags) ? p.tags : [],
                 count: num(p.memberCount), countLabel: "seguidores", followSlug: p.slug,
             });
         }
@@ -401,6 +461,7 @@ export function ConnectionsHub() {
             items.push({
                 key: `group:${g.slug}`, type: "grupo", system: sys, slug: g.slug, name: g.name || g.slug,
                 href: groupHref({ id: g.slug, name: g.name || g.slug }), accent: g.accent || SYSTEM_META[sys].color,
+                tags: Array.isArray(g.tags) ? g.tags : [],
                 count: num(g.memberCount), countLabel: "miembros", joinSlug: g.slug,
             });
         }
@@ -408,6 +469,7 @@ export function ConnectionsHub() {
             items.push({
                 key: `event:${e.slug}`, type: "evento", system: "cultural", slug: e.slug, name: e.title || e.slug,
                 href: eventHref(e.slug), accent: SYSTEM_META.cultural.color,
+                tags: Array.isArray(e.tags) ? e.tags : [],
                 count: num(e.attendeeCount), countLabel: "asistentes", meta: fmtEventDate(e.startsAt) || e.location || undefined,
             });
         }
@@ -416,6 +478,7 @@ export function ConnectionsHub() {
                 items.push({
                     key: `ef:${ef.slug}`, type: "entidad", system: "politico", slug: ef.slug, name: ef.name,
                     href: `/entidad/${ef.slug}`, accent: ef.accent || SYSTEM_META.politico.color,
+                    tags: [],
                     count: num(ef.citizens), countLabel: "ciudadanos", followSlug: ef.slug,
                 });
             }
@@ -425,6 +488,7 @@ export function ConnectionsHub() {
                 items.push({
                     key: `party:${pa.slug}`, type: "partido", system: "politico", slug: pa.slug, name: pa.name,
                     href: `/partido/${pa.slug}`, accent: pa.accent || SYSTEM_META.politico.color,
+                    tags: [],
                     count: num(pa.members), countLabel: "militantes", followSlug: pa.slug,
                 });
             }
@@ -433,15 +497,33 @@ export function ConnectionsHub() {
     }, [pages, groups, events]);
 
     // Filtro por sistema/tipo/búsqueda.
+    // Opciones de Oikos/biorregión presentes en la red (declaradas o por etiqueta).
+    const oikosOptions = useMemo(() => {
+        const set = new Set<string>();
+        for (const it of allItems) {
+            const o = resolveOikos(it.slug, it.tags, entityMeta);
+            if (o) set.add(o);
+        }
+        return Array.from(set).sort((a, b) => a.localeCompare(b, "es")).slice(0, 24);
+    }, [allItems, entityMeta]);
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         return allItems.filter((it) => {
             if (systemFilter !== "all" && it.system !== systemFilter) return false;
             if (typeFilter !== "all" && it.type !== typeFilter) return false;
+            if (phaseFilter !== "all") {
+                const phase = resolvePhase(it.slug, it.tags, entityMeta);
+                if (phaseFilter === "none" ? phase !== null : phase !== phaseFilter) return false;
+            }
+            if (oikosFilter !== "all") {
+                const o = resolveOikos(it.slug, it.tags, entityMeta);
+                if ((o ?? "").toLowerCase() !== oikosFilter.toLowerCase()) return false;
+            }
             if (q && !(`${it.name} ${it.slug}`.toLowerCase().includes(q))) return false;
             return true;
         });
-    }, [allItems, systemFilter, typeFilter, query]);
+    }, [allItems, systemFilter, typeFilter, phaseFilter, oikosFilter, entityMeta, query]);
 
     // "Mis conexiones": cruza los sets reales con la lista unificada.
     const mine = useMemo(() => {
@@ -456,9 +538,9 @@ export function ConnectionsHub() {
     }, [allItems, myConn.followPageSlugs, myConn.memberGroupSlugs, myConn.adminSlugs]);
 
     const hasAnyMine = mine.following.length + mine.memberOf.length + mine.administering.length > 0;
-    const activeFilters = systemFilter !== "all" || typeFilter !== "all" || query.trim().length > 0;
+    const activeFilters = systemFilter !== "all" || typeFilter !== "all" || phaseFilter !== "all" || oikosFilter !== "all" || query.trim().length > 0;
 
-    const resetFilters = () => { setSystemFilter("all"); setTypeFilter("all"); setQuery(""); };
+    const resetFilters = () => { setSystemFilter("all"); setTypeFilter("all"); setPhaseFilter("all"); setOikosFilter("all"); setQuery(""); };
 
     return (
         <div className="space-y-6">
@@ -571,6 +653,38 @@ export function ConnectionsHub() {
                     ))}
                 </div>
 
+                {/* Filtro por FASE evolutiva (Semilla · Fruto · Cosecha) */}
+                <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por fase">
+                    <FilterChip active={phaseFilter === "all"} onClick={() => setPhaseFilter("all")} color="hsl(var(--primary))">
+                        <Sprout className="h-3.5 w-3.5" /> Toda fase
+                    </FilterChip>
+                    {PHASES.map((p) => {
+                        const Icon = PHASE_META[p].icon;
+                        return (
+                            <FilterChip key={p} active={phaseFilter === p} onClick={() => setPhaseFilter(p)} color={PHASE_META[p].color} ariaLabel={`Fase ${PHASE_META[p].label}`}>
+                                <Icon className="h-3.5 w-3.5" /> {PHASE_META[p].label}
+                            </FilterChip>
+                        );
+                    })}
+                    <FilterChip active={phaseFilter === "none"} onClick={() => setPhaseFilter("none")} ariaLabel="Sin fase declarada">
+                        Sin fase declarada
+                    </FilterChip>
+                </div>
+
+                {/* Filtro por Oikos/biorregión (solo si la red declara alguno) */}
+                {oikosOptions.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por oikos o biorregión">
+                        <FilterChip active={oikosFilter === "all"} onClick={() => setOikosFilter("all")} color="hsl(var(--primary))">
+                            <MapPin className="h-3.5 w-3.5" /> Todo oikos
+                        </FilterChip>
+                        {oikosOptions.map((o) => (
+                            <FilterChip key={o} active={oikosFilter === o} onClick={() => setOikosFilter(o)} ariaLabel={`Oikos ${o}`}>
+                                <MapPin className="h-3.5 w-3.5" /> {o}
+                            </FilterChip>
+                        ))}
+                    </div>
+                )}
+
                 {/* Resultados */}
                 {filtered.length === 0 ? (
                     <Card className="liquid-glass-panel border-white/10">
@@ -602,7 +716,18 @@ export function ConnectionsHub() {
                         </p>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                             {filtered.slice(0, 60).map((it) => (
-                                <ConnCard key={it.key} item={it} myConn={myConn} onChanged={myConn.refresh} />
+                                <ConnCard
+                                    key={it.key}
+                                    item={it}
+                                    myConn={myConn}
+                                    onChanged={myConn.refresh}
+                                    phase={resolvePhase(it.slug, it.tags, entityMeta)}
+                                    oikos={resolveOikos(it.slug, it.tags, entityMeta)}
+                                    decl={entityMeta[it.slug] ?? {}}
+                                    onDeclare={declare}
+                                    storyNode={itemToGraphNode(it, myConn, graphBySlug)}
+                                    mineNodes={graphMine ?? []}
+                                />
                             ))}
                         </div>
                     </>

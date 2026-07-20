@@ -9,32 +9,37 @@
 // (`useOsEvents`) que tengan geografía (`lat`/`lng`) ya persistida (Módulo de
 // geografía aditivo de `os-social.ts`).
 //
-// Funcionalidad:
-//   · Controles de zoom (Leaflet nativos, reposicionados) + botón "Centrar en
-//     mi ubicación" (geolocalización del navegador, igual que `place-picker`).
-//   · Capas activables: Comunidades / Eventos (checkboxes, sin recargar datos).
-//   · Buscador de texto: filtra marcadores por nombre y hace `flyTo` al primero.
-//   · Marcador con ficha emergente (Popup): nombre, tipo, descripción corta y
-//     enlace a su página (`/pagina/[slug]` o `/evento/[slug]`).
+// Funcionalidad base:
+//   · Controles de zoom + "Centrar en mi ubicación" (geolocalización).
+//   · Capas activables: Comunidades / Eventos.
+//   · Buscador de texto: filtra marcadores y hace `flyTo` al primero.
+//   · Marcador con ficha emergente (Popup) + enlace a su página.
 //
-// Si una entidad no tiene geografía (`lat`/`lng` ausentes), simplemente no se
-// dibuja — el mapa nunca inventa coordenadas. Estado vacío honesto si no hay
-// ninguna entidad geolocalizada todavía.
-//
-// Carga dinámica sin SSR (Leaflet requiere `window`); ver `NetworkMapLoader`
-// más abajo para el wrapper que se importa desde las páginas.
+// CAPA «CONEXIONES» (Adenda 77 · PACK 2 cultural — OPT-IN vía prop `connections`):
+//   · Pins de CIUDADANOS de la red que han declarado región/coordenadas en su
+//     perfil (tags públicos `geo:`/`sistema:` — ver `lib/cultural/languages.ts`).
+//   · Color por SISTEMA cultural (leyenda incluida).
+//   · Popup con tarjeta mini + acciones REALES: Abrir perfil / Conectar (DM).
+//   · Filtro por idioma y por sistema/región.
+//   · Estado vacío honesto + CTA para declarar tu propia región.
+// La capa base (culture page: `<NetworkMap />` sin props) NO cambia.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { Search, LocateFixed, Users2, CalendarDays, X, ExternalLink, Layers } from "lucide-react";
+import { Search, LocateFixed, Users2, CalendarDays, X, ExternalLink, Layers, Globe2, MessageSquarePlus, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useOsPages, useOsGroups, useOsEvents } from "@/hooks/use-os-entities";
 import type { OsPage, OsGroup, OsEvent } from "@/lib/os-social";
+import { CULTURAL_SYSTEMS, systemById } from "@/lib/cultural/systems";
+import { listCulturalProfiles, languageLabel, type CulturalProfile } from "@/lib/cultural/languages";
+import { createDm } from "@/lib/messages/dm";
 
 // Corrige los iconos por defecto de Leaflet en Next.js (mismo fix ya usado en
 // `climate-map-internal.tsx` del módulo de clima).
@@ -62,6 +67,21 @@ interface MapMarker {
     href: string;
 }
 
+/** Pin de una conexión (ciudadano con región declarada). */
+interface ConnectionMarker {
+    id: string;
+    userId: string;
+    username: string;
+    lat: number;
+    lng: number;
+    name: string;
+    avatarUrl?: string | null;
+    systemId: string;
+    placeLabel: string;
+    speaks: string[];
+    learns: string[];
+}
+
 function communityIcon(): L.DivIcon {
     return L.divIcon({
         className: "starseed-map-marker",
@@ -87,6 +107,21 @@ function eventIcon(): L.DivIcon {
         `,
         iconSize: [32, 32],
         iconAnchor: [16, 16],
+    });
+}
+
+/** Icono de conexión coloreado por su sistema cultural. */
+function connectionIcon(color: string): L.DivIcon {
+    return L.divIcon({
+        className: "starseed-map-marker",
+        html: `
+            <div class="relative flex items-center justify-center w-9 h-9">
+                <div class="absolute inset-0 rounded-full blur-sm" style="background:${color}40"></div>
+                <div class="relative w-4 h-4 rounded-full border-2 border-white/85" style="background:${color};box-shadow:0 0 12px ${color}cc"></div>
+            </div>
+        `,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
     });
 }
 
@@ -145,25 +180,70 @@ function eventToMarker(e: OsEvent): MapMarker | null {
     };
 }
 
+function profileToConnection(cp: CulturalProfile): ConnectionMarker | null {
+    const r = cp.prefs.region;
+    if (!r || typeof r.lat !== "number" || typeof r.lng !== "number") return null;
+    return {
+        id: `conexion-${cp.profile.userId}`,
+        userId: cp.profile.userId,
+        username: cp.profile.username,
+        lat: r.lat,
+        lng: r.lng,
+        name: cp.profile.displayName,
+        avatarUrl: cp.profile.avatarUrl ?? null,
+        systemId: r.systemId || "global",
+        placeLabel: r.label || systemById(r.systemId).label,
+        speaks: cp.prefs.speaks,
+        learns: cp.prefs.learns,
+    };
+}
+
 const DEFAULT_CENTER: [number, number] = [20, 0]; // vista global por defecto
 
 export interface NetworkMapProps {
     className?: string;
     /** Alto del mapa (Tailwind arbitrary value); por defecto un aspecto 16:9. */
     heightClassName?: string;
+    /** OPT-IN: activa la capa «Conexiones» (ciudadanos por región) + leyenda + filtros. */
+    connections?: boolean;
 }
 
-function NetworkMapInner({ className, heightClassName }: NetworkMapProps) {
+function NetworkMapInner({ className, heightClassName, connections = false }: NetworkMapProps) {
+    const router = useRouter();
     const { data: pages } = useOsPages();
     const { data: groups } = useOsGroups();
     const { data: events } = useOsEvents();
 
     const [showCommunities, setShowCommunities] = useState(true);
     const [showEvents, setShowEvents] = useState(true);
+    const [showConnections, setShowConnections] = useState(connections);
     const [query, setQuery] = useState("");
     const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
     const [geoLocating, setGeoLocating] = useState(false);
     const [geoNote, setGeoNote] = useState<string | null>(null);
+
+    // ── Capa Conexiones (ciudadanos por región) ──
+    const [connProfiles, setConnProfiles] = useState<CulturalProfile[]>([]);
+    const [connLoading, setConnLoading] = useState(false);
+    const [filterLang, setFilterLang] = useState("");
+    const [filterSystem, setFilterSystem] = useState("");
+    const [connecting, setConnecting] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!connections) return;
+        let alive = true;
+        setConnLoading(true);
+        listCulturalProfiles(250)
+            .then((list) => {
+                if (alive) setConnProfiles(list);
+            })
+            .finally(() => {
+                if (alive) setConnLoading(false);
+            });
+        return () => {
+            alive = false;
+        };
+    }, [connections]);
 
     const communityMarkers = useMemo(
         () => [...pages.map(pageToMarker), ...groups.map(groupToMarker)].filter((m): m is MapMarker => m !== null),
@@ -173,6 +253,26 @@ function NetworkMapInner({ className, heightClassName }: NetworkMapProps) {
         () => events.map(eventToMarker).filter((m): m is MapMarker => m !== null),
         [events],
     );
+    const connectionMarkers = useMemo(
+        () => connProfiles.map(profileToConnection).filter((m): m is ConnectionMarker => m !== null),
+        [connProfiles],
+    );
+
+    // Sistemas presentes (para la leyenda dinámica).
+    const presentSystems = useMemo(() => {
+        const ids = new Set(connectionMarkers.map((m) => m.systemId));
+        return CULTURAL_SYSTEMS.filter((s) => ids.has(s.id));
+    }, [connectionMarkers]);
+
+    // Idiomas presentes (para el filtro).
+    const presentLangs = useMemo(() => {
+        const set = new Set<string>();
+        for (const m of connectionMarkers) {
+            for (const c of m.speaks) set.add(c);
+            for (const c of m.learns) set.add(c);
+        }
+        return Array.from(set).sort();
+    }, [connectionMarkers]);
 
     const visibleMarkers = useMemo(() => {
         const all = [
@@ -184,15 +284,33 @@ function NetworkMapInner({ className, heightClassName }: NetworkMapProps) {
         return all.filter((m) => m.name.toLowerCase().includes(q) || (m.placeLabel ?? "").toLowerCase().includes(q));
     }, [communityMarkers, eventMarkers, showCommunities, showEvents, query]);
 
-    const totalGeolocated = communityMarkers.length + eventMarkers.length;
+    const visibleConnections = useMemo(() => {
+        if (!showConnections) return [];
+        const q = query.trim().toLowerCase();
+        return connectionMarkers.filter((m) => {
+            if (filterSystem && m.systemId !== filterSystem) return false;
+            if (filterLang && !m.speaks.includes(filterLang) && !m.learns.includes(filterLang)) return false;
+            if (q && !m.name.toLowerCase().includes(q) && !m.placeLabel.toLowerCase().includes(q)) return false;
+            return true;
+        });
+    }, [connectionMarkers, showConnections, filterSystem, filterLang, query]);
+
+    const totalGeolocated = communityMarkers.length + eventMarkers.length + (connections ? connectionMarkers.length : 0);
 
     const cIcon = useMemo(() => communityIcon(), []);
     const eIcon = useMemo(() => eventIcon(), []);
+    const connIcons = useMemo(() => {
+        const map: Record<string, L.DivIcon> = {};
+        for (const s of CULTURAL_SYSTEMS) map[s.id] = connectionIcon(s.color);
+        return map;
+    }, []);
 
     const runSearch = () => {
         const q = query.trim().toLowerCase();
         if (!q) return;
-        const hit = visibleMarkers.find((m) => m.name.toLowerCase().includes(q));
+        const hit =
+            visibleMarkers.find((m) => m.name.toLowerCase().includes(q)) ??
+            (showConnections ? visibleConnections.find((m) => m.name.toLowerCase().includes(q)) : undefined);
         if (hit) setFlyTarget([hit.lat, hit.lng]);
     };
 
@@ -214,6 +332,23 @@ function NetworkMapInner({ className, heightClassName }: NetworkMapProps) {
             },
             { enableHighAccuracy: true, timeout: 6000 },
         );
+    };
+
+    const handleConnect = async (userId: string) => {
+        setConnecting(userId);
+        try {
+            const res = await createDm(userId);
+            if (!res.ok) {
+                toast.error(res.error || "No se pudo iniciar la conversación.");
+                return;
+            }
+            toast.success("Conversación iniciada. ¡Saluda a tu conexión!");
+            router.push("/messages");
+        } catch {
+            toast.error("No se pudo conectar ahora mismo.");
+        } finally {
+            setConnecting(null);
+        }
     };
 
     return (
@@ -266,6 +401,50 @@ function NetworkMapInner({ className, heightClassName }: NetworkMapProps) {
                                 </Popup>
                             </Marker>
                         ))}
+
+                {showConnections &&
+                    visibleConnections.map((m) => {
+                        const sys = systemById(m.systemId);
+                        return (
+                            <Marker key={m.id} position={[m.lat, m.lng]} icon={connIcons[m.systemId] ?? connIcons["global"]}>
+                                <Popup closeButton={false} className="starseed-map-popup">
+                                    <div className="min-w-[11rem] space-y-1.5 py-0.5">
+                                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: sys.color }}>
+                                            Conexión · {sys.label}
+                                        </p>
+                                        <p className="text-sm font-bold text-white/95">{m.name}</p>
+                                        {m.placeLabel && <p className="text-[11px] text-white/50">{m.placeLabel}</p>}
+                                        {(m.speaks.length > 0 || m.learns.length > 0) && (
+                                            <p className="text-[11px] text-white/65">
+                                                {m.speaks.length > 0 && <>Habla {m.speaks.map(languageLabel).join(", ")}. </>}
+                                                {m.learns.length > 0 && <>Aprende {m.learns.map(languageLabel).join(", ")}.</>}
+                                            </p>
+                                        )}
+                                        <div className="mt-1 flex items-center gap-2">
+                                            {m.username && (
+                                                <Link
+                                                    href={`/profile/${m.username}`}
+                                                    className="inline-flex items-center gap-1 rounded-full border border-white/15 px-2 py-1 text-[11px] font-semibold text-white/80 hover:border-white/40"
+                                                >
+                                                    Abrir <ExternalLink className="size-3" />
+                                                </Link>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleConnect(m.userId)}
+                                                disabled={connecting === m.userId}
+                                                className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold text-black disabled:opacity-60"
+                                                style={{ background: sys.color }}
+                                            >
+                                                <MessageSquarePlus className="size-3" />
+                                                {connecting === m.userId ? "…" : "Conectar"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </Popup>
+                            </Marker>
+                        );
+                    })}
             </MapContainer>
 
             {/* Buscador flotante */}
@@ -278,7 +457,7 @@ function NetworkMapInner({ className, heightClassName }: NetworkMapProps) {
                         onKeyDown={(e) => {
                             if (e.key === "Enter") runSearch();
                         }}
-                        placeholder="Buscar comunidad o evento…"
+                        placeholder={connections ? "Buscar comunidad, evento o conexión…" : "Buscar comunidad o evento…"}
                         className="w-full min-w-0 bg-transparent text-xs text-white/85 placeholder:text-white/30 focus:outline-none"
                     />
                     {query && (
@@ -305,9 +484,53 @@ function NetworkMapInner({ className, heightClassName }: NetworkMapProps) {
                 </button>
             </div>
 
+            {/* Filtros de la capa Conexiones (idioma / sistema) */}
+            {connections && showConnections && (
+                <div className="pointer-events-none absolute left-3 right-3 top-16 z-[500] flex flex-wrap gap-2 sm:top-14">
+                    <select
+                        value={filterLang}
+                        onChange={(e) => setFilterLang(e.target.value)}
+                        className="pointer-events-auto cursor-pointer rounded-lg border border-white/10 bg-black/70 px-2 py-1 text-[11px] font-semibold text-white/80 shadow-lg backdrop-blur-md focus:outline-none"
+                        title="Filtrar por idioma"
+                    >
+                        <option value="">Todos los idiomas</option>
+                        {presentLangs.map((c) => (
+                            <option key={c} value={c}>
+                                {languageLabel(c)}
+                            </option>
+                        ))}
+                    </select>
+                    <select
+                        value={filterSystem}
+                        onChange={(e) => setFilterSystem(e.target.value)}
+                        className="pointer-events-auto cursor-pointer rounded-lg border border-white/10 bg-black/70 px-2 py-1 text-[11px] font-semibold text-white/80 shadow-lg backdrop-blur-md focus:outline-none"
+                        title="Filtrar por sistema cultural"
+                    >
+                        <option value="">Todos los sistemas</option>
+                        {CULTURAL_SYSTEMS.map((s) => (
+                            <option key={s.id} value={s.id}>
+                                {s.label}
+                            </option>
+                        ))}
+                    </select>
+                    {(filterLang || filterSystem) && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setFilterLang("");
+                                setFilterSystem("");
+                            }}
+                            className="pointer-events-auto inline-flex cursor-pointer items-center gap-1 rounded-lg border border-white/10 bg-black/70 px-2 py-1 text-[11px] font-semibold text-white/60 shadow-lg backdrop-blur-md hover:text-white"
+                        >
+                            <X className="size-3" /> Limpiar
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Control de capas */}
             <div className="pointer-events-none absolute bottom-3 left-3 z-[500]">
-                <div className="pointer-events-auto flex items-center gap-2 rounded-xl border border-white/10 bg-black/70 px-3 py-2 text-[11px] shadow-xl backdrop-blur-md">
+                <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/70 px-3 py-2 text-[11px] shadow-xl backdrop-blur-md">
                     <Layers className="size-3.5 text-white/40" />
                     <button
                         type="button"
@@ -329,8 +552,47 @@ function NetworkMapInner({ className, heightClassName }: NetworkMapProps) {
                     >
                         <CalendarDays className="size-3" /> Eventos ({eventMarkers.length})
                     </button>
+                    {connections && (
+                        <button
+                            type="button"
+                            onClick={() => setShowConnections((v) => !v)}
+                            className={cn(
+                                "inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 font-semibold transition-colors",
+                                showConnections ? "bg-violet-500/20 text-violet-200" : "text-white/35 hover:text-white/60",
+                            )}
+                        >
+                            <Globe2 className="size-3" /> Conexiones ({connectionMarkers.length})
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {/* Leyenda de sistemas culturales (capa Conexiones) */}
+            {connections && showConnections && presentSystems.length > 0 && (
+                <div className="pointer-events-none absolute bottom-3 right-3 z-[500] max-w-[13rem]">
+                    <div className="pointer-events-auto rounded-xl border border-white/10 bg-black/70 px-3 py-2 shadow-xl backdrop-blur-md">
+                        <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white/60">
+                            <Sparkles className="size-3" /> Sistemas culturales
+                        </p>
+                        <div className="flex flex-col gap-1">
+                            {presentSystems.map((s) => (
+                                <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => setFilterSystem((cur) => (cur === s.id ? "" : s.id))}
+                                    className={cn(
+                                        "flex cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-[11px] transition-colors",
+                                        filterSystem === s.id ? "bg-white/10 text-white" : "text-white/70 hover:text-white",
+                                    )}
+                                >
+                                    <span className="size-2.5 shrink-0 rounded-full" style={{ background: s.color, boxShadow: `0 0 6px ${s.color}` }} />
+                                    {s.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {geoNote && (
                 <div className="pointer-events-none absolute bottom-3 right-3 z-[500] rounded-lg border border-white/10 bg-black/70 px-2.5 py-1.5 text-[11px] text-white/50 shadow-xl backdrop-blur-md">
@@ -338,9 +600,22 @@ function NetworkMapInner({ className, heightClassName }: NetworkMapProps) {
                 </div>
             )}
 
-            {totalGeolocated === 0 && (
+            {connections && connLoading && connectionMarkers.length === 0 && (
+                <div className="pointer-events-none absolute inset-x-3 top-24 z-[400] mx-auto max-w-xs rounded-lg border border-white/10 bg-black/70 px-3 py-2 text-center text-[11px] text-white/50 shadow-xl backdrop-blur-md">
+                    Cargando conexiones de la red…
+                </div>
+            )}
+
+            {totalGeolocated === 0 && !connLoading && (
                 <div className="pointer-events-none absolute inset-x-3 bottom-14 z-[500] rounded-lg border border-white/10 bg-black/75 px-3 py-2 text-center text-[11px] text-white/50 shadow-xl backdrop-blur-md">
-                    Aún no hay comunidades ni eventos con geografía asignada. Aparecerán aquí en cuanto se publique alguno con ubicación.
+                    {connections ? (
+                        <span>
+                            Aún no hay entidades ni ciudadanos con región declarada. Declara la tuya en el Hub → «Cultura viva» → Idiomas
+                            para aparecer en el mapa.
+                        </span>
+                    ) : (
+                        <span>Aún no hay comunidades ni eventos con geografía asignada. Aparecerán aquí en cuanto se publique alguno con ubicación.</span>
+                    )}
                 </div>
             )}
         </div>
