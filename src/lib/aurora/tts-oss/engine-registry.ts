@@ -328,6 +328,24 @@ export interface VoiceEngineStatus {
  * síncrono): lee la memoria de salud del descubrimiento (localStorage).
  * 'listo' ⇔ algún endpoint con éxito real en <24 h y no apartado. Nunca lanza.
  */
+/**
+ * ¿Esta NEURONA eligió «motor local» en su ventana de voz? (Adenda 86). La
+ * elección vive por dispositivo (v2; v1 como herencia). Sin red; nunca lanza.
+ */
+function neuronPrefersLocal(): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+    const raw =
+      window.localStorage.getItem("starseed.voz.neurona.v2") ||
+      window.localStorage.getItem("starseed.voz.neurona.v1");
+    if (!raw) return false;
+    const j = JSON.parse(raw) as { mode?: string };
+    return j?.mode === "local";
+  } catch {
+    return false;
+  }
+}
+
 function openVoiceStateSync(): "listo" | "nuevo" | "dormido" {
   try {
     if (typeof window === "undefined") return "dormido";
@@ -457,11 +475,12 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
       cachedPin = preferred;
       return cachedPin;
     }
-    // 3) PREDETERMINADO GLOBAL (Adenda 81, pedido por Alex): TODA personalidad
-    //    sin motor propio habla con OpenVoice primero — también las creadas por
-    //    el usuario y las heredadas. Configurable por personalidad en su editor
-    //    («Motor de voz preferido»); jamás exclusivo (la cadena sigue detrás).
-    cachedPin = "openvoice2";
+    // 3) PREDETERMINADO GLOBAL (Adendas 81/86): TODA personalidad sin motor
+    //    propio habla con OpenVoice primero — salvo que ESTA NEURONA haya
+    //    elegido «motor local» en su ventana de voz: entonces el híbrido
+    //    OmniVoice (daemon local) va primero y OpenVoice queda de respaldo.
+    //    Configurable por personalidad en su editor; jamás exclusivo.
+    cachedPin = neuronPrefersLocal() ? "omnivoice" : "openvoice2";
     return cachedPin;
   } catch {
     cachedPin = null;

@@ -25,7 +25,10 @@ import { Button } from "@/components/ui/button";
 import { LocalEngineInstaller } from "@/components/settings/aurora/local-engine-installer";
 import { safeGet, safeSet } from "@/lib/safe-storage";
 
-const LS_KEY = "starseed.voz.neurona.v1";
+// v2 (Adenda 86): el ajuste de preferencia CAMBIÓ (ahora ordena la cadena de
+// voz de la neurona), así que la ventana se RELANZA una vez para todos — aun
+// para quienes ya habían elegido en v1.
+const LS_KEY = "starseed.voz.neurona.v2";
 const LATER_RETRY_MS = 24 * 60 * 60_000;
 const DAEMON_STATUS = "http://127.0.0.1:4444/status";
 
@@ -67,6 +70,7 @@ async function probeLocalDaemon(): Promise<boolean> {
 
 export function VoiceNeuronOnboarding() {
   const [open, setOpen] = useState(false);
+  const [localVivo, setLocalVivo] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [checking, setChecking] = useState(false);
   const [checkMsg, setCheckMsg] = useState("");
@@ -75,15 +79,14 @@ export function VoiceNeuronOnboarding() {
     let alive = true;
     const t = setTimeout(async () => {
       const choice = readChoice();
-      if (choice && choice.mode !== "later") return; // ya elegido: no molestar
+      if (choice && choice.mode !== "later") return; // ya elegido EN V2: no molestar
       if (choice?.mode === "later" && Date.now() - choice.at < LATER_RETRY_MS) return;
-      // Inteligencia 1: si el motor local YA está vivo, se marca solo (sin ventana).
+      // Reoferta v2: la ventana se muestra UNA vez aunque hubiera elección v1
+      // (el ajuste ahora decide el ORDEN de la cadena). Si el daemon vive, la
+      // opción local sale preseleccionada como recomendada — pero se pregunta.
       const local = await probeLocalDaemon();
       if (!alive) return;
-      if (local) {
-        writeChoice("local");
-        return;
-      }
+      setLocalVivo(local);
       setOpen(true);
     }, 3500); // deja que la app respire antes de saludar
     return () => {
@@ -158,11 +161,16 @@ export function VoiceNeuronOnboarding() {
           </div>
 
           <p className="text-[12px] leading-relaxed text-white/70">
-            La voz <span className="text-white/90">ya funciona</span> desde este momento con
-            OpenVoice por la <span className="text-sky-200">nube gratuita de Hugging Face</span>{" "}
-            (sin instalar nada). Si quieres latencia mínima y privacidad total, puedes
-            instalar el <span className="text-emerald-200">motor local</span> adaptado a este
-            equipo.
+            Elige cómo prefiere hablar esta neurona — tu elección ORDENA su cadena de voz
+            (la otra vía queda siempre de respaldo): con OpenVoice por la{" "}
+            <span className="text-sky-200">nube gratuita de Hugging Face</span> (sin instalar
+            nada) o con el <span className="text-emerald-200">motor local</span> instalado en
+            este equipo (privado y sin internet).
+            {localVivo && (
+              <span className="mt-1 block text-emerald-200/90">
+                ⚡ Motor local detectado y vivo en este equipo — recomendado.
+              </span>
+            )}
           </p>
 
           {!installing ? (
@@ -182,11 +190,13 @@ export function VoiceNeuronOnboarding() {
                 type="button"
                 className="h-10 w-full cursor-pointer justify-start gap-2 bg-emerald-500/12 text-emerald-100 hover:bg-emerald-500/22"
                 variant="secondary"
-                onClick={() => setInstalling(true)}
+                onClick={() => (localVivo ? choose("local") : setInstalling(true))}
               >
                 <Zap className="h-4 w-4 text-emerald-300" />
                 <span className="min-w-0 truncate text-[12.5px]">
-                  Instalar el motor local en este equipo (rápido y privado)
+                  {localVivo
+                    ? "Usar el motor LOCAL de este equipo (ya instalado) — recomendado"
+                    : "Instalar el motor local en este equipo (rápido y privado)"}
                 </span>
               </Button>
               <button

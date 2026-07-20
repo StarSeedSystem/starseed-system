@@ -1221,6 +1221,12 @@ export async function synthesizeOpenVoice2(
   // endpoint (cacheada por sesión). Un fallo de inferencia aparta el endpoint
   // 6 h y se pasa al siguiente AUTOMÁTICAMENTE. Aurora nunca calla: si todos
   // fallan, devolvemos null y la cadena sigue (Kokoro/navegador).
+  // TOPE TOTAL (Adenda 86): budgetCapMs acota TODO el bucle multi-endpoint —
+  // no cada intento. El habla troceada da ~35 s al PRIMER trozo EN TOTAL: si
+  // OpenVoice no lo logra en ese aire, cede el turno al siguiente motor
+  // (OmniVoice local) sin quemar minutos en 3 endpoints × 2 intentos.
+  const deadlineAt = opts.budgetCapMs && opts.budgetCapMs > 0 ? Date.now() + opts.budgetCapMs : 0;
+  const pastDeadline = () => deadlineAt > 0 && Date.now() >= deadlineAt;
   let endpoints = orderedOpenVoiceEndpoints().slice(0, 3);
   // CORTAFUEGOS ANTI-ATASCO (Adenda 81): si TODOS los endpoints están apartados
   // por fallos recientes, no gastamos el turno de voz en ellos en cada frase —
@@ -1246,6 +1252,7 @@ export async function synthesizeOpenVoice2(
 
   for (const ep of endpoints) {
     if (opts.signal?.aborted) return null;
+    if (pastDeadline()) return null; // se acabó el aire: la cadena sigue
 
     const refOpts: ReferenceOptions = {
       personalityId: opts.personalityId,
@@ -1271,9 +1278,10 @@ export async function synthesizeOpenVoice2(
 
     for (let attempt = 0; attempt < 2; attempt++) {
       if (opts.signal?.aborted) return null;
+      if (pastDeadline()) return null; // deadline TOTAL (no por intento)
       if (!reference) break; // la resubida falló: siguiente endpoint
       let budget = warmedUp ? QUEUE_TIMEOUT_WARM_MS : QUEUE_TIMEOUT_FIRST_MS;
-      if (opts.budgetCapMs && opts.budgetCapMs > 0) budget = Math.min(budget, opts.budgetCapMs);
+      if (deadlineAt > 0) budget = Math.max(4_000, Math.min(budget, deadlineAt - Date.now()));
 
       let res: QueueResult;
       if (ep.kind === "v1-predict") {

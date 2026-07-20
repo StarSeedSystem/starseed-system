@@ -15,8 +15,17 @@
  *       → kind 'ai-source' → payload.catalogSourceId) — cualquier API/librería que
  *       el usuario instale se registra aquí y queda DISPONIBLE para Astraura y
  *       para los ajustes de personalidad por área, sin tocar código.
- *   (4) Lista comunitaria (free-llm-sync / awesome-freellm-apis) — como
- *       fuente de DESCUBRIMIENTO (telemetría de "cuántas APIs hay ahí fuera").
+ *   (4) Listas comunitarias de descubrimiento — DOS fuentes independientes:
+ *       · free-llm-sync / awesome-freellm-apis → telemetría (cuántas APIs
+ *         gratis hay "ahí fuera", solo un contador).
+ *       · free-sources-sync / cheahjs/free-llm-api-resources → PARSEADA de
+ *         verdad: extrae proveedores, límites y enlace de clave, cruza contra
+ *         FREE_CATALOG para no duplicar, y anota los nuevos como candidatos
+ *         (`registerHuggingBayCandidate`). `freeSourceSuggestions()` expone el
+ *         resultado para Ajustes → Inteligencia ("fuentes gratis disponibles
+ *         con enlace para clave"). Ver cabecera de `free-sources-sync.ts` para
+ *         el porqué de huggingbay.xyz NO ser una tercera fuente aquí (es un
+ *         catálogo de metadatos de modelos, no un proveedor de inferencia).
  *
  * TODO se resuelve con un ROUTER ADAPTATIVO: `getUnifiedCatalog()` devuelve
  * TODAS las fuentes combinadas; `availability.detectAvailability` itera ESTE
@@ -40,6 +49,11 @@
 import { FREE_CATALOG, findSource, type CatalogSource, type CatalogModel, type TaskKind } from "./free-catalog";
 import { liveOpenRouterSource } from "./openrouter-live-catalog";
 import { readFreeLlmHint } from "./free-llm-sync";
+import {
+  refreshFreeSourcesFromLists,
+  getFreeSourceSuggestions,
+  type FreeSourceSuggestion,
+} from "./free-sources-sync";
 
 /* ───────────────────── Claves y eventos ───────────────────── */
 
@@ -233,6 +247,9 @@ export function startUnifiedIntelligence(): void {
     reindexLibrarySources();
     // (2) Reindexa cada vez que la Biblioteca cambia (instalar/desinstalar).
     window.addEventListener("starseed:library", () => reindexLibrarySources());
+    // (3) Descubrimiento de fuentes gratis (cheahjs/free-llm-api-resources):
+    //     red best-effort, nunca bloquea el arranque ni lanza.
+    void refreshFreeSourcesFromLists();
   } catch {
     /* noop */
   }
@@ -266,7 +283,18 @@ function reindexLibrarySources(): void {
   }
 }
 
-/** Telemetría de descubrimiento (lista comunitaria). */
+/** Telemetría de descubrimiento (lista comunitaria awesome-freellm-apis). */
 export function communityHint(): { count: number; at: number } | null {
   return readFreeLlmHint();
+}
+
+/**
+ * Fuentes gratis descubiertas en `cheahjs/free-llm-api-resources`, listas para
+ * que Ajustes → Inteligencia las muestre ("fuentes gratis disponibles con
+ * enlace para clave"). Solo datos — nunca activa nada por su cuenta; las
+ * fuentes que requieren clave se SUGIEREN (ver `free-sources-sync.ts`).
+ * Por defecto excluye "créditos de prueba" (no son un tier gratis permanente).
+ */
+export function freeSourceSuggestions(includeTrialCredits = false): FreeSourceSuggestion[] {
+  return getFreeSourceSuggestions({ includeTrialCredits });
 }
