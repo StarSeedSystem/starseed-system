@@ -93,7 +93,8 @@ import {
   type NeuralEngineSettings,
   type NeuralVoiceEngine,
 } from "@/lib/aurora/tts-oss/voice-config";
-import type { OpenVoice2SeedSpec } from "@/lib/aurora/tts-oss/openvoice2";
+import type { OpenVoice2SeedSpec, OpenVoiceEndpoint } from "@/lib/aurora/tts-oss/openvoice2";
+import type { OmniRouteDecision } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 import {
   decorateTextForBark,
   decorateTextForVoxCPM,
@@ -498,6 +499,17 @@ export async function neuralSynthesize(
     onError?: (message: string) => void;
     /** Tope de presupuesto por llamada (habla troceada · Adenda 85). */
     budgetCapMs?: number;
+    /**
+     * Ruta OmniVoice ya decidida para TODO el mensaje (fix continuidad de voz,
+     * 2026-07-21): solo la usa el motor "omnivoice" (delegateOmniHybrid).
+     * Ignorada por el resto de motores.
+     */
+    omniRouteOverride?: OmniRouteDecision;
+    /**
+     * Endpoint OpenVoice V2 ya fijado para TODO el mensaje (mismo motivo):
+     * solo lo usa el motor "openvoice2" (delegateOpenVoice2).
+     */
+    openVoiceEndpointOverride?: OpenVoiceEndpoint;
   } = {},
 ): Promise<Blob | null> {
   const clean = (text || "").trim();
@@ -508,14 +520,20 @@ export async function neuralSynthesize(
   // OmniVoice) — no es un endpoint del usuario. Se delega SIEMPRE a su cliente,
   // que gestiona la cola del Space, la semilla de identidad y el fallback honesto.
   if (engine === "openvoice2") {
-    return await delegateOpenVoice2(clean, s, opts.onError, opts.budgetCapMs);
+    return await delegateOpenVoice2(
+      clean,
+      s,
+      opts.onError,
+      opts.budgetCapMs,
+      opts.openVoiceEndpointOverride,
+    );
   }
 
   const endpoint = normalizeEndpoint(s.endpoint);
   if (!endpoint) {
     // OmniVoice sin endpoint manual = MODO HÍBRIDO INTEGRADO (daemon local ↔ nube).
     if (engine === "omnivoice") {
-      return await delegateOmniHybrid(clean, s);
+      return await delegateOmniHybrid(clean, s, opts.budgetCapMs, opts.omniRouteOverride);
     }
     try {
       opts.onError?.(`El motor ${NEURAL_ENGINE_META[engine].label} no tiene endpoint configurado.`);
@@ -608,7 +626,7 @@ export async function neuralSynthesize(
     // OmniVoice: si el endpoint MANUAL del usuario no dio audio, cae al HÍBRIDO
     // integrado (daemon local ↔ nube gratis) antes de rendirse. Aurora igual habla.
     if (engine === "omnivoice") {
-      const viaHybrid = await delegateOmniHybrid(clean, s);
+      const viaHybrid = await delegateOmniHybrid(clean, s, opts.budgetCapMs, opts.omniRouteOverride);
       if (viaHybrid) return viaHybrid;
     }
 
@@ -1041,6 +1059,27 @@ async function neuralSpeakChunked(
   const myGen = ++chunkGeneration;
   const alive = () => myGen === chunkGeneration;
   const fullHash = voiceTextHash(chunks.join(" "));
+
+  // CONTINUIDAD DE VOZ (fix 2026-07-21): fija el motor/ruta/endpoint UNA vez
+  // para TODO el mensaje y lo reutiliza en cada trozo — así ningún trozo
+  // intermedio puede saltar a un motor, ruta o Space distinto (la causa real
+  // de "varias voces" con huecos largos entre trozos). OmniVoice decide su
+  // ruta ANTES del primer trozo (el handshake es barato y no depende del
+  // resultado); OpenVoice V2 congela el endpoint que GANÓ el primer trozo (su
+  // elección depende de la salud/orden de varios Spaces — más natural fijarla
+  // a partir de un éxito real que precalcularla).
+  let omniRoute: OmniRouteDecision | undefined;
+  if (engine === "omnivoice") {
+    try {
+      const hybrid = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
+      omniRoute = await hybrid.decideOmniRoute();
+    } catch {
+      omniRoute = undefined; // sin decisión congelada: cada trozo decidirá por sí mismo
+    }
+    if (!alive()) return null;
+  }
+  let openVoiceEndpoint: OpenVoiceEndpoint | undefined;
+
   // Presupuesto TOPE por trozo (Adenda 85): el PRIMERO corto (35 s) para que la
   // cadena nunca se quede muda esperando; los siguientes respiran más (90 s)
   // porque ya hay audio sonando que cubre la espera.
@@ -1048,10 +1087,23 @@ async function neuralSpeakChunked(
     neuralSynthesize(engine, t, {
       settings: opts.settings,
       budgetCapMs: i === 0 ? 35_000 : 90_000,
+      omniRouteOverride: omniRoute,
+      openVoiceEndpointOverride: openVoiceEndpoint,
     }).catch(() => null);
 
   const first = await synth(chunks[0], 0);
   if (!first || !alive()) return null;
+
+  // Tras el PRIMER trozo: si el motor es OpenVoice V2, fija el endpoint que
+  // ganó para que el resto del mensaje hable por el MISMO Space (mismo timbre).
+  if (engine === "openvoice2") {
+    try {
+      const ov = await import("@/lib/aurora/tts-oss/openvoice2");
+      openVoiceEndpoint = ov.getOpenVoice2LockedEndpoint() ?? undefined;
+    } catch {
+      openVoiceEndpoint = undefined;
+    }
+  }
 
   let firstAudio: HTMLAudioElement | null = null;
   let next: Promise<Blob | null> = chunks.length > 1 ? synth(chunks[1], 1) : Promise.resolve(null);
@@ -1317,10 +1369,19 @@ export function neuralEngineConfigured(engine: NeuralVoiceEngine): boolean {
  * `langBaseOf` en lib.mjs para elegir instruct/referencia nativos de ESE
  * idioma) como al Space en la nube — así el idioma de síntesis SIEMPRE
  * coincide con el idioma real del texto, sin más cambios aquí.
+ *
+ * CONTINUIDAD DE VOZ EN MENSAJES TROCEADOS (fix 2026-07-21): `budgetCapMs` y
+ * `routeOverride` (producida UNA vez por `neuralSpeakChunked` vía
+ * `hybrid.decideOmniRoute()` antes de trocear) se propagan tal cual a
+ * `synthesizeOmniVoiceHybrid` — así un trozo intermedio nunca agota su
+ * presupuesto interno completo (hasta 150 s) y ningún trozo re-decide
+ * local↔nube a mitad de mensaje.
  */
 async function delegateOmniHybrid(
   text: string,
   s: NeuralEngineSettings,
+  budgetCapMs?: number,
+  routeOverride?: OmniRouteDecision,
 ): Promise<Blob | null> {
   try {
     const hybrid = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
@@ -1349,7 +1410,9 @@ async function delegateOmniHybrid(
     } catch {
       void hybrid.ensureLocalIdentity(undefined);
     }
-    return await hybrid.synthesizeOmniVoiceHybrid(text, { lang: s.lang }).catch(() => null);
+    return await hybrid
+      .synthesizeOmniVoiceHybrid(text, { lang: s.lang, budgetCapMs, routeOverride })
+      .catch(() => null);
   } catch {
     return null;
   }
@@ -1369,12 +1432,18 @@ async function delegateOmniHybrid(
  * personalidad fuera de su propia familia de idioma, ver openvoice2.ts) como
  * para elegir/diseñar la SEMILLA nativa de ese idioma (`seedSpecFor`,
  * cacheada por (personalidad, idioma)).
+ *
+ * CONTINUIDAD DE VOZ EN MENSAJES TROCEADOS (fix 2026-07-21): `endpointOverride`
+ * (el Space que ganó el primer trozo, leído por `neuralSpeakChunked` vía
+ * `getOpenVoice2LockedEndpoint()`) se propaga tal cual a `synthesizeOpenVoice2`
+ * para que todos los trozos de un mismo mensaje hablen por el MISMO Space.
  */
 async function delegateOpenVoice2(
   text: string,
   s: NeuralEngineSettings,
   onError?: (message: string) => void,
   budgetCapMs?: number,
+  endpointOverride?: OpenVoiceEndpoint,
 ): Promise<Blob | null> {
   try {
     const [{ synthesizeOpenVoice2 }, hybrid] = await Promise.all([
@@ -1415,6 +1484,7 @@ async function delegateOpenVoice2(
       seedVersion: ov?.seed_version,
       seedAttrs,
       budgetCapMs,
+      endpointOverride,
     }).catch(() => null);
 
     if (!blob) {

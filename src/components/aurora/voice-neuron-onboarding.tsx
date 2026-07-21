@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Cloud, Languages, Plus, Search, X, Zap } from "lucide-react";
+import { Check, ChevronDown, Cloud, Gauge, Languages, Plus, Search, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LocalEngineInstaller } from "@/components/settings/aurora/local-engine-installer";
@@ -52,7 +52,10 @@ const DAEMON_STATUS = "http://127.0.0.1:4444/status";
  */
 export const VOICE_SYSTEM_VERSION = 89;
 
-export type NeuronVoiceMode = "cloud" | "local" | "later";
+// (Adenda 90) "fastweb": la neurona prefiere otros sistemas web automáticos
+// (más rápidos, menos realistas que OpenVoice) en vez del predeterminado. Los
+// cuatro modos son EXCLUYENTES entre sí: local / cloud / fastweb / later.
+export type NeuronVoiceMode = "cloud" | "local" | "fastweb" | "later";
 
 export interface NeuronVoiceChoice {
   mode: NeuronVoiceMode;
@@ -67,7 +70,9 @@ export function readNeuronVoiceChoice(): NeuronVoiceChoice | null {
     const raw = safeGet(NEURON_VOICE_LS_KEY);
     if (!raw) return null;
     const j = JSON.parse(raw) as NeuronVoiceChoice;
-    return j && (j.mode === "cloud" || j.mode === "local" || j.mode === "later") ? j : null;
+    return j && (j.mode === "cloud" || j.mode === "local" || j.mode === "fastweb" || j.mode === "later")
+      ? j
+      : null;
   } catch {
     return null;
   }
@@ -339,6 +344,21 @@ export function VoiceNeuronOnboarding() {
                     : "Instalar el motor local en este equipo (rápido y privado)"}
                 </span>
               </Button>
+              <button
+                type="button"
+                onClick={() => choose("fastweb")}
+                className="flex w-full cursor-pointer items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-left transition-colors duration-200 hover:bg-amber-500/20"
+              >
+                <Gauge className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                <span className="min-w-0">
+                  <span className="block text-[12.5px] text-amber-100">
+                    Usar otros sistemas web automáticos (más rápidos, menos realistas)
+                  </span>
+                  <span className="block text-[10.5px] text-amber-100/60">
+                    Priorizan velocidad sobre naturalidad — suenan menos realistas que OpenVoice
+                  </span>
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => choose("later")}

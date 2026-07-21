@@ -65,6 +65,11 @@ import {
 } from "@/lib/aurora/tts-oss/openvoice-discovery";
 import { getLastUserVoiceEmotion } from "@/lib/aurora/audio-emotion";
 
+// Re-exportado para que neural-tts.ts pueda tipar el endpoint CONGELADO de un
+// mensaje troceado (fix continuidad de voz, 2026-07-21) sin importar
+// directamente de openvoice-discovery.ts.
+export type { OpenVoiceEndpoint };
+
 // ── Constantes del Space ─────────────────────────────────────────────────────
 
 /** Host directo del Space OpenVoiceV2 (para la UI y las peticiones). */
@@ -251,6 +256,20 @@ let lastResurrectionAt = 0;
 const RESURRECTION_EVERY_MS = 10 * 60_000;
 /** Última vez que el Space respondió algo (para saber si está "calentito"). */
 let warmedUp = false;
+/**
+ * Último endpoint que SINTETIZÓ con éxito vía `synthesizeOpenVoice2()` (fix
+ * continuidad de voz, 2026-07-21): permite congelarlo para el resto de un
+ * mensaje troceado (ver `neural-tts.ts::neuralSpeakChunked`) — así todos sus
+ * trozos hablan por el MISMO Space (mismo timbre) en vez de recorrer de nuevo
+ * `orderedOpenVoiceEndpoints()` trozo a trozo.
+ */
+let lastWinningEndpoint: OpenVoiceEndpoint | null = null;
+
+/** Último endpoint OpenVoice V2 que ganó una síntesis real (o null). Úsalo para
+ * fijar el mismo Space en los trozos siguientes de UN mensaje troceado. */
+export function getOpenVoice2LockedEndpoint(): OpenVoiceEndpoint | null {
+  return lastWinningEndpoint;
+}
 
 /** Estado actual del motor ('listo' | 'dormido' | 'fuera'). Para la UI. */
 export function getOpenVoice2State(): OpenVoice2State {
@@ -1305,6 +1324,15 @@ export interface OpenVoice2Options {
    * Space lento — los trozos siguientes pueden respirar más (ya hay audio).
    */
   budgetCapMs?: number;
+  /**
+   * Endpoint YA FIJADO para todo el mensaje (fix continuidad de voz,
+   * 2026-07-21): cuando viene informado, se usa TAL CUAL — sin recorrer
+   * `orderedOpenVoiceEndpoints()` de nuevo — así todos los trozos de un mismo
+   * mensaje troceado hablan por el MISMO Space. Lo produce
+   * `getOpenVoice2LockedEndpoint()` tras el éxito del primer trozo (ver
+   * `neural-tts.ts::neuralSpeakChunked`).
+   */
+  endpointOverride?: OpenVoiceEndpoint;
 }
 
 /**
@@ -1344,7 +1372,16 @@ export async function synthesizeOpenVoice2(
   // (OmniVoice local) sin quemar minutos en 3 endpoints × 2 intentos.
   const deadlineAt = opts.budgetCapMs && opts.budgetCapMs > 0 ? Date.now() + opts.budgetCapMs : 0;
   const pastDeadline = () => deadlineAt > 0 && Date.now() >= deadlineAt;
-  let endpoints = orderedOpenVoiceEndpoints().slice(0, 3);
+  // ENDPOINT FIJADO (fix continuidad de voz, 2026-07-21): un trozo anterior de
+  // este MISMO mensaje ya ganó con este endpoint — lo reutilizamos TAL CUAL,
+  // sin volver a recorrer orderedOpenVoiceEndpoints(), para que todos los
+  // trozos hablen por el MISMO Space (mismo timbre). Si justo éste cayó
+  // entretanto (raro), este trozo declina en vez de saltar a otro Space a
+  // mitad de mensaje — mejor un hueco que "varias voces" (neuralSpeakChunked
+  // cierra con dignidad y lo ya hablado no se toca).
+  let endpoints = opts.endpointOverride
+    ? [opts.endpointOverride]
+    : orderedOpenVoiceEndpoints().slice(0, 3);
   // CORTAFUEGOS ANTI-ATASCO (Adenda 81): si TODOS los endpoints están apartados
   // por fallos recientes, no gastamos el turno de voz en ellos en cada frase —
   // declinamos AL INSTANTE (la cadena sigue con OmniVoice/Kokoro) y solo cada
@@ -1427,6 +1464,7 @@ export async function synthesizeOpenVoice2(
 
       if (res.ok && res.blob) {
         lastState = "listo";
+        lastWinningEndpoint = ep;
         try {
           markOpenVoiceEndpointResult(ep.id, true);
         } catch {

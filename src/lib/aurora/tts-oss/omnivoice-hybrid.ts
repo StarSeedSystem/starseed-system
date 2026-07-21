@@ -88,6 +88,22 @@ const CLOUD_KICKOFF_TIMEOUT_MS = 15_000;
 /** Camino por el que salió (o saldría) la voz. */
 export type OmniRoute = "local" | "cloud" | "off";
 
+/**
+ * Decisión de ruta OmniVoice CONGELADA para un mensaje completo (fix
+ * continuidad de voz, 2026-07-21): se calcula UNA VEZ, antes de trocear un
+ * mensaje largo, y se reutiliza en TODOS sus trozos — así ningún trozo
+ * intermedio puede re-decidir local↔nube ni pisar el cortacircuito adaptativo
+ * (`localSlowUntil`) a mitad de la misma locución (que es justo lo que sonaba
+ * como "cambia de voz a mitad de mensaje, con huecos larguísimos"). La produce
+ * `decideOmniRoute()` y la consume `synthesizeOmniVoiceHybrid(text, { routeOverride })`.
+ */
+export interface OmniRouteDecision {
+  /** Camino fijo para TODO el mensaje ("off" = local_only sin daemon listo). */
+  route: OmniRoute;
+  /** ¿Esta neurona ELIGIÓ voz local? (afecta solo el presupuesto por trozo). */
+  preferLocal: boolean;
+}
+
 /** Estado del daemon local (parseado de `GET /status`). */
 export interface OmniDaemonStatus {
   ok: boolean;
@@ -110,6 +126,20 @@ export interface OmniSynthOptions {
   onStatus?: (message: string) => void;
   /** Señal externa de aborto. */
   signal?: AbortSignal;
+  /**
+   * Ruta CONGELADA para todo el mensaje (fix continuidad de voz, 2026-07-21):
+   * si viene informada, se SALTA el handshake y el cálculo de
+   * slowMode/localSlowUntil — se usa tal cual. La produce `decideOmniRoute()`
+   * una vez por mensaje (ver `neural-tts.ts::neuralSpeakChunked`).
+   */
+  routeOverride?: OmniRouteDecision;
+  /**
+   * Tope de presupuesto para ESTE trozo (mismo patrón que `budgetCapMs` en
+   * OpenVoice V2 · Adenda 85): acota `synthLocal`/`synthCloud` para que un
+   * trozo intermedio nunca consuma el presupuesto completo (hasta 150 s en
+   * local con `preferLocal`).
+   */
+  budgetCapMs?: number;
 }
 
 // ── Idioma → nombre del Space ────────────────────────────────────────────────
@@ -750,6 +780,7 @@ async function synthCloud(
   omni: AstrauraVoiceConfig,
   langName: string,
   opts: OmniSynthOptions,
+  budgetMs?: number,
 ): Promise<Blob | null> {
   const base = OMNI_SPACE_BASE;
   const controller = new AbortController();
@@ -773,6 +804,7 @@ async function synthCloud(
         const out = await callGradioSpace(base, OMNI_CLONE_FN, data, {
           onStatus: opts.onStatus,
           signal: controller.signal,
+          budgetMs,
         });
         const blob = await firstAudioFromGradio(out, base, controller.signal);
         if (blob) return blob;
@@ -783,6 +815,7 @@ async function synthCloud(
     const out = await callGradioSpace(base, OMNI_DESIGN_FN, data, {
       onStatus: opts.onStatus,
       signal: controller.signal,
+      budgetMs,
     });
     return await firstAudioFromGradio(out, base, controller.signal);
   } catch {
@@ -823,6 +856,31 @@ export async function refreshOmniRoute(signal?: AbortSignal): Promise<OmniRoute>
   return lastRoute;
 }
 
+/**
+ * Decide la ruta OmniVoice (local / nube / off) UNA VEZ, sin sintetizar nada —
+ * pensada para fijarla al principio de un mensaje troceado y pasarla como
+ * `routeOverride` a TODOS sus trozos (ver `neural-tts.ts::neuralSpeakChunked`).
+ * Usa EXACTAMENTE la misma lógica que el primer tramo de
+ * `synthesizeOmniVoiceHybrid` (privacy_mode → handshake → preferencia de la
+ * neurona), pero no toca `localSlowUntil` ni sintetiza audio. NUNCA lanza.
+ */
+export async function decideOmniRoute(
+  explicitOmni?: Partial<AstrauraVoiceConfig>,
+  signal?: AbortSignal,
+): Promise<OmniRouteDecision> {
+  try {
+    const omni = await resolveActiveOmni(explicitOmni);
+    if (omni.privacy_mode === "cloud_only") return { route: "cloud", preferLocal: false };
+    const preferLocal = omni.privacy_mode === "local_only" || neuronPrefersLocalLS();
+    const hs = await omniHandshake({ signal });
+    if (hs && hs.ready) return { route: "local", preferLocal };
+    if (omni.privacy_mode === "local_only") return { route: "off", preferLocal };
+    return { route: "cloud", preferLocal };
+  } catch {
+    return { route: "cloud", preferLocal: false };
+  }
+}
+
 // ── API PRINCIPAL ────────────────────────────────────────────────────────────
 
 /**
@@ -832,6 +890,14 @@ export async function refreshOmniRoute(signal?: AbortSignal): Promise<OmniRoute>
  *   2. NUBE (si privacy≠"local_only"): Space (diseño por defecto o clonación).
  *   3. null si ambos fallan → la cadena de voz sigue (Kokoro/navegador).
  * NUNCA lanza.
+ *
+ * CONTINUIDAD DE VOZ EN MENSAJES TROCEADOS (fix 2026-07-21): si `opts.routeOverride`
+ * viene informado (producido UNA vez por `decideOmniRoute()` antes de trocear un
+ * mensaje largo), esta función NO re-decide nada — ni handshake ni
+ * slowMode/localSlowUntil — y sintetiza directamente por la ruta fija. Así todos
+ * los trozos de un mismo mensaje hablan por el MISMO motor (local o nube), nunca
+ * mezclados. `opts.budgetCapMs` acota `synthLocal`/`synthCloud` para que un trozo
+ * intermedio nunca agote el presupuesto completo (hasta 150 s en local).
  */
 export async function synthesizeOmniVoiceHybrid(
   text: string,
@@ -842,6 +908,56 @@ export async function synthesizeOmniVoiceHybrid(
 
   const omni = await resolveActiveOmni(opts.omni);
   const langName = mapLangToSpace(opts.lang);
+  // Mantén el daemon caliente para los turnos siguientes (no bloquea este),
+  // tanto en la decisión normal como en la ruta congelada.
+  if (omni.privacy_mode !== "cloud_only") ensureLocalKeepAlive();
+
+  // RUTA CONGELADA (fix continuidad de voz, 2026-07-21): el llamador ya decidió
+  // el camino para TODO el mensaje — lo respetamos tal cual, SIN re-handshake y
+  // SIN tocar `localSlowUntil` (eso es SOLO del modo de decisión normal, más
+  // abajo). Así ningún trozo intermedio puede cambiar de motor a mitad de la
+  // misma locución.
+  if (opts.routeOverride) {
+    const { route, preferLocal } = opts.routeOverride;
+    if (route === "off") {
+      lastRoute = "off";
+      return null;
+    }
+    if (route === "local") {
+      try {
+        opts.onStatus?.("Voz local activa ⚡");
+      } catch {
+        /* */
+      }
+      const naturalBudget = preferLocal ? LOCAL_PREFER_MAX_MS : LOCAL_TTS_TIMEOUT_MS;
+      const budget =
+        opts.budgetCapMs && opts.budgetCapMs > 0
+          ? Math.min(naturalBudget, opts.budgetCapMs)
+          : naturalBudget;
+      const local = await synthLocal(clean, omni, langName, opts.signal, budget).catch(
+        () => ({ blob: null as Blob | null, timedOut: false }),
+      );
+      if (local.blob) {
+        lastRoute = "local";
+        return local.blob;
+      }
+      // Ruta congelada en LOCAL: si este trozo no llega a tiempo, NO saltamos a
+      // la nube (mezclaría voces dentro del mismo mensaje) — este trozo cede y
+      // `neuralSpeakChunked` cierra la locución con dignidad (lo dicho, dicho
+      // está).
+      lastRoute = "off";
+      return null;
+    }
+    // route === "cloud"
+    const cloudBudget =
+      opts.budgetCapMs && opts.budgetCapMs > 0
+        ? Math.min(CLOUD_TIMEOUT_MS, opts.budgetCapMs)
+        : undefined;
+    const cloud = await synthCloud(clean, omni, langName, opts, cloudBudget).catch(() => null);
+    lastRoute = cloud ? "cloud" : "off";
+    return cloud;
+  }
+
   const privacy = omni.privacy_mode;
 
   // 1) LOCAL — daemon en 127.0.0.1 (baja latencia, privado).
@@ -849,8 +965,6 @@ export async function synthesizeOmniVoiceHybrid(
     // ¿Esta neurona ELIGIÓ voz local? Entonces nos comprometemos con el daemon:
     // presupuesto en frío generoso y SIN castigo de "nube 10 min" (Adenda 88).
     const preferLocal = privacy === "local_only" || neuronPrefersLocalLS();
-    // Mantén el daemon caliente para los turnos siguientes (no bloquea este).
-    ensureLocalKeepAlive();
     const hs = await omniHandshake({ signal: opts.signal });
     if (hs && hs.ready) {
       // El modo lento (sonda de 3 s + nube primero) es SOLO para neuronas que NO
@@ -869,6 +983,10 @@ export async function synthesizeOmniVoiceHybrid(
       if (slowMode) budget = LOCAL_PROBE_TIMEOUT_MS;
       else if (preferLocal) budget = LOCAL_PREFER_MAX_MS;
       else budget = LOCAL_TTS_TIMEOUT_MS;
+      // Tope opcional por trozo (mensajes troceados sin ruta congelada aún
+      // resuelta, p.ej. si decideOmniRoute() falló): nunca dejamos que un solo
+      // trozo agote un presupuesto de minutos.
+      if (opts.budgetCapMs && opts.budgetCapMs > 0) budget = Math.min(budget, opts.budgetCapMs);
       const local = await synthLocal(clean, omni, langName, opts.signal, budget).catch(
         () => ({ blob: null as Blob | null, timedOut: false }),
       );
@@ -912,7 +1030,9 @@ export async function synthesizeOmniVoiceHybrid(
 
   // 2) NUBE — Space gratis (puede tardar en despertar). Aquí solo llegan los modos
   //    "hybrid_allow_cloud" (local falló) y "cloud_only"; "local_only" ya retornó.
-  const cloud = await synthCloud(clean, omni, langName, opts).catch(() => null);
+  const cloudBudget =
+    opts.budgetCapMs && opts.budgetCapMs > 0 ? Math.min(CLOUD_TIMEOUT_MS, opts.budgetCapMs) : undefined;
+  const cloud = await synthCloud(clean, omni, langName, opts, cloudBudget).catch(() => null);
   if (cloud) {
     lastRoute = "cloud";
     return cloud;

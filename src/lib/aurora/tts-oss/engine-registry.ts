@@ -20,12 +20,15 @@
  *      (`intelligence.motorVoz`, o `intelligence.porSentido.voz.fuente` si nombra
  *      un motor), ese va PRIMERO. Pero NO es exclusivo: si falla, la cadena sigue
  *      (un pin obsoleto nunca deja a Aurora sin voz — mismo principio que el pin
- *      de inteligencia en el router de Astraura).
+ *      de inteligencia en el router de Astraura). Toda personalidad SIN motor
+ *      propio hereda aquí mismo el predeterminado real (ver más abajo): OpenVoice
+ *      (web) u OmniVoice (local), según lo que esta neurona haya elegido — NUNCA
+ *      VoxCPM sin que el usuario lo pida explícitamente.
  *   2. ELECCIÓN EXPLÍCITA — el motor que el usuario eligió en Ajustes → Voz
  *      (`config.engine`), si no es el navegador.
  *   3. AUTO (config.auto, ON por defecto) — el MEJOR motor disponible por
  *      realismo, entre los que están CONFIGURADOS (tienen endpoint y cumplen sus
- *      requisitos): VoxCPM → Voicebox → GPT-SoVITS → Bark → OmniVoice.
+ *      requisitos): VoxCPM → Voicebox → GPT-SoVITS → Bark → OmniVoice → OpenVoice V2.
  *      Un motor sin endpoint NO se prueba: cero red, cero latencia, cero coste
  *      para quien no tiene servidores.
  *   4. KOKORO — local en el navegador, si su modelo ya está descargado (o el
@@ -34,12 +37,20 @@
  *      speechSynthesis con la mejor voz neural del dispositivo + modulación
  *      emocional). Este eslabón NO puede fallar.
  *
- * ── POR QUÉ VOXCPM ES EL PRINCIPAL ──────────────────────────────────────────
- * De todo lo que tenemos, VoxCPM2 (OpenBMB, Apache-2.0) es el más realista y el
- * más expresivo: tokenizer-free (difusión autoregresiva), 30 idiomas, 48 kHz,
- * DISEÑO DE VOZ por descripción en lenguaje natural y clonación controlable. Por
- * eso encabeza el orden AUTO en cuanto tiene endpoint. No requiere que el usuario
- * cambie de motor a mano: basta con que exista el servidor.
+ * ── POR QUÉ OPENVOICE/OMNIVOICE SON EL PREDETERMINADO REAL ──────────────────
+ * OpenVoice V2 (web) y OmniVoice (híbrido nube gratis + daemon local) son los
+ * ÚNICOS motores neuronales de CERO configuración: no piden URL de servidor ni
+ * instalación, así que son lo primero que habla cualquier cuenta o dispositivo
+ * nuevo — automático, sin que el usuario toque nada (Adendas 77-voz/81/86/90).
+ * Por eso son el predeterminado EXPLÍCITO de todas las personalidades (ver
+ * `refreshPersonalityVoicePin`, paso 3): OpenVoice por la nube si esta neurona
+ * prefiere web, OmniVoice si prefiere su motor local.
+ * VoxCPM2 (OpenBMB, Apache-2.0) sigue siendo el más realista y expresivo de
+ * todos — tokenizer-free (difusión autoregresiva), 30 idiomas, 48 kHz, DISEÑO
+ * DE VOZ por descripción en lenguaje natural y clonación controlable — pero es
+ * OPCIONAL: exige que el usuario levante su propio servidor con endpoint. Por
+ * eso encabeza el orden AUTO en cuanto ese endpoint existe (mejora automática
+ * para quien lo tiene), sin ser jamás el predeterminado de fábrica.
  *
  * SSR-safe, defensivo. NUNCA lanza. Importarlo es barato (los motores pesados se
  * cargan con `import()` dinámico solo cuando hay que hablar).
@@ -295,8 +306,23 @@ export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
   "openvoice2",
 ];
 
-/** El motor PRINCIPAL recomendado del sistema (cuando tiene endpoint). */
-export const PRIMARY_VOICE_ENGINE: AuroraVoiceEngine = "voxcpm";
+/**
+ * El motor PREDETERMINADO REAL del sistema (Adenda 90): OpenVoice/OmniVoice,
+ * los únicos de cero configuración (ver cabecera del archivo). Alimenta el
+ * flag `recommended` de la UI y sus etiquetas — YA NO es VoxCPM, que pasa a
+ * ser opcional (mejora automática solo si el usuario configura su endpoint).
+ */
+export const PRIMARY_VOICE_ENGINE: AuroraVoiceEngine = "openvoice2";
+
+/**
+ * Motor del modo «sistemas web rápidos» (Adenda 90 · elección `fastweb` en la
+ * ventana de voz de la neurona, ver voice-neuron-onboarding.tsx): el que ANTES
+ * era `PRIMARY_VOICE_ENGINE`. Prioriza velocidad/disponibilidad automática por
+ * delante del realismo de OpenVoice — pero sigue sin ser exclusivo: si esta
+ * neurona no le configuró endpoint, el pin se salta en silencio y la cadena
+ * AUTO decide igual (ver `buildVoiceChain`).
+ */
+const FAST_WEB_VOICE_ENGINE: AuroraVoiceEngine = "voxcpm";
 
 // ── Estado de un motor (¿puedo usarlo AHORA?) ────────────────────────────────
 
@@ -341,6 +367,26 @@ function neuronPrefersLocal(): boolean {
     if (!raw) return false;
     const j = JSON.parse(raw) as { mode?: string };
     return j?.mode === "local";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ¿Esta NEURONA eligió «sistemas web rápidos» en su ventana de voz? (Adenda 90).
+ * Misma clave LS que `neuronPrefersLocal`; los modos son EXCLUYENTES entre sí
+ * (local / cloud / fastweb / later), así que basta comparar el valor guardado.
+ * Sin red; nunca lanza.
+ */
+function neuronPrefersFastWeb(): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+    const raw =
+      window.localStorage.getItem("starseed.voz.neurona.v2") ||
+      window.localStorage.getItem("starseed.voz.neurona.v1");
+    if (!raw) return false;
+    const j = JSON.parse(raw) as { mode?: string };
+    return j?.mode === "fastweb";
   } catch {
     return false;
   }
@@ -475,11 +521,20 @@ export async function refreshPersonalityVoicePin(): Promise<AuroraVoiceEngine | 
       cachedPin = preferred;
       return cachedPin;
     }
-    // 3) PREDETERMINADO GLOBAL (Adendas 81/86): TODA personalidad sin motor
-    //    propio habla con OpenVoice primero — salvo que ESTA NEURONA haya
-    //    elegido «motor local» en su ventana de voz: entonces el híbrido
-    //    OmniVoice (daemon local) va primero y OpenVoice queda de respaldo.
+    // 3) PREDETERMINADO GLOBAL (Adendas 81/86/90): TODA personalidad sin motor
+    //    propio habla con OpenVoice/OmniVoice — salvo que ESTA NEURONA haya
+    //    elegido otra cosa en su ventana de voz:
+    //      · «motor local»          → el híbrido OmniVoice (daemon local) va
+    //        primero y OpenVoice queda de respaldo.
+    //      · «sistemas web rápidos» → un motor más veloz (y menos realista) va
+    //        primero EN VEZ de OpenVoice — sigue sin ser exclusivo: si no
+    //        responde, la cadena AUTO decide igual.
+    //      · (nube / sin elección)  → OpenVoice primero.
     //    Configurable por personalidad en su editor; jamás exclusivo.
+    if (neuronPrefersFastWeb()) {
+      cachedPin = FAST_WEB_VOICE_ENGINE;
+      return cachedPin;
+    }
     cachedPin = neuronPrefersLocal() ? "omnivoice" : "openvoice2";
     return cachedPin;
   } catch {

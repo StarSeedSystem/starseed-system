@@ -1331,6 +1331,93 @@ export const AURORA_VOICE_TOOLS: AuroraVoiceTool[] = [
   },
 ];
 
+// ----------------------------------------------------------------------------
+// ESTADO REAL DE LA VOZ PARA EL PROMPT (Adenda 87 · anti-alucinación de voz)
+// ----------------------------------------------------------------------------
+// Diagnóstico: el LLM casi nunca invoca la tool `estado_voz` de arriba, así que
+// cuando el usuario pregunta "¿qué motor de voz usas?" el modelo ALUCINA
+// motores que no existen en este sistema (p.ej. "uso VoxCPM con Bark/Kokoro").
+// `describeVoiceStateForPrompt` extrae la MISMA lógica de lectura que
+// `estado_voz` (refreshPersonalityVoicePin → refreshOmniRoute → getVoiceConfig
+// → buildVoiceChain → resolveActiveVoiceEngine → getOpenVoice2State →
+// getOmniVoiceRouteState) a una función pura que devuelve UNA línea corta.
+// router.ts la inyecta en `brainExtra` en CADA turno (ver astrauraChat), así
+// el modelo SIEMPRE tiene la verdad delante y no necesita adivinar.
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Estado real de la voz de Aurora, comprimido a UNA línea para el contexto
+ * del LLM. Misma fuente de verdad que la tool `estado_voz` (arriba), pero sin
+ * la redacción hablada larga.
+ *
+ * Totalmente defensiva y SSR-safe: NUNCA lanza; si algo falla o tarda,
+ * devuelve "" y el prompt queda igual que si esta función no existiera.
+ * Timeout de seguridad corto (1800 ms) para que nunca bloquee la respuesta de
+ * Aurora aunque la sonda de red de OmniVoice (daemon local) esté colgada.
+ */
+export async function describeVoiceStateForPrompt(): Promise<string> {
+  if (typeof window === "undefined") return "";
+  try {
+    return await Promise.race([
+      describeVoiceStateForPromptInner(),
+      new Promise<string>((resolve) => setTimeout(() => resolve(""), 1800)),
+    ]);
+  } catch {
+    return "";
+  }
+}
+
+/** Cuerpo de {@link describeVoiceStateForPrompt}, separado para poder acotarlo con timeout. Nunca lanza. */
+async function describeVoiceStateForPromptInner(): Promise<string> {
+  try {
+    const m = await import("@/lib/aurora/tts-oss");
+    await m.refreshPersonalityVoicePin().catch(() => null);
+    // Sonda de red OPCIONAL (¿daemon local de OmniVoice vivo?): timeout propio
+    // y corto — si no responde a tiempo seguimos con el último estado ya
+    // cacheado (getOmniVoiceRouteState), tan válido como el que usa `estado_voz`.
+    await Promise.race([
+      m.refreshOmniRoute().catch(() => null),
+      new Promise<void>((resolve) => setTimeout(() => resolve(), 900)),
+    ]);
+    const cfg = m.getVoiceConfig();
+    const chain = m.buildVoiceChain(cfg);
+    const activo = m.resolveActiveVoiceEngine(cfg);
+    const NOMBRES: Record<string, string> = {
+      openvoice2: "OpenVoice",
+      omnivoice: "OmniVoice híbrida",
+      kokoro: "Kokoro",
+      voxcpm: "VoxCPM",
+      voicebox: "Voicebox",
+      bark: "Bark",
+      "gpt-sovits": "GPT-SoVITS",
+      kitten: "Kitten",
+      browser: "voz del navegador",
+    };
+    const cadena = [...chain.map((c) => NOMBRES[c] ?? c), "voz del navegador"].join(" → ");
+    let ruta = "desconocida";
+    try {
+      const r = m.getOmniVoiceRouteState();
+      ruta = r === "local" ? "local" : r === "cloud" ? "nube" : "off";
+    } catch { /* defensivo */ }
+    let openvoice = "desconocido";
+    try {
+      const ov = m.getOpenVoice2State();
+      openvoice = ov === "listo"
+        ? "lista"
+        : ov === "fuera"
+          ? "descansando (pasa el turno al siguiente motor)"
+          : "nube, despierta al primer uso";
+    } catch { /* defensivo */ }
+    return (
+      "VOZ (estado real del sistema — es la verdad; si te preguntan por tu voz, repórtala y NO inventes otros motores): " +
+      `motor activo = ${NOMBRES[activo] ?? activo}; ruta OmniVoice = ${ruta}; OpenVoice = ${openvoice}; ` +
+      `cadena de respaldo = ${cadena}.`
+    );
+  } catch {
+    return "";
+  }
+}
+
 /** Conjunto de nombres de las tools de GENERAR/USAR CONTENIDO (para la sección de prompt). */
 const GENERATE_TOOL_NAMES: ReadonlySet<string> = new Set(AURORA_GENERATE_TOOLS.map((t) => t.name));
 

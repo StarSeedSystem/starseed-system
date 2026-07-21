@@ -911,7 +911,17 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
     personaje: "Mentora",
     filosofia: "Humanista",
     responseStyle: { longitud: "extensa", formato: "estructurado", recomendaciones: "proactivas" },
-    voiceStyle: { tone: "sereno", emotion: "confianza tranquila", rate: 0.95, pitch: 0.98, energy: 45 },
+    voiceStyle: {
+      tone: "sereno",
+      emotion: "confianza tranquila",
+      rate: 0.95,
+      pitch: 0.98,
+      energy: 45,
+      // Motor explícito (Adenda 90): OpenVoice/OmniVoice es el predeterminado
+      // real de TODA personalidad — se fija aquí (no se hereda implícito del
+      // registro) para que la ficha sea la fuente de verdad del editor.
+      engine: "openvoice2",
+    },
     knowledge: ["educación", "aprendizaje", "biblioteca universal"],
   }),
   baseProfile({
@@ -937,7 +947,17 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
     cultura: "Ciberdélica",
     filosofia: "Vitalista",
     responseStyle: { longitud: "equilibrada", formato: "adaptativo", recomendaciones: "proactivas" },
-    voiceStyle: { tone: "vivaz", emotion: "entusiasmo alegre", rate: 1.12, pitch: 1.08, energy: 85 },
+    voiceStyle: {
+      tone: "vivaz",
+      emotion: "entusiasmo alegre",
+      rate: 1.12,
+      pitch: 1.08,
+      energy: 85,
+      // Motor explícito (Adenda 90): OpenVoice/OmniVoice es el predeterminado
+      // real de TODA personalidad — se fija aquí (no se hereda implícito del
+      // registro) para que la ficha sea la fuente de verdad del editor.
+      engine: "openvoice2",
+    },
     knowledge: ["arte", "diseño", "multiverso", "cultura"],
   }),
   baseProfile({
@@ -963,7 +983,17 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
     filosofia: "Racionalista",
     generoVoz: "neutra",
     responseStyle: { longitud: "breve", formato: "estructurado", recomendaciones: "bajo-demanda" },
-    voiceStyle: { tone: "neutro", emotion: "concentración", rate: 1.02, pitch: 0.96, energy: 40 },
+    voiceStyle: {
+      tone: "neutro",
+      emotion: "concentración",
+      rate: 1.02,
+      pitch: 0.96,
+      energy: 40,
+      // Motor explícito (Adenda 90): OpenVoice/OmniVoice es el predeterminado
+      // real de TODA personalidad — se fija aquí (no se hereda implícito del
+      // registro) para que la ficha sea la fuente de verdad del editor.
+      engine: "openvoice2",
+    },
     knowledge: ["datos", "lógica", "método científico"],
   }),
   baseProfile({
@@ -988,7 +1018,17 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
     personaje: "Guardiana",
     filosofia: "Estoica",
     responseStyle: { longitud: "breve", formato: "prosa", recomendaciones: "proactivas" },
-    voiceStyle: { tone: "suave", emotion: "calma protectora", rate: 0.9, pitch: 0.98, energy: 35 },
+    voiceStyle: {
+      tone: "suave",
+      emotion: "calma protectora",
+      rate: 0.9,
+      pitch: 0.98,
+      energy: 35,
+      // Motor explícito (Adenda 90): OpenVoice/OmniVoice es el predeterminado
+      // real de TODA personalidad — se fija aquí (no se hereda implícito del
+      // registro) para que la ficha sea la fuente de verdad del editor.
+      engine: "openvoice2",
+    },
     knowledge: ["privacidad", "seguridad", "bienestar digital"],
   }),
   baseProfile({
@@ -1014,7 +1054,17 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
     cultura: "Cosmopolita",
     filosofia: "Empirista",
     responseStyle: { longitud: "equilibrada", formato: "adaptativo", recomendaciones: "proactivas" },
-    voiceStyle: { tone: "luminoso", emotion: "asombro", rate: 1.08, pitch: 1.04, energy: 75 },
+    voiceStyle: {
+      tone: "luminoso",
+      emotion: "asombro",
+      rate: 1.08,
+      pitch: 1.04,
+      energy: 75,
+      // Motor explícito (Adenda 90): OpenVoice/OmniVoice es el predeterminado
+      // real de TODA personalidad — se fija aquí (no se hereda implícito del
+      // registro) para que la ficha sea la fuente de verdad del editor.
+      engine: "openvoice2",
+    },
     knowledge: ["exploración", "culturas", "ciencia", "red StarSeed"],
   }),
   baseProfile({
@@ -1040,7 +1090,17 @@ export const PERSONALITY_PRESETS: PersonalityProfile[] = [
     cultura: "Ciberdélica",
     filosofia: "Mística",
     responseStyle: { longitud: "equilibrada", formato: "prosa", recomendaciones: "bajo-demanda" },
-    voiceStyle: { tone: "etéreo", emotion: "asombro tierno", rate: 0.94, pitch: 1.06, energy: 50 },
+    voiceStyle: {
+      tone: "etéreo",
+      emotion: "asombro tierno",
+      rate: 0.94,
+      pitch: 1.06,
+      energy: 50,
+      // Motor explícito (Adenda 90): OpenVoice/OmniVoice es el predeterminado
+      // real de TODA personalidad — se fija aquí (no se hereda implícito del
+      // registro) para que la ficha sea la fuente de verdad del editor.
+      engine: "openvoice2",
+    },
     knowledge: ["poesía", "ciberdelia", "estética Crystal Liquid Glass"],
   }),
   // ── Hermione (Adenda 70): el Hermes externo del usuario como personalidad de

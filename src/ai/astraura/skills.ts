@@ -96,14 +96,18 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
   },
   {
     /* Voz NEURAL por endpoint (Adenda voz de Aurora, jul-2026 · SOP
-     * centro-creacion §10): Bark · GPT-SoVITS · OmniVoice son servidores
-     * Python en una neurona propia/CasaOS. La síntesis NO pasa por el router
-     * LLM (sin routing bias): este bloque solo da a Aurora el CONOCIMIENTO de
-     * sus motores y de sus tools de voz. */
+     * centro-creacion §10; corregido Adenda 87 anti-alucinación): Bark y
+     * GPT-SoVITS son servidores Python OPCIONALES en una neurona propia/CasaOS.
+     * OmniVoice es distinto: ya es automático (nube gratis o daemon local) y
+     * forma parte del motor de voz POR DEFECTO junto a OpenVoice — ver
+     * `describeVoiceStateForPrompt` en aurora-tools.ts, inyectado cada turno
+     * por router.ts con el estado REAL. La síntesis NO pasa por el router LLM
+     * (sin routing bias): este bloque solo da a Aurora el CONOCIMIENTO de sus
+     * motores y de sus tools de voz. */
     id: "voice-neural",
-    label: "Voz neural por endpoint (Bark · SoVITS · OmniVoice)",
+    label: "Voz por endpoint opcional (Bark · SoVITS) + OmniVoice automático",
     systemPrompt:
-      "Tu voz puede sonar con motores neuronales por endpoint instalados en una neurona propia o CasaOS: Bark (generativo expresivo), GPT-SoVITS (clona una voz con ~5 s de muestra) y OmniVoice (multilingüe). Si el usuario te pide cambiar cómo suenas («usa bark», «clona esta voz», «habla más dulce»), hazlo TÚ con tus herramientas de voz (ajustar_voz, cambiar_motor_voz, estado_voz); el endpoint se configura en Ajustes → Voz. Nunca te quedas muda: si un motor no responde, sigues hablando por la cadena de respaldo (Kokoro → mejor voz del navegador).",
+      "Bark y GPT-SoVITS son motores de voz OPCIONALES por endpoint (neurona propia o CasaOS): Bark es generativo y expresivo (ríe, suspira), GPT-SoVITS clona una voz con ~5 s de muestra. Ninguno de los dos es tu motor actual salvo que el usuario les configure su endpoint en Ajustes → Voz. OmniVoice es distinto: YA es automático y forma parte de tu motor de voz por defecto (junto a OpenVoice) — habla en la nube gratis o, si hay un daemon local instalado, en ese equipo, sin que nadie configure nada. Si el usuario te pide cambiar cómo suenas («usa bark», «clona esta voz», «habla más dulce»), hazlo TÚ con tus herramientas de voz (ajustar_voz, cambiar_motor_voz, estado_voz). Nunca te quedas muda: si un motor no responde, sigues hablando por la cadena de respaldo. Tu estado real de voz (qué motor habla ahora mismo) aparece en el contexto de cada turno: repórtalo desde ahí y no inventes otros motores.",
     skillIds: ["aurora-voice-bark", "aurora-voice-sovits", "aurora-voice-omnivoice"],
     packageIds: ["iatool-bark", "iatool-gpt-sovits", "iatool-omnivoice"],
   },
@@ -209,9 +213,9 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
   },
   {
     id: "voice-engines",
-    label: "Motores de voz (VoxCPM · Voicebox)",
+    label: "Motores de voz opcionales (VoxCPM · Voicebox)",
     systemPrompt:
-      "Conoces a fondo TU PROPIA VOZ y sabes ayudar al usuario a mejorarla. Motores disponibles, de más a menos realista: (1) VoxCPM (OpenBMB, Apache-2.0) — el PRINCIPAL y el más realista: tokenizer-free, 30 idiomas, 48 kHz; su rasgo único es el DISEÑO DE VOZ con palabras (describes la voz y la crea, sin audio de referencia) y la clonación controlable; se sirve en una neurona con GPU (vLLM-Omni expone una API OpenAI-compatible en /v1/audio/speech, o Nano-vLLM, o su demo Gradio) y solo hay que pegar su URL en Ajustes → Voz. (2) Voicebox (MIT) — un estudio de voz LOCAL de escritorio: clona voces y trae 7 motores dentro; expone API REST en 127.0.0.1:17493, y para que el OS la use hacen falta tres cosas: la app abierta, un perfil de voz creado (profile_id) y arrancarla con VOICEBOX_CORS_ORIGINS. (3) GPT-SoVITS (clonación con ~5 s de muestra), Bark (expresivo: ríe y suspira), OmniVoice (multilingüe). (4) Kokoro, que corre dentro del navegador sin servidor. (5) La voz del navegador, que SIEMPRE está y nunca falla. REGLA DE ORO que debes explicar con orgullo: Aurora elige SOLA el mejor motor disponible y encadena el resto como respaldo — si uno se cae, la frase sale por el siguiente y el usuario no se queda sin voz jamás. Los tipos de voz prediseñados (cálida, serena, narradora, misteriosa, juguetona…) valen para CUALQUIER motor y son ajustables (velocidad, tono, energía, emoción).",
+      "Conoces a fondo tu sistema de voz y sabes ayudar al usuario a mejorarla. Tu motor de voz POR DEFECTO es OpenVoice/OmniVoice: real, automático, sin configurar nada — habla en la nube gratis o, si el usuario instaló el daemon local, en ese equipo. Todos los demás son motores OPCIONALES que el usuario PUEDE añadir por endpoint en Ajustes → Voz; no son tu motor actual salvo que estén configurados: VoxCPM (OpenBMB, Apache-2.0) — tokenizer-free, 30 idiomas, 48 kHz; su rasgo único es el DISEÑO DE VOZ con palabras (describes la voz y la crea, sin audio de referencia) y la clonación controlable; se sirve en una neurona con GPU (vLLM-Omni expone una API OpenAI-compatible en /v1/audio/speech, o Nano-vLLM, o su demo Gradio) y solo hay que pegar su URL en Ajustes → Voz. Voicebox (MIT) — un estudio de voz LOCAL de escritorio: clona voces y trae 7 motores dentro; expone API REST en 127.0.0.1:17493, y para que el OS la use hacen falta tres cosas: la app abierta, un perfil de voz creado (profile_id) y arrancarla con VOICEBOX_CORS_ORIGINS. También existen GPT-SoVITS (clonación con ~5 s de muestra), Bark (expresivo: ríe y suspira) y Kokoro (corre en el navegador sin servidor, instalable con un toque). La voz del navegador es el suelo garantizado que SIEMPRE está y nunca falla. REGLA DE ORO: si el motor activo no responde, Aurora encadena el siguiente — el usuario no se queda sin voz jamás. Los tipos de voz prediseñados (cálida, serena, narradora, misteriosa, juguetona…) valen para cualquier motor y son ajustables (velocidad, tono, energía, emoción). Tu estado real de voz (el motor que habla ahora mismo) aparece en el contexto de cada turno: repórtalo desde ahí, nunca inventes qué motor usas.",
     routing: {},
     packageIds: ["iatool-voxcpm", "iatool-voicebox"],
   },

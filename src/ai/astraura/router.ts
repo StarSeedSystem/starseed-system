@@ -54,6 +54,10 @@ import {
 import { systemContextPrompt, screenContextLine, activeProvidersLine } from "./context";
 import { buildUserContext, getUserContextSettings } from "./user-context";
 import { modeForCategory } from "./provider-resolution";
+// Estado REAL de la voz (Adenda 87 · anti-alucinación de voz): función pura
+// que reutiliza la misma lógica que la tool `estado_voz` y la comprime a una
+// línea para el contexto. Aditivo y defensivo: nunca lanza.
+import { describeVoiceStateForPrompt } from "@/lib/integrations/aurora-tools";
 
 /* ───────────────────── Ajustes de Inteligencia ───────────────────── */
 
@@ -753,6 +757,16 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     const provLine = await activeProvidersLine().catch(() => "");
     ctxText = [systemContextPrompt(), screenContextLine(), provLine].filter(Boolean).join("\n\n");
   } catch { /* defensivo */ }
+  // Estado REAL de la voz (Adenda 87 · anti-alucinación de voz): una línea que
+  // dice qué motor habla AHORA de verdad (OpenVoice/OmniVoice por defecto,
+  // motores manuales solo si están configurados). Sin esto el LLM inventaba
+  // motores ("uso VoxCPM con Bark/Kokoro") porque casi nunca invoca la tool
+  // `estado_voz`. Defensivo con timeout corto (la función ya tiene el suyo
+  // interno; este es un cinturón extra) para NUNCA bloquear la respuesta.
+  let voiceStateText = "";
+  try {
+    voiceStateText = await withTimeout(describeVoiceStateForPrompt(), 2000, "estado de voz").catch(() => "");
+  } catch { /* defensivo: sin estado de voz, Aurora sigue igual */ }
   // Contexto TOTAL del usuario (perfiles, grupos, archivos, publicaciones, mensajes
   // sin cuerpo, notificaciones, recordatorios, escritorios, espacios) — SOLO si el
   // usuario lo activó (Ajustes → Aurora e IA; por defecto ON) y hay sesión. Con
@@ -788,7 +802,12 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     if (cc.memoryScope) parts.push(`Alcance de memoria para este chat: ${cc.memoryScope}.`);
     if (parts.length) chatCfgNote = "CONFIGURACIÓN DE ESTE CHAT (Astraura):\n" + parts.join("\n");
   }
-  const brainExtra = [personaText, ctxText, capText, userCtxText, chatCfgNote].filter(Boolean).join("\n\n");
+  // `voiceStateText` va ANTES que `capText` (capacidades/skills): así la
+  // verdad del estado de voz tiene prioridad sobre el texto de las skills de
+  // voz (que ahora hablan en general de motores opcionales, nunca del activo).
+  const brainExtra = [personaText, ctxText, voiceStateText, capText, userCtxText, chatCfgNote]
+    .filter(Boolean)
+    .join("\n\n");
   const messages = brainExtra ? mergeSystemPrompt(req.messages, brainExtra) : req.messages;
   let reqX: AstrauraChatRequest = brainExtra ? { ...req, messages } : req;
 
