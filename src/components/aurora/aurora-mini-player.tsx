@@ -37,6 +37,7 @@ import { AnimatePresence, motion, useReducedMotion, type PanInfo } from "framer-
 import {
   Sparkles, X, Play, Pause, Square, SkipForward, SkipBack,
   Mic, MicOff, MessageSquare, ChevronUp, Maximize2, History, Gauge,
+  icons as lucideIcons, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAurora } from "./aurora-provider";
@@ -47,9 +48,11 @@ import { RouteChip } from "./route-chip";
 import {
   listPersonalityProfiles,
   setActivePersonality,
-  getActivePersonality,
+  resolvePersonalityForContext,
+  registerActiveAuroraChat,
   HERMIONE_PERSONALITY_ID as HERMIONE_ID,
   PERSONALITY_CHANGED_EVENT,
+  type PersonalityProfile,
 } from "@/lib/aurora/personalities";
 import styles from "./aurora-mini-player.module.css";
 import { ChatConfigMenu } from "./chat-config-menu";
@@ -64,6 +67,24 @@ import { UsageSummaryMini } from "@/components/agent/usage-panel";
 
 /** Inactividad tras la cual el reproductor resumido se retira solo. */
 const AUTOHIDE_MS = 10_000;
+
+/* ── Feature A: arrastre del borde superior → ensancha + 2º arrastre = pantalla
+ * completa. Al arrastrar hacia arriba para expandir, la ventana crece en
+ * ANCHO además de alto (para que "Historial"/"Chats"/"Opciones"/"Nexus"/
+ * "Completo" quepan enteros). Un SEGUNDO gesto de arrastre-hacia-arriba, ya en
+ * el tamaño máximo, abre el chat completo en /agent/chat con una transición
+ * fluida (crece hacia la página) antes de navegar. ── */
+/** Ancho base (px) — coincide con el mínimo del clamp() CSS (16rem) de .player. */
+const MINI_PLAYER_MIN_W = 256;
+/** Ancho MÁXIMO (px) al expandir: cabe cómodo el texto completo de los botones
+ *  del pie. Se acota luego al viewport (nunca se sale de la pantalla). */
+const MINI_PLAYER_MAX_W = 480;
+/** Recorrido (px) de arrastre hacia arriba para interpolar min→máx de ancho. */
+const EXPAND_DRAG_RANGE = 150;
+/** Margen (px) respecto al borde del viewport al acotar tamaño/posición. */
+const EDGE_MARGIN = 8;
+/** Duración (ms) de la transición "crece hacia la página completa" antes de navegar. */
+const FULLSCREEN_TRANSITION_MS = 300;
 
 export interface AuroraMiniPlayerAnchor {
   /** Estilo posicional del contenedor (anclado al orbe; lo calcula el widget). */
@@ -134,15 +155,20 @@ export function AuroraMiniPlayer({
   // Popover compacto de uso del sistema (Nexus), en el pie (Adenda 76 · G1).
   const [nexusOpen, setNexusOpen] = useState(false);
   const personalities = useMemo(() => listPersonalityProfiles(), []);
-  // Personalidad activa: fuente de verdad = PersonalityProfile (localStorage),
-  // que es lo que usa el puente Hermione. Reacciona al cambio en tiempo real.
-  const [activeProfile, setActiveProfile] = useState(() => getActivePersonality());
+  // Personalidad EFECTIVA de ESTE chat (prioridad chat > entidad > cerebro >
+  // sección > global — resolvePersonalityForContext), NO solo la global: así
+  // el título de la cabecera refleja la que Aurora usa de verdad al responder
+  // aquí. Si el chat no tiene una propia asignada, cae a la que corresponda
+  // (normalmente Aurora). Reacciona al cambio de chat y a cambios en caliente.
+  const [activeProfile, setActiveProfile] = useState<PersonalityProfile | null>(() =>
+    resolvePersonalityForContext({ chatId: conv.activeId ?? undefined }),
+  );
   useEffect(() => {
     // Idempotente: solo re-renderiza si la personalidad activa cambió de verdad
     // (evita realimentar el ciclo lectura→normalización→evento; Adenda 74-bis).
     const sync = () =>
       setActiveProfile((prev) => {
-        const next = getActivePersonality();
+        const next = resolvePersonalityForContext({ chatId: conv.activeId ?? undefined });
         return prev?.id === next?.id && prev?.name === next?.name ? prev : next;
       });
     sync();
@@ -150,10 +176,72 @@ export function AuroraMiniPlayer({
       window.addEventListener(PERSONALITY_CHANGED_EVENT, sync);
       return () => window.removeEventListener(PERSONALITY_CHANGED_EVENT, sync);
     }
-  }, []);
+  }, [conv.activeId]);
+  // Este chat se registra como "el chat activo de Aurora" mientras el
+  // reproductor esté abierto (mismo patrón que aurora-chat-section.tsx en el
+  // Exocórtex): así resolvePersonalityForContext()/los paneles que no reciben
+  // chatId explícito (p.ej. el ajuste en caliente del estilo de voz) también
+  // resuelven contra el chat correcto.
+  useEffect(() => {
+    if (!conv.activeId) return;
+    try { registerActiveAuroraChat(conv.activeId); } catch { /* defensivo */ }
+    return () => { try { registerActiveAuroraChat(null); } catch { /* defensivo */ } };
+  }, [conv.activeId]);
   const activePersonalityId = activeProfile?.id;
   const autohideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const historyScrollRef = useRef<HTMLDivElement | null>(null);
+  // Cierra el desplegable de personalidades al hacer click FUERA de él.
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+
+  // ── Feature A: ensanchar en vivo con el arrastre + 2º arrastre = pantalla
+  // completa. Ver constantes MINI_PLAYER_MIN_W/MAX_W arriba. ──
+  const outerRef = useRef<HTMLDivElement | null>(null);
+  const fullscreenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Progreso 0-1 del ancho EN VIVO durante el primer arrastre (0 = ancho base). */
+  const [dragProgress, setDragProgress] = useState(0);
+  /** Aviso visual: ya expandida y el usuario tira de nuevo hacia arriba. */
+  const [pullingFullscreen, setPullingFullscreen] = useState(false);
+  /** Dispara la animación de "crece hacia la página completa" antes de navegar. */
+  const [transitioningFullscreen, setTransitioningFullscreen] = useState(false);
+  /** Corrección left/right/top/bottom para que, al ensanchar/alargar, la
+   *  ventana entera siga cabiendo en el viewport aunque el orbe esté pegado a
+   *  un borde (el anclaje del padre asume el tamaño BASE, no el expandido). */
+  const [edgeFix, setEdgeFix] = useState<React.CSSProperties>({});
+  const [viewport, setViewport] = useState<{ w: number; h: number }>(() =>
+    typeof window !== "undefined"
+      ? { w: window.innerWidth, h: window.innerHeight }
+      : { w: 1024, h: 768 },
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  // Mide el rectángulo REAL (tras crecer) y corrige la posición si se sale del
+  // viewport. Se remide 260ms después (además de al instante) porque el alto
+  // crece con SU PROPIA animación (revelado del historial, ~220ms) y así se
+  // captura el tamaño final, no uno a medio animar.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const el = outerRef.current;
+    const measure = () => {
+      if (!el || (!expanded && dragProgress <= 0)) { setEdgeFix({}); return; }
+      const rect = el.getBoundingClientRect();
+      const fix: React.CSSProperties = {};
+      if (rect.left < EDGE_MARGIN) { fix.left = EDGE_MARGIN; fix.right = "auto"; }
+      else if (rect.right > window.innerWidth - EDGE_MARGIN) { fix.right = EDGE_MARGIN; fix.left = "auto"; }
+      if (rect.top < EDGE_MARGIN) { fix.top = EDGE_MARGIN; fix.bottom = "auto"; }
+      else if (rect.bottom > window.innerHeight - EDGE_MARGIN) { fix.bottom = EDGE_MARGIN; fix.top = "auto"; }
+      setEdgeFix(fix);
+    };
+    measure();
+    const t = setTimeout(measure, 260);
+    return () => clearTimeout(t);
+  }, [expanded, dragProgress, viewport]);
+  useEffect(() => () => {
+    if (fullscreenTimeoutRef.current) clearTimeout(fullscreenTimeoutRef.current);
+  }, []);
 
   const listening = !!aurora?.listening;
   const speaking = !!aurora?.speaking;
@@ -294,6 +382,34 @@ export function AuroraMiniPlayer({
     onDismiss?.();
   }, [clearAutohide, onDismiss]);
 
+  // Cierra el desplegable de personalidades al hacer click FUERA de él (elegir
+  // una opción ya lo cierra desde choosePersonality).
+  useEffect(() => {
+    if (!pickerOpen || typeof document === "undefined") return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [pickerOpen]);
+
+  // Cambia la personalidad de ESTE chat "en caliente": si hay un chat activo
+  // usamos el ámbito POR CHAT (máxima prioridad en resolvePersonalityForContext,
+  // igual que hace personalities-panel.tsx con "Este chat"); si todavía no hay
+  // chat (p.ej. antes del primer mensaje), cae a global — la función real de
+  // cambio sigue siendo setActivePersonality en ambos casos.
+  const choosePersonality = useCallback((id: string) => {
+    if (conv.activeId) {
+      setActivePersonality({ scope: "chat", chatId: conv.activeId }, id);
+    } else {
+      setActivePersonality({ scope: "global" }, id);
+    }
+    setPickerOpen(false);
+    clearAutohide();
+  }, [conv.activeId, clearAutohide]);
+
   // 📎 (Agente S1): el picker universal ya subió el archivo (url real). Lo
   // persistimos como mensaje del usuario en la conversación ACTIVA (la misma de
   // todas las superficies); aparece en el hilo con su chip y el próximo turno lo ve.
@@ -311,16 +427,58 @@ export function AuroraMiniPlayer({
     } catch { /* defensivo */ }
   }, [conv.activeId, clearAutohide]);
 
-  // ── Deslizar dentro del widget: arriba = expandir historial; abajo = colapsar. ──
+  // Ruta del chat completo — LA MISMA que usa hoy el botón «pantalla completa».
+  const fullChatHref = `/agent/chat${conv.activeId ? `?id=${conv.activeId}` : ""}`;
+
+  // 2º gesto de ampliar (ya al tamaño máximo): transición fluida — la ventana
+  // "crece" hacia la página completa (escala+opacidad) y LUEGO navega, para
+  // que se sienta como una transformación continua y no un corte brusco.
+  const triggerFullscreenTransition = useCallback(() => {
+    if (transitioningFullscreen) return;
+    clearAutohide();
+    setPullingFullscreen(false);
+    setTransitioningFullscreen(true);
+    if (fullscreenTimeoutRef.current) clearTimeout(fullscreenTimeoutRef.current);
+    fullscreenTimeoutRef.current = setTimeout(() => {
+      router.push(fullChatHref);
+    }, FULLSCREEN_TRANSITION_MS);
+  }, [transitioningFullscreen, clearAutohide, router, fullChatHref]);
+
+  // Arrastre EN VIVO (mientras el dedo sigue abajo): si aún no está expandida,
+  // el ancho interpola hacia MINI_PLAYER_MAX_W con la distancia arrastrada
+  // (feedback inmediato, "fluido"). Si ya está expandida, un nuevo tirón hacia
+  // arriba solo enciende el AVISO visual — el disparo real llega al soltar
+  // (onDragEnd), para no navegar por accidente a mitad de gesto.
+  const onDrag = useCallback((_e: unknown, info: PanInfo) => {
+    if (transitioningFullscreen) return;
+    const dy = info.offset.y;
+    if (!expanded) {
+      const progress = dy < 0 ? Math.min(1, -dy / EXPAND_DRAG_RANGE) : 0;
+      setDragProgress(progress);
+    } else {
+      setPullingFullscreen(dy < -20);
+    }
+  }, [expanded, transitioningFullscreen]);
+
+  // ── Deslizar dentro del widget: arriba = expandir (alto Y ancho); abajo =
+  // colapsar; arriba OTRA VEZ ya expandida (segundo gesto) = abrir el chat
+  // completo. ──
   const onDragEnd = useCallback((_e: unknown, info: PanInfo) => {
     const dy = info.offset.y;
     const vy = info.velocity.y;
+    setDragProgress(0);
+    setPullingFullscreen(false);
     // Deslizar hacia ARRIBA (dy negativo) expande; hacia ABAJO colapsa. El eje
     // "arriba" del gesto depende de si el widget abre hacia arriba o abajo, pero
     // usamos la convención natural: subir el dedo = ver más (expandir).
-    if (dy < -34 || vy < -420) { setExpanded(true); clearAutohide(); return; }
+    if (dy < -34 || vy < -420) {
+      if (expanded) { triggerFullscreenTransition(); return; }
+      setExpanded(true);
+      clearAutohide();
+      return;
+    }
     if (dy > 34 || vy > 420) { setExpanded(false); return; }
-  }, [clearAutohide]);
+  }, [expanded, clearAutohide, triggerFullscreenTransition]);
 
   if (!aurora || !active) return null;
 
@@ -335,6 +493,21 @@ export function AuroraMiniPlayer({
   // tiene el turno; en reposo quedan bajitas y quietas.
   const bars = [0, 1, 2, 3, 4];
 
+  // Ancho MÁXIMO acotado al viewport actual (Feature A) — nunca se sale de la
+  // pantalla, incluso en móviles estrechos.
+  const maxPlayerW = Math.max(
+    MINI_PLAYER_MIN_W,
+    Math.min(MINI_PLAYER_MAX_W, viewport.w - EDGE_MARGIN * 2),
+  );
+  // Ancho EN VIVO: fijo al máximo si ya está expandida (alto Y ancho crecen
+  // juntos); interpolado durante el primer arrastre; si no, undefined (manda
+  // el clamp() del CSS — comportamiento idéntico al de siempre).
+  const liveWidth = expanded
+    ? maxPlayerW
+    : dragProgress > 0
+      ? Math.round(MINI_PLAYER_MIN_W + (maxPlayerW - MINI_PLAYER_MIN_W) * dragProgress)
+      : undefined;
+
   return (
     <AnimatePresence>
       {/* ENVOLTORIO POSICIONAL (motion, para conservar la animación de salida) —
@@ -344,29 +517,49 @@ export function AuroraMiniPlayer({
           SIEMPRE los recibe el orbe. Solo la TARJETA interior es interactiva. */}
       <motion.div
         key="aurora-mini-player"
+        ref={outerRef}
         initial={reduce ? { opacity: 0 } : { opacity: 0, y: openUp ? 10 : -10, scale: 0.95 }}
-        animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+        animate={
+          transitioningFullscreen
+            ? (reduce ? { opacity: 0 } : { opacity: 0, scale: 1.08 })
+            : reduce ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }
+        }
         exit={reduce ? { opacity: 0 } : { opacity: 0, y: openUp ? 8 : -8, scale: 0.96 }}
-        transition={reduce ? { duration: 0.15 } : { type: "spring", stiffness: 360, damping: 30 }}
+        transition={
+          transitioningFullscreen
+            ? { duration: reduce ? 0.15 : FULLSCREEN_TRANSITION_MS / 1000, ease: "easeOut" }
+            : reduce ? { duration: 0.15 } : { type: "spring", stiffness: 360, damping: 30 }
+        }
         className="pointer-events-none fixed z-[62] flex select-none flex-col"
         style={{
           ...anchor.style,
+          // Feature A: corrige left/right/top/bottom si, al ensanchar/alargar
+          // la ventana, se saldría del viewport (orbe pegado a un borde).
+          ...edgeFix,
           transformOrigin: `${openLeft ? "right" : "left"} ${openUp ? "bottom" : "top"}`,
         }}
       >
       <motion.div
         role="group"
         aria-label="Reproductor de conversación de Astraura IA"
-        drag={reduce ? false : "y"}
+        drag={reduce || transitioningFullscreen ? false : "y"}
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={0.14}
         dragMomentum={false}
+        onDrag={onDrag}
         onDragEnd={onDragEnd}
         // La TARJETA sí captura el puntero (pointer-events:auto) para el swipe y
         // los botones; el envoltorio de arriba se mantiene inerte.
-        className={cn(styles.player, "relative pointer-events-auto flex select-none flex-col")}
+        className={cn(
+          styles.player,
+          "relative pointer-events-auto flex select-none flex-col",
+          pullingFullscreen && !reduce && styles.playerPulling,
+        )}
         style={{
           ["--mp-rgb" as string]: accentRgb,
+          // Feature A: ancho EN VIVO (interpolado durante el arrastre, fijo al
+          // máximo si ya está expandida). undefined ⇒ manda el clamp() del CSS.
+          ...(liveWidth !== undefined ? { width: liveWidth } : null),
         }}
       >
         {/* Filo de luz aurora superior (reactivo al turno). */}
@@ -397,52 +590,75 @@ export function AuroraMiniPlayer({
             <Sparkles className="h-3.5 w-3.5 text-white" />
           </span>
 
-          <div className="min-w-0 flex-1">
-            {/* Selector de personalidad: tocar cambia la personalidad activa
-                DESDE este chat (global), sin salir del reproductor. Conforme al
-                diseño cristalino: botón compacto con el nombre y un cheurón. */}
+          <div className="min-w-0 flex-1" ref={pickerRef}>
+            {/* Selector de personalidad: el nombre es la personalidad ACTIVA
+                de ESTE chat (activeProfile ← resolvePersonalityForContext:
+                chat > entidad > cerebro > sección > global), no solo la
+                global. El cheurón abre la lista de personalidades DISPONIBLES
+                para cambiarla en caliente sin salir del reproductor. */}
             <button
               type="button"
               onClick={() => { clearAutohide(); setPickerOpen((v) => !v); }}
-              aria-label="Cambiar personalidad de Aurora"
-              title="Personalidad activa — toca para cambiar"
-              className="group flex items-center gap-1.5 rounded-md px-1 -mx-1 hover:bg-white/10 transition-colors"
+              aria-label="Cambiar personalidad de Aurora en este chat"
+              aria-expanded={pickerOpen}
+              title="Personalidad activa en este chat — toca para cambiar"
+              className="group flex cursor-pointer items-center gap-1.5 rounded-md px-1 -mx-1 transition-colors duration-200 hover:bg-white/10"
             >
-              <span className="text-[11px] font-semibold tracking-wide text-white/90 truncate max-w-[8rem]">
+              <PersonalityIcon name={activeProfile?.icon || "Sparkles"} className="h-3 w-3 shrink-0 text-white/55" />
+              <span className="max-w-[8rem] truncate text-[11px] font-semibold tracking-wide text-white/90">
                 {activeProfile?.name || (activePersonalityId === HERMIONE_ID ? "Hermione" : "Aurora")}
               </span>
-              <ChevronUp className={cn("h-3 w-3 text-white/50 transition-transform", pickerOpen && "rotate-180")} />
+              <ChevronUp className={cn("h-3 w-3 shrink-0 text-white/50 transition-transform duration-200", pickerOpen && "rotate-180")} />
             </button>
             <div className="flex items-center gap-1.5 text-[8px] font-mono uppercase tracking-[0.16em]" style={{ color: "rgb(var(--mp-rgb) / 0.9)" }}>
               {turnLabel}
             </div>
 
-            {/* Menú de personalidades (anclado, cristalino). */}
+            {/* Menú de personalidades DISPONIBLES (icono + nombre + breve
+                descriptor), cristalino. Elegir cambia la personalidad de ESTE
+                chat en caliente (choosePersonality: por-chat si hay chat
+                activo, si no global) y cierra; también se cierra al clicar
+                fuera (ver el listener en pickerRef). */}
             {pickerOpen && (
-              <div className="absolute left-0 right-0 bottom-full z-10 mb-1 rounded-xl border border-white/10 bg-black/80 backdrop-blur-2xl shadow-2xl shadow-black/50 p-1 max-h-56 overflow-y-auto">
+              <div
+                role="listbox"
+                aria-label="Personalidades disponibles"
+                className="absolute left-0 right-0 bottom-full z-10 mb-1 max-h-72 overflow-y-auto rounded-xl border border-white/10 bg-black/80 p-1 shadow-2xl shadow-black/50 backdrop-blur-2xl"
+              >
+                {personalities.length === 0 && (
+                  <p className="px-2.5 py-2 text-[11px] italic text-white/40">
+                    No hay personalidades guardadas todavía.
+                  </p>
+                )}
                 {personalities.map((p) => (
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => {
-                      setActivePersonality({ scope: "global" }, p.id);
-                      setPickerOpen(false);
-                      clearAutohide();
-                    }}
+                    role="option"
+                    aria-selected={p.id === activePersonalityId}
+                    onClick={() => choosePersonality(p.id)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11px] transition-colors",
+                      "flex w-full cursor-pointer items-start gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors duration-150",
                       p.id === activePersonalityId
                         ? "bg-cyan-500/20 text-cyan-100"
                         : "text-white/75 hover:bg-white/10",
                     )}
                   >
-                    <span className="truncate flex-1">{p.name}</span>
-                    {p.id === HERMIONE_ID && (
-                      <span className="text-[8px] uppercase tracking-wider text-emerald-300/80">Hermes</span>
-                    )}
-                    {p.id === activePersonalityId && (
-                      <span className="text-[9px] text-cyan-300">●</span>
-                    )}
+                    <PersonalityIcon name={p.icon || "Sparkles"} className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#7fb8ff]" />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5">
+                        <span className="truncate text-[11px]">{p.name}</span>
+                        {p.id === HERMIONE_ID && (
+                          <span className="shrink-0 text-[8px] uppercase tracking-wider text-emerald-300/80">Hermes</span>
+                        )}
+                        {p.id === activePersonalityId && (
+                          <span className="shrink-0 text-[9px] text-cyan-300">●</span>
+                        )}
+                      </span>
+                      {p.description && (
+                        <span className="block truncate text-[9px] font-normal text-white/40">{p.description}</span>
+                      )}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -688,12 +904,18 @@ export function AuroraMiniPlayer({
 
           <button
             type="button"
-            onClick={() => router.push(`/agent/chat${conv.activeId ? `?id=${conv.activeId}` : ""}`)}
+            onClick={() => { clearAutohide(); router.push(fullChatHref); }}
             title="Abrir el chat actual en pantalla completa"
             aria-label="Abrir en pantalla completa"
-            className={cn(styles.footBtn, styles.footBtnGhost, "shrink-0")}
+            className={cn(
+              styles.footBtn, styles.footBtnGhost,
+              // Al ancho máximo (expandida) también muestra su etiqueta
+              // completa, como el resto de botones del pie (Feature A).
+              expanded ? "min-w-0 flex-1" : "shrink-0",
+            )}
           >
-            <Maximize2 className="h-3.5 w-3.5" />
+            <Maximize2 className="h-3.5 w-3.5 shrink-0" />
+            {expanded && <span className="text-[10px] font-medium">Completo</span>}
           </button>
 
           <div className="relative min-w-0 flex-1">
@@ -719,6 +941,12 @@ export function AuroraMiniPlayer({
       </motion.div>
     </AnimatePresence>
   );
+}
+
+/** Icono Lucide del campo `icon` de una personalidad (fallback Sparkles). Nunca emojis. */
+function PersonalityIcon({ name, className }: { name: string; className?: string }) {
+  const Cmp = (lucideIcons as Record<string, LucideIcon>)[name] ?? Sparkles;
+  return <Cmp className={className} />;
 }
 
 /** Una línea de conversación (Tú / Aurora) con tinte cardinal cristalino. */

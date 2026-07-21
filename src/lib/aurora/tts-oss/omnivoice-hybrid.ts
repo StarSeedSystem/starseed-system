@@ -53,8 +53,18 @@ export const OMNI_CLONE_FN = "_clone_fn";
 const HANDSHAKE_TTL_MS = 30_000;
 /** Timeout del handshake `GET /status` (rápido: si no hay daemon, falla ya). */
 const HANDSHAKE_TIMEOUT_MS = 2_500;
-/** Presupuesto de la síntesis LOCAL (`POST /tts`). */
+/** Presupuesto de la síntesis LOCAL (`POST /tts`) con el daemon CALIENTE. */
 const LOCAL_TTS_TIMEOUT_MS = 30_000;
+/**
+ * Presupuesto de la síntesis LOCAL en FRÍO (Adenda 88). El CLI recarga el modelo
+ * en cada llamada; si el daemon está dormido (`warm:false`) el modelo se lee de
+ * disco y en un M1/8 GB tarda ~40 s. Cuando la neurona ELIGIÓ voz local, ESPERAMOS
+ * a que responda de verdad (para que se oiga OmniVoice femenina) en vez de saltar
+ * a la nube robótica a los 30 s. El keep-alive evita que esto pase casi siempre.
+ */
+const COLD_LOCAL_TTS_TIMEOUT_MS = 75_000;
+/** Cada cuánto se vuelve a precalentar el daemon (antes de dormirse a los 10 min). */
+const KEEP_WARM_EVERY_MS = 7 * 60_000;
 /**
  * CORTACIRCUITO ADAPTATIVO (equipos modestos): si una síntesis local agota su
  * presupuesto, durante un rato preferimos la nube y a lo local solo le damos
@@ -390,6 +400,77 @@ export async function ensureLocalIdentity(personalityId?: string): Promise<void>
       try { window.localStorage.setItem(flagKey, String(Date.now())); } catch { /* */ }
     }
   } catch { /* sin daemon o sin semilla: nada que hacer */ }
+}
+
+// ── Preferencia de la neurona + PRE-CALENTADO del daemon (Adenda 88) ────────
+
+/**
+ * ¿Esta neurona ELIGIÓ la voz local? (localStorage por dispositivo, escrito por
+ * la ventana de voz de la neurona). Si eligió local, comprometemos la cadena con
+ * el daemon (presupuesto en frío generoso) en vez de saltar a la nube robótica.
+ * NUNCA lanza. Lee la clave directamente para no acoplar con engine-registry.
+ */
+export function neuronPrefersLocalLS(): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+    for (const k of ["starseed.voz.neurona.v2", "starseed.voz.neurona.v1"]) {
+      const raw = window.localStorage.getItem(k);
+      if (!raw) continue;
+      const j = JSON.parse(raw) as { mode?: string };
+      if (j?.mode === "local") return true;
+      if (j?.mode === "cloud") return false; // eligió nube explícitamente
+    }
+  } catch {
+    /* */
+  }
+  return false;
+}
+
+let lastWarmAt = 0;
+/**
+ * Precalienta el daemon local (POST /warm, fire-and-forget). El daemon responde
+ * al instante y carga el modelo en segundo plano → los turnos siguientes son
+ * rápidos (~22 s) en vez de fríos (~40 s). Anti-martilleo de 60 s. Un daemon
+ * viejo (sin /warm) responde 404 y se ignora. NUNCA lanza ni bloquea.
+ */
+export function warmLocalDaemon(): void {
+  try {
+    if (typeof window === "undefined") return;
+    const now = Date.now();
+    if (now - lastWarmAt < 60_000) return;
+    lastWarmAt = now;
+    void fetch(`${OMNI_LOCAL_BASE}/warm`, {
+      method: "POST",
+      signal: AbortSignal.timeout(4_000),
+    }).catch(() => {
+      /* sin daemon o daemon viejo: nada que hacer */
+    });
+  } catch {
+    /* */
+  }
+}
+
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+/**
+ * Arranca (una vez) el keep-alive que mantiene el daemon caliente mientras la
+ * pestaña esté visible y la neurona prefiera local: precalienta cada ~7 min
+ * (antes de que el daemon se duerma a los 10 min). Idempotente. NUNCA lanza.
+ */
+export function ensureLocalKeepAlive(): void {
+  try {
+    if (typeof window === "undefined" || keepAliveTimer) return;
+    if (neuronPrefersLocalLS()) warmLocalDaemon(); // calienta YA
+    keepAliveTimer = setInterval(() => {
+      try {
+        if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+        if (neuronPrefersLocalLS()) warmLocalDaemon();
+      } catch {
+        /* */
+      }
+    }, KEEP_WARM_EVERY_MS);
+  } catch {
+    /* */
+  }
 }
 
 // ── Síntesis LOCAL (POST /tts) ───────────────────────────────────────────────
@@ -763,15 +844,27 @@ export async function synthesizeOmniVoiceHybrid(
 
   // 1) LOCAL — daemon en 127.0.0.1 (baja latencia, privado).
   if (privacy !== "cloud_only") {
+    // ¿Esta neurona ELIGIÓ voz local? Entonces nos comprometemos con el daemon:
+    // presupuesto en frío generoso y SIN castigo de "nube 10 min" (Adenda 88).
+    const preferLocal = privacy === "local_only" || neuronPrefersLocalLS();
+    // Mantén el daemon caliente para los turnos siguientes (no bloquea este).
+    ensureLocalKeepAlive();
     const hs = await omniHandshake({ signal: opts.signal });
     if (hs && hs.ready) {
-      const slowMode = Date.now() < localSlowUntil;
+      // El modo lento (sonda de 3 s + nube primero) es SOLO para neuronas que NO
+      // eligieron local; si eligió local nunca degradamos a la nube por rapidez.
+      const slowMode = !preferLocal && Date.now() < localSlowUntil;
       try {
         opts.onStatus?.(slowMode ? "Sondeando la caché local…" : "Voz local activa ⚡");
       } catch {
         /* */
       }
-      const budget = slowMode ? LOCAL_PROBE_TIMEOUT_MS : LOCAL_TTS_TIMEOUT_MS;
+      // Presupuesto: en frío (daemon dormido) y con preferencia local, esperamos a
+      // que el modelo recargue de disco (~40 s) en vez de saltar a la nube robótica.
+      let budget: number;
+      if (slowMode) budget = LOCAL_PROBE_TIMEOUT_MS;
+      else if (preferLocal && hs.warm === false) budget = COLD_LOCAL_TTS_TIMEOUT_MS;
+      else budget = LOCAL_TTS_TIMEOUT_MS;
       const local = await synthLocal(clean, omni, langName, opts.signal, budget).catch(
         () => ({ blob: null as Blob | null, timedOut: false }),
       );
@@ -780,12 +873,22 @@ export async function synthesizeOmniVoiceHybrid(
         lastRoute = "local";
         return local.blob;
       }
-      if (local.timedOut) {
-        // Este equipo tarda: nube-primero un rato; el daemon sigue sintetizando
-        // en segundo plano y cachea, así que lo local vuelve solo.
+      if (local.timedOut && !preferLocal) {
+        // Equipo que no eligió local y va lento: nube-primero un rato; el daemon
+        // termina en segundo plano y cachea, así que lo local vuelve solo.
         localSlowUntil = Date.now() + LOCAL_SLOW_COOLDOWN_MS;
         try {
           opts.onStatus?.("La voz local va lenta en este equipo; uso la nube mientras calienta su caché…");
+        } catch {
+          /* */
+        }
+      } else if (local.timedOut && preferLocal) {
+        // La neurona quiere local: NO castigamos 10 min con nube. Precalienta ya
+        // para que el próximo turno sea rápido; este turno sí degrada a la nube
+        // (o a Kokoro/navegador si privacy=local_only) para no dejar a Aurora muda.
+        warmLocalDaemon();
+        try {
+          opts.onStatus?.("La voz local está calentando el modelo; el próximo turno irá más rápido…");
         } catch {
           /* */
         }

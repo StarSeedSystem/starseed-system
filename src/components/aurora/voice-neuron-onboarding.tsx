@@ -24,6 +24,7 @@ import { Cloud, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LocalEngineInstaller } from "@/components/settings/aurora/local-engine-installer";
 import { safeGet, safeSet } from "@/lib/safe-storage";
+import { ensureLocalKeepAlive } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 
 // v2 (Adenda 86): el ajuste de preferencia CAMBIÓ (ahora ordena la cadena de
 // voz de la neurona), así que la ventana se RELANZA una vez para todos — aun
@@ -35,11 +36,24 @@ export const NEURON_VOICE_REOPEN_EVENT = "starseed:voz-neurona-reopen";
 const LATER_RETRY_MS = 24 * 60 * 60_000;
 const DAEMON_STATUS = "http://127.0.0.1:4444/status";
 
+/**
+ * VERSIÓN DEL SISTEMA DE VOZ OMNIVOICE (Adenda 88 · petición de Alex).
+ * ⬆️ SÚBELA cada vez que actualicemos el motor/comportamiento de voz. La elección
+ * de cada neurona guarda la versión con la que se configuró; si al cargar la app
+ * la versión guardada NO coincide con esta, la ventana de elección local/web se
+ * REABRE automáticamente para que esa neurona reconfigure con la nueva versión —
+ * aun para quienes ya habían elegido. Al elegir (o cerrar) se re-sella y no vuelve
+ * a molestar hasta la próxima actualización.
+ */
+export const VOICE_SYSTEM_VERSION = 88;
+
 export type NeuronVoiceMode = "cloud" | "local" | "later";
 
 export interface NeuronVoiceChoice {
   mode: NeuronVoiceMode;
   at: number;
+  /** Versión del sistema de voz con la que se configuró (Adenda 88). */
+  sysV?: number;
 }
 
 /** Lee la elección de voz de ESTA neurona (o null si aún no eligió). Nunca lanza. */
@@ -54,10 +68,23 @@ export function readNeuronVoiceChoice(): NeuronVoiceChoice | null {
   }
 }
 
+/**
+ * ¿La elección de esta neurona es de una versión ANTERIOR del sistema de voz?
+ * (Entonces hay que reconfigurar con la nueva.) Una elección sin `sysV` cuenta
+ * como obsoleta (se guardó antes del versionado). Nunca lanza.
+ */
+export function neuronVoiceChoiceIsStale(choice: NeuronVoiceChoice | null): boolean {
+  if (!choice) return false; // sin elección aún: es la primera vez, no "obsoleta"
+  return (choice.sysV ?? 0) !== VOICE_SYSTEM_VERSION;
+}
+
 /** Persiste la elección de voz de esta neurona (+ notifica a la UI). Nunca lanza. */
 export function writeNeuronVoiceChoice(mode: NeuronVoiceMode): void {
   try {
-    safeSet(NEURON_VOICE_LS_KEY, JSON.stringify({ mode, at: Date.now() } satisfies NeuronVoiceChoice));
+    safeSet(
+      NEURON_VOICE_LS_KEY,
+      JSON.stringify({ mode, at: Date.now(), sysV: VOICE_SYSTEM_VERSION } satisfies NeuronVoiceChoice),
+    );
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(NEURON_VOICE_REOPEN_EVENT, { detail: { silent: true } }));
     }
@@ -101,16 +128,29 @@ export function VoiceNeuronOnboarding() {
   const [installing, setInstalling] = useState(false);
   const [checking, setChecking] = useState(false);
   const [checkMsg, setCheckMsg] = useState("");
+  // ¿La ventana se abrió porque el sistema de voz se ACTUALIZÓ? (Adenda 88.)
+  const [updated, setUpdated] = useState(false);
+
+  // Adenda 88: en cuanto carga la app, si esta neurona eligió voz LOCAL, arranca
+  // el keep-alive que mantiene el daemon caliente (precalienta cada ~7 min). Así
+  // la primera síntesis del turno ya encuentra el modelo en caché (~22 s) en vez
+  // de en frío (~40 s) y NUNCA cae a la nube robótica por agotar el presupuesto.
+  useEffect(() => {
+    ensureLocalKeepAlive();
+  }, []);
 
   useEffect(() => {
     let alive = true;
     const t = setTimeout(async () => {
       const choice = readNeuronVoiceChoice();
-      if (choice && choice.mode !== "later") return; // ya elegido EN V2: no molestar
-      if (choice?.mode === "later" && Date.now() - choice.at < LATER_RETRY_MS) return;
-      // Reoferta v2: la ventana se muestra UNA vez aunque hubiera elección v1
-      // (el ajuste ahora decide el ORDEN de la cadena). Si el daemon vive, la
-      // opción local sale preseleccionada como recomendada — pero se pregunta.
+      // Adenda 88: si el sistema de voz se ACTUALIZÓ desde que esta neurona eligió
+      // (versión guardada ≠ VOICE_SYSTEM_VERSION), reabrimos para reconfigurar —
+      // aun para quienes ya habían elegido local/nube. Al elegir se re-sella.
+      const stale = neuronVoiceChoiceIsStale(choice);
+      if (choice && choice.mode !== "later" && !stale) return; // ya elegido y al día
+      if (choice?.mode === "later" && !stale && Date.now() - choice.at < LATER_RETRY_MS) return;
+      if (stale) setUpdated(true);
+      // Si el daemon vive, la opción local sale preseleccionada como recomendada.
       const local = await probeLocalDaemon();
       if (!alive) return;
       setLocalVivo(local);
@@ -132,6 +172,7 @@ export function VoiceNeuronOnboarding() {
         setLocalVivo(local);
         setInstalling(false);
         setCheckMsg("");
+        setUpdated(false); // reapertura manual desde ajustes: no es "actualización"
         setOpen(true);
       });
     };
@@ -196,10 +237,12 @@ export function VoiceNeuronOnboarding() {
             </span>
             <div className="min-w-0">
               <h2 className="text-sm font-semibold text-white/95">
-                Voz de Astraura en esta neurona
+                {updated ? "Voz de Astraura actualizada" : "Voz de Astraura en esta neurona"}
               </h2>
               <p className="text-[11px] text-white/50">
-                Primera vez en este dispositivo · elige cómo quieres que suene
+                {updated
+                  ? "Mejoramos el motor de voz · reconfigúralo para esta neurona"
+                  : "Primera vez en este dispositivo · elige cómo quieres que suene"}
               </p>
             </div>
           </div>

@@ -508,6 +508,54 @@ async function handleIdentity(req, res, cors) {
   }
 }
 
+// ── /warm — PRE-CALENTAR el modelo (Adenda 88) ──────────────────────────────
+//
+// El CLI recarga el modelo en CADA síntesis; "caliente" = el fichero del modelo
+// sigue en la caché de página del SO → la carga es rápida (~22 s) en vez de leer
+// de disco en frío (~40 s en equipos modestos). El frontend llama a /warm de
+// forma proactiva (al abrir la app, al empezar un turno y con un keep-alive cada
+// ~7 min) para que la neurona que ELIGIÓ voz local la oiga SIEMPRE — sin que la
+// primera síntesis en frío agote el presupuesto y caiga a la nube.
+//
+// Responde AL INSTANTE (no bloquea ~40 s): la carga corre en segundo plano por la
+// misma cola serializada. No dispara nada si ya está caliente o si hay trabajo.
+function handleWarm(req, res, cors) {
+  const state = readiness();
+  if (!state.ready) {
+    return sendJson(res, 503, cors, { ok: false, ready: false, warmed: false, reasons: state.reasons });
+  }
+  // Ya caliente (síntesis reciente): no re-cargues el modelo por gusto.
+  if (warm && Date.now() - lastReq < SLEEP_MS) {
+    return sendJson(res, 200, cors, { ok: true, warmed: false, warm: true, reason: "ya caliente" });
+  }
+  // Hay síntesis en curso o en cola: eso ya calienta; no encoles otra carga.
+  if (inFlight > 0 || queueDepth > 0) {
+    return sendJson(res, 200, cors, { ok: true, warmed: false, busy: true });
+  }
+  // Responde ya y calienta en segundo plano con una síntesis mínima (se descarta):
+  // basta para dejar el modelo en la caché de página del SO.
+  sendJson(res, 200, cors, { ok: true, warmed: true, background: true });
+  const t0 = Date.now();
+  enqueue(() =>
+    runTts({
+      ttsBin: state.paths.tts,
+      repoDir: state.paths.repoDir,
+      modelFile: state.paths.modelFile,
+      codecFile: state.paths.codecFile,
+      langName: resolveLang("es", "Spanish"),
+      text: "hola",
+    }),
+  )
+    .then(() => {
+      warm = true;
+      lastReq = Date.now();
+      log("daemon", `precalentado en ${Date.now() - t0} ms`);
+    })
+    .catch(() => {
+      /* un fallo de precalentado no es crítico: la síntesis real lo reintentará */
+    });
+}
+
 // ── /status ──────────────────────────────────────────────────────────────────
 
 function handleStatus(res, cors) {
@@ -576,11 +624,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url === "/identity") {
       return handleIdentity(req, res, cors);
     }
+    if ((req.method === "POST" || req.method === "GET") && url === "/warm") {
+      return handleWarm(req, res, cors);
+    }
     if (req.method === "POST" && url === "/tts") {
       return await handleTts(req, res, cors);
     }
 
-    return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity"] });
+    return sendJson(res, 404, cors, { ok: false, error: "ruta no encontrada", routes: ["GET /status", "POST /tts", "POST /identity", "POST /warm"] });
   } catch (e) {
     // Blindaje total: ninguna petición mala tumba el daemon.
     try {
