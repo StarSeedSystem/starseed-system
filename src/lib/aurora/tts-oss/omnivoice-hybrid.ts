@@ -929,11 +929,19 @@ export async function synthesizeOmniVoiceHybrid(
       } catch {
         /* */
       }
-      const naturalBudget = preferLocal ? LOCAL_PREFER_MAX_MS : LOCAL_TTS_TIMEOUT_MS;
+      // Presupuesto: si el llamador fija `budgetCapMs` explícitamente (p.ej.
+      // `neuralSpeak` sintetizando el MENSAJE COMPLETO sin trocear, fix
+      // 2026-07-21-b) es una decisión DELIBERADA de cuánto esperar — se usa
+      // TAL CUAL, sin intersecarlo con el techo natural 30 s/150 s (pensado
+      // para cuando el llamador NO fija presupuesto propio). Así un mensaje
+      // largo puede darle al daemon hasta ~170 s (por debajo de su watchdog de
+      // 180 s) en vez de cortarlo a los 30 s de siempre.
       const budget =
         opts.budgetCapMs && opts.budgetCapMs > 0
-          ? Math.min(naturalBudget, opts.budgetCapMs)
-          : naturalBudget;
+          ? opts.budgetCapMs
+          : preferLocal
+            ? LOCAL_PREFER_MAX_MS
+            : LOCAL_TTS_TIMEOUT_MS;
       const local = await synthLocal(clean, omni, langName, opts.signal, budget).catch(
         () => ({ blob: null as Blob | null, timedOut: false }),
       );
