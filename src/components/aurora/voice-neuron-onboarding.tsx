@@ -50,7 +50,7 @@ const DAEMON_STATUS = "http://127.0.0.1:4444/status";
  * aun para quienes ya habían elegido. Al elegir (o cerrar) se re-sella y no vuelve
  * a molestar hasta la próxima actualización.
  */
-export const VOICE_SYSTEM_VERSION = 88;
+export const VOICE_SYSTEM_VERSION = 89;
 
 export type NeuronVoiceMode = "cloud" | "local" | "later";
 
