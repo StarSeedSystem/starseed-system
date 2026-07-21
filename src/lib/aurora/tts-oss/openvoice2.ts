@@ -121,11 +121,19 @@ const CONTRACT_VERSION = 1;
 // ── Semillas sintéticas de identidad ─────────────────────────────────────────
 
 const SEED_KEY_PREFIX = "starseed.openvoice2.seed.";
-/** Versión de las semillas (súbela para regenerar todas). */
-export const OPENVOICE2_SEED_VERSION = 1;
-/** Frase por defecto para diseñar una semilla (timbre, no contenido). */
+/**
+ * Versión de las semillas (súbela para regenerar todas). SUBIDA a 2 — fix del
+ * acento importado (2026-07-21): las semillas insignia dejaban de estar
+ * ancladas a un acento inglés (ver `OPENVOICE2_SEED_SPECS_BY_LANG`).
+ */
+export const OPENVOICE2_SEED_VERSION = 2;
+/**
+ * Frase por defecto para diseñar una semilla (timbre, no contenido) cuando una
+ * personalidad CUSTOM no trae su propio texto. En ESPAÑOL: es el idioma por
+ * defecto de la sociedad StarSeed (aurora/hermione siempre traen el suyo).
+ */
 const DEFAULT_SEED_TEXT =
-  "Hello, this is my voice. I am here with you, ready to help, calm and clear.";
+  "Hola, esta es mi voz. Estoy aquí contigo, lista para ayudar, con calma y claridad.";
 
 /** Id de personaje de una semilla. */
 export type OpenVoice2SeedKind = "aurora" | "hermione" | string;
@@ -139,41 +147,98 @@ export interface OpenVoice2SeedSpec {
 }
 
 /**
- * Semillas curadas de las voces insignia. Timbres INSPIRADOS en el arquetipo del
- * personaje (edad/energía/acento/carácter), generados por nuestros propios
- * motores — jamás audio real de ninguna actriz.
- *   · Hermione (arquetipo brillante/rápida/precisa, acento británico): mujer
- *     joven, tono agudo, dicción rápida y articulada con calidez juguetona.
- *   · Aurora (arquetipo juvenil/cálida/sincera/determinada, US neutro): mujer
- *     joven, tono medio, voz suave pero decidida.
+ * Semillas curadas de las voces insignia, POR IDIOMA (fix del acento
+ * importado, 2026-07-21). ANTES había UNA sola semilla por personaje, diseñada
+ * en inglés (acento americano/británico) — esa muestra de audio es la
+ * REFERENCIA que se clona tanto en la nube (Space) como en el daemon local, así
+ * que arrastraba acento inglés a TODOS los idiomas, incluido el español (la
+ * queja original). Ahora cada personaje tiene una semilla NATIVA por idioma:
+ * `seedSpecFor()` elige la del idioma objetivo (o español si aún no hay una
+ * diseñada para ese idioma) y `getOrCreateSeedRefPath()` cachea el resultado
+ * por (personaje, idioma) — el cacheId ya incluye el sufijo de idioma, así que
+ * la caché de localStorage y las rutas /tmp por sesión quedan separadas sin
+ * más cambios.
+ *
+ *   · Hermione (arquetipo brillante/rápida/precisa): en español, ágil, precisa
+ *     y articulada, con calidez; conserva su diseño ORIGINAL en inglés (acento
+ *     británico) para cuando el texto detectado sea inglés.
+ *   · Aurora (arquetipo cálida/sincera/decidida): en español, cálida, sincera
+ *     y decidida, dicción natural y clara; conserva su diseño ORIGINAL en
+ *     inglés (acento americano) para cuando el texto detectado sea inglés.
+ *
+ * Timbres INSPIRADOS en el arquetipo del personaje — jamás audio real de
+ * ninguna actriz. PUNTO DE EXTENSIÓN: sumar un idioma nuevo (p.ej. "fr") es
+ * añadir una entrada `fr: {...}` bajo cada personaje — nada más cambia.
  */
-export const OPENVOICE2_SEED_SPECS: Record<"aurora" | "hermione", OpenVoice2SeedSpec> = {
+const OPENVOICE2_SEED_SPECS_BY_LANG: Record<"aurora" | "hermione", Record<string, OpenVoice2SeedSpec>> = {
   hermione: {
-    attrs: {
-      gender: "Female / 女",
-      age: "Young Adult / 青年",
-      pitch: "High Pitch / 高音调",
-      style: "Auto",
-      accent: "British Accent / 英国口音",
+    es: {
+      attrs: {
+        gender: "Female / 女",
+        age: "Young Adult / 青年",
+        pitch: "High Pitch / 高音调",
+        style: "Auto",
+        accent: "Auto",
+      },
+      instruct: "voz femenina joven, ágil, precisa y articulada, con calidez",
+      lang: "es",
+      text: "Muy bien, pensemos con claridad y actuemos rápido. Estoy segura de que podemos lograrlo.",
     },
-    instruct:
-      "voz femenina joven, dicción rápida, precisa y muy articulada, con calidez mandona y juguetona",
-    lang: "en",
-    text: "Right then — let us think clearly and move quickly. I am absolutely certain we can do this.",
+    en: {
+      attrs: {
+        gender: "Female / 女",
+        age: "Young Adult / 青年",
+        pitch: "High Pitch / 高音调",
+        style: "Auto",
+        accent: "British Accent / 英国口音",
+      },
+      instruct:
+        "voz femenina joven, dicción rápida, precisa y muy articulada, con calidez mandona y juguetona",
+      lang: "en",
+      text: "Right then — let us think clearly and move quickly. I am absolutely certain we can do this.",
+    },
   },
   aurora: {
-    attrs: {
-      gender: "Female / 女",
-      age: "Young Adult / 青年",
-      pitch: "Moderate Pitch / 中音调",
-      style: "Auto",
-      accent: "American Accent / 美式口音",
+    es: {
+      attrs: {
+        gender: "Female / 女",
+        age: "Young Adult / 青年",
+        pitch: "Moderate Pitch / 中音调",
+        style: "Auto",
+        accent: "Auto",
+      },
+      instruct: "voz femenina joven, cálida, sincera y decidida, español natural y claro",
+      lang: "es",
+      text: "Hola, soy Aurora. Estoy aquí contigo, cerca y con calma, lista para lo que necesites.",
     },
-    instruct:
-      "voz femenina joven, cálida, sincera y determinada, suave pero decidida, con brillo cercano",
-    lang: "en",
-    text: "Hi, I am Aurora. I am right here with you — warm, steady, and ready whenever you are.",
+    en: {
+      attrs: {
+        gender: "Female / 女",
+        age: "Young Adult / 青年",
+        pitch: "Moderate Pitch / 中音调",
+        style: "Auto",
+        accent: "American Accent / 美式口音",
+      },
+      instruct:
+        "voz femenina joven, cálida, sincera y determinada, suave pero decidida, con brillo cercano",
+      lang: "en",
+      text: "Hi, I am Aurora. I am right here with you — warm, steady, and ready whenever you are.",
+    },
   },
+};
+
+/**
+ * Vista PLANA de compatibilidad: MISMO shape público que antes —
+ * `Record<"aurora"|"hermione", OpenVoice2SeedSpec>` — para quien ya la consume
+ * (p.ej. `omnivoice-hybrid.ts::ensureLocalIdentity`, fuera de este alcance, que
+ * indexa `OPENVOICE2_SEED_SPECS[kind]` directamente y no puede recibir un mapa
+ * anidado sin romper). Apunta a la variante ESPAÑOLA por defecto — el idioma
+ * por defecto de StarSeed — así que quien siga consumiendo esta constante ya
+ * sube/diseña la referencia correcta sin cambiar una línea.
+ */
+export const OPENVOICE2_SEED_SPECS: Record<"aurora" | "hermione", OpenVoice2SeedSpec> = {
+  hermione: OPENVOICE2_SEED_SPECS_BY_LANG.hermione.es,
+  aurora: OPENVOICE2_SEED_SPECS_BY_LANG.aurora.es,
 };
 
 // ── Estado para la UI ────────────────────────────────────────────────────────
@@ -292,17 +357,22 @@ export function styleForLang(lang: string | undefined): OpenVoice2Style {
   }
 }
 
-/** Estilos por personalidad conocida (arquetipo → acento base). */
+/** Estilos por personalidad conocida (arquetipo → acento DENTRO del inglés). */
 const KNOWN_PERSONALITY_STYLE: Record<string, OpenVoice2Style> = {
-  // Hermione (arquetipo británico) → inglés británico.
+  // Hermione (arquetipo británico) → inglés británico, PERO solo cuando el
+  // idioma objetivo YA es inglés (ver resolveOpenVoice2Style más abajo).
   "c9fe7030-fc68-49c6-a705-58f7900887f9": "en_br",
   "preset-hermione": "en_br",
 };
 
 /**
  * Resuelve el Style EXACTO del Space a partir de una pista, el idioma y/o la
- * personalidad. `styleHint` gana si es un estilo válido; luego la personalidad
- * (Hermione → en_br); si no, el idioma. Nunca lanza. PURO (testeable).
+ * personalidad. `styleHint` gana si es un estilo válido; si no, el IDIOMA
+ * manda SIEMPRE — la personalidad (Hermione → en_br) solo AFINA el sabor
+ * DENTRO del inglés, nunca lo sustituye. Forzar "en_br" para un texto en
+ * español era EXACTAMENTE la causa del acento inglés al hablar español (fix
+ * 2026-07-21: antes la personalidad ganaba incondicionalmente, ANTES de mirar
+ * `lang`). Nunca lanza. PURO (testeable).
  */
 export function resolveOpenVoice2Style(opts: {
   styleHint?: string;
@@ -311,12 +381,15 @@ export function resolveOpenVoice2Style(opts: {
 }): OpenVoice2Style {
   const hint = (opts.styleHint || "").trim();
   if ((OPENVOICE2_STYLES as readonly string[]).includes(hint)) return hint as OpenVoice2Style;
-  const pid = (opts.personalityId || "").toLowerCase();
-  if (pid) {
-    if (KNOWN_PERSONALITY_STYLE[pid]) return KNOWN_PERSONALITY_STYLE[pid];
-    if (pid.includes("hermione") || pid.includes("hermayone")) return "en_br";
+  const byLang = styleForLang(opts.lang);
+  if (byLang === "en_default" || byLang === "en_us") {
+    const pid = (opts.personalityId || "").toLowerCase();
+    if (pid) {
+      if (KNOWN_PERSONALITY_STYLE[pid]) return KNOWN_PERSONALITY_STYLE[pid];
+      if (pid.includes("hermione") || pid.includes("hermayone")) return "en_br";
+    }
   }
-  return styleForLang(opts.lang);
+  return byLang;
 }
 
 /** ¿Qué semilla curada corresponde a esta personalidad? (o custom / null). */
@@ -747,16 +820,32 @@ interface ReferenceOptions {
   base?: string;
 }
 
+/** Idioma BASE (2 letras) para elegir/cachear la semilla: el de la locución o español. */
+function seedLangBase(opts: ReferenceOptions): string {
+  const raw = (opts.lang || "es").trim().toLowerCase();
+  return raw.slice(0, 2) || "es";
+}
+
 function seedSpecFor(
   kind: OpenVoice2SeedKind | null,
   opts: ReferenceOptions,
 ): { spec: OpenVoice2SeedSpec; cacheId: string } | null {
   if (kind === "hermione" || kind === "aurora") {
-    return { spec: OPENVOICE2_SEED_SPECS[kind], cacheId: kind };
+    // Semilla NATIVA del idioma objetivo; si no la diseñamos para ese idioma
+    // todavía, español (idioma por defecto de StarSeed) — nunca caemos sin
+    // querer en la variante inglesa para un idioma que no es inglés (esa
+    // mezcla es justo la causa del acento importado). cacheId incluye el
+    // idioma resuelto → localStorage y las rutas /tmp por sesión quedan
+    // separados por (personalidad, idioma) automáticamente.
+    const wanted = seedLangBase(opts);
+    const byLang = OPENVOICE2_SEED_SPECS_BY_LANG[kind];
+    const resolvedLang = byLang[wanted] ? wanted : "es";
+    return { spec: byLang[resolvedLang], cacheId: `${kind}_${resolvedLang}` };
   }
   // Cualquier otra personalidad con atributos de semilla explícitos → custom.
   if (opts.seedAttrs) {
     const pid = (opts.personalityId || "custom").replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
+    const langBase = (opts.seedAttrs.lang || opts.lang || "es").trim().toLowerCase().slice(0, 2) || "es";
     return {
       spec: {
         attrs: opts.seedAttrs.attrs,
@@ -764,7 +853,7 @@ function seedSpecFor(
         lang: opts.seedAttrs.lang || opts.lang || "es",
         text: opts.seedAttrs.text || DEFAULT_SEED_TEXT,
       },
-      cacheId: `custom_${pid}`,
+      cacheId: `custom_${pid}_${langBase}`,
     };
   }
   return null;
@@ -805,10 +894,26 @@ async function getOrCreateSeedRefPath(
 /**
  * Blob de la SEMILLA cacheada de una personalidad insignia (o null). Para que
  * el híbrido local suba la identidad al daemon (Adenda 87). Nunca lanza.
+ *
+ * Las semillas se cachean POR IDIOMA (cacheId `${kind}_${langBase}`, ver
+ * `seedSpecFor`). Con `lang`, prueba esa variante primero; si no llega `lang`
+ * o esa variante aún no se diseñó, prueba ESPAÑOL (idioma por defecto de
+ * StarSeed) y luego inglés — así `ensureLocalIdentity` (omnivoice-hybrid.ts,
+ * fuera de este alcance; hoy la llama SIN idioma) sigue encontrando una
+ * semilla utilizable en cuanto exista alguna, priorizando siempre la española.
  */
-export function readCachedSeedBlob(kind: string): Blob | null {
+export function readCachedSeedBlob(kind: string, lang?: string): Blob | null {
   try {
-    return readSeedBlob(kind, OPENVOICE2_SEED_VERSION);
+    const wanted = (lang || "").trim().toLowerCase().slice(0, 2);
+    if (wanted) {
+      const hit = readSeedBlob(`${kind}_${wanted}`, OPENVOICE2_SEED_VERSION);
+      if (hit) return hit;
+    }
+    return (
+      readSeedBlob(`${kind}_es`, OPENVOICE2_SEED_VERSION) ||
+      readSeedBlob(`${kind}_en`, OPENVOICE2_SEED_VERSION) ||
+      readSeedBlob(kind, OPENVOICE2_SEED_VERSION)
+    );
   } catch {
     return null;
   }

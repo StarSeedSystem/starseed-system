@@ -1680,6 +1680,19 @@ export function getRegisteredAuroraChatId(): string | null {
   return registeredChatId;
 }
 
+/**
+ * Alias semántico de `getRegisteredAuroraChatId` para consumidores FUERA de
+ * este módulo (Adenda 87-bis · sync de notas de voz en cuenta). Lo usa
+ * `neural-tts.ts::emitVoiceNote` para ligar el audio generado a la
+ * conversación de Aurora activa AHORA MISMO (mismo registro en memoria,
+ * `registeredChatId` — sin estado nuevo) y así poder subirlo/indexarlo por
+ * chat. null si no hay ningún chat de Aurora registrado como activo (p.ej. el
+ * orbe hablando sin el mini-reproductor ni el Exocórtex abiertos).
+ */
+export function activeAuroraChatId(): string | null {
+  return registeredChatId;
+}
+
 // ── Estilo de voz derivado (evento para el sistema de voz) ───────────────────
 
 export interface AuroraVoiceStyleDetail {

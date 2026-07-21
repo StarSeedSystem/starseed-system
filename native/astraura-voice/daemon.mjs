@@ -51,8 +51,30 @@ import {
   isWav,
   retimeWav,
   resolveLang,
+  langBaseOf,
   sha256,
 } from "./lib.mjs";
+
+// ── Instruct por idioma (fix del acento importado, 2026-07-21) ──────────────
+// ANTES el --instruct por defecto de las voces insignia estaba SOLO en inglés,
+// así que aunque el CLI sintetizara en español, la GUÍA de estilo llegaba en
+// inglés y arrastraba acento. Mapa pequeño por (personalidad, idioma-base):
+// español → instruct en español; inglés → el mismo texto de siempre; cualquier
+// otro idioma → un default neutro (sin mención de acento). El --seed sigue
+// dependiendo SOLO de la personalidad (mismo timbre pase lo que pase el
+// idioma) — ver seedBasis más abajo, sin tocar.
+const INSTRUCT_BY_PERSONALITY_LANG = {
+  aurora: {
+    es: "voz femenina joven, cálida, sincera y decidida, español natural y claro",
+    en: "young warm female voice, sincere and determined, soft but confident",
+    default: "young warm female voice, sincere and determined, soft but confident, natural native accent of the spoken language",
+  },
+  hermione: {
+    es: "voz femenina joven, ágil, precisa y articulada, con calidez",
+    en: "young bright female voice, quick, precise and articulate, playful warmth, British accent",
+    default: "young bright female voice, quick, precise and articulate, playful warmth, natural native accent of the spoken language",
+  },
+};
 
 // ── Parámetros de operación ──────────────────────────────────────────────────
 
@@ -322,6 +344,10 @@ async function handleTts(req, res, cors) {
   if (!text) return sendJson(res, 400, cors, { ok: false, error: "falta 'text'" });
 
   const langName = resolveLang(body.lang, "Spanish");
+  // Idioma BASE (2 letras) de ESTA locución: gobierna qué referencia por
+  // idioma se clona (o no) y qué instruct nativo se usa (fix del acento
+  // importado, 2026-07-21). Mismo default ("es") que resolveLang/langName.
+  const langBase = langBaseOf(body.lang);
   const speed = Number.isFinite(body.speed) ? body.speed : 1;
 
   // Clonación de voz: ref_wav_path (o voice_clone_prompt como ruta a WAV) + ref_text.
@@ -331,35 +357,41 @@ async function handleTts(req, res, cors) {
     "";
   let refTextFile = refWav ? resolveRefTextFile(body.ref_text) : "";
 
-  // IDENTIDAD POR PERSONALIDAD (Adenda 87): si el cuerpo trae `personality`
-  // ("aurora" · "hermione" · id) y hay una referencia guardada en refs/<id>.wav
-  // (subida una vez vía POST /identity), se CLONA automáticamente esa identidad
-  // — voz FEMENINA consistente y continua en TODAS las síntesis locales.
+  // IDENTIDAD POR PERSONALIDAD *Y POR IDIOMA* (Adenda 87 + fix del acento
+  // importado, 2026-07-21): si el cuerpo trae `personality` ("aurora" ·
+  // "hermione" · id) y hay una referencia guardada en
+  // refs/<id>.<langBase>.wav (subida vía POST /identity con ese `lang`), se
+  // CLONA automáticamente esa identidad — voz FEMENINA consistente y continua
+  // en TODAS las síntesis locales de ESE idioma. Una referencia grabada/
+  // diseñada en OTRO idioma NUNCA se clona para hablar este — eso es
+  // exactamente lo que arrastraba acento inglés al español. Si no existe una
+  // ref para este idioma, NO se clona nada: se sintetiza solo con
+  // --instruct (ya nativo del idioma, ver INSTRUCT_BY_PERSONALITY_LANG) +
+  // --seed estable → voz nativa del idioma, sin acento importado.
   const personality = typeof body.personality === "string"
     ? body.personality.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40)
     : "";
   if (!refWav && personality) {
-    const idWav = path.join(PATHS.refsDir, `${personality}.wav`);
-    const idTxt = path.join(PATHS.refsDir, `${personality}.txt`);
+    const idWav = path.join(PATHS.refsDir, `${personality}.${langBase}.wav`);
+    const idTxt = path.join(PATHS.refsDir, `${personality}.${langBase}.txt`);
     try {
       if (fs.existsSync(idWav)) {
         refWav = idWav;
         if (fs.existsSync(idTxt)) refTextFile = idTxt;
       }
-    } catch { /* sin identidad guardada: sigue */ }
+    } catch { /* sin identidad guardada para este idioma: sigue sin clonar */ }
   }
 
   // ESTILO real (--instruct) + SEMILLA determinista (--seed) por personalidad:
   // mismo timbre SIEMPRE aunque no haya referencia (el seed fija el muestreo).
   let instruct = typeof body.instruct === "string" ? body.instruct : "";
   // Sin instruct explícito, las voces insignia hablan FEMENINO por defecto
-  // (Adenda 87 — en inglés: es el idioma en que el modelo sigue mejor el estilo).
+  // (Adenda 87) con el instruct NATIVO del idioma de esta locución (fix del
+  // acento importado: antes el default SOLO existía en inglés).
   if (!instruct) {
-    if (personality === "hermione") {
-      instruct = "young bright female voice, quick, precise and articulate, playful warmth, British accent";
-    } else if (personality === "aurora" || !personality) {
-      instruct = "young warm female voice, sincere and determined, soft but confident";
-    }
+    const personaKey = personality === "hermione" ? "hermione" : "aurora"; // sin personalidad: identidad Aurora
+    const instructTable = INSTRUCT_BY_PERSONALITY_LANG[personaKey];
+    instruct = instructTable[langBase] || instructTable.default;
   }
   let seed = Number.isFinite(body.seed) ? Number(body.seed) : NaN;
   const seedBasis = personality || "aurora"; // sin personalidad: identidad Aurora
@@ -381,7 +413,7 @@ async function handleTts(req, res, cors) {
   warm = true;
   const cfg = state.cfg || {};
   const variantTag = cfg?.variant?.quant || "";
-  const key = sha256([text, langName, refWav, refTextFile, speed, variantTag, instruct, String(seed || "")].join("|"));
+  const key = sha256([text, langName, langBase, refWav, refTextFile, speed, variantTag, instruct, String(seed || "")].join("|"));
 
   const extraHeaders = {
     "X-Astraura-Engine": "omnivoice.cpp",
@@ -471,10 +503,17 @@ function sendWav(res, cors, buf, extra) {
 
 // ── /identity — guarda la IDENTIDAD de voz de una personalidad (Adenda 87) ──
 //
-// POST { personality: "aurora", wav_b64: "<base64 WAV ≤ 2 MB>", text: "transcripción" }
-// La referencia queda en refs/<id>.wav (+ .txt) y TODAS las síntesis locales de
-// esa personalidad la clonan automáticamente → voz femenina consistente y
-// continua. Idempotente (sobrescribe). Mismo CORS estricto que /tts.
+// POST { personality: "aurora", wav_b64: "<base64 WAV ≤ 2 MB>", text: "transcripción",
+//         lang?: "es" }
+// REFERENCIAS POR IDIOMA (fix del acento importado, 2026-07-21): con `lang`
+// (código base, p.ej. "es"/"en"), la referencia queda en
+// refs/<id>.<langBase>.wav (+ .txt) y SOLO las síntesis locales de ESE idioma
+// la clonan (ver handleTts) — así una referencia en inglés nunca se clona al
+// hablar español, y viceversa. COMPATIBILIDAD: sin `lang`, se usa la ruta
+// histórica sin sufijo refs/<id>.wav (hoy `ensureLocalIdentity`, en
+// omnivoice-hybrid.ts y fuera de este alcance, todavía no manda `lang`; en
+// cuanto lo haga, sus subidas caerán YA en la ruta con sufijo sin más cambios
+// aquí). Idempotente (sobrescribe). Mismo CORS estricto que /tts.
 async function handleIdentity(req, res, cors) {
   const raw = await readBody(req);
   if (raw === null) return sendJson(res, 413, cors, { ok: false, error: "cuerpo demasiado grande" });
@@ -500,14 +539,17 @@ async function handleIdentity(req, res, cors) {
     return sendJson(res, 400, cors, { ok: false, error: "WAV fuera de rango (1 KB – 2 MB)" });
   }
   if (!isWav(buf)) return sendJson(res, 400, cors, { ok: false, error: "no es un WAV" });
+  // Sufijo de idioma (compat: sin `lang`, ruta histórica sin sufijo).
+  const langBase = typeof body.lang === "string" && body.lang.trim() ? langBaseOf(body.lang) : "";
+  const suffix = langBase ? `.${langBase}` : "";
   try {
     fs.mkdirSync(PATHS.refsDir, { recursive: true });
-    fs.writeFileSync(path.join(PATHS.refsDir, `${id}.wav`), buf);
+    fs.writeFileSync(path.join(PATHS.refsDir, `${id}${suffix}.wav`), buf);
     if (typeof body.text === "string" && body.text.trim()) {
-      fs.writeFileSync(path.join(PATHS.refsDir, `${id}.txt`), body.text.trim().slice(0, 500));
+      fs.writeFileSync(path.join(PATHS.refsDir, `${id}${suffix}.txt`), body.text.trim().slice(0, 500));
     }
-    log("daemon", `identidad de voz guardada: ${id} (${buf.length} B)`);
-    return sendJson(res, 200, cors, { ok: true, personality: id, bytes: buf.length });
+    log("daemon", `identidad de voz guardada: ${id}${suffix} (${buf.length} B)`);
+    return sendJson(res, 200, cors, { ok: true, personality: id, lang: langBase || null, bytes: buf.length });
   } catch (e) {
     return sendJson(res, 500, cors, { ok: false, error: `no pude guardar: ${e.message}` });
   }

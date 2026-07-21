@@ -53,9 +53,11 @@ import {
   type VoiceChainLink,
 } from "@/lib/aurora/tts-oss/engine-registry";
 import {
+  getEngineSettings,
   getVoiceConfig,
   isNeuralEngine,
   type AuroraVoiceConfig,
+  type NeuralEngineSettings,
 } from "@/lib/aurora/tts-oss/voice-config";
 
 /**
@@ -85,6 +87,147 @@ export interface ConfiguredSpeakOptions {
   onBoundary?: () => void;
   /** Errores no fatales (informativo). */
   onError?: (message: string) => void;
+}
+
+// ── Auto-detección de idioma HABLADO (sin dependencias) ─────────────────────
+//
+// CAUSA RAÍZ del acento inglés al hablar español: `lang` salía SIEMPRE de la
+// config persistida (o de su propio default), nunca del texto real que se iba
+// a pronunciar — si el texto estaba en un idioma distinto al configurado, el
+// código de idioma que viajaba al motor/daemon/Space no tenía nada que ver con
+// lo que Aurora iba a decir. `detectSpokenLang` es una heurística LIGERA (cero
+// paquetes npm, cero red) que mira el TEXTO FINAL antes de hablar y adivina su
+// idioma por diacríticos/puntuación propios + stopwords frecuentes. Se usa en
+// `speakWithConfiguredEngine` para anular el `lang` de cada motor SOLO cuando
+// la detección es CONFIABLE (varias señales independientes apuntan al mismo
+// idioma); ante duda, se respeta `settings.lang` tal cual antes. PURA y
+// testeable — nunca lanza.
+
+/** Idiomas que reconocemos por heurística (código ISO corto de 2 letras). */
+export type DetectableSpokenLang = "es" | "en" | "pt" | "fr" | "it" | "de";
+
+const DETECTABLE_LANGS: readonly DetectableSpokenLang[] = ["es", "en", "pt", "fr", "it", "de"];
+
+/** Señal de un carácter/puntuación propio del idioma, con su peso. */
+interface CharSignal {
+  test: RegExp;
+  weight: number;
+}
+
+/** Peso de CADA stopword distinta que aparece (no escala con repeticiones). */
+const WORD_WEIGHT = 1;
+
+/**
+ * Diacríticos/puntuación distintivos por idioma. Los MUY exclusivos (ñ¿¡,
+ * ção/ã/õ, ß) pesan más que los compartidos entre varias lenguas románicas
+ * (á/é/í/ó/ú también existen en portugués; ä/ö/ü no son solo alemanas).
+ */
+const CHAR_SIGNALS: Record<DetectableSpokenLang, CharSignal[]> = {
+  es: [
+    { test: /[ñ¿¡]/i, weight: 3 },
+    { test: /[áéíóú]/i, weight: 1 },
+  ],
+  en: [],
+  pt: [
+    { test: /ção\b/i, weight: 3 },
+    { test: /[ãõ]/i, weight: 2 },
+    { test: /[áéíóú]/i, weight: 1 },
+  ],
+  fr: [
+    { test: /[çêœ]/i, weight: 2 },
+    { test: /è/i, weight: 1 },
+  ],
+  it: [],
+  de: [
+    { test: /ß/i, weight: 3 },
+    { test: /[äöü]/i, weight: 1 },
+  ],
+};
+
+/** Stopwords frecuentes por idioma (límite de palabra, sin distinguir mayúsculas). */
+const WORD_SIGNALS: Record<DetectableSpokenLang, RegExp[]> = {
+  es: [
+    /\bque\b/i, /\bde\b/i, /\bla\b/i, /\bel\b/i, /\by\b/i, /\bes\b/i, /\bun\b/i,
+    /\buna\b/i, /\bcon\b/i, /\bpara\b/i, /\bporque\b/i, /\best[áa]\b/i, /\blos\b/i,
+    /\blas\b/i, /\beste\b/i, /\besta\b/i, /\bmuy\b/i, /\bpero\b/i, /\bmás\b/i,
+  ],
+  en: [
+    /\bthe\b/i, /\band\b/i, /\byou\b/i, /\bis\b/i, /\bare\b/i, /\bof\b/i, /\bto\b/i,
+    /\bwith\b/i, /\bthat\b/i, /\bthis\b/i, /\bfor\b/i, /\bnot\b/i, /\bwhat\b/i,
+    /\bhave\b/i, /\bwas\b/i,
+  ],
+  pt: [
+    /\bnão\b/i, /\bvocê\b/i, /\best[áa]\b/i, /\bcom\b/i, /\bpara\b/i, /\bisso\b/i,
+    /\bmuito\b/i, /\bmas\b/i, /\bsão\b/i, /\bobrigad[oa]\b/i,
+  ],
+  fr: [
+    /\ble\b/i, /\bles\b/i, /\best\b/i, /\bpour\b/i, /\bavec\b/i, /\bque\b/i,
+    /\bce\b/i, /\bcette\b/i, /\bnon\b/i, /\bmais\b/i, /\bdes\b/i, /\bmerci\b/i,
+  ],
+  it: [
+    /\bche\b/i, /\bdi\b/i, /\bil\b/i, /\blo\b/i, /\bè\b/i, /\buna?\b/i, /\bcon\b/i,
+    /\bper\b/i, /\bsono\b/i, /\bquesto\b/i, /\bcome\b/i, /\bgrazie\b/i, /\bmolto\b/i,
+  ],
+  de: [
+    /\bder\b/i, /\bdie\b/i, /\bdas\b/i, /\bund\b/i, /\bist\b/i, /\bnicht\b/i,
+    /\bmit\b/i, /\bf[üu]r\b/i, /\bich\b/i, /\bwir\b/i, /\beine?\b/i, /\bdanke\b/i,
+  ],
+};
+
+export interface SpokenLangDetection {
+  /** Mejor candidato (código ISO corto). */
+  lang: DetectableSpokenLang;
+  /** ¿Puntuación mínima Y margen claro sobre el segundo candidato? */
+  confident: boolean;
+}
+
+/**
+ * detectSpokenLang — adivina el idioma HABLADO de `text` combinando
+ * diacríticos/puntuación propios de cada idioma con stopwords frecuentes.
+ * Puntúa cada idioma candidato y exige un mínimo Y un margen claro sobre el
+ * segundo para `confident:true`; textos cortos, ambiguos o sin señal
+ * suficiente devuelven `confident:false` — el llamador debe entonces respetar
+ * el idioma configurado en vez de forzar el detectado. Cobertura: es · en ·
+ * pt · fr · it · de. SIN dependencias npm, SIN red. Nunca lanza.
+ */
+export function detectSpokenLang(text: string): SpokenLangDetection {
+  const clean = (text || "").trim();
+  // Sin letras suficientes (emoji, número suelto, "Ok.") → no hay base para decidir.
+  if (clean.length < 8 || !/[A-Za-zÀ-ÖØ-öø-ÿ]{2,}/.test(clean)) {
+    return { lang: "es", confident: false };
+  }
+
+  const scores: Record<DetectableSpokenLang, number> = { es: 0, en: 0, pt: 0, fr: 0, it: 0, de: 0 };
+  for (const lang of DETECTABLE_LANGS) {
+    for (const sig of CHAR_SIGNALS[lang]) {
+      if (sig.test.test(clean)) scores[lang] += sig.weight;
+    }
+    for (const word of WORD_SIGNALS[lang]) {
+      if (word.test(clean)) scores[lang] += WORD_WEIGHT;
+    }
+  }
+
+  let best: DetectableSpokenLang = "es";
+  let bestScore = -Infinity;
+  let secondScore = -Infinity;
+  for (const lang of DETECTABLE_LANGS) {
+    const sc = scores[lang];
+    if (sc > bestScore) {
+      secondScore = bestScore;
+      bestScore = sc;
+      best = lang;
+    } else if (sc > secondScore) {
+      secondScore = sc;
+    }
+  }
+
+  // CONFIABLE = puntuación mínima (no una única señal débil) Y margen claro
+  // sobre el segundo candidato (evita decidir por una stopword ambigua
+  // compartida entre idiomas, p.ej. "con"/"una" en español e italiano).
+  const MIN_SCORE = 2;
+  const MIN_MARGIN = 2;
+  const confident = bestScore >= MIN_SCORE && bestScore - Math.max(secondScore, 0) >= MIN_MARGIN;
+  return { lang: best, confident };
 }
 
 /** Resultado interno de un eslabón de la cadena. */
@@ -139,6 +282,8 @@ async function runLink(
   text: string,
   cfg: AuroraVoiceConfig,
   opts: ConfiguredSpeakOptions,
+  /** Idioma REAL detectado en `text` (solo si `detectSpokenLang` fue CONFIABLE). */
+  detectedLang?: string,
 ): Promise<LinkOutcome> {
   let started = false;
   const safe = {
@@ -160,7 +305,16 @@ async function runLink(
       "@/lib/aurora/tts-oss/neural-tts"
     );
     if (!neuralEngineConfigured(link)) return "declined";
-    const audio = await neuralSpeak(link, text, safe);
+    // AUTO-DETECCIÓN DE IDIOMA: con detección CONFIABLE, anulamos aquí el
+    // `lang` persistido de ESTE motor solo para esta locución (el timbre/voz
+    // configurados no cambian; solo el código de idioma que viaja al
+    // servidor/daemon/Space — así --lang/el estilo del Space SIEMPRE coincide
+    // con el idioma real del texto). Dudosa → undefined → neuralSpeak lee la
+    // config persistida de siempre (getEngineSettings dentro de neural-tts.ts).
+    const settingsOverride: NeuralEngineSettings | undefined = detectedLang
+      ? { ...getEngineSettings(link), lang: detectedLang }
+      : undefined;
+    const audio = await neuralSpeak(link, text, { ...safe, settings: settingsOverride });
     if (audio) return "spoke";
     return started ? "started" : "declined";
   }
@@ -232,6 +386,13 @@ export async function speakWithConfiguredEngine(
   }
   if (!cfg) return false;
 
+  // AUTO-DETECCIÓN DE IDIOMA (dependency-free): idioma REAL del texto que se
+  // va a pronunciar AHORA. Solo se usa para anular `lang` cuando es CONFIABLE
+  // (varias señales coincidentes) — ver detectSpokenLang() arriba y su uso en
+  // runLink(). Dudosa → cada motor sigue leyendo su config persistida.
+  const detection = detectSpokenLang(clean);
+  const detectedLang = detection.confident ? detection.lang : undefined;
+
   // El pin de la personalidad activa se relee aquí (import dinámico cacheado):
   // así una personalidad que fija "VoxCPM para la voz" manda desde la 1ª frase.
   const pin = await refreshPersonalityVoicePin().catch(() => null);
@@ -272,7 +433,7 @@ export async function speakWithConfiguredEngine(
     for (const link of chain) {
       // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
       const outcome = await Promise.resolve()
-        .then(() => runLink(link, clean, cfg, wrappedOpts))
+        .then(() => runLink(link, clean, cfg, wrappedOpts, detectedLang))
         .catch((): LinkOutcome => "declined");
       if (outcome === "spoke") return true;
       if (outcome === "started") {

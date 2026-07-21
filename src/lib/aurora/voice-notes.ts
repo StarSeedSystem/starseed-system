@@ -25,14 +25,38 @@
  * de identidad. Un motor futuro puede usar esa muestra como semilla de clonación
  * (misma voz de mensaje a mensaje) sin depender del daemon.
  *
- * ── SYNC (esta ola: NO) ─────────────────────────────────────────────────────
- * Los Blobs son pesados: no se suben a Supabase en esta ola. `syncVoiceNote`
- * queda como STUB HONESTO (devuelve false) con la interfaz lista para el futuro.
+ * ── SYNC EN CUENTA (Adenda 87-bis) ──────────────────────────────────────────
+ * Cuando una nota queda COMPLETA (todos sus trozos recibidos), `persistChunk`
+ * dispara `syncVoiceNote` en segundo plano (fire-and-forget): reensambla el
+ * Blob, lo sube al bucket `os-files` (carpeta `voice-notes/<convId>`, vía
+ * `uploadFile()` de `src/lib/files/os-files.ts`) y guarda la referencia
+ * `{path,url,engine,chunkCount,at}` en `aurora_conversations.meta.voiceNotes
+ * [textHash]` (vía `persistVoiceNoteRef` de `conversations.ts` — mismo patrón
+ * read-modify-write que `patchCachedConversationConfig`/`writeConversationConfig`,
+ * y `meta` ya baja con `fetchConversationsFromCloud`, así que leerlo de vuelta
+ * no cuesta una llamada de red extra). Así CUALQUIER neurona logueada con la
+ * MISMA CUENTA que abra ESE chat encuentra el audio y reproduce el MISMO
+ * mensaje de voz (`getVoiceNoteCloud`), sin volver a sintetizarlo.
+ *
+ * ⚠️ ALCANCE: SOLO CUENTA (RLS por `user_id`, tanto en `aurora_conversations`
+ * como en `os_files`). El alcance "grupo" (compartir la nota con otros
+ * miembros de un chat/grupo compartido, más allá del dueño de la cuenta) NO
+ * tiene modelo de datos hoy — no existe tabla ni política RLS de notas de voz
+ * de grupo — así que NO se implementa: queda solo documentado aquí. Cuando
+ * exista esa superficie, ese índice no puede colgar sin más de este `meta` por
+ * cuenta; necesitará su propia tabla/RLS de grupo.
+ *
+ * Requiere sesión Supabase (sin ella, `syncVoiceNote` no hace nada: el audio
+ * sigue disponible LOCAL como siempre). Fire-and-forget, defensivo, NUNCA lanza.
  *
  * SSR-safe (IndexedDB solo se toca dentro de funciones), defensivo, NUNCA lanza.
  */
 
 import { VOICE_NOTE_EVENT, voiceTextHash } from "@/lib/aurora/tts-oss/neural-tts";
+// Tipo SOLO (se borra al compilar): la forma del índice en `meta.voiceNotes`
+// vive en conversations.ts (dueño del esquema de `aurora_conversations`). Sin
+// ciclo real: este import se elimina en tiempo de compilación.
+import type { VoiceNoteRef } from "@/lib/aurora/conversations";
 
 // Re-exporto el hash para que la nota y el mensaje se liguen desde un único sitio.
 export { voiceTextHash, VOICE_NOTE_EVENT };
@@ -67,6 +91,13 @@ interface StoredNote {
   engine: string;
   personalityId: string | null;
   at: number;
+  /**
+   * Conversación de origen (Adenda 87-bis · sync en cuenta). La fija el PRIMER
+   * trozo, igual que `personalityId`. null si Aurora habló sin chat activo
+   * registrado (`activeAuroraChatId()`) — la nota se guarda igual, solo que
+   * `persistChunk` no la ofrece a `syncVoiceNote` (no sabría dónde indexarla).
+   */
+  convId: string | null;
 }
 
 /** Detalle del evento `starseed:voice-note` que emite neural-tts.ts. */
@@ -76,6 +107,12 @@ interface VoiceNoteEventDetail {
   chunkCount: number;
   engine: string;
   blob: Blob;
+  /**
+   * ⚠️ DEBE COINCIDIR con el detalle que arma `emitVoiceNote` en neural-tts.ts.
+   * Conversación de Aurora activa cuando se generó este trozo (Adenda 87-bis).
+   * Opcional: puede faltar si no había chat de Aurora registrado como activo.
+   */
+  convId?: string;
 }
 
 // ── Constantes ───────────────────────────────────────────────────────────────
@@ -179,6 +216,8 @@ export function applyChunkToNote(
     blob: Blob;
     personalityId: string | null;
     at: number;
+    /** Conversación de origen del trozo (Adenda 87-bis). Puede faltar. */
+    convId?: string | null;
   },
 ): StoredNote {
   const base: StoredNote =
@@ -191,6 +230,7 @@ export function applyChunkToNote(
           engine: ev.engine,
           personalityId: ev.personalityId,
           at: ev.at,
+          convId: ev.convId ?? null,
         };
   return {
     textHash: ev.textHash,
@@ -199,6 +239,8 @@ export function applyChunkToNote(
     engine: ev.engine || base.engine,
     // La personalidad la fija el PRIMER trozo (todos son del mismo turno).
     personalityId: base.personalityId ?? ev.personalityId,
+    // La conversación la fija el PRIMER trozo, igual que la personalidad.
+    convId: base.convId ?? ev.convId ?? null,
     at: Math.max(base.at, ev.at),
   };
 }
@@ -361,14 +403,128 @@ export async function getLastVoiceSampleFor(
 }
 
 /**
- * STUB HONESTO de sincronización a la nube (Misión 1). Los Blobs son pesados y en
- * esta ola NO se suben a Supabase: esta función existe para que la UI pueda
- * ofrecer el gesto y para dejar el punto de enganche del futuro, pero SIEMPRE
- * devuelve false (no hay nube de notas de voz todavía).
+ * SINCRONIZA EN CUENTA (Adenda 87-bis) la nota de voz de `textHash`, SI ya está
+ * COMPLETA (todos sus trozos recibidos): reensambla el Blob, lo sube al bucket
+ * `os-files` (carpeta `voice-notes/<convId>`, vía `uploadFile()`) y guarda la
+ * referencia `{path,url,engine,chunkCount,at}` en
+ * `aurora_conversations.meta.voiceNotes[textHash]` (vía `persistVoiceNoteRef`
+ * de `conversations.ts`) — así CUALQUIER neurona logueada con la MISMA CUENTA
+ * que abra ESTE chat encuentra y reproduce el MISMO audio (`getVoiceNoteCloud`).
+ *
+ * La dispara automáticamente `persistChunk` en cuanto una nota se completa (no
+ * hace falta invocarla a mano); queda exportada por si la UI quisiera forzar un
+ * reintento.
+ *
+ * ── ALCANCE: SOLO CUENTA (RLS por `user_id`, en `aurora_conversations` y en
+ * `os_files`) ── El alcance "grupo" NO tiene modelo de datos hoy — ver cabecera
+ * del módulo — y esta función NUNCA lo sirve.
+ *
+ * Fire-and-forget, defensivo, NUNCA lanza. Sin sesión Supabase no hace nada (el
+ * audio sigue disponible LOCAL, como siempre). Devuelve true SOLO si quedó
+ * subida + indexada; false en cualquier otro caso (incompleta, sin sesión, sin
+ * convId, fallo de red/subida…).
  */
-export async function syncVoiceNote(textHash: string): Promise<false> {
-  void textHash;
-  return false;
+export async function syncVoiceNote(textHash: string, convId: string): Promise<boolean> {
+  try {
+    if (!textHash || !convId || typeof window === "undefined") return false;
+    const note = await getVoiceNote(textHash);
+    if (!note || note.chunks.length === 0 || note.chunks.length !== note.chunkCount) {
+      return false; // sin audio local, o aún incompleta: nada que subir todavía
+    }
+
+    const { createClient } = await import("@/utils/supabase/client");
+    const supabase = createClient();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const uid = sessionData.session?.user?.id;
+    if (!uid) return false; // sin sesión: no hay cuenta a la que sincronizar
+
+    const mime = note.chunks[0]?.type || "audio/wav";
+    const ext = mime.includes("mpeg")
+      ? "mp3"
+      : mime.includes("ogg")
+        ? "ogg"
+        : mime.includes("webm")
+          ? "webm"
+          : "wav";
+    const blob = new Blob(note.chunks, { type: mime });
+    const file = new File([blob], `${textHash}.${ext}`, { type: mime });
+
+    const { uploadFile } = await import("@/lib/files/os-files");
+    const uploaded = await uploadFile(file, { folder: `voice-notes/${convId}` });
+    if (!uploaded.ok || !uploaded.file) return false;
+
+    const ref: VoiceNoteRef = {
+      path: uploaded.file.path,
+      url: uploaded.file.url || "",
+      engine: note.engine,
+      chunkCount: note.chunkCount,
+      at: Date.now(),
+    };
+    const { persistVoiceNoteRef } = await import("@/lib/aurora/conversations");
+    await persistVoiceNoteRef(convId, textHash, ref);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * NOTA DE VOZ EN LA NUBE (Adenda 87-bis). Si ESTA neurona no tiene el audio
+ * local (`getVoiceNote` → null), busca la referencia indexada en
+ * `aurora_conversations.meta.voiceNotes[textHash]` —YA bajada por
+ * `fetchConversationsFromCloud`/cacheada en `cachedConversations()`, SIN
+ * llamada de red extra—, descarga el audio de `os-files` y lo envuelve como una
+ * `VoiceNote` de UN solo trozo (el audio en la nube ya viene reensamblado por
+ * `syncVoiceNote`). Cachea el resultado en IndexedDB local (idbPut) para que la
+ * PRÓXIMA vez ya esté ahí sin tocar la red.
+ *
+ * ── ALCANCE: SOLO CUENTA ── ver `syncVoiceNote` — el alcance "grupo" no tiene
+ * modelo de datos hoy y esta función nunca lo sirve.
+ *
+ * Defensiva, NUNCA lanza. null si no hay nota (ni local ni en la nube).
+ */
+export async function getVoiceNoteCloud(textHash: string, convId: string): Promise<VoiceNote | null> {
+  if (!textHash || !convId) return null;
+  try {
+    const local = await getVoiceNote(textHash);
+    if (local) return local;
+
+    const { cachedConversations } = await import("@/lib/aurora/conversations");
+    const conv = cachedConversations().find((c) => c.id === convId);
+    const notes = (conv?.meta as { voiceNotes?: Record<string, VoiceNoteRef> } | null | undefined)?.voiceNotes;
+    const ref = notes?.[textHash];
+    if (!ref?.url) return null;
+
+    const res = await fetch(ref.url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    if (!blob || blob.size === 0) return null;
+
+    const at = Number.isFinite(ref.at) ? ref.at : Date.now();
+    const engine = ref.engine || "cloud";
+
+    // Cachea local para la próxima vez (mismo formato que persistChunk).
+    try {
+      const db = await openDb();
+      if (db) {
+        await idbPut(db, {
+          textHash,
+          chunks: [blob],
+          chunkCount: 1,
+          engine,
+          personalityId: null,
+          at,
+          convId,
+        });
+      }
+    } catch {
+      /* cachear es un bonus; el audio ya se puede devolver igual */
+    }
+
+    return { textHash, chunks: [blob], chunkCount: 1, engine, personalityId: null, at };
+  } catch {
+    return null;
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -403,6 +559,7 @@ async function persistChunk(ev: VoiceNoteEventDetail): Promise<void> {
     blob: ev.blob,
     personalityId,
     at: Date.now(),
+    convId: ev.convId ?? null,
   });
   const okPut = await idbPut(db, next);
   if (!okPut) return;
@@ -414,6 +571,15 @@ async function persistChunk(ev: VoiceNoteEventDetail): Promise<void> {
     VOICE_NOTES_LIMIT,
   );
   if (evict.length) await idbDelete(db, evict);
+
+  // SYNC EN CUENTA (Adenda 87-bis): en cuanto la nota queda COMPLETA (todos sus
+  // trozos recibidos) y sabemos a qué conversación pertenece, la subimos e
+  // indexamos en segundo plano. Fire-and-forget: nunca bloquea ni rompe la
+  // captura, y `syncVoiceNote` es defensivo (sin sesión no hace nada).
+  const isComplete = compactChunks(next.chunks).length === next.chunkCount && next.chunkCount > 0;
+  if (isComplete && next.convId) {
+    void syncVoiceNote(next.textHash, next.convId);
+  }
 }
 
 /**

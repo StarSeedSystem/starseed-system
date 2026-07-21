@@ -79,7 +79,11 @@ export interface AiConversation {
   archived?: boolean;
   /** Carpeta de chat (Adenda 71-bis): los chats se adjuntan a folders. */
   folder?: string | null;
-  /** meta jsonb: contiene config del menú unificado (meta.config). */
+  /**
+   * meta jsonb: contiene config del menú unificado (meta.config) y el ÍNDICE de
+   * notas de voz sincronizadas en cuenta (meta.voiceNotes — Adenda 87-bis, ver
+   * `VoiceNoteRef`/`persistVoiceNoteRef` más abajo).
+   */
   meta?: any | null;
 }
 
@@ -902,6 +906,88 @@ export async function moveConversationToFolder(convId: string, folder: string | 
     void emitChange(AI_CHATS_TOPIC, { id: convId, data: { convId, kind: "conversation" } });
   } catch {
     /* best-effort */
+  }
+}
+
+// ── Notas de voz sincronizadas EN CUENTA (Adenda 87-bis) ─────────────────────
+/**
+ * Referencia en la nube a una nota de voz YA subida al bucket `os-files`
+ * (carpeta `voice-notes/<convId>`, vía `uploadFile()` de `src/lib/files/os-files.ts`).
+ * Vive indexada en `aurora_conversations.meta.voiceNotes[textHash]` — el audio
+ * real son los bytes en Storage; esto es solo el puntero + metadatos mínimos
+ * para reproducirlo sin volver a generarlo.
+ */
+export interface VoiceNoteRef {
+  /** Ruta del objeto en el bucket `os-files` (`<uid>/voice-notes/<convId>/…`). */
+  path: string;
+  /** URL pública de lectura (el bucket es de lectura pública) — lista para reproducir. */
+  url: string;
+  /** Motor que generó el audio ("openvoice2" · "omnivoice"…). */
+  engine: string;
+  /** Nº de trozos que se reensamblaron en el audio subido. */
+  chunkCount: number;
+  /** Marca de tiempo (ms epoch) de la sincronización — clave del recorte LRU. */
+  at: number;
+}
+
+/** Tope de notas de voz indexadas por conversación (el jsonb no debe inflarse). */
+const VOICE_NOTES_META_LIMIT = 40;
+
+/**
+ * Indexa la referencia en la nube de una nota de voz YA subida a `os-files`,
+ * dentro de `aurora_conversations.meta.voiceNotes[textHash]` — mismo patrón
+ * read-modify-write que `writeConversationConfig` (select `meta` → merge →
+ * `update({meta})`). Así CUALQUIER neurona logueada con la MISMA CUENTA que
+ * abra este chat encuentra la referencia y reproduce el MISMO audio
+ * (`getVoiceNoteCloud` en `voice-notes.ts`), sin volver a sintetizar la voz.
+ *
+ * La llama `voice-notes.ts::syncVoiceNote` en cuanto una nota queda completa
+ * (fire-and-forget); no toca `updated_at` a propósito (sincronizar un audio no
+ * debe reordenar la lista de chats, igual que un cambio de `meta.config`).
+ *
+ * ── ALCANCE: SOLO CUENTA (RLS por `user_id`, aquí y en `os_files`) ──────────
+ * El alcance "grupo" (compartir esta nota con otros miembros de un chat/grupo
+ * compartido, más allá del dueño) NO tiene modelo de datos hoy: no existe tabla
+ * ni política RLS de notas de voz por grupo. Queda documentado, NO implementado
+ * — cuando exista esa superficie, el índice de grupo no puede vivir sin más en
+ * este `meta` por cuenta; necesitará su propia tabla/RLS.
+ *
+ * Recorta el mapa a ~40 entradas (LRU por `at`) para no inflar el jsonb.
+ * Best-effort: sin sesión o ante error (red, RLS…) no lanza — el audio ya
+ * subido a Storage no se pierde, solo queda sin indexar para otras neuronas.
+ */
+export async function persistVoiceNoteRef(convId: string, textHash: string, ref: VoiceNoteRef): Promise<void> {
+  if (!convId || !textHash) return;
+  const uid = await currentUserId();
+  if (!uid) return;
+  try {
+    const supabase = createClient();
+    const { data } = await supabase.from("aurora_conversations").select("meta").eq("id", convId).maybeSingle();
+    const meta = ((data?.meta as Record<string, unknown>) || {}) as Record<string, unknown>;
+    const prevNotes = (meta.voiceNotes && typeof meta.voiceNotes === "object" ? meta.voiceNotes : {}) as Record<
+      string,
+      VoiceNoteRef
+    >;
+    const nextNotes: Record<string, VoiceNoteRef> = { ...prevNotes, [textHash]: ref };
+    const entries = Object.entries(nextNotes);
+    if (entries.length > VOICE_NOTES_META_LIMIT) {
+      entries.sort((a, b) => (b[1]?.at ?? 0) - (a[1]?.at ?? 0)); // más reciente primero
+      meta.voiceNotes = Object.fromEntries(entries.slice(0, VOICE_NOTES_META_LIMIT));
+    } else {
+      meta.voiceNotes = nextNotes;
+    }
+    await supabase.from("aurora_conversations").update({ meta }).eq("id", convId).eq("user_id", uid);
+    // Optimista en caché local: así `getVoiceNoteCloud` (voice-notes.ts) la ve
+    // al instante en ESTA neurona sin esperar a un refresco de red.
+    const cache = readCache();
+    const i = cache.convs.findIndex((c) => c.id === convId);
+    if (i >= 0) {
+      cache.convs[i] = { ...cache.convs[i], meta };
+      writeCache(cache);
+    }
+    void emitChange(AI_CHATS_TOPIC, { id: convId, data: { convId, kind: "conversation" } });
+  } catch {
+    /* best-effort: el audio ya está en Storage; solo falla su índice */
   }
 }
 

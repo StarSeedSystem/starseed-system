@@ -32,6 +32,7 @@ import {
   cleanTextForVoiceChain,
   deleteVoiceNote,
   getVoiceNote,
+  getVoiceNoteCloud,
   getVoiceNoteDurationMs,
   playVoiceNote,
   stopVoiceNotePlayback,
@@ -64,9 +65,18 @@ export interface VoiceNoteBarProps {
   /** Texto EXACTO del mensaje de Astraura (liga la nota por su hash). */
   text: string;
   className?: string;
+  /**
+   * Conversación a la que pertenece este mensaje (Adenda 87-bis · sync en
+   * cuenta). Si el audio no está en ESTA neurona (IndexedDB local), se busca
+   * en la nube (`aurora_conversations.meta.voiceNotes`) dentro de este chat —
+   * así una neurona distinta de la MISMA CUENTA reproduce el MISMO audio.
+   * Opcional: sin `convId` (p.ej. superficies que aún no lo pasan) el
+   * comportamiento es el de siempre, solo local.
+   */
+  convId?: string | null;
 }
 
-export function VoiceNoteBar({ text, className }: VoiceNoteBarProps) {
+export function VoiceNoteBar({ text, className, convId }: VoiceNoteBarProps) {
   // Hash CANÓNICO: misma limpieza que la cadena neural (engine.ts), para que la
   // nota case con el mensaje aunque éste lleve markdown.
   const hash = useMemo(() => voiceNoteHashForMessage(text), [text]);
@@ -80,7 +90,12 @@ export function VoiceNoteBar({ text, className }: VoiceNoteBarProps) {
 
   const reload = useCallback(async () => {
     try {
-      const n = await getVoiceNote(hash);
+      let n = await getVoiceNote(hash);
+      // Sin audio en ESTA neurona: prueba la referencia en la nube de este chat
+      // (Adenda 87-bis). Silencioso si tampoco hay nada allí (mensaje sin voz).
+      if (!n && convId) {
+        n = await getVoiceNoteCloud(hash, convId);
+      }
       setNote(n);
       if (n) {
         const d = await getVoiceNoteDurationMs(hash);
@@ -91,7 +106,7 @@ export function VoiceNoteBar({ text, className }: VoiceNoteBarProps) {
     } catch {
       /* */
     }
-  }, [hash]);
+  }, [hash, convId]);
 
   // Carga inicial + re-carga cuando llega un trozo de voz de ESTE mensaje.
   useEffect(() => {

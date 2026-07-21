@@ -61,6 +61,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   PERSONALITY_TRAIT_GROUPS,
   PERSONALITY_TOOL_KINDS,
@@ -94,9 +95,14 @@ import {
   OMNI_PITCH_OPTIONS,
   OMNI_STYLE_OPTIONS,
   OMNI_ACCENT_OPTIONS,
+  getPersonalityLocale,
+  setPersonalityLocale,
+  clearPersonalityLocale,
   type AstrauraVoiceConfig,
   type AstrauraDesignAttributes,
 } from "@/lib/aurora/tts-oss/voice-config";
+// Selección de idioma/locale por personalidad (Adenda idiomas-voz): catálogo.
+import { findLocale, localesByBase, searchLocales } from "@/lib/aurora/tts-oss/locales";
 import {
   synthesizeOmniVoiceHybrid,
   getOmniVoiceRouteState,
@@ -680,14 +686,42 @@ function PersonalityEditor({
     setDraft((d) => ({ ...d, traits: { ...d.traits, [key]: value } }));
   }, []);
 
+  // ── Variante regional de la voz (locale BCP-47) por personalidad ───────────
+  // Vive en voice-config.ts (`personalityLocales[draft.id]`), no en el perfil:
+  // igual que el resto del editor, queda en BORRADOR hasta pulsar "Guardar".
+  const [personalityLocale, setPersonalityLocaleDraft] = useState<string | undefined>(() =>
+    getPersonalityLocale(draft.id),
+  );
+  const [personalityLocaleQuery, setPersonalityLocaleQuery] = useState("");
+  const [personalityLocaleOpen, setPersonalityLocaleOpen] = useState(false);
+
+  const localeFilteredGroups = useMemo(() => {
+    const groups = localesByBase();
+    const q = personalityLocaleQuery.trim();
+    if (!q) return groups;
+    const matches = new Set(searchLocales(q).map((l) => l.code));
+    return groups
+      .map((g) => ({ ...g, locales: g.locales.filter((l) => matches.has(l.code)) }))
+      .filter((g) => g.locales.length > 0);
+  }, [personalityLocaleQuery]);
+
+  const chooseLocale = useCallback((code: string | undefined) => {
+    setPersonalityLocaleDraft(code);
+    setPersonalityLocaleOpen(false);
+  }, []);
+
   const guardar = useCallback(() => {
     const saved = savePersonalityProfile(draft);
     // Vista previa inmediata del estilo de voz derivado del perfil editado.
     emitVoiceStyleForProfile(saved);
+    // Variante regional de la voz: vive aparte (voice-config.ts), se confirma
+    // aquí junto con el resto del perfil.
+    if (personalityLocale) setPersonalityLocale(saved.id, personalityLocale);
+    else clearPersonalityLocale(saved.id);
     toast.success(`«${saved.name}» guardada.`);
     onSaved();
     onClose();
-  }, [draft, onSaved, onClose]);
+  }, [draft, personalityLocale, onSaved, onClose]);
 
   const selectCls = "h-8 rounded-xl border-white/10 bg-white/[0.05] text-xs";
   const inputCls = "h-8 rounded-xl border-white/10 bg-white/[0.05] text-xs";
@@ -1227,6 +1261,91 @@ function PersonalityEditor({
                 </span>
               </div>
             </div>
+
+            {/* Variante regional de la voz (locale BCP-47) — independiente del
+                "Idioma preferido" de la Identidad: ese fija el idioma general de
+                respuesta; esto afina el ACENTO/región con que Aurora la habla. */}
+            <div className="flex flex-col gap-1">
+              <span className={labelCls}>Variante regional de la voz (locale)</span>
+              <Popover open={personalityLocaleOpen} onOpenChange={setPersonalityLocaleOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(selectCls, "flex w-full cursor-pointer items-center justify-between gap-2 border px-2.5")}
+                  >
+                    <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+                      <ProfileIcon name="Languages" className="h-3.5 w-3.5 shrink-0 text-[#7fb8ff]" />
+                      {personalityLocale
+                        ? (findLocale(personalityLocale)?.label ?? personalityLocale)
+                        : "Automático (idioma general de arriba)"}
+                    </span>
+                    <ProfileIcon name="ChevronDown" className="h-3.5 w-3.5 shrink-0 text-white/40" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="z-[100] w-[320px] max-w-[85vw] rounded-xl border border-white/12 bg-[#0b0f1c]/98 p-2 text-white shadow-[0_16px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+                >
+                  <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5">
+                    <ProfileIcon name="Search" className="h-3.5 w-3.5 shrink-0 text-white/40" />
+                    <input
+                      value={personalityLocaleQuery}
+                      onChange={(e) => setPersonalityLocaleQuery(e.target.value)}
+                      placeholder="Buscar idioma o país…"
+                      className="w-full bg-transparent text-[12px] text-white/85 outline-none placeholder:text-white/30"
+                    />
+                  </div>
+                  <div className="mt-2 max-h-[280px] overflow-y-auto pr-1">
+                    <button
+                      type="button"
+                      onClick={() => chooseLocale(undefined)}
+                      className={cn(
+                        "mb-1 flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left text-[12px] transition-colors duration-150",
+                        !personalityLocale ? "bg-sky-500/15 text-sky-100" : "text-white/70 hover:bg-white/[0.06]",
+                      )}
+                    >
+                      <ProfileIcon name="Wand2" className="h-3.5 w-3.5 shrink-0" />
+                      Automático (según idioma general de la personalidad)
+                    </button>
+                    {localeFilteredGroups.length === 0 ? (
+                      <p className="px-1 py-2 text-[11px] text-white/40">Sin coincidencias.</p>
+                    ) : (
+                      localeFilteredGroups.map((g) => (
+                        <div key={g.base} className="mb-1.5">
+                          <p className="px-1 py-1 text-[10px] font-medium uppercase tracking-wide text-white/35">
+                            {g.label}
+                          </p>
+                          {g.locales.map((l) => (
+                            <button
+                              key={l.code}
+                              type="button"
+                              onClick={() => chooseLocale(l.code)}
+                              title={l.native}
+                              className={cn(
+                                "flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left transition-colors duration-150",
+                                personalityLocale === l.code ? "bg-sky-500/15" : "hover:bg-white/[0.06]",
+                              )}
+                            >
+                              {personalityLocale === l.code ? (
+                                <ProfileIcon name="Check" className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+                              ) : (
+                                <span className="h-3.5 w-3.5 shrink-0" />
+                              )}
+                              <span className="min-w-0 truncate text-[12px] text-white/85">{l.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <span className="text-[10px] text-white/35">
+                Afina el acento/región de esta personalidad (además de su idioma general). El motor
+                respeta siempre el idioma base; el acento regional fino depende de su soporte.
+              </span>
+            </div>
+
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="flex flex-col gap-1">
                 <span className={labelCls}>Tono</span>

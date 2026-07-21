@@ -64,6 +64,9 @@ import {
   setOssTtsEnabled,
   setOssTtsVoice,
 } from "@/lib/aurora/tts-oss/opt-in";
+// Selección de idioma (locale BCP-47): catálogo + sugerencia por entorno.
+// Este módulo solo SANEA/PERSISTE la preferencia; no decide nada por sí solo.
+import { baseOf, findLocale, suggestLocalesFromEnvironment } from "@/lib/aurora/tts-oss/locales";
 
 // ── Clave y evento ───────────────────────────────────────────────────────────
 
@@ -267,6 +270,29 @@ export interface AuroraVoiceConfig {
    * diseño de voz por defecto de la cuenta. Siempre presente (CERO config).
    */
   omni?: AstrauraVoiceConfig;
+  /**
+   * SELECCIÓN DE IDIOMA — locale BCP-47 PRINCIPAL elegido por el usuario
+   * (p.ej. "es-MX"). Al leer con `getVoiceConfig()`/`getPreferredLocale()`
+   * SIEMPRE viene relleno: si no está fijado o ya no es válido, cae a
+   * `suggestLocalesFromEnvironment()[0]` (catálogo en `locales.ts`). El
+   * idioma BASE que usa la síntesis (`baseOf(primaryLocale)`) sale de aquí.
+   */
+  primaryLocale?: string;
+  /**
+   * Otros locales preferidos (además del principal) — p.ej. para mostrarlos
+   * marcados en el selector o, en el futuro, como alternativas de reserva.
+   * Lista de códigos BCP-47 saneados contra `locales.ts`. Solo persiste la
+   * preferencia; no implica lógica de uso.
+   */
+  preferredLocales?: string[];
+  /**
+   * Locale por PERSONALIDAD (id de personalidad → código BCP-47), para el
+   * ajuste "Variante regional de la voz" del editor de Personalidades. Vive
+   * aquí (no en `personalities.ts`) porque este módulo es el dueño de toda
+   * preferencia de voz. Ausente/sin entrada = esa personalidad hereda el
+   * `primaryLocale` de la cuenta.
+   */
+  personalityLocales?: Record<string, string>;
 }
 
 /**
@@ -924,6 +950,56 @@ function sanitizeEngines(
   return Object.keys(out).length ? out : undefined;
 }
 
+// ── Selección de idioma (locale) — saneado ───────────────────────────────────
+
+/** Sanea un código de locale: válido solo si existe en el catálogo de locales.ts. */
+function sanitizeLocale(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const norm = raw.trim();
+  if (!norm) return undefined;
+  return findLocale(norm)?.code;
+}
+
+/** Sanea una lista de locales preferidos: solo códigos válidos, sin duplicar. */
+function sanitizeLocaleList(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: string[] = [];
+  for (const v of raw) {
+    const c = sanitizeLocale(v);
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out.length ? out : undefined;
+}
+
+/** Sanea el mapa personalidad→locale: descarta entradas con código inválido. */
+function sanitizePersonalityLocales(raw: unknown): Record<string, string> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const key of Object.keys(r)) {
+    const c = sanitizeLocale(r[key]);
+    if (c) out[key] = c;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * Locale PRINCIPAL efectivo: el guardado si sigue siendo válido; si no, la
+ * mejor sugerencia del entorno (`suggestLocalesFromEnvironment()`); si tampoco
+ * hay ninguna, "es-ES". SIEMPRE devuelve un código conocido. Nunca lanza.
+ */
+function resolvePrimaryLocale(raw: unknown): string {
+  const clean = sanitizeLocale(raw);
+  if (clean) return clean;
+  try {
+    const suggested = suggestLocalesFromEnvironment()[0];
+    if (suggested && findLocale(suggested)) return suggested;
+  } catch {
+    /* entorno no disponible → respaldo fijo */
+  }
+  return "es-ES";
+}
+
 // ── Utilidades SSR-safe ──────────────────────────────────────────────────────
 
 function safeLocalStorage(): Storage | null {
@@ -945,7 +1021,7 @@ function safeLocalStorage(): Storage | null {
  */
 export function getVoiceConfig(): AuroraVoiceConfig {
   const ls = safeLocalStorage();
-  if (!ls) return { ...DEFAULT_VOICE_CONFIG };
+  if (!ls) return { ...DEFAULT_VOICE_CONFIG, primaryLocale: resolvePrimaryLocale(undefined) };
   try {
     const raw = ls.getItem(AURORA_VOICE_CONFIG_KEY);
     if (raw) {
@@ -963,6 +1039,11 @@ export function getVoiceConfig(): AuroraVoiceConfig {
       const presetId = typeof parsed?.presetId === "string" ? parsed.presetId : undefined;
       // OmniVoice híbrido: SIEMPRE presente y saneado (rellena defaults). CERO config.
       const omni = sanitizeAstrauraVoice(parsed?.omni);
+      // Selección de idioma: `primaryLocale` SIEMPRE relleno (guardado válido o
+      // sugerencia del entorno); preferredLocales/personalityLocales opcionales.
+      const primaryLocale = resolvePrimaryLocale(parsed?.primaryLocale);
+      const preferredLocales = sanitizeLocaleList(parsed?.preferredLocales);
+      const personalityLocales = sanitizePersonalityLocales(parsed?.personalityLocales);
       return {
         engine,
         voice,
@@ -974,6 +1055,9 @@ export function getVoiceConfig(): AuroraVoiceConfig {
         auto,
         presetId,
         omni,
+        primaryLocale,
+        preferredLocales,
+        personalityLocales,
       };
     }
     // Sin config unificada: honra el opt-in histórico de Kokoro si estaba ON.
@@ -983,12 +1067,13 @@ export function getVoiceConfig(): AuroraVoiceConfig {
         autoDownload: false,
         auto: true,
         style: { ...DEFAULT_VOICE_STYLE },
+        primaryLocale: resolvePrimaryLocale(undefined),
       };
     }
   } catch {
     /* corrupto o inaccesible → default */
   }
-  return { ...DEFAULT_VOICE_CONFIG };
+  return { ...DEFAULT_VOICE_CONFIG, primaryLocale: resolvePrimaryLocale(undefined) };
 }
 
 /** ¿Qué motor está activo ahora mismo? Atajo cómodo. */
@@ -1042,6 +1127,23 @@ export function setVoiceConfig(patch: Partial<AuroraVoiceConfig>): void {
             ...(patch.omni ?? {}),
           })
         : (current.omni ?? DEFAULT_ASTRAURA_VOICE),
+    // Selección de idioma: `primaryLocale` se reemplaza (saneado, con caída a
+    // la sugerencia del entorno); `preferredLocales` se reemplaza tal cual (la
+    // UI manda la lista completa); `personalityLocales` se FUSIONA (cada
+    // llamada suele tocar una sola personalidad, sin pisar el resto del mapa).
+    primaryLocale:
+      "primaryLocale" in patch ? resolvePrimaryLocale(patch.primaryLocale) : current.primaryLocale,
+    preferredLocales:
+      "preferredLocales" in patch
+        ? sanitizeLocaleList(patch.preferredLocales)
+        : current.preferredLocales,
+    personalityLocales:
+      "personalityLocales" in patch
+        ? sanitizePersonalityLocales({
+            ...(current.personalityLocales ?? {}),
+            ...(patch.personalityLocales ?? {}),
+          })
+        : current.personalityLocales,
   };
 
   if (ls) {
@@ -1156,6 +1258,87 @@ export function getEffectiveVoice(engine: AuroraVoiceEngine): string | undefined
     return cfg.engines?.[engine]?.voice || cfg.voice;
   }
   return cfg.voice;
+}
+
+// ── Selección de idioma (locale) — lectura/escritura ────────────────────────
+
+/**
+ * Locale PRINCIPAL preferido por el usuario (BCP-47, p.ej. "es-MX"). Si no hay
+ * uno fijado (o el guardado ya no es válido), cae a la mejor sugerencia del
+ * entorno (`suggestLocalesFromEnvironment()`, en `locales.ts`). SIEMPRE
+ * devuelve un código conocido del catálogo. Nunca lanza.
+ */
+export function getPreferredLocale(): string {
+  try {
+    return getVoiceConfig().primaryLocale ?? resolvePrimaryLocale(undefined);
+  } catch {
+    return "es-ES";
+  }
+}
+
+/**
+ * Idioma BASE (p.ej. "es") derivado del locale preferido — lo que la síntesis
+ * distingue con fiabilidad hoy (el matiz regional depende del soporte de cada
+ * motor, ver `locales.ts`). Nunca lanza.
+ */
+export function getPreferredLangBase(): string {
+  try {
+    return baseOf(getPreferredLocale());
+  } catch {
+    return "es";
+  }
+}
+
+/** Otros locales preferidos (además del principal), saneados. Nunca lanza. */
+export function getPreferredLocales(): string[] {
+  try {
+    return [...(getVoiceConfig().preferredLocales ?? [])];
+  } catch {
+    return [];
+  }
+}
+
+/** Locale fijado para UNA personalidad (override), o undefined si no hay. Nunca lanza. */
+export function getPersonalityLocale(personalityId: string): string | undefined {
+  if (!personalityId) return undefined;
+  try {
+    return getVoiceConfig().personalityLocales?.[personalityId];
+  } catch {
+    return undefined;
+  }
+}
+
+/** Fija el locale de UNA personalidad (fusiona con el resto del mapa). Nunca lanza. */
+export function setPersonalityLocale(personalityId: string, code: string): void {
+  if (!personalityId) return;
+  const clean = sanitizeLocale(code);
+  if (!clean) return;
+  setVoiceConfig({ personalityLocales: { [personalityId]: clean } });
+}
+
+/**
+ * Quita el override de locale de UNA personalidad (vuelve a heredar el
+ * `primaryLocale` de la cuenta). Escribe directo (como `resetVoiceStyle`)
+ * porque `setVoiceConfig` solo fusiona/añade claves, no las borra. Nunca lanza.
+ */
+export function clearPersonalityLocale(personalityId: string): void {
+  if (!personalityId) return;
+  const ls = safeLocalStorage();
+  const current = getVoiceConfig();
+  const rest = { ...(current.personalityLocales ?? {}) };
+  delete rest[personalityId];
+  const next: AuroraVoiceConfig = {
+    ...current,
+    personalityLocales: Object.keys(rest).length ? rest : undefined,
+  };
+  if (ls) {
+    try {
+      ls.setItem(AURORA_VOICE_CONFIG_KEY, JSON.stringify(next));
+    } catch {
+      /* cuota / modo privado → seguimos, sin romper */
+    }
+  }
+  emitChange();
 }
 
 /**

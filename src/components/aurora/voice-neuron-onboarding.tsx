@@ -18,13 +18,18 @@
  * gratis de HF): esta ventana solo informa y ofrece la mejora local.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Cloud, X, Zap } from "lucide-react";
+import { Check, ChevronDown, Cloud, Languages, Plus, Search, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LocalEngineInstaller } from "@/components/settings/aurora/local-engine-installer";
 import { safeGet, safeSet } from "@/lib/safe-storage";
+import { cn } from "@/lib/utils";
 import { ensureLocalKeepAlive } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
+// Selección de idioma de la voz (Adenda idiomas-voz): catálogo + persistencia.
+import { getPreferredLocale, getVoiceConfig, setVoiceConfig } from "@/lib/aurora/tts-oss/voice-config";
+import { findLocale, localesByBase, searchLocales, suggestLocalesFromEnvironment } from "@/lib/aurora/tts-oss/locales";
 
 // v2 (Adenda 86): el ajuste de preferencia CAMBIÓ (ahora ordena la cadena de
 // voz de la neurona), así que la ventana se RELANZA una vez para todos — aun
@@ -131,6 +136,54 @@ export function VoiceNeuronOnboarding() {
   // ¿La ventana se abrió porque el sistema de voz se ACTUALIZÓ? (Adenda 88.)
   const [updated, setUpdated] = useState(false);
 
+  // ── Idioma de la voz (selección explícita + sugerencia por ubicación) ──────
+  // Vive en voice-config.ts (`primaryLocale`/`preferredLocales`); esta ventana
+  // solo lee/escribe esos campos. NO decide síntesis: el motor sigue usando el
+  // idioma base ya auto-detectado; esto añade la PREFERENCIA del usuario.
+  const [primaryLocale, setPrimaryLocaleState] = useState<string>("es-ES");
+  const [preferredLocales, setPreferredLocalesState] = useState<string[]>([]);
+  const [envSuggestions, setEnvSuggestions] = useState<string[]>([]);
+  const [localeQuery, setLocaleQuery] = useState("");
+  const [localePickerOpen, setLocalePickerOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      setPrimaryLocaleState(getPreferredLocale());
+      setPreferredLocalesState(getVoiceConfig().preferredLocales ?? []);
+      setEnvSuggestions(suggestLocalesFromEnvironment());
+    } catch {
+      /* defensivo: la sección de idioma simplemente queda con sus defaults */
+    }
+  }, []);
+
+  const choosePrimaryLocale = useCallback((code: string) => {
+    const clean = findLocale(code)?.code;
+    if (!clean) return;
+    setPrimaryLocaleState(clean);
+    setVoiceConfig({ primaryLocale: clean });
+    setLocalePickerOpen(false);
+  }, []);
+
+  const togglePreferredLocale = useCallback((code: string) => {
+    const clean = findLocale(code)?.code;
+    if (!clean) return;
+    setPreferredLocalesState((prev) => {
+      const next = prev.includes(clean) ? prev.filter((c) => c !== clean) : [...prev, clean];
+      setVoiceConfig({ preferredLocales: next });
+      return next;
+    });
+  }, []);
+
+  const localeFilteredGroups = useMemo(() => {
+    const groups = localesByBase();
+    const q = localeQuery.trim();
+    if (!q) return groups;
+    const matches = new Set(searchLocales(q).map((l) => l.code));
+    return groups
+      .map((g) => ({ ...g, locales: g.locales.filter((l) => matches.has(l.code)) }))
+      .filter((g) => g.locales.length > 0);
+  }, [localeQuery]);
+
   // Adenda 88: en cuanto carga la app, si esta neurona eligió voz LOCAL, arranca
   // el keep-alive que mantiene el daemon caliente (precalienta cada ~7 min). Así
   // la primera síntesis del turno ya encuentra el modelo en caché (~22 s) en vez
@@ -230,7 +283,7 @@ export function VoiceNeuronOnboarding() {
           <X className="h-4 w-4" />
         </button>
 
-        <div className="relative flex flex-col gap-3 p-5">
+        <div className="relative flex max-h-[85vh] flex-col gap-3 overflow-y-auto p-5">
           <div className="flex items-center gap-2">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-400/30 bg-sky-500/10">
               <Zap className="h-4.5 w-4.5 text-sky-300" />
@@ -319,6 +372,139 @@ export function VoiceNeuronOnboarding() {
               {checkMsg && <p className="text-[11px] text-white/55">{checkMsg}</p>}
             </div>
           )}
+
+          {/* Idioma de la voz (selección explícita + sugerencia por ubicación).
+              El acento regional fino depende del soporte del motor (hoy limitado),
+              pero la preferencia queda guardada y el idioma BASE se respeta siempre. */}
+          <div className="mt-1 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="flex items-center gap-2">
+              <Languages className="h-3.5 w-3.5 text-[#7fb8ff]" />
+              <span className="text-xs font-medium text-white/85">Idioma de la voz</span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-white/45">
+              Idioma principal en que hablará Aurora en esta neurona. Te sugerimos
+              opciones según tu navegador y tu zona horaria.
+            </p>
+
+            {envSuggestions.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {envSuggestions.slice(0, 5).map((code) => {
+                  const loc = findLocale(code);
+                  if (!loc) return null;
+                  const active = code === primaryLocale;
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => choosePrimaryLocale(code)}
+                      title={loc.native}
+                      className={cn(
+                        "cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors duration-200",
+                        active
+                          ? "border-sky-400/50 bg-sky-500/20 text-sky-100"
+                          : "border-white/12 bg-white/[0.04] text-white/65 hover:bg-white/[0.09] hover:text-white",
+                      )}
+                    >
+                      {loc.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <Popover open={localePickerOpen} onOpenChange={setLocalePickerOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="mt-2 flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-2 text-[11.5px] text-white/80 transition-colors duration-200 hover:bg-white/[0.08]"
+                >
+                  <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+                    <Search className="h-3 w-3 shrink-0 text-white/40" />
+                    {findLocale(primaryLocale)?.label ?? "Elegir idioma…"}
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-white/40" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                className="z-[10001] w-[320px] max-w-[85vw] rounded-xl border border-white/12 bg-[#0b0f1c]/98 p-2 text-white shadow-[0_16px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+              >
+                <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5">
+                  <Search className="h-3.5 w-3.5 shrink-0 text-white/40" />
+                  <input
+                    value={localeQuery}
+                    onChange={(e) => setLocaleQuery(e.target.value)}
+                    placeholder="Buscar idioma o país…"
+                    className="w-full bg-transparent text-[12px] text-white/85 outline-none placeholder:text-white/30"
+                  />
+                </div>
+                <div className="mt-2 max-h-[280px] overflow-y-auto pr-1">
+                  {localeFilteredGroups.length === 0 ? (
+                    <p className="px-1 py-2 text-[11px] text-white/40">Sin coincidencias.</p>
+                  ) : (
+                    localeFilteredGroups.map((g) => (
+                      <div key={g.base} className="mb-1.5">
+                        <p className="px-1 py-1 text-[10px] font-medium uppercase tracking-wide text-white/35">
+                          {g.label}
+                        </p>
+                        {g.locales.map((l) => {
+                          const isPrimary = l.code === primaryLocale;
+                          const isPreferred = preferredLocales.includes(l.code);
+                          return (
+                            <div
+                              key={l.code}
+                              className={cn(
+                                "flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 transition-colors duration-150",
+                                isPrimary ? "bg-sky-500/15" : "hover:bg-white/[0.06]",
+                              )}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => choosePrimaryLocale(l.code)}
+                                className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left"
+                                title={`Usar ${l.native} como idioma principal`}
+                              >
+                                {isPrimary ? (
+                                  <Check className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+                                ) : (
+                                  <span className="h-3.5 w-3.5 shrink-0" />
+                                )}
+                                <span className="min-w-0 truncate text-[12px] text-white/85">{l.label}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => togglePreferredLocale(l.code)}
+                                title={isPreferred ? "Quitar de preferidos" : "Añadir a preferidos"}
+                                className={cn(
+                                  "shrink-0 cursor-pointer rounded-full border p-1 transition-colors duration-150",
+                                  isPreferred
+                                    ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-200"
+                                    : "border-white/10 bg-white/[0.03] text-white/40 hover:text-white/70",
+                                )}
+                              >
+                                {isPreferred ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {preferredLocales.length > 0 && (
+              <p className="mt-1.5 text-[10px] text-white/35">
+                Preferidos: {preferredLocales.map((c) => findLocale(c)?.label ?? c).join(" · ")}
+              </p>
+            )}
+
+            <p className="mt-1.5 text-[10px] text-white/30">
+              El acento regional fino depende del soporte del motor de voz (hoy limitado); el idioma
+              base y tu preferencia quedan siempre guardados.
+            </p>
+          </div>
         </div>
       </div>
     </div>,

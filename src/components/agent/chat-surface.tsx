@@ -497,9 +497,11 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
                     />
                   )}
                   {/* Nota de voz (Adenda 87): mini reproductor del audio que sonó +
-                      «Regenerar voz». Solo en respuestas de Astraura con contenido. */}
+                      «Regenerar voz». Solo en respuestas de Astraura con contenido.
+                      `convId` (Adenda 87-bis): permite encontrar el audio en la
+                      nube si esta neurona no lo generó ella misma (sync en cuenta). */}
                   {!msg.pending && msg.role === "agent" && msg.content.trim() && (
-                    <VoiceNoteBar text={msg.content} />
+                    <VoiceNoteBar text={msg.content} convId={conv.activeId} />
                   )}
                 </div>
               </div>

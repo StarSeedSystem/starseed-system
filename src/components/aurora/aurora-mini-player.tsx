@@ -192,6 +192,14 @@ export function AuroraMiniPlayer({
   const historyScrollRef = useRef<HTMLDivElement | null>(null);
   // Cierra el desplegable de personalidades al hacer click FUERA de él.
   const pickerRef = useRef<HTMLDivElement | null>(null);
+  // Adenda 89: el menú de personalidades se pinta en un PORTAL (document.body)
+  // anclado al botón, con posición fija y z-index alto — así NUNCA lo recorta el
+  // overflow de la ventana de la orbe ni queda fuera de pantalla (bug del
+  // desplegable que no aparecía). menuRef es el nodo del portal (para el
+  // click-fuera); triggerBtnRef es el botón (para calcular su posición).
+  const triggerBtnRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [menuPos, setMenuPos] = useState<{ left: number; width: number; anchorY: number; dropUp: boolean } | null>(null);
 
   // ── Feature A: ensanchar en vivo con el arrastre + 2º arrastre = pantalla
   // completa. Ver constantes MINI_PLAYER_MIN_W/MAX_W arriba. ──
@@ -387,12 +395,21 @@ export function AuroraMiniPlayer({
   useEffect(() => {
     if (!pickerOpen || typeof document === "undefined") return;
     const onPointerDown = (e: PointerEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setPickerOpen(false);
-      }
+      const t = e.target as Node;
+      // El menú vive en un PORTAL (fuera de pickerRef); cuenta como "dentro"
+      // tanto el botón disparador como el propio menú del portal.
+      if (triggerBtnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setPickerOpen(false);
     };
+    const close = () => setPickerOpen(false);
     document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true); // se cierra al desplazar (posición fija)
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
   }, [pickerOpen]);
 
   // Cambia la personalidad de ESTE chat "en caliente": si hay un chat activo
@@ -409,6 +426,24 @@ export function AuroraMiniPlayer({
     setPickerOpen(false);
     clearAutohide();
   }, [conv.activeId, clearAutohide]);
+
+  // Adenda 89: abre el desplegable calculando la posición del PORTAL desde el
+  // rect del botón (posición FIJA). Cae hacia ABAJO salvo que no quepa abajo y sí
+  // arriba. Clampa al viewport para no salirse por los lados.
+  const openPicker = useCallback(() => {
+    if (typeof window !== "undefined" && triggerBtnRef.current) {
+      const r = triggerBtnRef.current.getBoundingClientRect();
+      const width = Math.max(220, Math.min(280, window.innerWidth - 16));
+      let left = r.left;
+      if (left + width > window.innerWidth - 8) left = window.innerWidth - 8 - width;
+      if (left < 8) left = 8;
+      const spaceBelow = window.innerHeight - r.bottom;
+      const dropUp = spaceBelow < 260 && r.top > 260;
+      setMenuPos({ left, width, anchorY: dropUp ? r.top : r.bottom, dropUp });
+    }
+    clearAutohide();
+    setPickerOpen(true);
+  }, [clearAutohide]);
 
   // 📎 (Agente S1): el picker universal ya subió el archivo (url real). Lo
   // persistimos como mensaje del usuario en la conversación ACTIVA (la misma de
@@ -597,8 +632,9 @@ export function AuroraMiniPlayer({
                 global. El cheurón abre la lista de personalidades DISPONIBLES
                 para cambiarla en caliente sin salir del reproductor. */}
             <button
+              ref={triggerBtnRef}
               type="button"
-              onClick={() => { clearAutohide(); setPickerOpen((v) => !v); }}
+              onClick={() => { if (pickerOpen) setPickerOpen(false); else openPicker(); }}
               aria-label="Cambiar personalidad de Aurora en este chat"
               aria-expanded={pickerOpen}
               title="Personalidad activa en este chat — toca para cambiar"
@@ -619,11 +655,21 @@ export function AuroraMiniPlayer({
                 chat en caliente (choosePersonality: por-chat si hay chat
                 activo, si no global) y cierra; también se cierra al clicar
                 fuera (ver el listener en pickerRef). */}
-            {pickerOpen && (
+            {pickerOpen && menuPos && typeof document !== "undefined" && createPortal(
               <div
+                ref={menuRef}
                 role="listbox"
                 aria-label="Personalidades disponibles"
-                className="absolute left-0 right-0 bottom-full z-10 mb-1 max-h-72 overflow-y-auto rounded-xl border border-white/10 bg-black/80 p-1 shadow-2xl shadow-black/50 backdrop-blur-2xl"
+                style={{
+                  position: "fixed",
+                  left: menuPos.left,
+                  width: menuPos.width,
+                  zIndex: 10001,
+                  ...(menuPos.dropUp
+                    ? { bottom: (typeof window !== "undefined" ? window.innerHeight : 0) - menuPos.anchorY + 6 }
+                    : { top: menuPos.anchorY + 6 }),
+                }}
+                className="max-h-72 overflow-y-auto rounded-xl border border-white/12 bg-[#0b0f1c]/95 p-1 shadow-2xl shadow-black/60 backdrop-blur-2xl"
               >
                 {personalities.length === 0 && (
                   <p className="px-2.5 py-2 text-[11px] italic text-white/40">
@@ -661,7 +707,8 @@ export function AuroraMiniPlayer({
                     </span>
                   </button>
                 ))}
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
 

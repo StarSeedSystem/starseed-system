@@ -1042,6 +1042,63 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     failovers.push({ sourceId: "chrome-ai", error: String(e?.message ?? e).slice(0, 200) });
   }
 
+  // ── SEGUNDA OPORTUNIDAD AUTOMÁTICA (Adenda 89) ────────────────────────────
+  // La cadena ENTERA falló. El usuario observa que "reintentar (o probar en otra
+  // neurona) suele funcionar" → casi siempre es TRANSITORIO: un 429 momentáneo,
+  // Pollinations encolando, un microcorte de red. Antes de rendirnos, Aurora
+  // reintenta SOLA y en silencio las fuentes SIN CLAVE (que nunca se enfrían)
+  // tras una breve espera. Así responde sin que el usuario tenga que reintentar
+  // a mano. Acotado (2 pasadas, timeouts recortados) para no colgarse.
+  {
+    const retrySources = keylessCloudSources()
+      .filter((src) => !prefs.disabledSources.includes(src.id))
+      .map((src) => candidates.find((c) => c.source.id === src.id))
+      .filter((c): c is RouteCandidate => !!c)
+      .slice(0, 3);
+    for (let pass = 0; pass < 2 && retrySources.length; pass++) {
+      req.onStatus?.("Reintentando automáticamente…");
+      await new Promise((r) => setTimeout(r, 1200 + pass * 1600));
+      for (const c of retrySources) {
+        if (req.signal?.aborted) break;
+        const t0 = Date.now();
+        try {
+          const res = await withTimeout(
+            Promise.resolve().then(() => runCandidate(c, reqX)),
+            Math.min(candidateTimeoutMs(c), 22_000),
+            c.source.label,
+          );
+          if (!res || !String(res.text ?? "").trim()) throw new Error("respuesta vacía");
+          try { noteUsage(c.source.id, c.model.id, res?.usage); } catch { /* */ }
+          const rec: RouteRecord = {
+            at: Date.now(),
+            task: profile.kind,
+            taskLabel: TASK_LABELS[profile.kind],
+            sourceId: c.source.id,
+            sourceLabel: c.source.label,
+            model: c.model.id,
+            modelLabel: c.model.label,
+            providerModel: toProviderModel(c.source, c.model),
+            tier: c.source.tier,
+            free: c.source.tier !== "paid",
+            reason: "Toda la cadena falló por un corte transitorio; Aurora reintentó sola y esta fuente sin clave respondió.",
+            ok: true,
+            ms: Date.now() - t0,
+            difficulty: profile.difficulty,
+            alternatives: [],
+            paidSuggestions: [],
+            ...(failovers.length ? { failovers } : {}),
+            attempts: failovers.length + 1,
+          };
+          pushRouteRecord(rec);
+          req.onStatus?.("");
+          return { ...res, route: rec };
+        } catch (e: any) {
+          failovers.push({ sourceId: c.source.id, error: "reintento: " + String(e?.message ?? e).slice(0, 180) });
+        }
+      }
+    }
+  }
+
   // Toda la cadena falló: GARANTÍA DE RESPUESTA — NUNCA un error crudo. En vez
   // de lanzar, Aurora contesta con una respuesta LOCAL honesta (sin red) que
   // explica qué probó y qué puede hacer el usuario. Ver §17.1 de la doc.

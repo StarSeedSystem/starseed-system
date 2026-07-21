@@ -385,19 +385,32 @@ export const LANG_MAP = {
   "en-gb": "English",
   english: "English",
   fr: "French",
+  french: "French",
   de: "German",
+  german: "German",
   it: "Italian",
+  italian: "Italian",
   pt: "Portuguese",
   "pt-br": "Portuguese",
+  portuguese: "Portuguese",
   zh: "Chinese",
+  chinese: "Chinese",
   ja: "Japanese",
+  japanese: "Japanese",
   ko: "Korean",
+  korean: "Korean",
   ru: "Russian",
+  russian: "Russian",
   ar: "Arabic",
+  arabic: "Arabic",
   hi: "Hindi",
+  hindi: "Hindi",
   nl: "Dutch",
+  dutch: "Dutch",
   pl: "Polish",
+  polish: "Polish",
   tr: "Turkish",
+  turkish: "Turkish",
 };
 
 /** Traduce un código/nombre de idioma al nombre en inglés del CLI. */
@@ -405,6 +418,43 @@ export function resolveLang(lang, fallback = "Spanish") {
   if (!lang || typeof lang !== "string") return fallback;
   const key = lang.trim().toLowerCase();
   return LANG_MAP[key] || LANG_MAP[key.slice(0, 2)] || fallback;
+}
+
+/**
+ * Nombre en inglés (tal como lo devuelve `resolveLang`, en minúsculas) →
+ * código ISO corto. DERIVADO de `LANG_MAP` (no mantenemos dos listas
+ * paralelas): invierte solo sus claves de 2 letras, así variantes regionales
+ * como "es-mx" no entran como código.
+ */
+const LANG_NAME_TO_BASE = Object.keys(LANG_MAP).reduce((acc, key) => {
+  if (key.length === 2) acc[LANG_MAP[key].toLowerCase()] = key;
+  return acc;
+}, {});
+
+/**
+ * Código de idioma BASE (2 letras, minúsculas) a partir de lo que mandó el
+ * frontend — un código ISO ("es", "es-ES", "en-US"…) O el NOMBRE EN INGLÉS que
+ * ya devuelve `resolveLang` ("Spanish", "German"…), según quién llame: el
+ * híbrido OmniVoice (`omnivoice-hybrid.ts::synthLocal`) manda el NOMBRE en
+ * `body.lang` (vía `mapLangToSpace`), mientras que otros llamadores (p.ej. la
+ * semilla local de `openvoice2.ts::designSeedViaLocalDaemon`) mandan el
+ * CÓDIGO. Probar el nombre primero evita el bug de cortar por las dos
+ * primeras letras de un nombre ("german".slice(0,2) → "ge", que NO es "de")
+ * — así `langBase` SIEMPRE concuerda con el `--lang` que calcula `resolveLang`
+ * para el MISMO `lang` de entrada. Mismo default ("es") que `resolveLang`. Lo
+ * usan las referencias POR IDIOMA (refs/<personalidad>.<langBase>.wav) y el
+ * instruct por idioma del daemon (fix del acento importado, 2026-07-21).
+ * Nunca lanza.
+ */
+export function langBaseOf(lang, fallback = "es") {
+  if (!lang || typeof lang !== "string") return fallback;
+  const key = lang.trim().toLowerCase();
+  if (LANG_NAME_TO_BASE[key]) return LANG_NAME_TO_BASE[key];
+  const base = key.slice(0, 2);
+  // Solo aceptamos el código corto si `resolveLang` también lo reconocería —
+  // así un `lang` irreconocible cae al MISMO fallback en los dos (nunca un
+  // langName="Spanish" emparejado con un langBase de otra cosa).
+  return LANG_MAP[base] ? base : fallback;
 }
 
 /** SHA-256 hex de una cadena (para claves de caché). */

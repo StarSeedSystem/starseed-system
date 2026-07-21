@@ -921,15 +921,34 @@ export function voiceTextHash(text: string): string {
 /** Evento vivo: un trozo de VOZ GENERADA (para guardarla y adjuntarla al mensaje). */
 export const VOICE_NOTE_EVENT = "starseed:voice-note";
 
-function emitVoiceNote(detail: {
+/**
+ * Emite un trozo de voz generada. `convId` (Adenda 87-bis · sync en cuenta) liga
+ * el trozo a la conversación de Aurora ACTIVA — resuelta vía
+ * `personalities.ts::activeAuroraChatId()` con el MISMO patrón de import
+ * dinámico que ya usan `delegateOmniHybrid`/`delegateOpenVoice2` en este mismo
+ * archivo — para que `voice-notes.ts` pueda indexar y subir la nota a la nube
+ * (`os-files` + `aurora_conversations.meta.voiceNotes`) en cuanto esté
+ * completa. Sin chat activo (p.ej. Aurora hablando desde el orbe sin el
+ * mini-reproductor ni el Exocórtex abiertos) queda `undefined`: la nota se
+ * sigue capturando LOCAL igual que siempre, solo no se ofrece a sincronizar.
+ * NUNCA lanza.
+ */
+async function emitVoiceNote(detail: {
   textHash: string;
   chunkIndex: number;
   chunkCount: number;
   engine: string;
   blob: Blob;
-}): void {
+}): Promise<void> {
   try {
-    window.dispatchEvent(new CustomEvent(VOICE_NOTE_EVENT, { detail }));
+    let convId: string | undefined;
+    try {
+      const mod = await import("@/lib/aurora/personalities");
+      convId = mod.activeAuroraChatId?.() ?? undefined;
+    } catch {
+      convId = undefined;
+    }
+    window.dispatchEvent(new CustomEvent(VOICE_NOTE_EVENT, { detail: { ...detail, convId } }));
   } catch {
     /* */
   }
@@ -1042,7 +1061,7 @@ async function neuralSpeakChunked(
     const blob = i === 0 ? first : await next;
     if (!alive()) break;
     if (!blob) break; // trozo intermedio falló: cerramos con lo ya hablado
-    emitVoiceNote({ textHash: fullHash, chunkIndex: i, chunkCount: chunks.length, engine, blob });
+    void emitVoiceNote({ textHash: fullHash, chunkIndex: i, chunkCount: chunks.length, engine, blob });
     // Prefetch del siguiente MIENTRAS suena este.
     next = i + 1 < chunks.length ? synth(chunks[i + 1], i + 1) : Promise.resolve(null);
     const audio = await playNeuralBlob(blob, {
@@ -1097,7 +1116,7 @@ export async function neuralSpeak(
     fireEnd();
     return null;
   }
-  emitVoiceNote({ textHash: voiceTextHash(text), chunkIndex: 0, chunkCount: 1, engine, blob });
+  void emitVoiceNote({ textHash: voiceTextHash(text), chunkIndex: 0, chunkCount: 1, engine, blob });
 
   stopNeural(); // una voz a la vez
 
@@ -1287,6 +1306,17 @@ export function neuralEngineConfigured(engine: NeuralVoiceEngine): boolean {
  * Delega en el MOTOR HÍBRIDO OmniVoice (daemon local ↔ nube gratis). Se usa
  * cuando el usuario no puso un endpoint OmniVoice propio (CERO config) o cuando
  * su endpoint no devolvió audio. NUNCA lanza.
+ *
+ * PROPAGACIÓN DE IDIOMA (fix del acento importado, 2026-07-21): `s.lang` puede
+ * venir YA anulado por la auto-detección CONFIABLE del texto real (ver
+ * `speak-router.ts::detectSpokenLang` + `runLink`, que construye `s` con
+ * `{...getEngineSettings(link), lang: detectedLang}` antes de llegar aquí vía
+ * `neuralSpeak`→`neuralSynthesize`). `{ lang: s.lang }` lo pasa tal cual a
+ * `synthesizeOmniVoiceHybrid`, que lo mapea a `langName` y lo manda como
+ * `body.lang` tanto al daemon local (`POST /tts`, resuelto por `resolveLang`/
+ * `langBaseOf` en lib.mjs para elegir instruct/referencia nativos de ESE
+ * idioma) como al Space en la nube — así el idioma de síntesis SIEMPRE
+ * coincide con el idioma real del texto, sin más cambios aquí.
  */
 async function delegateOmniHybrid(
   text: string,
@@ -1296,8 +1326,22 @@ async function delegateOmniHybrid(
     const hybrid = await import("@/lib/aurora/tts-oss/omnivoice-hybrid");
     // IDENTIDAD FEMENINA POR PERSONALIDAD (Adenda 87): resuelve la personalidad
     // activa, publica su "kind" para que el cuerpo local viaje con `personality`
-    // (el daemon clona refs/<kind>.wav o fija su --seed estable) y sube la
-    // semilla al daemon UNA vez (fire-and-forget). Nunca bloquea ni lanza.
+    // (el daemon clona refs/<kind>.<langBase>.wav o fija su --seed estable) y
+    // sube la semilla al daemon UNA vez (fire-and-forget). Nunca bloquea ni lanza.
+    //
+    // PENDIENTE (fuera de este alcance): `ensureLocalIdentity(personalityId?)`
+    // vive en omnivoice-hybrid.ts y hoy NO acepta un parámetro de idioma, así
+    // que la subida a `POST /identity` no propaga `s.lang` (el idioma detectado
+    // de ESTA locución, disponible aquí mismo). El daemon ya soporta un campo
+    // `lang` opcional en `/identity` (guarda refs/<id>.<langBase>.wav; ver
+    // daemon.mjs::handleIdentity) — cuando el orquestador de omnivoice-hybrid.ts
+    // añada ese parámetro, debe pasarle `s.lang` (o el idioma activo equivalente)
+    // para que la referencia se guarde y seleccione por idioma igual que la
+    // síntesis. Hasta entonces, la subida sigue cayendo en la ruta histórica sin
+    // sufijo (refs/<id>.wav) y `handleTts` — que solo clona refs/<id>.<lang>.wav
+    // EXACTAS — simplemente no la usará: sintetiza con --instruct+--seed nativos
+    // del idioma (sin clonar), que ya es un resultado correcto, solo sin timbre
+    // clonado hasta que se cablee.
     try {
       const mod = await import("@/lib/aurora/personalities");
       const profile = mod.getActivePersonality?.();
@@ -1316,6 +1360,15 @@ async function delegateOmniHybrid(
  * EFECTIVA de OmniVoice (cuenta + personalidad → sub-esquema `openvoice`) y la
  * personalidad activa (para la semilla de identidad, el estilo y el aprendizaje
  * por voz). NUNCA lanza; null ⇒ la cadena de voz sigue.
+ *
+ * PROPAGACIÓN DE IDIOMA (fix del acento importado, 2026-07-21): igual que en
+ * `delegateOmniHybrid`, `s.lang` puede venir YA anulado por la auto-detección
+ * CONFIABLE del texto real (`speak-router.ts::detectSpokenLang`). Se pasa tal
+ * cual como `lang: s.lang` a `synthesizeOpenVoice2`, que lo usa tanto para el
+ * Style del Space (`resolveOpenVoice2Style` — ya NO fuerza acento de
+ * personalidad fuera de su propia familia de idioma, ver openvoice2.ts) como
+ * para elegir/diseñar la SEMILLA nativa de ese idioma (`seedSpecFor`,
+ * cacheada por (personalidad, idioma)).
  */
 async function delegateOpenVoice2(
   text: string,
