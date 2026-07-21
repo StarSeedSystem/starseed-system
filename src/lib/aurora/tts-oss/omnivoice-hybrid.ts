@@ -56,13 +56,15 @@ const HANDSHAKE_TIMEOUT_MS = 2_500;
 /** Presupuesto de la síntesis LOCAL (`POST /tts`) con el daemon CALIENTE. */
 const LOCAL_TTS_TIMEOUT_MS = 30_000;
 /**
- * Presupuesto de la síntesis LOCAL en FRÍO (Adenda 88). El CLI recarga el modelo
- * en cada llamada; si el daemon está dormido (`warm:false`) el modelo se lee de
- * disco y en un M1/8 GB tarda ~40 s. Cuando la neurona ELIGIÓ voz local, ESPERAMOS
- * a que responda de verdad (para que se oiga OmniVoice femenina) en vez de saltar
- * a la nube robótica a los 30 s. El keep-alive evita que esto pase casi siempre.
+ * Presupuesto MÁXIMO de la síntesis LOCAL cuando la neurona ELIGIÓ local (Adenda
+ * 88). NO es una espera fija: el `POST /tts` devuelve en cuanto el daemon responde
+ * (~22–40 s caliente). Es solo el TECHO antes de rendirse: el CLI tarda ~
+ * proporcional al texto (una frase larga en un M1/8 GB pasa de 60 s, y en frío
+ * suma la recarga del modelo), así que lo ponemos GENEROSO —justo por debajo del
+ * watchdog interno del daemon (180 s)— para NO cortar nunca antes de tiempo y caer
+ * a la nube robótica. El keep-alive hace que en la práctica casi siempre sea rápido.
  */
-const COLD_LOCAL_TTS_TIMEOUT_MS = 75_000;
+const LOCAL_PREFER_MAX_MS = 150_000;
 /** Cada cuánto se vuelve a precalentar el daemon (antes de dormirse a los 10 min). */
 const KEEP_WARM_EVERY_MS = 7 * 60_000;
 /**
@@ -859,11 +861,13 @@ export async function synthesizeOmniVoiceHybrid(
       } catch {
         /* */
       }
-      // Presupuesto: en frío (daemon dormido) y con preferencia local, esperamos a
-      // que el modelo recargue de disco (~40 s) en vez de saltar a la nube robótica.
+      // Presupuesto: si la neurona ELIGIÓ local, esperamos a que el daemon responda
+      // de verdad (techo generoso, no espera fija: vuelve en cuanto sintetiza) en
+      // vez de cortar a los 30 s y saltar a la nube robótica. El CLI tarda ~ según
+      // la longitud del texto (y en frío suma la recarga del modelo).
       let budget: number;
       if (slowMode) budget = LOCAL_PROBE_TIMEOUT_MS;
-      else if (preferLocal && hs.warm === false) budget = COLD_LOCAL_TTS_TIMEOUT_MS;
+      else if (preferLocal) budget = LOCAL_PREFER_MAX_MS;
       else budget = LOCAL_TTS_TIMEOUT_MS;
       const local = await synthLocal(clean, omni, langName, opts.signal, budget).catch(
         () => ({ blob: null as Blob | null, timedOut: false }),
