@@ -44,6 +44,11 @@ import {
   OSS_TTS_VOICES,
   isKnownVoice,
 } from "@/lib/aurora/tts-oss/opt-in";
+import {
+  currentPreferredVoiceGender,
+  preferredVoiceGender,
+  type VoiceGenderPref,
+} from "@/lib/aurora/tts-oss/voice-config";
 
 // ── Voces recomendadas para español ──────────────────────────────────────────
 
@@ -53,9 +58,27 @@ import {
  */
 export const KOKORO_SPANISH_VOICES = OSS_TTS_VOICES.filter((v) => v.lang === "es");
 
-/** Voz española recomendada por defecto para Kokoro (`ef_dora` si existe). */
+/**
+ * Voces españolas FEMENINAS de Kokoro (`ef_dora`…). Las personalidades
+ * incluidas en StarSeed son femeninas por defecto (`preferredVoiceGender()`):
+ * cuando la preferencia es femenina, tanto el default como cualquier voz
+ * masculina guardada (`em_alex`/`em_santa`) se ignoran a favor de esta lista.
+ */
+export const KOKORO_SPANISH_FEMALE_VOICES = KOKORO_SPANISH_VOICES.filter((v) => v.gender === "f");
+
+/** Voz española MASCULINA por defecto (solo para preferencia "m" explícita). */
+const KOKORO_DEFAULT_SPANISH_MALE_VOICE: string =
+  KOKORO_SPANISH_VOICES.find((v) => v.gender === "m")?.id ?? DEFAULT_OSS_TTS_VOICE;
+
+/**
+ * Voz española recomendada por defecto para Kokoro — SIEMPRE FEMENINA
+ * (`ef_dora` si existe): se filtra `KOKORO_SPANISH_VOICES` por `gender==="f"`
+ * porque las personalidades incluidas son femeninas por defecto. Solo cae a
+ * cualquier voz española si el catálogo no tuviera ninguna femenina (Aurora
+ * sigue hablando antes que quedarse muda).
+ */
 export const KOKORO_DEFAULT_SPANISH_VOICE: string =
-  KOKORO_SPANISH_VOICES[0]?.id ?? DEFAULT_OSS_TTS_VOICE;
+  KOKORO_SPANISH_FEMALE_VOICES[0]?.id ?? KOKORO_SPANISH_VOICES[0]?.id ?? DEFAULT_OSS_TTS_VOICE;
 
 // ── Disponibilidad ───────────────────────────────────────────────────────────
 
@@ -118,6 +141,16 @@ export interface KokoroSpeakOptions {
   onEnd?: () => void;
   /** Se llama ante errores no fatales. */
   onError?: (message: string) => void;
+  /**
+   * Preferencia de género de la personalidad activa. FUERTE (Adenda voz-
+   * femenina): con "f" (el default — ver `currentPreferredVoiceGender()`),
+   * SIEMPRE se habla con una voz española femenina, ignorando `voice` si
+   * apunta a una masculina (`em_alex`/`em_santa`) guardada o pasada por
+   * error. Solo "m" explícito respeta una voz masculina. Si se omite, se
+   * resuelve SOLA con el preset de voz activo: ningún llamador necesita saber
+   * de género para que Kokoro suene femenino por defecto.
+   */
+  gender?: VoiceGenderPref;
 }
 
 /**
@@ -170,8 +203,24 @@ export async function kokoroSpeak(
     if (!ok) return fail("No se pudo preparar la voz Kokoro.");
   }
 
+  // GÉNERO FEMENINO — preferencia FUERTE (Adenda voz-femenina): con
+  // preferencia femenina (el default de toda personalidad incluida)
+  // IGNORAMOS cualquier voz masculina guardada o pasada por el llamador
+  // (`em_alex`/`em_santa`) y forzamos la española femenina — así ningún turno
+  // de Kokoro suena masculino aunque hubiera una voz masculina persistida de
+  // una sesión anterior. Con preferencia "m" explícita, se respeta la voz
+  // pedida (o la masculina por defecto si no se pidió ninguna).
+  const wantGender = opts.gender ? preferredVoiceGender(opts.gender) : currentPreferredVoiceGender();
+  const requestedVoice = opts.voice && isKnownVoice(opts.voice) ? opts.voice : undefined;
+  const requestedGender = requestedVoice
+    ? OSS_TTS_VOICES.find((v) => v.id === requestedVoice)?.gender
+    : undefined;
   const voice =
-    opts.voice && isKnownVoice(opts.voice) ? opts.voice : KOKORO_DEFAULT_SPANISH_VOICE;
+    wantGender === "f"
+      ? requestedVoice && requestedGender !== "m"
+        ? requestedVoice
+        : KOKORO_DEFAULT_SPANISH_VOICE
+      : requestedVoice ?? KOKORO_DEFAULT_SPANISH_MALE_VOICE;
 
   // Sintetiza (reutiliza el modelo cargado de oss-tts.ts).
   const raw = await generateOssRaw(clean, {

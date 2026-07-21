@@ -90,9 +90,12 @@
 
 import {
   getEngineSettings,
+  currentPreferredVoiceGender,
   type NeuralEngineSettings,
   type NeuralVoiceEngine,
+  type VoiceGenderPref,
 } from "@/lib/aurora/tts-oss/voice-config";
+import { listBrowserVoices, rankBrowserVoices } from "@/lib/aurora/tts-oss/browser-voices";
 import type { OpenVoice2SeedSpec, OpenVoiceEndpoint } from "@/lib/aurora/tts-oss/openvoice2";
 import type { OmniRouteDecision } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 import {
@@ -123,9 +126,14 @@ export const ENGINE_TIMEOUT_MS: Record<NeuralVoiceEngine, number> = {
   bark: 20_000,
   "gpt-sovits": 20_000,
   omnivoice: 20_000,
-  // OpenVoice V2 gestiona sus propios presupuestos dentro de su cliente (cola +
-  // cold start del Space); este valor es un techo nominal (no se usa: se delega).
-  openvoice2: 120_000,
+  // OpenVoice V2 gestiona su propio presupuesto POR INTENTO dentro de su
+  // cliente (cola + cold start del Space), pero sin techo TOTAL propagado
+  // podía encadenar varios endpoints/intentos y colgarse ~85 s en un Space
+  // roto antes de ceder el turno (fix voz-femenina, 2026-07-21). Ahora este
+  // valor SÍ se usa: es el presupuesto TOTAL del turno cuando el mensaje no
+  // se trocea (el caso más común — ver `neuralSpeak()`). ~30-35 s máximo para
+  // que la cadena caiga pronto a Kokoro (femenino) si el Space no responde.
+  openvoice2: 35_000,
 };
 
 /** TTL de la caché de disponibilidad (ping), en ms. */
@@ -1196,6 +1204,15 @@ export async function neuralSpeak(
         stopNeural(); // una voz a la vez (invalida troceos previos)
         return await neuralSpeakChunked(engine, chunks, opts);
       }
+    } else if (engine === "openvoice2") {
+      // TURNO CORTO SIN TROCEAR (fix cuelgue ~85 s, 2026-07-21): sin
+      // presupuesto TOTAL, el bucle multi-endpoint de OpenVoice2
+      // (synthesizeOpenVoice2) podía encadenar hasta 3 endpoints × 2 intentos
+      // × 60-120 s cada uno SIN techo — de ahí la espera larguísima en un
+      // Space roto antes de ceder el turno. Con ENGINE_TIMEOUT_MS.openvoice2
+      // como tope TOTAL (~35 s), un Space caído cede pronto y la cadena pasa
+      // a Kokoro (femenino) sin dejar al usuario esperando.
+      singleShotBudgetCapMs = ENGINE_TIMEOUT_MS.openvoice2;
     }
   }
 
@@ -1602,4 +1619,90 @@ export async function listVoiceboxProfiles(
       }
     })
     .catch(() => []);
+}
+
+// ── Selección de voz de NAVEGADOR consciente del GÉNERO (Adenda voz-femenina) ─
+//
+// `browser-voices.ts` rankea por calidad/idioma con una preferencia de género
+// SUAVE (informativa: suma puntos, no descarta nada — ver su cabecera). Esta
+// capa añade la preferencia FUERTE que pide `preferredVoiceGender()`
+// (voice-config.ts): cuando la personalidad activa es femenina (el caso por
+// defecto), NUNCA se elige una voz de sistema con nombre masculino conocido
+// si hay alguna alternativa. Construida SOLO con las utilidades YA
+// EXPORTADAS de browser-voices.ts (`listBrowserVoices`/`rankBrowserVoices`):
+// ese archivo no se toca.
+
+/** Nombres (minúsculas) que delatan una voz de sistema MASCULINA conocida. */
+const KNOWN_MALE_VOICE_NAMES = [
+  "male", "hombre", "masculino", "masculina",
+  "jorge", "diego", "carlos", "juan", "pablo", "enrique",
+];
+/** Nombres (minúsculas) que delatan una voz de sistema FEMENINA conocida. */
+const KNOWN_FEMALE_VOICE_NAMES = [
+  "female", "mujer", "femenina", "femenino",
+  "monica", "mónica", "paulina", "marisol", "helena", "laura",
+];
+
+function voiceNameLower(v: SpeechSynthesisVoice): string {
+  try {
+    return `${v.name || ""} ${v.voiceURI || ""}`.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+/** ¿El nombre de esta voz delata un género conocido? `null` = no se sabe. */
+function detectedVoiceGender(v: SpeechSynthesisVoice): VoiceGenderPref | null {
+  const n = voiceNameLower(v);
+  if (KNOWN_MALE_VOICE_NAMES.some((h) => n.includes(h))) return "m";
+  if (KNOWN_FEMALE_VOICE_NAMES.some((h) => n.includes(h))) return "f";
+  return null;
+}
+
+/**
+ * Elige la MEJOR voz de sistema (Web Speech API) para el género preferido.
+ * Reutiliza el ranking de calidad/idioma de `rankBrowserVoices()` (que ya
+ * prioriza `es-*` y nombres femeninos conocidos) y le SUMA un filtro FUERTE:
+ *   · `gender==="f"` (por defecto — ver `currentPreferredVoiceGender()`):
+ *     EXCLUYE cualquier voz con nombre masculino conocido (Jorge, Diego,
+ *     Carlos, Juan, Pablo, Enrique, male, hombre…) y devuelve la mejor
+ *     rankeada entre el resto. Si NINGUNA española es femenina, cae a
+ *     cualquier voz femenina/desconocida antes que a una explícitamente
+ *     masculina; solo si TODAS las voces del dispositivo delatan nombre
+ *     masculino se devuelve la mejor de todas formas — mejor hablar "con la
+ *     voz equivocada" que quedarse muda (regla de oro del proyecto).
+ *   · `gender==="m"`: el ranking normal ya sirve (su sesgo es suave, nunca
+ *     penaliza una voz masculina).
+ * La voz FIJADA por el usuario (`configuredURI`) siempre se respeta tal cual
+ * si existe en este dispositivo (mismo contrato que `resolveBrowserVoice`).
+ * Nunca lanza; `null` = que decida el navegador.
+ */
+export function pickGenderAwareBrowserVoice(
+  configuredURI: string | undefined,
+  preferLang: string = "es",
+  voices?: SpeechSynthesisVoice[],
+  gender?: VoiceGenderPref,
+): SpeechSynthesisVoice | null {
+  try {
+    const list = voices ?? listBrowserVoices();
+    if (!list.length) return null;
+
+    // Elección EXPLÍCITA del usuario: se respeta tal cual (mismo contrato que
+    // `resolveBrowserVoice`) — un gesto deliberado nunca se pisa en silencio.
+    if (configuredURI) {
+      const exact = list.find((v) => v.voiceURI === configuredURI);
+      if (exact) return exact;
+    }
+
+    const ranked = rankBrowserVoices(list, preferLang);
+    if (!ranked.length) return null;
+
+    const wantGender = gender ?? currentPreferredVoiceGender();
+    if (wantGender === "m") return ranked[0].voice;
+
+    const noMale = ranked.filter((r) => detectedVoiceGender(r.voice) !== "m");
+    return (noMale[0] ?? ranked[0]).voice;
+  } catch {
+    return null;
+  }
 }

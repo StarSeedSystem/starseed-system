@@ -51,6 +51,7 @@ import {
 } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
 import {
   DEFAULT_ASTRAURA_VOICE,
+  preferredOmniGender,
   type AstrauraDesignAttributes,
   type AstrauraVoiceConfig,
 } from "@/lib/aurora/tts-oss/voice-config";
@@ -687,7 +688,17 @@ async function designSeedBlob(
     const cfg: AstrauraVoiceConfig = {
       ...DEFAULT_ASTRAURA_VOICE,
       generation_mode: "voice_design",
-      voice_design_attributes: spec.attrs,
+      voice_design_attributes: {
+        ...spec.attrs,
+        // GÉNERO FEMENINO — preferencia FUERTE (Adenda voz-femenina): las
+        // personalidades incluidas en StarSeed son femeninas por defecto.
+        // `preferredOmniGender()` respeta un diseño EXPLÍCITAMENTE masculino
+        // ("Male / 男") y fuerza "Female / 女" para cualquier otra cosa
+        // ("Auto", ya-femenino, o cualquier valor inesperado) — así ninguna
+        // semilla de identidad (insignia o de personalidad custom) sale
+        // masculina por descuido.
+        gender: preferredOmniGender(spec.attrs.gender),
+      },
       instruct: spec.instruct,
     };
     const langName = mapLangToSpace(spec.lang);

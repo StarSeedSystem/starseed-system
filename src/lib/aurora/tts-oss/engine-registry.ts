@@ -971,16 +971,20 @@ export async function testVoice(
     }
 
     // browser — la Web Speech API con la mejor voz rankeada + modulación viva.
+    // `pickGenderAwareBrowserVoice` (neural-tts.ts) añade el filtro FUERTE de
+    // género sobre el ranking de `browser-voices.ts` (Adenda voz-femenina):
+    // con la personalidad activa femenina (el default), nunca elige una voz
+    // de sistema con nombre masculino conocido si hay alternativa.
     const synth = window.speechSynthesis;
     if (!synth) return fail("Este navegador no tiene síntesis de voz.");
-    const [{ resolveBrowserVoice }, { resolveVoiceParams }] = await Promise.all([
-      import("@/lib/aurora/tts-oss/browser-voices"),
+    const [{ pickGenderAwareBrowserVoice }, { resolveVoiceParams }] = await Promise.all([
+      import("@/lib/aurora/tts-oss/neural-tts"),
       import("@/lib/aurora/tts-oss/voice-style"),
     ]);
     const cfg = getVoiceConfig();
     const params = resolveVoiceParams();
     const utter = new SpeechSynthesisUtterance(phrase);
-    const voice = resolveBrowserVoice(cfg.browserVoiceURI);
+    const voice = pickGenderAwareBrowserVoice(cfg.browserVoiceURI);
     if (voice) utter.voice = voice;
     utter.rate = params.rate;
     utter.pitch = params.pitch;

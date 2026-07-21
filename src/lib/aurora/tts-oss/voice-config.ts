@@ -322,8 +322,10 @@ export const DEFAULT_VOICE_STYLE: AuroraVoiceStyle = {
  *     VoxCPM2 (crea la voz sin audio de referencia: `(descripción)Texto`).
  *   · `instruct`    → instrucción de ENTREGA para motores que la entienden
  *     (Voicebox/Qwen3-TTS: "habla despacio, con calidez").
- *   · `gender`      → preferencia de género (sesga el ranking de voces del
- *     navegador y la voz sugerida de Kokoro). Informativo, nunca un filtro duro.
+ *   · `gender`      → preferencia de género. FUERTE (no solo informativa): la
+ *     resuelve `preferredVoiceGender()`/`currentPreferredVoiceGender()` y la
+ *     usan kokoro.ts/neural-tts.ts/openvoice2.ts para EXCLUIR voces del
+ *     género contrario, no solo para sesgar un ranking.
  * Los tres son opcionales y ADITIVOS: un motor que no los soporte los ignora.
  */
 export interface AuroraVoicePreset {
@@ -335,7 +337,11 @@ export interface AuroraVoicePreset {
   voiceDesign?: string;
   /** Instrucción de entrega en lenguaje natural (Voicebox/Qwen · guía VoxCPM). */
   instruct?: string;
-  /** Preferencia suave de género para el ranking de voces. */
+  /**
+   * Preferencia de género para elegir voz. FUERTE: ausente/"neutra" resuelve
+   * a femenino (las personalidades incluidas en StarSeed son femeninas por
+   * defecto — ver `preferredVoiceGender()`); solo "m" fuerza voz masculina.
+   */
   gender?: "f" | "m" | "neutra";
 }
 
@@ -374,7 +380,7 @@ export const VOICE_PRESETS: readonly AuroraVoicePreset[] = [
     style: { emotion: "serena", tone: "clara", rate: 1, pitch: 1, energy: 46 },
     voiceDesign: "Voz clara y nítida, calmada y bien articulada, tono informativo",
     instruct: "Habla con calma y claridad, articulando bien",
-    gender: "neutra",
+    gender: "f",
   },
   {
     id: "aurora-vivaz",
@@ -392,7 +398,7 @@ export const VOICE_PRESETS: readonly AuroraVoicePreset[] = [
     style: { emotion: "seria", tone: "profesional", rate: 0.98, pitch: 0.94, energy: 52 },
     voiceDesign: "Voz adulta formal y precisa, con autoridad tranquila y sin dramatismo",
     instruct: "Habla de forma seria, precisa y profesional",
-    gender: "neutra",
+    gender: "f",
   },
   {
     id: "aurora-narradora",
@@ -419,7 +425,7 @@ export const VOICE_PRESETS: readonly AuroraVoicePreset[] = [
     style: { emotion: "misteriosa", tone: "misteriosa", rate: 0.9, pitch: 0.88, energy: 38 },
     voiceDesign: "Voz grave e intrigante, casi susurrada, con aire enigmático",
     instruct: "Habla bajo y grave, con misterio, casi susurrando",
-    gender: "neutra",
+    gender: "f",
   },
   {
     id: "aurora-juguetona",
@@ -453,9 +459,44 @@ export const VOICE_PRESETS: readonly AuroraVoicePreset[] = [
     label: "Neutra",
     hint: "Sin modulación emocional",
     style: {},
-    gender: "neutra",
+    gender: "f",
   },
 ];
+
+// ── Preferencia de género de voz — FUERTE (Adenda voz-femenina) ─────────────
+
+/** Preferencia de voz resuelta: femenina o masculina (nunca "neutra"). */
+export type VoiceGenderPref = "f" | "m";
+
+/**
+ * Resuelve CUALQUIER señal de género — preset (`"f"|"m"|"neutra"`), literal
+ * OmniGender (`"Male / 男"|"Female / 女"|"Auto"`), `PersonalityProfile.generoVoz`
+ * (`"masculina"|"femenina"|"neutra"`) o cualquier otro valor/string — a la
+ * preferencia de voz EFECTIVA. Es FUERTE, no informativa (a diferencia del
+ * viejo uso de `AuroraVoicePreset.gender`, que solo sesgaba un ranking): las
+ * personalidades incluidas en StarSeed son FEMENINAS por defecto, así que
+ * CUALQUIER motor de respaldo (Kokoro, navegador, OpenVoice2…) debe elegir
+ * voz femenina salvo que la señal declare EXPLÍCITAMENTE masculino. Cualquier
+ * otra cosa — undefined, "neutra", "Auto", texto desconocido — resuelve a
+ * femenino. Nunca lanza. PURA (sin red, sin storage): la reutilizan
+ * kokoro.ts, neural-tts.ts y openvoice2.ts para no duplicar la regla.
+ */
+export function preferredVoiceGender(explicit?: unknown): VoiceGenderPref {
+  const v = typeof explicit === "string" ? explicit.trim().toLowerCase() : "";
+  const isExplicitlyMale =
+    v === "m" ||
+    v === "male" ||
+    v === "masculino" ||
+    v === "masculina" ||
+    v.startsWith("male /") ||
+    v.startsWith("male/");
+  return isExplicitlyMale ? "m" : "f";
+}
+
+/** `preferredVoiceGender()` expresada como literal OmniGender (diseño de voz). */
+export function preferredOmniGender(explicit?: unknown): "Male / 男" | "Female / 女" {
+  return preferredVoiceGender(explicit) === "m" ? "Male / 男" : "Female / 女";
+}
 
 /**
  * Config por defecto: navegador + estilo ORGÁNICO (cálido/sereno), sin
@@ -1403,6 +1444,22 @@ export function getActiveVoicePreset(): AuroraVoicePreset | undefined {
     return VOICE_PRESETS.find((p) => p.id === id);
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Género de voz preferido AHORA MISMO (preset de voz activo + la regla
+ * FUERTE femenina-por-defecto de `preferredVoiceGender()`). Cero argumentos a
+ * propósito: los motores de respaldo (kokoro.ts, neural-tts.ts) lo llaman sin
+ * depender de que quien los invoque sepa nada de género — así Aurora suena
+ * femenina por defecto en cualquier motor sin tocar el código que orquesta la
+ * cadena de voz. Nunca lanza.
+ */
+export function currentPreferredVoiceGender(): VoiceGenderPref {
+  try {
+    return preferredVoiceGender(getActiveVoicePreset()?.gender);
+  } catch {
+    return "f";
   }
 }
 

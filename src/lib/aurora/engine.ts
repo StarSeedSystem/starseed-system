@@ -66,7 +66,10 @@ import type { AuroraUndoInfo } from "@/lib/aurora/undo";
 // SSR-safe: importarlos no carga nada pesado.
 import { resolveBrowserVoice } from "@/lib/aurora/tts-oss/browser-voices";
 import { resolveVoiceParams } from "@/lib/aurora/tts-oss/voice-style";
-import { getVoiceConfig as getUnifiedVoiceConfig } from "@/lib/aurora/tts-oss/voice-config";
+import {
+  getVoiceConfig as getUnifiedVoiceConfig,
+  currentPreferredVoiceGender,
+} from "@/lib/aurora/tts-oss/voice-config";
 
 type Voice = { name: string; lang: string; voiceURI: string; default?: boolean };
 
@@ -594,13 +597,47 @@ export function useAuroraEngine(): AuroraEngine {
       try {
         ranked = resolveBrowserVoice(getUnifiedVoiceConfig().browserVoiceURI, all, u.lang || "es");
       } catch { ranked = null; }
-      const v = (p.voice?.voiceURI && all.find((x) => x.voiceURI === p.voice.voiceURI))
-        || ranked
-        || all.find((x) => /m[oó]nica/i.test(x.name) && /es[-_]MX/i.test(x.lang))
-        || all.find((x) => /es[-_]MX/i.test(x.lang))
-        || all.find((x) => x.lang === u.lang)
-        || all.find((x) => (x.lang || "").toLowerCase().startsWith("es"))
-        || null;
+      // GÉNERO FEMENINO — preferencia FUERTE (Adenda voz-femenina, 2026-07-21):
+      // las personalidades incluidas en StarSeed son femeninas por defecto
+      // (`currentPreferredVoiceGender()`, voice-config.ts). Con esa
+      // preferencia recorremos la MISMA cadena histórica pero EXCLUYENDO en
+      // cada eslabón los nombres masculinos conocidos (Jorge, Diego, Carlos,
+      // Juan, Pablo, Enrique); si tras excluirlos no queda ninguna voz,
+      // repetimos la cadena SIN excluir — mejor "voz equivocada" que dejar a
+      // Aurora muda. Con preferencia "m" explícita la cadena es EXACTAMENTE
+      // la histórica (comportamiento intacto). Nunca lanza: cualquier fallo
+      // cae a la cadena de siempre.
+      const isKnownMaleVoiceName = (x: unknown): boolean => {
+        try {
+          const name = (x as { name?: unknown } | null | undefined)?.name;
+          return typeof name === "string" && /\b(jorge|diego|carlos|juan|pablo|enrique)\b/i.test(name);
+        } catch {
+          return false;
+        }
+      };
+      const pinnedVoice: SpeechSynthesisVoice | undefined = p.voice?.voiceURI
+        ? all.find((x) => x.voiceURI === p.voice.voiceURI)
+        : undefined;
+      const buildVoiceChain = (excludeMale: boolean): SpeechSynthesisVoice | null => {
+        const ok = (x: SpeechSynthesisVoice | null | undefined): x is SpeechSynthesisVoice =>
+          !!x && (!excludeMale || !isKnownMaleVoiceName(x));
+        return (
+          (ok(pinnedVoice) ? pinnedVoice : null)
+          || (ok(ranked) ? ranked : null)
+          || all.find((x) => ok(x) && /m[oó]nica/i.test(x.name) && /es[-_]MX/i.test(x.lang))
+          || all.find((x) => ok(x) && /es[-_]MX/i.test(x.lang))
+          || all.find((x) => ok(x) && x.lang === u.lang)
+          || all.find((x) => ok(x) && (x.lang || "").toLowerCase().startsWith("es"))
+          || null
+        );
+      };
+      let wantFemale = true;
+      try {
+        wantFemale = currentPreferredVoiceGender() !== "m";
+      } catch {
+        wantFemale = true;
+      }
+      const v = wantFemale ? (buildVoiceChain(true) || buildVoiceChain(false)) : buildVoiceChain(false);
       if (v) u.voice = v;
       u.onstart = () => {
         setSpeaking(true); setPaused(false); emitAuroraSpeak("start");
